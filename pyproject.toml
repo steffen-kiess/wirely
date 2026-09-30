@@ -18,6 +18,10 @@ dependencies = [
     "sdnotify",
 ]
 
+[project.urls]
+Repository = "https://github.com/steffen-kiess/wirely"
+Issues = "https://github.com/steffen-kiess/wirely/issues"
+
 [project.optional-dependencies]
 knx = ["xknx>=3.0,<4"]
 mqtt = ["aiomqtt>=2.3,<3"]
