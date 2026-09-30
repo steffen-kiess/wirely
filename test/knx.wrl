@@ -1,0 +1,81 @@
+
+
+// TODO: Don't depend on the ordering of Bus / Light
+node Bus : KNX.Connection(UnixPath="/run/knxnet");
+
+
+node Receiver : KNX.ValueReceiver(GroupAddress = "0/4/5", Type = boolean);
+
+// TODO: Allow this line to be above the declaration for Bus and Receiver and add tests for that
+connect Bus -> Receiver.Bus;
+
+node ReceiverPrnt : Std.DebugPrinter(type = Option[boolean]);
+connect Receiver -> ReceiverPrnt;
+
+node ReceiverValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);
+connect Receiver -> ReceiverValue;
+node ReceiverValue2 : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = true);
+connect Receiver -> ReceiverValue2;
+
+
+node ProviderInput : Std.DebugInput(type = boolean);
+
+node Provider : KNX.ValueProvider(GroupAddress = "0/6/7", Type = boolean);
+connect Bus -> Provider.Bus;
+connect ProviderInput -> Provider;
+
+
+
+node JraStatus : KNX.ValueReceiver(GroupAddress = "0/7/10", Type = uint16);
+connect Bus -> JraStatus.Bus;
+
+node Status : ABB.JRA.InterpretStatusInformationOption;
+connect JraStatus -> Status;
+
+node JraStatusNonOption : Std.OptionUnwrapOrDefault(InnerType = uint16, Default = 0);
+connect JraStatus -> JraStatusNonOption;
+
+node StatusNonOption : ABB.JRA.InterpretStatusInformation;
+connect JraStatusNonOption -> StatusNonOption;
+
+node StatusProvider : KNX.ValueOptionProvider(GroupAddress = "0/7/11", Type = uint16);
+connect Bus -> StatusProvider.Bus;
+connect JraStatus -> StatusProvider;
+
+node StatusProviderNonOption : KNX.ValueProvider(GroupAddress = "0/7/12", Type = uint16);
+connect Bus -> StatusProviderNonOption.Bus;
+connect JraStatusNonOption -> StatusProviderNonOption;
+
+node MotionProvider : KNX.ValueOptionProvider(GroupAddress = "0/7/13", Type = boolean);
+connect Bus -> MotionProvider.Bus;
+connect Status.DriveInMotion -> MotionProvider;
+
+node MotionProviderNonOption : KNX.ValueProvider(GroupAddress = "0/7/14", Type = boolean);
+connect Bus -> MotionProviderNonOption.Bus;
+connect StatusNonOption.DriveInMotion -> MotionProviderNonOption;
+
+
+node EventEmitterInput : Std.DebugEventSource(type = boolean);
+
+node EventEmitter : KNX.EventEmitter(GroupAddress = "0/3/1", Type = boolean);
+connect Bus -> EventEmitter.Bus;
+connect EventEmitterInput -> EventEmitter;
+
+node IntEventEmitterInput : Std.DebugEventSource(type = int16);
+
+node IntEventEmitter : KNX.EventEmitter(GroupAddress = "0/3/2", Type = int16);
+connect Bus -> IntEventEmitter.Bus;
+connect IntEventEmitterInput -> IntEventEmitter;
+
+
+node EventReceiver : KNX.EventReceiver(GroupAddress = "0/3/3", Type = boolean);
+connect Bus -> EventReceiver.Bus;
+
+node EventReceiverPrnt : Std.DebugEventPrinter(type = boolean);
+connect EventReceiver -> EventReceiverPrnt;
+
+node IntEventReceiver : KNX.EventReceiver(GroupAddress = "0/3/4", Type = int32);
+connect Bus -> IntEventReceiver.Bus;
+
+node IntEventReceiverPrnt : Std.DebugEventPrinter(type = int32);
+connect IntEventReceiver -> IntEventReceiverPrnt;

@@ -1,0 +1,25 @@
+node inp0 : Std.DebugInput(type = boolean);
+node inp1 : Std.DebugInput(type = boolean);
+node inp2 : Std.DebugInput(type = boolean);
+node number_inp : Std.DebugInput(type = uint16);
+
+node val0 : Std.OptionNone(InnerType = boolean);
+node is_some0 : Std.OptionIsSome(InnerType = boolean);
+connect val0 -> is_some0;
+
+node val1 : Std.OptionSome(InnerType = boolean);
+connect inp0 -> val1;
+node is_some1 : Std.OptionIsSome(InnerType = boolean);
+connect val1 -> is_some1;
+
+node val2 : Std.OptionCreate(InnerType = boolean);
+connect inp1 -> val2.HasValue;
+connect inp2 -> val2.Value;
+node is_some2 : Std.OptionIsSome(InnerType = boolean);
+connect val2 -> is_some2;
+
+node val3 : Std.OptionCreate(InnerType = uint16);
+connect inp1 -> val3.HasValue;
+connect number_inp -> val3.Value;
+node is_some3 : Std.OptionIsSome(InnerType = uint16);
+connect val3 -> is_some3;

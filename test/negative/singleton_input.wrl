@@ -1,0 +1,3 @@
+singleton node type QWE {
+  input x1 : value boolean; // E: Singleton block cannot have inputs
+}

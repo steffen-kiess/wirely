@@ -1,0 +1,42 @@
+namespace Fixture {
+  namespace Deep {
+    namespace Level {
+      node type Empty {
+      }
+    }
+  }
+}
+
+node instance : Fixture.Deep.Level.Empty;
+
+namespace Fixture {
+  node type TopLevel {
+  }
+}
+
+namespace Fixture.Deep.Level {
+  node type AddedWithDottedName {
+  }
+}
+
+namespace Fixture.Inner {
+  node type First {
+  }
+}
+
+namespace Fixture {
+  namespace Inner {
+    node type Second {
+    }
+  }
+}
+
+namespace Empty {
+}
+namespace Empty {
+}
+
+node top_level : Fixture.TopLevel;
+node dotted : Fixture.Deep.Level.AddedWithDottedName;
+node first : Fixture.Inner.First;
+node second : Fixture.Inner.Second;

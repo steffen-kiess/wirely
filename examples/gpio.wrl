@@ -1,0 +1,4 @@
+node in : Std.DebugInput(type = boolean);
+
+node gpio : GPIO.Output(ChipDeviceFile = "/dev/gpiochip0", Name = "GPIO5", ActiveState = "Low", Bias = "PullUp");
+connect in -> gpio;

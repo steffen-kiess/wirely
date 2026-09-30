@@ -1,0 +1,4 @@
+node type Enclosing {
+  namespace Nested { // E: Attempt to put namespace into invalid context
+  }
+}

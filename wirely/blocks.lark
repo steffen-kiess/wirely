@@ -1,0 +1,126 @@
+file_input: declaration*
+
+declaration: "node" identifier ":" block_instantiation ";" -> declaration_block_instantiation
+           | "connect" reference_list "->" reference ";" -> declaration_connection
+           // TODO: Can this be done in a nicer way?
+           | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
+           | "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
+           | "state" identifier ":" value "=" value ";" -> declaration_state_variable
+           | "temporary" identifier ":" value ";" -> declaration_temporary_variable
+           | native_specifier "procedure" identifier stage_declaration depends_declaration produces_declaration ";" -> declaration_procedure
+           | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
+           | "implicit" block_connector_type ":" connector_specification ";" -> declaration_connector__create_implicit
+           | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
+           | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
+declaration_list: declaration* -> copy_list
+
+block_instantiation: reference                              -> block_instantiation
+                   | reference "(" block_parameter_list ")" -> block_instantiation
+
+stage_declaration: -> stage_declaration__create_default
+                 | "stage" "input" -> stage_declaration__create_input
+                 | "stage" "output" -> stage_declaration__create_output
+
+depends_declaration: -> depends_declaration
+                   | "depends" "on" _separated_empty{reference, ","} -> depends_declaration
+
+produces_declaration: -> produces_declaration
+                   | "produces" _separated_empty{reference, ","} -> produces_declaration
+
+block_parameter_list: _separated_empty{block_parameter, ","} -> copy_list
+
+block_parameter: identifier "=" value
+
+native_specifier: "native" -> native_specifier
+
+optional_specifier: "optional" -> optional_specifier
+
+block_type_specifier: native_specifier -> copy
+                    | "singleton" -> block_type_specifier__create_singleton
+block_type_specifier_list: block_type_specifier* -> copy_list
+
+connector_specification: list_specifier connection_kind value -> connector_specification_data
+                       // TODO: Make this more generic
+                       | list_specifier "knx_bus" -> connector_specification_knx_bus
+                       | list_specifier "mqtt_server" -> connector_specification_mqtt_server
+                       | list_specifier "two_n_device" -> connector_specification_two_n_device
+
+connection_kind: "value" -> connection_kind_specifier__create_value
+               | "event" -> connection_kind_specifier__create_event
+
+block_connector_type: "input" -> block_connector_type_specifier__create_input
+                    | "output" -> block_connector_type_specifier__create_output
+
+list_specifier: "list" -> list_specifier__create_list
+              | ()     -> list_specifier__create_nolist
+
+value: reference       -> copy
+     | int_number      -> copy
+     | float_number    -> copy
+     | string_constant -> copy
+     | value "[" value "]" -> bracket_operator
+     | value "(" value_list ")" -> function_call
+     | "[" value_list "]" -> list_literal
+
+value_list: _separated_empty{value, ","} -> copy_list
+
+reference: identifier ("." identifier)* -> reference__from_list
+         | "implicit" block_connector_type -> reference__create_implicit
+reference_list: _separated_empty{reference, ","} -> copy_list
+
+int_number: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
+float_number: FLOAT
+string_constant: STRING | RAW_STRING
+// Tokens
+
+// COMMENT: /\/\/[^\n]*/
+//        | /\/\*([^\*]|\*[^\/])*\*\//
+
+COMMENT: /\/\/[^\n]*/
+%ignore COMMENT
+
+// COMMENT_START, COMMENT_NEST, COMMENT_CONTENT and COMMENT_END are handled specially by the lexer
+COMMENT_START: "/*"
+// Similar to COMMENT_START, but allows mulitple slashes at the beginning
+COMMENT_NEST: /\/+\*/
+// A comment content consists of one or more of:
+// - something which is neither * nor /
+// - one or more * followed by something which is neither * nor /
+// - one or more / followed by something which is neither * nor /
+COMMENT_CONTENT: /([^\*\/]|\*+[^\*\/]|\/+[^\*\/])+/
+// Note: Multiple stars are considered part of the comment end
+COMMENT_END: /\*+\//
+
+// %ignore is needed to prevent these terminals from being dropped as unused
+%ignore COMMENT_START
+%ignore COMMENT_NEST
+%ignore COMMENT_CONTENT
+%ignore COMMENT_END
+
+// String: A quote, followed an arbitrary number of normal character (preceeded by an arbitrary number of backslashes) or quotes (preceeded by an odd number of backslashes), followed by a quote (preceeded by an even number of backslashes)
+// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
+STRING: /\"(\\*[^\"\\]|(\\\\)*\\\")*(\\\\)*\"/s
+// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw
+// TODO: Support raw strings with more than one #?
+RAW_STRING.2: /r\"[^\"]*\"|r#\"(\"*[^\"#]|#)*\"*\"#/s
+
+DEC_NUMBER: /[1-9]\d*l?/i
+HEX_NUMBER: /0x[\da-f]*l?/i
+OCT_NUMBER: /0o?[0-7]*l?/i
+%import common.FLOAT -> FLOAT
+
+%import common.CNAME
+// https://doc.rust-lang.org/reference/identifiers.html
+// https://doc.rust-lang.org/rust-by-example/compatibility/raw_identifiers.html
+// https://lark-parser.readthedocs.io/en/latest/tree_construction.html#pinning-rule-terminals-with
+!identifier: CNAME
+           | RAW_IDENTIFIER
+// TODO: Which keywords should be "weak" keywords?
+           | "type"
+           | "value"
+RAW_IDENTIFIER: "r#" CNAME
+
+%ignore /[\t \f\r\n]+/
+
+_separated_nonempty{x, sep}: x (sep x)*
+_separated_empty{x, sep}: (x (sep x)*)?

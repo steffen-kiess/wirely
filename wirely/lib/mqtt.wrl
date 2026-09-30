@@ -1,0 +1,66 @@
+namespace MQTT {
+native node type Server {
+  parameter URI : String;
+
+  implicit output : mqtt_server;
+}
+
+native node type ValueOptionProvider {
+  parameter Type : ValueType;
+  parameter Topic : String;
+  optional parameter Format : String;
+  optional parameter Template : String;
+
+  input Server : mqtt_server;
+
+  implicit input : value Option[Type];
+
+  native procedure set_value stage output depends on implicit input;
+}
+
+node type ValueProvider {
+  parameter Type : ValueType;
+  parameter Topic : String;
+  optional parameter Format : String;
+  optional parameter Template : String;
+
+  input Server : mqtt_server;
+
+  implicit input : value Type;
+
+  node CreateOption : Std.OptionSome(InnerType = Type);
+  connect implicit input -> CreateOption;
+
+  // Note: Format and Template will only be forwarded if they are set.
+  node Impl : ValueOptionProvider(Type = Type, Topic = Topic, Format = Format, Template = Template);
+  connect Server -> Impl.Server;
+  connect CreateOption -> Impl;
+}
+
+// TODO: Rename to EventProvider or EventSender?
+native node type EventEmitter {
+  parameter Type : ValueType;
+  parameter Topic : String;
+  optional parameter Format : String;
+  optional parameter Template : String;
+
+  input Server : mqtt_server;
+
+  implicit input : event Type;
+
+  native procedure send_value stage output depends on implicit input;
+}
+
+native node type EventReceiver {
+  parameter Type : ValueType;
+  parameter Topic : String;
+  optional parameter Format : String;
+  //TODO optional parameter Template : String;
+
+  input Server : mqtt_server;
+
+  implicit output : event Type;
+
+  native procedure get_value stage input produces implicit output;
+}
+}

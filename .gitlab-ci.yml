@@ -1,0 +1,37 @@
+stages:
+  - test
+
+test-debian-13:
+  stage: test
+  tags:
+    - docker
+  image: debian:13
+  script:
+    - >-
+      apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+      --no-install-recommends ca-certificates git python3 python3-venv
+      python3-dev build-essential pkg-config
+      knxd mosquitto
+    - tools/setup-venv
+    - tools/run-tests
+
+build-debian-13:
+  stage: test
+  tags:
+    - docker
+  image: debian:13
+  script:
+    - >-
+      apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+      --no-install-recommends ca-certificates git python3 python3-venv
+      python3-dev build-essential pkg-config
+    - tools/setup-venv
+    - venv/bin/python -m pip install build
+    - venv/bin/python -m build --outdir dist
+    - tools/build-pex
+    - (cd / && "$CI_PROJECT_DIR/build/wirely.pex" --help)
+  artifacts:
+    paths:
+      - dist/wirely-*.whl
+      - dist/wirely-*.tar.gz
+      - build/wirely.pex

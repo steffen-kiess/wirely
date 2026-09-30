@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+def find_unlisted_files(test_names, to_compile, negative_tests):
+    test_names = set(test_names)
+    to_compile = set(to_compile)
+    negative_tests = set(negative_tests)
+    unlisted = []
+
+    for example in Path('examples').rglob('*.wrl'):
+        if example.as_posix() not in to_compile:
+            unlisted.append(example.as_posix())
+
+    for test in Path('test').rglob('*.wrl'):
+        if test.with_suffix('.py').is_file():
+            name = test.relative_to('test').with_suffix('').as_posix()
+            if name not in test_names:
+                unlisted.append(test.as_posix())
+        elif test.as_posix() not in to_compile and test.as_posix() not in negative_tests:
+            unlisted.append(test.as_posix())
+
+    for test in Path('test').rglob('*.py'):
+        if not test.with_suffix('.wrl').is_file():
+            unlisted.append(test.as_posix())
+
+    return sorted(unlisted)
+
+
+def main():
+    argparse.ArgumentParser().parse_args()
+    repository_root = Path(__file__).resolve().parent.parent
+    venv_python = repository_root / 'venv' / 'bin' / 'python'
+    if venv_python.is_file():
+        python = str(venv_python)
+    else:
+        print('Warning: venv not found; run tools/setup-venv to install dependencies.',
+              file=sys.stderr)
+        python = sys.executable
+
+    os.chdir(repository_root)
+    result = subprocess.run([python, '-m', 'wirely.test'])
+
+    lists = subprocess.run(
+        [python, '-c',
+         'import json; from wirely.test import test_names, to_compile, negative_tests; '
+         'print(json.dumps([test_names, to_compile, negative_tests]))'],
+        check=True, capture_output=True, text=True)
+    test_names, to_compile, negative_tests = json.loads(lists.stdout)
+
+    unlisted = find_unlisted_files(test_names, to_compile, negative_tests)
+    if unlisted:
+        print('Unlisted test or example files:', file=sys.stderr)
+        for filename in unlisted:
+            print(f'  {filename}', file=sys.stderr)
+
+    return result.returncode or (1 if unlisted else 0)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

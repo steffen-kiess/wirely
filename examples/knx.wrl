@@ -1,0 +1,23 @@
+// Meeting-room lighting example: turn the lights on only when the room is
+// occupied and lighting is enabled.
+node Bus : KNX.Connection(UnixPath = "/run/knxnet");
+
+node Occupancy : KNX.ValueReceiver(GroupAddress = "0/0/1", Type = boolean);
+connect Bus -> Occupancy.Bus;
+
+node LightingEnabled : KNX.ValueReceiver(GroupAddress = "0/0/2", Type = boolean);
+connect Bus -> LightingEnabled.Bus;
+
+// Keep the lights off until both input values have been received.
+node OccupiedValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);
+connect Occupancy -> OccupiedValue;
+
+node EnabledValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);
+connect LightingEnabled -> EnabledValue;
+
+node LightsOn : Std.And;
+connect OccupiedValue, EnabledValue -> LightsOn;
+
+node Lights : KNX.ValueProvider(GroupAddress = "0/0/3", Type = boolean);
+connect Bus -> Lights.Bus;
+connect LightsOn -> Lights;

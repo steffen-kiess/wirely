@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+
+def main():
+    repository_root = Path(__file__).resolve().parent.parent
+    venv = repository_root / 'venv'
+    python = venv / 'bin' / 'python'
+
+    with (repository_root / 'pyproject.toml').open('rb') as file:
+        project = tomllib.load(file)['project']
+    dependencies = list(project['dependencies'])
+    self_reference = project['name'] + '['
+    for requirements in project['optional-dependencies'].values():
+        dependencies.extend(
+            requirement for requirement in requirements
+            if not requirement.startswith(self_reference)
+        )
+
+    subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True)
+    subprocess.run([str(python), '-m', 'pip', 'install',
+                    *dependencies],
+                   cwd=repository_root, check=True)
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,455 @@
+import asyncio
+import contextlib
+import dataclasses
+import typing
+
+import wirely as blocks
+from wirely.native import native_block_type, native_procedure
+
+native_block_types = {}
+
+
+@dataclasses.dataclass(frozen=True)
+class KnxData:
+    group_address_raw: int
+    value_type: blocks.Type
+    # TODO: Should this be here or should this be created later?
+    value_type_knx: str
+
+    @staticmethod
+    def create(*, parameter_values):
+        group_address_str = parameter_values['GroupAddress'].value
+        par_type = parameter_values['Type']
+
+        import xknx
+        group_address = xknx.telegram.GroupAddress(group_address_str)
+        group_address_raw = group_address.raw
+
+        if par_type == blocks.types.boolean:
+            value_type_knx = "binary"
+        elif par_type == blocks.types.int16:
+            value_type_knx = "2byte_signed"
+        elif par_type == blocks.types.uint16:
+            value_type_knx = "2byte_unsigned"
+        elif par_type == blocks.types.int32:
+            value_type_knx = "4byte_signed"
+        elif par_type == blocks.types.uint32:
+            value_type_knx = "4byte_unsigned"
+        else:
+            raise Exception(f'TODO: Unsupported type for KNX.ValueReceiver: {par_type}')
+
+        return KnxData(group_address_raw=group_address_raw, value_type=par_type, value_type_knx=value_type_knx)
+
+    @property
+    def group_address(self):
+        import xknx
+        return xknx.telegram.GroupAddress(self.group_address_raw)
+
+    def dump(self):
+        print(f'  Using group address: {self.group_address!r}', flush=True)
+        print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
+
+
+@native_block_type(native_block_types, has_state=True)
+class Connection(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context):
+        super().__init__(path, engine, static_block_context)
+
+        from wirely.knx.connection_config import create_connection_config
+        from wirely.knx.connection_adapter import create_xknx
+
+        print('Create KNX connection', flush=True)
+
+        parameter_values = static_block_context.parameter_values
+
+        def parameter(name):
+            value = parameter_values.get(name)
+            return None if value is None else value.value
+
+        self.connection_config = create_connection_config(
+            host=parameter('Host'),
+            protocol=parameter('Protocol'),
+            port=parameter('Port'),
+            unix_path=parameter('UnixPath'),
+            ssh_target=parameter('SSHTarget'),
+            individual_address=parameter('IndividualAddress'),
+        )
+        self.knx = create_xknx(self.connection_config)
+
+    # TODO: Do start() later, while everything is already running?
+    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+        await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
+
+        print('Connecting to KNX bus', flush=True)
+        await async_exit_stack.enter_async_context(self.knx)
+        print('Connecting to KNX bus done', flush=True)
+
+
+@native_block_type(native_block_types, has_state=True)
+class ValueReceiver(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context):
+        super().__init__(path, engine, static_block_context)
+        self.current_value = None
+
+        import xknx
+
+        print('Create KNX ValueReceiver', flush=True)
+
+        # TODO: Clean this up
+        proc = None
+        for p in self.block_or_singleton.block_procedures:
+            if p.name == 'get_value':
+                proc = p
+        if proc is None:
+            raise Exception('proc is None')
+        self.proc = proc
+
+        # TODO: Clean up
+        par_values = engine.program.instances[path].parameter_values
+        par_group_address = None
+        par_type = None
+        for par in par_values:
+            if par.name.id_str == 'GroupAddress':
+                par_group_address = par
+            if par.name.id_str == 'Type':
+                par_type = par
+        if par_group_address is None:
+            raise Exception('par_group_address is None')
+        if par_type is None:
+            raise Exception('par_type is None')
+        group_address = par_values[par_group_address].value
+        ty = par_values[par_type]
+        print(f'  Using group address: {group_address!r}', flush=True)
+        print(f'  Using type: {ty!r}', flush=True)
+
+        # TODO: Clean up
+        # TODO: Properly follow connections
+        bus_obj = path[-1].block_inputs_byname['Bus'].connected_source
+        print(f'  Using bus object: {bus_obj}', flush=True)
+        bus_block = bus_obj.block
+        # TODO: This is a hack
+        bus_path = (bus_block,)
+
+        self.native_bus = engine.native_states[bus_path]
+        print(f'  Using native bus object: {self.native_bus}', flush=True)
+
+        self.address = xknx.telegram.GroupAddress(group_address)
+
+        self.value_type = ty
+        if ty == blocks.types.boolean:
+            self.value_type_knx = "binary"
+        elif ty == blocks.types.uint16:
+            self.value_type_knx = "2byte_unsigned"
+        else:
+            raise Exception(f'TODO: Unsupported type for KNX.ValueReceiver: {ty}')
+
+        # TODO: Where does this get cleaned up?
+        if self.value_type_knx == "binary":
+            self.sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.update_callback)
+        else:
+            self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.update_callback)
+        self.native_bus.knx.devices.async_add(self.sensor)
+
+    # TODO: Make sure exceptions here are handled somehow?
+    def update_callback(self, device):
+        # print('update_callback()', flush=True)
+        if self.value_type_knx == "binary":
+            val = device.state
+        else:
+            val = device.sensor_value.value
+        # print(f'  got value: {val!r}', flush=True)
+        self.value_type.verify_value(val)
+
+        self.current_value = val
+
+        self.engine.trigger(self.block_path, self.proc)
+
+    @native_procedure
+    def get_value(self, *, context):
+        # TODO: Add checks whether everything is running?
+
+        var_output = context.static.targets['']
+
+        res = self.current_value
+
+        if res is None:
+            res_opt = None
+        else:
+            res_opt = (res,)
+        # print(f'get_value: {res_opt}')
+
+        context.results[var_output] = res_opt
+
+
+@native_block_type(native_block_types, has_state=True)
+class ValueOptionProvider(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context):
+        super().__init__(path, engine, static_block_context)
+
+        # TODO: Is this needed?
+        self.current_value = None
+
+        # Task is needed for sending out values
+        self.task = None
+        self.value_to_send = None
+        # Note: Use an event instead of a condition because setting an event does not require await
+        # self.condition_var = asyncio.Condition()
+        self.event = asyncio.Event()
+
+        import xknx
+
+        print('Create KNX ValueOptionProvider', flush=True)
+
+        # TODO: Clean up
+        par_values = engine.program.instances[path].parameter_values
+        par_group_address = None
+        par_type = None
+        for par in par_values:
+            if par.name.id_str == 'GroupAddress':
+                par_group_address = par
+            if par.name.id_str == 'Type':
+                par_type = par
+        if par_group_address is None:
+            raise Exception('par_group_address is None')
+        if par_type is None:
+            raise Exception('par_type is None')
+        group_address = par_values[par_group_address].value
+        ty = par_values[par_type]
+        print(f'  Using group address: {group_address!r}', flush=True)
+        print(f'  Using type: {ty!r}', flush=True)
+
+        # TODO: Clean up
+        bus_path, bus_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Bus'])
+        print(f'  Using bus object: {bus_path}', flush=True)
+
+        self.native_bus = engine.native_states[bus_path]
+        print(f'  Using native bus object: {self.native_bus}', flush=True)
+
+        self.address = xknx.telegram.GroupAddress(group_address)
+
+        self.value_type = ty
+        if ty == blocks.types.boolean:
+            self.value_type_knx = "binary"
+        elif ty == blocks.types.uint16:
+            self.value_type_knx = "2byte_unsigned"
+        else:
+            raise Exception(f'TODO: Unsupported type for KNX.ValueOptionProvider: {ty}')
+
+        # TODO: Where does this get cleaned up?
+        self.expose = xknx.devices.ExposeSensor(self.native_bus.knx, name="Expose", group_address=self.address, value_type=self.value_type_knx)
+        self.native_bus.knx.devices.async_add(self.expose)  # TODO: Is this needed?
+
+    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+        super().start_tasks(task_group, async_exit_stack)
+
+        if self.task is not None:
+            raise Exception('self.task is not None')
+
+        self.task = self.start_task(task_group, async_exit_stack, self.run_task())
+
+    @native_procedure
+    def set_value(self, *, context):
+        # TODO: Add checks whether everything is running?
+
+        var_input = context.static.sources['implicit input']
+
+        value_opt = context.dep_values[var_input]
+
+        if value_opt is None:
+            # TODO: Somehow reset the self.expose value in this case?
+            value = None
+        else:
+            value = value_opt[0]
+            # TODO: Any checks needed here?
+
+        print(f'Setting output {self.address} to {value}, old value_to_send is {self.value_to_send}', flush=True)
+
+        # This does not work because this function is not async
+        # Also this would have to handle None values
+        # await self.expose.set(value)
+        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+        # TODO: Provide some notification if this is happening?
+        self.value_to_send = value
+        self.event.set()
+
+    async def run_task(self):
+        while True:
+            while self.value_to_send is None:
+                # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
+                self.event.clear()
+                await self.event.wait()
+            value = self.value_to_send
+            self.value_to_send = None
+
+            print(f'Sending {value} to {self.address}', flush=True)
+            await self.expose.set(value)
+            print(f'Sending {value} to {self.address} done', flush=True)
+
+
+@native_block_type(native_block_types, has_state=True, data_type=KnxData)
+class EventReceiver(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context):
+        super().__init__(path, engine, static_block_context)
+
+        self.task = None
+        self.received_values = []
+
+        self.data = static_block_context.parsed_native_instance
+
+        print('Create KNX EventReceiver', flush=True)
+
+        import xknx
+
+        # TODO: Clean this up
+        proc = None
+        for p in self.block_or_singleton.block_procedures:
+            if p.name == 'get_value':
+                proc = p
+        if proc is None:
+            raise Exception('proc is None')
+        self.proc = proc
+
+        self.data.dump()
+
+        # TODO: Clean up
+        # TODO: Properly follow connections
+        bus_obj = path[-1].block_inputs_byname['Bus'].connected_source
+        print(f'  Using bus object: {bus_obj}', flush=True)
+        bus_block = bus_obj.block
+        # TODO: This is a hack
+        bus_path = (bus_block,)
+
+        self.native_bus = engine.native_states[bus_path]
+        print(f'  Using native bus object: {self.native_bus}', flush=True)
+
+        self.address = xknx.telegram.GroupAddress(self.data.group_address)
+
+        # TODO: Where does this get cleaned up?
+        # TODO: Use RemoteValue directly?
+        # TODO: Try to make sure that GroupValueResponses are ignored and only GroupValueWrites are used?
+        if self.data.value_type_knx == "binary":
+            self.sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.event_callback, sync_state=False, ignore_internal_state=True)
+        else:
+            self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.data.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
+        self.native_bus.knx.devices.async_add(self.sensor)
+
+    # TODO: Make sure exceptions here are handled somehow?
+    def event_callback(self, device):
+        # print('update_callback()', flush=True)
+        if self.data.value_type_knx == "binary":
+            val = device.state
+        else:
+            val = device.sensor_value.value
+        print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
+        value = self.data.value_type.verify_value(val)
+
+        self.received_values.append(value)
+        self.engine.trigger(self.block_path, self.proc)
+
+    @native_procedure
+    def get_value(self, *, context):
+        # TODO: Add checks whether everything is running?
+
+        var_output = context.static.targets['']
+
+        if len(self.received_values) == 0:
+            context.results[var_output] = None
+            return
+        value = self.received_values.pop(0)
+
+        res_opt = (value,)
+        # print(f'get_value: {res_opt}')
+
+        context.results[var_output] = res_opt
+
+        self.engine.trigger(self.block_path, self.proc)
+
+
+@native_block_type(native_block_types, has_state=True, data_type=KnxData)
+class EventEmitter(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context):
+        super().__init__(path, engine, static_block_context)
+
+        # Task is needed for sending out values
+        self.task = None
+        self.values_to_send = []
+        # Note: Use an event instead of a condition because setting an event does not require await
+        # self.condition_var = asyncio.Condition()
+        self.event = asyncio.Event()
+
+        import xknx
+
+        print('Create KNX ValueOptionProvider', flush=True)
+
+        self.data = static_block_context.parsed_native_instance
+
+        # TODO: Clean this up
+        proc = None
+        for p in self.block_or_singleton.block_procedures:
+            if p.name == 'send_value':
+                proc = p
+        if proc is None:
+            raise Exception('proc is None')
+        self.proc = proc
+
+        # TODO: Clean up
+        bus_path, bus_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Bus'])
+        self.data.dump()
+
+        self.native_bus = engine.native_states[bus_path]
+        print(f'  Using native bus object: {self.native_bus}', flush=True)
+
+        self.address = xknx.telegram.GroupAddress(self.data.group_address)
+
+        # TODO: Where does this get cleaned up?
+        # Use ExposeSensor instead of Sensor because Sensor does not support binary and BinarySensor does not support writing values
+        self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.data.value_type_knx)
+        self.native_bus.knx.devices.async_add(self.sensor)  # TODO: Is this needed?
+
+    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+        super().start_tasks(task_group, async_exit_stack)
+
+        if self.task is not None:
+            raise Exception('self.task is not None')
+
+        self.task = self.start_task(task_group, async_exit_stack, self.run_task())
+
+    @native_procedure
+    def send_value(self, *, context):
+        # TODO: Add checks whether everything is running?
+
+        data = context.static.block.parsed_native_instance
+
+        var_input = context.static.sources['implicit input']
+
+        value_opt = context.dep_values[var_input]
+
+        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+        if value_opt is None:
+            return
+        else:
+            value = value_opt[0]
+            # TODO: Any checks needed here?
+
+        print(f'Sending event {value} to {data.group_address}, old values_to_send is {self.values_to_send}', flush=True)
+
+        # Note: If sending is too slow, there might be multiple events queued up.
+        # TODO: Provide a notification in this case?
+        self.values_to_send.append(value)
+        self.event.set()
+
+        # This makes sure that the value is sent again if the input does not change
+        self.engine.trigger(self.block_path, self.proc)
+
+    async def run_task(self):
+        while True:
+            while len(self.values_to_send) == 0:
+                # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
+                self.event.clear()
+                await self.event.wait()
+            value = self.values_to_send.pop(0)
+
+            print(f'Sending {value} to {self.address}', flush=True)
+            # TODO: Call self.sensor.sensor_value.set(value) directly instead?
+            await self.sensor.set(value)
+            print(f'Sending {value} to {self.address} done', flush=True)

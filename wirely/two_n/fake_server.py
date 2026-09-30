@@ -1,0 +1,415 @@
+import ssl
+import base64
+import json
+import asyncio
+import contextlib
+import time
+import tempfile
+import datetime
+import math
+
+from . import cert
+
+import wirely.misc.service
+
+import OpenSSL
+
+import aiohttp
+import aiohttp.web
+
+
+class ServerInfo:
+    def __init__(self, server, sockname):
+        self.server = server
+        self.sockname = sockname
+
+        if len(sockname) != 2:
+            raise Exception('len(sockname) != 2')
+        self.host = sockname[0]
+        if self.host != '127.0.0.1':
+            raise Exception("self.host != '127.0.0.1'")
+        self.port = sockname[1]
+
+
+class Server:
+    def __init__(self):
+        # Create key pair
+        key = OpenSSL.crypto.PKey()
+        key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+
+        # Create self-signed cert
+        certificate = OpenSSL.crypto.X509()
+        # certificate.get_subject().CN = 'cn'
+        # certificate.set_serial_number(1000)
+        certificate.gmtime_adj_notBefore(0)
+        certificate.gmtime_adj_notAfter(10*365*24*60*60)
+        certificate.set_issuer(certificate.get_subject())
+        certificate.set_pubkey(key)
+        certificate.sign(key, 'sha256')
+
+        self.tls_cert = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, certificate)
+        self.tls_cert_asn1 = OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_ASN1, certificate)
+        self.tls_key = OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, key)
+        self.tlsa = cert.build_certificate_fingerprint(self.tls_cert_asn1)
+
+        self.app = aiohttp.web.Application()
+        self.app.add_routes([
+            aiohttp.web.get('/', self.hello),
+            aiohttp.web.get('/api/log/subscribe', self.api_log_subscribe),
+            aiohttp.web.post('/api/log/subscribe', self.api_log_subscribe),
+            aiohttp.web.get('/api/log/unsubscribe', self.api_log_unsubscribe),
+            aiohttp.web.post('/api/log/unsubscribe', self.api_log_unsubscribe),
+            aiohttp.web.get('/api/log/pull', self.api_log_pull),
+            aiohttp.web.post('/api/log/pull', self.api_log_pull),
+            aiohttp.web.get('/api/io/status', self.api_io_status),
+            aiohttp.web.get('/api/io/ctrl', self.api_io_ctrl),
+            aiohttp.web.post('/api/io/ctrl', self.api_io_ctrl),
+            aiohttp.web.get('/api/switch/status', self.api_switch_status),
+        ])
+
+        self.subscriptions = {}
+        self.next_subscription_id = 1
+
+        self.wait_event = asyncio.Event()
+
+        self.next_event_id = 1
+        self.startup_time = time.monotonic_ns()
+
+        self.next_session = 1
+
+        self.ports = {
+            'ext3.tamper': {
+                'type': 'input',
+                'state': 0,
+            },
+            'ext3.input1': {
+                'type': 'input',
+                'state': 0,
+            },
+            'ext3.relay1': {
+                'type': 'output',
+                'state': 0,
+            },
+            'led_secured': {
+                'type': 'output',
+                'state': 0,
+            },
+        }
+
+        self.switches = {
+            1: {
+                'active': False,
+            },
+            2: {
+                'active': False,
+            },
+        }
+
+    @contextlib.asynccontextmanager
+    async def run(self):
+        # aiohttp.web.run_app(self.app)
+
+        with tempfile.TemporaryDirectory(prefix='test_https.') as tmp:
+            crt_fn = tmp + '/crt.crt'
+            key_fn = tmp + '/key.key'
+            with open(crt_fn, "wb") as file:
+                file.write(self.tls_cert)
+            with open(key_fn, "wb") as file:
+                file.write(self.tls_key)
+
+            runner = aiohttp.web.AppRunner(self.app, handler_cancellation=True)
+            await runner.setup()
+            try:
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                # openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"
+                # ssl_context.load_cert_chain(certfile='/tmp/server.crt', keyfile='/tmp/server.key')
+                ssl_context.load_cert_chain(certfile=crt_fn, keyfile=key_fn)
+
+                site = aiohttp.web.TCPSite(runner, '127.0.0.1', 0, ssl_context=ssl_context)
+                await site.start()
+                sockets = site._server.sockets
+                if len(sockets) != 1:
+                    raise Exception('len(sockets) != 1')
+                sockname = sockets[0].getsockname()
+                info = ServerInfo(self, sockname)
+                yield info
+            finally:
+                await runner.cleanup()
+
+    async def run_and_wait(self):
+        try:
+            async with self.run() as info:
+                # print(info.host)
+                print(f'https://{info.host}:{info.port}/')
+                await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
+        except* wirely.misc.service.TerminateProgram:
+            # Print a newline to avoid leftover '^C' at beginning of line (because
+            # python will return with exit code 0)
+            print(flush=True)
+
+    async def hello(self, request):
+        return aiohttp.web.Response(text="Hello, world")
+
+    @staticmethod
+    async def get_params(request):
+        pars = request.query.copy()
+        post_data = await request.post()
+        for key, value in post_data.items():
+            pars.add(key, value)
+        return pars
+
+    async def api_log_subscribe(self, request):
+        params = await self.get_params(request)
+        par_filter = params.get('filter')
+        par_include = params.get('include')
+        print('api_log_subscribe', par_filter, par_include)
+        id = self.next_subscription_id
+        self.next_subscription_id += 1
+        reply = {
+            'success': True,
+            'result': {
+                'id': id,
+            },
+        }
+        self.subscriptions[id] = {
+            'pending': [],
+        }
+        print(f'Added {list(self.subscriptions)}')
+        # TODO: Prevent charset from being added to reply?
+        return aiohttp.web.json_response(data=reply)
+
+    async def api_log_unsubscribe(self, request):
+        params = await self.get_params(request)
+        par_id = int(params['id'])
+        print('api_log_unsubscribe', par_id)
+        print(f'Subscriptions {list(self.subscriptions)!r}')
+        # TODO: Check error messages
+        if par_id not in self.subscriptions:
+            reply = {
+                'success': False,
+                'error': {
+                    'code': 1,
+                    'description': 'Cannot find subscription ID',
+                },
+            }
+        else:
+            del self.subscriptions[par_id]
+            reply = {
+                'success': True,
+                'result': {
+                },
+            }
+        # TODO: Prevent charset from being added to reply?
+        return aiohttp.web.json_response(data=reply)
+
+    async def api_log_pull(self, request):
+        params = await self.get_params(request)
+        par_id = int(params['id'])
+
+        if 'timeout' in params:
+            # TODO: Should this be int or float?
+            par_timeout = float(params['timeout'])
+        else:
+            par_timeout = None
+        if par_timeout is None:
+            # TODO: Default value?
+            par_timeout = 60.0
+
+        print('api_log_pull', par_id, par_timeout)
+        print(f'Lookup {par_id!r} {list(self.subscriptions)}')
+        subscription = self.subscriptions[par_id]
+        remaining_timeout = par_timeout
+        while remaining_timeout > 0 and len(subscription['pending']) == 0:
+            # TODO: Filter events?
+            async with asyncio.timeout(remaining_timeout):
+                await self.wait_event.wait()
+
+                # TODO: Is this correct it there are multiple subscribers?
+                self.wait_event.clear()
+        events = []
+        if len(subscription['pending']) > 0:
+            events = subscription['pending']
+            subscription['pending'] = []
+        reply = {
+            'success': True,
+            'result': {
+                'events': events,
+            },
+        }
+        # TODO: Prevent charset from being added to reply?
+        return aiohttp.web.json_response(data=reply)
+
+    async def api_io_status(self, request):
+        params = await self.get_params(request)
+        par_port = params.get('port')
+
+        def format_data(key):
+            return {
+                'port': key,
+                'state': self.ports[key]['state'],
+            }
+
+        if par_port is None:
+            results = [format_data(key) for key in self.ports]
+        elif par_port in self.ports:
+            results = [format_data(par_port)]
+        else:
+            reply = {
+                'success': False,
+                'error': {
+                    'code': 12,
+                    'description': 'invalid parameter value',
+                    'param': 'port',
+                },
+            }
+            return aiohttp.web.json_response(data=reply)
+
+        reply = {
+            'success': True,
+            'result': {
+                'ports': results,
+            },
+        }
+        return aiohttp.web.json_response(data=reply)
+
+    async def api_switch_status(self, request):
+        params = await self.get_params(request)
+        par_switch = params.get('switch')
+        if par_switch is not None:
+            par_switch = int(par_switch)
+
+        def format_data(key):
+            return {
+                'switch': key,
+                'active': self.switches[key]['active'],
+            }
+
+        if par_switch is None:
+            results = [format_data(key) for key in self.switches]
+        elif par_switch in self.switches:
+            results = [format_data(par_switch)]
+        else:
+            reply = {
+                'success': False,
+                'error': {
+                    'code': 12,
+                    'description': 'invalid parameter value',
+                    'param': 'switch',
+                },
+            }
+            return aiohttp.web.json_response(data=reply)
+
+        reply = {
+            'success': True,
+            'result': {
+                'switches': results,
+            },
+        }
+        return aiohttp.web.json_response(data=reply)
+
+    async def api_io_ctrl(self, request):
+        params = await self.get_params(request)
+        par_port = params['port']
+        action = params['action']
+
+        if action == 'off':
+            new_value = False
+        elif action == 'on':
+            new_value = True
+        else:
+            raise Exception(f'Unknown action: {action_port}')
+
+        self.set_io_state(par_port, new_value)
+
+        reply = {
+            'success': True,
+            'result': {
+            },
+        }
+        return aiohttp.web.json_response(data=reply)
+
+    def emit_event_raw(self, event):
+        for subscription in self.subscriptions.values():
+            subscription['pending'].append(event)
+        print(f'Emitted for {len(self.subscriptions.values())} listeners: {event}', flush=True)
+        self.wait_event.set()
+
+    def emit_event(self, event_type, params):
+        event_id = self.next_event_id
+        self.next_event_id += 1
+
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        self.emit_event_raw({
+            'id': event_id,
+            # TODO: At least with firmware version 2.48 there also is a 'hash' entry:
+            # 'hash': 'e932039df9011c8f'
+            'tzShift': 60,
+            'utcTime': math.floor(now_utc.timestamp()),
+            'upTime': (time.monotonic_ns() - self.startup_time) // 1000000000,
+            'event': event_type,
+            'params': params,
+        })
+
+    def emit_key_press(self, key_name):
+        self.emit_event('KeyPressed', {
+            'key': key_name,
+        })
+
+    def emit_key_release(self, key_name):
+        self.emit_event('KeyReleased', {
+            'key': key_name,
+        })
+
+    def set_io_state(self, port_name, value):
+        if port_name not in self.ports:
+            raise Exception('port_name not in self.ports')
+        if type(value) != bool:
+            raise Exception('type(value) != bool')
+
+        port = self.ports[port_name]
+        port['state'] = int(value)
+        if port['type'] == 'input':
+            event_name = 'InputChanged'
+        elif port['type'] == 'output':
+            event_name = 'OutputChanged'
+        else:
+            raise Exception('Unknown port type')
+        self.emit_event(event_name, {
+            'port': port_name,
+            'state': value,
+        })
+
+    def set_switch_state(self, switch_number, value):
+        if switch_number not in self.switches:
+            raise Exception('switch_number not in self.switches')
+        if type(value) != bool:
+            raise Exception('type(value) != bool')
+
+        switch = self.switches[switch_number]
+        switch['active'] = value
+        self.emit_event('SwitchStateChanged', {
+            'switch': switch_number,
+            'state': value,
+        })
+
+    def emit_code_entered(self, code):
+        session = self.next_session
+        self.next_session += 1
+        self.emit_event('CodeEntered', {
+            'session': session,
+            'direction': 'in',
+            'code': code,
+            'input': 'keypad',
+            'valid': False,
+        })
+
+
+def main():
+    server = Server()
+    print(server.tlsa)
+    asyncio.run(server.run_and_wait())
+
+
+if __name__ == '__main__':
+    main()

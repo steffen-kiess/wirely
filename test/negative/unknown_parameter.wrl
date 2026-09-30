@@ -1,0 +1,1 @@
+node node1 : Std.DebugEventSource(missing_keyword = boolean); // E: Unknown parameter for DebugEventSource: missing_keyword

@@ -1,0 +1,93 @@
+// TODO: Should this only contain real-time-related blocks or also monotonic-time-related blocks?
+
+namespace Time {
+// Block which return false if the current time is before input, true if the current time is at or after input and None if the current time is not comparable to input.
+node type MonotonicTimeReached {
+  implicit input : value MonotonicTime;
+
+  implicit output : value Option[boolean];
+
+  native procedure run depends on implicit input produces implicit output;
+}
+
+// Delay changes until the input has be stable for at least time
+node type DelayChange {
+  parameter Type : ValueType;
+
+  // TODO: Probably should be renamed to Duration
+  parameter Time : Duration;
+
+  implicit input : value Type;
+
+  implicit output : value Type;
+
+  // The value which was last sent as output
+  state CurrentValue : Option[Type] = None;
+  // The value which was the last input
+  state NewValue : Option[Type] = None;
+  // The time when the output will change to NewValue if there are no further changes
+  state UpdateTime : MonotonicTime = MonotonicTime.Invalid;
+
+  node Reached : MonotonicTimeReached;
+  // TODO: Allow this?
+  // connect UpdateTime.old -> Reached;
+  temporary UpdateTimeOld : MonotonicTime;
+  native procedure read_update_time produces UpdateTimeOld;
+  connect UpdateTimeOld -> Reached;
+
+  native procedure run depends on implicit input, Reached produces implicit output, CurrentValue, NewValue, UpdateTime;
+}
+
+// Note: Should not be used directly if possible
+native singleton node type TimeOfDayMinute {
+  implicit output : value TimeOfDay;
+
+  // TODO: Should this be "stage input"? Should this use some global time?
+  native procedure get_value produces implicit output;
+}
+
+// TODO: Implement this in a way which does not cause code to be run every minute
+node type IsBetween {
+  // TODO: capitalization of parameters?
+  parameter start : TimeOfDay;
+  parameter end : TimeOfDay;
+
+  implicit output : value boolean;
+
+  node current_time : TimeOfDayMinute;
+
+  native procedure run depends on current_time produces implicit output;
+}
+
+// Creates an event whenever the current time changes from the range of 8 hours
+// before Time to the range 2 hours after Time, if since the last time it was
+// in the range 2 hours after Time the time was at lease once outside both
+// ranges.
+// 8/2 hours should be long enough to allow triggering even during DST changes
+// and make sure that it is triggered only once a day during DST changes.
+// TODO: Make ranges configurable? (In that case something needs to make sure that the don't overlap, and probably that they don't add up to 24h.)
+node type TriggerAt {
+  parameter Time : TimeOfDay;
+
+  // TODO: Should this be called Type/Value or OutputType/OutputValue?
+  // Defaults to unit
+  parameter Type : ValueType = unit;
+  // Defaults to ()
+  optional parameter Value : Type;
+
+  implicit output : event Type;
+
+  // Keeps track of the last state
+  // TODO: Introduce an enum for this?
+  // 0: Initial state / outside any range
+  // 1: In 'before' range, transition to 'after' range will trigger output
+  // 2: Has already triggered (or at least was in 'after' range), waiting for time outside any range
+  state State : uint8 = 0;
+
+  // Note: This relies on both blocks using the same time source, so that there is no cycle/step at the Time where both or neither are true.
+  node before : IsBetween(start = TimeOfDay_AddWrap(Time, "-08:00"), end = Time);
+  node after : IsBetween(start = Time, end = TimeOfDay_AddWrap(Time, "02:00"));
+
+  native procedure run depends on before, after produces implicit output, State;
+}
+}

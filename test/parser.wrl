@@ -1,0 +1,4 @@
+node r#node : Std.And;
+
+node r#my_output : Std.DebugPrinter(type = boolean);
+connect r#node -> r#my_output;

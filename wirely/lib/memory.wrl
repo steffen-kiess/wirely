@@ -1,0 +1,45 @@
+namespace Memory {
+// TODO: Add node type FlipFlop?
+
+// TODO: Move to another library (e.g. "FlipFlop")?
+// TODO: Name?
+// This will send a trigger value in order to change an external toggle
+// flip-flop to a certain value.
+node type ToggleFlipFlopTrigger {
+  implicit input : event boolean;
+
+  // Value which indicates the current value of the toggle flip-flop.
+  // While this is None input values will be ignored (because the flip-flop
+  // is assumed to be unavailable).
+  // TODO: Should this store the last command until the flip-flop gets available? Probably not.
+  input Feedback : value Option[boolean];
+
+  // TODO: Should this be called Type/Value or OutputType/OutputValue?
+  parameter OutputType : ValueType = unit;
+  // Defaults to ()
+  // TODO: Allow specifying the default value here
+  optional parameter OutputValue : OutputType;
+
+  implicit output : event OutputType;
+
+  // Minimum delay between two output events.
+  parameter MinimumDelay : Duration = "PT1S";
+
+  // Time when the next event is allowed.
+  // Invalid or non-comparable time means that the next event is allowed now.
+  // TODO: Should this be an Option[MonotonicTime]?
+  state NextEventAllowedAt : Option[MonotonicTime] = None;
+  // If this is not None, there is a pending change.
+  // TODO: Should this forget the new value if the monotonic time is lost?
+  state PendingEvent : Option[boolean] = None;
+
+  node NextEventAllowedAtReached : Time.MonotonicTimeReached;
+  // TODO: Allow this?
+  // connect NextEventAllowedAt.old -> NextEventAllowedAtReached;
+  temporary NextEventAllowedAtOld : MonotonicTime;
+  native procedure read_time produces NextEventAllowedAtOld;
+  connect NextEventAllowedAtOld -> NextEventAllowedAtReached;
+
+  native procedure update depends on implicit input, Feedback, NextEventAllowedAtOld, NextEventAllowedAtReached produces implicit output, NextEventAllowedAt, PendingEvent;
+}
+}

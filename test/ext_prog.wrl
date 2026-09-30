@@ -1,0 +1,3 @@
+node evsrc : Std.DebugEventSource(type = unit);
+node prog1 : ExtProg.LaunchOnEvent(ShellCommand = "echo foo");
+connect evsrc -> prog1;

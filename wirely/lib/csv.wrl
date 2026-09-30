@@ -1,0 +1,32 @@
+namespace CSV {
+// Writes lines with:
+// - Current date / time
+// - Old value (or null (unquoted empty string) on startup / when value was None)
+// - New value (or null (unquoted empty string) on shutdown / when value is None)
+// Will open file for appending.
+// Will periodically write lines (with old and new value the same) if there are no changes.
+// TODO: Write a header? Probably not.
+// TODO: Make restarts clear? Should already be clear because null is written on shutdown.
+native node type ValueWriter {
+  parameter Type : ValueType;
+  parameter Filename : String;
+  // TODO: Make repeat interval configurable? Allow disabling repeat?
+
+  implicit input : value Type;
+
+  // The next time at which the current value will be written out again even if it does not change.
+  // If this time is not comparable to the current time, the value will be written out again.
+  state RepeatTime : MonotonicTime = MonotonicTime.Invalid;
+
+  node RepeatTimeReached : Time.MonotonicTimeReached;
+  // TODO: Allow this?
+  // connect RepeatTime.old -> RepeatTimeReached;
+  temporary RepeatTimeOld : MonotonicTime;
+  native procedure read_update_time produces RepeatTimeOld;
+  connect RepeatTimeOld -> RepeatTimeReached;
+
+  native procedure run stage output depends on implicit input, RepeatTimeReached produces RepeatTime;
+}
+
+// TODO: Add EventWriter
+}

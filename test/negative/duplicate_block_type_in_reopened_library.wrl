@@ -1,0 +1,9 @@
+namespace Fixture {
+  node type Duplicate { // H: Previous block type was here
+  }
+}
+
+namespace Fixture {
+  node type Duplicate { // E: Duplicate block type Duplicate
+  }
+}
