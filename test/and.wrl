@@ -1,6 +1,6 @@
-node inp0 : Std.DebugInput(type = boolean);
-node inp1 : Std.DebugInput(type = boolean);
-node inp2 : Std.DebugInput(type = boolean);
+node inp0 : Std.DebugInput(Type = boolean);
+node inp1 : Std.DebugInput(Type = boolean);
+node inp2 : Std.DebugInput(Type = boolean);
 
 node and0 : Std.And;
 

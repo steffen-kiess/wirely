@@ -9,7 +9,7 @@ node Receiver : KNX.ValueReceiver(GroupAddress = "0/4/5", Type = boolean);
 // TODO: Allow this line to be above the declaration for Bus and Receiver and add tests for that
 connect Bus -> Receiver.Bus;
 
-node ReceiverPrnt : Std.DebugPrinter(type = Option[boolean]);
+node ReceiverPrnt : Std.DebugPrinter(Type = Option[boolean]);
 connect Receiver -> ReceiverPrnt;
 
 node ReceiverValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);
@@ -18,7 +18,7 @@ node ReceiverValue2 : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = t
 connect Receiver -> ReceiverValue2;
 
 
-node ProviderInput : Std.DebugInput(type = boolean);
+node ProviderInput : Std.DebugInput(Type = boolean);
 
 node Provider : KNX.ValueProvider(GroupAddress = "0/6/7", Type = boolean);
 connect Bus -> Provider.Bus;
@@ -55,13 +55,13 @@ connect Bus -> MotionProviderNonOption.Bus;
 connect StatusNonOption.DriveInMotion -> MotionProviderNonOption;
 
 
-node EventEmitterInput : Std.DebugEventSource(type = boolean);
+node EventEmitterInput : Std.DebugEventSource(Type = boolean);
 
 node EventEmitter : KNX.EventEmitter(GroupAddress = "0/3/1", Type = boolean);
 connect Bus -> EventEmitter.Bus;
 connect EventEmitterInput -> EventEmitter;
 
-node IntEventEmitterInput : Std.DebugEventSource(type = int16);
+node IntEventEmitterInput : Std.DebugEventSource(Type = int16);
 
 node IntEventEmitter : KNX.EventEmitter(GroupAddress = "0/3/2", Type = int16);
 connect Bus -> IntEventEmitter.Bus;
@@ -71,11 +71,11 @@ connect IntEventEmitterInput -> IntEventEmitter;
 node EventReceiver : KNX.EventReceiver(GroupAddress = "0/3/3", Type = boolean);
 connect Bus -> EventReceiver.Bus;
 
-node EventReceiverPrnt : Std.DebugEventPrinter(type = boolean);
+node EventReceiverPrnt : Std.DebugEventPrinter(Type = boolean);
 connect EventReceiver -> EventReceiverPrnt;
 
 node IntEventReceiver : KNX.EventReceiver(GroupAddress = "0/3/4", Type = int32);
 connect Bus -> IntEventReceiver.Bus;
 
-node IntEventReceiverPrnt : Std.DebugEventPrinter(type = int32);
+node IntEventReceiverPrnt : Std.DebugEventPrinter(Type = int32);
 connect IntEventReceiver -> IntEventReceiverPrnt;

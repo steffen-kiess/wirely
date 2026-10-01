@@ -35,7 +35,7 @@ connect device -> code_3.Device;
 
 node output_led : TwoN.OutputControl(Port = "led_secured");
 connect device -> output_led.Device;
-node output_debug : Std.DebugEventSource(type = boolean);
+node output_debug : Std.DebugEventSource(Type = boolean);
 connect output_debug -> output_led;
 
 node led_feedback : TwoN.IOState(Port = "led_secured");

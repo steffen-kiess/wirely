@@ -1,10 +1,10 @@
-node in : Std.DebugEventSource(type = boolean);
+node in : Std.DebugEventSource(Type = boolean);
 
-node fb : Std.DebugInput(type = Option[boolean]);
+node fb : Std.DebugInput(Type = Option[boolean]);
 
 node trigger : Memory.ToggleFlipFlopTrigger(OutputType = boolean, OutputValue = true, MinimumDelay = "PT1S");
 connect in -> trigger;
 connect fb -> trigger.Feedback;
 
-node prnt : Std.DebugEventPrinter(type = boolean);
+node prnt : Std.DebugEventPrinter(Type = boolean);
 connect trigger -> prnt;

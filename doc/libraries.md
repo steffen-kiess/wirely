@@ -2,7 +2,9 @@
 
 The compiler loads all ten libraries below by default. Instantiate a node
 as `node name : Library.Type(Parameter = value);`. Names and parameter
-capitalization matter. In the signatures below, `in` and `out` mean implicit
+capitalization matter. Public library namespaces, node and resource types,
+parameters, and named connectors use PascalCase, preserving acronyms such
+as `KNX` and `URI`. In the signatures below, `in` and `out` mean implicit
 connectors; named connectors are written explicitly. `value T` carries a
 current value, and `event T` carries an occurrence with a payload. A dash
 means no connector of that kind.
@@ -19,12 +21,12 @@ General data flow, optional values, edge detection, and debug nodes.
 | --- | --- | --- |
 | `Constant` | `Type: ValueType`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
 | `And` | None | In: `list value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
-| `Delay` | `type: ValueType`, `initialValue: type` | In/out: `value type`. Outputs the previous step's input, initially `initialValue`. |
-| `TwoStageValueForward` | `type: ValueType` | In/out: `value type`. Forwards through two native procedures. |
-| `DebugPrinter` | `type: ValueType` | In: `value type`. Prints changes in the output stage. |
-| `DebugEventPrinter` | `type: ValueType` | In: `event type`. Prints events in the output stage. |
-| `DebugInput` | `type: ValueType` | Out: `value type`. Debug-controlled value source. |
-| `DebugEventSource` | `type: ValueType` | Out: `event type`. Debug-controlled event source. |
+| `Delay` | `Type: ValueType`, `InitialValue: Type` | In/out: `value Type`. Outputs the previous step's input, initially `InitialValue`. |
+| `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Forwards through two native procedures. |
+| `DebugPrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
+| `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
+| `DebugInput` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
+| `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: ValueType` | Out: `value Option[InnerType]`. Produces `None`. |
 | `OptionSome` | `InnerType: ValueType` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |
 | `OptionUnwrapOrDefault` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
@@ -47,7 +49,7 @@ Time-based values and triggers. `TimeOfDay` parameters use strings such as
 | `MonotonicTimeReached` | None | In: `value MonotonicTime`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the times cannot be compared. |
 | `DelayChange` | `Type: ValueType`, `Time: Duration` | In/out: `value Type`. Changes the output only after the input has remained stable for `Time`. |
 | `TimeOfDayMinute` | None | Out: `value TimeOfDay`. Shared singleton that updates at minute boundaries; normally used through other Time nodes. |
-| `IsBetween` | `start: TimeOfDay`, `end: TimeOfDay` | Out: `value boolean`. Tests the interval from `start` (inclusive) to `end` (exclusive), including intervals that cross midnight. |
+| `IsBetween` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. Tests the interval from `Start` (inclusive) to `End` (exclusive), including intervals that cross midnight. |
 | `TriggerAt` | `Time: TimeOfDay`, `Type: ValueType = unit`, optional `Value: Type` | Out: `event Type`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `Value` when `Type` is not `unit`. |
 
 ## KNX

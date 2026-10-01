@@ -19,12 +19,12 @@ node type And {
 
 
 node type Delay {
-  parameter type : ValueType;
-  parameter initialValue : type;
-  implicit input : value type;
-  implicit output : value type;
+  parameter Type : ValueType;
+  parameter InitialValue : Type;
+  implicit input : value Type;
+  implicit output : value Type;
 
-  state value : type = initialValue;
+  state value : Type = InitialValue;
   native procedure copy_from_input depends on implicit input produces r#value;
   // TODO: Does this have to depend on the old value of the state variable?
   native procedure copy_to_output produces implicit output;
@@ -32,43 +32,43 @@ node type Delay {
 
 
 node type TwoStageValueForward {
-  parameter type : ValueType;
-  implicit input : value type;
-  implicit output : value type;
+  parameter Type : ValueType;
+  implicit input : value Type;
+  implicit output : value Type;
 
-  temporary temp : type;
+  temporary temp : Type;
   native procedure run1 depends on implicit input produces temp;
   native procedure run2 depends on temp produces implicit output;
 }
 
 
 node type DebugPrinter {
-  parameter type : ValueType;
-  implicit input : value type;
+  parameter Type : ValueType;
+  implicit input : value Type;
 
   native procedure run stage output depends on implicit input;
 }
 
 
 node type DebugEventPrinter {
-  parameter type : ValueType;
-  implicit input : event type;
+  parameter Type : ValueType;
+  implicit input : event Type;
 
   native procedure run stage output depends on implicit input;
 }
 
 
 native node type DebugInput {
-  parameter type : ValueType;
-  implicit output : value type;
+  parameter Type : ValueType;
+  implicit output : value Type;
 
   native procedure run stage input produces implicit output;
 }
 
 
 native node type DebugEventSource {
-  parameter type : ValueType;
-  implicit output : event type;
+  parameter Type : ValueType;
+  implicit output : event Type;
 
   native procedure run stage input produces implicit output;
 }

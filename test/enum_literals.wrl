@@ -9,7 +9,7 @@ node dry : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSyste
 node sleep : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Sleep);
 node present : Std.Constant(Type = Option[ThermostatSystemModeEnum], Value = Some(ThermostatSystemModeEnum.Heat));
 node modes : Std.Constant(Type = List[ThermostatSystemModeEnum], Value = [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]);
-node delay : Std.Delay(type = ThermostatSystemModeEnum, initialValue = ThermostatSystemModeEnum.Off);
+node delay : Std.Delay(Type = ThermostatSystemModeEnum, InitialValue = ThermostatSystemModeEnum.Off);
 connect heat -> delay;
 
 node type Settings {

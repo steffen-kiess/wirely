@@ -1,7 +1,7 @@
 // TODO: Don't depend on the ordering of Server / Provider
 node Server : MQTT.Server(URI="mqtt://localhost");
 
-node ProviderInput : Std.DebugInput(type = boolean);
+node ProviderInput : Std.DebugInput(Type = boolean);
 
 node Provider : MQTT.ValueProvider(Topic = "test/t1", Type = boolean);
 connect ProviderInput -> Provider;
@@ -10,7 +10,7 @@ connect ProviderInput -> Provider;
 connect Server -> Provider.Server;
 
 
-node TemplateProviderInput : Std.DebugInput(type = boolean);
+node TemplateProviderInput : Std.DebugInput(Type = boolean);
 
 node TemplateProvider : MQTT.ValueProvider(Topic = r"test/t1t", Type = boolean, Template = r#"{"value": %s, "other": "%s"}"#);
 connect TemplateProviderInput -> TemplateProvider;
@@ -18,7 +18,7 @@ connect TemplateProviderInput -> TemplateProvider;
 connect Server -> TemplateProvider.Server;
 
 
-node OptionProviderInput : Std.DebugInput(type = Option[boolean]);
+node OptionProviderInput : Std.DebugInput(Type = Option[boolean]);
 
 node OptionProvider : MQTT.ValueOptionProvider(Topic = "test/t2", Type = boolean);
 connect OptionProviderInput -> OptionProvider;
@@ -26,7 +26,7 @@ connect OptionProviderInput -> OptionProvider;
 connect Server -> OptionProvider.Server;
 
 
-node EventSource : Std.DebugEventSource(type = boolean);
+node EventSource : Std.DebugEventSource(Type = boolean);
 
 node EventEmitter : MQTT.EventEmitter(Topic = "test/t3", Type = boolean);
 connect EventSource -> EventEmitter;
@@ -34,7 +34,7 @@ connect EventSource -> EventEmitter;
 connect Server -> EventEmitter.Server;
 
 
-node StringEventSource : Std.DebugEventSource(type = String);
+node StringEventSource : Std.DebugEventSource(Type = String);
 
 node StringEventEmitter : MQTT.EventEmitter(Topic = "test/t4", Type = String);
 connect StringEventSource -> StringEventEmitter;
@@ -42,7 +42,7 @@ connect StringEventSource -> StringEventEmitter;
 connect Server -> StringEventEmitter.Server;
 
 
-node EnumEventSource : Std.DebugEventSource(type = ThermostatSystemModeEnum);
+node EnumEventSource : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
 
 node EnumEventEmitter : MQTT.EventEmitter(Topic = "test/t5", Type = ThermostatSystemModeEnum, Format = "SnakeCase");
 connect EnumEventSource -> EnumEventEmitter;
@@ -50,7 +50,7 @@ connect EnumEventSource -> EnumEventEmitter;
 connect Server -> EnumEventEmitter.Server;
 
 
-node TemplateEventSource : Std.DebugEventSource(type = ThermostatSystemModeEnum);
+node TemplateEventSource : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
 
 node TemplateEventEmitter : MQTT.EventEmitter(Topic = "test/t5", Type = ThermostatSystemModeEnum, Format = "SnakeCase", Template = "{\"value\": %s, \"other\": \"%s\"}");
 connect TemplateEventSource -> TemplateEventEmitter;
@@ -61,7 +61,7 @@ connect Server -> TemplateEventEmitter.Server;
 node EventReceiver : MQTT.EventReceiver(Topic = "test/t6", Type = boolean);
 connect Server -> EventReceiver.Server;
 
-node EventReceiverPrnt : Std.DebugEventPrinter(type = boolean);
+node EventReceiverPrnt : Std.DebugEventPrinter(Type = boolean);
 connect EventReceiver -> EventReceiverPrnt;
 
 
@@ -69,5 +69,5 @@ connect EventReceiver -> EventReceiverPrnt;
 node TemplateEventReceiver : MQTT.EventReceiver(Topic = "test/t7", Type = boolean);
 connect Server -> TemplateEventReceiver.Server;
 
-node TemplateEventReceiverPrnt : Std.DebugEventPrinter(type = boolean);
+node TemplateEventReceiverPrnt : Std.DebugEventPrinter(Type = boolean);
 connect TemplateEventReceiver -> TemplateEventReceiverPrnt;

@@ -1,13 +1,13 @@
-node inp : Std.DebugInput(type = boolean);
-node prnt0 : Std.DebugPrinter(type = boolean);
+node inp : Std.DebugInput(Type = boolean);
+node prnt0 : Std.DebugPrinter(Type = boolean);
 connect inp -> prnt0;
 
-node delay1 : Std.Delay(type = boolean, initialValue = false);
+node delay1 : Std.Delay(Type = boolean, InitialValue = false);
 connect inp -> delay1;
-node prnt1 : Std.DebugPrinter(type = boolean);
+node prnt1 : Std.DebugPrinter(Type = boolean);
 connect delay1 -> prnt1;
 
-node delay2 : Std.Delay(type = boolean, initialValue = false);
+node delay2 : Std.Delay(Type = boolean, InitialValue = false);
 connect delay1 -> delay2;
-node prnt2 : Std.DebugPrinter(type = boolean);
+node prnt2 : Std.DebugPrinter(Type = boolean);
 connect delay2 -> prnt2;

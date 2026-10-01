@@ -244,8 +244,8 @@ class IsBetweenData:
 
     @staticmethod
     def create(*, parameter_values):
-        par_start = parameter_values['start'].evaluate()
-        par_end = parameter_values['end'].evaluate()
+        par_start = parameter_values['Start'].evaluate()
+        par_end = parameter_values['End'].evaluate()
 
         return IsBetweenData(start=par_start, end=par_end)
 

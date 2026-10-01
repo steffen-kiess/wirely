@@ -58,7 +58,7 @@ Boolean literals are `true` and `false`:
 
 ```wrl
 node source : Std.Constant(Type = boolean, Value = true);
-node printer : Std.DebugPrinter(type = boolean);
+node printer : Std.DebugPrinter(Type = boolean);
 connect source -> printer;
 ```
 
@@ -178,8 +178,8 @@ member names. For example:
 ```wrl
 node mode : Std.Constant(Type = ThermostatSystemModeEnum,
                         Value = ThermostatSystemModeEnum.Heat);
-node modes : Std.DebugEventSource(type = ThermostatSystemModeEnum);
-node printer : Std.DebugEventPrinter(type = ThermostatSystemModeEnum);
+node modes : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
+node printer : Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
 connect modes -> printer;
 ```
 

@@ -126,7 +126,7 @@ def main():
         # TODO: Also handle nested blocks?
         if block.block_type.name.id_str == 'DebugInput':
             block_inst = prog.instances[(block,)]
-            ty = block_inst.static_context.parameter_values['type']
+            ty = block_inst.static_context.parameter_values['Type']
             native_inst = eng.native_states[(block,)]
             if ty == blocks.types.boolean:
                 native_inst.set_value(False)

@@ -19,7 +19,7 @@ node type MyBlock {
   output x4 : value boolean;
   parameter i : uint8;
 
-  node di : Std.DebugInput(type = boolean);
+  node di : Std.DebugInput(Type = boolean);
   //connect x1 -> x4;
   connect di -> x4;
 }
@@ -28,7 +28,7 @@ node type SingleDelay {
   implicit input : value boolean;
   implicit output : value boolean;
 
-  node d1 : Std.Delay(type = boolean, initialValue = false);
+  node d1 : Std.Delay(Type = boolean, InitialValue = false);
   connect implicit input -> d1;
   connect d1 -> implicit output;
 }
@@ -37,50 +37,50 @@ node type DoubleDelay {
   implicit input : value boolean;
   implicit output : value boolean;
 
-  node d1 : Std.Delay(type = boolean, initialValue = false);
-  node d2 : Std.Delay(type = boolean, initialValue = false);
+  node d1 : Std.Delay(Type = boolean, InitialValue = false);
+  node d2 : Std.Delay(Type = boolean, InitialValue = false);
   connect implicit input -> d1;
   connect d1 -> d2;
   connect d2 -> implicit output;
 }
 
-node inp1 : Std.DebugInput(type = boolean);
-node inp2 : Std.DebugInput(type = boolean);
+node inp1 : Std.DebugInput(Type = boolean);
+node inp2 : Std.DebugInput(Type = boolean);
 
-//node inp1_d : Std.Delay(type = boolean, initialValue = false);
+//node inp1_d : Std.Delay(Type = boolean, InitialValue = false);
 //node inp1_d : Std.DoubleDelay();
 //node inp1_d : Std.SingleDelay();
-node inp1_d : Std.Delay(type = boolean, initialValue = false);
+node inp1_d : Std.Delay(Type = boolean, InitialValue = false);
 connect inp1 -> inp1_d;
 
 // node inp1x_d : Std.Delay();
 // connect inp1 -> inp1x_d;
 
-node inp2_d : Std.TwoStageValueForward(type = boolean);
+node inp2_d : Std.TwoStageValueForward(Type = boolean);
 connect inp2 -> inp2_d;
 
 node res : Std.And;
 connect inp1_d, inp2_d -> res;
 
-node prnt : Std.DebugPrinter(type = boolean);
+node prnt : Std.DebugPrinter(Type = boolean);
 connect res -> prnt;
 
 node time_1 : Time.TimeOfDayMinute;
-node prnt_time_1 : Std.DebugPrinter(type = TimeOfDay);
+node prnt_time_1 : Std.DebugPrinter(Type = TimeOfDay);
 connect time_1 -> prnt_time_1;
 
 node time_2 : Time.TimeOfDayMinute;
-node prnt_time_2 : Std.DebugPrinter(type = TimeOfDay);
+node prnt_time_2 : Std.DebugPrinter(Type = TimeOfDay);
 connect time_2 -> prnt_time_2;
 
-node between_1 : Time.IsBetween(start = "10:33", end = "22:51");
-node prnt_between_1 : Std.DebugPrinter(type = boolean);
+node between_1 : Time.IsBetween(Start = "10:33", End = "22:51");
+node prnt_between_1 : Std.DebugPrinter(Type = boolean);
 connect between_1 -> prnt_between_1;
 
-node between_2 : Time.IsBetween(start = "22:52", end = "06:30");
-node prnt_between_2 : Std.DebugPrinter(type = boolean);
+node between_2 : Time.IsBetween(Start = "22:52", End = "06:30");
+node prnt_between_2 : Std.DebugPrinter(Type = boolean);
 connect between_2 -> prnt_between_2;
 
-node between_3 : Time.IsBetween(start = "23:50", end = "22:53");
-node prnt_between_3 : Std.DebugPrinter(type = boolean);
+node between_3 : Time.IsBetween(Start = "23:50", End = "22:53");
+node prnt_between_3 : Std.DebugPrinter(Type = boolean);
 connect between_3 -> prnt_between_3;

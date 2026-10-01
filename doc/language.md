@@ -9,7 +9,7 @@ service. Several `.wrl` files passed to the compiler form one program.
 
 ```wrl
 node source : Std.Constant(Type = boolean, Value = true);
-node printer : Std.DebugPrinter(type = boolean);
+node printer : Std.DebugPrinter(Type = boolean);
 connect source -> printer;
 ```
 
@@ -32,7 +32,7 @@ instantiation uses `node name : Type;` or named parameters in parentheses:
 
 ```wrl
 node source : Std.Constant(Type = boolean, Value = true);
-node sink : Std.DebugPrinter(type = boolean);
+node sink : Std.DebugPrinter(Type = boolean);
 connect source -> sink;
 ```
 
@@ -55,7 +55,7 @@ nodes:
 ```wrl
 node type PrintBoolean {
   implicit input : value boolean;
-  node printer : Std.DebugPrinter(type = boolean);
+  node printer : Std.DebugPrinter(Type = boolean);
   connect implicit input -> printer;
 }
 

@@ -48,9 +48,8 @@ native singleton node type TimeOfDayMinute {
 
 // TODO: Implement this in a way which does not cause code to be run every minute
 node type IsBetween {
-  // TODO: capitalization of parameters?
-  parameter start : TimeOfDay;
-  parameter end : TimeOfDay;
+  parameter Start : TimeOfDay;
+  parameter End : TimeOfDay;
 
   implicit output : value boolean;
 
@@ -85,8 +84,8 @@ node type TriggerAt {
   state State : uint8 = 0;
 
   // Note: This relies on both blocks using the same time source, so that there is no cycle/step at the Time where both or neither are true.
-  node before : IsBetween(start = TimeOfDay_AddWrap(Time, "-08:00"), end = Time);
-  node after : IsBetween(start = Time, end = TimeOfDay_AddWrap(Time, "02:00"));
+  node before : IsBetween(Start = TimeOfDay_AddWrap(Time, "-08:00"), End = Time);
+  node after : IsBetween(Start = Time, End = TimeOfDay_AddWrap(Time, "02:00"));
 
   native procedure run depends on before, after produces implicit output, State;
 }
