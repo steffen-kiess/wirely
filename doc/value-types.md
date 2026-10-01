@@ -201,11 +201,12 @@ node type ConstantValue {
 ### Optional values and lists
 
 `Option[T]` represents either no value or one value of type `T`. Use `None`
-for absence. `Std.OptionSome` wraps a runtime value, and
-`Std.OptionUnwrapOrDefault` selects the contained value or a default:
+for absence and `Some(x)` for presence, where `x` has type `T`.
+`Some` takes exactly one argument and requires an `Option[T]` context:
 
 ```wrl
 node absent : Std.Constant(Type = Option[boolean], Value = None);
+node literal : Std.Constant(Type = Option[boolean], Value = Some(true));
 node source : Std.Constant(Type = boolean, Value = true);
 node present : Std.OptionSome(InnerType = boolean);
 connect source -> present;

@@ -24,6 +24,7 @@ test_names = [
     'string_literals',
     'integer_literals',
     'unit_literals',
+    'option_literals',
     'delay',
     'std',
     'and',
@@ -54,6 +55,11 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/some_missing_argument.wrl',
+    'test/negative/some_extra_argument.wrl',
+    'test/negative/some_non_option.wrl',
+    'test/negative/some_wrong_inner_type.wrl',
+    'test/negative/some_wrong_function_type.wrl',
     'test/negative/unit_boolean_value.wrl',
     'test/negative/unit_used_as_boolean.wrl',
     'test/negative/integer_signed_underflow.wrl',

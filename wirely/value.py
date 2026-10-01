@@ -128,11 +128,70 @@ for function in functions_list:
     functions[function.name] = function
 
 
-class ValueFunctionCall(Value):
+def check_value_type(actual_type, expected_type, ast_element):
+    if (not actual_type.contains_parameters and not expected_type.contains_parameters
+            and actual_type != expected_type):
+        raise blocks.ProgramError(ast_element, f'Expected value of type {expected_type}, got {actual_type}')
+
+
+class ComputedValue(Value):
+    @property
+    def value(self):
+        return self.evaluate()
+
+
+class ValueOptionSome(ComputedValue):
+    def __init__(self, value_type, inner_value, *, ast_element):
+        super().__init__(ast_element=ast_element)
+        self.value_type = value_type
+        self.inner_value = inner_value
+        check_value_type(inner_value.value_type, value_type.inner_type, inner_value.ast_element)
+
+    @property
+    def contains_parameters(self):
+        return self.value_type.contains_parameters or self.inner_value.contains_parameters
+
+    def resolve_self(self, par_values):
+        return ValueOptionSome(
+            self.value_type.resolve_self(par_values),
+            self.inner_value.resolve_self(par_values), ast_element=self.ast_element,
+        )
+
+    def evaluate(self):
+        return self.value_type.verify_value((self.inner_value.evaluate(),))
+
+
+class ValueList(ComputedValue):
+    def __init__(self, value_type, elements, *, ast_element):
+        super().__init__(ast_element=ast_element)
+        self.value_type = value_type
+        self.elements = elements
+        for element in elements:
+            check_value_type(element.value_type, value_type.inner_type, element.ast_element)
+
+    @property
+    def contains_parameters(self):
+        return self.value_type.contains_parameters or any(element.contains_parameters for element in self.elements)
+
+    def resolve_self(self, par_values):
+        return ValueList(
+            self.value_type.resolve_self(par_values),
+            [element.resolve_self(par_values) for element in self.elements],
+            ast_element=self.ast_element,
+        )
+
+    def evaluate(self):
+        return self.value_type.verify_value([element.evaluate() for element in self.elements])
+
+
+class ValueFunctionCall(ComputedValue):
     def __init__(self, function, parameters, *, ast_element):
         super().__init__(ast_element=ast_element)
         self.function = function
+        self.value_type = function.return_type
         self.parameters = parameters
+        for parameter, parameter_type in zip(parameters, function.parameter_types):
+            check_value_type(parameter.value_type, parameter_type, parameter.ast_element)
 
         self._contains_parameters = False
         for parameter in self.parameters:

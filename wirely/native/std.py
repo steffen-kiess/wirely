@@ -11,7 +11,7 @@ class Constant:
     @native_procedure
     @staticmethod
     def run(*, context):
-        par_value = context.static.block_parameter_values['Value'].value
+        par_value = context.static.block.parameter_values['Value'].evaluate()
 
         output_var = context.static.targets['']
 

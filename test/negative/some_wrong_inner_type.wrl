@@ -1,0 +1,1 @@
+node source : Std.Constant(Type = Option[boolean], Value = Some(42)); // E: Invalid boolean value

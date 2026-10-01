@@ -1,0 +1,1 @@
+node source : Std.Constant(Type = Option[boolean], Value = Some(true, false)); // E: Some expects exactly one argument

@@ -114,8 +114,8 @@ for list values. Negative integers use a leading minus sign, such as `-42`,
 and require a signed integer type. Raw strings (`r"..."` and `r#"..."#`)
 are also accepted.
 Durations and times of day are passed as strings, for example `"PT1S"` and
-`"08:00"`. `None` is the available `Option[T]` literal; use library nodes
-such as `Std.OptionSome` to create an optional value at runtime.
+`"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
+value of type `T`.
 `MonotonicTime.Invalid` is the available monotonic-time constant. The
 compile-time function `TimeOfDay_AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.

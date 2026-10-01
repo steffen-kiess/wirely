@@ -594,13 +594,25 @@ class Scope(Declaration):
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
+            if isinstance(value, blocks.ListLiteral) and isinstance(value_type, blocks.types.TypeList):
+                elements = [self.get_const_value(element, value_type.inner_type, par_values=par_values)
+                            for element in value.values]
+                return blocks.value.ValueList(value_type, elements, ast_element=value)
             if isinstance(value, blocks.FunctionCall):
                 if not isinstance(value.fun, blocks.Reference) or len(value.fun.identifiers) != 1:
                     raise blocks.ProgramError(value.fun, f'Function is not a single identifier')
                 function_name = value.fun.identifiers[0].id_str
+                if function_name == 'Some':
+                    if len(value.parameters) != 1:
+                        raise blocks.ProgramError(value, 'Some expects exactly one argument')
+                    if not isinstance(value_type, blocks.types.TypeOption):
+                        raise blocks.ProgramError(value, 'Some requires an Option type')
+                    inner = self.get_const_value(value.parameters[0], value_type.inner_type, par_values=par_values)
+                    return blocks.value.ValueOptionSome(value_type, inner, ast_element=value)
                 if function_name not in blocks.value.functions:
                     raise blocks.ProgramError(value.fun, f'Cannot find function {function_name!r}')
                 function = blocks.value.functions[function_name]
+                blocks.value.check_value_type(function.return_type, value_type, value)
                 if len(value.parameters) != len(function.parameter_types):
                     raise blocks.ProgramError(value, f'Function {function_name!r} expected {len(function.parameter_types)} parameters, but got {len(value.parameters)}')
                 parameters = [self.get_const_value(parameter, function.parameter_types[i], par_values=par_values) for i, parameter in enumerate(value.parameters)]
@@ -614,14 +626,17 @@ class Scope(Declaration):
                     name = value.identifiers[0].id_str
                     if name in self.parsed_parameters:
                         par = self.parsed_parameters[name]
-                        if not(par.ty.length == 1 and par.ty.identifiers[0].id_str == 'ValueType'):
+                        if not(isinstance(par.ty, blocks.Reference) and par.ty.length == 1
+                               and par.ty.identifiers[0].id_str == 'ValueType'):
+                            parameter_type = self.resolve_type(par.ty, par_values=par_values)
+                            blocks.value.check_value_type(parameter_type, value_type, value)
                             # value = par_values[name]
                             # found = True
                             # print(f'{par.name} in {par_values}')
                             # TODO: Clean up / Check whether this really is a parameter
                             if par not in par_values:
                                 return blocks.ValueParameter(value_type, par, ast_element=value)
-                            return blocks.ConstantValue(value_type, value_type.verify_value(par_values[par].value), ast_element=value)
+                            return blocks.ConstantValue(value_type, value_type.verify_value(par_values[par].evaluate()), ast_element=value)
             return blocks.ConstantValue(value_type, value_type.parse_value(value), ast_element=value)
             # raise blocks.ProgramError(value, f'Cannot turn {value!r} into constant value of type {value_type}')
 

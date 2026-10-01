@@ -197,7 +197,13 @@ class TypeOption(Type):
     def _parse_value_impl(self, value):
         if isinstance(value, blocks.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
             return None
-        # TODO: Provide a way of specifying Some(...)
+        if (isinstance(value, blocks.FunctionCall)
+                and isinstance(value.fun, blocks.Reference)
+                and value.fun.length == 1
+                and value.fun.identifiers[0].id_str == 'Some'):
+            if len(value.parameters) != 1:
+                raise blocks.ProgramError(value, 'Some expects exactly one argument')
+            return (self.inner_type.parse_value(value.parameters[0]),)
         raise blocks.ProgramError(value, f'Invalid Option value {value!r}')
 
 
