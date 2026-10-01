@@ -197,6 +197,8 @@ results to external systems. State updates become visible on the next step.
 current input for the following step.
 
 The `.wrl` declaration specifies a native procedure's interface; its code
-lives in Python under `wirely/native/`. Node types can combine child nodes
-and connections in `.wrl`, as `KNX.ValueProvider` does. See the
+lives in Python under `wirely/native/`; see the
+[native Python implementation guide](native-python.md) for that interface.
+Node types can combine child nodes and connections in `.wrl`, as
+`KNX.ValueProvider` does. See the
 [library reference](libraries.md) for available nodes and their connectors.

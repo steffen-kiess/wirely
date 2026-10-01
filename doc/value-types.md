@@ -254,22 +254,3 @@ For CSV, an absent optional value becomes an empty field; a present value
 uses the inner type's conversion. MQTT's `ValueOptionProvider` handles
 optionality itself: it publishes an empty payload for `None`, and JSON
 encoded using the inner type for a present value.
-
-## Python representations for native externs
-
-| Wirely type | Python representation |
-| --- | --- |
-| `unit` | `None` |
-| `boolean` | `bool` |
-| All integer types | `int` |
-| `String` | `str` |
-| `Duration` | `wirely.time.Duration`, with `duration_ns` |
-| `TimeOfDay` | `datetime.time` |
-| `MonotonicTime` | `wirely.time.MonotonicTime`, with `generation` and `time_ns` |
-| `ThermostatSystemModeEnum` | `wirely.enum.ThermostatSystemMode` |
-| `ValueType` | `wirely.types.Type` instance |
-| `Option[T]` | `None` or a one-element tuple `(value,)` |
-| `List[T]` | `list` of inner values |
-
-For example, a present optional unit value is `(None,)`, distinct from an
-absent optional value, `None`.
