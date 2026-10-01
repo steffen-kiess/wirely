@@ -1,0 +1,1 @@
+node mode : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.heat); // E: Unknown member 'heat' of ThermostatSystemModeEnum

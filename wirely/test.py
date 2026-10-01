@@ -25,6 +25,7 @@ test_names = [
     'integer_literals',
     'unit_literals',
     'option_literals',
+    'enum_literals',
     'delay',
     'std',
     'and',
@@ -55,6 +56,13 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/enum_unknown_member.wrl',
+    'test/negative/enum_wrong_case.wrl',
+    'test/negative/enum_wrong_type.wrl',
+    'test/negative/enum_bare_member.wrl',
+    'test/negative/enum_extra_qualifier.wrl',
+    'test/negative/enum_number.wrl',
+    'test/negative/enum_string.wrl',
     'test/negative/some_missing_argument.wrl',
     'test/negative/some_extra_argument.wrl',
     'test/negative/some_non_option.wrl',

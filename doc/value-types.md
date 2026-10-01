@@ -174,9 +174,12 @@ values follow the [Matter Thermostat data model](https://github.com/project-chip
 | `Dry` | 8 |
 | `Sleep` | 9 |
 
-The `.wrl` type name is `ThermostatSystemModeEnum`. For example:
+Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
+member names. For example:
 
 ```wrl
+node mode : Std.Constant(Type = ThermostatSystemModeEnum,
+                        Value = ThermostatSystemModeEnum.Heat);
 node modes : Std.DebugEventSource(type = ThermostatSystemModeEnum);
 node printer : Std.DebugEventPrinter(type = ThermostatSystemModeEnum);
 connect modes -> printer;

@@ -464,10 +464,21 @@ class TypeEnum(TypeConcrete):
         super().__init__(name=name, python_type=python_type, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
 
     def _parse_impl(self, s):
-        raise Exception('TODO: TypeEnum.parse()')
+        try:
+            return self.python_type[s]
+        except KeyError:
+            raise ValueError(f'Unknown member {s!r} of {self.name}') from None
 
     def _parse_value_impl(self, expr):
-        raise Exception('TODO: TypeEnum.parse_value()')
+        if not isinstance(expr, blocks.Reference) or expr.length != 2:
+            raise blocks.ProgramError(expr, f'Expected enum literal {self.name}.Member')
+        type_name, member_name = [identifier.id_str for identifier in expr.identifiers]
+        if type_name != self.name:
+            raise blocks.ProgramError(expr, f'Expected enum type {self.name}, got {type_name}')
+        try:
+            return self._parse_impl(member_name)
+        except ValueError as error:
+            raise blocks.ProgramError(expr, str(error)) from None
 
     def json_encode(self, expr, format):
         if format == 'SnakeCase':

@@ -158,9 +158,11 @@ assert_is(ty.is_json_serializable, True)
 # TODO: Implement
 assert_is(ty.has_to_csv_value, False)
 
-# TODO
-# assert_is(ty.parse('Cool'), wirely.enum.ThermostatSystemMode.Cool)
-# assert_fail(lambda: ty.parse('NotCool'))
+for member in wirely.enum.ThermostatSystemMode:
+    assert_is(ty.parse(member.name), member)
+assert_fail(lambda: ty.parse('NotCool'))
+assert_fail(lambda: ty.parse('cool'))
+assert_fail(lambda: ty.parse('ThermostatSystemModeEnum.Cool'))
 # TODO: Test parse_value()?
 assert_is(ty.json_encode(wirely.enum.ThermostatSystemMode.Cool, None), 'Cool')
 assert_is(ty.json_encode(wirely.enum.ThermostatSystemMode.EmergencyHeat, 'SnakeCase'), 'emergency_heat')
