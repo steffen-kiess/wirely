@@ -30,6 +30,14 @@ When changing a block, check its `.wrl` declaration in `wirely/lib/`, its
 Python implementation in `wirely/native/`, and any paired fixture in
 `test/`. Keep names, parameters, and value types aligned.
 
+## Documentation
+
+Always keep documentation as short as possible. Avoid duplicating
+information documented elsewhere when it belongs there.
+
+Describe the behavior after the change, not the change itself. Do not
+mention old behavior except in migration guides or similar documents.
+
 ## Tests
 
 Run the full block suite with `tools/run-tests`. This is the preferred local
@@ -60,3 +68,7 @@ based on the change rather than surrounding commits. Use one-line messages
 only for trivial changes or when there is nothing useful to add.
 Limit commit message lines to 72 characters unless this causes problems,
 e.g. with links.
+
+Do not describe tests executed or other validation performed. Omit
+approaches discussed but not implemented, and statements about behavior
+that remains unchanged.
