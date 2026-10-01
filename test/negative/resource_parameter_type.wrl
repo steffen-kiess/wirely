@@ -1,0 +1,4 @@
+resource type Handle;
+node type Invalid {
+  parameter Service : Handle; // E: Cannot find type Handle
+}

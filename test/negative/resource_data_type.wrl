@@ -1,0 +1,3 @@
+node type Invalid {
+  input Service : resource boolean; // E: Cannot find resource type boolean
+}

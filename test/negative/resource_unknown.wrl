@@ -1,0 +1,3 @@
+node type Client {
+  input Service : resource Missing; // E: Cannot find resource type Missing
+}

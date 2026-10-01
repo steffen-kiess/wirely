@@ -1,4 +1,4 @@
-node device : TwoN.Device(Hostname = "invalid", TLSA = ["3 1 2 0FB5E4477C3C8DE7888B1886639ECC0A8478CA158FBD183984398B987EC66640B2EE02EBEA48DFAF2F8ADF069384F7AF0A8A3D0BEBDCBB4A01D0A3002CC78FB8"], UsernamePasswordFile = "username_password.txt");
+node device : TwoN.Connection(Hostname = "invalid", TLSA = ["3 1 2 0FB5E4477C3C8DE7888B1886639ECC0A8478CA158FBD183984398B987EC66640B2EE02EBEA48DFAF2F8ADF069384F7AF0A8A3D0BEBDCBB4A01D0A3002CC78FB8"], UsernamePasswordFile = "username_password.txt");
 
 node key2_event : TwoN.KeyEvent(Key = "%2");
 connect device -> key2_event.Device;

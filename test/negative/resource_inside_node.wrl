@@ -1,0 +1,3 @@
+node type Container {
+  resource type Handle; // E: Resource type declaration not allowed inside node type
+}

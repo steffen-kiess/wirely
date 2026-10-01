@@ -1,0 +1,4 @@
+resource type Handle;
+node type Invalid {
+  implicit output : list resource Handle; // E: Got list specifier for non-input
+}

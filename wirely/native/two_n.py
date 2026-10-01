@@ -57,13 +57,13 @@ class TwoNDeviceData:
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNDeviceData)
-class Device(blocks.NativeState):
+class Connection(blocks.NativeState):
     def __init__(self, path, engine, static_block_context):
         super().__init__(path, engine, static_block_context)
 
         import wirely.two_n.client
 
-        print('Create TwoN Device', flush=True)
+        print('Create TwoN Connection', flush=True)
 
         self.data = static_block_context.parsed_native_instance
 

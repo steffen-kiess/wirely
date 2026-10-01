@@ -37,8 +37,6 @@ is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.
 
 Value types are distinct from connector kinds. `value T` carries a current
 value of type `T`; `event T` carries occurrences with payloads of type `T`.
-The resource connectors `knx_bus`, `mqtt_server`, and `two_n_device` connect
-services to clients rather than describing data values.
 
 ## Values and examples
 

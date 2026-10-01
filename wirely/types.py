@@ -6,6 +6,20 @@ import wirely as blocks
 from wirely.util import check_parameters
 
 
+class ResourceType:
+    """Nominal connector type identifying an opaque service resource."""
+
+    def __init__(self, name, declaration):
+        self.name = name
+        self.declaration = declaration
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f'ResourceType({self.name})'
+
+
 # A type which can be either a concrete type or a type parameter / a type depending in some way on a type parameter
 class Type(abc.ABC):
     @property

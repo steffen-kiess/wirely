@@ -201,22 +201,11 @@ class ConnectorSpecificationData(ConnectorSpecification):
         self.ty = ty
 
 
-class ConnectorSpecificationKnxBus(ConnectorSpecification):
+class ConnectorSpecificationResource(ConnectorSpecification):
     @check_parameters
-    def __init__(self, list_spec: ListSpecifier, *, source_position: SourcePosition):
+    def __init__(self, list_spec: ListSpecifier, ty: Value, *, source_position: SourcePosition):
         super().__init__(list_spec=list_spec, source_position=source_position)
-
-
-class ConnectorSpecificationMqttServer(ConnectorSpecification):
-    @check_parameters
-    def __init__(self, list_spec: ListSpecifier, *, source_position: SourcePosition):
-        super().__init__(list_spec=list_spec, source_position=source_position)
-
-
-class ConnectorSpecificationTwoNDevice(ConnectorSpecification):
-    @check_parameters
-    def __init__(self, list_spec: ListSpecifier, *, source_position: SourcePosition):
-        super().__init__(list_spec=list_spec, source_position=source_position)
+        self.ty = ty
 
 
 class BlockTypeSpecifier(SourceElement):
@@ -501,7 +490,6 @@ class ResolvedReferenceBlockMember(SourceElement):
         member_dict = member_dict_lambda(self.block)
         if self.member_name_str in member_dict:
             self.member = member_dict[self.member_name_str]
-        # TODO: Clean this up. This falls back to looking for BlockInput / BlockOutput nodes because knx_bus connectors don't create Block.Input and Block.Output objects
         else:
             if self.member_name_str == '':
                 raise ProgramError(self.block_name, f'{purpose} block {self.block_name_str} does not have an implicit {member_type}')
@@ -545,6 +533,7 @@ class Scope(Declaration):
         # TODO: Remove one of block_type_interfaces / block_type_implementations
         self.block_type_interfaces = {}
         self.block_type_implementations = {}
+        self.resource_types = {}
 
     # TODO: Move to Declaration?
     @property
@@ -590,6 +579,21 @@ class Scope(Declaration):
                 if name in blocks.types.type_by_name:
                     return blocks.types.type_by_name[name]
             raise blocks.ProgramError(ty, f'Cannot find type {ty}')
+
+    def resolve_resource_type(self, name):
+        scope = self
+        while scope is not None:
+            candidate = scope
+            for identifier in name.identifiers[:-1]:
+                candidate = candidate.libraries.get(identifier.id_str)
+                if candidate is None:
+                    break
+            if candidate is not None:
+                resource_type = candidate.resource_types.get(name.identifiers[-1].id_str)
+                if resource_type is not None:
+                    return resource_type
+            scope = scope.parent_graph
+        raise blocks.ProgramError(name, f'Cannot find resource type {name}')
 
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
@@ -665,6 +669,43 @@ class Scope(Declaration):
         return self.parent_graph.resolve_block_type(name, par_values=par_values)
 
 
+class DeclarationResourceType(Declaration):
+    @check_parameters
+    def __init__(self, name: Identifier, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+
+    def compile_pass1_btd(self, interface):
+        if interface.name is not None:
+            raise ProgramError(self, 'Resource type declaration not allowed inside node type')
+
+    def compile_pass1(self, graph):
+        name = self.name.id_str
+        if name in graph.resource_types:
+            previous = graph.resource_types[name].declaration
+            raise ProgramError(self, f'Duplicate resource type {name}', hints=[
+                CompilerHint(previous, 'Previous resource type was here'),
+            ])
+        if name in graph.block_type_interfaces:
+            raise ProgramError(self, f'Resource type {name} conflicts with node type', hints=[
+                CompilerHint(graph.block_type_interfaces[name], 'Previous node type was here'),
+            ])
+        if isinstance(graph, DeclarationLibrary):
+            fullname = graph.fullname + '.' + name
+        else:
+            fullname = name
+        graph.resource_types[name] = blocks.types.ResourceType(fullname, self)
+
+    def create_io(self, new_graph):
+        pass
+
+    def compile_pass1_5(self, graph):
+        pass
+
+    def compile_pass2(self, graph):
+        pass
+
+
 class DeclarationConnector(Declaration):
     @check_parameters
     def __init__(self, name: typing.Optional[Identifier], conn_type_spec: BlockConnectorTypeSpecifier, conn_spec: ConnectorSpecification, *, source_position: SourcePosition):
@@ -719,18 +760,22 @@ class DeclarationConnector(Declaration):
         # TODO: Should the entires conn_spec instance be passed?
         if isinstance(self.conn_spec, ConnectorSpecificationData):
             ty = self.interface.resolve_type(self.ty)
-        else:
+            resource_type = None
+        elif isinstance(self.conn_spec, ConnectorSpecificationResource):
             ty = None
+            resource_type = self.interface.resolve_resource_type(self.conn_spec.ty)
+        else:
+            raise InternalCompilerError(self, Exception('Unknown connector specification'))
         if self.conn_type == BlockConnectorType.BlockInput:
             name = self.name_str
             if name == '':
                 name = 'implicit input'
-            blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec)
+            blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec, resource_type=resource_type)
         elif self.conn_type == BlockConnectorType.BlockOutput:
             name = self.name_str
             if name == '':
                 name = 'implicit output'
-            blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec)
+            blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec, resource_type=resource_type)
         else:
             raise Exception(f'Unknown conn_type: {self.conn_type!r}')
 
@@ -1192,7 +1237,7 @@ class DeclarationLibrary(Scope):
         for decl in self.declarations:
             with decl.context:
                 # TODO: What is allowed here?
-                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary)):
+                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]

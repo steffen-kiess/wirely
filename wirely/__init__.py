@@ -29,43 +29,47 @@ def connect(source, target, source_element):
         # TODO: Can this happen from program code? If yes, make error message clearer?
         raise blocks.ProgramError(source_element, f'source has graph {source.block.graph} but target has graph {target.block.graph}')
 
-    # TODO: More checks for non-ConnectorSpecificationData objects, e.g. KNX connections
-    source_kind = None
-    if isinstance(source, blocks.BlockStateVariable):
-        source_kind = blocks.ConnectionKind.Value
-    elif isinstance(source, blocks.BlockTemporaryVariable):
-        source_kind = blocks.ConnectionKind.Value
-    elif isinstance(source.conn_spec, blocks.ConnectorSpecificationData):
-        source_kind = source.conn_spec.kind_spec.kind
-    target_kind = None
-    if isinstance(target.conn_spec, blocks.ConnectorSpecificationData):
-        target_kind = target.conn_spec.kind_spec.kind
-    # print(source_kind, target_kind)
-    if source_kind != target_kind:
-        hints = [
-            # TODO: Does this always work?
-            blocks.CompilerHint(source.block_output.conn_spec, 'Source was declared here'),
-            blocks.CompilerHint(target.block_input.conn_spec, 'Target was declared here'),
-        ]
-        raise ProgramError(source_element, f'source has kind {source_kind} but target has kind {target_kind}', hints=hints)
+    def declaration(member):
+        if isinstance(member, Block.Input):
+            return member.block_input.conn_spec
+        if isinstance(member, Block.Output):
+            return member.block_output.conn_spec
+        if isinstance(member, (blocks.BlockInput, blocks.BlockOutput)):
+            return member.conn_spec
+        return member.graph.variables[member.name]
 
-    # TODO: Allow automatic type conversions?
-    # TODO: Raise this error only when compiling?
+    def incompatible(message):
+        raise ProgramError(source_element, message, hints=[
+            blocks.CompilerHint(declaration(source), 'Source was declared here'),
+            blocks.CompilerHint(declaration(target), 'Target was declared here'),
+        ])
+
+    source_resource = isinstance(getattr(source, 'conn_spec', None), blocks.ConnectorSpecificationResource)
+    target_resource = isinstance(target.conn_spec, blocks.ConnectorSpecificationResource)
+    if source_resource or target_resource:
+        if not (source_resource and target_resource):
+            incompatible('Cannot connect resource and data connectors')
+        if source.resource_type is not target.resource_type:
+            incompatible(f'source has resource type {source.resource_type} but target has resource type {target.resource_type}')
+        target.connect(source)
+        return
+
+    if isinstance(source, (blocks.BlockStateVariable, blocks.BlockTemporaryVariable)):
+        source_kind = blocks.ConnectionKind.Value
+    else:
+        source_kind = source.conn_spec.kind_spec.kind
+    target_kind = target.conn_spec.kind_spec.kind
+    if source_kind != target_kind:
+        incompatible(f'source has kind {source_kind} but target has kind {target_kind}')
+
     source_type = source.var_type
-    if isinstance(source.block, blocks.Block) and source_type is not None:
+    if isinstance(source.block, blocks.Block):
         source_type = source_type.resolve_self(source.block.par_values)
     target_type = target.var_type
-    if isinstance(target.block, blocks.Block) and target_type is not None:
+    if isinstance(target.block, blocks.Block):
         target_type = target_type.resolve_self(target.block.par_values)
-    # TODO: Handle knx_bus connections better than just setting the type to None
     if source_type != target_type:
-        hints = [
-            # TODO: Does this always work?
-            # TODO: Point to type, not to conn_spec
-            blocks.CompilerHint(source.block_output.conn_spec, 'Source was declared here'),
-            blocks.CompilerHint(target.block_input.conn_spec, 'Target was declared here'),
-        ]
-        raise ProgramError(source_element, f'source has type {source_type} but target has type {target_type}', hints=hints)
+        incompatible(f'source has type {source_type} but target has type {target_type}')
 
     target.connect(source)
 
@@ -130,8 +134,10 @@ def resolve_variable(path, var):
         return resolve_variable(path_resolve_singleton(new_path), src)
 
     if isinstance(var, blocks.Block.Output):
-        # TODO: Handle this differently? This is e.g. for Bus objects
-        if var.var_type is None:
+        if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
+            source = var.block_output.connected_source
+            if source is not None:
+                return resolve_variable(path_resolve_singleton(path + (source.block,)), source)
             return path, var
         # Normal output
         # TODO: Hack, should use var.temporary, but that is overwritten somewhere in some cases
@@ -402,6 +408,6 @@ from wirely.program import Program
 from wirely.engine import Engine
 
 from .ast import UnitLiteral
-from .ast import ProgramError, InternalCompilerError, CompilerHint, SourcePosition, Declaration, BlockConnectorTypeSpecifier, ListSpecifier, ProgramError, Identifier, IntNumber, FloatNumber, StringConstant, Reference, Declaration, DeclarationConnector, DeclarationParameter, BlockInstantiation, DeclarationBlockInstantiation, DeclarationConnection, DeclarationStateVariable, DeclarationTemporaryVariable, DeclarationProcedure, NativeSpecifier, OptionalSpecifier, StageDeclaration, DependsDeclaration, ProducesDeclaration, ConnectionKindSpecifier, ConnectorSpecification, ConnectorSpecificationData, ConnectorSpecificationKnxBus, ConnectorSpecificationMqttServer, ConnectorSpecificationTwoNDevice, DeclarationLibrary, BlockParameter, Scope, BlockTypeSpecifier, ListLiteral, FunctionCall, BracketOperator, ConnectionKind, RunStage
+from .ast import ProgramError, InternalCompilerError, CompilerHint, SourcePosition, Declaration, BlockConnectorTypeSpecifier, ListSpecifier, ProgramError, Identifier, IntNumber, FloatNumber, StringConstant, Reference, Declaration, DeclarationConnector, DeclarationParameter, BlockInstantiation, DeclarationBlockInstantiation, DeclarationConnection, DeclarationStateVariable, DeclarationTemporaryVariable, DeclarationProcedure, NativeSpecifier, OptionalSpecifier, StageDeclaration, DependsDeclaration, ProducesDeclaration, ConnectionKindSpecifier, ConnectorSpecification, ConnectorSpecificationData, ConnectorSpecificationResource, DeclarationResourceType, DeclarationLibrary, BlockParameter, Scope, BlockTypeSpecifier, ListLiteral, FunctionCall, BracketOperator, ConnectionKind, RunStage
 
 from .block_type import BlockType

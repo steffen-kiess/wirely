@@ -34,12 +34,13 @@ class NodeInstance:
 # TODO: Should the Node types be merge with the corresponding AST classes?
 
 class BlockInput(Node):
-    def __init__(self, graph, type, *, name, input_name, is_list, conn_spec):
+    def __init__(self, graph, type, *, name, input_name, is_list, conn_spec, resource_type=None):
         super().__init__(graph, name=name)
         # TODO: Clean up
         self.var_type = type
         self.input_name = input_name
         self.conn_spec = conn_spec
+        self.resource_type = resource_type
         self.is_list = is_list
         if input_name == 'implicit input':
             self.input_name = ''
@@ -56,11 +57,12 @@ class BlockInput(Node):
 
 
 class BlockOutput(Node):
-    def __init__(self, graph, type, *, name, output_name, conn_spec):
+    def __init__(self, graph, type, *, name, output_name, conn_spec, resource_type=None):
         super().__init__(graph, name=name)
         self.var_type = type
         self.output_name = output_name
         self.conn_spec = conn_spec
+        self.resource_type = resource_type
         if output_name == 'implicit output':
             self.output_name = ''
 

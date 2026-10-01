@@ -1,8 +1,10 @@
 namespace MQTT {
+resource type Broker;
+
 native node type Server {
   parameter URI : String;
 
-  implicit output : mqtt_server;
+  implicit output : resource Broker;
 }
 
 native node type ValueOptionProvider {
@@ -11,7 +13,7 @@ native node type ValueOptionProvider {
   optional parameter Format : String;
   optional parameter Template : String;
 
-  input Server : mqtt_server;
+  input Server : resource Broker;
 
   implicit input : value Option[Type];
 
@@ -24,7 +26,7 @@ node type ValueProvider {
   optional parameter Format : String;
   optional parameter Template : String;
 
-  input Server : mqtt_server;
+  input Server : resource Broker;
 
   implicit input : value Type;
 
@@ -44,7 +46,7 @@ native node type EventEmitter {
   optional parameter Format : String;
   optional parameter Template : String;
 
-  input Server : mqtt_server;
+  input Server : resource Broker;
 
   implicit input : event Type;
 
@@ -57,7 +59,7 @@ native node type EventReceiver {
   optional parameter Format : String;
   //TODO optional parameter Template : String;
 
-  input Server : mqtt_server;
+  input Server : resource Broker;
 
   implicit output : event Type;
 

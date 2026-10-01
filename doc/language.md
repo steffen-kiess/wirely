@@ -147,8 +147,40 @@ An event may be absent in a step. Source and target must have the same kind
 and type; Wirely does not automatically convert them. Ordinary inputs accept
 one source. A `list value T` or `list event T` input accepts several sources;
 `connect a, b -> target;` connects both. `Std.And` is an example of a list
-input. Libraries also define resource connectors `knx_bus`, `mqtt_server`,
-and `two_n_device`, which connect a service node to its clients.
+input.
+
+### Opaque resource connectors
+
+Libraries can declare opaque resource types for connections between service
+nodes and their clients:
+
+```wrl
+namespace Example {
+  resource type Session;
+
+  native node type Connection {
+    implicit output : resource Session;
+  }
+
+  native node type Client {
+    input Service : resource Session;
+  }
+}
+```
+
+`resource type Name;` is allowed at global scope and inside namespaces,
+including reopened namespaces, but not inside node types. Node and resource
+types cannot share a name in the same scope. Resource names resolve through
+enclosing scopes; use a qualified name such as `Example.Session` outside
+that namespace. A declaration may appear after its uses.
+
+Resource connectors are compatible only when they refer to the same
+resource declaration. Resources identify opaque service state rather than
+carrying data values. They cannot be used for parameters, state, temporaries,
+`ValueType` arguments, or value types such as `Option[T]` and `List[T]`.
+Composite nodes can forward resources through their inputs and outputs.
+
+The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 ## State and execution
 

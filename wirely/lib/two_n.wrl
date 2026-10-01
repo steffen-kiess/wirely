@@ -1,18 +1,20 @@
 namespace TwoN {
-native node type Device {
+resource type Device;
+
+native node type Connection {
   parameter Hostname : String;
   parameter Port : uint16 = 443;
   parameter TLSA : List[String];
   parameter UsernamePasswordFile : String;
 
-  implicit output : two_n_device;
+  implicit output : resource Device;
 }
 
 // Get an event whenever a key is pressed or released
 native node type KeyEvent {
   parameter Key : String;
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   // True if the key is pressed, false if it released.
   implicit output : event boolean;
@@ -31,7 +33,7 @@ node type KeyState {
   // trigger a KeyPressed event but no KeyReleased event).
   parameter Timeout : Duration = "30s";
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   // True if the key is pressed, false otherwise.
   implicit output : value boolean;
@@ -61,7 +63,7 @@ node type KeyState {
 native node type IOState {
   parameter Port : String;
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   // True if the input/output is on, false otherwise.
   implicit output : value boolean;
@@ -74,7 +76,7 @@ native node type IOState {
 native node type SwitchState {
   parameter SwitchNumber : int32;
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   // True if the switch is active, false otherwise.
   implicit output : value boolean;
@@ -87,7 +89,7 @@ native node type SwitchState {
 native node type CodeEnteredEvent {
   parameter Code : String;
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   implicit output : event unit;
 
@@ -97,7 +99,7 @@ native node type CodeEnteredEvent {
 native node type OutputControl {
   parameter Port : String;
 
-  input Device : two_n_device;
+  input Device : resource Device;
 
   // True to turn the output is on, false to turn it off.
   implicit input : event boolean;

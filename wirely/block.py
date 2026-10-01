@@ -51,6 +51,8 @@ class Block(blocks.Node):
                 raise Exception(f'Input {self.graph}.{self.name}.{input.name} is not connected')
 
         for output in self.block_outputs:
+            if isinstance(output.conn_spec, blocks.ConnectorSpecificationResource):
+                continue
             if output.temporary.producer is None:
                 # TODO: Hack
                 if isinstance(output.temporary.block, blocks.BlockInput):
@@ -135,11 +137,11 @@ class Block(blocks.Node):
             state_map[path, state_var] = v
             state_variables.append(v)
         for var in self.all_block_inputs:
-            if var.var_type is None:
+            if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
             variable_map[path, var.var_identifier] = add_var(*blocks.resolve_variable(path, var))
         for var in self.block_outputs:
-            if var.var_type is None:
+            if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
             variable_map[path, var.var_identifier] = add_var(*blocks.resolve_variable(path, var))
         for var in self.block_temporaries:
@@ -201,6 +203,7 @@ class Block(blocks.Node):
             self.block_input = block_input
 
             self.conn_spec = self.block_input.conn_spec
+            self.resource_type = self.block_input.resource_type
 
             if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
                 if self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Value:
@@ -269,6 +272,7 @@ class Block(blocks.Node):
             self.block_output = block_output
 
             self.conn_spec = self.block_output.conn_spec
+            self.resource_type = self.block_output.resource_type
 
             if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
                 if self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Value:
@@ -289,7 +293,7 @@ class Block(blocks.Node):
                     raise Exception('input_dependencies parameter value is for another block')
                 self.input_dependencies.append(dependency)
 
-            if self.var_type is not None:
+            if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
                 self.temporary = Block.Temporary(block, name + '_val', var_type, impl_var_type=self.impl_var_type)
                 # TODO: Hack
                 self.orig_temporary = self.temporary

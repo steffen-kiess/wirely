@@ -1,4 +1,6 @@
 namespace KNX {
+resource type Bus;
+
 native node type Connection {
   optional parameter Host : String;
   optional parameter Protocol : String;
@@ -7,7 +9,7 @@ native node type Connection {
   optional parameter SSHTarget : String;
   optional parameter IndividualAddress : String;
 
-  implicit output : knx_bus;
+  implicit output : resource Bus;
 }
 
 native node type ValueReceiver {
@@ -17,7 +19,7 @@ native node type ValueReceiver {
   // TODO: event input which can trigger read?
   // TODO: event output which is triggered when a value is received, even if the value stays the same? Should this event contain the value?
 
-  input Bus : knx_bus;
+  input Bus : resource Bus;
 
   implicit output : value Option[Type];
 
@@ -31,7 +33,7 @@ native node type ValueOptionProvider {
   // TODO: event input which can trigger transmission?
   // TODO: event output for reads? Probably not really useful.
 
-  input Bus : knx_bus;
+  input Bus : resource Bus;
 
   implicit input : value Option[Type];
 
@@ -42,7 +44,7 @@ node type ValueProvider {
   parameter Type : ValueType;
   parameter GroupAddress : String;
 
-  input Bus : knx_bus;
+  input Bus : resource Bus;
 
   implicit input : value Type;
 
@@ -59,7 +61,7 @@ native node type EventReceiver {
   parameter Type : ValueType;
   parameter GroupAddress : String;
 
-  input Bus : knx_bus;
+  input Bus : resource Bus;
 
   implicit output : event Type;
 
@@ -71,7 +73,7 @@ native node type EventEmitter {
   parameter Type : ValueType;
   parameter GroupAddress : String;
 
-  input Bus : knx_bus;
+  input Bus : resource Bus;
 
   implicit input : event Type;
 

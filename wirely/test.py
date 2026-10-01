@@ -21,6 +21,7 @@ import wirely.compiler
 
 test_names = [
     'types',
+    'resources',
     'string_literals',
     'integer_literals',
     'unit_literals',
@@ -56,6 +57,32 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/resource_unknown.wrl',
+    'test/negative/resource_unknown_qualified.wrl',
+    'test/negative/resource_data_type.wrl',
+    'test/negative/resource_duplicate.wrl',
+    'test/negative/resource_inside_node.wrl',
+    'test/negative/resource_node_collision.wrl',
+    'test/negative/node_resource_collision.wrl',
+    'test/negative/resource_node_collision_reopened.wrl',
+    'test/negative/node_resource_collision_reopened.wrl',
+    'test/negative/resource_node_collision_global.wrl',
+    'test/negative/node_resource_collision_global.wrl',
+    'test/negative/resource_mismatch.wrl',
+    'test/negative/resource_same_name_mismatch.wrl',
+    'test/negative/resource_value_type.wrl',
+    'test/negative/resource_parameter_type.wrl',
+    'test/negative/resource_state_type.wrl',
+    'test/negative/resource_temporary_type.wrl',
+    'test/negative/resource_generic_type.wrl',
+    'test/negative/resource_type_argument.wrl',
+    'test/negative/resource_list_output.wrl',
+    'test/negative/resource_boundary_mismatch.wrl',
+    'test/negative/resource_to_data_value.wrl',
+    'test/negative/data_to_resource_value.wrl',
+    'test/negative/resource_to_data_event.wrl',
+    'test/negative/data_to_resource_event.wrl',
+
     'test/negative/enum_unknown_member.wrl',
     'test/negative/enum_wrong_case.wrl',
     'test/negative/enum_wrong_type.wrl',
@@ -410,7 +437,7 @@ async def run_test(test_name):
             if block_type.fullname == 'MQTT.Server':
                 require_mqtt = True
                 mqtt_server_paths.append(block_path)
-            if block_type.fullname == 'TwoN.Device':
+            if block_type.fullname == 'TwoN.Connection':
                 require_twon = True
                 twon_device_paths.append(block_path)
 

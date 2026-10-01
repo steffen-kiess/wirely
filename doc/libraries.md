@@ -52,12 +52,13 @@ Time-based values and triggers. `TimeOfDay` parameters use strings such as
 
 ## KNX
 
-KNX nodes use a `KNX.Connection` node and a named `Bus: knx_bus` input.
+KNX nodes use a `KNX.Connection` node and a named
+`Bus: resource KNX.Bus` input.
 `GroupAddress` is a KNX group address string such as `"0/4/5"`.
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Connection` | Optional `Host: String`, `Protocol: String`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `knx_bus`. Opens a KNX connection. |
+| `Connection` | Optional `Host: String`, `Protocol: String`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
 | `ValueReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
 | `ValueOptionProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
 | `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Wraps the value with `Std.OptionSome` and uses `ValueOptionProvider`. |
@@ -100,7 +101,8 @@ Both expose the same named outputs: `ManualOperation`, `BlockActive`,
 
 ## MQTT
 
-MQTT nodes use a `MQTT.Server` and a named `Server: mqtt_server` input.
+MQTT nodes use a `MQTT.Server` and a named
+`Server: resource MQTT.Broker` input.
 `Topic` is a topic string. `Format` and `Template`, where offered, are
 optional strings used by the native JSON encoder. A template embeds the
 encoded value at one `%s` placeholder; `%%` represents a literal percent
@@ -108,7 +110,7 @@ sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Server` | `URI: String` | Out: `mqtt_server`. Connects to a broker. |
+| `Server` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Server`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Server`; in: `value Type`. Wraps the value and uses `ValueOptionProvider`. |
 | `EventEmitter` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Server`; in: `event Type`. Publishes each event as JSON. |
@@ -128,12 +130,13 @@ must support CSV conversion, such as `boolean`, an integer type, or an
 
 ## TwoN
 
-TwoN nodes communicate with a 2N device. Create `TwoN.Device`, then connect
-its implicit `two_n_device` output to each client's named `Device` input.
+TwoN nodes communicate with a 2N device. Create `TwoN.Connection`, then
+connect its implicit `resource TwoN.Device` output to each client's named
+`Device` input.
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Device` | `Hostname: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `two_n_device`. Connects to the device. The credential file contains a username and password on separate lines; a relative path is resolved beside the `.wrl` file. |
+| `Connection` | `Hostname: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file contains a username and password on separate lines; a relative path is resolved beside the `.wrl` file. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
 | `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
