@@ -248,7 +248,27 @@ class IntNumber(Value):
     def __init__(self, token: lark.Token, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.token = token
-        self.value = int(token)
+        text = str(token)
+        if text.lower().startswith('0x'):
+            base = 16
+        elif text.lower().startswith('0o'):
+            base = 8
+        else:
+            base = 10
+        try:
+            self.value = int(text, base)
+        except ValueError:
+            raise ProgramError(self, f'Invalid integer literal: {text!r}') from None
+
+    @classmethod
+    def positive(cls, token, *, source_position):
+        return cls(token, source_position=source_position)
+
+    @classmethod
+    def negative(cls, token, *, source_position):
+        value = cls(token, source_position=source_position)
+        value.value = -value.value
+        return value
 
 
 class FloatNumber(Value):

@@ -22,6 +22,7 @@ import wirely.compiler
 test_names = [
     'types',
     'string_literals',
+    'integer_literals',
     'delay',
     'std',
     'and',
@@ -52,6 +53,9 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/integer_signed_underflow.wrl',
+    'test/negative/integer_positive_overflow.wrl',
+    'test/negative/integer_negative_unsigned.wrl',
     'test/negative/string_invalid_hex_escape.wrl',
     'test/negative/string_unicode_missing_braces.wrl',
     'test/negative/string_invalid_unicode_scalar.wrl',

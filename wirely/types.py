@@ -338,7 +338,7 @@ class TypeInt(TypeConcrete):
         if isinstance(value, blocks.IntNumber):
             i = value.value
             if i < self.min_value or i > self.max_value:
-                raise Exception(f'Int value out of range: {i!r}')
+                raise blocks.ProgramError(value, f'Int value out of range: {i!r}')
             return i
         raise blocks.ProgramError(value, f'Invalid int value {value!r}')
 

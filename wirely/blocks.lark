@@ -68,7 +68,10 @@ reference: identifier ("." identifier)* -> reference__from_list
          | "implicit" block_connector_type -> reference__create_implicit
 reference_list: _separated_empty{reference, ","} -> copy_list
 
-int_number: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
+int_number: _integer_magnitude
+          | "+" _integer_magnitude -> int_number__positive
+          | "-" _integer_magnitude -> int_number__negative
+_integer_magnitude: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
 float_number: FLOAT
 string_constant: STRING | RAW_STRING
 // Tokens

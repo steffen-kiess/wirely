@@ -65,6 +65,7 @@ signedness. For example:
 ```wrl
 node small : Std.Constant(Type = uint8, Value = 42);
 node large : Std.Constant(Type = int32, Value = 100000);
+node negative : Std.Constant(Type = int8, Value = -128);
 ```
 
 Write negative integers with a leading minus sign, such as `-42`, `-0x2a`,
