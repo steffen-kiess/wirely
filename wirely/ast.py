@@ -243,6 +243,11 @@ class OptionalSpecifier(BlockTypeSpecifier):
         super().__init__(specifier_str='optional', source_position=source_position)
 
 
+class UnitLiteral(Value):
+    def __repr__(self):
+        return 'UnitLiteral()'
+
+
 class IntNumber(Value):
     @check_parameters
     def __init__(self, token: lark.Token, *, source_position: SourcePosition):

@@ -1,0 +1,9 @@
+node source : Std.Constant(Type = unit, Value = ());
+node spaced : Std.Constant(Type = unit, Value = ( ));
+node commented : Std.Constant(Type = unit, Value = (/* unit */));
+node delay : Std.Delay(type = unit, initialValue = ());
+connect source -> delay;
+node units : Std.Constant(Type = List[unit], Value = [(), ( )]);
+node present : Std.OptionSome(InnerType = unit);
+connect source -> present;
+node absent : Std.Constant(Type = Option[unit], Value = None);

@@ -23,6 +23,7 @@ ast_classes = [
     blocks.ListSpecifier,
     blocks.ProgramError,
     blocks.Identifier,
+    blocks.UnitLiteral,
     blocks.IntNumber,
     blocks.FloatNumber,
     blocks.StringConstant,

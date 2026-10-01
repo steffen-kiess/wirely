@@ -108,7 +108,7 @@ used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
 See the [value type reference](value-types.md) for allowed values, runtime
 status, and serialization support.
 
-Use `true` and `false` for booleans, decimal or `0x`/`0o`
+Use `()` for unit, `true` and `false` for booleans, decimal or `0x`/`0o`
 integers for integer parameters, quoted strings for `String`, and `[a, b]`
 for list values. Negative integers use a leading minus sign, such as `-42`,
 and require a signed integer type. Raw strings (`r"..."` and `r#"..."#`)

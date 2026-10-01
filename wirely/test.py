@@ -23,6 +23,7 @@ test_names = [
     'types',
     'string_literals',
     'integer_literals',
+    'unit_literals',
     'delay',
     'std',
     'and',
@@ -53,6 +54,8 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/unit_boolean_value.wrl',
+    'test/negative/unit_used_as_boolean.wrl',
     'test/negative/integer_signed_underflow.wrl',
     'test/negative/integer_positive_overflow.wrl',
     'test/negative/integer_negative_unsigned.wrl',

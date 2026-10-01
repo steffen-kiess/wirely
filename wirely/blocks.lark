@@ -58,6 +58,7 @@ value: reference       -> copy
      | int_number      -> copy
      | float_number    -> copy
      | string_constant -> copy
+     | "(" ")" -> unit_literal
      | value "[" value "]" -> bracket_operator
      | value "(" value_list ")" -> function_call
      | "[" value_list "]" -> list_literal

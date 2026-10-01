@@ -265,7 +265,8 @@ class TypeUnit(TypeConcrete):
         return None
 
     def _parse_value_impl(self, value):
-        # TODO: Allow representing () in code
+        if isinstance(value, blocks.UnitLiteral):
+            return None
         raise blocks.ProgramError(value, f'Invalid unit value {value!r}')
 
 

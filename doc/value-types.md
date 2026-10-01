@@ -13,7 +13,7 @@ is instantiated. Runtime types can also be used for parameters.
 
 | Type | Allowed values | Use |
 | --- | --- | --- |
-| `unit` | One value, carrying no data | Runtime |
+| `unit` | `()`, carrying no data | Runtime |
 | `boolean` | `false`, `true` | Runtime |
 | `int8` | -128 to 127 | Runtime |
 | `int16` | -32,768 to 32,767 | Runtime |
@@ -47,6 +47,14 @@ services to clients rather than describing data values.
 `unit` is useful for events that only signal an occurrence. For example,
 `Time.TriggerAt(Time = "08:00")` emits a unit event each day at the specified
 time. The default event type is `unit`, so no payload parameter is needed.
+
+The unit literal is `()`:
+
+```wrl
+node source : Std.Constant(Type = unit, Value = ());
+```
+
+`()` is a value of type `unit`; `None` is an absent `Option[T]` value.
 
 Boolean literals are `true` and `false`:
 
