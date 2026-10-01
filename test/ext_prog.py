@@ -32,7 +32,7 @@ async def run_test():
 
             check_content('A\n')
 
-            engine.get_native_state('evsrc').send_event(wirely.Some(None))
+            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -43,7 +43,7 @@ async def run_test():
             check_content('A\nx\n')
 
             # Send an event
-            engine.get_native_state('evsrc').send_event(wirely.Some(None))
+            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -52,7 +52,7 @@ async def run_test():
             await asyncio.sleep(0.03)
 
             # Send an another event
-            engine.get_native_state('evsrc').send_event(wirely.Some(None))
+            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()
@@ -61,7 +61,7 @@ async def run_test():
             await asyncio.sleep(0.03)
 
             # Send an another event, which should be ignored
-            engine.get_native_state('evsrc').send_event(wirely.Some(None))
+            engine.get_native_state('evsrc').send_event(wirely.Some(wirely.Unit()))
             engine.step()
             engine.step()
             engine.assert_is_idle()

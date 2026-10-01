@@ -235,7 +235,7 @@ probe.assert_value_is('probe', blocks.Some(True))
 
 # Events use an outer option even when the payload is itself an option.
 for payload_type, event, command in [
-    ('unit', blocks.Some(None), '()'),
+    ('unit', blocks.Some(blocks.Unit()), '()'),
     ('Option[boolean]', blocks.Some(None), 'none'),
     ('Option[boolean]', blocks.Some(blocks.Some(True)), 'true'),
 ]:
@@ -269,6 +269,35 @@ connect source -> probe;
         probe.assert_value_is('source', None)
         assert seen_events[-1] is None
         probe.assert_is_idle()
+
+
+def check_unit_result(context):
+    with checks.assertRaisesRegex(ValueError, 'Invalid value'):
+        context.set_result('result', None)
+    context.set_result('result', blocks.Unit())
+
+
+probe = make_engine('''
+implicit output : value unit;
+native procedure run produces implicit output as "result";
+''', check_unit_result)
+probe.step()
+probe.assert_value_is('probe', blocks.Unit())
+
+
+def check_unit_event_result(context):
+    for invalid in [blocks.Some(None), blocks.Unit()]:
+        with checks.assertRaisesRegex(ValueError, 'Invalid value'):
+            context.set_result('result', invalid)
+    context.set_result('result', blocks.Some(blocks.Unit()))
+
+
+probe = make_engine('''
+implicit output : event unit;
+native procedure run produces implicit output as "result";
+''', check_unit_event_result)
+probe.step()
+probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
 
 
 def check_keys(context):

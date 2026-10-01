@@ -20,7 +20,7 @@ class ToggleFlipFlopTriggerData:
             par_type = parameter_values['OutputType']
 
         if 'OutputValue' not in parameter_values:
-            output_value = None
+            output_value = blocks.Unit()
             if par_type != blocks.types.unit:
                 # TODO: Provide error location in a better way / avoid stack trace?
                 raise Exception(f'Trigger type is not unit ({par_type}) but no value is given')

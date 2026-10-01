@@ -27,12 +27,12 @@ ty = wirely.types.unit
 check_type(ty)
 
 assert_is(ty.name, 'unit')
-assert_is(ty.python_type, type(None))
+assert_is(ty.python_type, wirely.Unit)
 assert_is(ty.is_runtime_type, True)
 assert_is(ty.is_json_serializable, False)
 assert_is(ty.has_to_csv_value, False)
 
-assert_is(ty.parse('()'), None)
+assert_is(ty.parse('()'), wirely.Unit())
 assert_fail(lambda: ty.parse('0'))
 # TODO: Test parse_value()?
 # assert_is(ty.json_encode(False, None), False)

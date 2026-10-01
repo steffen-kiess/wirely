@@ -19,7 +19,7 @@ async def run_test():
             if exp is not None:
                 if exp != 1:
                     raise Exception('exp != 1')
-                exp = blocks.Some(None)
+                exp = blocks.Some(blocks.Unit())
 
             if cmd is not None:
                 inp.send_event(blocks.Some(cmd))

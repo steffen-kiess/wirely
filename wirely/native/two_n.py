@@ -296,7 +296,7 @@ class CodeEnteredEvent(blocks.NativeState):
         if not value:
             context.set_result('output', None)
         else:
-            context.set_result('output', blocks.Some(None))
+            context.set_result('output', blocks.Some(blocks.Unit()))
             # Trigger to set value to None again
             self.engine.trigger(self.block_path, self.proc)
 

@@ -13,9 +13,9 @@ for name, expected in {
     'absent': None,
     'boolean_some': wirely.Some(True),
     'number_some': wirely.Some(-42),
-    'unit_some': wirely.Some(None),
+    'unit_some': wirely.Some(wirely.Unit()),
     'nested_none': wirely.Some(None),
-    'nested_unit': wirely.Some(wirely.Some(None)),
+    'nested_unit': wirely.Some(wirely.Some(wirely.Unit())),
     'list_some': wirely.Some([1, 2]),
     'list_options': [wirely.Some(1), None, wirely.Some(-42)],
     'time_some': wirely.Some(datetime.time(0, 30)),
@@ -41,12 +41,12 @@ def parse_expression(expression):
 
 
 for expression in ['Some(())', 'Some ( () )', 'Some(/* value */ ())']:
-    assert wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression)) == wirely.Some(None)
+    assert wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression)) == wirely.Some(wirely.Unit())
 option_type = wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.unit))
-assert option_type.parse_value(parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(None))
+assert option_type.parse_value(parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(wirely.Unit()))
 assert option_type.parse_value(parse_expression('Some(None)')) == wirely.Some(None)
 list_type = wirely.types.TypeList(wirely.types.TypeOption(wirely.types.unit))
-assert list_type.parse_value(parse_expression('[None, Some(())]')) == [None, wirely.Some(None)]
+assert list_type.parse_value(parse_expression('[None, Some(())]')) == [None, wirely.Some(wirely.Unit())]
 
 for expression in ['Some()', 'Some((), ())']:
     try:

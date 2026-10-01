@@ -128,7 +128,7 @@ The returned object is available as
 
 | Wirely type | Python representation |
 | --- | --- |
-| `unit` | `None` |
+| `unit` | `wirely.Unit` |
 | `boolean` | `bool` |
 | All integer types | `int` |
 | `String` | `str` |
@@ -140,13 +140,15 @@ The returned object is available as
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `list` of inner values |
 
+`Unit` is immutable and fieldless; all instances compare equal.
+
 Read a present option's payload with `.value`. A present optional unit is
-`wirely.Some(None)`, distinct from absence, `None`.
+`wirely.Some(wirely.Unit())`, distinct from absence, `None`.
 Event connectors use the same representation, adding an outer option:
 
 | Connector | No event | Example occurrence |
 | --- | --- | --- |
-| `event unit` | `None` | `wirely.Some(None)` |
+| `event unit` | `None` | `wirely.Some(wirely.Unit())` |
 | `event boolean` | `None` | `wirely.Some(True)` |
 | `event Option[boolean]` | `None` | `wirely.Some(None)` for an absent payload; `wirely.Some(wirely.Some(True))` for a present payload |
 

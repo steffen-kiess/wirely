@@ -269,7 +269,7 @@ class TriggerAtData:
             par_type = parameter_values['OutputType']
 
         if 'OutputValue' not in parameter_values:
-            value = None
+            value = blocks.Unit()
             if par_type != blocks.types.unit:
                 # TODO: Provide error location in a better way / avoid stack trace?
                 raise Exception(f'Trigger type is not unit ({par_type}) but no value is given')

@@ -273,16 +273,16 @@ class TypeList(Type):
 # TODO: Add to_csv_value?
 class TypeUnit(TypeConcrete):
     def __init__(self):
-        super().__init__(name='unit', python_type=type(None), is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='unit', python_type=blocks.Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def _parse_impl(self, s):
         if s != '()':
             raise Exception(f'Invalid unit value {s!r}')
-        return None
+        return blocks.Unit()
 
     def _parse_value_impl(self, value):
         if isinstance(value, blocks.UnitLiteral):
-            return None
+            return blocks.Unit()
         raise blocks.ProgramError(value, f'Invalid unit value {value!r}')
 
 

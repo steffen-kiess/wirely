@@ -5,6 +5,7 @@ import datetime
 from collections.abc import Mapping
 from types import MappingProxyType
 from .option import Some
+from .unit import Unit
 import wirely as blocks
 
 from .time import MonotonicTime, Duration
