@@ -88,7 +88,7 @@ class TwoStageValueForward:
 
 
 @native_block_type(native_block_types, has_state=False)
-class DebugPrinter:
+class DebugValuePrinter:
     @native_procedure
     @staticmethod
     def run(*, context):

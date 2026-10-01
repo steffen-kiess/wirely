@@ -9,7 +9,7 @@ node Receiver : KNX.ValueReceiver(GroupAddress = "0/4/5", Type = boolean);
 // TODO: Allow this line to be above the declaration for Bus and Receiver and add tests for that
 connect Bus -> Receiver.Bus;
 
-node ReceiverPrnt : Std.DebugPrinter(Type = Option[boolean]);
+node ReceiverPrnt : Std.DebugValuePrinter(Type = Option[boolean]);
 connect Receiver -> ReceiverPrnt;
 
 node ReceiverValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);

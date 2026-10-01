@@ -42,7 +42,7 @@ node type TwoStageValueForward {
 }
 
 
-node type DebugPrinter {
+node type DebugValuePrinter {
   parameter Type : ValueType;
   implicit input : value Type;
 

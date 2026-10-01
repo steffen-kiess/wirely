@@ -58,7 +58,7 @@ Boolean literals are `true` and `false`:
 
 ```wrl
 node source : Std.Constant(Type = boolean, Value = true);
-node printer : Std.DebugPrinter(Type = boolean);
+node printer : Std.DebugValuePrinter(Type = boolean);
 connect source -> printer;
 ```
 

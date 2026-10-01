@@ -62,25 +62,25 @@ connect inp2 -> inp2_d;
 node res : Std.And;
 connect inp1_d, inp2_d -> res;
 
-node prnt : Std.DebugPrinter(Type = boolean);
+node prnt : Std.DebugValuePrinter(Type = boolean);
 connect res -> prnt;
 
 node time_1 : Time.TimeOfDayMinute;
-node prnt_time_1 : Std.DebugPrinter(Type = TimeOfDay);
+node prnt_time_1 : Std.DebugValuePrinter(Type = TimeOfDay);
 connect time_1 -> prnt_time_1;
 
 node time_2 : Time.TimeOfDayMinute;
-node prnt_time_2 : Std.DebugPrinter(Type = TimeOfDay);
+node prnt_time_2 : Std.DebugValuePrinter(Type = TimeOfDay);
 connect time_2 -> prnt_time_2;
 
 node between_1 : Time.IsBetween(Start = "10:33", End = "22:51");
-node prnt_between_1 : Std.DebugPrinter(Type = boolean);
+node prnt_between_1 : Std.DebugValuePrinter(Type = boolean);
 connect between_1 -> prnt_between_1;
 
 node between_2 : Time.IsBetween(Start = "22:52", End = "06:30");
-node prnt_between_2 : Std.DebugPrinter(Type = boolean);
+node prnt_between_2 : Std.DebugValuePrinter(Type = boolean);
 connect between_2 -> prnt_between_2;
 
 node between_3 : Time.IsBetween(Start = "23:50", End = "22:53");
-node prnt_between_3 : Std.DebugPrinter(Type = boolean);
+node prnt_between_3 : Std.DebugValuePrinter(Type = boolean);
 connect between_3 -> prnt_between_3;

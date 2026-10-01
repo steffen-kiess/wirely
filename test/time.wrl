@@ -12,6 +12,6 @@ node trigger2 : Time.TriggerAt(Time = "03:10");
 
 node delayInput : Std.DebugValueSource(Type = int8);
 node delay : Time.DelayChange(Type = int8, Duration = "PT10S");
-node delayOutput : Std.DebugPrinter(Type = int8);
+node delayOutput : Std.DebugValuePrinter(Type = int8);
 connect delayInput -> delay;
 connect delay -> delayOutput;

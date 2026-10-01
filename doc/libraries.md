@@ -23,7 +23,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `And` | None | In: `list value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
 | `Delay` | `Type: ValueType`, `InitialValue: Type` | In/out: `value Type`. Outputs the previous step's input, initially `InitialValue`. |
 | `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Forwards through two native procedures. |
-| `DebugPrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
+| `DebugValuePrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
 | `DebugValueSource` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
 | `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
