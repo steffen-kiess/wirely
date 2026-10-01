@@ -230,7 +230,7 @@ class KeyEvent(blocks.NativeState):
         if value is None:
             context.set_result('output', None)
         else:
-            context.set_result('output', (value,))
+            context.set_result('output', blocks.Some(value))
             # Trigger to set value to None again
             self.engine.trigger(self.block_path, self.proc)
 
@@ -296,7 +296,7 @@ class CodeEnteredEvent(blocks.NativeState):
         if not value:
             context.set_result('output', None)
         else:
-            context.set_result('output', (None,))
+            context.set_result('output', blocks.Some(None))
             # Trigger to set value to None again
             self.engine.trigger(self.block_path, self.proc)
 
@@ -319,12 +319,12 @@ class KeyState(blocks.NativeState):
         timeout_reached = context.inputs['TimeoutReached']
         event = context.inputs['key_event']
 
-        if event == (True,):
+        if event == blocks.Some(True):
             # KeyPressed
             now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
             new_value = True
             new_timeout_time = now + data.timeout
-        elif event == (False,):
+        elif event == blocks.Some(False):
             # KeyReleased
             new_value = False
             new_timeout_time = blocks.MonotonicTime.create_invalid()
@@ -333,7 +333,7 @@ class KeyState(blocks.NativeState):
             if not value:
                 new_value = False
                 new_timeout_time = blocks.MonotonicTime.create_invalid()
-            elif timeout_reached != (False,):
+            elif timeout_reached != blocks.Some(False):
                 # Old value was True, but timeout was reached or time was lost
                 print('Warning: TwoN.KeyState: Resetting key after timeout', flush=True)
                 # Change value to False, cancel timeout
@@ -576,7 +576,7 @@ class OutputControl(blocks.NativeState):
         value_opt = context.inputs['input']
         if value_opt is None:
             return
-        value = value_opt[0]
+        value = value_opt.value
 
         if self.value_to_send is not None:
             print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)

@@ -148,8 +148,6 @@ class TypeParameter(Type):
 
 
 class TypeOption(Type):
-    # TODO: Use custom type for Option instead of None / tuple with length 1?
-
     def __init__(self, inner_type):
         self.inner_type = inner_type
 
@@ -172,8 +170,7 @@ class TypeOption(Type):
     def to_csv_value(self, value):
         if value is None:
             return '', False
-        value_val, = value
-        return self.inner_type.to_csv_value(value_val)
+        return self.inner_type.to_csv_value(value.value)
 
     def resolve_self(self, par_values):
         if not self.contains_parameters:
@@ -186,27 +183,26 @@ class TypeOption(Type):
     def verify_value(self, value):
         if value is None:
             return None
-        elif type(value) == tuple and len(value) == 1:
-            return (self.inner_type.verify_value(value[0]),)
+        elif type(value) is blocks.Some:
+            return blocks.Some(self.inner_type.verify_value(value.value))
         else:
-            raise Exception(f'Expected None or tuple of length 1, got {value!r}')
+            raise Exception(f'Expected None or Some, got {value!r}')
 
     def equals(self, value1, value2):
-        # TODO: Pack values?
         if value1 is None and value2 is None:
             return True
         elif value1 is None or value2 is None:
             return False
-        elif type(value1) == tuple and len(value1) == 1 and type(value2) == tuple and len(value2) == 1:
-            return self.inner_type.equals(value1[0], value2[0])
+        elif type(value1) is blocks.Some and type(value2) is blocks.Some:
+            return self.inner_type.equals(value1.value, value2.value)
         else:
-            raise Exception(f'Got unexpected parameter for verify_value: {value1!r}, {value2!r}')
+            raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
 
     def _parse_impl(self, s):
         if s == 'none':
             return None
         # TODO: Use different format for strings?
-        return (self.inner_type.parse(s),)
+        return blocks.Some(self.inner_type.parse(s))
 
     def _parse_value_impl(self, value):
         if isinstance(value, blocks.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
@@ -217,7 +213,7 @@ class TypeOption(Type):
                 and value.fun.identifiers[0].id_str == 'Some'):
             if len(value.parameters) != 1:
                 raise blocks.ProgramError(value, 'Some expects exactly one argument')
-            return (self.inner_type.parse_value(value.parameters[0]),)
+            return blocks.Some(self.inner_type.parse_value(value.parameters[0]))
         raise blocks.ProgramError(value, f'Invalid Option value {value!r}')
 
 

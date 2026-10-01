@@ -6,7 +6,7 @@ engine.step()
 for name in ['source', 'spaced', 'commented', 'delay']:
     engine.assert_value_is(name, None)
 engine.assert_value_is('units', [None, None])
-engine.assert_value_is('present', (None,))
+engine.assert_value_is('present', wirely.Some(None))
 engine.assert_value_is('absent', None)
 engine.step()
 engine.assert_value_is('delay', None)

@@ -49,12 +49,12 @@ class InterpretStatusInformationOption:
     def run(*, context):
         val = context.inputs['input']
         if val is not None:
-            val = JRAStatus(val[0])
+            val = JRAStatus(val.value)
 
         for flag in JRAStatus:
             name = flag.name
             if val is None:
                 res = None
             else:
-                res = (bool(val & flag),)
+                res = blocks.Some(bool(val & flag))
             context.set_result(name, res)

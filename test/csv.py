@@ -162,16 +162,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
-        engine.get_native_state('TestOptionInput').set_value((False,))
+        engine.get_native_state('TestOptionInput').set_value(blocks.Some(False))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('TestOptionInput').set_value((False,))
+        engine.get_native_state('TestOptionInput').set_value(blocks.Some(False))
         _, _, step_info = engine.step()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('TestOptionInput').set_value((True,))
+        engine.get_native_state('TestOptionInput').set_value(blocks.Some(True))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)

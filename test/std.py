@@ -1,3 +1,5 @@
+import wirely
+
 engine.get_native_state('in').set_value(False)
 
 # Std.Constant
@@ -36,7 +38,7 @@ engine.assert_is_idle()
 
 engine.get_native_state('in').set_value(False)
 engine.step()
-engine.assert_value_is('edge', (False,))
+engine.assert_value_is('edge', wirely.Some(False))
 engine.step()
 engine.assert_value_is('edge', None)
 engine.assert_is_idle()

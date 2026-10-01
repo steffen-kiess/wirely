@@ -137,17 +137,18 @@ The returned object is available as
 | `MonotonicTime` | `wirely.time.MonotonicTime`, with `generation` and `time_ns` |
 | `ThermostatSystemModeEnum` | `wirely.enum.ThermostatSystemMode` |
 | `ValueType` | `wirely.types.Type` instance |
-| `Option[T]` | `None` or a one-element tuple `(value,)` |
+| `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `list` of inner values |
 
-A present optional unit is `(None,)`, distinct from absence, `None`.
-Event connectors add an outer optional wrapper to the payload:
+Read a present option's payload with `.value`. A present optional unit is
+`wirely.Some(None)`, distinct from absence, `None`.
+Event connectors use the same representation, adding an outer option:
 
 | Connector | No event | Example occurrence |
 | --- | --- | --- |
-| `event unit` | `None` | `(None,)` |
-| `event boolean` | `None` | `(True,)` |
-| `event Option[boolean]` | `None` | `(None,)` for an absent payload; `((True,),)` for a present payload |
+| `event unit` | `None` | `wirely.Some(None)` |
+| `event boolean` | `None` | `wirely.Some(True)` |
+| `event Option[boolean]` | `None` | `wirely.Some(None)` for an absent payload; `wirely.Some(wirely.Some(True))` for a present payload |
 
 These encodings apply to both reads and writes. Value connectors carry
 values directly. Event sources must clear an emitted event on a later

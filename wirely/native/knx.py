@@ -173,7 +173,7 @@ class ValueReceiver(blocks.NativeState):
         if res is None:
             res_opt = None
         else:
-            res_opt = (res,)
+            res_opt = blocks.Some(res)
         # print(f'get_value: {res_opt}')
 
         context.set_result('output', res_opt)
@@ -255,7 +255,7 @@ class ValueOptionProvider(blocks.NativeState):
             # TODO: Somehow reset the self.expose value in this case?
             value = None
         else:
-            value = value_opt[0]
+            value = value_opt.value
             # TODO: Any checks needed here?
 
         print(f'Setting output {self.address} to {value}, old value_to_send is {self.value_to_send}', flush=True)
@@ -351,7 +351,7 @@ class EventReceiver(blocks.NativeState):
             return
         value = self.received_values.pop(0)
 
-        res_opt = (value,)
+        res_opt = blocks.Some(value)
         # print(f'get_value: {res_opt}')
 
         context.set_result('output', res_opt)
@@ -420,7 +420,7 @@ class EventEmitter(blocks.NativeState):
         if value_opt is None:
             return
         else:
-            value = value_opt[0]
+            value = value_opt.value
             # TODO: Any checks needed here?
 
         print(f'Sending event {value} to {data.group_address}, old values_to_send is {self.values_to_send}', flush=True)

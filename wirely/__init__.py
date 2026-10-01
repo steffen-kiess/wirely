@@ -4,6 +4,7 @@ import contextlib
 import datetime
 from collections.abc import Mapping
 from types import MappingProxyType
+from .option import Some
 import wirely as blocks
 
 from .time import MonotonicTime, Duration

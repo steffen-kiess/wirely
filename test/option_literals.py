@@ -11,26 +11,26 @@ import wirely.parser
 engine.step()
 for name, expected in {
     'absent': None,
-    'boolean_some': (True,),
-    'number_some': (-42,),
-    'unit_some': (None,),
-    'nested_none': (None,),
-    'nested_unit': ((None,),),
-    'list_some': ([1, 2],),
-    'list_options': [(1,), None, (-42,)],
-    'time_some': (datetime.time(0, 30),),
-    'delay': (False,),
-    'settings.flag.': (True,),
-    'settings.nested.': ((True,),),
-    'settings.items.': [(5,), None],
-    'settings.numbers.': ([5, -42],),
-    'settings.at.': (datetime.time(0, 30),),
-    'settings.times.': [(datetime.time(0, 30),), None],
-    'forwarded.constant.': (datetime.time(0, 30),),
+    'boolean_some': wirely.Some(True),
+    'number_some': wirely.Some(-42),
+    'unit_some': wirely.Some(None),
+    'nested_none': wirely.Some(None),
+    'nested_unit': wirely.Some(wirely.Some(None)),
+    'list_some': wirely.Some([1, 2]),
+    'list_options': [wirely.Some(1), None, wirely.Some(-42)],
+    'time_some': wirely.Some(datetime.time(0, 30)),
+    'delay': wirely.Some(False),
+    'settings.flag.': wirely.Some(True),
+    'settings.nested.': wirely.Some(wirely.Some(True)),
+    'settings.items.': [wirely.Some(5), None],
+    'settings.numbers.': wirely.Some([5, -42]),
+    'settings.at.': wirely.Some(datetime.time(0, 30)),
+    'settings.times.': [wirely.Some(datetime.time(0, 30)), None],
+    'forwarded.constant.': wirely.Some(datetime.time(0, 30)),
 }.items():
     engine.assert_value_is(name, expected)
 engine.step()
-engine.assert_value_is('delay', (True,))
+engine.assert_value_is('delay', wirely.Some(True))
 
 
 def parse_expression(expression):
@@ -41,12 +41,12 @@ def parse_expression(expression):
 
 
 for expression in ['Some(())', 'Some ( () )', 'Some(/* value */ ())']:
-    assert wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression)) == (None,)
+    assert wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression)) == wirely.Some(None)
 option_type = wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.unit))
-assert option_type.parse_value(parse_expression('Some(Some(()))')) == ((None,),)
-assert option_type.parse_value(parse_expression('Some(None)')) == (None,)
+assert option_type.parse_value(parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(None))
+assert option_type.parse_value(parse_expression('Some(None)')) == wirely.Some(None)
 list_type = wirely.types.TypeList(wirely.types.TypeOption(wirely.types.unit))
-assert list_type.parse_value(parse_expression('[None, Some(())]')) == [None, (None,)]
+assert list_type.parse_value(parse_expression('[None, Some(())]')) == [None, wirely.Some(None)]
 
 for expression in ['Some()', 'Some((), ())']:
     try:

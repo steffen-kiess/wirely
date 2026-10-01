@@ -25,10 +25,10 @@ class MonotonicTimeReached(blocks.NativeState):
             result = None
             context.wakeup_time = None
         elif blocks.MonotonicTime.compare(now, time) >= 0:
-            result = (True,)
+            result = blocks.Some(True)
             context.wakeup_time = None
         else:
-            result = (False,)
+            result = blocks.Some(False)
             context.wakeup_time = time
         # print('MonotonicTimeReached', time, now, result)
 
@@ -67,42 +67,42 @@ class DelayChange(blocks.NativeState):
         update_time = context.inputs['update_time_old']
 
         # print('TODO', inp, cur, new, update_time, reached)
-        if cur is None or (new is not None and reached is None) or cur == (inp,):
+        if cur is None or (new is not None and reached is None) or cur == blocks.Some(inp):
             # Directly after startup or after time got lost.
             # Or: Input is current value. Cancel any changes.
-            n_cur = (inp,)
+            n_cur = blocks.Some(inp)
             n_new = None
             n_update_time = blocks.MonotonicTime.create_invalid()
             out = inp
-        elif new != (inp,):
+        elif new != blocks.Some(inp):
             # Input is neither cur not new. Start a change to inp.
             now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
             n_cur = cur
-            n_new = (inp,)
+            n_new = blocks.Some(inp)
             n_update_time = now + data.time
             # Note: cur cannot be None because if the first if
-            out = cur[0]
-        elif not reached[0]:
+            out = cur.value
+        elif not reached.value:
             # Input is new (and != cur), but the time has not yet expired. Do nothing.
             # Some checks
-            if new != (inp,):
-                raise Exception('new != (inp,)')
+            if new != blocks.Some(inp):
+                raise Exception('new != Some(inp)')
 
             n_cur = cur
             n_new = new
             n_update_time = update_time
             # Note: cur cannot be None because if the first if
-            out = cur[0]
+            out = cur.value
         else:
             # Input is new and Timeout has been reached. Change to new.
             # Some checks
-            if new != (inp,):
-                raise Exception('new != (inp,)')
+            if new != blocks.Some(inp):
+                raise Exception('new != Some(inp)')
 
             n_cur = new
             n_new = None
             n_update_time = blocks.MonotonicTime.create_invalid()
-            out = new[0]
+            out = new.value
 
         context.set_result('CurrentValue', n_cur)
         context.set_result('NewValue', n_new)
@@ -334,5 +334,5 @@ class TriggerAt:
                 
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
-        context.set_result('output', (data.value,) if do_trigger else None)
+        context.set_result('output', blocks.Some(data.value) if do_trigger else None)
         context.set_result('State', new_state)

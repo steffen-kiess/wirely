@@ -30,7 +30,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', (True,))
+        engine.assert_value_is('key2_event', blocks.Some(True))
         engine.assert_value_is('key2', True)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -43,7 +43,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', (False,))
+        engine.assert_value_is('key2_event', blocks.Some(False))
         engine.assert_value_is('key2', False)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -93,7 +93,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', (True,))
+        engine.assert_value_is('key2_event', blocks.Some(True))
         engine.assert_value_is('key2', True)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -224,9 +224,9 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('code_1', (None,))
+        engine.assert_value_is('code_1', blocks.Some(None))
         engine.assert_value_is('code_2', None)
-        engine.assert_value_is('code_3', (None,))
+        engine.assert_value_is('code_3', blocks.Some(None))
         engine.assert_value_is('switch1', True)
         engine.assert_value_is('switch2', False)
         engine.assert_value_is('tamper_input', True)
@@ -283,7 +283,7 @@ async def run_test():
         await asyncio.sleep(0.1)
         engine.step()
         engine.assert_value_is('code_1', None)
-        engine.assert_value_is('code_2', (None,))
+        engine.assert_value_is('code_2', blocks.Some(None))
         engine.assert_value_is('code_3', None)
         engine.assert_value_is('switch1', True)
         engine.assert_value_is('switch2', False)
@@ -312,7 +312,7 @@ async def run_test():
         assert_port_is('led_secured', False)
         engine.assert_value_is('led_feedback', False)
 
-        engine.get_native_state('output_debug').send_event((True,))
+        engine.get_native_state('output_debug').send_event(blocks.Some(True))
 
         engine.step()
         # Run send_value() again
@@ -330,7 +330,7 @@ async def run_test():
         assert_port_is('led_secured', True)
         engine.assert_value_is('led_feedback', True)
 
-        engine.get_native_state('output_debug').send_event((False,))
+        engine.get_native_state('output_debug').send_event(blocks.Some(False))
 
         engine.step()
         # Run send_value() again

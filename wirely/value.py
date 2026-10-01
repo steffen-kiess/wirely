@@ -158,7 +158,7 @@ class ValueOptionSome(ComputedValue):
         )
 
     def evaluate(self):
-        return self.value_type.verify_value((self.inner_value.evaluate(),))
+        return self.value_type.verify_value(blocks.Some(self.inner_value.evaluate()))
 
 
 class ValueList(ComputedValue):

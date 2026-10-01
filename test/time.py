@@ -86,8 +86,8 @@ async def run_test():
 
         todm.set_fake_time(datetime.time.fromisoformat('12:34'))
         engine.step()
-        engine.assert_value_is('trigger', (None,))
-        engine.assert_value_is('triggerValue', (True,))
+        engine.assert_value_is('trigger', blocks.Some(None))
+        engine.assert_value_is('triggerValue', blocks.Some(True))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:35'))
         engine.step()
@@ -116,8 +116,8 @@ async def run_test():
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
-        engine.assert_value_is('trigger', (None,))
-        engine.assert_value_is('triggerValue', (True,))
+        engine.assert_value_is('trigger', blocks.Some(None))
+        engine.assert_value_is('triggerValue', blocks.Some(True))
 
         todm.set_fake_time(datetime.time.fromisoformat('18:00'))
         engine.step()
@@ -141,8 +141,8 @@ async def run_test():
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
-        engine.assert_value_is('trigger', (None,))
-        engine.assert_value_is('triggerValue', (True,))
+        engine.assert_value_is('trigger', blocks.Some(None))
+        engine.assert_value_is('triggerValue', blocks.Some(True))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:37'))
         engine.step()
@@ -176,8 +176,8 @@ async def run_test():
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
-        engine.assert_value_is('trigger', (None,))
-        engine.assert_value_is('triggerValue', (True,))
+        engine.assert_value_is('trigger', blocks.Some(None))
+        engine.assert_value_is('triggerValue', blocks.Some(True))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
@@ -262,8 +262,8 @@ async def run_test():
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
-        engine.assert_value_is('trigger', (None,))
-        engine.assert_value_is('triggerValue', (True,))
+        engine.assert_value_is('trigger', blocks.Some(None))
+        engine.assert_value_is('triggerValue', blocks.Some(True))
 
         # Test: none, before, none, after (should not trigger)
 

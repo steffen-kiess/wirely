@@ -181,7 +181,7 @@ class DebugEventSource(blocks.NativeState):
         if cmd == 'send':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = (self.out_type.parse(parameters[1]),)
+            value = blocks.Some(self.out_type.parse(parameters[1]))
             self.send_event(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -209,7 +209,7 @@ class OptionSome:
     def run(*, context):
         val = context.inputs['input']
         # Pack value
-        val = (val,)
+        val = blocks.Some(val)
 
         context.set_result('output', val)
 
@@ -226,7 +226,7 @@ class OptionUnwrapOrDefault:
         if val is None:
             res = par_default
         else:
-            res = val[0]
+            res = val.value
 
         context.set_result('output', res)
 
@@ -245,7 +245,7 @@ class OptionCreate:
     @staticmethod
     def run(*, context):
         if context.inputs['HasValue']:
-            result = (context.inputs['Value'],)
+            result = blocks.Some(context.inputs['Value'])
         else:
             result = None
 
@@ -278,12 +278,12 @@ class DetectEdge:
 
         # print(f'Last={last_value} Now={value}')
         if data.edge_type == 'Falling':
-            do_trigger = (last_value == (True,)) and (value == False)
+            do_trigger = (last_value == blocks.Some(True)) and (value == False)
         else:
             raise Exception(f'TODO: Implement edge type {data.edge_type}')
 
-        context.set_result('LastValue', (value,))
+        context.set_result('LastValue', blocks.Some(value))
         if do_trigger:
-            context.set_result('output', (value,))
+            context.set_result('output', blocks.Some(value))
         else:
             context.set_result('output', None)

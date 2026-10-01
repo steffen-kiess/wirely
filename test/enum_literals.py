@@ -17,7 +17,7 @@ for name, member in {
     'fan_only': modes.FanOnly,
     'dry': modes.Dry,
     'sleep': modes.Sleep,
-    'present': (modes.Heat,),
+    'present': wirely.Some(modes.Heat),
     'modes': [modes.Off, modes.Cool],
     'settings.mode.': modes.Heat,
     'delay': modes.Off,

@@ -49,7 +49,7 @@ class ToggleFlipFlopTrigger:
         if value is None:
             value = blocks.MonotonicTime.create_invalid()
         else:
-            value = value[0]
+            value = value.value
 
         context.set_result('NextEventAllowedAtOld', value)
 
@@ -83,7 +83,7 @@ class ToggleFlipFlopTrigger:
             # Trying to set current value => Unset pending
             pending =  None
 
-        if next is not None and reached == (False,):
+        if next is not None and reached == blocks.Some(False):
             # Cannot emit event right now
             output = None
             # Keep value of next
@@ -94,9 +94,9 @@ class ToggleFlipFlopTrigger:
                 next = None
             else:
                 # Trigger change
-                output = (data.output_value,)
+                output = blocks.Some(data.output_value)
                 pending = None
-                next = (now + data.minimum_delay,)
+                next = blocks.Some(now + data.minimum_delay)
 
         context.set_result('output', output)
         context.set_result('NextEventAllowedAt', next)

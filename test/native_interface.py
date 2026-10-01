@@ -211,9 +211,17 @@ with checks.assertRaisesRegex(ValueError, 'did not write results'):
 
 
 def check_generic_result(context):
-    with checks.assertRaisesRegex(ValueError, 'Invalid value'):
-        context.set_result('result', (None,))
-    context.set_result('result', (True,))
+    for invalid in [(True,), True, blocks.Some(None)]:
+        try:
+            context.set_result('result', invalid)
+        except ValueError as error:
+            assert 'Invalid value' in str(error)
+            assert 'check_generic_result' in [
+                frame.name for frame in traceback.extract_tb(error.__traceback__)
+            ]
+        else:
+            raise AssertionError('Invalid option result was accepted')
+    context.set_result('result', blocks.Some(True))
 
 
 probe = make_engine('''
@@ -222,7 +230,45 @@ implicit output : value Type;
 native procedure run produces implicit output as "result";
 ''', check_generic_result, parameters='(Type = Option[boolean])')
 probe.step()
-probe.assert_value_is('probe', (True,))
+probe.assert_value_is('probe', blocks.Some(True))
+
+
+# Events use an outer option even when the payload is itself an option.
+for payload_type, event, command in [
+    ('unit', blocks.Some(None), '()'),
+    ('Option[boolean]', blocks.Some(None), 'none'),
+    ('Option[boolean]', blocks.Some(blocks.Some(True)), 'true'),
+]:
+    seen_events = []
+
+    def forward_event(context):
+        seen_events.append(context.inputs['event'])
+        context.set_result('result', context.inputs['event'])
+
+    probe = make_engine(f'''
+implicit input : event {payload_type};
+implicit output : event {payload_type};
+native procedure run depends on implicit input as "event"
+  produces implicit output as "result";
+''', forward_event, extra=f'''
+node source : Std.DebugEventSource(Type = {payload_type});
+connect source -> probe;
+''')
+    probe.step()
+    probe.assert_value_is('probe', None)
+    source = probe.get_native_state('source')
+    for send in [lambda: source.send_event(event),
+                 lambda: source.debug_command(['send', command])]:
+        send()
+        probe.step()
+        probe.assert_value_is('probe', event)
+        probe.assert_value_is('source', event)
+        assert seen_events[-1] == event
+        probe.step()
+        probe.assert_value_is('probe', None)
+        probe.assert_value_is('source', None)
+        assert seen_events[-1] is None
+        probe.assert_is_idle()
 
 
 def check_keys(context):

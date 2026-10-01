@@ -397,7 +397,7 @@ class ValueOptionProvider(blocks.NativeState):
         if value_opt is None:
             value_bytes = b''
         else:
-            value = value_opt[0]
+            value = value_opt.value
             value = self.json_encode(value, self.data.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
             value = self.data.template_prefix + value + self.data.template_suffix
@@ -482,7 +482,7 @@ class EventEmitter(blocks.NativeState):
         if value_opt is None:
             return
         else:
-            value = value_opt[0]
+            value = value_opt.value
             value = self.json_encode(value, data.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
             value = data.template_prefix + value + data.template_suffix
@@ -560,7 +560,7 @@ class EventReceiver(blocks.NativeState):
             return
         value = self.received_values.pop(0)
 
-        res_opt = (value,)
+        res_opt = blocks.Some(value)
         # print(f'get_value: {res_opt}')
 
         context.set_result('output', res_opt)

@@ -164,9 +164,9 @@ class ValueWriter(blocks.NativeState):
 
         new_value_csv = self.data.type.to_csv_value(new_value)
 
-        # If reached is None or (True,), the value has to be repeated
+        # If reached is None or Some(True), the value has to be repeated
         # Note: The empty value is not repeated
-        force = reached != (False,) and new_value_csv != ('', False)
+        force = reached != blocks.Some(False) and new_value_csv != ('', False)
         # print(f'NewValue={new_value} Reached={reached} force={force}')
 
         # Note: This uses RunStage.Default to be as consistent as possible with the time seen by procedures in the default stage

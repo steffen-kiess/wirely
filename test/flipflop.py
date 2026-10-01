@@ -19,10 +19,10 @@ async def run_test():
             if exp is not None:
                 if exp != 1:
                     raise Exception('exp != 1')
-                exp = (None,)
+                exp = blocks.Some(None)
 
             if cmd is not None:
-                inp.send_event((cmd,))
+                inp.send_event(blocks.Some(cmd))
             if fdbck is not ():
                 feedback.set_value(fdbck)
             engine.step()
@@ -37,7 +37,7 @@ async def run_test():
 
         tst(cmd=True, exp=None)
 
-        tst(fdbck=(False,), exp=None)
+        tst(fdbck=blocks.Some(False), exp=None)
 
         tst(cmd=True, exp=1)
 
@@ -51,7 +51,7 @@ async def run_test():
         tst(cmd=False, exp=None)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
-        tst(fdbck=(True,), cmd=False, exp=1)
+        tst(fdbck=blocks.Some(True), cmd=False, exp=1)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(0.8))
         tst(cmd=False, exp=None)
@@ -71,7 +71,7 @@ async def run_test():
         tst(exp=None)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(0.3))
-        tst(fdbck=(True,), cmd=False, exp=1)
+        tst(fdbck=blocks.Some(True), cmd=False, exp=1)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(0.1))
         # Within timeout
@@ -79,11 +79,11 @@ async def run_test():
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(0.1))
         # Feedback change should clear pending
-        tst(fdbck=(False,), exp=None)
+        tst(fdbck=blocks.Some(False), exp=None)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(0.1))
         # Feedback change should clear pending, event if feedback is changed back
-        tst(fdbck=(True,), exp=None)
+        tst(fdbck=blocks.Some(True), exp=None)
 
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3))
         # Pending should be clear

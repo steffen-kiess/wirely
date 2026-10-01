@@ -106,7 +106,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('OptionProviderInput').set_value((True,))
+            engine.get_native_state('OptionProviderInput').set_value(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
@@ -115,13 +115,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('OptionProviderInput').set_value((True,))
+            engine.get_native_state('OptionProviderInput').set_value(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('OptionProviderInput').set_value((False,))
+            engine.get_native_state('OptionProviderInput').set_value(wirely.Some(False))
             await expect_msgs()
 
             engine.step()
@@ -147,13 +147,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('EventSource').send_event((True,))
+            engine.get_native_state('EventSource').send_event(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t3', b'true'))
 
-            engine.get_native_state('EventSource').send_event((True,))
+            engine.get_native_state('EventSource').send_event(wirely.Some(True))
             await expect_msgs()
 
             engine.step()
@@ -162,7 +162,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('EventSource').send_event((False,))
+            engine.get_native_state('EventSource').send_event(wirely.Some(False))
             await expect_msgs()
 
             engine.step()
@@ -182,13 +182,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('StringEventSource').send_event(('X1',))
+            engine.get_native_state('StringEventSource').send_event(wirely.Some('X1'))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t4', b'"X1"'))
 
-            engine.get_native_state('StringEventSource').send_event(('X1',))
+            engine.get_native_state('StringEventSource').send_event(wirely.Some('X1'))
             await expect_msgs()
 
             engine.step()
@@ -197,7 +197,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('StringEventSource').send_event(('X2',))
+            engine.get_native_state('StringEventSource').send_event(wirely.Some('X2'))
             await expect_msgs()
 
             engine.step()
@@ -217,13 +217,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('EnumEventSource').send_event((wirely.enum.ThermostatSystemMode.Off,))
+            engine.get_native_state('EnumEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.Off))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"off"'))
 
-            engine.get_native_state('EnumEventSource').send_event((wirely.enum.ThermostatSystemMode.Off,))
+            engine.get_native_state('EnumEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.Off))
             await expect_msgs()
 
             engine.step()
@@ -232,7 +232,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('EnumEventSource').send_event((wirely.enum.ThermostatSystemMode.EmergencyHeat,))
+            engine.get_native_state('EnumEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.EmergencyHeat))
             await expect_msgs()
 
             engine.step()
@@ -252,13 +252,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('TemplateEventSource').send_event((wirely.enum.ThermostatSystemMode.Off,))
+            engine.get_native_state('TemplateEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.Off))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
 
-            engine.get_native_state('TemplateEventSource').send_event((wirely.enum.ThermostatSystemMode.Off,))
+            engine.get_native_state('TemplateEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.Off))
             await expect_msgs()
 
             engine.step()
@@ -267,7 +267,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('TemplateEventSource').send_event((wirely.enum.ThermostatSystemMode.EmergencyHeat,))
+            engine.get_native_state('TemplateEventSource').send_event(wirely.Some(wirely.enum.ThermostatSystemMode.EmergencyHeat))
             await expect_msgs()
 
             engine.step()
@@ -292,7 +292,7 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('EventReceiver', (True,))
+            engine.assert_value_is('EventReceiver', wirely.Some(True))
             await expect_msgs()
 
             engine.step()
@@ -323,7 +323,7 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('TemplateEventReceiver', (True,))
+            engine.assert_value_is('TemplateEventReceiver', wirely.Some(True))
             await expect_msgs()
 
             engine.step()
