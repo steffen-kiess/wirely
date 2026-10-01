@@ -1,0 +1,80 @@
+# Wirely style guide
+
+Use judgment: favor readable code over mechanical application of these
+guidelines.
+
+## Layout
+
+- Save files as UTF-8 with LF line endings and a final newline.
+- Use spaces, never tabs. Indent two spaces per level, including namespaces.
+- Prefer lines of at most 80 characters. Longer lines are fine when clearer.
+- Put opening braces on the declaration line and closing braces on their
+  own lines, aligned with the declaration.
+- Use spaces around `:`, `=`, and `->`, and after commas. Keep qualified
+  names and brackets compact: `Std.Constant`, `Option[boolean]`.
+
+Use one declaration per line. Separate type declarations and logical groups
+with one blank line. Keep closely related declarations together, such as
+a node and its connections. Avoid blank lines immediately inside braces.
+
+```wrl
+namespace Example {
+  node type Forward {
+    parameter Type : ValueType;
+    implicit input : value Type;
+    implicit output : value Type;
+
+    native procedure run
+      depends on implicit input as "input"
+      produces implicit output as "output";
+  }
+}
+```
+
+## Breaking lines
+
+Keep short declarations on one line. For longer procedures, break before
+`depends on` and `produces`, indenting both clauses two spaces beyond the
+declaration. Keep `stage input` or `stage output` with the procedure name
+when practical.
+
+Break long lists after commas, adding another two spaces for their
+continuation. Keep a reference and its `as` alias together where practical.
+
+```wrl
+native procedure run stage output
+  depends on current_value.old as "current_value_old",
+    requested_value as "requested_value", Enabled
+  produces current_value, implicit output as "output";
+```
+
+For multiline argument lists, break after `(` and put arguments on separate
+lines. Align the closing parenthesis with the declaration. Use similar
+layouts for other long lists; avoid elaborate column alignment.
+
+```wrl
+node source : Std.Constant(
+  Type = boolean,
+  Value = true
+);
+node printer : Std.DebugValuePrinter(Type = boolean);
+connect source -> printer;
+```
+
+## Names and comments
+
+Choose descriptive names. Use `PascalCase` for namespaces, types, and public
+parameters and connectors; prefer `snake_case` for internal nodes, state,
+temporaries, and procedures. Match existing interface names exactly.
+
+Prefer `// ` comments, including consecutive lines for longer explanations.
+Put comments above the code they describe and at the same indentation.
+Explain purpose or non-obvious behavior rather than restating the code.
+
+```wrl
+// Keep the lights off until an occupancy value has been received.
+node occupied : Std.OptionUnwrapOrDefault(
+  InnerType = boolean,
+  Default = false
+);
+```
