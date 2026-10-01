@@ -2,7 +2,6 @@ import enum
 import typing
 import abc
 import contextlib
-import ast
 import re
 import datetime
 
@@ -267,31 +266,80 @@ class StringConstant(Value):
         super().__init__(source_position=source_position)
         self.token = token
 
-        val = token.value
+        val = token.value.replace('\r\n', '\n')
+        if '\r' in val:
+            raise ProgramError(self, 'Bare carriage return in string literal')
         # https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
         # https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw
         if val.startswith('r"'):
             if len(val) < 3 or val[-1] != '"':
-                raise Exception(f'Error while getting string constant {val!r}')
+                raise ProgramError(self, 'Invalid raw string literal')
             value = val[2:-1]
             if '"' in value:
-                # Should never happen, the lexer should not return such strings
-                raise Exception('Error while parsing string constant: " in value')
+                raise ProgramError(self, 'Invalid raw string literal')
             self.value = value
-        # TODO: Also allow different # levels (support also needed in lexer)
         elif val.startswith('r#"'):
             if len(val) < 5 or val[-2:] != '"#':
-                raise Exception(f'Error while getting string constant {val!r}')
+                raise ProgramError(self, 'Invalid raw string literal')
             value = val[3:-2]
             if '"#' in value:
-                # Should never happen, the lexer should not return such strings
-                raise Exception('Error while parsing string constant: "# in value')
+                raise ProgramError(self, 'Invalid raw string literal')
             self.value = value
         else:
             if len(val) < 2 or val[0] != '"' or val[-1] != '"':
-                raise Exception(f'Error while getting string constant {val!r}')
-            # TODO: Do this manually and use rust rules instead of python
-            self.value = ast.literal_eval(val)
+                raise ProgramError(self, 'Invalid string literal')
+            self.value = self._decode_quoted(val[1:-1])
+
+    def _decode_quoted(self, value):
+        escapes = {
+            '0': '\0', 't': '\t', 'n': '\n', 'r': '\r',
+            '"': '"', "'": "'", '\\': '\\',
+        }
+        hex_digits = '0123456789abcdefABCDEF'
+        result = []
+        index = 0
+        while index < len(value):
+            char = value[index]
+            index += 1
+            if char != '\\':
+                result.append(char)
+                continue
+            if index == len(value):
+                raise ProgramError(self, 'Incomplete string escape')
+            escape = value[index]
+            index += 1
+            if escape in escapes:
+                result.append(escapes[escape])
+            elif escape == '\n':
+                while index < len(value) and value[index] in ' \t\r\n':
+                    index += 1
+            elif escape == 'x':
+                digits = value[index:index + 2]
+                if len(digits) != 2 or any(digit not in hex_digits for digit in digits):
+                    raise ProgramError(self, 'Hex escape requires two hexadecimal digits')
+                result.append(chr(int(digits, 16)))
+                index += 2
+            elif escape == 'u':
+                if index == len(value) or value[index] != '{':
+                    raise ProgramError(self, 'Unicode escape requires braces')
+                end = value.find('}', index + 1)
+                if end == -1:
+                    raise ProgramError(self, 'Unterminated Unicode escape')
+                digits = value[index + 1:end]
+                if not re.fullmatch(r'[0-9a-fA-F][0-9a-fA-F_]*', digits):
+                    raise ProgramError(self, 'Invalid Unicode escape digits')
+                digits = digits.replace('_', '')
+                if len(digits) > 6:
+                    raise ProgramError(self, 'Unicode escape allows at most six hexadecimal digits')
+                code_point = int(digits, 16)
+                if code_point > 0x10ffff or 0xd800 <= code_point <= 0xdfff:
+                    raise ProgramError(self, 'Unicode escape is not a Unicode scalar value')
+                result.append(chr(code_point))
+                index = end + 1
+            else:
+                escape_text = '\\' + escape
+                raise ProgramError(self, f'Unknown string escape: {escape_text!r}')
+        return ''.join(result)
 
 
 class Reference(Value):

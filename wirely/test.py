@@ -21,6 +21,7 @@ import wirely.compiler
 
 test_names = [
     'types',
+    'string_literals',
     'delay',
     'std',
     'and',
@@ -51,6 +52,10 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/string_invalid_hex_escape.wrl',
+    'test/negative/string_unicode_missing_braces.wrl',
+    'test/negative/string_invalid_unicode_scalar.wrl',
+    'test/negative/string_unknown_escape.wrl',
     'test/negative/unknown_parameter.wrl',
     'test/negative/unknown_node_type.wrl',
     'test/negative/singleton_input.wrl',

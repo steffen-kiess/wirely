@@ -1,0 +1,1 @@
+node source : Std.Constant(Type = String, Value = "\q"); // E: Unknown string escape
