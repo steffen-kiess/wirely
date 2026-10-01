@@ -1,9 +1,11 @@
 namespace Fixture {
   resource type First;
   resource type Second;
+
   node type Source {
     implicit output : resource First; // H: Source was declared here
   }
+
   node type Target {
     input Service : resource Second; // H: Target was declared here
   }

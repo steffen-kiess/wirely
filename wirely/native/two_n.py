@@ -307,7 +307,7 @@ class KeyState(blocks.NativeState):
     @staticmethod
     def read_timeout_time(*, context):
         value = context.inputs['timeout_time_old']
-        context.set_result('TimeoutTimeOld', value)
+        context.set_result('timeout_time_old', value)
 
     @native_procedure
     @staticmethod
@@ -316,7 +316,7 @@ class KeyState(blocks.NativeState):
 
         value = context.inputs['current_value_old']
         timeout_time = context.inputs['timeout_time_old']
-        timeout_reached = context.inputs['TimeoutReached']
+        timeout_reached = context.inputs['timeout_reached']
         event = context.inputs['key_event']
 
         if event == blocks.Some(True):
@@ -345,8 +345,8 @@ class KeyState(blocks.NativeState):
                 new_timeout_time = timeout_time
 
         context.set_result('output', new_value)
-        context.set_result('TimeoutTime', new_timeout_time)
-        context.set_result('CurrentValue', new_value)
+        context.set_result('timeout_time', new_timeout_time)
+        context.set_result('current_value', new_value)
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)

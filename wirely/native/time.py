@@ -53,7 +53,7 @@ class DelayChange(blocks.NativeState):
     @staticmethod
     def read_update_time(*, context):
         value = context.inputs['update_time_old']
-        context.set_result('UpdateTimeOld', value)
+        context.set_result('update_time_old', value)
 
     @native_procedure
     @staticmethod
@@ -61,7 +61,7 @@ class DelayChange(blocks.NativeState):
         data = context.static.block.parsed_native_instance
 
         inp = context.inputs['input']
-        reached = context.inputs['Reached']
+        reached = context.inputs['reached']
         cur = context.inputs['current_value_old']
         new = context.inputs['new_value_old']
         update_time = context.inputs['update_time_old']
@@ -104,9 +104,9 @@ class DelayChange(blocks.NativeState):
             n_update_time = blocks.MonotonicTime.create_invalid()
             out = new.value
 
-        context.set_result('CurrentValue', n_cur)
-        context.set_result('NewValue', n_new)
-        context.set_result('UpdateTime', n_update_time)
+        context.set_result('current_value', n_cur)
+        context.set_result('new_value', n_new)
+        context.set_result('update_time', n_update_time)
         context.set_result('output', out)
 
 
@@ -335,4 +335,4 @@ class TriggerAt:
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
         context.set_result('output', blocks.Some(data.value) if do_trigger else None)
-        context.set_result('State', new_state)
+        context.set_result('trigger_state', new_state)

@@ -1,1 +1,4 @@
-node mode : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.NotCool); // E: Unknown member 'NotCool' of ThermostatSystemModeEnum
+node mode : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.NotCool
+); // ^E: Unknown member 'NotCool' of ThermostatSystemModeEnum

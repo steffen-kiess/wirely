@@ -1,12 +1,11 @@
 namespace ExtProg {
-native node type LaunchOnEvent {
-  // Will be passed to "sh -c"
-  parameter ShellCommand : String;
+  native node type LaunchOnEvent {
+    // Will be passed to "sh -c"
+    parameter ShellCommand : String;
+    parameter Type : ValueType = unit;
+    // Note: The value of the event will be ignored
+    implicit input : event Type;
 
-  parameter Type : ValueType = unit;
-  // Note: The value of the event will be ignored
-  implicit input : event Type;
-
-  native procedure run stage output depends on implicit input as "input";
-}
+    native procedure run stage output depends on implicit input as "input";
+  }
 }

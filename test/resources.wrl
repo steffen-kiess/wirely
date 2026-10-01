@@ -46,9 +46,11 @@ namespace OtherResourceFixture {
 }
 
 resource type RootHandle;
+
 node type RootSource {
   implicit output : resource RootHandle;
 }
+
 node type RootSink {
   implicit input : resource RootHandle;
 }

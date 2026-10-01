@@ -1,23 +1,24 @@
 namespace GPIO {
-// Set a GPIO based on a boolean value
-native node type Output {
-  parameter ChipDeviceFile : String;
-  parameter Name : String;
+  // Set a GPIO based on a boolean value
+  native node type Output {
+    parameter ChipDeviceFile : String;
+    parameter Name : String;
 
-  // TODO: Use enums?
-  // Can be "High" or "Low"
-  parameter ActiveState : String = "High";
-  // Can be "PushPull", "OpenDrain" or "OpenSource"
-  parameter Drive : String = "PushPull";
-  // Can be "PullDown", "PullUp", "Disable" or "AsIs"
-  parameter Bias : String = "AsIs";
+    // TODO: Use enums? Can be "High" or "Low"
+    parameter ActiveState : String = "High";
+    // Can be "PushPull", "OpenDrain" or "OpenSource"
+    parameter Drive : String = "PushPull";
+    // Can be "PullDown", "PullUp", "Disable" or "AsIs"
+    parameter Bias : String = "AsIs";
 
-  // TODO: Allow specifying active high / active low?
+    // TODO: Allow specifying active high / active low?
 
-  implicit input : value boolean;
+    implicit input : value boolean;
 
-  native procedure set_value stage output depends on implicit input as "input";
-}
+    native procedure set_value stage output
+      depends on implicit input as "input";
+  }
 
-// TODO: Add tri-state output where the value can be None which will cause the GPIO to be configured as input?
+  // TODO: Add tri-state output where the value can be None which will cause the
+  // GPIO to be configured as input?
 }

@@ -59,7 +59,9 @@ assert parse_literal('1e-3') == 0.001
 
 def reject_literal(literal, value_type, message=None):
     source = (
-        f'node type Settings {{ parameter Value : {value_type}; }}\n'
+        'node type Settings {\n'
+        f'  parameter Value : {value_type};\n'
+        '}\n'
         f'node settings : Settings(Value = {literal});'
     )
     output = io.StringIO()
@@ -68,7 +70,7 @@ def reject_literal(literal, value_type, message=None):
         result = wirely.compiler.compile_strs([('<integer-test>', source)])
     diagnostic = output.getvalue()
     assert result is None, literal
-    assert 'Error in <integer-test>:2' in diagnostic, (literal, diagnostic)
+    assert 'Error in <integer-test>:4' in diagnostic, (literal, diagnostic)
     assert message is None or message in diagnostic, (literal, diagnostic)
     assert 'Internal compiler error' not in diagnostic, diagnostic
     assert 'Traceback' not in diagnostic, diagnostic

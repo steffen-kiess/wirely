@@ -1,15 +1,51 @@
-node off : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Off);
-node auto : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Auto);
-node cool : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Cool);
-node heat : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Heat);
-node emergency_heat : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.EmergencyHeat);
-node precooling : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Precooling);
-node fan_only : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.FanOnly);
-node dry : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Dry);
-node sleep : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Sleep);
-node present : Std.Constant(Type = Option[ThermostatSystemModeEnum], Value = Some(ThermostatSystemModeEnum.Heat));
-node modes : Std.Constant(Type = List[ThermostatSystemModeEnum], Value = [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]);
-node delay : Std.Delay(Type = ThermostatSystemModeEnum, InitialValue = ThermostatSystemModeEnum.Off);
+node off : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Off
+);
+node auto : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Auto
+);
+node cool : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Cool
+);
+node heat : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Heat
+);
+node emergency_heat : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.EmergencyHeat
+);
+node precooling : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Precooling
+);
+node fan_only : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.FanOnly
+);
+node dry : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Dry
+);
+node sleep : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Sleep
+);
+node present : Std.Constant(
+  Type = Option[ThermostatSystemModeEnum],
+  Value = Some(ThermostatSystemModeEnum.Heat)
+);
+node modes : Std.Constant(
+  Type = List[ThermostatSystemModeEnum],
+  Value = [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]
+);
+node delay : Std.Delay(
+  Type = ThermostatSystemModeEnum,
+  InitialValue = ThermostatSystemModeEnum.Off
+);
 connect heat -> delay;
 
 node type Settings {

@@ -1,9 +1,9 @@
 node test_input : Std.DebugValueSource(Type = boolean);
 node test_output : GPIO.Output(
-    ChipDeviceFile = "/dev/gpiochip-test",
-    Name = "LED",
-    ActiveState = "Low",
-    Drive = "OpenDrain",
-    Bias = "PullUp"
+  ChipDeviceFile = "/dev/gpiochip-test",
+  Name = "LED",
+  ActiveState = "Low",
+  Drive = "OpenDrain",
+  Bias = "PullUp"
 );
 connect test_input -> test_output;

@@ -282,7 +282,7 @@ class DetectEdge:
         else:
             raise Exception(f'TODO: Implement edge type {data.edge_type}')
 
-        context.set_result('LastValue', blocks.Some(value))
+        context.set_result('last_value', blocks.Some(value))
         if do_trigger:
             context.set_result('output', blocks.Some(value))
         else:

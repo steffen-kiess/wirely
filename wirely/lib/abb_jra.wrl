@@ -1,72 +1,71 @@
 namespace ABB.JRA {
-node type InterpretStatusInformation {
-  implicit input : value uint16;
+  node type InterpretStatusInformation {
+    implicit input : value uint16;
+    output ManualOperation : value boolean;
+    output BlockActive : value boolean;
+    output ForcedOperation : value boolean;
+    output FrostAlarm : value boolean;
+    output RainAlarm : value boolean;
+    output WindAlarm : value boolean;
+    output AutomaticSunProtection : value boolean;
+    output AutomaticHeatingCooling : value boolean;
+    output DriveError : value boolean;
+    output DriveInMotion : value boolean;
+    output DriveDown : value boolean;
+    output DriveUp : value boolean;
+    output SendReceiveDelayActive : value boolean;
+    // output Unassigned13 : value boolean;
+    // output Unassigned14 : value boolean;
+    // output Unassigned15 : value boolean;
 
-  output ManualOperation : value boolean;
-  output BlockActive : value boolean;
-  output ForcedOperation : value boolean;
-  output FrostAlarm : value boolean;
-  output RainAlarm : value boolean;
-  output WindAlarm : value boolean;
-  output AutomaticSunProtection : value boolean;
-  output AutomaticHeatingCooling : value boolean;
+    native procedure run
+      depends on implicit input as "input"
+      produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+        RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
+        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
+  }
 
-  output DriveError : value boolean;
-  output DriveInMotion : value boolean;
-  output DriveDown : value boolean;
-  output DriveUp : value boolean;
-  output SendReceiveDelayActive : value boolean;
-  // output Unassigned13 : value boolean;
-  // output Unassigned14 : value boolean;
-  // output Unassigned15 : value boolean;
+  node type InterpretStatusInformationOption {
+    implicit input : value Option[uint16];
+    output ManualOperation : value Option[boolean];
+    output BlockActive : value Option[boolean];
+    output ForcedOperation : value Option[boolean];
+    output FrostAlarm : value Option[boolean];
+    output RainAlarm : value Option[boolean];
+    output WindAlarm : value Option[boolean];
+    output AutomaticSunProtection : value Option[boolean];
+    output AutomaticHeatingCooling : value Option[boolean];
+    output DriveError : value Option[boolean];
+    output DriveInMotion : value Option[boolean];
+    output DriveDown : value Option[boolean];
+    output DriveUp : value Option[boolean];
+    output SendReceiveDelayActive : value Option[boolean];
+    // output Unassigned13 : value Option[boolean];
+    // output Unassigned14 : value Option[boolean];
+    // output Unassigned15 : value Option[boolean];
 
-  native procedure run
-    depends on implicit input as "input"
-    produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
-      RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
-      DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
-}
+    native procedure run
+      depends on implicit input as "input"
+      produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+        RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
+        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
 
-node type InterpretStatusInformationOption {
-  implicit input : value Option[uint16];
+    // TODO: Make this work?
+    // node have_value : Std.OptionIsSome(InnerType = uint16);
+    // connect implicit input -> have_value;
 
-  output ManualOperation : value Option[boolean];
-  output BlockActive : value Option[boolean];
-  output ForcedOperation : value Option[boolean];
-  output FrostAlarm : value Option[boolean];
-  output RainAlarm : value Option[boolean];
-  output WindAlarm : value Option[boolean];
-  output AutomaticSunProtection : value Option[boolean];
-  output AutomaticHeatingCooling : value Option[boolean];
+    // node input_value : Std.OptionUnwrapOrDefault(
+    //   InnerType = uint16,
+    //   Default = 0
+    // );
+    // connect implicit input -> input_value;
 
-  output DriveError : value Option[boolean];
-  output DriveInMotion : value Option[boolean];
-  output DriveDown : value Option[boolean];
-  output DriveUp : value Option[boolean];
-  output SendReceiveDelayActive : value Option[boolean];
-  // output Unassigned13 : value Option[boolean];
-  // output Unassigned14 : value Option[boolean];
-  // output Unassigned15 : value Option[boolean];
+    // node status : InterpretStatusInformation;
+    // connect input_value -> status;
 
-  native procedure run
-    depends on implicit input as "input"
-    produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
-      RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
-      DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
-
-  // // TODO: Make this work?
-  // node HaveValue: Std.OptionIsSome(InnerType = uint16);
-  // connect implicit input -> HaveValue;
-
-  // node InputValue : Std.OptionUnwrapOrDefault(InnerType = uint16, Default = 0);
-  // connect implicit input -> InputValue;
-
-  // node Status : InterpretStatusInformation;
-  // connect InputValue -> Status;
-
-  // node ManualOperationValue : Std.OptionCreate(InnerType = boolean);
-  // connect HaveValue -> ManualOperationValue.HasValue;
-  // connect Status.ManualOperation -> ManualOperationValue.Value;
-  // connect ManualOperationValue -> ManualOperation;
-}
+    // node manual_operation_value : Std.OptionCreate(InnerType = boolean);
+    // connect have_value -> manual_operation_value.HasValue;
+    // connect status.ManualOperation -> manual_operation_value.Value;
+    // connect manual_operation_value -> ManualOperation;
+  }
 }

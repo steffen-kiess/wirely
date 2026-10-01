@@ -1,118 +1,122 @@
 namespace TwoN {
-resource type Device;
+  resource type Device;
 
-native node type Connection {
-  parameter Host : String;
-  parameter Port : uint16 = 443;
-  parameter TLSA : List[String];
-  parameter UsernamePasswordFile : String;
+  native node type Connection {
+    parameter Host : String;
+    parameter Port : uint16 = 443;
+    parameter TLSA : List[String];
+    parameter UsernamePasswordFile : String;
 
-  implicit output : resource Device;
-}
+    implicit output : resource Device;
+  }
 
-// Get an event whenever a key is pressed or released
-native node type KeyEvent {
-  parameter Key : String;
+  // Get an event whenever a key is pressed or released
+  native node type KeyEvent {
+    parameter Key : String;
 
-  input Device : resource Device;
+    input Device : resource Device;
 
-  // True if the key is pressed, false if it released.
-  implicit output : event boolean;
+    // True if the key is pressed, false if it released.
+    implicit output : event boolean;
 
-  native procedure get_value stage input produces implicit output as "output";
-}
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
-// Get the current state of a key
-//
-// Might be incorrect after startup if key is already pressed on startup.
-// TODO: When the connection is lost, this also should reset the value to "False"
-node type KeyState {
-  parameter Key : String;
-  // Timeout after which the key will be assumed to be released (because
-  // "2N -> Calling -> Dialing -> Quick dial button functionality test" will
-  // trigger a KeyPressed event but no KeyReleased event).
-  parameter Timeout : Duration = "30s";
+  // Get the current state of a key
+  //
+  // Might be incorrect after startup if key is already pressed on startup.
+  // TODO: When the connection is lost, this also should reset the value to
+  // "False"
+  node type KeyState {
+    parameter Key : String;
+    // Timeout after which the key will be assumed to be released (because "2N
+    // -> Calling -> Dialing -> Quick dial button functionality test" will
+    // trigger a KeyPressed event but no KeyReleased event).
+    parameter Timeout : Duration = "30s";
 
-  input Device : resource Device;
+    input Device : resource Device;
 
-  // True if the key is pressed, false otherwise.
-  implicit output : value boolean;
+    // True if the key is pressed, false otherwise.
+    implicit output : value boolean;
 
-  node key_event : KeyEvent(Key=Key);
-  connect Device -> key_event.Device;
+    node key_event : KeyEvent(Key = Key);
+    connect Device -> key_event.Device;
 
-  // The current value which is kept if there is no new event
-  state CurrentValue : boolean = false;
+    // The current value which is kept if there is no new event
+    state current_value : boolean = false;
 
-  // The next time at which the the state will be reset to False.
-  // If this time is not comparable to the current time, the the state will be reset to False.
-  state TimeoutTime : MonotonicTime = MonotonicTime.Invalid;
+    // The next time at which the the state will be reset to False. If this time
+    // is not comparable to the current time, the the state will be reset to
+    // False.
+    state timeout_time : MonotonicTime = MonotonicTime.Invalid;
 
-  node TimeoutReached : Time.MonotonicTimeReached;
-  // TODO: Allow this?
-  // connect TimeoutTime.old -> TimeoutReached;
-  temporary TimeoutTimeOld : MonotonicTime;
-  native procedure read_timeout_time
-    depends on TimeoutTime.old as "timeout_time_old"
-    produces TimeoutTimeOld;
-  connect TimeoutTimeOld -> TimeoutReached;
+    node timeout_reached : Time.MonotonicTimeReached;
+    // TODO: Allow this?
+    // connect timeout_time.old -> timeout_reached;
+    temporary timeout_time_old : MonotonicTime;
 
-  native procedure get_value
-    depends on CurrentValue.old as "current_value_old", TimeoutTime.old as
-      "timeout_time_old", key_event, TimeoutReached
-    produces implicit output as "output", TimeoutTime, CurrentValue;
-}
+    native procedure read_timeout_time
+      depends on timeout_time.old as "timeout_time_old"
+      produces timeout_time_old;
+    connect timeout_time_old -> timeout_reached;
 
-// Get the current state of an input or output
-// TODO: Regularly get the current value?
-native node type IOState {
-  parameter Port : String;
+    native procedure get_value
+      depends on current_value.old as "current_value_old",
+        timeout_time.old as "timeout_time_old", key_event, timeout_reached
+      produces implicit output as "output", timeout_time, current_value;
+  }
 
-  input Device : resource Device;
+  // Get the current state of an input or output
+  // TODO: Regularly get the current value?
+  native node type IOState {
+    parameter Port : String;
 
-  // True if the input/output is on, false otherwise.
-  implicit output : value boolean;
+    input Device : resource Device;
 
-  native procedure get_value stage input produces implicit output as "output";
-}
+    // True if the input/output is on, false otherwise.
+    implicit output : value boolean;
 
-// Get the current state of a switch
-// TODO: Regularly get the current value?
-native node type SwitchState {
-  parameter SwitchNumber : int32;
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
-  input Device : resource Device;
+  // Get the current state of a switch
+  // TODO: Regularly get the current value?
+  native node type SwitchState {
+    parameter SwitchNumber : int32;
 
-  // True if the switch is active, false otherwise.
-  implicit output : value boolean;
+    input Device : resource Device;
 
-  // TODO: Outputs for "locked" and "held"?
+    // True if the switch is active, false otherwise.
+    implicit output : value boolean;
 
-  native procedure get_value stage input produces implicit output as "output";
-}
+    // TODO: Outputs for "locked" and "held"?
 
-native node type CodeEnteredEvent {
-  parameter Code : String;
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
-  input Device : resource Device;
+  native node type CodeEnteredEvent {
+    parameter Code : String;
 
-  implicit output : event unit;
+    input Device : resource Device;
+    implicit output : event unit;
 
-  native procedure get_value stage input produces implicit output as "output";
-}
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
-native node type OutputControl {
-  parameter Port : String;
+  native node type OutputControl {
+    parameter Port : String;
 
-  input Device : resource Device;
+    input Device : resource Device;
 
-  // True to turn the output is on, false to turn it off.
-  implicit input : event boolean;
+    // True to turn the output is on, false to turn it off.
+    implicit input : event boolean;
 
-  native procedure send_value stage output depends on implicit input as "input";
-}
+    native procedure send_value stage output
+      depends on implicit input as "input";
+  }
 
-// TODO: Block for setting output from value?
+  // TODO: Block for setting output from value?
 
-// TODO: Block for setting switch from event? Also allow toggle? Also allow lock/unlock/hold/release?
+  // TODO: Block for setting switch from event? Also allow toggle? Also allow
+  // lock/unlock/hold/release?
 }

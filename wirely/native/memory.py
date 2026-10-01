@@ -51,7 +51,7 @@ class ToggleFlipFlopTrigger:
         else:
             value = value.value
 
-        context.set_result('NextEventAllowedAtOld', value)
+        context.set_result('next_event_allowed_at_snapshot', value)
 
     @native_procedure
     @staticmethod
@@ -61,7 +61,7 @@ class ToggleFlipFlopTrigger:
 
         inp = context.inputs['input']
         feedback = context.inputs['Feedback']
-        reached = context.inputs['NextEventAllowedAtReached']
+        reached = context.inputs['next_event_allowed_at_reached']
         next = context.inputs['next_event_allowed_at_old']
         pending = context.inputs['pending_event_old']
         # print(f'ToggleFlipFlopTrigger.run inp={inp} feedback={feedback} reached={reached} next={next} pending={pending}')
@@ -99,5 +99,5 @@ class ToggleFlipFlopTrigger:
                 next = blocks.Some(now + data.minimum_delay)
 
         context.set_result('output', output)
-        context.set_result('NextEventAllowedAt', next)
-        context.set_result('PendingEvent', pending)
+        context.set_result('next_event_allowed_at', next)
+        context.set_result('pending_event', pending)

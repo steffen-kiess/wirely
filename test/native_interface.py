@@ -1,6 +1,7 @@
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
+from textwrap import indent
 from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
@@ -33,9 +34,10 @@ def make_engine(declaration, callback, *, extra='', parameters=''):
     source = f'''
 namespace TestLibrary {{
   node type Probe {{
-    {declaration}
+{indent(declaration.strip(), "    ")}
   }}
 }}
+
 node probe : TestLibrary.Probe{parameters};
 {extra}
 '''
@@ -82,7 +84,9 @@ probe = make_engine('''
 implicit input : value uint8;
 input named : value uint8;
 implicit output : value uint8;
-native procedure run depends on implicit input as "value", named
+
+native procedure run
+  depends on implicit input as "value", named
   produces implicit output as "result";
 ''', check_inputs, extra='''
 node source : Std.Constant(Type = uint8, Value = 7);
@@ -104,7 +108,9 @@ def check_list(context):
 probe = make_engine('''
 implicit input : list value uint8;
 implicit output : value uint8;
-native procedure run depends on implicit input as "values"
+
+native procedure run
+  depends on implicit input as "values"
   produces implicit output as "result";
 ''', check_list, extra='''
 node first : Std.Constant(Type = uint8, Value = 7);
@@ -123,10 +129,12 @@ def check_state(context):
 
 
 probe = make_engine('''
-state Count : uint8 = 0;
+state count : uint8 = 0;
 implicit output : value uint8;
-native procedure run depends on Count.old as "previous"
-  produces Count as "next", implicit output as "result";
+
+native procedure run
+  depends on count.old as "previous"
+  produces count as "next", implicit output as "result";
 ''', check_state)
 for expected in range(3):
     probe.step()
@@ -141,10 +149,14 @@ def check_state_snapshot(context):
 
 
 probe = make_engine('''
-state Count : uint8 = 0;
+state count : uint8 = 0;
 implicit output : value uint8;
-native procedure run depends on Count.old as "previous" produces Count as "next";
-native procedure run2 depends on Count.old as "snapshot"
+
+native procedure run
+  depends on count.old as "previous"
+  produces count as "next";
+native procedure run2
+  depends on count.old as "snapshot"
   produces implicit output as "result";
 ''', check_state_snapshot)
 for expected in range(3):
@@ -161,16 +173,21 @@ for singleton in ('', 'singleton '):
     probe = make_engine('''
 node child : Child;
 implicit output : value uint8;
-native procedure run depends on child.Value as "value"
+
+native procedure run
+  depends on child.Value as "value"
   produces implicit output as "result";
 ''', forward_value, extra=f'''
 resource type Session;
+
 {singleton}node type Child {{
   output Service : resource Session;
   output Value : value uint8;
+
   node source : Std.Constant(Type = uint8, Value = 7);
   connect source -> Value;
 }}
+
 node another : TestLibrary.Probe;
 ''')
     probe.step()
@@ -197,6 +214,7 @@ def check_result_errors(context):
 
 probe = make_engine('''
 implicit output : value uint8;
+
 native procedure run produces implicit output as "result";
 ''', check_result_errors)
 probe.step()
@@ -204,6 +222,7 @@ probe.assert_value_is('probe', 7)
 
 probe = make_engine('''
 implicit output : value uint8;
+
 native procedure run produces implicit output as "result";
 ''', lambda context: None)
 with checks.assertRaisesRegex(ValueError, 'did not write results'):
@@ -227,6 +246,7 @@ def check_generic_result(context):
 probe = make_engine('''
 parameter Type : ValueType;
 implicit output : value Type;
+
 native procedure run produces implicit output as "result";
 ''', check_generic_result, parameters='(Type = Option[boolean])')
 probe.step()
@@ -248,7 +268,9 @@ for payload_type, event, command in [
     probe = make_engine(f'''
 implicit input : event {payload_type};
 implicit output : event {payload_type};
-native procedure run depends on implicit input as "event"
+
+native procedure run
+  depends on implicit input as "event"
   produces implicit output as "result";
 ''', forward_event, extra=f'''
 node source : Std.DebugEventSource(Type = {payload_type});
@@ -279,6 +301,7 @@ def check_unit_result(context):
 
 probe = make_engine('''
 implicit output : value unit;
+
 native procedure run produces implicit output as "result";
 ''', check_unit_result)
 probe.step()
@@ -294,6 +317,7 @@ def check_unit_event_result(context):
 
 probe = make_engine('''
 implicit output : event unit;
+
 native procedure run produces implicit output as "result";
 ''', check_unit_event_result)
 probe.step()
@@ -309,7 +333,9 @@ def check_keys(context):
 probe = make_engine(r'''
 node source : Std.Constant(Type = uint8, Value = 7);
 implicit output : value uint8;
-native procedure run depends on source as "line\nkey", source as r"raw\key"
+
+native procedure run
+  depends on source as "line\nkey", source as r"raw\key"
   produces implicit output as "";
 ''', check_keys)
 probe.step()
@@ -320,7 +346,9 @@ probe.assert_value_is('probe', 7)
 probe = make_engine('''
 node source : Std.Constant(Type = uint8, Value = 7);
 implicit output : value uint8;
-native procedure run depends on source as "value"
+
+native procedure run
+  depends on source as "value"
   produces implicit output as "value";
 ''', lambda context: context.set_result('value', context.inputs['value']))
 probe.step()

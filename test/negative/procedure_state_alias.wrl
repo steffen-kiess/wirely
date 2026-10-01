@@ -1,5 +1,6 @@
 node type Invalid {
-  state Value : boolean = false;
-  native procedure run depends on Value.old;
+  state value : boolean = false;
+
+  native procedure run depends on value.old;
   // ^E: Implicit connectors and complex references require an explicit alias
 }

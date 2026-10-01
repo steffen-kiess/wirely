@@ -1,81 +1,104 @@
+// TODO: Don't depend on the ordering of bus / Light
+node bus : KNX.Connection(UnixPath = "/run/knxnet");
 
+node receiver : KNX.ValueReceiver(GroupAddress = "0/4/5", Type = boolean);
 
-// TODO: Don't depend on the ordering of Bus / Light
-node Bus : KNX.Connection(UnixPath="/run/knxnet");
+// TODO: Allow this line to be above the declaration for bus and receiver and
+// add tests for that
+connect bus -> receiver.Bus;
 
+node receiver_prnt : Std.DebugValuePrinter(Type = Option[boolean]);
+connect receiver -> receiver_prnt;
 
-node Receiver : KNX.ValueReceiver(GroupAddress = "0/4/5", Type = boolean);
+node receiver_value : Std.OptionUnwrapOrDefault(
+  InnerType = boolean,
+  Default = false
+);
+connect receiver -> receiver_value;
+node receiver_value2 : Std.OptionUnwrapOrDefault(
+  InnerType = boolean,
+  Default = true
+);
+connect receiver -> receiver_value2;
 
-// TODO: Allow this line to be above the declaration for Bus and Receiver and add tests for that
-connect Bus -> Receiver.Bus;
+node provider_input : Std.DebugValueSource(Type = boolean);
 
-node ReceiverPrnt : Std.DebugValuePrinter(Type = Option[boolean]);
-connect Receiver -> ReceiverPrnt;
+node provider : KNX.ValueProvider(GroupAddress = "0/6/7", Type = boolean);
+connect bus -> provider.Bus;
+connect provider_input -> provider;
 
-node ReceiverValue : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = false);
-connect Receiver -> ReceiverValue;
-node ReceiverValue2 : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = true);
-connect Receiver -> ReceiverValue2;
+node jra_status : KNX.ValueReceiver(GroupAddress = "0/7/10", Type = uint16);
+connect bus -> jra_status.Bus;
 
+node status : ABB.JRA.InterpretStatusInformationOption;
+connect jra_status -> status;
 
-node ProviderInput : Std.DebugValueSource(Type = boolean);
+node jra_status_non_option : Std.OptionUnwrapOrDefault(
+  InnerType = uint16,
+  Default = 0
+);
+connect jra_status -> jra_status_non_option;
 
-node Provider : KNX.ValueProvider(GroupAddress = "0/6/7", Type = boolean);
-connect Bus -> Provider.Bus;
-connect ProviderInput -> Provider;
+node status_non_option : ABB.JRA.InterpretStatusInformation;
+connect jra_status_non_option -> status_non_option;
 
+node status_provider : KNX.ValueOptionProvider(
+  GroupAddress = "0/7/11",
+  Type = uint16
+);
+connect bus -> status_provider.Bus;
+connect jra_status -> status_provider;
 
+node status_provider_non_option : KNX.ValueProvider(
+  GroupAddress = "0/7/12",
+  Type = uint16
+);
+connect bus -> status_provider_non_option.Bus;
+connect jra_status_non_option -> status_provider_non_option;
 
-node JraStatus : KNX.ValueReceiver(GroupAddress = "0/7/10", Type = uint16);
-connect Bus -> JraStatus.Bus;
+node motion_provider : KNX.ValueOptionProvider(
+  GroupAddress = "0/7/13",
+  Type = boolean
+);
+connect bus -> motion_provider.Bus;
+connect status.DriveInMotion -> motion_provider;
 
-node Status : ABB.JRA.InterpretStatusInformationOption;
-connect JraStatus -> Status;
+node motion_provider_non_option : KNX.ValueProvider(
+  GroupAddress = "0/7/14",
+  Type = boolean
+);
+connect bus -> motion_provider_non_option.Bus;
+connect status_non_option.DriveInMotion -> motion_provider_non_option;
 
-node JraStatusNonOption : Std.OptionUnwrapOrDefault(InnerType = uint16, Default = 0);
-connect JraStatus -> JraStatusNonOption;
+node event_emitter_input : Std.DebugEventSource(Type = boolean);
 
-node StatusNonOption : ABB.JRA.InterpretStatusInformation;
-connect JraStatusNonOption -> StatusNonOption;
+node event_emitter : KNX.EventEmitter(GroupAddress = "0/3/1", Type = boolean);
+connect bus -> event_emitter.Bus;
+connect event_emitter_input -> event_emitter;
 
-node StatusProvider : KNX.ValueOptionProvider(GroupAddress = "0/7/11", Type = uint16);
-connect Bus -> StatusProvider.Bus;
-connect JraStatus -> StatusProvider;
+node int_event_emitter_input : Std.DebugEventSource(Type = int16);
 
-node StatusProviderNonOption : KNX.ValueProvider(GroupAddress = "0/7/12", Type = uint16);
-connect Bus -> StatusProviderNonOption.Bus;
-connect JraStatusNonOption -> StatusProviderNonOption;
+node int_event_emitter : KNX.EventEmitter(
+  GroupAddress = "0/3/2",
+  Type = int16
+);
+connect bus -> int_event_emitter.Bus;
+connect int_event_emitter_input -> int_event_emitter;
 
-node MotionProvider : KNX.ValueOptionProvider(GroupAddress = "0/7/13", Type = boolean);
-connect Bus -> MotionProvider.Bus;
-connect Status.DriveInMotion -> MotionProvider;
+node event_receiver : KNX.EventReceiver(
+  GroupAddress = "0/3/3",
+  Type = boolean
+);
+connect bus -> event_receiver.Bus;
 
-node MotionProviderNonOption : KNX.ValueProvider(GroupAddress = "0/7/14", Type = boolean);
-connect Bus -> MotionProviderNonOption.Bus;
-connect StatusNonOption.DriveInMotion -> MotionProviderNonOption;
+node event_receiver_prnt : Std.DebugEventPrinter(Type = boolean);
+connect event_receiver -> event_receiver_prnt;
 
+node int_event_receiver : KNX.EventReceiver(
+  GroupAddress = "0/3/4",
+  Type = int32
+);
+connect bus -> int_event_receiver.Bus;
 
-node EventEmitterInput : Std.DebugEventSource(Type = boolean);
-
-node EventEmitter : KNX.EventEmitter(GroupAddress = "0/3/1", Type = boolean);
-connect Bus -> EventEmitter.Bus;
-connect EventEmitterInput -> EventEmitter;
-
-node IntEventEmitterInput : Std.DebugEventSource(Type = int16);
-
-node IntEventEmitter : KNX.EventEmitter(GroupAddress = "0/3/2", Type = int16);
-connect Bus -> IntEventEmitter.Bus;
-connect IntEventEmitterInput -> IntEventEmitter;
-
-
-node EventReceiver : KNX.EventReceiver(GroupAddress = "0/3/3", Type = boolean);
-connect Bus -> EventReceiver.Bus;
-
-node EventReceiverPrnt : Std.DebugEventPrinter(Type = boolean);
-connect EventReceiver -> EventReceiverPrnt;
-
-node IntEventReceiver : KNX.EventReceiver(GroupAddress = "0/3/4", Type = int32);
-connect Bus -> IntEventReceiver.Bus;
-
-node IntEventReceiverPrnt : Std.DebugEventPrinter(Type = int32);
-connect IntEventReceiver -> IntEventReceiverPrnt;
+node int_event_receiver_prnt : Std.DebugEventPrinter(Type = int32);
+connect int_event_receiver -> int_event_receiver_prnt;

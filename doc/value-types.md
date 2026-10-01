@@ -129,6 +129,7 @@ and wraps at midnight:
 
 ```wrl
 node morning : Time.TriggerAt(Time = "08:00");
+
 node type Schedule {
   parameter Late : TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
 }
@@ -147,8 +148,10 @@ monotonic time is distinct from a wall-clock time or a time of day.
 Use `MonotonicTime.Invalid` as an initial value when there is no deadline:
 
 ```wrl
-node deadline : Std.Constant(Type = MonotonicTime,
-                             Value = MonotonicTime.Invalid);
+node deadline : Std.Constant(
+  Type = MonotonicTime,
+  Value = MonotonicTime.Invalid
+);
 ```
 
 Time library nodes produce and work with monotonic times, including
@@ -176,8 +179,10 @@ Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
 member names. For example:
 
 ```wrl
-node mode : Std.Constant(Type = ThermostatSystemModeEnum,
-                        Value = ThermostatSystemModeEnum.Heat);
+node mode : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Heat
+);
 node modes : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
 node printer : Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
 connect modes -> printer;

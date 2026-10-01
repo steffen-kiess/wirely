@@ -1,8 +1,8 @@
 // Test using a block which is defined later and which has a procedure
-node Test : TestLibrary.TestBlock;
+node test : TestLibrary.TestBlock;
 
 namespace TestLibrary {
-node type TestBlock {
-  native procedure test_procedure;
-}
+  node type TestBlock {
+    native procedure test_procedure;
+  }
 }

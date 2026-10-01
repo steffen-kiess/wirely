@@ -6,6 +6,7 @@ node type Child {
 
 node type Invalid {
   node child : Child;
+
   native procedure run depends on child.Missing as "value";
   // ^E: Cannot resolve procedure dependency child.Missing
 }

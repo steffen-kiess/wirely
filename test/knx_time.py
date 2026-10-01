@@ -50,9 +50,9 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
 
-        knx = create_xknx(engine.get_native_state('Bus').connection_config)
+        knx = create_xknx(engine.get_native_state('bus').connection_config)
         async with knx:
-            print(engine.get_native_state('Bus').knx.current_address, knx.current_address)
+            print(engine.get_native_state('bus').knx.current_address, knx.current_address)
 
             todm = engine.get_native_state_singleton('Time.TimeOfDayMinute')
 

@@ -1,68 +1,71 @@
 namespace MQTT {
-resource type Broker;
+  resource type Broker;
 
-native node type Connection {
-  parameter URI : String;
+  native node type Connection {
+    parameter URI : String;
 
-  implicit output : resource Broker;
-}
+    implicit output : resource Broker;
+  }
 
-native node type ValueOptionProvider {
-  parameter Type : ValueType;
-  parameter Topic : String;
-  optional parameter Format : String;
-  optional parameter Template : String;
+  native node type ValueOptionProvider {
+    parameter Type : ValueType;
+    parameter Topic : String;
+    optional parameter Format : String;
+    optional parameter Template : String;
 
-  input Broker : resource Broker;
+    input Broker : resource Broker;
+    implicit input : value Option[Type];
 
-  implicit input : value Option[Type];
+    native procedure set_value stage output
+      depends on implicit input as "input";
+  }
 
-  native procedure set_value stage output depends on implicit input as "input";
-}
+  node type ValueProvider {
+    parameter Type : ValueType;
+    parameter Topic : String;
+    optional parameter Format : String;
+    optional parameter Template : String;
 
-node type ValueProvider {
-  parameter Type : ValueType;
-  parameter Topic : String;
-  optional parameter Format : String;
-  optional parameter Template : String;
+    input Broker : resource Broker;
+    implicit input : value Type;
 
-  input Broker : resource Broker;
+    node create_option : Std.OptionSome(InnerType = Type);
+    connect implicit input -> create_option;
 
-  implicit input : value Type;
+    // Note: Format and Template will only be forwarded if they are set.
+    node impl : ValueOptionProvider(
+      Type = Type,
+      Topic = Topic,
+      Format = Format,
+      Template = Template
+    );
+    connect Broker -> impl.Broker;
+    connect create_option -> impl;
+  }
 
-  node CreateOption : Std.OptionSome(InnerType = Type);
-  connect implicit input -> CreateOption;
+  // TODO: Rename to EventProvider or EventSender?
+  native node type EventEmitter {
+    parameter Type : ValueType;
+    parameter Topic : String;
+    optional parameter Format : String;
+    optional parameter Template : String;
 
-  // Note: Format and Template will only be forwarded if they are set.
-  node Impl : ValueOptionProvider(Type = Type, Topic = Topic, Format = Format, Template = Template);
-  connect Broker -> Impl.Broker;
-  connect CreateOption -> Impl;
-}
+    input Broker : resource Broker;
+    implicit input : event Type;
 
-// TODO: Rename to EventProvider or EventSender?
-native node type EventEmitter {
-  parameter Type : ValueType;
-  parameter Topic : String;
-  optional parameter Format : String;
-  optional parameter Template : String;
+    native procedure send_value stage output
+      depends on implicit input as "input";
+  }
 
-  input Broker : resource Broker;
+  native node type EventReceiver {
+    parameter Type : ValueType;
+    parameter Topic : String;
+    optional parameter Format : String;
+    // TODO optional parameter Template : String;
 
-  implicit input : event Type;
+    input Broker : resource Broker;
+    implicit output : event Type;
 
-  native procedure send_value stage output depends on implicit input as "input";
-}
-
-native node type EventReceiver {
-  parameter Type : ValueType;
-  parameter Topic : String;
-  optional parameter Format : String;
-  //TODO optional parameter Template : String;
-
-  input Broker : resource Broker;
-
-  implicit output : event Type;
-
-  native procedure get_value stage input produces implicit output as "output";
-}
+    native procedure get_value stage input produces implicit output as "output";
+  }
 }

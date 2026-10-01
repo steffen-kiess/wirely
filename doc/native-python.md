@@ -22,7 +22,9 @@ namespace Std {
     parameter InnerType : ValueType;
     implicit input : value InnerType;
     implicit output : value Option[InnerType];
-    native procedure run depends on implicit input as "input"
+
+    native procedure run
+      depends on implicit input as "input"
       produces implicit output as "output";
   }
 }
@@ -79,15 +81,17 @@ Keys come from the `depends on` and `produces` bindings:
 
 Dependencies can name local inputs, temporaries, a child node's implicit
 output, direct child outputs such as `sensor.Value`, or old local state
-such as `Count.old`. Results name local outputs, temporaries, or state.
-Arbitrary expressions, deeper paths, and `State.new` reads are unsupported.
+such as `count.old`. Results name local outputs, temporaries, or state.
+Arbitrary expressions, deeper paths, and `count.new` reads are unsupported.
 
 For example, a state update can bind its old value and its next value:
 
 ```wrl
-state Count : uint8 = 0;
-native procedure run depends on Count.old as "previous"
-  produces Count as "next";
+state count : uint8 = 0;
+
+native procedure run
+  depends on count.old as "previous"
+  produces count as "next";
 ```
 
 ```python

@@ -80,7 +80,9 @@ for instance in program.instances.values():
 for legacy_type in ['knx_bus', 'mqtt_server', 'two_n_device']:
     try:
         wirely.parser.parse_str(
-            f'node type Legacy {{ implicit output : {legacy_type}; }}',
+            'node type Legacy {\n'
+            f'  implicit output : {legacy_type};\n'
+            '}',
             filename='<legacy-resource>',
         )
     except lark.UnexpectedInput:

@@ -1,4 +1,5 @@
 namespace Fixture {
-  node type Service {} // H: Previous node type was here
+  node type Service {
+  } // ^H: Previous node type was here
   resource type Service; // E: Resource type Service conflicts with node type
 }

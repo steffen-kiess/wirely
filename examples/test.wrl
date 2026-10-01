@@ -20,7 +20,7 @@ node type MyBlock {
   parameter i : uint8;
 
   node di : Std.DebugValueSource(Type = boolean);
-  //connect x1 -> x4;
+  // connect x1 -> x4;
   connect di -> x4;
 }
 
@@ -47,9 +47,9 @@ node type DoubleDelay {
 node inp1 : Std.DebugValueSource(Type = boolean);
 node inp2 : Std.DebugValueSource(Type = boolean);
 
-//node inp1_d : Std.Delay(Type = boolean, InitialValue = false);
-//node inp1_d : Std.DoubleDelay();
-//node inp1_d : Std.SingleDelay();
+// node inp1_d : Std.Delay(Type = boolean, InitialValue = false);
+// node inp1_d : Std.DoubleDelay();
+// node inp1_d : Std.SingleDelay();
 node inp1_d : Std.Delay(Type = boolean, InitialValue = false);
 connect inp1 -> inp1_d;
 

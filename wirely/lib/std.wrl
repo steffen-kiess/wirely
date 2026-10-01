@@ -1,149 +1,153 @@
 namespace Std {
+  node type Constant {
+    parameter Type : ValueType;
+    parameter Value : Type;
 
-node type Constant {
-  parameter Type : ValueType;
-  parameter Value : Type;
+    implicit output : value Type;
 
-  implicit output : value Type;
+    native procedure run produces implicit output as "output";
+  }
 
-  native procedure run produces implicit output as "output";
-}
+  node type And {
+    implicit input : list value boolean;
+    implicit output : value boolean;
 
+    native procedure run
+      depends on implicit input as "input"
+      produces implicit output as "output";
+  }
 
-node type And {
-  implicit input : list value boolean;
-  implicit output : value boolean;
+  node type Delay {
+    parameter Type : ValueType;
+    parameter InitialValue : Type;
 
-  native procedure run
-    depends on implicit input as "input"
-    produces implicit output as "output";
-}
+    implicit input : value Type;
+    implicit output : value Type;
 
+    state value : Type = InitialValue;
 
-node type Delay {
-  parameter Type : ValueType;
-  parameter InitialValue : Type;
-  implicit input : value Type;
-  implicit output : value Type;
+    native procedure copy_from_input
+      depends on implicit input as "input"
+      produces r#value;
+    native procedure copy_to_output
+      depends on value.old as "value_old"
+      produces implicit output as "output";
+  }
 
-  state value : Type = InitialValue;
-  native procedure copy_from_input
-    depends on implicit input as "input"
-    produces r#value;
-  native procedure copy_to_output
-    depends on value.old as "value_old"
-    produces implicit output as "output";
-}
+  node type TwoStageValueForward {
+    parameter Type : ValueType;
 
+    implicit input : value Type;
+    implicit output : value Type;
 
-node type TwoStageValueForward {
-  parameter Type : ValueType;
-  implicit input : value Type;
-  implicit output : value Type;
+    temporary temp : Type;
 
-  temporary temp : Type;
-  native procedure run1 depends on implicit input as "input" produces temp;
-  native procedure run2 depends on temp produces implicit output as "output";
-}
+    native procedure run1 depends on implicit input as "input" produces temp;
+    native procedure run2 depends on temp produces implicit output as "output";
+  }
 
+  node type DebugValuePrinter {
+    parameter Type : ValueType;
 
-node type DebugValuePrinter {
-  parameter Type : ValueType;
-  implicit input : value Type;
+    implicit input : value Type;
 
-  native procedure run stage output depends on implicit input as "input";
-}
+    native procedure run stage output depends on implicit input as "input";
+  }
 
+  node type DebugEventPrinter {
+    parameter Type : ValueType;
 
-node type DebugEventPrinter {
-  parameter Type : ValueType;
-  implicit input : event Type;
+    implicit input : event Type;
 
-  native procedure run stage output depends on implicit input as "input";
-}
+    native procedure run stage output depends on implicit input as "input";
+  }
 
+  native node type DebugValueSource {
+    parameter Type : ValueType;
 
-native node type DebugValueSource {
-  parameter Type : ValueType;
-  implicit output : value Type;
+    implicit output : value Type;
 
-  native procedure run stage input produces implicit output as "output";
-}
+    native procedure run stage input produces implicit output as "output";
+  }
 
+  native node type DebugEventSource {
+    parameter Type : ValueType;
 
-native node type DebugEventSource {
-  parameter Type : ValueType;
-  implicit output : event Type;
+    implicit output : event Type;
 
-  native procedure run stage input produces implicit output as "output";
-}
+    native procedure run stage input produces implicit output as "output";
+  }
 
+  node type OptionNone {
+    parameter InnerType : ValueType;
 
-node type OptionNone {
-  parameter InnerType : ValueType;
-  implicit output : value Option[InnerType];
+    implicit output : value Option[InnerType];
 
-  native procedure run produces implicit output as "output";
-}
+    native procedure run produces implicit output as "output";
+  }
 
-node type OptionSome {
-  parameter InnerType : ValueType;
-  implicit input : value InnerType;
-  implicit output : value Option[InnerType];
+  node type OptionSome {
+    parameter InnerType : ValueType;
 
-  native procedure run
-    depends on implicit input as "input"
-    produces implicit output as "output";
-}
+    implicit input : value InnerType;
+    implicit output : value Option[InnerType];
 
-node type OptionUnwrapOrDefault {
-  parameter InnerType : ValueType;
-  // TODO: Should this be a parameter or an input? Use an input an allow inputs to be specified as options?
-  parameter Default : InnerType;
-  implicit input : value Option[InnerType];
-  implicit output : value InnerType;
+    native procedure run
+      depends on implicit input as "input"
+      produces implicit output as "output";
+  }
 
-  native procedure run
-    depends on implicit input as "input"
-    produces implicit output as "output";
-}
+  node type OptionUnwrapOrDefault {
+    parameter InnerType : ValueType;
+    // TODO: Should this be a parameter or an input? Use an input an allow
+    // inputs to be specified as options?
+    parameter Default : InnerType;
 
-node type OptionIsSome {
-  parameter InnerType : ValueType;
-  implicit input : value Option[InnerType];
-  implicit output : value boolean;
+    implicit input : value Option[InnerType];
+    implicit output : value InnerType;
 
-  native procedure run
-    depends on implicit input as "input"
-    produces implicit output as "output";
-}
+    native procedure run
+      depends on implicit input as "input"
+      produces implicit output as "output";
+  }
 
-node type OptionCreate {
-  parameter InnerType : ValueType;
+  node type OptionIsSome {
+    parameter InnerType : ValueType;
 
-  input HasValue : value boolean;
-  input Value : value InnerType;
-  implicit output : value Option[InnerType];
+    implicit input : value Option[InnerType];
+    implicit output : value boolean;
 
-  native procedure run
-    depends on HasValue, Value
-    produces implicit output as "output";
-}
+    native procedure run
+      depends on implicit input as "input"
+      produces implicit output as "output";
+  }
 
-// TODO: Allow ignoring edges when the time is lost
-node type DetectEdge {
-  // Can be "Rising", "Falling" or "Both"
-  // Currently only "Falling" is implemented
-  parameter EdgeType : String;
+  node type OptionCreate {
+    parameter InnerType : ValueType;
 
-  implicit input : value boolean;
-  // Contains the new value
-  implicit output : event boolean;
+    input HasValue : value boolean;
+    input Value : value InnerType;
+    implicit output : value Option[InnerType];
 
-  state LastValue : Option[boolean] = None;
+    native procedure run
+      depends on HasValue, Value
+      produces implicit output as "output";
+  }
 
-  native procedure run
-    depends on LastValue.old as "last_value_old", implicit input as "input"
-    produces implicit output as "output", LastValue;
-}
+  // TODO: Allow ignoring edges when the time is lost
+  node type DetectEdge {
+    // Can be "Rising", "Falling" or "Both" Currently only "Falling" is
+    // implemented
+    parameter EdgeType : String;
+
+    implicit input : value boolean;
+    // Contains the new value
+    implicit output : event boolean;
+
+    state last_value : Option[boolean] = None;
+
+    native procedure run
+      depends on last_value.old as "last_value_old", implicit input as "input"
+      produces implicit output as "output", last_value;
+  }
 }

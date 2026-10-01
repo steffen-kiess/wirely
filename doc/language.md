@@ -43,7 +43,9 @@ The type name may be a local name or a namespace-qualified name such as
 node type Forward {
   implicit input : value boolean;
   implicit output : value boolean;
-  native procedure run depends on implicit input as "input"
+
+  native procedure run
+    depends on implicit input as "input"
     produces implicit output as "output";
 }
 ```
@@ -69,7 +71,10 @@ A `namespace Name { ... }` groups node types under `Name.Type`. Namespaces can
 contain other namespaces, and a dotted declaration names the same path:
 
 ```wrl
-namespace ABB.JRA { node type Status { } }
+namespace ABB.JRA {
+  node type Status {
+  }
+}
 // Equivalent to: namespace ABB { namespace JRA { node type Status { } } }
 ```
 
@@ -133,8 +138,7 @@ the node. For example:
 
 ```wrl
 node bus : KNX.Connection(UnixPath = "/run/knxnet");
-node receiver : KNX.ValueReceiver(Type = boolean,
-                                  GroupAddress = "0/4/5");
+node receiver : KNX.ValueReceiver(Type = boolean, GroupAddress = "0/4/5");
 connect bus -> receiver.Bus;
 ```
 
@@ -199,15 +203,15 @@ For example:
 
 ```wrl
 native procedure run
-  depends on implicit input as "value", LastValue.old as "previous"
-  produces implicit output as "result", LastValue as "next";
+  depends on implicit input as "value", last_value.old as "previous"
+  produces implicit output as "result", last_value as "next";
 ```
 
-`LastValue.old` reads the previous step's state without depending on this
+`last_value.old` reads the previous step's state without depending on this
 step's writer. Dependencies can also name direct child outputs, such as
 `sensor.Value as "value"`. Result destinations are local output connectors,
 temporaries, or state variables. Arbitrary expressions, deeper paths, and
-`State.new` dependencies are not supported.
+`last_value.new` dependencies are not supported.
 
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends

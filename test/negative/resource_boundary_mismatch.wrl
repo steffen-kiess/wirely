@@ -1,5 +1,6 @@
 resource type First;
 resource type Second;
+
 node type Invalid {
   input Service : resource First; // H: Source was declared here
   implicit output : resource Second; // H: Target was declared here

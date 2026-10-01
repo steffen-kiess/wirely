@@ -1,9 +1,12 @@
-node TestInput : Std.DebugValueSource(Type = boolean);
+node test_input : Std.DebugValueSource(Type = boolean);
 
-node TestValueWriter : CSV.ValueWriter(Filename = "foo.csv", Type = boolean);
-connect TestInput -> TestValueWriter;
+node test_value_writer : CSV.ValueWriter(Filename = "foo.csv", Type = boolean);
+connect test_input -> test_value_writer;
 
-node TestOptionInput : Std.DebugValueSource(Type = Option[boolean]);
+node test_option_input : Std.DebugValueSource(Type = Option[boolean]);
 
-node TestOptionValueWriter : CSV.ValueWriter(Filename = "foo2.csv", Type = Option[boolean]);
-connect TestOptionInput -> TestOptionValueWriter;
+node test_option_value_writer : CSV.ValueWriter(
+  Filename = "foo2.csv",
+  Type = Option[boolean]
+);
+connect test_option_input -> test_option_value_writer;

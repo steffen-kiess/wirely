@@ -1,7 +1,8 @@
 node type Invalid {
   input First : value boolean;
   input Second : value boolean;
+
   native procedure run
     depends on First as "\x61", // H: Previous binding was here
-               Second as r"a"; // E: Duplicate procedure binding key 'a'
+      Second as r"a"; // E: Duplicate procedure binding key 'a'
 }

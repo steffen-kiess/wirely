@@ -60,6 +60,7 @@ for expression in ['Some()', 'Some((), ())']:
 source = (
     'node type Settings {\n'
     '  parameter Number : int8;\n'
+    '\n'
     '  node constant : Std.Constant(Type = Option[boolean], Value = Some(Number));\n'
     '}\n'
     'node settings : Settings(Number = 1);'
@@ -72,7 +73,7 @@ with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
         ('wirely/lib/std.wrl', std_source), ('<some-test>', source),
     ])
 assert result is None
-assert 'Error in <some-test>:3' in output.getvalue()
+assert 'Error in <some-test>:4' in output.getvalue()
 assert 'Expected value of type boolean, got int8' in output.getvalue()
 assert 'Internal compiler error' not in output.getvalue()
 assert not errors.getvalue()

@@ -15,8 +15,8 @@ def assert_content_is(fn, value):
         raise Exception(f'Test failed: Expected content {value!r}, got {actual!r}')
 
 async def run_test():
-    fn = engine.get_native_state('TestValueWriter').data.filename
-    fn2 = engine.get_native_state('TestOptionValueWriter').data.filename
+    fn = engine.get_native_state('test_value_writer').data.filename
+    fn2 = engine.get_native_state('test_option_value_writer').data.filename
 
     # TODO: Move some of this code to test infrastructure
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
@@ -26,16 +26,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
-        engine.get_native_state('TestInput').set_value(False)
+        engine.get_native_state('test_input').set_value(False)
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
-        engine.get_native_state('TestInput').set_value(False)
+        engine.get_native_state('test_input').set_value(False)
         _, _, step_info = engine.step()
         assert_content_is(fn, expected)
 
-        engine.get_native_state('TestInput').set_value(True)
+        engine.get_native_state('test_input').set_value(True)
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},false,true\r\n'
         assert_content_is(fn, expected)
@@ -94,7 +94,7 @@ async def run_test():
         assert_equals(os.path.getsize(fn), 0)
         expected = ''
 
-        engine.get_native_state('TestInput').set_value(False)
+        engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
@@ -113,7 +113,7 @@ async def run_test():
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
         await engine.start_tasks_async(tg, async_exit_stack)
 
-        engine.get_native_state('TestInput').set_value(False)
+        engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
@@ -139,7 +139,7 @@ async def run_test():
         expected += '\n'
         assert_content_is(fn, expected)
 
-        engine.get_native_state('TestInput').set_value(False)
+        engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
@@ -162,16 +162,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
-        engine.get_native_state('TestOptionInput').set_value(blocks.Some(False))
+        engine.get_native_state('test_option_input').set_value(blocks.Some(False))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('TestOptionInput').set_value(blocks.Some(False))
+        engine.get_native_state('test_option_input').set_value(blocks.Some(False))
         _, _, step_info = engine.step()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('TestOptionInput').set_value(blocks.Some(True))
+        engine.get_native_state('test_option_input').set_value(blocks.Some(True))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)
@@ -219,7 +219,7 @@ async def run_test():
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('TestOptionInput').set_value(None)
+        engine.get_native_state('test_option_input').set_value(None)
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,\r\n'
         assert_content_is(fn2, expected)

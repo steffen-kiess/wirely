@@ -1,12 +1,15 @@
 namespace First {
   resource type Handle;
 }
+
 namespace Second {
   resource type Handle;
 }
+
 node type Source {
   implicit output : resource First.Handle; // H: Source was declared here
 }
+
 node type Target {
   implicit input : resource Second.Handle; // H: Target was declared here
 }

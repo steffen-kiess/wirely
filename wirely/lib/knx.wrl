@@ -1,82 +1,79 @@
 namespace KNX {
-resource type Bus;
+  resource type Bus;
 
-native node type Connection {
-  optional parameter Host : String;
-  optional parameter Protocol : String;
-  optional parameter Port : uint16;
-  optional parameter UnixPath : String;
-  optional parameter SSHTarget : String;
-  optional parameter IndividualAddress : String;
+  native node type Connection {
+    optional parameter Host : String;
+    optional parameter Protocol : String;
+    optional parameter Port : uint16;
+    optional parameter UnixPath : String;
+    optional parameter SSHTarget : String;
+    optional parameter IndividualAddress : String;
 
-  implicit output : resource Bus;
-}
+    implicit output : resource Bus;
+  }
 
-native node type ValueReceiver {
-  parameter Type : ValueType;
-  parameter GroupAddress : String;
-  // TODO: Mores parameter with information about read-on-init etc.?
-  // TODO: event input which can trigger read?
-  // TODO: event output which is triggered when a value is received, even if the value stays the same? Should this event contain the value?
+  native node type ValueReceiver {
+    parameter Type : ValueType;
+    parameter GroupAddress : String;
+    // TODO: Mores parameter with information about read-on-init etc.?
+    // TODO: event input which can trigger read?
+    // TODO: event output which is triggered when a value is received, even if
+    // the value stays the same? Should this event contain the value?
 
-  input Bus : resource Bus;
+    input Bus : resource Bus;
+    implicit output : value Option[Type];
 
-  implicit output : value Option[Type];
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
-  native procedure get_value stage input produces implicit output as "output";
-}
+  native node type ValueOptionProvider {
+    parameter Type : ValueType;
+    parameter GroupAddress : String;
+    // TODO: More parameter with information about transmitting behavior etc.?
+    // TODO: event input which can trigger transmission?
+    // TODO: event output for reads? Probably not really useful.
 
-native node type ValueOptionProvider {
-  parameter Type : ValueType;
-  parameter GroupAddress : String;
-  // TODO: More parameter with information about transmitting behavior etc.?
-  // TODO: event input which can trigger transmission?
-  // TODO: event output for reads? Probably not really useful.
+    input Bus : resource Bus;
+    implicit input : value Option[Type];
 
-  input Bus : resource Bus;
+    native procedure set_value stage output
+      depends on implicit input as "input";
+  }
 
-  implicit input : value Option[Type];
+  node type ValueProvider {
+    parameter Type : ValueType;
+    parameter GroupAddress : String;
 
-  native procedure set_value stage output depends on implicit input as "input";
-}
+    input Bus : resource Bus;
+    implicit input : value Type;
 
-node type ValueProvider {
-  parameter Type : ValueType;
-  parameter GroupAddress : String;
+    node create_option : Std.OptionSome(InnerType = Type);
+    connect implicit input -> create_option;
 
-  input Bus : resource Bus;
+    node impl : ValueOptionProvider(Type = Type, GroupAddress = GroupAddress);
+    connect Bus -> impl.Bus;
+    connect create_option -> impl;
+  }
 
-  implicit input : value Type;
+  native node type EventReceiver {
+    parameter Type : ValueType;
+    parameter GroupAddress : String;
 
-  node CreateOption : Std.OptionSome(InnerType = Type);
-  connect implicit input -> CreateOption;
+    input Bus : resource Bus;
+    implicit output : event Type;
 
-  node Impl : ValueOptionProvider(Type = Type, GroupAddress = GroupAddress);
-  connect Bus -> Impl.Bus;
-  connect CreateOption -> Impl;
-}
+    native procedure get_value stage input produces implicit output as "output";
+  }
 
+  // TODO: Rename to EventProvider or EventSender?
+  native node type EventEmitter {
+    parameter Type : ValueType;
+    parameter GroupAddress : String;
 
-native node type EventReceiver {
-  parameter Type : ValueType;
-  parameter GroupAddress : String;
+    input Bus : resource Bus;
+    implicit input : event Type;
 
-  input Bus : resource Bus;
-
-  implicit output : event Type;
-
-  native procedure get_value stage input produces implicit output as "output";
-}
-
-// TODO: Rename to EventProvider or EventSender?
-native node type EventEmitter {
-  parameter Type : ValueType;
-  parameter GroupAddress : String;
-
-  input Bus : resource Bus;
-
-  implicit input : event Type;
-
-  native procedure send_value stage output depends on implicit input as "input";
-}
+    native procedure send_value stage output
+      depends on implicit input as "input";
+  }
 }

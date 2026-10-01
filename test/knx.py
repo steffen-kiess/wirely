@@ -122,12 +122,12 @@ async def run_test():
         await engine.start_tasks_async(tg, async_exit_stack)
 
         print('a', flush=True)
-        knx = create_xknx(engine.get_native_state('Bus').connection_config)
+        knx = create_xknx(engine.get_native_state('bus').connection_config)
         async with knx:
             print('b', flush=True)
-            print(engine.get_native_state('Bus').knx.current_address, knx.current_address)
+            print(engine.get_native_state('bus').knx.current_address, knx.current_address)
 
-            engine.get_native_state('ProviderInput').set_value(False)
+            engine.get_native_state('provider_input').set_value(False)
 
             # status = xknx.devices.Sensor(knx, name="Sensor", group_address_state="0/6/7", value_type="binary")
             status = xknx.devices.BinarySensor(knx, name="Sensor", group_address_state="0/6/7")
@@ -141,9 +141,9 @@ async def run_test():
             assert_state(None)
 
             engine.step()
-            engine.assert_value_is('Receiver', None)
-            engine.assert_value_is('ReceiverValue', False)
-            engine.assert_value_is('ReceiverValue2', True)
+            engine.assert_value_is('receiver', None)
+            engine.assert_value_is('receiver_value', False)
+            engine.assert_value_is('receiver_value2', True)
 
             # TODO: Should this assert be here?
             assert_state(None)
@@ -159,9 +159,9 @@ async def run_test():
             assert_state(False)
 
             engine.step()
-            engine.assert_value_is('Receiver', None)
-            engine.assert_value_is('ReceiverValue', False)
-            engine.assert_value_is('ReceiverValue2', True)
+            engine.assert_value_is('receiver', None)
+            engine.assert_value_is('receiver_value', False)
+            engine.assert_value_is('receiver_value2', True)
 
             assert_state(False)
 
@@ -170,22 +170,22 @@ async def run_test():
             await asyncio.sleep(0.01)
 
             engine.step()
-            engine.assert_value_is('Receiver', wirely.Some(True))
-            engine.assert_value_is('ReceiverValue', True)
-            engine.assert_value_is('ReceiverValue2', True)
+            engine.assert_value_is('receiver', wirely.Some(True))
+            engine.assert_value_is('receiver_value', True)
+            engine.assert_value_is('receiver_value2', True)
 
             await expose.set(False)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.01)
 
             engine.step()
-            engine.assert_value_is('Receiver', wirely.Some(False))
-            engine.assert_value_is('ReceiverValue', False)
-            engine.assert_value_is('ReceiverValue2', False)
+            engine.assert_value_is('receiver', wirely.Some(False))
+            engine.assert_value_is('receiver_value', False)
+            engine.assert_value_is('receiver_value2', False)
 
             assert_state(False)
 
-            engine.get_native_state('ProviderInput').set_value(True)
+            engine.get_native_state('provider_input').set_value(True)
             engine.step()
             # TODO: How long should this sleep?
             await asyncio.sleep(0.01)
@@ -196,7 +196,7 @@ async def run_test():
             await asyncio.sleep(0.01)
             assert_state(True)
 
-            engine.get_native_state('ProviderInput').set_value(False)
+            engine.get_native_state('provider_input').set_value(False)
             engine.step()
             # TODO: How long should this sleep?
             await asyncio.sleep(0.01)
@@ -226,9 +226,9 @@ async def run_test():
                     if actual != exp:
                         raise Exception(f'Expected state {exp}, got state {actual} for {address}')
 
-            engine.assert_value_is('JraStatus', None)
-            engine.assert_value_is('Status.DriveInMotion', None)
-            engine.assert_value_is('StatusNonOption.DriveInMotion', False)
+            engine.assert_value_is('jra_status', None)
+            engine.assert_value_is('status.DriveInMotion', None)
+            engine.assert_value_is('status_non_option.DriveInMotion', False)
             print('KNX Test: Waiting after initialization', flush=True)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
@@ -248,9 +248,9 @@ async def run_test():
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             engine.step()
-            engine.assert_value_is('JraStatus', None)
-            engine.assert_value_is('Status.DriveInMotion', None)
-            engine.assert_value_is('StatusNonOption.DriveInMotion', False)
+            engine.assert_value_is('jra_status', None)
+            engine.assert_value_is('status.DriveInMotion', None)
+            engine.assert_value_is('status_non_option.DriveInMotion', False)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             assert_status_state(None, 0, None, False)
@@ -259,9 +259,9 @@ async def run_test():
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             engine.step()
-            engine.assert_value_is('JraStatus', wirely.Some(0x1234))
-            engine.assert_value_is('Status.DriveInMotion', wirely.Some(True))
-            engine.assert_value_is('StatusNonOption.DriveInMotion', True)
+            engine.assert_value_is('jra_status', wirely.Some(0x1234))
+            engine.assert_value_is('status.DriveInMotion', wirely.Some(True))
+            engine.assert_value_is('status_non_option.DriveInMotion', True)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             assert_status_state(0x1234, 0x1234, True, True)
@@ -270,9 +270,9 @@ async def run_test():
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             engine.step()
-            engine.assert_value_is('JraStatus', wirely.Some(0x4567))
-            engine.assert_value_is('Status.DriveInMotion', wirely.Some(False))
-            engine.assert_value_is('StatusNonOption.DriveInMotion', False)
+            engine.assert_value_is('jra_status', wirely.Some(0x4567))
+            engine.assert_value_is('status.DriveInMotion', wirely.Some(False))
+            engine.assert_value_is('status_non_option.DriveInMotion', False)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             assert_status_state(0x4567, 0x4567, False, False)
@@ -282,9 +282,9 @@ async def run_test():
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             engine.step()
-            engine.assert_value_is('JraStatus', wirely.Some(0x4567))
-            engine.assert_value_is('Status.DriveInMotion', wirely.Some(False))
-            engine.assert_value_is('StatusNonOption.DriveInMotion', False)
+            engine.assert_value_is('jra_status', wirely.Some(0x4567))
+            engine.assert_value_is('status.DriveInMotion', wirely.Some(False))
+            engine.assert_value_is('status_non_option.DriveInMotion', False)
             # TODO: How long should this sleep?
             await asyncio.sleep(0.1)
             assert_status_state(0x4567, 0x4567, False, False)
@@ -292,8 +292,8 @@ async def run_test():
             # Test EventReceiver
 
             engine.step()
-            engine.assert_value_is('EventReceiver', None)
-            engine.assert_value_is('IntEventReceiver', None)
+            engine.assert_value_is('event_receiver', None)
+            engine.assert_value_is('int_event_receiver', None)
 
             xknx.tools.group_value_write(knx, "0/3/3", True)
 
@@ -301,12 +301,12 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('EventReceiver', wirely.Some(True))
-            engine.assert_value_is('IntEventReceiver', None)
+            engine.assert_value_is('event_receiver', wirely.Some(True))
+            engine.assert_value_is('int_event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('EventReceiver', None)
-            engine.assert_value_is('IntEventReceiver', None)
+            engine.assert_value_is('event_receiver', None)
+            engine.assert_value_is('int_event_receiver', None)
 
             xknx.tools.group_value_write(knx, "0/3/3", True)
 
@@ -314,14 +314,14 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('EventReceiver', wirely.Some(True))
-            engine.assert_value_is('IntEventReceiver', None)
+            engine.assert_value_is('event_receiver', wirely.Some(True))
+            engine.assert_value_is('int_event_receiver', None)
 
             # Test IntEventReceiver
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', None)
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', None)
+            engine.assert_value_is('event_receiver', None)
 
             xknx.tools.group_value_write(knx, "0/3/4", 100, "4byte_signed")
 
@@ -329,12 +329,12 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(100))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(100))
+            engine.assert_value_is('event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', None)
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', None)
+            engine.assert_value_is('event_receiver', None)
 
             xknx.tools.group_value_write(knx, "0/3/4", 100, "4byte_signed")
 
@@ -342,8 +342,8 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(100))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(100))
+            engine.assert_value_is('event_receiver', None)
 
             xknx.tools.group_value_write(knx, "0/3/4", 100, "4byte_signed")
             xknx.tools.group_value_write(knx, "0/3/4", -10, "4byte_signed")
@@ -354,57 +354,57 @@ async def run_test():
             await asyncio.sleep(0.1)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(100))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(100))
+            engine.assert_value_is('event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(-10))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(-10))
+            engine.assert_value_is('event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(-10))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(-10))
+            engine.assert_value_is('event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', wirely.Some(1234567))
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', wirely.Some(1234567))
+            engine.assert_value_is('event_receiver', None)
 
             engine.step()
-            engine.assert_value_is('IntEventReceiver', None)
-            engine.assert_value_is('EventReceiver', None)
+            engine.assert_value_is('int_event_receiver', None)
+            engine.assert_value_is('event_receiver', None)
 
             # Test EventEmitter
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/1", "binary")
 
-            engine.get_native_state('EventEmitterInput').send_event(None)
+            engine.get_native_state('event_emitter_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('EventEmitterInput').send_event(wirely.Some(True))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(True)
-
-            engine.get_native_state('EventEmitterInput').send_event(wirely.Some(True))
+            engine.get_native_state('event_emitter_input').send_event(wirely.Some(True))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(True)
 
+            engine.get_native_state('event_emitter_input').send_event(wirely.Some(True))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(True)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('EventEmitterInput').send_event(wirely.Some(False))
+            engine.get_native_state('event_emitter_input').send_event(wirely.Some(False))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(False)
 
-            engine.get_native_state('EventEmitterInput').send_event(None)
+            engine.get_native_state('event_emitter_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
@@ -414,34 +414,34 @@ async def run_test():
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/2", "2byte_signed")
 
-            engine.get_native_state('IntEventEmitterInput').send_event(None)
+            engine.get_native_state('int_event_emitter_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('IntEventEmitterInput').send_event(wirely.Some(55))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(55)
-
-            engine.get_native_state('IntEventEmitterInput').send_event(wirely.Some(55))
+            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(55))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(55)
 
+            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(55))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(55)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('IntEventEmitterInput').send_event(wirely.Some(-10000))
+            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(-10000))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(-10000)
 
-            engine.get_native_state('IntEventEmitterInput').send_event(None)
+            engine.get_native_state('int_event_emitter_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()

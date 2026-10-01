@@ -1,2 +1,3 @@
 resource type Service; // H: Previous resource type was here
-node type Service {} // E: Node type Service conflicts with resource type
+node type Service {
+} // ^E: Node type Service conflicts with resource type

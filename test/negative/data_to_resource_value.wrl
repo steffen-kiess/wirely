@@ -1,7 +1,9 @@
 resource type Handle;
+
 node type Source {
   implicit output : value boolean; // H: Source was declared here
 }
+
 node type Target {
   implicit input : resource Handle; // H: Target was declared here
 }
