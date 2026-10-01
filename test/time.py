@@ -82,170 +82,210 @@ async def run_test():
         todm.set_fake_time(datetime.time.fromisoformat('12:33'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:34'))
         engine.step()
         engine.assert_value_is('trigger', (None,))
+        engine.assert_value_is('triggerValue', (True,))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:35'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:00'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', (None,))
+        engine.assert_value_is('triggerValue', (True,))
 
         todm.set_fake_time(datetime.time.fromisoformat('18:00'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', (None,))
+        engine.assert_value_is('triggerValue', (True,))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:37'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:37'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', (None,))
+        engine.assert_value_is('triggerValue', (True,))
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         # Test: none, after, before, after (should not trigger)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         # Test: none, none, after, before, after (should not trigger)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:06'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         # Test: none, before, none, before, after (should trigger)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', (None,))
+        engine.assert_value_is('triggerValue', (True,))
 
         # Test: none, before, none, after (should not trigger)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         todm.set_fake_time(datetime.time.fromisoformat('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
+        engine.assert_value_is('triggerValue', None)
 
         # TODO: Tests for trigger2
 
