@@ -1,4 +1,4 @@
-node test_input : Std.DebugInput(Type = boolean);
+node test_input : Std.DebugValueSource(Type = boolean);
 node test_output : GPIO.Output(
     ChipDeviceFile = "/dev/gpiochip-test",
     Name = "LED",

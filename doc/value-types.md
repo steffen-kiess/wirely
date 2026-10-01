@@ -112,7 +112,7 @@ minutes, and seconds rather than calendar months or years.
 
 ```wrl
 node source : Std.Constant(Type = boolean, Value = true);
-node delay : Time.DelayChange(Type = boolean, Time = "PT1.5S");
+node delay : Time.DelayChange(Type = boolean, Duration = "PT1.5S");
 connect source -> delay;
 ```
 

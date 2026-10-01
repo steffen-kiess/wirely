@@ -58,7 +58,7 @@ node type DebugEventPrinter {
 }
 
 
-native node type DebugInput {
+native node type DebugValueSource {
   parameter Type : ValueType;
   implicit output : value Type;
 

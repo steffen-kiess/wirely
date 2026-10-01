@@ -25,7 +25,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Forwards through two native procedures. |
 | `DebugPrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
-| `DebugInput` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
+| `DebugValueSource` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
 | `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: ValueType` | Out: `value Option[InnerType]`. Produces `None`. |
 | `OptionSome` | `InnerType: ValueType` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |
@@ -47,10 +47,10 @@ Time-based values and triggers. `TimeOfDay` parameters use strings such as
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
 | `MonotonicTimeReached` | None | In: `value MonotonicTime`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the times cannot be compared. |
-| `DelayChange` | `Type: ValueType`, `Time: Duration` | In/out: `value Type`. Changes the output only after the input has remained stable for `Time`. |
+| `DelayChange` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Changes the output only after the input has remained stable for `Duration`. |
 | `TimeOfDayMinute` | None | Out: `value TimeOfDay`. Shared singleton that updates at minute boundaries; normally used through other Time nodes. |
 | `IsBetween` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. Tests the interval from `Start` (inclusive) to `End` (exclusive), including intervals that cross midnight. |
-| `TriggerAt` | `Time: TimeOfDay`, `Type: ValueType = unit`, optional `Value: Type` | Out: `event Type`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `Value` when `Type` is not `unit`. |
+| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## KNX
 
@@ -103,8 +103,8 @@ Both expose the same named outputs: `ManualOperation`, `BlockActive`,
 
 ## MQTT
 
-MQTT nodes use a `MQTT.Server` and a named
-`Server: resource MQTT.Broker` input.
+MQTT nodes use a `MQTT.Connection` and a named
+`Broker: resource MQTT.Broker` input.
 `Topic` is a topic string. `Format` and `Template`, where offered, are
 optional strings used by the native JSON encoder. A template embeds the
 encoded value at one `%s` placeholder; `%%` represents a literal percent
@@ -112,11 +112,11 @@ sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Server` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
-| `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Server`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
-| `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Server`; in: `value Type`. Wraps the value and uses `ValueOptionProvider`. |
-| `EventEmitter` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Server`; in: `event Type`. Publishes each event as JSON. |
-| `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: String` | Named in: `Server`; out: `event Type`. Emits decoded messages received on the topic. |
+| `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
+| `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
+| `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Wraps the value and uses `ValueOptionProvider`. |
+| `EventEmitter` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
+| `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: String` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Only types supported by the native JSON encoder/decoder can be used. MQTT
 requires the `aiomqtt` package and a reachable broker.
@@ -138,7 +138,7 @@ connect its implicit `resource TwoN.Device` output to each client's named
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Connection` | `Hostname: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file contains a username and password on separate lines; a relative path is resolved beside the `.wrl` file. |
+| `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file contains a username and password on separate lines; a relative path is resolved beside the `.wrl` file. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
 | `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |

@@ -124,7 +124,7 @@ def main():
     for block in global_block_type.blocks.values():
         # TODO: Do this differently
         # TODO: Also handle nested blocks?
-        if block.block_type.name.id_str == 'DebugInput':
+        if block.block_type.name.id_str == 'DebugValueSource':
             block_inst = prog.instances[(block,)]
             ty = block_inst.static_context.parameter_values['Type']
             native_inst = eng.native_states[(block,)]

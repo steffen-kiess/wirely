@@ -434,7 +434,7 @@ async def run_test(test_name):
             if block_type.fullname == 'KNX.Connection':
                 require_knx = True
                 knx_connection_paths.append(block_path)
-            if block_type.fullname == 'MQTT.Server':
+            if block_type.fullname == 'MQTT.Connection':
                 require_mqtt = True
                 mqtt_server_paths.append(block_path)
             if block_type.fullname == 'TwoN.Connection':
@@ -543,29 +543,29 @@ async def run_test(test_name):
                 block = path[-1]
                 found = False
                 for key in block.par_values:
-                    if key.name.id_str != 'Hostname':
+                    if key.name.id_str != 'Host':
                         continue
                     found = True
-                    print(f'Changing Hostname from {block.par_values[key].value} to {new_hostname}', flush=True)
+                    print(f'Changing Host from {block.par_values[key].value} to {new_hostname}', flush=True)
                     block.par_values[key] = blocks.ConstantValue(block.par_values[key].value_type, new_hostname, ast_element=None)
                 if not found:
-                    raise Exception('Could not find Hostname parameter')
+                    raise Exception('Could not find Host parameter')
 
                 block_instance = prog.instances[path]
                 old_value = block_instance.static_context.parsed_native_instance.hostname
                 new_value = new_hostname
-                print(f'Changing static_context Hostname from {old_value} to {new_value}', flush=True)
+                print(f'Changing static_context Host from {old_value} to {new_value}', flush=True)
                 found = False
                 for key in block_instance.parameter_values:
-                    if key.name.id_str != 'Hostname':
+                    if key.name.id_str != 'Host':
                         continue
                     found = True
                     old_value = block_instance.parameter_values[key].value
                     new_value = new_hostname
-                    print(f'Changing instance Hostname from {old_value} to {new_value}', flush=True)
+                    print(f'Changing instance Host from {old_value} to {new_value}', flush=True)
                     block_instance.parameter_values[key] = blocks.ConstantValue(block_instance.parameter_values[key].value_type, new_value, ast_element=None)
                 if not found:
-                    raise Exception('Could not find Hostname parameter')
+                    raise Exception('Could not find Host parameter')
 
                 # TODO: Clean up
                 # block_instance.static_context.parsed_native_instance.hostname = new_value

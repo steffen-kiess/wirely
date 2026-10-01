@@ -1,4 +1,4 @@
-node inp : Std.DebugInput(Type = boolean);
+node inp : Std.DebugValueSource(Type = boolean);
 node prnt0 : Std.DebugPrinter(Type = boolean);
 connect inp -> prnt0;
 

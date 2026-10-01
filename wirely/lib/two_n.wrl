@@ -2,7 +2,7 @@ namespace TwoN {
 resource type Device;
 
 native node type Connection {
-  parameter Hostname : String;
+  parameter Host : String;
   parameter Port : uint16 = 443;
   parameter TLSA : List[String];
   parameter UsernamePasswordFile : String;

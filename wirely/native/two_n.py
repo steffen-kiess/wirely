@@ -36,7 +36,7 @@ class TwoNDeviceData:
 
     @staticmethod
     def create(*, parameter_values):
-        par_hostname = parameter_values['Hostname'].value
+        par_hostname = parameter_values['Host'].value
         if 'Port' in parameter_values:
             par_port = parameter_values['Port'].value
         else:

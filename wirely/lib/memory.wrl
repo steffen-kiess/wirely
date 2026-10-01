@@ -14,7 +14,6 @@ node type ToggleFlipFlopTrigger {
   // TODO: Should this store the last command until the flip-flop gets available? Probably not.
   input Feedback : value Option[boolean];
 
-  // TODO: Should this be called Type/Value or OutputType/OutputValue?
   parameter OutputType : ValueType = unit;
   // Defaults to ()
   // TODO: Allow specifying the default value here

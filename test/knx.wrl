@@ -18,7 +18,7 @@ node ReceiverValue2 : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = t
 connect Receiver -> ReceiverValue2;
 
 
-node ProviderInput : Std.DebugInput(Type = boolean);
+node ProviderInput : Std.DebugValueSource(Type = boolean);
 
 node Provider : KNX.ValueProvider(GroupAddress = "0/6/7", Type = boolean);
 connect Bus -> Provider.Bus;

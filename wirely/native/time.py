@@ -45,7 +45,7 @@ class DelayChangeData:
 
     @staticmethod
     def create(*, parameter_values):
-        time = parameter_values['Time'].evaluate()
+        time = parameter_values['Duration'].evaluate()
 
         return DelayChangeData(time=time)
 
@@ -280,18 +280,18 @@ class TriggerAtData:
     @staticmethod
     def create(*, parameter_values):
         # TODO: default parameters should be handled somewhere else
-        if 'Type' not in parameter_values:
+        if 'OutputType' not in parameter_values:
             par_type = blocks.types.unit
         else:
-            par_type = parameter_values['Type']
+            par_type = parameter_values['OutputType']
 
-        if 'Value' not in parameter_values:
+        if 'OutputValue' not in parameter_values:
             value = None
             if par_type != blocks.types.unit:
                 # TODO: Provide error location in a better way / avoid stack trace?
                 raise Exception(f'Trigger type is not unit ({par_type}) but no value is given')
         else:
-            value = parameter_values['Value'].value
+            value = parameter_values['OutputValue'].value
 
         value = par_type.verify_value(value)
 

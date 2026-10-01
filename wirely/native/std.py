@@ -112,7 +112,7 @@ class DebugEventPrinter:
 
 
 @native_block_type(native_block_types, has_state=True)
-class DebugInput(blocks.NativeState):
+class DebugValueSource(blocks.NativeState):
     def __init__(self, path, engine, static_block_context):
         super().__init__(path, engine, static_block_context)
         self.current_value = None

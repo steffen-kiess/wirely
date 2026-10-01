@@ -1,6 +1,6 @@
 node Bus : KNX.Connection(UnixPath="/run/knxnet");
 
-node Trigger : Time.TriggerAt(Time = "08:00", Type = boolean, Value = true);
+node Trigger : Time.TriggerAt(Time = "08:00", OutputType = boolean, OutputValue = true);
 
 node EventEmitter : KNX.EventEmitter(GroupAddress = "0/7/1", Type = boolean);
 connect Bus -> EventEmitter.Bus;

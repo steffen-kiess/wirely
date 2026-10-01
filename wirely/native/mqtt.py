@@ -232,7 +232,7 @@ class MqttData:
 
 
 @native_block_type(native_block_types, has_state=True)
-class Server(blocks.NativeState):
+class Connection(blocks.NativeState):
     def __init__(self, path, engine, static_block_context):
         super().__init__(path, engine, static_block_context)
 
@@ -371,7 +371,7 @@ class ValueOptionProvider(blocks.NativeState):
         self.data.dump()
 
         # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Server'])
+        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
         print(f'  Using server object: {server_path}', flush=True)
 
         self.native_server = engine.native_states[server_path]
@@ -456,7 +456,7 @@ class EventEmitter(blocks.NativeState):
         self.data.dump()
 
         # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Server'])
+        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
         print(f'  Using server object: {server_path}', flush=True)
 
         self.native_server = engine.native_states[server_path]
@@ -541,7 +541,7 @@ class EventReceiver(blocks.NativeState):
         self.data.dump()
 
         # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Server'])
+        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
         print(f'  Using server object: {server_path}', flush=True)
 
         self.native_server = engine.native_states[server_path]

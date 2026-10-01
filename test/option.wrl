@@ -1,7 +1,7 @@
-node inp0 : Std.DebugInput(Type = boolean);
-node inp1 : Std.DebugInput(Type = boolean);
-node inp2 : Std.DebugInput(Type = boolean);
-node number_inp : Std.DebugInput(Type = uint16);
+node inp0 : Std.DebugValueSource(Type = boolean);
+node inp1 : Std.DebugValueSource(Type = boolean);
+node inp2 : Std.DebugValueSource(Type = boolean);
+node number_inp : Std.DebugValueSource(Type = uint16);
 
 node val0 : Std.OptionNone(InnerType = boolean);
 node is_some0 : Std.OptionIsSome(InnerType = boolean);

@@ -1,5 +1,5 @@
-node inp0 : Std.DebugInput(Type = uint16);
-node inp1 : Std.DebugInput(Type = Option[uint16]);
+node inp0 : Std.DebugValueSource(Type = uint16);
+node inp1 : Std.DebugValueSource(Type = Option[uint16]);
 
 node val0 : ABB.JRA.InterpretStatusInformation;
 connect inp0 -> val0;

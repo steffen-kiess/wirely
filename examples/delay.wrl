@@ -1,6 +1,6 @@
-node in : Std.DebugInput(Type = boolean);
+node in : Std.DebugValueSource(Type = boolean);
 
-node delay : Time.DelayChange(Type = boolean, Time = "PT1S");
+node delay : Time.DelayChange(Type = boolean, Duration = "PT1S");
 connect in -> delay;
 
 node prnt : Std.DebugPrinter(Type = boolean);

@@ -14,8 +14,7 @@ node type MonotonicTimeReached {
 node type DelayChange {
   parameter Type : ValueType;
 
-  // TODO: Probably should be renamed to Duration
-  parameter Time : Duration;
+  parameter Duration : Duration;
 
   implicit input : value Type;
 
@@ -68,13 +67,12 @@ node type IsBetween {
 node type TriggerAt {
   parameter Time : TimeOfDay;
 
-  // TODO: Should this be called Type/Value or OutputType/OutputValue?
   // Defaults to unit
-  parameter Type : ValueType = unit;
+  parameter OutputType : ValueType = unit;
   // Defaults to ()
-  optional parameter Value : Type;
+  optional parameter OutputValue : OutputType;
 
-  implicit output : event Type;
+  implicit output : event OutputType;
 
   // Keeps track of the last state
   // TODO: Introduce an enum for this?
