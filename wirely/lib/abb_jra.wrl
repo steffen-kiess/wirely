@@ -20,7 +20,11 @@ node type InterpretStatusInformation {
   // output Unassigned14 : value boolean;
   // output Unassigned15 : value boolean;
 
-  native procedure run depends on implicit input produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm, RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling, DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
+  native procedure run
+    depends on implicit input as "input"
+    produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+      RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
+      DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
 }
 
 node type InterpretStatusInformationOption {
@@ -44,7 +48,11 @@ node type InterpretStatusInformationOption {
   // output Unassigned14 : value Option[boolean];
   // output Unassigned15 : value Option[boolean];
 
-  native procedure run depends on implicit input produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm, RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling, DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
+  native procedure run
+    depends on implicit input as "input"
+    produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+      RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
+      DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
 
   // // TODO: Make this work?
   // node HaveValue: Std.OptionIsSome(InnerType = uint16);

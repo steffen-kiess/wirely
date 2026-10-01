@@ -38,7 +38,7 @@ class Engine:
         for block_name in self.program.graph.blocks:
             for block_path in self.program.graph.blocks[block_name].get_all_block_paths(()):
                 if block_path in done_block_path:
-                    if len(block_path) != 1 or not isinstance(block_path[-1], blocks.BlockType):
+                    if not isinstance(block_path[0], blocks.BlockType) or not block_path[0].is_singleton:
                         raise Exception('Got duplicate non-singleton block')
                     continue
                 done_block_path.add(block_path)
@@ -143,44 +143,21 @@ class Engine:
                 native_state = self.native_states[path]
 
                 # print(proc)
-                deps = {}
+                instance = self.program.instances[path]
+                static = self.program.proc_static_contexts[(instance, proc)]
+                inputs = {}
                 skip_step = cache is not None and (path, proc) not in self.triggered_procs
-                for dep in proc.dependencies:
-                    if isinstance(dep, blocks.Block.StateVariable):
-                        # TODO
-                        raise Exception('isinstance(dep, blocks.Block.StateVariable)')
-                        if skip_step and not dep.impl_var_type.equals(state_old[self.program.state_map[path, dep]], cache[dep]):
+                for name, variables, is_state, is_list in static._input_bindings:
+                    if is_state:
+                        inputs[name] = state_old[variables[0]]
+                        continue
+                    values = []
+                    for variable in variables:
+                        value = vars[variable]
+                        values.append(value)
+                        if skip_step and not variable.var_type.equals(value, cache[variable]):
                             skip_step = False
-                    elif isinstance(dep, blocks.Block.Input) and dep.is_list:
-                        for child in dep.members:
-                            # TODO: Move this code somewhere else? / Use already resolved type?
-                            var_type = child.impl_var_type
-                            for block in reversed(path):
-                                var_type = var_type.resolve_self(block.par_values)
-
-                            deps[child] = vars[self.program.variable_map[path, child.var_identifier]]
-                            if skip_step and not var_type.equals(vars[self.program.variable_map[path, child.var_identifier]], cache[self.program.variable_map[path, child.var_identifier]]):
-                                skip_step = False
-                    else:
-                        # TODO: Move this code somewhere else? / Use already resolved type?
-                        var_type = dep.impl_var_type
-                        for block in reversed(path):
-                            var_type = var_type.resolve_self(block.par_values)
-
-                        # TODO: Program should contain some mapping from a procedures dependencies to variables, this should not be done here
-                        # print(path, dep, dep.var_identifier)
-                        if isinstance(path[-1], blocks.Block) and path[-1] != dep.block:
-                            if dep.block.block_type.is_singleton:
-                                variable = self.program.variable_map[(dep.block.block_type,), dep.var_identifier]
-                            else:
-                                # TODO: This assumes that dep.block is a direct child of the current block, this will not work otherwise
-                                variable = self.program.variable_map[path + (dep.block,), dep.var_identifier]
-                        else:
-                            variable = self.program.variable_map[path, dep.var_identifier]
-
-                        deps[dep] = vars[variable]
-                        if skip_step and not var_type.equals(vars[variable], cache[variable]):
-                            skip_step = False
+                    inputs[name] = values if is_list else values[0]
                 # TODO: Avoid depending on the value of all state variables?
                 for dep in proc.block.block_statevars:
                     if skip_step and cache[self.program.state_map_changed[path, dep]]:
@@ -223,10 +200,11 @@ class Engine:
                     # TODO: Should this be initialized here?
                     # state_new_block[var] = state_old[var]
 
-                variables = None # TODO
-                instance = self.program.instances[path]
-                pcontext = blocks.ProcedureContext(dep_values=deps, results=res, state_old=state_old_block, state_new=state_new_block, static=self.program.proc_static_contexts[(instance, proc)], step_info=step_info)
+                pcontext = blocks.ProcedureContext(inputs=inputs, results=res, state_new=state_new_block, static=static, step_info=step_info)
                 proc.impl(context=pcontext, native_state=native_state)
+                missing = set(static._targets) - pcontext._written_results
+                if missing:
+                    raise ValueError(f'Procedure {proc} did not write results: {sorted(missing)!r}')
 
                 if pcontext.wakeup_time is None:
                     if (path, proc) in self.wakeups:

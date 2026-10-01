@@ -391,9 +391,7 @@ class ValueOptionProvider(blocks.NativeState):
     def set_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        var_input = context.static.sources['implicit input']
-
-        value_opt = context.dep_values[var_input]
+        value_opt = context.inputs['input']
 
         # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
         if value_opt is None:
@@ -478,9 +476,7 @@ class EventEmitter(blocks.NativeState):
 
         data = context.static.block.parsed_native_instance
 
-        var_input = context.static.sources['implicit input']
-
-        value_opt = context.dep_values[var_input]
+        value_opt = context.inputs['input']
 
         # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
         if value_opt is None:
@@ -559,17 +555,15 @@ class EventReceiver(blocks.NativeState):
     def get_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        var_output = context.static.targets['']
-
         if len(self.received_values) == 0:
-            context.results[var_output] = None
+            context.set_result('output', None)
             return
         value = self.received_values.pop(0)
 
         res_opt = (value,)
         # print(f'get_value: {res_opt}')
 
-        context.results[var_output] = res_opt
+        context.set_result('output', res_opt)
 
         self.engine.trigger(self.block_path, self.proc)
 

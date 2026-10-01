@@ -95,8 +95,7 @@ class Output(blocks.NativeState):
         import gpiod
         from gpiod.line import Bias, Direction, Drive, Value
 
-        var_input = context.static.sources['implicit input']
-        value = context.dep_values[var_input]
+        value = context.inputs['input']
         logical_value = Value.ACTIVE if value else Value.INACTIVE
 
         if not self.direction_set:

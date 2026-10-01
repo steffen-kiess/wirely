@@ -49,8 +49,7 @@ class LaunchOnEvent(blocks.NativeState):
 
     @native_procedure
     def run(self, *, context):
-        var_input = context.static.sources['implicit input']
-        inp = context.dep_values[var_input]
+        inp = context.inputs['input']
 
         if inp is None:
             return

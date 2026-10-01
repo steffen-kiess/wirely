@@ -97,7 +97,9 @@ class Program:
                 raise Exception(f'Got circular procedure dependency: {doing}')
             doing.append((path, proc.proc_identifier))
             for dep in proc.dependencies:
-                if isinstance(dep, blocks.Block.Input) and dep.is_list:
+                if isinstance(dep, blocks.Block.StateVariable):
+                    continue
+                elif isinstance(dep, blocks.Block.Input) and dep.is_list:
                     for child in dep.members:
                         producer_path, producer_temporary = blocks.resolve_variable(path, child)
                         do(producer_path, producer_temporary.producer)
@@ -147,7 +149,26 @@ class Program:
             for path, proc in stage_procs:
                 instance = res.instances[path]
                 proc_context = proc.static_context
-                proc_context = blocks.StaticProcedureContext(sources=proc_context.sources, targets=proc_context.targets, state=proc_context.state, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, block=instance.static_context)
+                proc_context = blocks.StaticProcedureContext(sources=proc_context._sources, targets=proc_context._targets, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, block=instance.static_context)
+                for name, source in proc_context._sources.items():
+                    is_state = isinstance(source, blocks.Block.StateVariable)
+                    is_list = isinstance(source, blocks.Block.Input) and source.is_list
+                    if is_state:
+                        variables = (state_map[path, source],)
+                    else:
+                        members = source.members if is_list else (source,)
+                        variables = []
+                        for member in members:
+                            producer_path, temporary = blocks.resolve_variable(path, member)
+                            variables.append(variable_map[producer_path, temporary.var_identifier])
+                        variables = tuple(variables)
+                    proc_context._input_bindings.append((name, variables, is_state, is_list))
+                for name, target in proc_context._targets.items():
+                    if isinstance(target, blocks.Block.StateVariable):
+                        variable = state_map[path, target]
+                    else:
+                        variable = variable_map[path, target.var_identifier]
+                    proc_context._result_types[name] = variable.var_type
                 proc_static_contexts[(instance, proc)] = proc_context
                 # print(instance, proc, proc_context)
         res.proc_static_contexts = proc_static_contexts

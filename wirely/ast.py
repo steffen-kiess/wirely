@@ -1040,15 +1040,36 @@ class StageDeclaration(SourceElement):
         return StageDeclaration(stage=RunStage.Output, source_position=source_position)
 
 
-class DependsDeclaration(SourceElement):
-    # TODO: Allow dependencies on the old and/or new values of state variables
-    # Should dependencies on old state variables be gathered automatically?
-    # (Similar to a dependency on the current clock value, i.e. that the dependency is recorded while running,  because it cannot affect execution order.)
-    # Then dependencies on the new values of state variables would not need a '.new', only when using the new/old values of state variables this would have to be distinguished somehow.
-    # Or: In "depends on" and "produces" .new is implicit, for "connect" and using in procedures ".new" and ".old" is needed.
+class ProcedureBinding(SourceElement):
+    def __init__(self, reference: Reference, alias: typing.Optional[StringConstant] = None, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.reference = reference
+        self.alias = alias
 
+    @property
+    def key(self):
+        if self.alias is not None:
+            return self.alias.value
+        names = [identifier.id_str for identifier in self.reference.identifiers]
+        if len(names) != 1 or names[0] in ('implicit input', 'implicit output'):
+            raise ProgramError(self, 'Implicit connectors and complex references require an explicit alias')
+        return names[0]
+
+
+def check_procedure_binding_keys(bindings):
+    keys = {}
+    for binding in bindings:
+        key = binding.key
+        if key in keys:
+            raise ProgramError(binding, f'Duplicate procedure binding key {key!r}', hints=[
+                CompilerHint(keys[key], 'Previous binding was here'),
+            ])
+        keys[key] = binding
+
+
+class DependsDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *dependencies: typing.List[Reference], source_position: SourcePosition):
+    def __init__(self, *dependencies: ProcedureBinding, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.dependencies = dependencies
 
@@ -1068,17 +1089,33 @@ class DependsDeclaration(SourceElement):
         self.resolved_dependencies_value_in_process = True
 
         resolved = []
-        for dep in self.dependencies:
+        check_procedure_binding_keys(self.dependencies)
+        for binding in self.dependencies:
+            dep = binding.reference
+            if dep.length == 2:
+                name, member = [identifier.id_str for identifier in dep.identifiers]
+                variable = self.graph.variables.get(name)
+                if isinstance(variable, DeclarationStateVariable) and member == 'old':
+                    resolved.append(variable)
+                    continue
+                child = self.graph.blocks.get(name)
+                if child is not None:
+                    output = child.block_outputs_byname.get(member)
+                    if output is not None and isinstance(output.conn_spec, ConnectorSpecificationData):
+                        resolved.append(output)
+                        continue
+                raise ProgramError(dep, f'Cannot resolve procedure dependency {dep}')
             if dep.length != 1:
-                raise ProgramError(dep, f'Dependency does not have exactly one component')
+                raise ProgramError(dep, 'Unsupported procedure dependency reference')
             identifier = dep.identifiers[0]
             name = identifier.id_str
             # TODO: Should not be done using blocks
             if name in self.graph.blocks:
                 res = self.graph.blocks[name]
             elif name in self.graph.variables:
-                # TODO: Allow state variables here?
                 res = self.graph.variables[name]
+                if isinstance(res, DeclarationStateVariable):
+                    raise ProgramError(dep, 'State dependencies must explicitly reference the old value with .old')
             elif name in self.graph.block_inputs:
                 res = self.graph.block_inputs[name]
             else:
@@ -1095,7 +1132,7 @@ class DependsDeclaration(SourceElement):
 
 class ProducesDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *outputs: typing.List[Reference], source_position: SourcePosition):
+    def __init__(self, *outputs: ProcedureBinding, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.outputs = outputs
 
@@ -1114,15 +1151,15 @@ class ProducesDeclaration(SourceElement):
         self.resolved_outputs_value_in_process = True
 
         resolved = []
-        for out in self.outputs:
+        check_procedure_binding_keys(self.outputs)
+        for binding in self.outputs:
+            out = binding.reference
             if out.length != 1:
                 raise ProgramError(out, f'Output does not have exactly one component')
             identifier = out.identifiers[0]
             name = identifier.id_str
             # TODO: Should not be done using blocks
-            if name in self.graph.blocks:
-                res = self.graph.blocks[name]
-            elif name in self.graph.variables:
+            if name in self.graph.variables:
                 res = self.graph.variables[name]
             elif name in self.graph.block_outputs:
                 res = self.graph.block_outputs[name]

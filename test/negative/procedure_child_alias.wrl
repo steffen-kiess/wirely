@@ -1,0 +1,11 @@
+node type Child {
+  output Value : value boolean;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect source -> Value;
+}
+
+node type Invalid {
+  node child : Child;
+  native procedure run depends on child.Value;
+  // ^E: Implicit connectors and complex references require an explicit alias
+}

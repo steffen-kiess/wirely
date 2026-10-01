@@ -1,0 +1,7 @@
+node type Invalid {
+  input Value : value boolean;
+  input Other : value boolean;
+  native procedure run
+    depends on Value, // H: Previous binding was here
+               Other as "Value"; // E: Duplicate procedure binding key 'Value'
+}

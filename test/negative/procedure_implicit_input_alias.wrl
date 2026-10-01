@@ -1,0 +1,5 @@
+node type Invalid {
+  implicit input : value boolean;
+  native procedure run depends on implicit input;
+  // ^E: Implicit connectors and complex references require an explicit alias
+}

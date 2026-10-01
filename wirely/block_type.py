@@ -220,41 +220,46 @@ class BlockType(blocks.Scope):
             targets = {}
             inputs = []
             procedures = {}
-            for dep in procedure.depends.get_resolved_dependencies():
+            for binding, dep in zip(procedure.depends.dependencies, procedure.depends.get_resolved_dependencies()):
                 # print(type(dep))
                 # TODO: Clean up
                 if isinstance(dep, blocks.DeclarationTemporaryVariable):
                     input = dep.block_var
                     inputs.append(input)
-                    sources[dep.name.id_str] = input
+                    sources[binding.key] = input
                 elif isinstance(dep, blocks.BlockInput):
                     input = block.custom_inputs[dep]
                     inputs.append(input)
-                    sources[dep.name] = input
+                    sources[binding.key] = input
                 elif isinstance(dep, blocks.Block):
-                    # TODO: Clean up handling of implicit output of block, allow explicit output
-                    input = dep.block_outputs_byname[''].temporary
+                    input = dep.block_outputs_byname['']
                     inputs.append(input)
-                    # TODO: What should be the name of this in sources?
-                    sources[dep.name] = input
+                    sources[binding.key] = input
+                elif isinstance(dep, blocks.ast.DeclarationStateVariable):
+                    input = state_variables[dep.name.id_str]
+                    inputs.append(input)
+                    sources[binding.key] = input
+                elif isinstance(dep, (blocks.Block.Temporary, blocks.Block.Output)):
+                    inputs.append(dep)
+                    sources[binding.key] = dep
                 else:
                     raise Exception(f'Got unknown dependency: {dep}')
             outputs = []
-            for out in procedure.produces.get_resolved_outputs():
+            for binding, out in zip(procedure.produces.outputs, procedure.produces.get_resolved_outputs()):
                 # print(type(out))
                 if isinstance(out, blocks.ast.DeclarationStateVariable):
                     output = out.block_var
                     outputs.append(output)
-                    targets[output.name] = output
+                    targets[binding.key] = output
                 elif isinstance(out, blocks.ast.DeclarationTemporaryVariable):
                     output = out.block_var
                     outputs.append(output)
-                    targets[output.name] = output
+                    targets[binding.key] = output
                 elif isinstance(out, blocks.BlockOutput):
                     # TODO: Clean up
                     output = block.custom_outputs[out]
                     outputs.append(output)
-                    targets[output.name] = output
+                    targets[binding.key] = output
                     # print(type(out.inp))
                     # print(out.inp)
                     # # outputs.append(out.inp)
@@ -272,7 +277,7 @@ class BlockType(blocks.Scope):
                 else:
                     raise Exception(f'Unknown output: {out}')
 
-            static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, state=state_variables, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
+            static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
 
             if not procedure.is_native:
                 raise Exception('Got non-native procedure')

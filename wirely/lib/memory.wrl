@@ -36,9 +36,15 @@ node type ToggleFlipFlopTrigger {
   // TODO: Allow this?
   // connect NextEventAllowedAt.old -> NextEventAllowedAtReached;
   temporary NextEventAllowedAtOld : MonotonicTime;
-  native procedure read_time produces NextEventAllowedAtOld;
+  native procedure read_time
+    depends on NextEventAllowedAt.old as "next_event_allowed_at_old"
+    produces NextEventAllowedAtOld;
   connect NextEventAllowedAtOld -> NextEventAllowedAtReached;
 
-  native procedure update depends on implicit input, Feedback, NextEventAllowedAtOld, NextEventAllowedAtReached produces implicit output, NextEventAllowedAt, PendingEvent;
+  native procedure update
+    depends on NextEventAllowedAt.old as "next_event_allowed_at_old",
+      PendingEvent.old as "pending_event_old", implicit input as "input",
+      Feedback, NextEventAllowedAtOld, NextEventAllowedAtReached
+    produces implicit output as "output", NextEventAllowedAt, PendingEvent;
 }
 }

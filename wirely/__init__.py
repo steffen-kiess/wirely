@@ -2,6 +2,8 @@ import threading
 import abc
 import contextlib
 import datetime
+from collections.abc import Mapping
+from types import MappingProxyType
 import wirely as blocks
 
 from .time import MonotonicTime, Duration
@@ -134,10 +136,10 @@ def resolve_variable(path, var):
         return resolve_variable(path_resolve_singleton(new_path), src)
 
     if isinstance(var, blocks.Block.Output):
+        source = var.block_output.connected_source
+        if source is not None:
+            return resolve_variable(path_resolve_singleton(path + (source.block,)), source)
         if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
-            source = var.block_output.connected_source
-            if source is not None:
-                return resolve_variable(path_resolve_singleton(path + (source.block,)), source)
             return path, var
         # Normal output
         # TODO: Hack, should use var.temporary, but that is overwritten somewhere in some cases
@@ -159,6 +161,9 @@ def resolve_variable(path, var):
             if isinstance(path[-1], blocks.Block):  # TODO: Handle singletons here?
                 raise Exception(f'temporary.block {temporary.block} != path[-1] {path[-1]}')
         if temporary.producer is None:
+            for output in temporary.block.block_outputs:
+                if getattr(output, 'orig_temporary', None) is temporary and output.block_output.connected_source is not None:
+                    return resolve_variable(path, output)
             raise Exception('temporary.producer is None')
         if debug_variable_resolution:
             print(f'resolve_variable: returning {path}, {temporary}')
@@ -346,10 +351,11 @@ class StaticBlockContext:
 # Things which will stay the same if the same instance of a procedure is executed multiple times
 # TODO: Prevent modifications, more checks
 class StaticProcedureContext:
-    def __init__(self, *, sources, targets, state, name, block_parameter_values, block=None):
-        self.sources = sources
-        self.targets = targets
-        self.state = state
+    def __init__(self, *, sources, targets, name, block_parameter_values, block=None):
+        self._sources = sources
+        self._targets = targets
+        self._input_bindings = []
+        self._result_types = {}
         self.name = name
         self.block = block
         self.block_parameter_values = block_parameter_values
@@ -358,16 +364,31 @@ class StaticProcedureContext:
         return f'StaticProcedureContext({self.__dict__!r})'
 
 
-# TODO: Prevent modifications, more checks (also e.g. on assignments to results etc.)
 class ProcedureContext:
-    def __init__(self, *, dep_values, results, state_old, state_new, static, step_info):
-        self.dep_values = dep_values
-        self.results = results
-        self.state_old = state_old
-        self.state_new = state_new
+    def __init__(self, *, inputs: Mapping[str, object], results, state_new, static, step_info):
+        self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
+        self._results = results
+        self._state_new = state_new
+        self._written_results = set()
         self.static = static
         self.step_info = step_info
         self.wakeup_time = None
+
+    def set_result(self, name: str, value: object):
+        if not isinstance(name, str) or name not in self.static._targets:
+            raise ValueError(f'Unknown result name {name!r} in procedure on {self.static.name}')
+        if name in self._written_results:
+            raise ValueError(f'Result {name!r} was already written')
+        try:
+            value = self.static._result_types[name].verify_value(value)
+        except Exception as exc:
+            raise ValueError(f'Invalid value for result {name!r}: {exc}') from exc
+        target = self.static._targets[name]
+        if isinstance(target, blocks.Block.StateVariable):
+            self._state_new[target] = value
+        else:
+            self._results[target] = value
+        self._written_results.add(name)
 
     def __repr__(self):
         return f'ProcedureContext({self.__dict__!r})'
@@ -408,6 +429,7 @@ from wirely.program import Program
 from wirely.engine import Engine
 
 from .ast import UnitLiteral
+from .ast import ProcedureBinding
 from .ast import ProgramError, InternalCompilerError, CompilerHint, SourcePosition, Declaration, BlockConnectorTypeSpecifier, ListSpecifier, ProgramError, Identifier, IntNumber, FloatNumber, StringConstant, Reference, Declaration, DeclarationConnector, DeclarationParameter, BlockInstantiation, DeclarationBlockInstantiation, DeclarationConnection, DeclarationStateVariable, DeclarationTemporaryVariable, DeclarationProcedure, NativeSpecifier, OptionalSpecifier, StageDeclaration, DependsDeclaration, ProducesDeclaration, ConnectionKindSpecifier, ConnectorSpecification, ConnectorSpecificationData, ConnectorSpecificationResource, DeclarationResourceType, DeclarationLibrary, BlockParameter, Scope, BlockTypeSpecifier, ListLiteral, FunctionCall, BracketOperator, ConnectionKind, RunStage
 
 from .block_type import BlockType

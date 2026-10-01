@@ -13,9 +13,7 @@ class Constant:
     def run(*, context):
         par_value = context.static.block.parameter_values['Value'].evaluate()
 
-        output_var = context.static.targets['']
-
-        context.results[output_var] = par_value
+        context.set_result('output', par_value)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -23,19 +21,15 @@ class And:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-        output_var = context.static.targets['']
-
         res = True
 
-        for inp in input_var.members:
-            val = context.dep_values[inp]
+        for val in context.inputs['input']:
             if not isinstance(val, bool):
                 raise Exception(f'{val!r} is not a bool')
             if not val:
                 res = False
 
-        context.results[output_var] = res
+        context.set_result('output', res)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -45,24 +39,18 @@ class Delay:
     def copy_from_input(*, context):
         # print('COPY_FROM_INPUT')
         # print(context)
-        value_var = context.static.state['value']
-        # TODO: Name of implicit input?
-        input_var = context.static.sources['implicit input']
 
-        value = context.dep_values[input_var]
-        context.state_new[value_var] = value
+        value = context.inputs['input']
+        context.set_result('value', value)
 
     @native_procedure
     @staticmethod
     def copy_to_output(*, context):
         # print('COPY_TO_OUTPUT')
         # print(context)
-        value_var = context.static.state['value']
-        # TODO: Name of implicit output?
-        output_var = context.static.targets['']
 
-        value = context.state_old[value_var]
-        context.results[output_var] = value
+        value = context.inputs['value_old']
+        context.set_result('output', value)
         # print(value)
 
 
@@ -71,20 +59,12 @@ class TwoStageValueForward:
     @native_procedure
     @staticmethod
     def run1(*, context):
-        var_temp = context.static.targets['temp']
-        # TODO: Name of implicit input?
-        var_input = context.static.sources['implicit input']
-
-        context.results[var_temp] = context.dep_values[var_input]
+        context.set_result('temp', context.inputs['input'])
 
     @native_procedure
     @staticmethod
     def run2(*, context):
-        var_temp = context.static.sources['temp']
-        # TODO: Name of implicit output?
-        var_output = context.static.targets['']
-
-        context.results[var_output] = context.dep_values[var_temp]
+        context.set_result('output', context.inputs['temp'])
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -92,9 +72,7 @@ class DebugValuePrinter:
     @native_procedure
     @staticmethod
     def run(*, context):
-        var_input = context.static.sources['implicit input']
-
-        value = context.dep_values[var_input]
+        value = context.inputs['input']
 
         print(f'[{context.static.name}]: Got value {value}', flush=True)
 
@@ -104,9 +82,7 @@ class DebugEventPrinter:
     @native_procedure
     @staticmethod
     def run(*, context):
-        var_input = context.static.sources['implicit input']
-
-        value = context.dep_values[var_input]
+        value = context.inputs['input']
 
         print(f'[{context.static.name}]: Got event {value}', flush=True)
 
@@ -134,9 +110,7 @@ class DebugValueSource(blocks.NativeState):
 
     @native_procedure
     def run(self, *, context):
-        var_output = context.static.targets['']
-
-        context.results[var_output] = self.current_value
+        context.set_result('output', self.current_value)
 
     def set_value(self, value):
         self.current_value = value
@@ -186,9 +160,7 @@ class DebugEventSource(blocks.NativeState):
 
     @native_procedure
     def run(self, *, context):
-        var_output = context.static.targets['']
-
-        context.results[var_output] = self.next_value
+        context.set_result('output', self.next_value)
         if self.next_value is not None:
             self.next_value = None
             self.engine.trigger(self.block_path, self.proc)
@@ -225,11 +197,9 @@ class OptionNone:
     @native_procedure
     @staticmethod
     def run(*, context):
-        output_var = context.static.targets['']
-
         val = None
 
-        context.results[output_var] = val
+        context.set_result('output', val)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -237,14 +207,11 @@ class OptionSome:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-        output_var = context.static.targets['']
-
-        val = context.dep_values[input_var]
+        val = context.inputs['input']
         # Pack value
         val = (val,)
 
-        context.results[output_var] = val
+        context.set_result('output', val)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -252,18 +219,16 @@ class OptionUnwrapOrDefault:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-        output_var = context.static.targets['']
         par_default = context.static.block_parameter_values['Default'].value
 
-        val = context.dep_values[input_var]
+        val = context.inputs['input']
 
         if val is None:
             res = par_default
         else:
             res = val[0]
 
-        context.results[output_var] = res
+        context.set_result('output', res)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -271,10 +236,7 @@ class OptionIsSome:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-        output_var = context.static.targets['']
-
-        context.results[output_var] = context.dep_values[input_var] is not None
+        context.set_result('output', context.inputs['input'] is not None)
 
 
 @native_block_type(native_block_types, has_state=False)
@@ -282,16 +244,12 @@ class OptionCreate:
     @native_procedure
     @staticmethod
     def run(*, context):
-        has_value_var = context.static.sources['HasValue']
-        value_var = context.static.sources['Value']
-        output_var = context.static.targets['']
-
-        if context.dep_values[has_value_var]:
-            result = (context.dep_values[value_var],)
+        if context.inputs['HasValue']:
+            result = (context.inputs['Value'],)
         else:
             result = None
 
-        context.results[output_var] = result
+        context.set_result('output', result)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -313,13 +271,10 @@ class DetectEdge:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-        output_var = context.static.targets['']
-        last_value_var = context.static.state['LastValue']
-        last_value = context.state_old[last_value_var]
+        last_value = context.inputs['last_value_old']
         data = context.static.block.parsed_native_instance
 
-        value = context.dep_values[input_var]
+        value = context.inputs['input']
 
         # print(f'Last={last_value} Now={value}')
         if data.edge_type == 'Falling':
@@ -327,8 +282,8 @@ class DetectEdge:
         else:
             raise Exception(f'TODO: Implement edge type {data.edge_type}')
 
-        context.state_new[last_value_var] = (value,)
+        context.set_result('LastValue', (value,))
         if do_trigger:
-            context.results[output_var] = (value,)
+            context.set_result('output', (value,))
         else:
-            context.results[output_var] = None
+            context.set_result('output', None)

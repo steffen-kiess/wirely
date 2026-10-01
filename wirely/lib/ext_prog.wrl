@@ -7,6 +7,6 @@ native node type LaunchOnEvent {
   // Note: The value of the event will be ignored
   implicit input : event Type;
 
-  native procedure run stage output depends on implicit input;
+  native procedure run stage output depends on implicit input as "input";
 }
 }

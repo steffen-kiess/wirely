@@ -1,0 +1,5 @@
+node type Invalid {
+  state Value : boolean = false;
+  native procedure run depends on Value;
+  // ^E: State dependencies must explicitly reference the old value with .old
+}

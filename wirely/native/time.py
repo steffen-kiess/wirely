@@ -17,10 +17,7 @@ class MonotonicTimeReached(blocks.NativeState):
     @native_procedure
     @staticmethod
     def run(*, context):
-        var_input = context.static.sources['implicit input']
-        var_output = context.static.targets['']
-
-        time = context.dep_values[var_input]
+        time = context.inputs['input']
         now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
 
         # print('MonotonicTimeReached', time, now)
@@ -35,7 +32,7 @@ class MonotonicTimeReached(blocks.NativeState):
             context.wakeup_time = time
         # print('MonotonicTimeReached', time, now, result)
 
-        context.results[var_output] = result
+        context.set_result('output', result)
 
 
 # TODO: Use slots=True here / for other dataclasses?
@@ -55,29 +52,19 @@ class DelayChange(blocks.NativeState):
     @native_procedure
     @staticmethod
     def read_update_time(*, context):
-        var_output = context.static.targets['UpdateTimeOld']
-        var_UpdateTime = context.static.state['UpdateTime']
-
-        value = context.state_old[var_UpdateTime]
-        context.results[var_output] = value
+        value = context.inputs['update_time_old']
+        context.set_result('UpdateTimeOld', value)
 
     @native_procedure
     @staticmethod
     def run(*, context):
         data = context.static.block.parsed_native_instance
 
-        var_input = context.static.sources['implicit input']
-        var_Reached = context.static.sources['Reached']
-        var_output = context.static.targets['']
-        var_CurrentValue = context.static.state['CurrentValue']
-        var_NewValue = context.static.state['NewValue']
-        var_UpdateTime = context.static.state['UpdateTime']
-
-        inp = context.dep_values[var_input]
-        reached = context.dep_values[var_Reached]
-        cur = context.state_old[var_CurrentValue]
-        new = context.state_old[var_NewValue]
-        update_time = context.state_old[var_UpdateTime]
+        inp = context.inputs['input']
+        reached = context.inputs['Reached']
+        cur = context.inputs['current_value_old']
+        new = context.inputs['new_value_old']
+        update_time = context.inputs['update_time_old']
 
         # print('TODO', inp, cur, new, update_time, reached)
         if cur is None or (new is not None and reached is None) or cur == (inp,):
@@ -117,10 +104,10 @@ class DelayChange(blocks.NativeState):
             n_update_time = blocks.MonotonicTime.create_invalid()
             out = new[0]
 
-        context.state_new[var_CurrentValue] = n_cur
-        context.state_new[var_NewValue] = n_new
-        context.state_new[var_UpdateTime] = n_update_time
-        context.results[var_output] = out
+        context.set_result('CurrentValue', n_cur)
+        context.set_result('NewValue', n_new)
+        context.set_result('UpdateTime', n_update_time)
+        context.set_result('output', out)
 
 
 @native_block_type(native_block_types, has_state=True)
@@ -179,16 +166,14 @@ class TimeOfDayMinute(blocks.NativeState):
 
     @native_procedure
     def get_value(self, *, context):
-        var_output = context.static.targets['']
-
         if self._fake_time is not None:
-            context.results[var_output] = self._fake_time
+            context.set_result('output', self._fake_time)
             return
 
         if self.task is None:
             raise Exception('start_tasks() was never called')
 
-        context.results[var_output] = self.current_value
+        context.set_result('output', self.current_value)
 
     # TODO: Is this used anywhere?
     def update_value(self):
@@ -255,11 +240,9 @@ class IsBetween:
     @native_procedure
     @staticmethod
     def run(*, context):
-        var_input = context.static.sources['current_time']
-        var_output = context.static.targets['']
         data = context.static.block.parsed_native_instance
 
-        time = context.dep_values[var_input]
+        time = context.inputs['current_time']
 
         # print('IsBetween', data.start, data.end, time)
         if data.start == data.end:
@@ -270,7 +253,7 @@ class IsBetween:
         else: # data.end > data.start
             res = (time >= data.start) or (time < data.end)
 
-        context.results[var_output] = res
+        context.set_result('output', res)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -303,15 +286,11 @@ class TriggerAt:
     @native_procedure
     @staticmethod
     def run(*, context):
-        var_before = context.static.sources['before']
-        var_after = context.static.sources['after']
-        var_output = context.static.targets['']
-        var_state = context.static.targets['State']
         data = context.static.block.parsed_native_instance
 
-        old_state = context.state_old[var_state]
-        before = context.dep_values[var_before]
-        after = context.dep_values[var_after]
+        old_state = context.inputs['state_old']
+        before = context.inputs['before']
+        after = context.inputs['after']
 
         if before and after:
             # TODO: Handle this without an exception?
@@ -355,5 +334,5 @@ class TriggerAt:
                 
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
-        context.results[var_output] = (data.value,) if do_trigger else None
-        context.state_new[var_state] = new_state
+        context.set_result('output', (data.value,) if do_trigger else None)
+        context.set_result('State', new_state)

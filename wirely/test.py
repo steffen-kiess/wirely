@@ -20,6 +20,7 @@ from wirely.util import check_parameters
 import wirely.compiler
 
 test_names = [
+    'native_interface',
     'types',
     'resources',
     'string_literals',
@@ -57,6 +58,19 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/procedure_implicit_input_alias.wrl',
+    'test/negative/procedure_implicit_output_alias.wrl',
+    'test/negative/procedure_state_alias.wrl',
+    'test/negative/procedure_child_alias.wrl',
+    'test/negative/procedure_duplicate_input_key.wrl',
+    'test/negative/procedure_duplicate_result_key.wrl',
+    'test/negative/procedure_duplicate_decoded_alias.wrl',
+    'test/negative/procedure_unknown_child_output.wrl',
+    'test/negative/procedure_state_new_dependency.wrl',
+    'test/negative/procedure_deep_dependency.wrl',
+    'test/negative/procedure_state_dependency.wrl',
+    'test/negative/procedure_complex_result.wrl',
+
     'test/negative/resource_unknown.wrl',
     'test/negative/resource_unknown_qualified.wrl',
     'test/negative/resource_data_type.wrl',

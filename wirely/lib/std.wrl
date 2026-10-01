@@ -6,7 +6,7 @@ node type Constant {
 
   implicit output : value Type;
 
-  native procedure run produces implicit output;
+  native procedure run produces implicit output as "output";
 }
 
 
@@ -14,7 +14,9 @@ node type And {
   implicit input : list value boolean;
   implicit output : value boolean;
 
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run
+    depends on implicit input as "input"
+    produces implicit output as "output";
 }
 
 
@@ -25,9 +27,12 @@ node type Delay {
   implicit output : value Type;
 
   state value : Type = InitialValue;
-  native procedure copy_from_input depends on implicit input produces r#value;
-  // TODO: Does this have to depend on the old value of the state variable?
-  native procedure copy_to_output produces implicit output;
+  native procedure copy_from_input
+    depends on implicit input as "input"
+    produces r#value;
+  native procedure copy_to_output
+    depends on value.old as "value_old"
+    produces implicit output as "output";
 }
 
 
@@ -37,8 +42,8 @@ node type TwoStageValueForward {
   implicit output : value Type;
 
   temporary temp : Type;
-  native procedure run1 depends on implicit input produces temp;
-  native procedure run2 depends on temp produces implicit output;
+  native procedure run1 depends on implicit input as "input" produces temp;
+  native procedure run2 depends on temp produces implicit output as "output";
 }
 
 
@@ -46,7 +51,7 @@ node type DebugValuePrinter {
   parameter Type : ValueType;
   implicit input : value Type;
 
-  native procedure run stage output depends on implicit input;
+  native procedure run stage output depends on implicit input as "input";
 }
 
 
@@ -54,7 +59,7 @@ node type DebugEventPrinter {
   parameter Type : ValueType;
   implicit input : event Type;
 
-  native procedure run stage output depends on implicit input;
+  native procedure run stage output depends on implicit input as "input";
 }
 
 
@@ -62,7 +67,7 @@ native node type DebugValueSource {
   parameter Type : ValueType;
   implicit output : value Type;
 
-  native procedure run stage input produces implicit output;
+  native procedure run stage input produces implicit output as "output";
 }
 
 
@@ -70,7 +75,7 @@ native node type DebugEventSource {
   parameter Type : ValueType;
   implicit output : event Type;
 
-  native procedure run stage input produces implicit output;
+  native procedure run stage input produces implicit output as "output";
 }
 
 
@@ -78,7 +83,7 @@ node type OptionNone {
   parameter InnerType : ValueType;
   implicit output : value Option[InnerType];
 
-  native procedure run produces implicit output;
+  native procedure run produces implicit output as "output";
 }
 
 node type OptionSome {
@@ -86,7 +91,9 @@ node type OptionSome {
   implicit input : value InnerType;
   implicit output : value Option[InnerType];
 
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run
+    depends on implicit input as "input"
+    produces implicit output as "output";
 }
 
 node type OptionUnwrapOrDefault {
@@ -96,7 +103,9 @@ node type OptionUnwrapOrDefault {
   implicit input : value Option[InnerType];
   implicit output : value InnerType;
 
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run
+    depends on implicit input as "input"
+    produces implicit output as "output";
 }
 
 node type OptionIsSome {
@@ -104,7 +113,9 @@ node type OptionIsSome {
   implicit input : value Option[InnerType];
   implicit output : value boolean;
 
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run
+    depends on implicit input as "input"
+    produces implicit output as "output";
 }
 
 node type OptionCreate {
@@ -114,7 +125,9 @@ node type OptionCreate {
   input Value : value InnerType;
   implicit output : value Option[InnerType];
 
-  native procedure run depends on HasValue, Value produces implicit output;
+  native procedure run
+    depends on HasValue, Value
+    produces implicit output as "output";
 }
 
 // TODO: Allow ignoring edges when the time is lost
@@ -129,6 +142,8 @@ node type DetectEdge {
 
   state LastValue : Option[boolean] = None;
 
-  native procedure run depends on implicit input produces implicit output, LastValue;
+  native procedure run
+    depends on LastValue.old as "last_value_old", implicit input as "input"
+    produces implicit output as "output", LastValue;
 }
 }

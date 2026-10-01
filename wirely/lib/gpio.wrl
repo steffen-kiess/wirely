@@ -16,7 +16,7 @@ native node type Output {
 
   implicit input : value boolean;
 
-  native procedure set_value stage output depends on implicit input;
+  native procedure set_value stage output depends on implicit input as "input";
 }
 
 // TODO: Add tri-state output where the value can be None which will cause the GPIO to be configured as input?

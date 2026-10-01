@@ -22,10 +22,15 @@ native node type ValueWriter {
   // TODO: Allow this?
   // connect RepeatTime.old -> RepeatTimeReached;
   temporary RepeatTimeOld : MonotonicTime;
-  native procedure read_update_time produces RepeatTimeOld;
+  native procedure read_update_time
+    depends on RepeatTime.old as "repeat_time_old"
+    produces RepeatTimeOld;
   connect RepeatTimeOld -> RepeatTimeReached;
 
-  native procedure run stage output depends on implicit input, RepeatTimeReached produces RepeatTime;
+  native procedure run stage output
+    depends on RepeatTime.old as "repeat_time_old", implicit input as "input",
+      RepeatTimeReached
+    produces RepeatTime;
 }
 
 // TODO: Add EventWriter

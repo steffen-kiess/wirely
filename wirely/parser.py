@@ -43,6 +43,7 @@ ast_classes = [
     blocks.StageDeclaration,
     blocks.DependsDeclaration,
     blocks.ProducesDeclaration,
+    blocks.ProcedureBinding,
     blocks.DeclarationLibrary,
     blocks.BlockTypeSpecifier,
     blocks.ListLiteral,

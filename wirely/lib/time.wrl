@@ -7,7 +7,9 @@ node type MonotonicTimeReached {
 
   implicit output : value Option[boolean];
 
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run
+    depends on implicit input as "input"
+    produces implicit output as "output";
 }
 
 // Delay changes until the input has be stable for at least time
@@ -31,10 +33,16 @@ node type DelayChange {
   // TODO: Allow this?
   // connect UpdateTime.old -> Reached;
   temporary UpdateTimeOld : MonotonicTime;
-  native procedure read_update_time produces UpdateTimeOld;
+  native procedure read_update_time
+    depends on UpdateTime.old as "update_time_old"
+    produces UpdateTimeOld;
   connect UpdateTimeOld -> Reached;
 
-  native procedure run depends on implicit input, Reached produces implicit output, CurrentValue, NewValue, UpdateTime;
+  native procedure run
+    depends on CurrentValue.old as "current_value_old", NewValue.old as
+      "new_value_old", UpdateTime.old as "update_time_old", implicit input as
+      "input", Reached
+    produces implicit output as "output", CurrentValue, NewValue, UpdateTime;
 }
 
 // Note: Should not be used directly if possible
@@ -42,7 +50,7 @@ native singleton node type TimeOfDayMinute {
   implicit output : value TimeOfDay;
 
   // TODO: Should this be "stage input"? Should this use some global time?
-  native procedure get_value produces implicit output;
+  native procedure get_value produces implicit output as "output";
 }
 
 // TODO: Implement this in a way which does not cause code to be run every minute
@@ -54,7 +62,9 @@ node type IsBetween {
 
   node current_time : TimeOfDayMinute;
 
-  native procedure run depends on current_time produces implicit output;
+  native procedure run
+    depends on current_time
+    produces implicit output as "output";
 }
 
 // Creates an event whenever the current time changes from the range of 8 hours
@@ -85,6 +95,8 @@ node type TriggerAt {
   node before : IsBetween(Start = TimeOfDay_AddWrap(Time, "-08:00"), End = Time);
   node after : IsBetween(Start = Time, End = TimeOfDay_AddWrap(Time, "02:00"));
 
-  native procedure run depends on before, after produces implicit output, State;
+  native procedure run
+    depends on State.old as "state_old", before, after
+    produces implicit output as "output", State;
 }
 }

@@ -23,10 +23,13 @@ stage_declaration: -> stage_declaration__create_default
                  | "stage" "output" -> stage_declaration__create_output
 
 depends_declaration: -> depends_declaration
-                   | "depends" "on" _separated_empty{reference, ","} -> depends_declaration
+                   | "depends" "on" _separated_empty{procedure_binding, ","} -> depends_declaration
 
 produces_declaration: -> produces_declaration
-                   | "produces" _separated_empty{reference, ","} -> produces_declaration
+                   | "produces" _separated_empty{procedure_binding, ","} -> produces_declaration
+
+procedure_binding: reference -> procedure_binding
+                 | reference "as" string_constant -> procedure_binding
 
 block_parameter_list: _separated_empty{block_parameter, ","} -> copy_list
 

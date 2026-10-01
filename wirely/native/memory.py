@@ -43,10 +43,7 @@ class ToggleFlipFlopTrigger:
     @native_procedure
     @staticmethod
     def read_time(*, context):
-        var_output = context.static.targets['NextEventAllowedAtOld']
-        var_state = context.static.state['NextEventAllowedAt']
-
-        value = context.state_old[var_state]
+        value = context.inputs['next_event_allowed_at_old']
 
         # Turn value from Option[MonotonicTime] into MonotonicTime
         if value is None:
@@ -54,26 +51,19 @@ class ToggleFlipFlopTrigger:
         else:
             value = value[0]
 
-        context.results[var_output] = value
+        context.set_result('NextEventAllowedAtOld', value)
 
     @native_procedure
     @staticmethod
     def update(*, context):
-        var_output = context.static.targets['']
-        var_input = context.static.sources['implicit input']
-        var_feedback = context.static.sources['Feedback']
-        var_reached = context.static.sources['NextEventAllowedAtReached']
-        var_next = context.static.state['NextEventAllowedAt']
-        var_pending = context.static.state['PendingEvent']
-
         data = context.static.block.parsed_native_instance
         now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
 
-        inp = context.dep_values[var_input]
-        feedback = context.dep_values[var_feedback]
-        reached = context.dep_values[var_reached]
-        next = context.state_old[var_next]
-        pending = context.state_old[var_pending]
+        inp = context.inputs['input']
+        feedback = context.inputs['Feedback']
+        reached = context.inputs['NextEventAllowedAtReached']
+        next = context.inputs['next_event_allowed_at_old']
+        pending = context.inputs['pending_event_old']
         # print(f'ToggleFlipFlopTrigger.run inp={inp} feedback={feedback} reached={reached} next={next} pending={pending}')
 
         if next is not None and reached is None:
@@ -108,6 +98,6 @@ class ToggleFlipFlopTrigger:
                 pending = None
                 next = (now + data.minimum_delay,)
 
-        context.results[var_output] = output
-        context.state_new[var_next] = next
-        context.state_new[var_pending] = pending
+        context.set_result('output', output)
+        context.set_result('NextEventAllowedAt', next)
+        context.set_result('PendingEvent', pending)

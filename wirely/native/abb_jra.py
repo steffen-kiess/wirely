@@ -34,33 +34,27 @@ class InterpretStatusInformation:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-
-        val = context.dep_values[input_var]
+        val = context.inputs['input']
         val = JRAStatus(val)
 
         for flag in JRAStatus:
             name = flag.name
-            output_var = context.static.targets[name]
             res = bool(val & flag)
-            context.results[output_var] = res
+            context.set_result(name, res)
 
 @native_block_type(native_block_types, has_state=False)
 class InterpretStatusInformationOption:
     @native_procedure
     @staticmethod
     def run(*, context):
-        input_var = context.static.sources['implicit input']
-
-        val = context.dep_values[input_var]
+        val = context.inputs['input']
         if val is not None:
             val = JRAStatus(val[0])
 
         for flag in JRAStatus:
             name = flag.name
-            output_var = context.static.targets[name]
             if val is None:
                 res = None
             else:
                 res = (bool(val & flag),)
-            context.results[output_var] = res
+            context.set_result(name, res)

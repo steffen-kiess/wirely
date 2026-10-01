@@ -43,7 +43,8 @@ The type name may be a local name or a namespace-qualified name such as
 node type Forward {
   implicit input : value boolean;
   implicit output : value boolean;
-  native procedure run depends on implicit input produces implicit output;
+  native procedure run depends on implicit input as "input"
+    produces implicit output as "output";
 }
 ```
 
@@ -189,6 +190,24 @@ with an initial value. `temporary name : Type;` holds a value calculated
 within a step. Native procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. The engine
 orders procedures from these dependencies and rejects dependency cycles.
+
+Use `reference as "key"` to name a procedure's Python input or result.
+An unaliased simple identifier uses its own name. Implicit connectors and
+complex references require aliases. Input and result keys are checked for
+uniqueness separately, and aliases are not automatically case-converted.
+For example:
+
+```wrl
+native procedure run
+  depends on implicit input as "value", LastValue.old as "previous"
+  produces implicit output as "result", LastValue as "next";
+```
+
+`LastValue.old` reads the previous step's state without depending on this
+step's writer. Dependencies can also name direct child outputs, such as
+`sensor.Value as "value"`. Result destinations are local output connectors,
+temporaries, or state variables. Arbitrary expressions, deeper paths, and
+`State.new` dependencies are not supported.
 
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends

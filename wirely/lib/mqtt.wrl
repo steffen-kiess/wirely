@@ -17,7 +17,7 @@ native node type ValueOptionProvider {
 
   implicit input : value Option[Type];
 
-  native procedure set_value stage output depends on implicit input;
+  native procedure set_value stage output depends on implicit input as "input";
 }
 
 node type ValueProvider {
@@ -50,7 +50,7 @@ native node type EventEmitter {
 
   implicit input : event Type;
 
-  native procedure send_value stage output depends on implicit input;
+  native procedure send_value stage output depends on implicit input as "input";
 }
 
 native node type EventReceiver {
@@ -63,6 +63,6 @@ native node type EventReceiver {
 
   implicit output : event Type;
 
-  native procedure get_value stage input produces implicit output;
+  native procedure get_value stage input produces implicit output as "output";
 }
 }

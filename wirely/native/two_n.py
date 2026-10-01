@@ -224,15 +224,13 @@ class KeyEvent(blocks.NativeState):
 
     @native_procedure
     def get_value(self, *, context):
-        var_output = context.static.targets['']
-
         value = self.received_value
         self.received_value = None
 
         if value is None:
-            context.results[var_output] = None
+            context.set_result('output', None)
         else:
-            context.results[var_output] = (value,)
+            context.set_result('output', (value,))
             # Trigger to set value to None again
             self.engine.trigger(self.block_path, self.proc)
 
@@ -292,15 +290,13 @@ class CodeEnteredEvent(blocks.NativeState):
 
     @native_procedure
     def get_value(self, *, context):
-        var_output = context.static.targets['']
-
         value = self.pending
         self.pending = False
 
         if not value:
-            context.results[var_output] = None
+            context.set_result('output', None)
         else:
-            context.results[var_output] = (None,)
+            context.set_result('output', (None,))
             # Trigger to set value to None again
             self.engine.trigger(self.block_path, self.proc)
 
@@ -310,27 +306,18 @@ class KeyState(blocks.NativeState):
     @native_procedure
     @staticmethod
     def read_timeout_time(*, context):
-        var_output = context.static.targets['TimeoutTimeOld']
-        var_state = context.static.state['TimeoutTime']
-
-        value = context.state_old[var_state]
-        context.results[var_output] = value
+        value = context.inputs['timeout_time_old']
+        context.set_result('TimeoutTimeOld', value)
 
     @native_procedure
     @staticmethod
     def get_value(*, context):
-        var_output = context.static.targets['']
-        var_current_value = context.static.state['CurrentValue']
-        var_timeout_time = context.static.state['TimeoutTime']
-        var_timeout_reached = context.static.sources['TimeoutReached']
-        var_event = context.static.sources['key_event']
-
         data = context.static.block.parsed_native_instance
 
-        value = context.state_old[var_current_value]
-        timeout_time = context.state_old[var_timeout_time]
-        timeout_reached = context.dep_values[var_timeout_reached]
-        event = context.dep_values[var_event]
+        value = context.inputs['current_value_old']
+        timeout_time = context.inputs['timeout_time_old']
+        timeout_reached = context.inputs['TimeoutReached']
+        event = context.inputs['key_event']
 
         if event == (True,):
             # KeyPressed
@@ -357,9 +344,9 @@ class KeyState(blocks.NativeState):
                 new_value = True
                 new_timeout_time = timeout_time
 
-        context.results[var_output] = new_value
-        context.state_new[var_timeout_time] = new_timeout_time
-        context.state_new[var_current_value] = new_value
+        context.set_result('output', new_value)
+        context.set_result('TimeoutTime', new_timeout_time)
+        context.set_result('CurrentValue', new_value)
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
@@ -444,13 +431,11 @@ class IOState(blocks.NativeState):
 
     @native_procedure
     def get_value(self, *, context):
-        var_output = context.static.targets['']
-
         value = self.current_value
         if value is None:
             raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
-        context.results[var_output] = value
+        context.set_result('output', value)
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNSwitchData)
@@ -533,13 +518,11 @@ class SwitchState(blocks.NativeState):
 
     @native_procedure
     def get_value(self, *, context):
-        var_output = context.static.targets['']
-
         value = self.current_value
         if value is None:
             raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
-        context.results[var_output] = value
+        context.set_result('output', value)
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
@@ -590,9 +573,7 @@ class OutputControl(blocks.NativeState):
 
         data = context.static.block.parsed_native_instance
 
-        var_input = context.static.sources['implicit input']
-
-        value_opt = context.dep_values[var_input]
+        value_opt = context.inputs['input']
         if value_opt is None:
             return
         value = value_opt[0]

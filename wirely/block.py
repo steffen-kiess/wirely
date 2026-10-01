@@ -149,18 +149,18 @@ class Block(blocks.Node):
 
     # TODO: Probably should be merged into instantiate()
     def get_block_procedures_paths(self, prefix):
-        # TODO: Handle singletons properly?
-        res = [(blocks.path_resolve_singleton(prefix + (self,)), proc) for proc in self.block_procedures]
+        path = blocks.path_resolve_singleton(prefix + (self,))
+        res = [(path, proc) for proc in self.block_procedures]
         for child_block in self.block_type.blocks.values():
-            res += child_block.get_block_procedures_paths(prefix + (self,))
+            res += child_block.get_block_procedures_paths(path)
         return res
 
     # TODO: Probably should be merged into instantiate()
     def get_all_block_paths(self, prefix):
-        # TODO: Handle singletons properly?
-        res = [blocks.path_resolve_singleton(prefix + (self,))]
+        path = blocks.path_resolve_singleton(prefix + (self,))
+        res = [path]
         for child_block in self.block_type.blocks.values():
-            res += child_block.get_all_block_paths(prefix + (self,))
+            res += child_block.get_all_block_paths(path)
         return res
 
     class Member(abc.ABC):
@@ -388,13 +388,9 @@ class Block(blocks.Node):
 
             self.dependencies = []
             for dependency in dependencies:
-                if not isinstance(dependency, Block.Source):
+                if not isinstance(dependency, (Block.Source, Block.Output)):
                     raise Exception('dependencies parameter value is not an Input or Temporary instance')
-                # TODO: Clean up inheritance
-                # TODO: Allow depending on the new value of the state variable?
-                # TODO: Also make dependency on old value explicit?
-                if isinstance(dependency, Block.StateVariable):
-                    raise Exception('dependencies parameter value is a StateVariable instance')
+                # State dependencies read the previous step and have no producer edge.
                 # TODO: Allow dependencies on other blocks? Probably yes. Maybe check where dependency.block is a child of the current block?
                 # if dependency.block != self.block:
                 #     raise Exception('dependencies parameter value is for another block')

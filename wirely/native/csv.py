@@ -151,23 +151,16 @@ class ValueWriter(blocks.NativeState):
 
     @native_procedure
     def read_update_time(self, *, context):
-        var_output = context.static.targets['RepeatTimeOld']
-        var_state = context.static.state['RepeatTime']
-
-        value = context.state_old[var_state]
-        context.results[var_output] = value
+        value = context.inputs['repeat_time_old']
+        context.set_result('RepeatTimeOld', value)
 
     @native_procedure
     def run(self, *, context):
         data = context.static.block.parsed_native_instance
 
-        var_input = context.static.sources['implicit input']
-        var_repeat_time_reached = context.static.sources['RepeatTimeReached']
-        var_repeat_time = context.static.state['RepeatTime']
-
-        new_value = context.dep_values[var_input]
-        reached = context.dep_values[var_repeat_time_reached]
-        repeat_time = context.state_old[var_repeat_time]
+        new_value = context.inputs['input']
+        reached = context.inputs['RepeatTimeReached']
+        repeat_time = context.inputs['repeat_time_old']
 
         new_value_csv = self.data.type.to_csv_value(new_value)
 
@@ -191,4 +184,4 @@ class ValueWriter(blocks.NativeState):
             # Write value once an hour
             repeat_time = now + blocks.Duration.parse('PT1H')
 
-        context.state_new[var_repeat_time] = repeat_time
+        context.set_result('RepeatTime', repeat_time)

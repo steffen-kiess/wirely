@@ -1,0 +1,5 @@
+node type Invalid {
+  state Value : boolean = false;
+  native procedure run produces Value.old as "value";
+  // ^E: Output does not have exactly one component
+}
