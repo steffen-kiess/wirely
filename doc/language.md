@@ -103,12 +103,16 @@ node type Example {
 
 Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
 unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
-`TimeOfDay`, `MonotonicTime`, and `ThermostatSystemMode`. `ValueType` is used
-for type parameters. `Option[T]` and `List[T]` construct types from `T`.
+`TimeOfDay`, `MonotonicTime`, and `ThermostatSystemModeEnum`. `ValueType` is
+used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
+See the [value type reference](value-types.md) for allowed values, runtime
+status, and serialization support.
 
-Use `true` and `false` for booleans, non-negative decimal or `0x`/`0o`
+Use `true` and `false` for booleans, decimal or `0x`/`0o`
 integers for integer parameters, quoted strings for `String`, and `[a, b]`
-for list values. Raw strings (`r"..."` and `r#"..."#`) are also accepted.
+for list values. Negative integers use a leading minus sign, such as `-42`,
+and require a signed integer type. Raw strings (`r"..."` and `r#"..."#`)
+are also accepted.
 Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is the available `Option[T]` literal; use library nodes
 such as `Std.OptionSome` to create an optional value at runtime.
@@ -117,8 +121,8 @@ compile-time function `TimeOfDay_AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.
 
 Expressions have limited support: literals, parameter references, lists,
-generic types, and the named time function above. In particular, unary
-minus and general arithmetic expressions are not currently implemented.
+generic types, and the named time function above. General arithmetic
+expressions are not currently implemented.
 
 ## Connectors and connections
 
