@@ -12,28 +12,23 @@ class ToggleFlipFlopTriggerData:
     minimum_delay: blocks.Duration
 
     @staticmethod
-    def create(*, parameter_values):
-        # TODO: default parameters should be handled somewhere else
-        if 'OutputType' not in parameter_values:
-            par_type = blocks.types.unit
-        else:
-            par_type = parameter_values['OutputType']
+    def create(*, context):
+        parameters = context.parameters
+        par_type = parameters['OutputType']
 
-        if 'OutputValue' not in parameter_values:
+        if 'OutputValue' not in parameters:
             output_value = blocks.Unit()
-            if par_type != blocks.types.unit:
-                # TODO: Provide error location in a better way / avoid stack trace?
-                raise Exception(f'Trigger type is not unit ({par_type}) but no value is given')
+            if par_type != blocks.value_types.unit:
+                raise context.error(f'Trigger type is not unit ({par_type}) but no value is given', parameter='OutputValue')
         else:
-            output_value = parameter_values['OutputValue'].value
+            output_value = parameters['OutputValue']
 
-        output_value = par_type.verify_value(output_value)
+        try:
+            output_value = par_type.validate(output_value)
+        except ValueError as error:
+            raise context.error(str(error), parameter='OutputValue') from error
 
-        # TODO: default parameters should be handled somewhere else
-        if 'MinimumDelay' not in parameter_values:
-            minimum_delay = blocks.Duration.from_seconds(1)
-        else:
-            minimum_delay = parameter_values['MinimumDelay'].value
+        minimum_delay = parameters['MinimumDelay']
 
         return ToggleFlipFlopTriggerData(output_value=output_value, minimum_delay=minimum_delay)
 
@@ -56,7 +51,7 @@ class ToggleFlipFlopTrigger:
     @native_procedure
     @staticmethod
     def update(*, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
         now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
 
         inp = context.inputs['input']

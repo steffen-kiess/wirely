@@ -41,8 +41,9 @@ class DelayChangeData:
     time: blocks.Duration
 
     @staticmethod
-    def create(*, parameter_values):
-        time = parameter_values['Duration'].evaluate()
+    def create(*, context):
+        parameters = context.parameters
+        time = parameters['Duration']
 
         return DelayChangeData(time=time)
 
@@ -58,7 +59,7 @@ class DelayChange(blocks.NativeState):
     @native_procedure
     @staticmethod
     def run(*, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         inp = context.inputs['input']
         reached = context.inputs['reached']
@@ -218,10 +219,13 @@ class IsBetweenData:
             raise Exception('self.start == self.end')
 
     @staticmethod
-    def create(*, parameter_values):
-        par_start = parameter_values['Start'].evaluate()
-        par_end = parameter_values['End'].evaluate()
+    def create(*, context):
+        parameters = context.parameters
+        par_start = parameters['Start']
+        par_end = parameters['End']
 
+        if par_start == par_end:
+            raise context.error('Start and end must differ', parameter='End')
         return IsBetweenData(start=par_start, end=par_end)
 
 
@@ -230,7 +234,7 @@ class IsBetween:
     @native_procedure
     @staticmethod
     def run(*, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         time = context.inputs['current_time']
 
@@ -251,22 +255,21 @@ class TriggerAtData:
     value: object
 
     @staticmethod
-    def create(*, parameter_values):
-        # TODO: default parameters should be handled somewhere else
-        if 'OutputType' not in parameter_values:
-            par_type = blocks.types.unit
-        else:
-            par_type = parameter_values['OutputType']
+    def create(*, context):
+        parameters = context.parameters
+        par_type = parameters['OutputType']
 
-        if 'OutputValue' not in parameter_values:
+        if 'OutputValue' not in parameters:
             value = blocks.Unit()
-            if par_type != blocks.types.unit:
-                # TODO: Provide error location in a better way / avoid stack trace?
-                raise Exception(f'Trigger type is not unit ({par_type}) but no value is given')
+            if par_type != blocks.value_types.unit:
+                raise context.error(f'Trigger type is not unit ({par_type}) but no value is given', parameter='OutputValue')
         else:
-            value = parameter_values['OutputValue'].value
+            value = parameters['OutputValue']
 
-        value = par_type.verify_value(value)
+        try:
+            value = par_type.validate(value)
+        except ValueError as error:
+            raise context.error(str(error), parameter='OutputValue') from error
 
         return TriggerAtData(value=value)
 
@@ -276,7 +279,7 @@ class TriggerAt:
     @native_procedure
     @staticmethod
     def run(*, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         old_state = context.inputs['state_old']
         before = context.inputs['before']

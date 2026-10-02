@@ -15,23 +15,25 @@ class GPIOData:
     bias: str
 
     @staticmethod
-    def create(*, parameter_values):
-        chip_device_file = parameter_values['ChipDeviceFile'].value
-        name = parameter_values['Name'].value
+    def create(*, context):
+        parameters = context.parameters
+        chip_device_file = parameters['ChipDeviceFile']
+        name = parameters['Name']
 
-        # TODO: Should not be needed, this should use the default parameter value automatically
-        if 'ActiveState' in parameter_values:
-            active_state = parameter_values['ActiveState'].value
-        else:
-            active_state = 'High'
-        if 'Drive' in parameter_values:
-            drive = parameter_values['Drive'].value
-        else:
-            drive = 'PushPull'
-        if 'Bias' in parameter_values:
-            bias = parameter_values['Bias'].value
-        else:
-            bias = 'AsIs'
+        active_state = parameters['ActiveState']
+        drive = parameters['Drive']
+        bias = parameters['Bias']
+        choices = {
+            'ActiveState': ('High', 'Low'),
+            'Drive': ('PushPull', 'OpenDrain', 'OpenSource'),
+            'Bias': ('AsIs', 'Disable', 'PullDown', 'PullUp'),
+        }
+        for parameter_name, allowed in choices.items():
+            if parameters[parameter_name] not in allowed:
+                raise context.error(
+                    f'Unknown {parameter_name}: {parameters[parameter_name]!r}',
+                    parameter=parameter_name,
+                )
 
         return GPIOData(chip_device_file=chip_device_file, name=name, active_state=active_state, drive=drive, bias=bias)
 

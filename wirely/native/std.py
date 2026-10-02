@@ -231,11 +231,12 @@ class EdgeData:
     edge_type: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_edge_type = parameter_values['EdgeType'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_edge_type = parameters['EdgeType']
 
         if par_edge_type not in ['Rising', 'Falling', 'Both']:
-            raise Exception(f'Invalid edge type: {par_edge_type!r}')
+            raise context.error(f'Invalid edge type: {par_edge_type!r}', parameter='EdgeType')
 
         return EdgeData(edge_type=par_edge_type)
 
@@ -246,7 +247,7 @@ class DetectEdge:
     @staticmethod
     def run(*, context):
         last_value = context.inputs['last_value_old']
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         value = context.inputs['input']
 

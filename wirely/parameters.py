@@ -1,5 +1,7 @@
 """Resolve compiler parameter bindings and declaration defaults."""
 
+from types import MappingProxyType
+
 import wirely as blocks
 
 
@@ -44,3 +46,48 @@ def resolve_parameter(parameter, values):
     if not isinstance(values, ParameterValues):
         values = ParameterValues(values)
     return values[parameter]
+
+
+def native_parameters(values):
+    return MappingProxyType({
+        name: (blocks.ValueType(value) if isinstance(value, blocks.Type)
+               else blocks.value_types._to_native(value.value_type, value.evaluate()))
+        for name, value in values.items()
+    })
+
+
+def parameter_origins(instance):
+    arguments = {}
+    if instance.block is not None:
+        arguments = {argument.name.id_str: argument.value
+                     for argument in instance.block.instantiation.instantiation.parameters}
+    origins = {}
+
+    def origin(parameter):
+        if parameter in origins:
+            return origins[parameter]
+        expression = arguments.get(parameter.name.id_str, parameter.default_value)
+        result = (expression if expression is not None else parameter, ())
+        # Record a fallback before following references to avoid provenance cycles.
+        origins[parameter] = result
+        if isinstance(expression, blocks.Reference) and expression.length == 1:
+            scope = (instance.block.graph if parameter.name.id_str in arguments
+                     else instance.block_type)
+            source = scope.parsed_parameters.get(expression.identifiers[0].id_str)
+            if source is not None and source is not parameter:
+                if source.interface is instance.block_type:
+                    source_origin = origin(source)
+                else:
+                    parent = instance.parent_instance
+                    while parent is not None and source not in parent.parameter_origins:
+                        parent = parent.parent_instance
+                    source_origin = parent.parameter_origins[source] if parent is not None else None
+                if source_origin is not None:
+                    location, forwarding = source_origin
+                    result = (location, forwarding + (expression,))
+        origins[parameter] = result
+        return result
+
+    for parameter in instance.block_type.parsed_parameters.values():
+        origin(parameter)
+    return origins

@@ -2,7 +2,7 @@ import abc
 
 import wirely as blocks
 from wirely.util import check_parameters
-from wirely.parameters import ParameterValues
+from wirely.parameters import ParameterValues, native_parameters, parameter_origins
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -494,30 +494,32 @@ class BlockInstance(blocks.NodeInstance):
             parameter_values_resolved[key] = value
         self.parameter_values = parameter_values_resolved
 
+        self.parameter_origins = parameter_origins(self)
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
+        parameters = native_parameters(parameter_values_bystr)
+        source = self.block.instantiation if self.block is not None else self.block_type
+        name = '.'.join(node.name if isinstance(node, blocks.Block) else node.fullname
+                        for node in self.path)
+        context = blocks.NativeNodeConfigurationContext(
+            name=name, parameters=parameters, _source=source,
+            _origins={key.name.id_str: value for key, value in self.parameter_origins.items()},
+        )
         native_class = self.block_type.native_class
-        parsed_native_instance = None
-
-        # TODO: Pass this differently
-        parameter_values_bystr[''] = {}
-        if self.block is None:
-            # Singleton
-            parameter_values_bystr['']['BlkFilename'] = None
-        else:
-            # TODO: Get the filename from somewhere else?
-            parameter_values_bystr['']['BlkFilename'] = self.block.instantiation.source_position.filename
-
+        configuration = None
         if native_class is not None:
-            # TODO: Make sure that this is executed if a native class exists even if there is no native procedure in the block and the block has no native state?
             data_type = native_class.native_block_data_type
             if data_type is not None:
                 try:
-                    parsed_native_instance = data_type.create(parameter_values=parameter_values_bystr)
-                except blocks.ProgramError as e:
+                    configuration = data_type.create(context=context)
+                except blocks.ProgramError:
                     raise
-                except Exception as e:
-                    raise blocks.InternalCompilerError(block.instantiation, e, msg=f'Error while parsing parameters: {e}')
-        self.static_context = blocks.StaticBlockContext(parameter_values=parameter_values_bystr, parsed_native_instance=parsed_native_instance)
+                except ValueError as error:
+                    raise context.error(str(error)) from error
+                except Exception as error:
+                    raise blocks.InternalCompilerError(source, error, msg=f'Error while preparing configuration: {error}') from error
+        self.static_context = blocks.StaticBlockContext(
+            parameters=parameters, parsed_native_instance=configuration,
+        )
 
     @property
     def path(self):

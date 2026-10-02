@@ -48,17 +48,17 @@ class MyCsvWriter:
 
 @dataclasses.dataclass(frozen=True)
 class CsvWriterParameters:
-    type: blocks.Type
+    type: blocks.ValueType
     filename: str
 
     @staticmethod
-    def create(*, parameter_values):
-        ty = parameter_values['Type']
-        if not ty.has_to_csv_value:
-            # TODO: Error message position?
-            raise Exception(f'Type {ty} does not support converting to CSV')
+    def create(*, context):
+        parameters = context.parameters
+        ty = parameters['Type']
+        if not ty.supports_csv:
+            raise context.error(f'Type {ty} does not support converting to CSV', parameter='Type')
 
-        filename = parameter_values['Filename'].value
+        filename = parameters['Filename']
 
         return CsvWriterParameters(type=ty, filename=filename)
 
@@ -147,7 +147,7 @@ class ValueWriter(blocks.NativeState):
 
     @native_procedure
     def run(self, *, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         new_value = context.inputs['input']
         reached = context.inputs['repeat_time_reached']

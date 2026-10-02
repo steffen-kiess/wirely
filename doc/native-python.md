@@ -120,20 +120,26 @@ resolved Python values, using exact `.wrl` parameter names. Declared defaults
 are applied; omitted optional parameters are absent. `ValueType` parameters
 provide `wirely.ValueType` descriptors.
 
-Configuration preparation receives compiler parameter objects through
-`parameter_values`. Call `.evaluate()` on value parameters; type parameters
-contain compiler types. The key `''` holds source metadata:
-`parameters['']['BlkFilename']` is the instantiation's `.wrl` filename, or
-`None` for a singleton, for resolving relative configuration paths.
-
 Pass `data_type=SomeClass` to `@native_block_type` to prepare configuration
-once per instance. Wirely calls
-`SomeClass.create(parameter_values=...)` with the resolved dictionary.
-The returned object is available as
-`context.static.block.parsed_native_instance` or, in a native node,
-`self.context.configuration`. This works with either
-`has_state` setting; see `Std.DetectEdge` in
-[`std.py`](../wirely/native/std.py).
+once per instance. Wirely calls `SomeClass.create(context=context)` during
+compilation, with a `wirely.NativeNodeConfigurationContext`. It provides
+`parameters` as described above and `name`, the dotted instance name or
+qualified singleton type name. The returned object is available as
+`context.configuration` in procedures and `self.context.configuration` in
+native nodes, with either `has_state` setting.
+
+Raise `context.error(message, parameter='Name')` for a configuration error.
+Its location identifies the parameter's argument, default, or declaration;
+forwarded parameters retain their origin and add hints at forwarding sites.
+Omit `parameter` to locate the error at the node. A plain `ValueError` also
+becomes a node error.
+
+`context.resolve_path(value, parameter='Name')` returns a normalized absolute
+`pathlib.Path`, using the parameter's source directory for relative paths.
+Without `parameter`, it uses the node's source directory. Relative paths
+require a source filename; virtual sources such as `<test>` have no base.
+This method does not access the filesystem. Preparation can read
+configuration files, but execution services need not be available.
 
 ## Python representations for native externs
 

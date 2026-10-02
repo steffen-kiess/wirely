@@ -15,6 +15,7 @@ from .types import Type, TypeParameter
 from . import value_types
 from .value_types import ValueType
 from .value import Value, ConstantValue, ValueParameter
+from .native_configuration import NativeNodeConfigurationContext
 
 from .util import check_parameters
 
@@ -357,13 +358,8 @@ class VariableBlockInstance:
 # TODO: Prevent modifications, more checks
 # TODO: Merge this into BlockInstance? Or should this data (which will be needed at runtime) be kept separately?
 class StaticBlockContext:
-    def __init__(self, *, parameter_values, parsed_native_instance):
-        self.parameter_values = parameter_values
-        self.parameters: Mapping[str, object] = MappingProxyType({
-            name: (ValueType(value) if isinstance(value, Type)
-                   else value_types._to_native(value.value_type, value.evaluate()))
-            for name, value in parameter_values.items() if name
-        })
+    def __init__(self, *, parameters, parsed_native_instance):
+        self.parameters: Mapping[str, object] = parameters
         # TODO: Rename?
         self.parsed_native_instance = parsed_native_instance
 
@@ -401,6 +397,10 @@ class ProcedureContext:
     @property
     def parameters(self) -> Mapping[str, object]:
         return self.static.block.parameters
+
+    @property
+    def configuration(self):
+        return self.static.block.parsed_native_instance
 
     def set_result(self, name: str, value: object):
         if not isinstance(name, str) or name not in self.static._targets:

@@ -12,31 +12,35 @@ native_block_types = {}
 @dataclasses.dataclass(frozen=True)
 class KnxData:
     group_address_raw: int
-    value_type: blocks.Type
+    value_type: blocks.ValueType
     # TODO: Should this be here or should this be created later?
     value_type_knx: str
 
     @staticmethod
-    def create(*, parameter_values):
-        group_address_str = parameter_values['GroupAddress'].value
-        par_type = parameter_values['Type']
+    def create(*, context):
+        parameters = context.parameters
+        group_address_str = parameters['GroupAddress']
+        par_type = parameters['Type']
 
         import xknx
-        group_address = xknx.telegram.GroupAddress(group_address_str)
+        try:
+            group_address = xknx.telegram.GroupAddress(group_address_str)
+        except xknx.exceptions.CouldNotParseAddress as error:
+            raise context.error(str(error), parameter='GroupAddress') from error
         group_address_raw = group_address.raw
 
-        if par_type == blocks.types.boolean:
+        if par_type == blocks.value_types.boolean:
             value_type_knx = "binary"
-        elif par_type == blocks.types.int16:
+        elif par_type == blocks.value_types.int16:
             value_type_knx = "2byte_signed"
-        elif par_type == blocks.types.uint16:
+        elif par_type == blocks.value_types.uint16:
             value_type_knx = "2byte_unsigned"
-        elif par_type == blocks.types.int32:
+        elif par_type == blocks.value_types.int32:
             value_type_knx = "4byte_signed"
-        elif par_type == blocks.types.uint32:
+        elif par_type == blocks.value_types.uint32:
             value_type_knx = "4byte_unsigned"
         else:
-            raise Exception(f'TODO: Unsupported type for KNX.ValueReceiver: {par_type}')
+            raise context.error(f'Unsupported type for KNX: {par_type}', parameter='Type')
 
         return KnxData(group_address_raw=group_address_raw, value_type=par_type, value_type_knx=value_type_knx)
 
@@ -331,7 +335,7 @@ class EventEmitter(blocks.NativeState):
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         value_opt = context.inputs['input']
 

@@ -13,8 +13,9 @@ class LaunchOnEventData:
     shell_command: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_shell_command = parameter_values['ShellCommand'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_shell_command = parameters['ShellCommand']
 
         return LaunchOnEventData(shell_command=par_shell_command)
 

@@ -14,6 +14,7 @@ import shlex
 import signal
 
 import wirely as blocks
+from wirely.parameters import native_parameters
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
@@ -22,6 +23,7 @@ import wirely.compiler
 test_names = [
     'native_interface',
     'native_parameters',
+    'native_configuration',
     'types',
     'resources',
     'string_literals',
@@ -544,7 +546,6 @@ async def run_test(test_name):
                     print(f'Changing instance UnixPath from {block_instance.parameter_values[key].value} to {knxd_socket_path}', flush=True)
                     new_value = blocks.ConstantValue(block_instance.parameter_values[key].value_type, knxd_socket_path, ast_element=None)
                     block_instance.parameter_values[key] = new_value
-                    block_instance.static_context.parameter_values['UnixPath'] = new_value
                 if not found:
                     raise Exception('Could not find UnixPath parameter')
         if require_mqtt:
@@ -628,13 +629,9 @@ async def run_test(test_name):
         for path in overridden_paths:
             instance = prog.instances[path]
             static = instance.static_context
-            static.parameter_values.update({
+            static.parameters = native_parameters({
                 key.name.id_str: value for key, value in instance.parameter_values.items()
             })
-            static.parameters = blocks.StaticBlockContext(
-                parameter_values=static.parameter_values,
-                parsed_native_instance=static.parsed_native_instance,
-            ).parameters
 
         eng = blocks.Engine(prog)
 

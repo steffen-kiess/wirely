@@ -126,7 +126,7 @@ def parse_mqtt_uri(uri):
 
 @dataclasses.dataclass(frozen=True)
 class MqttData:
-    value_type: blocks.Type
+    value_type: blocks.ValueType
     topic: str
     format: typing.Optional[str]
     template_prefix: str
@@ -178,7 +178,7 @@ class MqttData:
 
                 if c == '%':
                     if pos == len(cur_str):
-                        raise Exception('Found lone % at end of string')
+                        raise ValueError('Found lone % at end of string')
                     c = cur_str[pos]
                     pos += 1
 
@@ -186,11 +186,11 @@ class MqttData:
                         pass
                     elif c == 's':
                         if found_ref:
-                            raise Exception('Found multiple %s in template string')
+                            raise ValueError('Found multiple %s in template string')
                         found_ref = True
                         continue
                     else:
-                        raise Exception('Unexpected sequence in template string: ' + repr('%' + c))
+                        raise ValueError('Unexpected sequence in template string: ' + repr('%' + c))
 
                 if not found_ref:
                     prefix += c
@@ -198,29 +198,32 @@ class MqttData:
                     suffix += c
 
         if not found_ref:
-            raise Exception('Got template string without %s')
+            raise ValueError('Got template string without %s')
 
         return prefix, suffix
 
     @staticmethod
-    def create(*, parameter_values):
-        par_type = parameter_values['Type']
-        par_topic = parameter_values['Topic'].value
-        if 'Format' in parameter_values:
+    def create(*, context):
+        parameters = context.parameters
+        par_type = parameters['Type']
+        par_topic = parameters['Topic']
+        if 'Format' in parameters:
             # TODO: Verify format here
-            par_format = parameter_values['Format'].value
+            par_format = parameters['Format']
         else:
             par_format = None
 
-        if 'Template' in parameter_values:
-            # TODO: Error messages with location?
-            par_template = parameter_values['Template'].value
-            template_prefix, template_suffix = MqttData.parse_template(par_template)
+        if 'Template' in parameters:
+            par_template = parameters['Template']
+            try:
+                template_prefix, template_suffix = MqttData.parse_template(par_template)
+            except ValueError as error:
+                raise context.error(str(error), parameter='Template') from error
         else:
             template_prefix = template_suffix = ''
 
-        if not par_type.is_json_serializable:
-            raise Exception(f'Unsupported type for MQTT: {ty} (is not serializable as JSON)')
+        if not par_type.supports_json:
+            raise context.error(f'Unsupported type for MQTT: {par_type}', parameter='Type')
         # TODO: Verify format here
 
         return MqttData(value_type=par_type, topic=par_topic, format=par_format, template_prefix=template_prefix, template_suffix=template_suffix)
@@ -449,7 +452,7 @@ class EventEmitter(blocks.NativeState):
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         value_opt = context.inputs['input']
 

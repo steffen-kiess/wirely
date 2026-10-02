@@ -33,13 +33,12 @@ callback = None
 
 class PreparedData:
     @staticmethod
-    def create(*, parameter_values):
-        assert '' in parameter_values
-        for name, value in parameter_values.items():
-            if name:
-                assert isinstance(value, (wirely.Type, wirely.Value))
-        prepared.append(parameter_values)
-        return parameter_values
+    def create(*, context):
+        assert isinstance(context, wirely.NativeNodeConfigurationContext)
+        assert isinstance(context.parameters, MappingProxyType)
+        assert '' not in context.parameters
+        prepared.append(context.parameters)
+        return context.parameters
 
 
 @native_block_type(registry, has_state=False, data_type=PreparedData)
@@ -134,8 +133,8 @@ native procedure run;
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,
                        native=native, arguments='(Absent = None)')
-    assert prepared[-1]['Number'].evaluate() == 7
-    assert prepared[-1]['Type'] == wirely.types.uint16
+    assert prepared[-1]['Number'] == 7
+    assert prepared[-1]['Type'] == types.uint16
     probe.step()
     probe.assert_is_idle()
 

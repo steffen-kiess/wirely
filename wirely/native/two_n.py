@@ -1,6 +1,5 @@
 import asyncio
 import sys
-import os
 import json
 import dataclasses
 import typing
@@ -19,7 +18,7 @@ def get_username_password(fn):
         password = file.readline().strip()
 
     if username == '' or password == '':
-        raise Exception('Failed to read username and password from {!r}'.format(fn))
+        raise ValueError('Failed to read username and password from {!r}'.format(fn))
 
     return username, password
 
@@ -30,24 +29,22 @@ class TwoNDeviceData:
     port: int
     # TODO: Parse into (int,int,int,bytes)?
     tlsa: list[str]
-    # TODO: Should this contain the password directly or only the filename?
     username: str
     password: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_hostname = parameter_values['Host'].value
-        if 'Port' in parameter_values:
-            par_port = parameter_values['Port'].value
-        else:
-            # TODO: Should not be needed, this should use the default parameter value from two_n.wrl automatically
-            par_port = 443
-        par_tlsa = parameter_values['TLSA'].value
-
-        par_pwdfile = parameter_values['UsernamePasswordFile'].value
-        blk_file = parameter_values['']['BlkFilename']
-        par_pwdfile = os.path.join(os.path.dirname(blk_file), par_pwdfile)
-        username, password = get_username_password(par_pwdfile)
+    def create(*, context):
+        parameters = context.parameters
+        par_hostname = parameters['Host']
+        par_port = parameters['Port']
+        par_tlsa = parameters['TLSA']
+        par_pwdfile = context.resolve_path(
+            parameters['UsernamePasswordFile'], parameter='UsernamePasswordFile',
+        )
+        try:
+            username, password = get_username_password(par_pwdfile)
+        except (OSError, ValueError) as error:
+            raise context.error(str(error), parameter='UsernamePasswordFile') from error
 
         return TwoNDeviceData(hostname=par_hostname, port=par_port, tlsa=par_tlsa, username=username, password=password)
 
@@ -88,12 +85,9 @@ class TwoNTimeoutData:
     timeout: blocks.Duration
 
     @staticmethod
-    def create(*, parameter_values):
-        # TODO: default parameters should be handled somewhere else
-        if 'Timeout' not in parameter_values:
-            par_timeout = blocks.Duration.parse('PT30S')
-        else:
-            par_timeout = parameter_values['Timeout'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_timeout = parameters['Timeout']
 
         return TwoNTimeoutData(timeout=par_timeout)
 
@@ -106,8 +100,9 @@ class TwoNKeyData:
     key: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_key = parameter_values['Key'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_key = parameters['Key']
 
         return TwoNKeyData(key=par_key)
 
@@ -121,8 +116,9 @@ class TwoNIOData:
     port: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_port = parameter_values['Port'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_port = parameters['Port']
 
         return TwoNIOData(port=par_port)
 
@@ -135,8 +131,9 @@ class TwoNSwitchData:
     switch_number: int
 
     @staticmethod
-    def create(*, parameter_values):
-        par_switch_number = int(parameter_values['SwitchNumber'].value)
+    def create(*, context):
+        parameters = context.parameters
+        par_switch_number = int(parameters['SwitchNumber'])
 
         return TwoNSwitchData(switch_number=par_switch_number)
 
@@ -149,14 +146,15 @@ class TwoNCodeData:
     code: str
 
     @staticmethod
-    def create(*, parameter_values):
-        par_code = parameter_values['Code'].value
+    def create(*, context):
+        parameters = context.parameters
+        par_code = parameters['Code']
 
         if len(par_code) > 15:
-            raise Exception('len(par_code) > 15')
+            raise context.error('Code exceeds 15 digits', parameter='Code')
         for c in par_code:
             if c < '0' or c > '9':
-                raise Exception(f'Got non-digit in code {par_code!r}')
+                raise context.error(f'Got non-digit in code {par_code!r}', parameter='Code')
 
         return TwoNCodeData(code=par_code)
 
@@ -286,7 +284,7 @@ class KeyState(blocks.NativeState):
     @native_procedure
     @staticmethod
     def get_value(*, context):
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         value = context.inputs['current_value_old']
         timeout_time = context.inputs['timeout_time_old']
@@ -506,7 +504,7 @@ class OutputControl(blocks.NativeState):
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        data = context.static.block.parsed_native_instance
+        data = context.configuration
 
         value_opt = context.inputs['input']
         if value_opt is None:
