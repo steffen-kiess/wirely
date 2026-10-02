@@ -18,7 +18,7 @@ class MonotonicTimeReached(blocks.NativeState):
     @staticmethod
     def run(*, context):
         time = context.inputs['input']
-        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
+        now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
 
         # print('MonotonicTimeReached', time, now)
         if not blocks.MonotonicTime.is_comparable(time, now):
@@ -77,7 +77,7 @@ class DelayChange(blocks.NativeState):
             out = inp
         elif new != blocks.Some(inp):
             # Input is neither cur not new. Start a change to inp.
-            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
+            now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
             n_cur = cur
             n_new = blocks.Some(inp)
             n_update_time = now + data.time

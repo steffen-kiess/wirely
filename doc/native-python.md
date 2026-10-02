@@ -252,14 +252,12 @@ first step, the engine can reuse cached results when dependencies and
 state have not changed, unless explicitly triggered or due for a wakeup.
 No-dependency procedures therefore do not automatically run every step.
 
-`context.step_info` holds timestamp dictionaries keyed by
-`wirely.RunStage.INPUT`, `DEFAULT`, or `OUTPUT`, for stages already started:
-
-| Field | Timestamp |
-| --- | --- |
-| `stage_start_time_monotonic` | `MonotonicTime` |
-| `stage_start_time_utc` | UTC timezone-aware `datetime` |
-| `stage_start_time` | Local timezone-aware `datetime` |
+`context.start_time_for_stage(stage)` returns a read-only
+`wirely.TimeSnapshot` captured at the start of `wirely.RunStage.INPUT`,
+`DEFAULT`, or `OUTPUT`. Its attributes are `monotonic` (`MonotonicTime`),
+`utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Repeated
+access returns the same snapshot. Invalid stage arguments raise
+`ValueError`; stages not yet started raise `KeyError`.
 
 Set `context.wakeup_time` to a `MonotonicTime` deadline to request another
 invocation. It starts as `None` each time; leaving it unset cancels any

@@ -52,7 +52,7 @@ class ToggleFlipFlopTrigger:
     @staticmethod
     def update(*, context):
         data = context.configuration
-        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
+        now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
 
         inp = context.inputs['input']
         feedback = context.inputs['Feedback']

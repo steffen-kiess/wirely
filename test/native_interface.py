@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import datetime
 import io
 import traceback
 from collections.abc import Mapping
@@ -76,7 +77,7 @@ def check_inputs(context):
         context.inputs['value'] = 8
     with checks.assertRaises(KeyError):
         context.inputs['missing']
-    for attribute in ('static', 'dep_values', 'results', 'state_old', 'state_new'):
+    for attribute in ('static', 'step_info', 'time', 'dep_values', 'results', 'state_old', 'state_new'):
         assert not hasattr(context, attribute)
     assert context.name == 'probe'
     with checks.assertRaises(AttributeError):
@@ -165,6 +166,106 @@ node probe : TestLibrary.RegistrationProbe;
     assert f'requires has_native_state={not has_native_state}' in output.getvalue()
     assert 'Error in <native-registration>:2:' in output.getvalue()
     assert 'Traceback' not in output.getvalue()
+
+
+clock_registry = {}
+clock_methods = {}
+clock_declarations = []
+stage_snapshots = {}
+clock_contexts = []
+stages = list(blocks.RunStage)
+monotonic_times = [blocks.MonotonicTime(7, index * 1_000_000_000)
+                   for index in range(1, 4)]
+utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
+                               tzinfo=datetime.timezone.utc)
+             for index in range(3)]
+clock_offset = blocks.Duration.from_seconds(5)
+
+
+def check_stage_time(context, stage):
+    assert not hasattr(context, 'step_info')
+    assert not hasattr(context, 'time')
+    snapshot = context.start_time_for_stage(stage)
+    assert isinstance(snapshot, blocks.TimeSnapshot)
+    assert snapshot is context.start_time_for_stage(stage)
+    index = stages.index(stage)
+    assert snapshot.monotonic == monotonic_times[index] + clock_offset
+    assert snapshot.utc == utc_times[index]
+    assert snapshot.utc.tzinfo is datetime.timezone.utc
+    assert snapshot.local == snapshot.utc
+    assert snapshot.local.isoformat() == snapshot.utc.astimezone().isoformat()
+    assert snapshot.local.tzinfo is not None
+    for attribute in ['monotonic', 'utc', 'local']:
+        with checks.assertRaises(AttributeError):
+            setattr(snapshot, attribute, None)
+    if stage in stage_snapshots:
+        assert stage_snapshots[stage] is snapshot
+    else:
+        stage_snapshots[stage] = snapshot
+    for candidate in stages:
+        if stages.index(candidate) <= index:
+            assert context.start_time_for_stage(candidate) is stage_snapshots[candidate]
+        else:
+            with checks.assertRaises(KeyError):
+                context.start_time_for_stage(candidate)
+    for invalid in [None, 'DEFAULT', 2, []]:
+        with checks.assertRaises(ValueError):
+            context.start_time_for_stage(invalid)
+    clock_contexts.append(context)
+
+
+for stage in stages:
+    for index in range(2):
+        def record_time(*, context, stage=stage):
+            check_stage_time(context, stage)
+
+        name = f'{stage.name.lower()}_{index}'
+        clock_methods[name] = native_procedure(staticmethod(record_time))
+        stage_clause = '' if stage is blocks.RunStage.DEFAULT else f' stage {stage.name.lower()}'
+        clock_declarations.append(f'native procedure {name}{stage_clause};')
+
+ClockProbe = native_block_type(clock_registry, has_native_state=False)(
+    type('ClockProbe', (), clock_methods),
+)
+clock_source = '''namespace TestLibrary {
+  node type ClockProbe {
+''' + '\n'.join(f'    {line}' for line in clock_declarations) + '''
+  }
+}
+node probe : TestLibrary.ClockProbe;
+'''
+with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
+    graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
+    assert graph is not None
+    program = blocks.Program.compile(graph)
+    assert program is not None
+    clock_engine = blocks.Engine(program)
+clock_engine.fake_monotonic_time_offset = clock_offset
+
+
+class ClockDateTime(datetime.datetime):
+    timestamps = iter(utc_times)
+
+    @classmethod
+    def now(cls, tz=None):
+        assert tz is datetime.timezone.utc
+        return next(cls.timestamps)
+
+
+with patch.object(blocks.MonotonicTime, 'current_time', side_effect=monotonic_times) as monotonic_clock:
+    with patch('wirely.datetime.datetime', ClockDateTime):
+        _, _, step_info = clock_engine.step()
+assert monotonic_clock.call_count == 3
+assert len(clock_contexts) == 6
+assert len({id(snapshot) for snapshot in stage_snapshots.values()}) == 3
+for stage, snapshot in stage_snapshots.items():
+    assert step_info.stage_start_time_monotonic[stage] is snapshot.monotonic
+    assert step_info.stage_start_time_utc[stage] == snapshot.utc
+    assert step_info.stage_start_time[stage] == snapshot.local
+clock_engine.step()
+assert len(clock_contexts) == 6
+for stage, snapshot in stage_snapshots.items():
+    assert clock_contexts[-1].start_time_for_stage(stage) is snapshot
 
 
 trigger_registry = {}

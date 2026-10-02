@@ -10,6 +10,7 @@ from .unit import Unit
 import wirely as blocks
 
 from .time import MonotonicTime, Duration
+from .time_snapshot import TimeSnapshot
 from . import enum, types
 from .types import Type, TypeParameter
 from . import value_types
@@ -391,7 +392,7 @@ class ProcedureContext:
         self._state_new = state_new
         self._written_results = set()
         self._static = static
-        self.step_info = step_info
+        self._step_info = step_info
         self.wakeup_time = None
 
     @property
@@ -405,6 +406,11 @@ class ProcedureContext:
     @property
     def configuration(self):
         return self._static.node_context.configuration
+
+    def start_time_for_stage(self, stage: 'RunStage') -> TimeSnapshot:
+        if not isinstance(stage, RunStage):
+            raise ValueError(f'Expected a RunStage, got {stage!r}')
+        return self._step_info._stage_times[stage]
 
     def set_result(self, name: str, value: object):
         if not isinstance(name, str) or name not in self._static._targets:
@@ -430,6 +436,7 @@ class ProcedureContext:
 # TODO: Rename to CycleContext?
 class StepContext:
     def __init__(self):
+        self._stage_times = {}
         self.stage_start_time_monotonic = {}
         self.stage_start_time_utc = {}
         self.stage_start_time = {}
@@ -450,6 +457,9 @@ class StepContext:
         # datetime.datetime.now().astimezone() should return the same value.
         now = now_utc.astimezone()
 
+        self._stage_times[stage] = TimeSnapshot(
+            monotonic=now_monotonic, utc=now_utc, local=now,
+        )
         self.stage_start_time_monotonic[stage] = now_monotonic
         self.stage_start_time_utc[stage] = now_utc
         self.stage_start_time[stage] = now

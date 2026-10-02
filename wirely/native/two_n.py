@@ -293,7 +293,7 @@ class KeyState(blocks.NativeState):
 
         if event == blocks.Some(True):
             # KeyPressed
-            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
+            now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
             new_value = True
             new_timeout_time = now + data.timeout
         elif event == blocks.Some(False):
