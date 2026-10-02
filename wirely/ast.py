@@ -471,16 +471,18 @@ class ResolvedReferenceBlockMember(SourceElement):
                 # TODO: This is a hack
                 return
         if ref_type == RefType.BlockOutput:
+            variable = graph.variables.get(self.block_name_str)
+            if isinstance(variable, DeclarationStateVariable):
+                if self.member_name_str != 'old':
+                    raise ProgramError(self.member_name_elem, 'State connection sources must explicitly reference the old value with .old')
+                self.member = graph.block_state_variables[self.block_name_str]
+                return
             if self.block_name_str in graph.block_inputs and self.member_name_str == '':
                 self.member = graph.block_inputs[self.block_name_str]
                 # TODO: This is a hack
                 return
-            if self.block_name_str in graph.block_state_variables and self.member_name_str == '':
-                self.member = graph.block_state_variables[self.block_name_str]
-                # TODO: This is a hack
-                return
             if self.block_name_str in graph.block_temporary_variables and self.member_name_str == '':
-                self.member = graph.block_state_variables[self.block_name_str]
+                self.member = graph.block_temporary_variables[self.block_name_str]
                 # TODO: This is a hack
                 return
 

@@ -213,6 +213,10 @@ step's writer. Dependencies can also name direct child outputs, such as
 temporaries, or state variables. Arbitrary expressions, deeper paths, and
 `last_value.new` dependencies are not supported.
 
+Use `connect last_value.old -> target;` to feed local state into a
+`value Type` input or output. It reads the initial value on the first step
+and the previous step's state thereafter.
+
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends
 results to external systems. State updates become visible on the next step.

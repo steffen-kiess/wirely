@@ -25,6 +25,7 @@ test_names = [
     'native_procedures',
     'native_parameters',
     'native_configuration',
+    'state_connections',
     'types',
     'resources',
     'string_literals',

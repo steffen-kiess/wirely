@@ -91,7 +91,7 @@ class Block(blocks.Node):
     # TODO: Rename
     # TODO: Must probably be cleaned up to allow multiple instantiations of the same block
     # path: A tuple which contains the name of the block being instantiated
-    def instantiate(self, *, singletons, add_var, variable_map, state_map_new, all_variables, state_map_changed, state_map, state_variables, instances, path, parent_instance):
+    def instantiate(self, *, singletons, variable_map, state_map_new, all_variables, state_map_changed, state_map, state_variables, instances, path, parent_instance):
         if self.block_type.is_singleton:
             if self.block_type in singletons:
                 return
@@ -121,7 +121,7 @@ class Block(blocks.Node):
 
         for name, child_block in self.block_type.blocks.items():
             child_path = path + (child_block,)
-            child_block.instantiate(singletons=singletons, add_var=add_var, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
+            child_block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
 
         # TODO: Clean up
         # path_prefix = '.'.join([block.name for block in path])
@@ -137,17 +137,20 @@ class Block(blocks.Node):
 
             v = blocks.Variable(path_prefix + '.' + state_var.name, state_var.var_type)
             state_map[path, state_var] = v
+            variable_map[path, state_var.var_identifier] = v
             state_variables.append(v)
+
+    def bind_variables(self, *, path, variable_map, resolve_binding):
         for var in self.all_block_inputs:
             if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = add_var(*blocks.resolve_variable(path, var))
+            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
         for var in self.block_outputs:
             if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = add_var(*blocks.resolve_variable(path, var))
+            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
         for var in self.block_temporaries:
-            variable_map[path, var.var_identifier] = add_var(*blocks.resolve_variable(path, var))
+            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
 
     # TODO: Probably should be merged into instantiate()
     def get_block_procedures_paths(self, prefix):
@@ -372,6 +375,10 @@ class Block(blocks.Node):
         @property
         def temporary(self):
             return self
+
+        @property
+        def var_identifier(self):
+            return 'STATE ' + self.block.block_type.name.id_str + '.' + self.name
 
     class Procedure:
         # TODO: Make name mandatory

@@ -77,8 +77,8 @@ class BlockOutput(Node):
 
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(source, blocks.Block.Output) and not isinstance(source, blocks.BlockInput):
-            raise Exception('source parameter value is not an Output instance and not a BlockInput')
+        if not isinstance(source, (blocks.Block.Output, blocks.BlockInput, blocks.BlockStateVariable)):
+            raise Exception('source parameter value is not an Output, BlockInput or BlockStateVariable')
         # if self.is_list:
         if False:
             # TODO: Clean up
@@ -100,9 +100,9 @@ class BlockTemporaryVariable(Node):
         super().__init__(graph, name=name)
         self.var_type = type
 
-        if name in self.graph.block_state_variables:
-            raise Exception(f'Duplicate block state variable name: {name!r}')
-        self.graph.block_state_variables[name] = self
+        if name in self.graph.block_temporary_variables:
+            raise Exception(f'Duplicate block temporary variable name: {name!r}')
+        self.graph.block_temporary_variables[name] = self
 
         # TODO: Remove
         self.block = self

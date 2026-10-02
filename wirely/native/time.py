@@ -50,11 +50,6 @@ class DelayChangeData:
 @native_block_type(native_block_types, has_native_state=False, data_type=DelayChangeData)
 class DelayChange(blocks.NativeState):
     @staticmethod
-    def read_update_time(*, context):
-        value = context.inputs['update_time_old']
-        context.set_result('update_time_old', value)
-
-    @staticmethod
     def run(*, context):
         data = context.configuration
 

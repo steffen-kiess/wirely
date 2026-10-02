@@ -100,22 +100,35 @@ def resolve_variable(path, var):
     if debug_variable_resolution:
         print(f'resolve_variable({path}, {var})')
 
+    if isinstance(var.block, Block) and var.block.block_type.is_singleton:
+        owner = var.block.block_type.singleton_instance
+        if owner is not var.block:
+            members = owner.block_inputs + owner.block_outputs + owner.block_temporaries + owner.block_statevars
+            member = next(member for member in members if type(member) is type(var) and member.name == var.name)
+            return resolve_variable((owner.block_type,), member)
+
+    if isinstance(var, blocks.Block.StateVariable):
+        return path, var
+
     if isinstance(path[-1], blocks.Block) and path[-1].block_type.is_singleton:
         raise Exception('isinstance(path[-1], blocks.Blocks) and path[-1].block_type.is_singleton')
 
-    if isinstance(path[-1], Block):  # TODO: Handle singletons here?
+    if isinstance(path[-1], (Block, blocks.block_type.BlockType)):
+        current_block = path[-1]
+        if not isinstance(current_block, Block):
+            current_block = current_block.singleton_instance
         # TODO: Clean this up?
         # print(path, var)
-        if path[-1] == var.block:
+        if current_block == var.block:
             block = var.block
-        elif var.block.graph == path[-1].block_type:
+        elif var.block.graph == current_block.block_type:
             # Dependency on the result of a child block
             # TODO: Make this more generic
             # TODO: Modify path here?
             path = path_resolve_singleton(path + (var.block,))
             block = var.block
         else:
-            raise Exception('path[-1] != var.block')
+            raise Exception(f'Cannot resolve {var} from {current_block}')
         # print(type(var), type(var.block))
 
         # TODO: This is somewhat of a hack
@@ -123,6 +136,8 @@ def resolve_variable(path, var):
             input_name = block.input_name
             new_path = path[:-1]
             parent_block = new_path[-1]
+            if not isinstance(parent_block, Block):
+                parent_block = parent_block.singleton_instance
             input_var = parent_block.block_inputs_byname[input_name]
             return resolve_variable(path_resolve_singleton(new_path), input_var)
 
@@ -131,6 +146,8 @@ def resolve_variable(path, var):
             output_name = block.output_name
             new_path = path[:-1]
             parent_block = new_path[-1]
+            if not isinstance(parent_block, Block):
+                parent_block = parent_block.singleton_instance
             output_var = parent_block.block_outputs_byname[output_name]
             return resolve_variable(path_resolve_singleton(new_path), output_var)
 
@@ -207,6 +224,8 @@ def resolve_variable(path, var):
         input_name = var.input_name
         new_path = path[:-1]
         parent_block = new_path[-1]
+        if not isinstance(parent_block, Block):
+            parent_block = parent_block.singleton_instance
         input_var = parent_block.block_inputs_byname[input_name]
         return resolve_variable(path_resolve_singleton(new_path), input_var)
 
@@ -214,8 +233,12 @@ def resolve_variable(path, var):
     if isinstance(var, blocks.BlockStateVariable):
         if path[-1] != var:
             raise Exception('path[-1] != var')
-        # TODO: Implement this
-        return path, var
+        owner_path = path[:-1]
+        owner = owner_path[-1]
+        if not isinstance(owner, blocks.Block):
+            owner = owner.singleton_instance
+        state = next(state for state in owner.block_statevars if state.name == var.name)
+        return owner_path, state
 
     print(f'resolve_variable: Unhandled {path}, {var} {type(var)} {type(var.block)}')
 
@@ -366,6 +389,14 @@ class StaticBlockContext:
 
     def __repr__(self):
         return f'StaticBlockContext({self.__dict__!r})'
+
+
+@dataclass(frozen=True)
+class InputSourceBinding:
+    """A procedure input from a temporary or the step's state snapshot."""
+
+    variable: Variable
+    state_changed: Variable | None = None
 
 
 # Things which will stay the same if the same instance of a procedure is executed multiple times

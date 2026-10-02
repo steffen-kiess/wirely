@@ -1,4 +1,5 @@
 import graphviz
+import wirely as blocks
 
 def htmlescape(s):
     return s.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
@@ -17,10 +18,9 @@ def get_graph(graph, engine=None):
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                # TODO: Clean up .temporary
-                key = (input.temporary.block), input.temporary
+                key = blocks.path_resolve_singleton((block,)), input.var_identifier
                 if key in engine.program.variable_map:
-                    label += f' = {engine.cache[engine.program.variable_map[key]]}'
+                    label += f' = {engine.get_bound_value(engine.program.variable_map[key])}'
                 else:
                     # TODO: Handle this
                     label += f' = MISSING'
@@ -40,10 +40,9 @@ def get_graph(graph, engine=None):
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                # TODO: Clean up .temporary
-                key = (output.temporary.block,), output.temporary
+                key = blocks.path_resolve_singleton((block,)), output.var_identifier
                 if key in engine.program.variable_map:
-                    label += f' = {engine.cache[engine.program.variable_map[key]]}'
+                    label += f' = {engine.get_bound_value(engine.program.variable_map[key])}'
                 else:
                     # TODO: Handle this
                     label += f' = MISSING'
@@ -82,6 +81,8 @@ def get_graph(graph, engine=None):
             if input.connected_source is not None:
                 source = input.connected_source
                 source_block = source.block
+                if isinstance(source, blocks.BlockStateVariable):
+                    digraph.node(source_block.name, label=source.name + '.old')
 
                 # label = f'{source.name} -> {input.name}'
                 # digraph.edge(source_block.name, block.name, label=label)

@@ -30,6 +30,7 @@ class Engine:
         self.next_wakeup = None
 
         self.state = blocks.VariableBlockInstance(self.program.state_variables)
+        self.last_step_state = None
         self.native_states = {}
 
         self.fake_monotonic_time_offset = None
@@ -145,16 +146,19 @@ class Engine:
                 static = self.program.proc_static_contexts[(instance, proc)]
                 inputs = self._resource_inputs(static._resource_bindings)
                 skip_step = cache is not None and (path, proc) not in self.triggered_procs
-                for name, variables, is_state, is_list in static._input_bindings:
-                    if is_state:
-                        inputs[name] = blocks.value_types._to_native(variables[0].var_type, state_old[variables[0]])
-                        continue
+                for name, bindings, is_list in static._input_bindings:
                     values = []
-                    for variable in variables:
-                        value = vars[variable]
+                    for binding in bindings:
+                        variable = binding.variable
+                        if binding.state_changed is not None:
+                            value = state_old[variable]
+                            if skip_step and cache[binding.state_changed]:
+                                skip_step = False
+                        else:
+                            value = vars[variable]
+                            if skip_step and not variable.var_type.equals(value, cache[variable]):
+                                skip_step = False
                         values.append(blocks.value_types._to_native(variable.var_type, value))
-                        if skip_step and not variable.var_type.equals(value, cache[variable]):
-                            skip_step = False
                     inputs[name] = tuple(values) if is_list else values[0]
                 # TODO: Avoid depending on the value of all state variables?
                 for dep in proc.block.block_statevars:
@@ -257,6 +261,7 @@ class Engine:
                     raise Exception(f'{proc} returned unknown state values: {sorted(unknown_newstate)}')
 
         self.cache = vars
+        self.last_step_state = state_old
         self.state = state_new
 
         if self.debug:
@@ -346,12 +351,14 @@ class Engine:
         if len(name_parts) == 1:
             path = self.get_block_path_list(name_parts)
             block = path[-1]
-            # return blocks.resolve_variable(path, block.block_outputs_byname[''])
-            path, var = blocks.resolve_variable(path, block.block_outputs_byname[''])
-            return path, var.var_identifier
+            if not isinstance(block, blocks.Block):
+                block = block.singleton_instance
+            return path, block.block_outputs_byname[''].var_identifier
 
         path = self.get_block_path_list(name_parts[:-1])
         block = path[-1]
+        if not isinstance(block, blocks.Block):
+            block = block.singleton_instance
         lname = name_parts[-1]
 
         # TODO: Clean this up
@@ -369,13 +376,25 @@ class Engine:
             if value.name == lname:
                 return path, value.var_identifier
 
+        if lname in block.block_type.blocks:
+            path = self.get_block_path_list(name_parts)
+            child = path[-1]
+            if not isinstance(child, blocks.Block):
+                child = child.singleton_instance
+            return path, child.block_outputs_byname[''].var_identifier
+
         # print(block.block_inputs, block.block_temporaries, block.block_statevars)
         raise Exception(f'Could not find {name}')
 
 
     def get_value(self, name):
         var = self.program.variable_map[self.get_variable(name)]
-        return self.cache[var]
+        return self.get_bound_value(var)
+
+    def get_bound_value(self, variable):
+        if variable in self.program.state_variables.variable_set:
+            return self.last_step_state[variable]
+        return self.cache[variable]
 
     def assert_value_is(self, name, expected_value):
         actual_value = self.get_value(name)

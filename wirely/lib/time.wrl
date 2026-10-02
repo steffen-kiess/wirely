@@ -30,14 +30,7 @@ namespace Time {
     state update_time : MonotonicTime = MonotonicTime.Invalid;
 
     node reached : MonotonicTimeReached;
-    // TODO: Allow this?
-    // connect update_time.old -> reached;
-    temporary update_time_old : MonotonicTime;
-
-    native procedure read_update_time
-      depends on update_time.old as "update_time_old"
-      produces update_time_old;
-    connect update_time_old -> reached;
+    connect update_time.old -> reached;
 
     native procedure run
       depends on current_value.old as "current_value_old",

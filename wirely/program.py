@@ -63,7 +63,22 @@ class Program:
         # TODO: Use get_all_block_paths()?
         singletons = {}
         for block in graph.blocks.values():
-            block.instantiate(singletons=singletons, add_var=add_var, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
+            block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
+
+        def resolve_binding(path, source):
+            source_path, variable = blocks.resolve_variable(path, source)
+            if isinstance(variable, blocks.Block.StateVariable):
+                return blocks.InputSourceBinding(
+                    state_map[source_path, variable],
+                    state_map_changed[source_path, variable],
+                )
+            return blocks.InputSourceBinding(add_var(source_path, variable))
+
+        for path in instances:
+            block = path[-1]
+            if not isinstance(block, blocks.Block):
+                block = block.singleton_instance
+            block.bind_variables(path=path, variable_map=variable_map, resolve_binding=resolve_binding)
 
         procs = {}
         done = set()
@@ -99,15 +114,12 @@ class Program:
             for dep in proc.dependencies:
                 if blocks.ast.dependency_is_resource(dep):
                     continue
-                elif isinstance(dep, blocks.Block.StateVariable):
-                    continue
-                elif isinstance(dep, blocks.Block.Input) and dep.is_list:
-                    for child in dep.members:
-                        producer_path, producer_temporary = blocks.resolve_variable(path, child)
-                        do(producer_path, producer_temporary.producer)
                 else:
-                    producer_path, producer_temporary = blocks.resolve_variable(path, dep)
-                    do(producer_path, producer_temporary.producer)
+                    members = dep.members if isinstance(dep, blocks.Block.Input) and dep.is_list else (dep,)
+                    for member in members:
+                        producer_path, variable = blocks.resolve_variable(path, member)
+                        if not isinstance(variable, blocks.Block.StateVariable):
+                            do(producer_path, variable.producer)
             if doing.pop() != (path, proc.proc_identifier):
                 raise Exception('doing.pop() != (path, proc.proc_identifier)')
             # print(f'Adding {path} {proc}')
@@ -210,18 +222,10 @@ class Program:
                         paths, is_list = resource_paths(path, source, binding)
                         proc_context._resource_bindings.append((name, paths, is_list))
                         continue
-                    is_state = isinstance(source, blocks.Block.StateVariable)
                     is_list = isinstance(source, blocks.Block.Input) and source.is_list
-                    if is_state:
-                        variables = (state_map[path, source],)
-                    else:
-                        members = source.members if is_list else (source,)
-                        variables = []
-                        for member in members:
-                            producer_path, temporary = blocks.resolve_variable(path, member)
-                            variables.append(variable_map[producer_path, temporary.var_identifier])
-                        variables = tuple(variables)
-                    proc_context._input_bindings.append((name, variables, is_state, is_list))
+                    members = source.members if is_list else (source,)
+                    bindings = tuple(resolve_binding(path, member) for member in members)
+                    proc_context._input_bindings.append((name, bindings, is_list))
                 for name, target in proc_context._targets.items():
                     if isinstance(target, blocks.Block.StateVariable):
                         variable = state_map[path, target]

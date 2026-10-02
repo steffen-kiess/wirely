@@ -23,14 +23,7 @@ namespace CSV {
     state repeat_time : MonotonicTime = MonotonicTime.Invalid;
 
     node repeat_time_reached : Time.MonotonicTimeReached;
-    // TODO: Allow this?
-    // connect repeat_time.old -> repeat_time_reached;
-    temporary repeat_time_old : MonotonicTime;
-
-    native procedure read_update_time
-      depends on repeat_time.old as "repeat_time_old"
-      produces repeat_time_old;
-    connect repeat_time_old -> repeat_time_reached;
+    connect repeat_time.old -> repeat_time_reached;
 
     native procedure run stage output
       depends on repeat_time.old as "repeat_time_old",

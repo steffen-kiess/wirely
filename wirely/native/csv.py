@@ -140,10 +140,6 @@ class ValueWriter(blocks.NativeState):
         self.last_value_csv = new_value_csv
         return True
 
-    def read_update_time(self, *, context):
-        value = context.inputs['repeat_time_old']
-        context.set_result('repeat_time_old', value)
-
     def run(self, *, context):
         data = context.configuration
 
