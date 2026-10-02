@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import tomllib
+from pathlib import Path
+
+
+RESOLUTIONS = {
+    'min': 'lowest-direct',
+    'all-min': 'lowest',
+    'max': 'highest',
+}
+
+
+def select_python(candidates, endpoint):
+    versions = []
+    for candidate in candidates:
+        if candidate['implementation'] != 'cpython' or candidate['variant'] != 'default':
+            continue
+        if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', candidate['version']):
+            continue
+        versions.append(tuple(int(part) for part in candidate['version'].split('.')))
+    if not versions:
+        raise ValueError('No compatible stable CPython download found; try updating uv.')
+    if endpoint == 'min':
+        oldest_minor = min(version[:2] for version in versions)
+        versions = [version for version in versions if version[:2] == oldest_minor]
+    return '.'.join(str(part) for part in max(versions))
+
+
+def find_python(uv, selector, requires_python):
+    if selector not in ('min', 'max'):
+        return selector
+    result = subprocess.run(
+        [uv, 'python', 'list', '--only-downloads', '--all-versions',
+         '--output-format', 'json', 'cpython' + requires_python],
+        check=True, capture_output=True, text=True)
+    return select_python(json.loads(result.stdout), selector)
+
+
+def validate_python(uv, python, requires_python, env):
+    # uv checks the active environment first; a different result means its
+    # interpreter does not satisfy the project's Python requirement.
+    result = subprocess.run(
+        [uv, 'python', 'find', '--no-project', '--no-python-downloads', requires_python],
+        env=env, capture_output=True, text=True)
+    if result.returncode or not Path(result.stdout.strip()).samefile(python):
+        raise ValueError(f'Selected Python does not satisfy {requires_python}.')
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Run tests with minimum or latest dependencies in a temporary environment')
+    parser.add_argument('--versions', choices=RESOLUTIONS, default='min',
+                        help='min: direct minimums (default); all-min: include transitive '
+                        'minimums; max: newest compatible versions')
+    parser.add_argument('--python', default=sys.executable, metavar='SELECTOR',
+                        help='min/max supported stable CPython, a uv Python version request, '
+                        'or executable name/path (default: current interpreter)')
+    args = parser.parse_args()
+    repository_root = Path(__file__).resolve().parent.parent
+    uv = shutil.which(str(repository_root / 'venv' / 'bin' / 'uv')) or shutil.which('uv')
+    if uv is None:
+        parser.error('uv not found; run tools/setup-venv to install dependencies')
+
+    with (repository_root / 'pyproject.toml').open('rb') as file:
+        project = tomllib.load(file)['project']
+    dependencies = list(project['dependencies'])
+    self_reference = project['name'] + '['
+    for extra, requirements in project['optional-dependencies'].items():
+        if extra in ('dev', 'pex'):
+            continue
+        dependencies.extend(requirement for requirement in requirements
+                            if not requirement.startswith(self_reference))
+
+    try:
+        selector = find_python(uv, args.python, project['requires-python'])
+        print(f'Testing {args.versions} dependencies with Python {selector}', flush=True)
+        with tempfile.TemporaryDirectory(prefix='wirely-test-dependencies.') as temporary:
+            venv = Path(temporary) / 'venv'
+            subprocess.run([uv, 'venv', '--no-project', '--python', selector, str(venv)],
+                           check=True)
+            python = venv / 'bin' / 'python'
+            env = dict(os.environ, VIRTUAL_ENV=str(venv))
+            env['PATH'] = str(python.parent) + os.pathsep + env.get('PATH', '')
+            validate_python(uv, python, project['requires-python'], env)
+            subprocess.run([str(python), '--version'], check=True, env=env)
+            subprocess.run(
+                [uv, 'pip', 'install', '--python', str(python),
+                 '--resolution', RESOLUTIONS[args.versions], *dependencies],
+                check=True, cwd=repository_root, env=env)
+            subprocess.run([uv, 'pip', 'list', '--python', str(python)], check=True, env=env)
+            subprocess.run([uv, 'pip', 'check', '--python', str(python)], check=True, env=env)
+            return subprocess.run(
+                [str(python), str(repository_root / 'tools' / 'run-tests'),
+                 '--python', str(python)], cwd=repository_root, env=env).returncode
+    except subprocess.CalledProcessError as error:
+        if error.stderr:
+            print(error.stderr, file=sys.stderr, end='')
+        return error.returncode
+    except (OSError, ValueError) as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == '__main__':
+    sys.exit(main())

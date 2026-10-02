@@ -60,3 +60,23 @@ The launchers use `venv/bin/python` when available. Otherwise, they warn and
 use the current Python interpreter. `tools/wirely` accepts the same arguments
 as `wirely` and runs the source in this checkout from any working directory.
 The test suite also requires `knxd` and `mosquitto`.
+
+Test dependency and Python versions in temporary environments:
+
+```
+tools/run-tests-dependencies --versions min --python min
+tools/run-tests-dependencies --versions max --python max
+tools/run-tests-dependencies --versions all-min --python 3.11
+```
+
+`--versions` defaults to `min`: minimum direct dependencies, with latest
+compatible transitive dependencies. `all-min` also minimizes transitive
+dependencies; `max` selects the newest compatible dependency set.
+Dependencies without lower bounds may select very old releases.
+
+`--python` accepts a uv version request or an executable name/path and
+defaults to the interpreter running the script. `min` selects the latest
+compatible patch of the oldest supported CPython minor; `max` selects the
+newest compatible stable CPython available through the installed uv.
+uv can download missing interpreters. `tools/run-tests --python PATH` runs
+tests using a specified Python executable.

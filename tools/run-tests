@@ -34,15 +34,21 @@ def find_unlisted_files(test_names, to_compile, negative_tests):
 
 
 def main():
-    argparse.ArgumentParser().parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--python', help='Python executable name or path')
+    args = parser.parse_args()
+    python = args.python
+    if python and (os.sep in python or (os.altsep and os.altsep in python)):
+        python = str(Path(python).absolute())
     repository_root = Path(__file__).resolve().parent.parent
     venv_python = repository_root / 'venv' / 'bin' / 'python'
-    if venv_python.is_file():
-        python = str(venv_python)
-    else:
-        print('Warning: venv not found; run tools/setup-venv to install dependencies.',
-              file=sys.stderr)
-        python = sys.executable
+    if python is None:
+        if venv_python.is_file():
+            python = str(venv_python)
+        else:
+            print('Warning: venv not found; run tools/setup-venv to install dependencies.',
+                  file=sys.stderr)
+            python = sys.executable
 
     os.chdir(repository_root)
     result = subprocess.run([python, '-m', 'wirely.test'])
