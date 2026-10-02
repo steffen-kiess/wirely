@@ -15,6 +15,36 @@ test-debian-13:
     - tools/setup-venv
     - tools/run-tests
 
+test-min-min-debian-13:
+  stage: test
+  tags:
+    - docker
+  image: debian:13
+  script:
+    - >-
+      apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+      --no-install-recommends ca-certificates git python3 python3-venv
+      python3-dev build-essential pkg-config
+      knxd mosquitto
+    - python3 -m venv venv
+    - venv/bin/python -m pip install uv
+    - tools/run-tests-dependencies --versions min --python min
+
+test-max-max-debian-13:
+  stage: test
+  tags:
+    - docker
+  image: debian:13
+  script:
+    - >-
+      apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y
+      --no-install-recommends ca-certificates git python3 python3-venv
+      python3-dev build-essential pkg-config
+      knxd mosquitto
+    - python3 -m venv venv
+    - venv/bin/python -m pip install uv
+    - tools/run-tests-dependencies --versions max --python max
+
 build-debian-13:
   stage: test
   tags:
