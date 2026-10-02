@@ -89,11 +89,11 @@ class DebugEventPrinter:
 
 @native_block_type(native_block_types, has_state=True)
 class DebugValueSource(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         self.current_value = None
 
-        self.out_type = static_block_context.parameter_values['Type']
+        self.out_type = context.parameters['Type']
 
     @native_procedure
     def run(self, *, context):
@@ -118,19 +118,19 @@ class DebugValueSource(blocks.NativeState):
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
             value = self.current_value
-            print(f'Current value of {".".join([block.name for block in self.block_path])} is {value!r}', flush=True)
+            print(f'Current value of {self.context.name} is {value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
 
 
 @native_block_type(native_block_types, has_state=True)
 class DebugEventSource(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         # TODO: Allow a queue of values?
         self.next_value = None
 
-        self.out_type = static_block_context.parameter_values['Type']
+        self.out_type = context.parameters['Type']
 
     @native_procedure
     def run(self, *, context):
@@ -161,7 +161,7 @@ class DebugEventSource(blocks.NativeState):
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
             value = self.next_value
-            print(f'Next value of {".".join([block.name for block in self.block_path])} is {value!r}', flush=True)
+            print(f'Next value of {self.context.name} is {value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
 

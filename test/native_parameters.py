@@ -53,10 +53,10 @@ class ParameterProbe:
 
 @native_block_type(registry, has_state=True, data_type=PreparedData)
 class StateParameterProbe(wirely.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
-        assert self.parameters is static_block_context.parameters
-        assert self.static_block_context.parsed_native_instance is prepared[-1]
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        assert self.parameters is context.parameters
+        assert any(self.context.configuration is data for data in prepared)
         assert '' not in self.parameters
 
     @native_procedure
@@ -193,6 +193,28 @@ native procedure run;
 make_probe('native procedure run;',
            lambda context: checks.assertEqual(dict(context.parameters), {}),
            native=True, singleton=True)
+
+nested = make_probe('native procedure run;',
+                    lambda context: checks.assertEqual(dict(context.parameters), {}),
+                    native=True, extra='''
+node type Outer {
+  node child : TestLibrary.StateParameterProbe;
+}
+node outer : Outer;
+namespace TestLibrary {
+  singleton node type SharedContainer {
+    node child : StateParameterProbe;
+  }
+}
+node shared_container : TestLibrary.SharedContainer;
+node shared_again : TestLibrary.SharedContainer;
+''')
+assert nested.get_native_state('outer.child').context.name == 'outer.child'
+assert nested.get_native_state('probe').context.name == 'probe'
+shared_path = nested.get_block_path('shared_container')
+shared_child = nested.native_states[shared_path + (shared_path[0].blocks['child'],)]
+assert shared_child.context.name == 'TestLibrary.SharedContainer.child'
+assert shared_path == nested.get_block_path('shared_again')
 
 
 def check_type_state(context):

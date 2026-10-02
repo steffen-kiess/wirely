@@ -58,14 +58,14 @@ class TwoNDeviceData:
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNDeviceData)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         import wirely.two_n.client
 
         print('Create TwoN Connection', flush=True)
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         self.data.dump()
 
@@ -167,18 +167,18 @@ class TwoNCodeData:
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNKeyData)
 class KeyEvent(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         self.received_value = None
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create TwoN KeyEvent', flush=True)
 
         self.data.dump()
 
-        self.native_device = inputs['Device']
+        self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -224,18 +224,18 @@ class KeyEvent(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNCodeData)
 class CodeEnteredEvent(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         self.pending = False
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create TwoN CodeEnteredEvent', flush=True)
 
         self.data.dump()
 
-        self.native_device = inputs['Device']
+        self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -325,21 +325,21 @@ class KeyState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
 class IOState(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
 
         # TODO: Read current value on start-up in a race-free way
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create TwoN IOState', flush=True)
 
         self.data.dump()
 
-        self.native_device = inputs['Device']
+        self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -401,21 +401,21 @@ class IOState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNSwitchData)
 class SwitchState(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
 
         # TODO: Read current value on start-up in a race-free way
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create TwoN SwitchState', flush=True)
 
         self.data.dump()
 
-        self.native_device = inputs['Device']
+        self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -475,8 +475,8 @@ class SwitchState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
 class OutputControl(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         # Task is needed for sending out values
         self.task = None
@@ -485,13 +485,13 @@ class OutputControl(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create TwoN OutputControl', flush=True)
 
         self.data.dump()
 
-        self.native_device = inputs['Device']
+        self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

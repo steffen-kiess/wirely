@@ -233,22 +233,14 @@ class MqttData:
 
 @native_block_type(native_block_types, has_state=True)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT connection', flush=True)
 
-        # TODO: Clean up
-        par_values = engine.program.instances[path].parameter_values
-        par_uri = None
-        for par in par_values:
-            if par.name.id_str == 'URI':
-                par_uri = par
-        if par_uri is None:
-            raise Exception('par_uri is None')
-        uri = par_values[par_uri].value
+        uri = context.parameters['URI']
         print(f'  Using URI: {uri!r}', flush=True)
 
         self.parsed_uri = parse_mqtt_uri(uri)
@@ -352,8 +344,8 @@ class Connection(blocks.NativeState):
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class ValueOptionProvider(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -362,7 +354,7 @@ class ValueOptionProvider(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         aiomqtt = get_aiomqtt()
 
@@ -370,7 +362,7 @@ class ValueOptionProvider(blocks.NativeState):
 
         self.data.dump()
 
-        self.native_server = inputs['Broker']
+        self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.data.value_type.json_encode
@@ -422,8 +414,8 @@ class ValueOptionProvider(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class EventEmitter(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -432,7 +424,7 @@ class EventEmitter(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         aiomqtt = get_aiomqtt()
 
@@ -440,7 +432,7 @@ class EventEmitter(blocks.NativeState):
 
         self.data.dump()
 
-        self.native_server = inputs['Broker']
+        self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.data.value_type.json_encode
@@ -496,13 +488,13 @@ class EventEmitter(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class EventReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         self.task = None
         self.received_values = []
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         aiomqtt = get_aiomqtt()
 
@@ -510,7 +502,7 @@ class EventReceiver(blocks.NativeState):
 
         self.data.dump()
 
-        self.native_server = inputs['Broker']
+        self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

@@ -67,12 +67,12 @@ class CsvWriterParameters:
 class ValueWriter(blocks.NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         self.file = None
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         self.last_value_csv = ('', False)
 
@@ -107,10 +107,10 @@ class ValueWriter(blocks.NativeState):
                 try:
                     yield
                 finally:
-                    time = self.engine.shutdown_time
+                    time = self._shutdown_time
                     if time is None:
                         if self.last_value_csv != ('', False):
-                            print(f'CSV.ValueWriter: Warning: engine.shutdown_time is None during shutdown but a value has been written', flush=True, file=sys.stderr)
+                            print(f'CSV.ValueWriter: Warning: shutdown time is unavailable during shutdown but a value has been written', flush=True, file=sys.stderr)
                     else:
                         self.write_value(('', False), time)
                         # Make sure that if after the shutdown another step is run run() will be called again

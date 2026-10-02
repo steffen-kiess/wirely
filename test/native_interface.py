@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
@@ -102,8 +104,25 @@ trigger_registry = {}
 
 @native_block_type(trigger_registry, has_state=True)
 class TriggerProbe(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        assert isinstance(context, blocks.NativeNodeContext)
+        assert self.context is context
+        assert self.parameters is context.parameters
+        assert self.inputs is context.inputs
+        assert not context.parameters and not context.inputs
+        assert context.configuration is None
+        assert not hasattr(context, 'trigger')
+        assert not hasattr(context, 'shutdown_time')
+        for target in [self, context]:
+            for name in ['engine', 'block_path', 'block', 'block_type',
+                         'block_or_singleton', 'static_block_context']:
+                assert not hasattr(target, name)
+        for name in ['name', 'parameters', 'inputs', 'configuration']:
+            with checks.assertRaises(AttributeError):
+                setattr(context, name, None)
+        with checks.assertRaises(AttributeError):
+            self.context = None
         self.calls = []
         self.reschedule_once = False
         self.trigger('refresh')
@@ -151,6 +170,10 @@ trigger_engine = blocks.Engine(trigger_program)
 first = trigger_engine.get_native_state('first')
 second = trigger_engine.get_native_state('second')
 shared = trigger_engine.get_native_state('shared')
+assert first.context.name == 'first'
+assert second.context.name == 'second'
+assert shared.context.name == 'TestLibrary.SharedTriggerProbe'
+assert first.context is not second.context
 assert shared is trigger_engine.get_native_state('shared_again')
 assert not first.calls and not second.calls and not shared.calls
 trigger_engine.step()
@@ -455,3 +478,60 @@ native procedure run
 ''', lambda context: context.set_result('value', context.inputs['value']))
 probe.step()
 probe.assert_value_is('probe', 7)
+
+
+cleanup_observations = []
+lifecycle_registry = {}
+
+
+@native_block_type(lifecycle_registry, has_state=True)
+class LifecycleProbe(blocks.NativeState):
+    def start_tasks(self, task_group, async_exit_stack):
+        assert self._shutdown_time is None
+        async_exit_stack.callback(self.observe_cleanup)
+
+    async def start_tasks_async(self, task_group, async_exit_stack):
+        if self.parameters['Fail']:
+            raise RuntimeError('Startup failed')
+
+    def observe_cleanup(self):
+        cleanup_observations.append((self.context.name, self._shutdown_time))
+
+
+def make_lifecycle_engine(*, fail=False):
+    with patch.dict(wirely.native.test_library.native_block_types, lifecycle_registry):
+        graph = wirely.compiler.compile_strs([('<native-lifecycle>', f'''
+namespace TestLibrary {{
+  native node type LifecycleProbe {{
+    parameter Fail : boolean = false;
+  }}
+}}
+node first : TestLibrary.LifecycleProbe;
+node second : TestLibrary.LifecycleProbe(Fail = {'true' if fail else 'false'});
+''')])
+        assert graph is not None
+        program = blocks.Program.compile(graph)
+        assert program is not None
+        return blocks.Engine(program)
+
+
+async def run_test():
+    lifecycle_engine = make_lifecycle_engine()
+    async with asyncio.TaskGroup() as task_group:
+        async with contextlib.AsyncExitStack() as exit_stack:
+            await lifecycle_engine.start_tasks_async(task_group, exit_stack)
+            assert lifecycle_engine.get_native_state('first')._shutdown_time is None
+    timestamp = lifecycle_engine.last_shutdown_time
+    assert timestamp is not None and timestamp.tzinfo is not None
+    assert cleanup_observations == [('second', timestamp), ('first', timestamp)]
+    assert lifecycle_engine.get_native_state('first')._shutdown_time is None
+
+    cleanup_observations.clear()
+    failing_engine = make_lifecycle_engine(fail=True)
+    async with asyncio.TaskGroup() as task_group:
+        with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
+            async with contextlib.AsyncExitStack() as exit_stack:
+                await failing_engine.start_tasks_async(task_group, exit_stack)
+    assert cleanup_observations == [('second', None), ('first', None)]
+    assert failing_engine.last_shutdown_time is None
+    assert failing_engine.get_native_state('first')._shutdown_time is None

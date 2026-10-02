@@ -60,14 +60,15 @@ class Block(blocks.Node):
                     continue
                 raise Exception(f'Output {self.graph}.{self.name}.{output.name} has no producer')
 
-    def create_native_state(self, path, engine, static_block_context, *, inputs):
+    def create_native_state(self, *, context):
+        path = context._block_path
         if path[-1] != self:
             raise Exception('path[-1] != self')
         # TODO
         if hasattr(self, 'block_type') and hasattr(self.block_type, 'is_native'):
             if self.block_type.is_native:
                 # print('QQQ', self.name)
-                return self.native_class(path, engine, static_block_context=static_block_context, inputs=inputs)
+                return self.native_class(context=context)
             else:
                 # print('WWW', self.name)
                 pass

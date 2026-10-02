@@ -110,8 +110,9 @@ startup_inputs = []
 
 @native_block_type(registry, has_state=True)
 class Provider(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        inputs = context.inputs
         assert isinstance(inputs, Mapping)
         assert isinstance(inputs, MappingProxyType)
         assert not inputs
@@ -126,8 +127,9 @@ class Shared(Provider):
 
 @native_block_type(registry, has_state=True)
 class Consumer(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        inputs = context.inputs
         assert isinstance(inputs, MappingProxyType)
         assert list(inputs) == ['Service', 'Services', 'Empty', 'implicit', 'child']
         assert inputs['Service'] in constructed

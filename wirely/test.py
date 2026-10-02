@@ -614,6 +614,28 @@ async def run_test(test_name):
                 block_instance.static_context.parsed_native_instance.__dict__['port'] = new_port
                 block_instance.static_context.parsed_native_instance.__dict__['tlsa'] = new_tlsa
 
+                replacements = {'Port': new_port, 'TLSA': new_tlsa}
+                for key, value in block_instance.parameter_values.items():
+                    if key.name.id_str in replacements:
+                        block_instance.parameter_values[key] = blocks.ConstantValue(
+                            value.value_type, replacements[key.name.id_str], ast_element=None,
+                        )
+
+        # Apply test service overrides to the resolved native mappings before
+        # constructing native objects, preserving procedure context references.
+        overridden_paths = set(csv_writer_paths + knx_connection_paths
+                               + mqtt_server_paths + twon_device_paths)
+        for path in overridden_paths:
+            instance = prog.instances[path]
+            static = instance.static_context
+            static.parameter_values.update({
+                key.name.id_str: value for key, value in instance.parameter_values.items()
+            })
+            static.parameters = blocks.StaticBlockContext(
+                parameter_values=static.parameter_values,
+                parsed_native_instance=static.parsed_native_instance,
+            ).parameters
+
         eng = blocks.Engine(prog)
 
         # TODO: Pass this information differently?

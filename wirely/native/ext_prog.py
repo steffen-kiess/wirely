@@ -21,10 +21,10 @@ class LaunchOnEventData:
 
 @native_block_type(native_block_types, has_state=True, data_type=LaunchOnEventData)
 class LaunchOnEvent(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         self.task = None
         self.pending = False

@@ -3,6 +3,7 @@ import abc
 import contextlib
 import datetime
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from .option import Some
 from .unit import Unit
@@ -223,48 +224,50 @@ def resolve_variable(path, var):
     return path, var.temporary
 
 
-# TODO: Rename to NativeBlockState?
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class NativeNodeContext:
+    """Information available for the lifetime of a native node."""
+
+    name: str
+    parameters: Mapping[str, object]
+    inputs: Mapping[str, object]
+    configuration: object
+    _engine: object = field(repr=False)
+    _block_path: tuple = field(repr=False)
+
+    def __post_init__(self):
+        for name in ('parameters', 'inputs'):
+            value = getattr(self, name)
+            if not isinstance(value, MappingProxyType):
+                object.__setattr__(self, name, MappingProxyType(dict(value)))
+
+
 class NativeState:
-    def __init__(self, path, engine, static_block_context, *, inputs: Mapping[str, object]):
-        self.block_path = path
-        self.engine = engine
-        self.static_block_context = static_block_context
-        self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
+    def __init__(self, *, context: NativeNodeContext):
+        self._context = context
+
+    @property
+    def context(self) -> NativeNodeContext:
+        return self._context
+
+    @property
+    def inputs(self) -> Mapping[str, object]:
+        return self.context.inputs
 
     @property
     def parameters(self) -> Mapping[str, object]:
-        return self.static_block_context.parameters
+        return self.context.parameters
+
+    @property
+    def _shutdown_time(self) -> datetime.datetime | None:
+        return self.context._engine.shutdown_time
 
     def trigger(self, name: str) -> None:
-        procedures = self.engine.program.native_triggers[self.block_path]
+        context = self.context
+        procedures = context._engine.program.native_triggers[context._block_path]
         if not isinstance(name, str) or name not in procedures:
-            raise ValueError(f'Unknown procedure name {name!r} on {self.block_type}')
-        self.engine.trigger(self.block_path, procedures[name])
-
-    @property
-    def block_type(self):
-        value = self.block_path[-1]
-        if isinstance(value, blocks.Block):
-            return value.block_type
-        else:
-            return value
-
-    @property
-    def block(self):
-        value = self.block_path[-1]
-        if isinstance(value, blocks.Block):
-            return value
-        else:
-            raise Exception(f'Trying to get block for a singleton block type ({value})')
-
-    # TODO: Remove, this is a hack
-    @property
-    def block_or_singleton(self):
-        value = self.block_path[-1]
-        if isinstance(value, blocks.Block):
-            return value
-        else:
-            return value.singleton_instance
+            raise ValueError(f'Unknown procedure name {name!r} on {context.name}')
+        context._engine.trigger(context._block_path, procedures[name])
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         pass

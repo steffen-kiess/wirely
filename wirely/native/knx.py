@@ -52,19 +52,15 @@ class KnxData:
 
 @native_block_type(native_block_types, has_state=True)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         from wirely.knx.connection_config import create_connection_config
         from wirely.knx.connection_adapter import create_xknx
 
         print('Create KNX connection', flush=True)
 
-        parameter_values = static_block_context.parameter_values
-
-        def parameter(name):
-            value = parameter_values.get(name)
-            return None if value is None else value.value
+        parameter = context.parameters.get
 
         self.connection_config = create_connection_config(
             host=parameter('Host'),
@@ -87,41 +83,28 @@ class Connection(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class ValueReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         self.current_value = None
 
         import xknx
 
         print('Create KNX ValueReceiver', flush=True)
 
-        # TODO: Clean up
-        par_values = engine.program.instances[path].parameter_values
-        par_group_address = None
-        par_type = None
-        for par in par_values:
-            if par.name.id_str == 'GroupAddress':
-                par_group_address = par
-            if par.name.id_str == 'Type':
-                par_type = par
-        if par_group_address is None:
-            raise Exception('par_group_address is None')
-        if par_type is None:
-            raise Exception('par_type is None')
-        group_address = par_values[par_group_address].value
-        ty = par_values[par_type]
+        group_address = context.parameters['GroupAddress']
+        ty = context.parameters['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        self.native_bus = inputs['Bus']
+        self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
 
         self.value_type = ty
-        if ty == blocks.types.boolean:
+        if ty == blocks.value_types.boolean:
             self.value_type_knx = "binary"
-        elif ty == blocks.types.uint16:
+        elif ty == blocks.value_types.uint16:
             self.value_type_knx = "2byte_unsigned"
         else:
             raise Exception(f'TODO: Unsupported type for KNX.ValueReceiver: {ty}')
@@ -164,8 +147,8 @@ class ValueReceiver(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class ValueOptionProvider(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         # TODO: Is this needed?
         self.current_value = None
@@ -181,33 +164,20 @@ class ValueOptionProvider(blocks.NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        # TODO: Clean up
-        par_values = engine.program.instances[path].parameter_values
-        par_group_address = None
-        par_type = None
-        for par in par_values:
-            if par.name.id_str == 'GroupAddress':
-                par_group_address = par
-            if par.name.id_str == 'Type':
-                par_type = par
-        if par_group_address is None:
-            raise Exception('par_group_address is None')
-        if par_type is None:
-            raise Exception('par_type is None')
-        group_address = par_values[par_group_address].value
-        ty = par_values[par_type]
+        group_address = context.parameters['GroupAddress']
+        ty = context.parameters['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        self.native_bus = inputs['Bus']
+        self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
 
         self.value_type = ty
-        if ty == blocks.types.boolean:
+        if ty == blocks.value_types.boolean:
             self.value_type_knx = "binary"
-        elif ty == blocks.types.uint16:
+        elif ty == blocks.value_types.uint16:
             self.value_type_knx = "2byte_unsigned"
         else:
             raise Exception(f'TODO: Unsupported type for KNX.ValueOptionProvider: {ty}')
@@ -263,13 +233,13 @@ class ValueOptionProvider(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=KnxData)
 class EventReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         self.task = None
         self.received_values = []
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
         print('Create KNX EventReceiver', flush=True)
 
@@ -277,7 +247,7 @@ class EventReceiver(blocks.NativeState):
 
         self.data.dump()
 
-        self.native_bus = inputs['Bus']
+        self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(self.data.group_address)
@@ -323,8 +293,8 @@ class EventReceiver(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=KnxData)
 class EventEmitter(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
+    def __init__(self, *, context):
+        super().__init__(context=context)
 
         # Task is needed for sending out values
         self.task = None
@@ -337,9 +307,9 @@ class EventEmitter(blocks.NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        self.data = static_block_context.parsed_native_instance
+        self.data = context.configuration
 
-        self.native_bus = inputs['Bus']
+        self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(self.data.group_address)

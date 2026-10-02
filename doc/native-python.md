@@ -120,10 +120,9 @@ resolved Python values, using exact `.wrl` parameter names. Declared defaults
 are applied; omitted optional parameters are absent. `ValueType` parameters
 provide `wirely.ValueType` descriptors.
 
-Constructors and configuration preparation receive compiler parameter
-objects through `static_block_context.parameter_values` and
-`parameter_values`, respectively. Call `.evaluate()` on value parameters;
-type parameters contain compiler types. The key `''` holds source metadata:
+Configuration preparation receives compiler parameter objects through
+`parameter_values`. Call `.evaluate()` on value parameters; type parameters
+contain compiler types. The key `''` holds source metadata:
 `parameters['']['BlkFilename']` is the instantiation's `.wrl` filename, or
 `None` for a singleton, for resolving relative configuration paths.
 
@@ -132,7 +131,7 @@ once per instance. Wirely calls
 `SomeClass.create(parameter_values=...)` with the resolved dictionary.
 The returned object is available as
 `context.static.block.parsed_native_instance` or, in a native node,
-`self.static_block_context.parsed_native_instance`. This works with either
+`self.context.configuration`. This works with either
 `has_state` setting; see `Std.DetectEdge` in
 [`std.py`](../wirely/native/std.py).
 
@@ -190,13 +189,20 @@ descriptors are available through resolved parameters.
 ## Native objects, resources, and tasks
 
 A `native node type` usually subclasses `wirely.NativeState`. The engine
-constructs it as `Class(path, engine, static_block_context=..., inputs=...)`;
-call the base constructor with those arguments. It stores `block_path`,
-`engine`, `static_block_context`, and the read-only mapping `inputs`.
-`self.block` gives the instantiated block and `self.block_type` its type.
-Native singletons share one object at
-`(block_type,)`; use `block_type` or `block_or_singleton` because `block`
-is unavailable for them.
+calls `Class(context=context)` with a `wirely.NativeNodeContext`; define
+`__init__(self, *, context)` and call `super().__init__(context=context)`.
+
+`self.context` lasts for the node's lifetime and has read-only attributes:
+
+| Attribute | Value |
+| --- | --- |
+| `parameters` | Resolved parameter mapping |
+| `inputs` | Initializer resource mapping |
+| `configuration` | Prepared configuration object, or `None` |
+| `name` | Dotted instance name, or qualified type name for a singleton |
+
+The mappings are read-only. `self.parameters` and `self.inputs` give the
+same mappings. Native singletons share one object.
 
 Changes to Python fields do not automatically schedule procedures. Call
 `self.trigger('get_value')` to schedule a procedure on this native node.
@@ -210,8 +216,8 @@ native initializer depends on Broker;
 ```
 
 The bindings use the same key rules as procedure inputs. Read the provider
-with `inputs['Broker']` in the constructor or `self.inputs['Broker']` in
-tasks. Providers are constructed before their consumers. An initializer
+with `context.inputs['Broker']` in the constructor or `self.inputs['Broker']`
+in tasks. Providers are constructed before their consumers. An initializer
 accepts only resource dependencies and has no `produces` clause.
 
 Resolution follows forwarded resources through composite nodes. Resource

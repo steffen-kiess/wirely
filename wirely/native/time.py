@@ -112,9 +112,8 @@ class DelayChange(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class TimeOfDayMinute(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context, *, inputs):
-        super().__init__(path, engine, static_block_context, inputs=inputs)
-        # print('XXX', path)
+    def __init__(self, *, context):
+        super().__init__(context=context)
         self.task = None
         self._fake_time = None
 

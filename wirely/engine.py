@@ -38,9 +38,19 @@ class Engine:
             block = block_path[-1]
             instance = self.program.instances[block_path]
             inputs = MappingProxyType(self._resource_inputs(self.program.initializer_bindings[block_path]))
-            self.native_states[block_path] = block.create_native_state(
-                block_path, self, static_block_context=instance.static_context, inputs=inputs,
+            name = '.'.join(
+                node.name if isinstance(node, blocks.Block) else node.fullname
+                for node in block_path
             )
+            context = blocks.NativeNodeContext(
+                name=name,
+                parameters=instance.static_context.parameters,
+                inputs=inputs,
+                configuration=instance.static_context.parsed_native_instance,
+                _engine=self,
+                _block_path=block_path,
+            )
+            self.native_states[block_path] = block.create_native_state(context=context)
             if not isinstance(block, blocks.Block):
                 block = block.singleton_instance
             for var in block.block_statevars:
