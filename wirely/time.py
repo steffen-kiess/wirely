@@ -1,6 +1,7 @@
 import time
 import functools
 import re
+from dataclasses import dataclass
 
 import wirely as blocks
 from wirely.util import check_parameters
@@ -12,11 +13,15 @@ from wirely.util import check_parameters
 # the value of the monotonic clock gets lost.
 # TODO: Remove invalid value and use Option[MonotonicTime] for those cases instead? (At least if invalid means "never")
 # Maybe: Allow creating MonotonicTime value which represent +inf? Should these be comparable to all other values?
+@dataclass(frozen=True, slots=True, init=False, eq=False)
 class MonotonicTime:
+    generation: int
+    time_ns: int
+
     @check_parameters
     def __init__(self, generation: int, time_ns: int):
-        self.generation = generation
-        self.time_ns = time_ns
+        object.__setattr__(self, 'generation', generation)
+        object.__setattr__(self, 'time_ns', time_ns)
 
     # Value which is not comparable to any other value, can be used as initializer for variables.
     @staticmethod
@@ -95,14 +100,17 @@ class MonotonicTime:
 
 # Duration as defined in ISO 8601-1:2019 5.5.2, but cannot contain years or months. Ignores things like DST changes and leap seconds, only stores then number of nanoseconds internally. Cannot be negative.
 @functools.total_ordering
+@dataclass(frozen=True, slots=True, init=False, eq=False)
 class Duration:
+    duration_ns: int
+
     @check_parameters
     def __init__(self, *, duration_ns: int):
         duration_ns = int(duration_ns)
         if duration_ns < 0:
             raise Exception('Negative durations are not allowed')
 
-        self.duration_ns = duration_ns
+        object.__setattr__(self, 'duration_ns', duration_ns)
 
     def __repr__(self):
         return f'Duration({self.duration_ns})'

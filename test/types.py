@@ -1,4 +1,6 @@
 import datetime
+from unittest import TestCase
+from unittest.mock import patch
 
 import wirely.types
 
@@ -169,3 +171,82 @@ assert_is(ty.json_encode(wirely.enum.ThermostatSystemMode.EmergencyHeat, 'SnakeC
 assert_is(ty.json_decode('Heat', None), wirely.enum.ThermostatSystemMode.Heat)
 # TODO: Test SnakeCase decoding
 # TODO: CSV
+
+
+checks = TestCase()
+
+
+def check_immutable_time(value, equivalent, fields):
+    mapping = {value: 'timestamp'}
+    values = {value}
+    for name in fields:
+        with checks.assertRaises(AttributeError):
+            setattr(value, name, 0)
+        with checks.assertRaises(AttributeError):
+            delattr(value, name)
+    assert mapping[equivalent] == 'timestamp'
+    assert equivalent in values
+    assert hash(value) == hash(equivalent)
+
+
+monotonic = wirely.MonotonicTime(7, 5_000_000_000)
+equivalent = wirely.MonotonicTime(generation=7, time_ns=5_000_000_000)
+check_immutable_time(monotonic, equivalent, ['generation', 'time_ns'])
+assert repr(monotonic) == 'MonotonicTime(generation=7, time_ns=5000000000)'
+assert monotonic != wirely.MonotonicTime(8, monotonic.time_ns)
+for arguments in [('7', 5), (7, '5')]:
+    with checks.assertRaises(Exception):
+        wirely.MonotonicTime(*arguments)
+with checks.assertRaises(Exception):
+    wirely.MonotonicTime(generation='7', time_ns=5)
+with patch('wirely.time.time.clock_gettime_ns', return_value=123):
+    assert wirely.MonotonicTime.current_time() == wirely.MonotonicTime(1, 123)
+
+invalid = wirely.MonotonicTime.create_invalid()
+check_immutable_time(invalid, wirely.MonotonicTime(0, 0), ['generation', 'time_ns'])
+assert invalid.is_invalid and not invalid.is_valid
+assert monotonic.is_valid and not monotonic.is_invalid
+assert repr(invalid) == 'MonotonicTime.invalid'
+assert not wirely.MonotonicTime.is_comparable(monotonic, invalid)
+with checks.assertRaises(Exception):
+    wirely.MonotonicTime.compare(monotonic, invalid)
+
+short = wirely.Duration(duration_ns=2_000_000_000)
+long = wirely.Duration(duration_ns=5_000_000_000)
+check_immutable_time(short, wirely.Duration.from_seconds(2), ['duration_ns'])
+assert repr(short) == 'Duration(2000000000)'
+assert short.total_seconds == 2
+assert wirely.Duration(duration_ns=True).duration_ns == 1
+assert type(wirely.Duration(duration_ns=True).duration_ns) is int
+with checks.assertRaises(TypeError):
+    wirely.Duration(2)
+for value in [-1, '2', 2.5]:
+    with checks.assertRaises(Exception):
+        wirely.Duration(duration_ns=value)
+assert wirely.Duration.parse('PT2S') == short
+assert wirely.Duration.parse('P1DT2H3M4.5S').total_seconds == 93784.5
+for text in ['P', 'PT', '-PT1S', 'P1M', 'invalid']:
+    with checks.assertRaises(Exception):
+        wirely.Duration.parse(text)
+assert short + long == wirely.Duration.from_seconds(7)
+assert long - short == wirely.Duration.from_seconds(3)
+assert short < long and short <= long and long > short and long >= short
+assert short <= wirely.Duration.from_seconds(2)
+assert short >= wirely.Duration.from_seconds(2)
+assert short != long and short != 2
+with checks.assertRaises(Exception):
+    short - long
+
+later = monotonic + short
+assert later == wirely.MonotonicTime(7, 7_000_000_000)
+assert later - short == monotonic
+assert later - monotonic == short
+assert monotonic.time_ns == 5_000_000_000
+assert short.duration_ns == 2_000_000_000
+assert wirely.MonotonicTime.compare(monotonic, later) == -1
+assert wirely.MonotonicTime.compare(later, monotonic) == 1
+assert wirely.MonotonicTime.compare(monotonic, equivalent) == 0
+assert invalid + short is invalid
+assert invalid - short is invalid
+with checks.assertRaises(Exception):
+    later - invalid

@@ -198,6 +198,12 @@ def check_stage_time(context, stage):
     for attribute in ['monotonic', 'utc', 'local']:
         with checks.assertRaises(AttributeError):
             setattr(snapshot, attribute, None)
+    for attribute in ['generation', 'time_ns']:
+        with checks.assertRaises(AttributeError):
+            setattr(snapshot.monotonic, attribute, 0)
+        with checks.assertRaises(AttributeError):
+            delattr(snapshot.monotonic, attribute)
+    assert snapshot.monotonic == monotonic_times[index] + clock_offset
     if stage in stage_snapshots:
         assert stage_snapshots[stage] is snapshot
     else:
