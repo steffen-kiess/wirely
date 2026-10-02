@@ -27,6 +27,7 @@ class BlockType(blocks.Scope):
         self.block_type_interfaces = {}
         self.block_type_implementations = {}
         self.procedures = {}
+        self.initializer = None
         self.variables = {}
         # TODO: Clarify what is the key here (name or input_name)
         self.block_inputs = {}
@@ -209,6 +210,18 @@ class BlockType(blocks.Scope):
                 raise Exception(f'Block type {self.fullname!r} does not requires native state but native class is stateful')
         block.native_class = native_class
 
+        block.initializer_sources = {}
+        if self.initializer is not None:
+            depends = self.initializer.depends
+            for binding, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
+                if isinstance(dep, blocks.BlockInput):
+                    source = block.custom_inputs[dep]
+                elif isinstance(dep, blocks.Block):
+                    source = dep.block_outputs_byname['']
+                else:
+                    source = dep
+                block.initializer_sources[binding.key] = (source, binding)
+
         # TODO: This is an ugly hack, native class resolution should be done per-type, not per-instance
         if not hasattr(self, 'native_class'):
             self.native_class = native_class
@@ -335,7 +348,7 @@ class BlockType(blocks.Scope):
         pass
 
     # TODO: Currently only used for singletons, clean this up, merge with block.create_native_state
-    def create_native_state(self, path, engine, static_block_context):
+    def create_native_state(self, path, engine, static_block_context, *, inputs):
         if len(path) != 1:
             raise Exception('len(path) != 1')
         if path[-1] != self:
@@ -343,7 +356,7 @@ class BlockType(blocks.Scope):
 
         if self.is_native:
             # print('QQQ', self.name)
-            return self.native_class(path, engine, static_block_context=static_block_context)
+            return self.native_class(path, engine, static_block_context=static_block_context, inputs=inputs)
         else:
             # print('WWW', self.name)
             pass

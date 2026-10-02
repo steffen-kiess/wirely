@@ -9,6 +9,7 @@ declaration: "resource" "type" identifier ";" -> declaration_resource_type
            | "state" identifier ":" value "=" value ";" -> declaration_state_variable
            | "temporary" identifier ":" value ";" -> declaration_temporary_variable
            | native_specifier "procedure" identifier stage_declaration depends_declaration produces_declaration ";" -> declaration_procedure
+           | "native" "initializer" depends_declaration ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
            | "implicit" block_connector_type ":" connector_specification ";" -> declaration_connector__create_implicit
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter

@@ -233,8 +233,8 @@ class MqttData:
 
 @native_block_type(native_block_types, has_state=True)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         aiomqtt = get_aiomqtt()
 
@@ -352,8 +352,8 @@ class Connection(blocks.NativeState):
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class ValueOptionProvider(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -370,11 +370,7 @@ class ValueOptionProvider(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
-        print(f'  Using server object: {server_path}', flush=True)
-
-        self.native_server = engine.native_states[server_path]
+        self.native_server = inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.data.value_type.json_encode
@@ -426,8 +422,8 @@ class ValueOptionProvider(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class EventEmitter(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -453,11 +449,7 @@ class EventEmitter(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
-        print(f'  Using server object: {server_path}', flush=True)
-
-        self.native_server = engine.native_states[server_path]
+        self.native_server = inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.data.value_type.json_encode
@@ -513,8 +505,8 @@ class EventEmitter(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=MqttData)
 class EventReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         self.task = None
         self.received_values = []
@@ -536,11 +528,7 @@ class EventReceiver(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        server_path, server_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Broker'])
-        print(f'  Using server object: {server_path}', flush=True)
-
-        self.native_server = engine.native_states[server_path]
+        self.native_server = inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

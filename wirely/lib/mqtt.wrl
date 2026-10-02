@@ -16,6 +16,8 @@ namespace MQTT {
     input Broker : resource Broker;
     implicit input : value Option[Type];
 
+    native initializer depends on Broker;
+
     native procedure set_value stage output
       depends on implicit input as "input";
   }
@@ -53,6 +55,8 @@ namespace MQTT {
     input Broker : resource Broker;
     implicit input : event Type;
 
+    native initializer depends on Broker;
+
     native procedure send_value stage output
       depends on implicit input as "input";
   }
@@ -65,6 +69,8 @@ namespace MQTT {
 
     input Broker : resource Broker;
     implicit output : event Type;
+
+    native initializer depends on Broker;
 
     native procedure get_value stage input produces implicit output as "output";
   }

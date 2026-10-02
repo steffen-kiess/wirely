@@ -38,6 +38,7 @@ ast_classes = [
     blocks.DeclarationStateVariable,
     blocks.DeclarationTemporaryVariable,
     blocks.DeclarationProcedure,
+    blocks.DeclarationInitializer,
     blocks.NativeSpecifier,
     blocks.OptionalSpecifier,
     blocks.StageDeclaration,

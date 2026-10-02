@@ -58,6 +58,18 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/initializer_non_native.wrl',
+    'test/negative/initializer_namespace.wrl',
+    'test/negative/initializer_duplicate.wrl',
+    'test/negative/initializer_value_dependency.wrl',
+    'test/negative/initializer_state_dependency.wrl',
+    'test/negative/initializer_unknown_dependency.wrl',
+    'test/negative/initializer_implicit_alias.wrl',
+    'test/negative/initializer_complex_alias.wrl',
+    'test/negative/initializer_duplicate_key.wrl',
+    'test/negative/initializer_duplicate_decoded_alias.wrl',
+    'test/negative/procedure_input_stage_value.wrl',
+
     'test/negative/procedure_implicit_input_alias.wrl',
     'test/negative/procedure_implicit_output_alias.wrl',
     'test/negative/procedure_state_alias.wrl',

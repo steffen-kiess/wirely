@@ -42,8 +42,8 @@ class GPIOData:
 
 @native_block_type(native_block_types, has_state=True, data_type=GPIOData)
 class Output(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         self.data = static_block_context.parsed_native_instance
         self.gpio_request = None
         self.direction_set = False

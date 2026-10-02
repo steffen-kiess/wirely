@@ -52,8 +52,8 @@ class KnxData:
 
 @native_block_type(native_block_types, has_state=True)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         from wirely.knx.connection_config import create_connection_config
         from wirely.knx.connection_adapter import create_xknx
@@ -87,8 +87,8 @@ class Connection(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class ValueReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         self.current_value = None
 
         import xknx
@@ -122,15 +122,7 @@ class ValueReceiver(blocks.NativeState):
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        # TODO: Clean up
-        # TODO: Properly follow connections
-        bus_obj = path[-1].block_inputs_byname['Bus'].connected_source
-        print(f'  Using bus object: {bus_obj}', flush=True)
-        bus_block = bus_obj.block
-        # TODO: This is a hack
-        bus_path = (bus_block,)
-
-        self.native_bus = engine.native_states[bus_path]
+        self.native_bus = inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
@@ -181,8 +173,8 @@ class ValueReceiver(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class ValueOptionProvider(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         # TODO: Is this needed?
         self.current_value = None
@@ -216,11 +208,7 @@ class ValueOptionProvider(blocks.NativeState):
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        # TODO: Clean up
-        bus_path, bus_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Bus'])
-        print(f'  Using bus object: {bus_path}', flush=True)
-
-        self.native_bus = engine.native_states[bus_path]
+        self.native_bus = inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
@@ -284,8 +272,8 @@ class ValueOptionProvider(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=KnxData)
 class EventReceiver(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         self.task = None
         self.received_values = []
@@ -307,15 +295,7 @@ class EventReceiver(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        # TODO: Properly follow connections
-        bus_obj = path[-1].block_inputs_byname['Bus'].connected_source
-        print(f'  Using bus object: {bus_obj}', flush=True)
-        bus_block = bus_obj.block
-        # TODO: This is a hack
-        bus_path = (bus_block,)
-
-        self.native_bus = engine.native_states[bus_path]
+        self.native_bus = inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(self.data.group_address)
@@ -361,8 +341,8 @@ class EventReceiver(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=KnxData)
 class EventEmitter(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         # Task is needed for sending out values
         self.task = None
@@ -386,11 +366,7 @@ class EventEmitter(blocks.NativeState):
             raise Exception('proc is None')
         self.proc = proc
 
-        # TODO: Clean up
-        bus_path, bus_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Bus'])
-        self.data.dump()
-
-        self.native_bus = engine.native_states[bus_path]
+        self.native_bus = inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(self.data.group_address)

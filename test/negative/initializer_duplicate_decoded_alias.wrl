@@ -1,0 +1,8 @@
+resource type Handle;
+native node type Invalid {
+  input First : resource Handle;
+  input Second : resource Handle;
+  native initializer
+    depends on First as "Service", // H: Previous binding was here
+      Second as "\x53ervice"; // E: Duplicate procedure binding key
+}

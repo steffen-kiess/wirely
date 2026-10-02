@@ -33,6 +33,7 @@ namespace Std {
 Its Python implementation is:
 
 ```python
+import wirely
 from wirely.native import native_block_type, native_procedure
 
 native_block_types = {}
@@ -43,7 +44,7 @@ class OptionSome:
     @native_procedure
     @staticmethod
     def run(*, context):
-        context.set_result('output', (context.inputs['input'],))
+        context.set_result('output', wirely.Some(context.inputs['input']))
 ```
 
 Use `has_state=False` and static methods for a `node type` with native
@@ -63,6 +64,10 @@ values for this invocation; contained values are not deeply immutable.
 Unknown keys raise `KeyError`. A `list value T` input provides a Python
 list of connected values in connection order, or `[]` when unconnected.
 A `value List[T]` input carries a single list-valued datum.
+
+A resource dependency supplies the provider's native object; a list
+resource supplies these objects in connection order. Resource identity is
+stable, and changes inside an object do not trigger a procedure rerun.
 
 `context.set_result(name, value)` writes outputs, temporaries, and state
 updates through the same interface. Unknown names, repeated writes, and
@@ -164,10 +169,11 @@ triggers itself again to write `None` instead of retaining a cached event.
 ## Native objects, resources, and tasks
 
 A `native node type` usually subclasses `wirely.NativeState`. The engine
-constructs it as `Class(path, engine, static_block_context=...)`; call the
-base constructor with those arguments. It stores `block_path`, `engine`,
-and `static_block_context`. `self.block` gives the instantiated block and
-`self.block_type` its type. Native singletons share one object at
+constructs it as `Class(path, engine, static_block_context=..., inputs=...)`;
+call the base constructor with those arguments. It stores `block_path`,
+`engine`, `static_block_context`, and the read-only mapping `inputs`.
+`self.block` gives the instantiated block and `self.block_type` its type.
+Native singletons share one object at
 `(block_type,)`; use `block_type` or `block_or_singleton` because `block`
 is unavailable for them.
 
@@ -177,16 +183,16 @@ and call `self.engine.trigger(self.block_path, proc)` with that object.
 Repeated triggers are coalesced; retain individual occurrences in a queue
 when needed.
 
-Resource connectors identify native service objects. For a named
-`Broker: resource MQTT.Broker` input, resolve its provider:
+Declare constructor resource inputs inside a native node type:
 
-```python
-import wirely as blocks
-
-broker_input = self.block.block_inputs_byname['Broker']
-provider_path, _ = blocks.resolve_variable(self.block_path, broker_input)
-self.native_server = self.engine.native_states[provider_path]
+```wrl
+native initializer depends on Broker;
 ```
+
+The bindings use the same key rules as procedure inputs. Read the provider
+with `inputs['Broker']` in the constructor or `self.inputs['Broker']` in
+tasks. Providers are constructed before their consumers. An initializer
+accepts only resource dependencies and has no `produces` clause.
 
 Resolution follows forwarded resources through composite nodes. Resource
 outputs need no procedure to publish a value. See
@@ -206,7 +212,7 @@ and trigger procedures, or send data handed off by output procedures.
 ## Scheduling and time
 
 Procedures run in dependency order within input, default calculation, and
-output stages. Input procedures cannot declare dependencies. After the
+output stages. Input procedures can depend only on resources. After the
 first step, the engine can reuse cached results when dependencies and
 state have not changed, unless explicitly triggered or due for a wakeup.
 No-dependency procedures therefore do not automatically run every step.

@@ -1,7 +1,17 @@
+import asyncio
+import contextlib
+from collections.abc import Mapping
+from pathlib import Path
+from types import MappingProxyType
+from unittest import TestCase
+from unittest.mock import patch
+
 import lark
 
 import wirely as blocks
 import wirely.parser
+import wirely.native.test_library
+from wirely.native import native_block_type, native_procedure
 
 
 program = engine.program
@@ -89,3 +99,293 @@ for legacy_type in ['knx_bus', 'mqtt_server', 'two_n_device']:
         pass
     else:
         raise AssertionError(f'Legacy resource syntax was accepted: {legacy_type}')
+
+
+checks = TestCase()
+registry = {}
+constructed = []
+procedure_calls = []
+startup_inputs = []
+
+
+@native_block_type(registry, has_state=True)
+class Provider(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
+        assert isinstance(inputs, Mapping)
+        assert isinstance(inputs, MappingProxyType)
+        assert not inputs
+        self.value = 7
+        constructed.append(self)
+
+
+@native_block_type(registry, has_state=True)
+class Shared(Provider):
+    pass
+
+
+@native_block_type(registry, has_state=True)
+class Consumer(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
+        assert isinstance(inputs, MappingProxyType)
+        assert list(inputs) == ['Service', 'Services', 'Empty', 'implicit', 'child']
+        assert inputs['Service'] in constructed
+        assert inputs['Services'] == [inputs['Service'], inputs['implicit'], inputs['Service']]
+        assert inputs['Empty'] == []
+        assert inputs['child'] is inputs['Service']
+        with checks.assertRaises(TypeError):
+            inputs['Service'] = None
+        with checks.assertRaises(KeyError):
+            inputs['missing']
+        constructed.append(self)
+
+    def start_tasks(self, task_group, async_exit_stack):
+        startup_inputs.append(self.inputs)
+
+    @native_procedure
+    def read(self, *, context):
+        assert dict(context.inputs) == dict(self.inputs)
+        procedure_calls.append(('read', context.inputs['Service']))
+        context.set_result('Count', context.inputs['Service'].value)
+
+    @native_procedure
+    def poll(self, *, context):
+        assert context.inputs['Service'] is self.inputs['Service']
+        procedure_calls.append(('poll', context.inputs['Service']))
+
+
+@native_block_type(registry, has_state=False)
+class ProcedureConsumer:
+    @native_procedure
+    @staticmethod
+    def read(*, context):
+        assert context.inputs['Service'] is context.inputs['child']
+        assert isinstance(context.inputs['Value'], int)
+        context.set_result('Count', context.inputs['Service'].value)
+
+
+@native_block_type(registry, has_state=True)
+class Dependent(blocks.NativeState):
+    pass
+
+
+def compile_resources(source):
+    with patch.dict(wirely.native.test_library.native_block_types, registry):
+        graph = blocks.compiler.compile_strs([
+            ('wirely/lib/std.wrl', Path('wirely/lib/std.wrl').read_text()),
+            ('<native-resources>', source),
+        ])
+    assert graph is not None
+    return graph
+
+
+source = '''
+namespace TestLibrary {
+  resource type Service;
+
+  native node type Provider {
+    implicit output : resource Service;
+    output Named : resource Service;
+    native initializer;
+  }
+
+  singleton native node type Shared {
+    implicit output : resource Service;
+  }
+
+  node type Forward {
+    input Service : resource Service;
+    implicit output : resource Service;
+    output Named : resource Service;
+    connect Service -> implicit output;
+    connect Service -> Named;
+  }
+
+  node type Factory {
+    implicit output : resource Service;
+    node source : Provider;
+    connect source -> implicit output;
+  }
+
+  native node type Consumer {
+    input Service : resource Service;
+    input Services : list resource Service;
+    input Empty : list resource Service;
+    implicit input : resource Service;
+    output Count : value uint8;
+
+    node forwarded : Forward;
+    connect Service -> forwarded.Service;
+
+    native initializer
+      depends on Service, Services, Empty, implicit input as "implicit",
+        forwarded as "child";
+
+    native procedure read
+      depends on Service, Services, Empty, implicit input as "implicit",
+        forwarded as "child"
+      produces Count;
+    native procedure poll stage input depends on Service;
+  }
+
+  node type ProcedureConsumer {
+    input Service : resource Service;
+    input Value : value uint8;
+    output Count : value uint8;
+
+    node forwarded : Forward;
+    connect Service -> forwarded.Service;
+
+    native procedure read
+      depends on Service, Value, forwarded.Named as "child"
+      produces Count;
+  }
+}
+
+node consumer : TestLibrary.Consumer;
+node procedure_consumer : TestLibrary.ProcedureConsumer;
+node factory : TestLibrary.Factory;
+node shared : TestLibrary.Shared;
+node other_shared : TestLibrary.Shared;
+node forward : TestLibrary.Forward;
+node value_source : Std.DebugValueSource(Type = uint8);
+connect factory -> forward.Service;
+connect forward -> consumer.Service;
+connect factory, shared, forward -> consumer.Services;
+connect other_shared -> consumer;
+connect factory -> procedure_consumer.Service;
+connect value_source -> procedure_consumer.Value;
+'''
+native_resource_program = blocks.Program.compile_nocatch(compile_resources(source))
+native_resource_engine = blocks.Engine(native_resource_program)
+consumer = native_resource_engine.get_native_state('consumer')
+provider = native_resource_engine.get_native_state('factory.source')
+shared = native_resource_engine.get_native_state('shared')
+assert native_resource_engine.get_native_state('other_shared') is shared
+assert consumer.inputs['Service'] is provider
+assert consumer.inputs['implicit'] is shared
+assert constructed.index(provider) < constructed.index(consumer)
+value_source = native_resource_engine.get_native_state('value_source')
+value_source.set_value(7)
+native_resource_engine.step()
+native_resource_engine.assert_value_is('consumer.Count', 7)
+native_resource_engine.assert_value_is('procedure_consumer.Count', 7)
+assert [name for name, _ in procedure_calls] == ['poll', 'read']
+provider.value = 8
+native_resource_engine.step()
+assert len(procedure_calls) == 2
+native_resource_engine.assert_value_is('consumer.Count', 7)
+native_resource_engine.assert_value_is('procedure_consumer.Count', 7)
+native_resource_engine.assert_is_idle()
+value_source.set_value(9)
+native_resource_engine.step()
+native_resource_engine.assert_value_is('procedure_consumer.Count', 8)
+assert len(procedure_calls) == 2
+
+# Explicit aliases and direct named resource outputs use the same key rules.
+alias_graph = compile_resources('''
+namespace TestLibrary {
+  resource type Service;
+  native node type Provider {
+    implicit output : resource Service;
+    output Named : resource Service;
+  }
+  native node type Dependent {
+    input Service : resource Service;
+    node provider : Provider;
+    native initializer
+      depends on Service as "service", provider.Named as "child";
+  }
+}
+node sink : TestLibrary.Dependent;
+node source : TestLibrary.Provider;
+connect source -> sink.Service;
+''')
+alias_engine = blocks.Engine(blocks.Program.compile_nocatch(alias_graph))
+alias_inputs = alias_engine.get_native_state('sink').inputs
+assert alias_inputs['service'] is alias_engine.get_native_state('source')
+assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
+
+with checks.assertRaises(lark.UnexpectedInput):
+    wirely.parser.parse_str(
+        'native node type Invalid { native initializer produces Service; }',
+        filename='<initializer-produces>',
+    )
+
+for nodes, connection in [
+    ('node a : TestLibrary.Dependent;', 'connect a -> a.Service;'),
+    ('''
+node a : TestLibrary.Dependent;
+node b : TestLibrary.Dependent;
+''', 'connect a -> b.Service;\nconnect b -> a.Service;'),
+]:
+    graph = compile_resources(f'''
+namespace TestLibrary {{
+  resource type Service;
+  native node type Dependent {{
+    input Service : resource Service;
+    implicit output : resource Service;
+    native initializer depends on Service;
+  }}
+}}
+{nodes}
+{connection}
+''')
+    with checks.assertRaisesRegex(blocks.ProgramError, 'Circular native initializer dependency') as error:
+        blocks.Program.compile_nocatch(graph)
+    assert error.exception.source_element.key == 'Service'
+
+graph = compile_resources('''
+namespace TestLibrary {
+  resource type Service;
+  node type Forward {
+    input Service : resource Service;
+    implicit output : resource Service;
+    connect Service -> implicit output;
+  }
+  native node type Dependent {
+    input Service : resource Service;
+    native initializer depends on Service;
+  }
+}
+node a : TestLibrary.Forward;
+node b : TestLibrary.Forward;
+node sink : TestLibrary.Dependent;
+connect a -> b.Service;
+connect b -> a.Service;
+connect a -> sink.Service;
+''')
+with checks.assertRaisesRegex(blocks.ProgramError, 'Circular resource connection'):
+    blocks.Program.compile_nocatch(graph)
+
+for binding in ['initializer', 'procedure']:
+    declaration = ('native initializer depends on Service;' if binding == 'initializer'
+                   else 'native procedure read depends on Service produces Count;')
+    node_type = 'native node type Dependent' if binding == 'initializer' else 'node type ProcedureConsumer'
+    output = 'output Count : value uint8;' if binding == 'procedure' else ''
+    graph = compile_resources(f'''
+namespace TestLibrary {{
+  resource type Service;
+  node type Missing {{
+    implicit output : resource Service;
+  }}
+  {node_type} {{
+    input Service : resource Service;
+    {output}
+    {declaration}
+  }}
+}}
+node source : TestLibrary.Missing;
+node sink : TestLibrary.{'Dependent' if binding == 'initializer' else 'ProcedureConsumer'};
+connect source -> sink.Service;
+''')
+    with checks.assertRaisesRegex(blocks.ProgramError, 'Resource binding has no native provider') as error:
+        blocks.Program.compile_nocatch(graph)
+    assert error.exception.source_element.key == 'Service'
+
+
+async def run_test():
+    async with asyncio.TaskGroup() as task_group, contextlib.AsyncExitStack() as exit_stack:
+        await native_resource_engine.start_tasks_async(task_group, exit_stack)
+        assert startup_inputs == [consumer.inputs]

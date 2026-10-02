@@ -15,9 +15,10 @@ namespace TwoN {
     parameter Key : String;
 
     input Device : resource Device;
-
     // True if the key is pressed, false if it released.
     implicit output : event boolean;
+
+    native initializer depends on Device;
 
     native procedure get_value stage input produces implicit output as "output";
   }
@@ -73,6 +74,8 @@ namespace TwoN {
 
     input Device : resource Device;
 
+    native initializer depends on Device;
+
     // True if the input/output is on, false otherwise.
     implicit output : value boolean;
 
@@ -85,6 +88,8 @@ namespace TwoN {
     parameter SwitchNumber : int32;
 
     input Device : resource Device;
+
+    native initializer depends on Device;
 
     // True if the switch is active, false otherwise.
     implicit output : value boolean;
@@ -100,6 +105,8 @@ namespace TwoN {
     input Device : resource Device;
     implicit output : event unit;
 
+    native initializer depends on Device;
+
     native procedure get_value stage input produces implicit output as "output";
   }
 
@@ -107,6 +114,8 @@ namespace TwoN {
     parameter Port : String;
 
     input Device : resource Device;
+
+    native initializer depends on Device;
 
     // True to turn the output is on, false to turn it off.
     implicit input : event boolean;

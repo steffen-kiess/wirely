@@ -1101,7 +1101,7 @@ class DependsDeclaration(SourceElement):
                 child = self.graph.blocks.get(name)
                 if child is not None:
                     output = child.block_outputs_byname.get(member)
-                    if output is not None and isinstance(output.conn_spec, ConnectorSpecificationData):
+                    if output is not None:
                         resolved.append(output)
                         continue
                 raise ProgramError(dep, f'Cannot resolve procedure dependency {dep}')
@@ -1175,6 +1175,43 @@ class ProducesDeclaration(SourceElement):
         self.get_resolved_outputs()
 
 
+def dependency_is_resource(dependency):
+    if isinstance(dependency, blocks.Block):
+        dependency = dependency.block_outputs_byname.get('')
+    return isinstance(getattr(dependency, 'conn_spec', None), ConnectorSpecificationResource)
+
+
+class DeclarationInitializer(Declaration):
+    def __init__(self, depends: DependsDeclaration, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.depends = depends
+
+    def compile_pass1(self, graph):
+        if not isinstance(graph, blocks.BlockType) or not graph.is_native:
+            raise ProgramError(self, 'Native initializer requires a native node type')
+        if graph.initializer is not None:
+            raise ProgramError(self, 'Duplicate native initializer', hints=[
+                CompilerHint(graph.initializer, 'Previous initializer was here'),
+            ])
+        graph.initializer = self
+        self.depends.compile_pass1(graph, self)
+
+    def compile_pass2(self, graph):
+        self.depends.compile_pass2(graph, self)
+        for binding, dep in zip(self.depends.dependencies, self.depends.get_resolved_dependencies()):
+            if not dependency_is_resource(dep):
+                raise ProgramError(binding, 'Initializer dependencies must be resources')
+
+    def compile_pass1_btd(self, interface):
+        pass
+
+    def create_io(self, new_graph):
+        pass
+
+    def compile_pass1_5(self, graph):
+        pass
+
+
 class DeclarationProcedure(Declaration):
     @check_parameters
     def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration, *, source_position: SourcePosition):
@@ -1184,13 +1221,6 @@ class DeclarationProcedure(Declaration):
         self.stage = stage
         self.depends = depends
         self.produces = produces
-
-        if self.stage.stage == RunStage.Input and len(self.depends.dependencies) > 0:
-            # TODO: Allow this?
-            hints = [
-                CompilerHint(self.depends, 'Dependencies declared here'),
-            ]
-            raise ProgramError(self.stage, f'Procedure name {self.name} is declared as input stage but depends on something else', hints=hints)
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state variable after writing to a CSV file. The new value for the state variable might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
@@ -1219,6 +1249,12 @@ class DeclarationProcedure(Declaration):
     def compile_pass2(self, graph):
         self.depends.compile_pass2(graph, self)
         self.produces.compile_pass2(graph, self)
+        if self.stage.stage == RunStage.Input:
+            for dep in self.depends.get_resolved_dependencies():
+                if not dependency_is_resource(dep):
+                    raise ProgramError(self.stage, f'Procedure name {self.name} is declared as input stage but depends on something else', hints=[
+                        CompilerHint(self.depends, 'Dependencies declared here'),
+                    ])
 
     # TODO: Clean up compilation passes
 

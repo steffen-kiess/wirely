@@ -1,0 +1,3 @@
+native node type Invalid {
+  native initializer depends on Missing; // E: Could not find dependency
+}

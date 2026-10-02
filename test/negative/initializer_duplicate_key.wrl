@@ -1,0 +1,7 @@
+resource type Handle;
+native node type Invalid {
+  input Service : resource Handle;
+  native initializer
+    depends on Service, // H: Previous binding was here
+      Service; // E: Duplicate procedure binding key
+}

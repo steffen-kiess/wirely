@@ -58,8 +58,8 @@ class TwoNDeviceData:
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNDeviceData)
 class Connection(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         import wirely.two_n.client
 
@@ -167,8 +167,8 @@ class TwoNCodeData:
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNKeyData)
 class KeyEvent(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         self.received_value = None
 
@@ -187,11 +187,7 @@ class KeyEvent(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        device_path, device_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Device'])
-        print(f'  Using device object: {device_path}', flush=True)
-
-        self.native_device = engine.native_states[device_path]
+        self.native_device = inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -237,8 +233,8 @@ class KeyEvent(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNCodeData)
 class CodeEnteredEvent(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         self.pending = False
 
@@ -257,11 +253,7 @@ class CodeEnteredEvent(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        device_path, device_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Device'])
-        print(f'  Using device object: {device_path}', flush=True)
-
-        self.native_device = engine.native_states[device_path]
+        self.native_device = inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -351,8 +343,8 @@ class KeyState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
 class IOState(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
@@ -374,11 +366,7 @@ class IOState(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        device_path, device_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Device'])
-        print(f'  Using device object: {device_path}', flush=True)
-
-        self.native_device = engine.native_states[device_path]
+        self.native_device = inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -440,8 +428,8 @@ class IOState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNSwitchData)
 class SwitchState(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
@@ -463,11 +451,7 @@ class SwitchState(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        device_path, device_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Device'])
-        print(f'  Using device object: {device_path}', flush=True)
-
-        self.native_device = engine.native_states[device_path]
+        self.native_device = inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -527,8 +511,8 @@ class SwitchState(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
 class OutputControl(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         # Task is needed for sending out values
         self.task = None
@@ -552,11 +536,7 @@ class OutputControl(blocks.NativeState):
 
         self.data.dump()
 
-        # TODO: Clean up
-        device_path, device_var = blocks.resolve_variable(path, path[-1].block_inputs_byname['Device'])
-        print(f'  Using device object: {device_path}', flush=True)
-
-        self.native_device = engine.native_states[device_path]
+        self.native_device = inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

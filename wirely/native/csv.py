@@ -67,8 +67,8 @@ class CsvWriterParameters:
 class ValueWriter(blocks.NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
 
         self.file = None
 

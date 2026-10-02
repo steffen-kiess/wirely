@@ -97,7 +97,9 @@ class Program:
                 raise Exception(f'Got circular procedure dependency: {doing}')
             doing.append((path, proc.proc_identifier))
             for dep in proc.dependencies:
-                if isinstance(dep, blocks.Block.StateVariable):
+                if blocks.ast.dependency_is_resource(dep):
+                    continue
+                elif isinstance(dep, blocks.Block.StateVariable):
                     continue
                 elif isinstance(dep, blocks.Block.Input) and dep.is_list:
                     for child in dep.members:
@@ -144,6 +146,55 @@ class Program:
         res.state_variables = blocks.VariableBlock(state_variables, f'{graph}.state_variables')
         res.instances = instances
 
+        def resource_paths(path, source, binding):
+            is_list = isinstance(source, blocks.Block.Input) and source.is_list
+            members = source.members if is_list else (source,)
+            paths = []
+            for member in members:
+                try:
+                    provider_path, output = blocks.resolve_variable(path, member)
+                except RecursionError as exc:
+                    raise blocks.ProgramError(binding, 'Circular resource connection') from exc
+                if not instances[provider_path].block_type.is_native:
+                    raise blocks.ProgramError(binding, 'Resource binding has no native provider', hints=[
+                        blocks.CompilerHint(output.conn_spec, 'Resource output was declared here'),
+                    ])
+                paths.append(provider_path)
+            return tuple(paths), is_list
+
+        res.initializer_bindings = {}
+        construction_dependencies = {}
+        for path, instance in instances.items():
+            block = instance.block if instance.block is not None else instance.block_type.singleton_instance
+            bindings = []
+            dependencies = []
+            for name, (source, binding) in block.initializer_sources.items():
+                paths, is_list = resource_paths(path, source, binding)
+                bindings.append((name, paths, is_list))
+                dependencies.extend((provider, binding) for provider in paths)
+            res.initializer_bindings[path] = bindings
+            construction_dependencies[path] = dependencies
+
+        construction_order = []
+        constructed = set()
+        constructing = set()
+
+        def order_construction(path):
+            if path in constructed:
+                return
+            constructing.add(path)
+            for provider, binding in construction_dependencies[path]:
+                if provider in constructing:
+                    raise blocks.ProgramError(binding, 'Circular native initializer dependency')
+                order_construction(provider)
+            constructing.remove(path)
+            constructed.add(path)
+            construction_order.append(path)
+
+        for path in instances:
+            order_construction(path)
+        res.native_construction_order = construction_order
+
         proc_static_contexts = {}
         for stage_procs in res.procs.values():
             for path, proc in stage_procs:
@@ -151,6 +202,11 @@ class Program:
                 proc_context = proc.static_context
                 proc_context = blocks.StaticProcedureContext(sources=proc_context._sources, targets=proc_context._targets, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, block=instance.static_context)
                 for name, source in proc_context._sources.items():
+                    if blocks.ast.dependency_is_resource(source):
+                        binding = next(binding for binding in proc.declaration_procedure.depends.dependencies if binding.key == name)
+                        paths, is_list = resource_paths(path, source, binding)
+                        proc_context._resource_bindings.append((name, paths, is_list))
+                        continue
                     is_state = isinstance(source, blocks.Block.StateVariable)
                     is_list = isinstance(source, blocks.Block.Input) and source.is_list
                     if is_state:

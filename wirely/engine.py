@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import datetime
+from types import MappingProxyType
 
 import wirely as blocks
 from wirely.util import check_parameters
@@ -33,33 +34,24 @@ class Engine:
 
         self.fake_monotonic_time_offset = None
 
-        # TODO: Clean up iterating over all blocks paths
-        done_block_path = set()
-        for block_name in self.program.graph.blocks:
-            for block_path in self.program.graph.blocks[block_name].get_all_block_paths(()):
-                if block_path in done_block_path:
-                    if not isinstance(block_path[0], blocks.BlockType) or not block_path[0].is_singleton:
-                        raise Exception('Got duplicate non-singleton block')
-                    continue
-                done_block_path.add(block_path)
+        for block_path in self.program.native_construction_order:
+            block = block_path[-1]
+            instance = self.program.instances[block_path]
+            inputs = MappingProxyType(self._resource_inputs(self.program.initializer_bindings[block_path]))
+            self.native_states[block_path] = block.create_native_state(
+                block_path, self, static_block_context=instance.static_context, inputs=inputs,
+            )
+            if not isinstance(block, blocks.Block):
+                block = block.singleton_instance
+            for var in block.block_statevars:
+                self.state.add(self.program.state_map[block_path, var], var.initial_value)
 
-                block = block_path[-1]
-                instance = self.program.instances[block_path]
-                # TODO: Clean up
-                if instance.is_singleton:
-                    if block != instance.block_type:
-                        raise Exception('block != instance.block_type')
-                else:
-                    if block != instance.block:
-                        raise Exception('block != instance.block')
-
-                # TODO: Pass full context to native state constructor?
-                self.native_states[block_path] = block.create_native_state(block_path, self, static_block_context=instance.static_context)
-                # TODO: Remove hack
-                if not isinstance(block, blocks.Block):
-                    block = block.singleton_instance
-                for var in block.block_statevars:
-                    self.state.add(self.program.state_map[block_path, var], var.initial_value)
+    def _resource_inputs(self, bindings):
+        inputs = {}
+        for name, paths, is_list in bindings:
+            values = [self.native_states[path] for path in paths]
+            inputs[name] = values if is_list else values[0]
+        return inputs
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         def start_task_cleanup():
@@ -145,7 +137,7 @@ class Engine:
                 # print(proc)
                 instance = self.program.instances[path]
                 static = self.program.proc_static_contexts[(instance, proc)]
-                inputs = {}
+                inputs = self._resource_inputs(static._resource_bindings)
                 skip_step = cache is not None and (path, proc) not in self.triggered_procs
                 for name, variables, is_state, is_list in static._input_bindings:
                     if is_state:

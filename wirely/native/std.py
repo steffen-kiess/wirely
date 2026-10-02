@@ -89,8 +89,8 @@ class DebugEventPrinter:
 
 @native_block_type(native_block_types, has_state=True)
 class DebugValueSource(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         self.current_value = None
 
         # TODO: Clean this up
@@ -138,8 +138,8 @@ class DebugValueSource(blocks.NativeState):
 
 @native_block_type(native_block_types, has_state=True)
 class DebugEventSource(blocks.NativeState):
-    def __init__(self, path, engine, static_block_context):
-        super().__init__(path, engine, static_block_context)
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
         # TODO: Allow a queue of values?
         self.next_value = None
 

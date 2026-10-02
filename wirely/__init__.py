@@ -223,10 +223,11 @@ def resolve_variable(path, var):
 
 # TODO: Rename to NativeBlockState?
 class NativeState:
-    def __init__(self, path, engine, static_block_context):
+    def __init__(self, path, engine, static_block_context, *, inputs: Mapping[str, object]):
         self.block_path = path
         self.engine = engine
         self.static_block_context = static_block_context
+        self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
 
     @property
     def block_type(self):
@@ -357,6 +358,7 @@ class StaticProcedureContext:
         self._sources = sources
         self._targets = targets
         self._input_bindings = []
+        self._resource_bindings = []
         self._result_types = {}
         self.name = name
         self.block = block
@@ -431,7 +433,7 @@ from wirely.program import Program
 from wirely.engine import Engine
 
 from .ast import UnitLiteral
-from .ast import ProcedureBinding
+from .ast import ProcedureBinding, DeclarationInitializer
 from .ast import ProgramError, InternalCompilerError, CompilerHint, SourcePosition, Declaration, BlockConnectorTypeSpecifier, ListSpecifier, ProgramError, Identifier, IntNumber, FloatNumber, StringConstant, Reference, Declaration, DeclarationConnector, DeclarationParameter, BlockInstantiation, DeclarationBlockInstantiation, DeclarationConnection, DeclarationStateVariable, DeclarationTemporaryVariable, DeclarationProcedure, NativeSpecifier, OptionalSpecifier, StageDeclaration, DependsDeclaration, ProducesDeclaration, ConnectionKindSpecifier, ConnectorSpecification, ConnectorSpecificationData, ConnectorSpecificationResource, DeclarationResourceType, DeclarationLibrary, BlockParameter, Scope, BlockTypeSpecifier, ListLiteral, FunctionCall, BracketOperator, ConnectionKind, RunStage
 
 from .block_type import BlockType

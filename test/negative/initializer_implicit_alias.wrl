@@ -1,0 +1,5 @@
+resource type Handle;
+native node type Invalid {
+  implicit input : resource Handle;
+  native initializer depends on implicit input; // E: Implicit connectors and complex references require an explicit alias
+}

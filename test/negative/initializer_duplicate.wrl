@@ -1,0 +1,4 @@
+native node type Invalid {
+  native initializer; // H: Previous initializer was here
+  native initializer; // E: Duplicate native initializer
+}
