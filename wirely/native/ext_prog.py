@@ -20,7 +20,7 @@ class LaunchOnEventData:
         return LaunchOnEventData(shell_command=par_shell_command)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=LaunchOnEventData)
+@native_block_type(native_block_types, has_native_state=True, data_type=LaunchOnEventData)
 class LaunchOnEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

@@ -63,7 +63,7 @@ class CsvWriterParameters:
         return CsvWriterParameters(type=ty, filename=filename)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=CsvWriterParameters)
+@native_block_type(native_block_types, has_native_state=True, data_type=CsvWriterParameters)
 class ValueWriter(blocks.NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
@@ -160,8 +160,8 @@ class ValueWriter(blocks.NativeState):
         force = reached != blocks.Some(False) and new_value_csv != ('', False)
         # print(f'NewValue={new_value} Reached={reached} force={force}')
 
-        # Note: This uses RunStage.Default to be as consistent as possible with the time seen by procedures in the default stage
-        time = context.step_info.stage_start_time[blocks.RunStage.Default]
+        # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
+        time = context.step_info.stage_start_time[blocks.RunStage.DEFAULT]
 
         if force:
             # Make sure that if in the next cycle/step the timeout is reached again, the procedure will be called again.
@@ -171,7 +171,7 @@ class ValueWriter(blocks.NativeState):
         written = self.write_value(new_value_csv, time, force=force)
         if written:
             # TODO: Think what happens if new_value_csv is ('', False)
-            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
+            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
             # Write value once an hour
             repeat_time = now + blocks.Duration.parse('PT1H')
 

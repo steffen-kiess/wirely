@@ -108,7 +108,7 @@ procedure_calls = []
 startup_inputs = []
 
 
-@native_block_type(registry, has_state=True)
+@native_block_type(registry, has_native_state=True)
 class Provider(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -120,12 +120,12 @@ class Provider(blocks.NativeState):
         constructed.append(self)
 
 
-@native_block_type(registry, has_state=True)
+@native_block_type(registry, has_native_state=True)
 class Shared(Provider):
     pass
 
 
-@native_block_type(registry, has_state=True)
+@native_block_type(registry, has_native_state=True)
 class Consumer(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -157,7 +157,7 @@ class Consumer(blocks.NativeState):
         procedure_calls.append(('poll', context.inputs['Service']))
 
 
-@native_block_type(registry, has_state=False)
+@native_block_type(registry, has_native_state=False)
 class ProcedureConsumer:
     @native_procedure
     @staticmethod
@@ -167,7 +167,7 @@ class ProcedureConsumer:
         context.set_result('Count', context.inputs['Service'].value)
 
 
-@native_block_type(registry, has_state=True)
+@native_block_type(registry, has_native_state=True)
 class Dependent(blocks.NativeState):
     pass
 

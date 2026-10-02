@@ -42,7 +42,7 @@ from wirely.native import native_block_type, native_procedure
 native_block_types = {}
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionSome:
     @native_procedure
     @staticmethod
@@ -50,16 +50,19 @@ class OptionSome:
         context.set_result('output', wirely.Some(context.inputs['input']))
 ```
 
-Use `has_state=False` and static methods for a `node type` with native
+Use `has_native_state=False` and static methods for a `node type` with native
 procedures. Put `@native_procedure` above `@staticmethod`, as shown.
-A `native node type` instead uses `has_state=True` and instance methods,
-`def run(self, *, context)`. Here, `has_state` means a Python object owned
-by the engine; either form can also declare `.wrl` state variables.
+A `native node type` uses `has_native_state=True` and instance methods,
+`def run(self, *, context)`. The engine owns the Python instance.
+Either form can also declare `.wrl` state variables.
 
 Procedures run synchronously with the keyword argument `context`; their
 return values are ignored. Use native node tasks for asynchronous I/O.
 
 ## Inputs, results, and state
+
+`context.name` is read-only and uses the node naming described under
+[native objects](#native-objects-resources-and-tasks).
 
 `context.inputs` is a read-only `Mapping[str, object]` from
 `collections.abc`, backed by `types.MappingProxyType`. It holds dependency
@@ -126,7 +129,7 @@ compilation, with a `wirely.NativeNodeConfigurationContext`. It provides
 `parameters` as described above and `name`, the dotted instance name or
 qualified singleton type name. The returned object is available as
 `context.configuration` in procedures and `self.context.configuration` in
-native nodes, with either `has_state` setting.
+native nodes, with either `has_native_state` setting.
 
 Raise `context.error(message, parameter='Name')` for a configuration error.
 Its location identifies the parameter's argument, default, or declaration;
@@ -250,7 +253,7 @@ state have not changed, unless explicitly triggered or due for a wakeup.
 No-dependency procedures therefore do not automatically run every step.
 
 `context.step_info` holds timestamp dictionaries keyed by
-`wirely.RunStage.Input`, `Default`, or `Output`, for stages already started:
+`wirely.RunStage.INPUT`, `DEFAULT`, or `OUTPUT`, for stages already started:
 
 | Field | Timestamp |
 | --- | --- |

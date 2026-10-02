@@ -31,7 +31,7 @@ class Configuration:
         return prepare(context) if prepare else context.parameters
 
 
-@native_block_type(registry, has_state=False, data_type=Configuration)
+@native_block_type(registry, has_native_state=False, data_type=Configuration)
 class ConfigurationProbe:
     @native_procedure
     @staticmethod
@@ -175,9 +175,9 @@ with tempfile.TemporaryDirectory() as directory:
     parameter UsernamePasswordFile : String = "credentials.txt";''',
                     filename=str(Path(directory) / 'main.wrl'))
     filename.unlink()
-    data = next(instance.static_context.parsed_native_instance
+    data = next(instance.static_context.configuration
                 for instance in program.instances.values()
-                if isinstance(instance.static_context.parsed_native_instance, TwoNDeviceData))
+                if isinstance(instance.static_context.configuration, TwoNDeviceData))
     assert data.username == 'username'
     assert data.password == 'password'
     assert not hasattr(data, 'filename')

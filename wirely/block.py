@@ -518,7 +518,7 @@ class BlockInstance(blocks.NodeInstance):
                 except Exception as error:
                     raise blocks.InternalCompilerError(source, error, msg=f'Error while preparing configuration: {error}') from error
         self.static_context = blocks.StaticBlockContext(
-            parameters=parameters, parsed_native_instance=configuration,
+            name=name, parameters=parameters, configuration=configuration,
         )
 
     @property

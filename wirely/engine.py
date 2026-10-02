@@ -38,15 +38,11 @@ class Engine:
             block = block_path[-1]
             instance = self.program.instances[block_path]
             inputs = MappingProxyType(self._resource_inputs(self.program.initializer_bindings[block_path]))
-            name = '.'.join(
-                node.name if isinstance(node, blocks.Block) else node.fullname
-                for node in block_path
-            )
             context = blocks.NativeNodeContext(
-                name=name,
+                name=instance.static_context.name,
                 parameters=instance.static_context.parameters,
                 inputs=inputs,
-                configuration=instance.static_context.parsed_native_instance,
+                configuration=instance.static_context.configuration,
                 _engine=self,
                 _block_path=block_path,
             )
@@ -206,7 +202,7 @@ class Engine:
                 proc.impl(context=pcontext, native_state=native_state)
                 missing = set(static._targets) - pcontext._written_results
                 if missing:
-                    raise ValueError(f'Procedure {proc} did not write results: {sorted(missing)!r}')
+                    raise ValueError(f'Procedure {proc.declaration_procedure.python_name!r} on {pcontext.name} did not write results: {sorted(missing)!r}')
 
                 if pcontext.wakeup_time is None:
                     if (path, proc) in self.wakeups:

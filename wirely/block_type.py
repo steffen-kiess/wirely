@@ -203,11 +203,10 @@ class BlockType(blocks.Scope):
         if have_native:
             # TODO: Should this be done here? This will be called if 'self' is used in another block, even if that block is not instantiated. Probably looking up the native block type should be delayed until then to avoid loading the native module needed for that. Alternatively, the native class should be looked up even if 'self' is not used at all to do proper error checking.
             native_class = wirely.native.get_native_block_type(self)
-            if self.is_native and not native_class.native_block_has_state:
-                # TODO: Allow this?
-                raise Exception(f'Block type {self.fullname!r} requires native state but native class is stateless')
-            if not self.is_native and native_class.native_block_has_state:
-                raise Exception(f'Block type {self.fullname!r} does not requires native state but native class is stateful')
+            if self.is_native and not native_class.native_block_has_native_state:
+                raise blocks.ProgramError(self, f'Node type {self.fullname!r} requires has_native_state=True')
+            if not self.is_native and native_class.native_block_has_native_state:
+                raise blocks.ProgramError(self, f'Node type {self.fullname!r} requires has_native_state=False')
         block.native_class = native_class
 
         block.initializer_sources = {}

@@ -505,12 +505,12 @@ async def run_test(test_name):
                     raise Exception('Could not find Filename parameter')
 
                 block_instance = prog.instances[path]
-                old_value = block_instance.static_context.parsed_native_instance.filename
+                old_value = block_instance.static_context.configuration.filename
                 new_value = testdir + '/' + os.path.basename(old_value)
                 print(f'Changing static_context Filename from {old_value} to {new_value}', flush=True)
                 # TODO: Clean up
-                # block_instance.static_context.parsed_native_instance.filename = new_value
-                block_instance.static_context.parsed_native_instance.__dict__['filename'] = new_value
+                # block_instance.static_context.configuration.filename = new_value
+                block_instance.static_context.configuration.__dict__['filename'] = new_value
                 found = False
                 for key in block_instance.parameter_values:
                     if key.name.id_str != 'Filename':
@@ -594,7 +594,7 @@ async def run_test(test_name):
                     raise Exception('Could not find Host parameter')
 
                 block_instance = prog.instances[path]
-                old_value = block_instance.static_context.parsed_native_instance.hostname
+                old_value = block_instance.static_context.configuration.hostname
                 new_value = new_hostname
                 print(f'Changing static_context Host from {old_value} to {new_value}', flush=True)
                 found = False
@@ -610,10 +610,10 @@ async def run_test(test_name):
                     raise Exception('Could not find Host parameter')
 
                 # TODO: Clean up
-                # block_instance.static_context.parsed_native_instance.hostname = new_value
-                block_instance.static_context.parsed_native_instance.__dict__['hostname'] = new_value
-                block_instance.static_context.parsed_native_instance.__dict__['port'] = new_port
-                block_instance.static_context.parsed_native_instance.__dict__['tlsa'] = new_tlsa
+                # block_instance.static_context.configuration.hostname = new_value
+                block_instance.static_context.configuration.__dict__['hostname'] = new_value
+                block_instance.static_context.configuration.__dict__['port'] = new_port
+                block_instance.static_context.configuration.__dict__['tlsa'] = new_tlsa
 
                 replacements = {'Port': new_port, 'TLSA': new_tlsa}
                 for key, value in block_instance.parameter_values.items():

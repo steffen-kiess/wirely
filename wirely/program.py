@@ -203,7 +203,7 @@ class Program:
             for path, proc in stage_procs:
                 instance = res.instances[path]
                 proc_context = proc.static_context
-                proc_context = blocks.StaticProcedureContext(sources=proc_context._sources, targets=proc_context._targets, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, block=instance.static_context)
+                proc_context = blocks.StaticProcedureContext(sources=proc_context._sources, targets=proc_context._targets, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, node_context=instance.static_context)
                 for name, source in proc_context._sources.items():
                     if blocks.ast.dependency_is_resource(source):
                         binding = next(binding for binding in proc.declaration_procedure.depends.dependencies if binding.key == name)

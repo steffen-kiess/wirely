@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import io
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
@@ -18,10 +19,10 @@ checks = TestCase()
 std_source = Path('wirely/lib/std.wrl').read_text()
 
 
-def make_engine(declaration, callback, *, extra='', parameters=''):
+def make_engine(declaration, callback, *, extra='', parameters='', singleton=False):
     registry = {}
 
-    @native_block_type(registry, has_state=False)
+    @native_block_type(registry, has_native_state=False)
     class Probe:
         @native_procedure
         @staticmethod
@@ -33,9 +34,10 @@ def make_engine(declaration, callback, *, extra='', parameters=''):
         def run2(*, context):
             callback(context)
 
+    qualifier = 'singleton ' if singleton else ''
     source = f'''
 namespace TestLibrary {{
-  node type Probe {{
+  {qualifier}node type Probe {{
 {indent(declaration.strip(), "    ")}
   }}
 }}
@@ -74,10 +76,12 @@ def check_inputs(context):
         context.inputs['value'] = 8
     with checks.assertRaises(KeyError):
         context.inputs['missing']
-    for attribute in ('dep_values', 'results', 'state_old', 'state_new'):
+    for attribute in ('static', 'dep_values', 'results', 'state_old', 'state_new'):
         assert not hasattr(context, attribute)
-    for attribute in ('sources', 'targets', 'state'):
-        assert not hasattr(context.static, attribute)
+    assert context.name == 'probe'
+    with checks.assertRaises(AttributeError):
+        context.name = 'other'
+    assert repr(context) == "ProcedureContext(name='probe')"
     seen.append(context.inputs)
     context.set_result('result', context.inputs['value'])
 
@@ -99,10 +103,74 @@ probe.step()
 probe.assert_value_is('probe', 7)
 
 
+named_contexts = []
+
+
+def check_node_name(context):
+    assert not hasattr(context, 'static')
+    with checks.assertRaisesRegex(ValueError, f'on {context.name}$'):
+        context.set_result('missing', None)
+    named_contexts.append(context.name)
+
+
+named_engine = make_engine('native procedure run;', check_node_name, extra='''
+node type Outer {
+  node child : TestLibrary.Probe;
+}
+node outer : Outer;
+namespace TestLibrary {
+  singleton node type SharedContainer {
+    node child : Probe;
+  }
+}
+node shared : TestLibrary.SharedContainer;
+node shared_again : TestLibrary.SharedContainer;
+''')
+named_engine.step()
+assert sorted(named_contexts) == ['TestLibrary.SharedContainer.child', 'outer.child', 'probe']
+named_contexts.clear()
+named_engine = make_engine('native procedure run;', check_node_name, singleton=True)
+named_engine.step()
+assert named_contexts == ['TestLibrary.Probe']
+
+assert [stage.name for stage in blocks.RunStage] == ['INPUT', 'DEFAULT', 'OUTPUT']
+assert [stage.value for stage in blocks.RunStage] == [1, 2, 3]
+
+for has_native_state in [False, True]:
+    registry = {}
+
+    @native_block_type(registry, has_native_state=has_native_state)
+    class RegistrationProbe:
+        @native_procedure
+        @staticmethod
+        def run(*, context):
+            pass
+
+    qualifier = '' if has_native_state else 'native '
+    source = f'''namespace TestLibrary {{
+  {qualifier}node type RegistrationProbe {{
+    native procedure run;
+  }}
+}}
+node probe : TestLibrary.RegistrationProbe;
+'''
+    output = io.StringIO()
+    errors = io.StringIO()
+    with patch.dict(wirely.native.test_library.native_block_types, registry):
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            graph = wirely.compiler.compile_strs([('<native-registration>', source)])
+            program = blocks.Program.compile(graph) if graph is not None else None
+    assert program is None
+    assert not errors.getvalue()
+    assert f'requires has_native_state={not has_native_state}' in output.getvalue()
+    assert 'Error in <native-registration>:2:' in output.getvalue()
+    assert 'Traceback' not in output.getvalue()
+
+
 trigger_registry = {}
 
 
-@native_block_type(trigger_registry, has_state=True)
+@native_block_type(trigger_registry, has_native_state=True)
 class TriggerProbe(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -131,6 +199,7 @@ class TriggerProbe(blocks.NativeState):
     @native_procedure
     def refresh(self, *, context):
         assert not hasattr(context, 'trigger')
+        assert context.name == self.context.name
         self.calls.append('refresh')
         if self.reschedule_once:
             self.reschedule_once = False
@@ -141,7 +210,7 @@ class TriggerProbe(blocks.NativeState):
         self.calls.append('run')
 
 
-@native_block_type(trigger_registry, has_state=True)
+@native_block_type(trigger_registry, has_native_state=True)
 class SharedTriggerProbe(TriggerProbe):
     pass
 
@@ -321,19 +390,20 @@ node another : TestLibrary.Probe;
 
 
 def check_result_errors(context):
-    with checks.assertRaisesRegex(ValueError, 'Unknown result'):
+    with checks.assertRaisesRegex(ValueError, f'Unknown result.*on {context.name}$'):
         context.set_result('missing', 7)
     try:
         context.set_result('result', 'invalid')
     except ValueError as error:
         assert 'Invalid value' in str(error)
+        assert f'on {context.name}:' in str(error)
         assert 'check_result_errors' in [
             frame.name for frame in traceback.extract_tb(error.__traceback__)
         ]
     else:
         raise AssertionError('Invalid result was accepted')
     context.set_result('result', 7)
-    with checks.assertRaisesRegex(ValueError, 'already written'):
+    with checks.assertRaisesRegex(ValueError, f'on {context.name} was already written'):
         context.set_result('result', 8)
 
 
@@ -484,7 +554,7 @@ cleanup_observations = []
 lifecycle_registry = {}
 
 
-@native_block_type(lifecycle_registry, has_state=True)
+@native_block_type(lifecycle_registry, has_native_state=True)
 class LifecycleProbe(blocks.NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         assert self._shutdown_time is None

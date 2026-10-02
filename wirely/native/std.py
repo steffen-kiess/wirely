@@ -6,7 +6,7 @@ from wirely.native import native_block_type, native_procedure
 native_block_types = {}
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class Constant:
     @native_procedure
     @staticmethod
@@ -16,7 +16,7 @@ class Constant:
         context.set_result('output', par_value)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class And:
     @native_procedure
     @staticmethod
@@ -32,7 +32,7 @@ class And:
         context.set_result('output', res)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class Delay:
     @native_procedure
     @staticmethod
@@ -54,7 +54,7 @@ class Delay:
         # print(value)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class TwoStageValueForward:
     @native_procedure
     @staticmethod
@@ -67,27 +67,27 @@ class TwoStageValueForward:
         context.set_result('output', context.inputs['temp'])
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class DebugValuePrinter:
     @native_procedure
     @staticmethod
     def run(*, context):
         value = context.inputs['input']
 
-        print(f'[{context.static.name}]: Got value {value}', flush=True)
+        print(f'[{context.name}]: Got value {value}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class DebugEventPrinter:
     @native_procedure
     @staticmethod
     def run(*, context):
         value = context.inputs['input']
 
-        print(f'[{context.static.name}]: Got event {value}', flush=True)
+        print(f'[{context.name}]: Got event {value}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class DebugValueSource(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -123,7 +123,7 @@ class DebugValueSource(blocks.NativeState):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class DebugEventSource(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -166,7 +166,7 @@ class DebugEventSource(blocks.NativeState):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionNone:
     @native_procedure
     @staticmethod
@@ -176,7 +176,7 @@ class OptionNone:
         context.set_result('output', val)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionSome:
     @native_procedure
     @staticmethod
@@ -188,7 +188,7 @@ class OptionSome:
         context.set_result('output', val)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionUnwrapOrDefault:
     @native_procedure
     @staticmethod
@@ -205,7 +205,7 @@ class OptionUnwrapOrDefault:
         context.set_result('output', res)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionIsSome:
     @native_procedure
     @staticmethod
@@ -213,7 +213,7 @@ class OptionIsSome:
         context.set_result('output', context.inputs['input'] is not None)
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class OptionCreate:
     @native_procedure
     @staticmethod
@@ -241,7 +241,7 @@ class EdgeData:
         return EdgeData(edge_type=par_edge_type)
 
 
-@native_block_type(native_block_types, has_state=False, data_type=EdgeData)
+@native_block_type(native_block_types, has_native_state=False, data_type=EdgeData)
 class DetectEdge:
     @native_procedure
     @staticmethod

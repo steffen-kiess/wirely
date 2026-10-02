@@ -234,7 +234,7 @@ class MqttData:
         print(f'  Using format: {self.format!r}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class Connection(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -345,7 +345,7 @@ class Connection(blocks.NativeState):
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
-@native_block_type(native_block_types, has_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
 class ValueOptionProvider(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -415,7 +415,7 @@ class ValueOptionProvider(blocks.NativeState):
             print(f'Sending {value} to {self.data.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
 class EventEmitter(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -489,7 +489,7 @@ class EventEmitter(blocks.NativeState):
             print(f'Sending {value} to {self.data.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
 class EventReceiver(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

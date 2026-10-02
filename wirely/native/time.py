@@ -12,13 +12,13 @@ from wirely.util import check_parameters
 native_block_types = {}
 
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class MonotonicTimeReached(blocks.NativeState):
     @native_procedure
     @staticmethod
     def run(*, context):
         time = context.inputs['input']
-        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
+        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
 
         # print('MonotonicTimeReached', time, now)
         if not blocks.MonotonicTime.is_comparable(time, now):
@@ -48,7 +48,7 @@ class DelayChangeData:
         return DelayChangeData(time=time)
 
 
-@native_block_type(native_block_types, has_state=False, data_type=DelayChangeData)
+@native_block_type(native_block_types, has_native_state=False, data_type=DelayChangeData)
 class DelayChange(blocks.NativeState):
     @native_procedure
     @staticmethod
@@ -77,7 +77,7 @@ class DelayChange(blocks.NativeState):
             out = inp
         elif new != blocks.Some(inp):
             # Input is neither cur not new. Start a change to inp.
-            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
+            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
             n_cur = cur
             n_new = blocks.Some(inp)
             n_update_time = now + data.time
@@ -111,7 +111,7 @@ class DelayChange(blocks.NativeState):
         context.set_result('output', out)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class TimeOfDayMinute(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -229,7 +229,7 @@ class IsBetweenData:
         return IsBetweenData(start=par_start, end=par_end)
 
 
-@native_block_type(native_block_types, has_state=False, data_type=IsBetweenData)
+@native_block_type(native_block_types, has_native_state=False, data_type=IsBetweenData)
 class IsBetween:
     @native_procedure
     @staticmethod
@@ -274,7 +274,7 @@ class TriggerAtData:
         return TriggerAtData(value=value)
 
 
-@native_block_type(native_block_types, has_state=False, data_type=TriggerAtData)
+@native_block_type(native_block_types, has_native_state=False, data_type=TriggerAtData)
 class TriggerAt:
     @native_procedure
     @staticmethod

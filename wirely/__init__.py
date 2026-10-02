@@ -358,10 +358,10 @@ class VariableBlockInstance:
 # TODO: Prevent modifications, more checks
 # TODO: Merge this into BlockInstance? Or should this data (which will be needed at runtime) be kept separately?
 class StaticBlockContext:
-    def __init__(self, *, parameters, parsed_native_instance):
+    def __init__(self, *, name, parameters, configuration):
         self.parameters: Mapping[str, object] = parameters
-        # TODO: Rename?
-        self.parsed_native_instance = parsed_native_instance
+        self.name = name
+        self.configuration = configuration
 
     def __repr__(self):
         return f'StaticBlockContext({self.__dict__!r})'
@@ -370,14 +370,14 @@ class StaticBlockContext:
 # Things which will stay the same if the same instance of a procedure is executed multiple times
 # TODO: Prevent modifications, more checks
 class StaticProcedureContext:
-    def __init__(self, *, sources, targets, name, block_parameter_values, block=None):
+    def __init__(self, *, sources, targets, name, block_parameter_values, node_context=None):
         self._sources = sources
         self._targets = targets
         self._input_bindings = []
         self._resource_bindings = []
         self._result_types = {}
         self.name = name
-        self.block = block
+        self.node_context = node_context
         self.block_parameter_values = block_parameter_values
 
     def __repr__(self):
@@ -390,29 +390,33 @@ class ProcedureContext:
         self._results = results
         self._state_new = state_new
         self._written_results = set()
-        self.static = static
+        self._static = static
         self.step_info = step_info
         self.wakeup_time = None
 
     @property
+    def name(self) -> str:
+        return self._static.node_context.name
+
+    @property
     def parameters(self) -> Mapping[str, object]:
-        return self.static.block.parameters
+        return self._static.node_context.parameters
 
     @property
     def configuration(self):
-        return self.static.block.parsed_native_instance
+        return self._static.node_context.configuration
 
     def set_result(self, name: str, value: object):
-        if not isinstance(name, str) or name not in self.static._targets:
-            raise ValueError(f'Unknown result name {name!r} in procedure on {self.static.name}')
+        if not isinstance(name, str) or name not in self._static._targets:
+            raise ValueError(f'Unknown result name {name!r} in procedure on {self.name}')
         if name in self._written_results:
-            raise ValueError(f'Result {name!r} was already written')
+            raise ValueError(f'Result {name!r} on {self.name} was already written')
         try:
-            value_type = self.static._result_types[name]
+            value_type = self._static._result_types[name]
             value = value_type.verify_value(value_types._from_native(value_type, value))
         except Exception as exc:
-            raise ValueError(f'Invalid value for result {name!r}: {exc}') from exc
-        target = self.static._targets[name]
+            raise ValueError(f'Invalid value for result {name!r} on {self.name}: {exc}') from exc
+        target = self._static._targets[name]
         if isinstance(target, blocks.Block.StateVariable):
             self._state_new[target] = value
         else:
@@ -420,7 +424,7 @@ class ProcedureContext:
         self._written_results.add(name)
 
     def __repr__(self):
-        return f'ProcedureContext({self.__dict__!r})'
+        return f'ProcedureContext(name={self.name!r})'
 
 
 # TODO: Rename to CycleContext?

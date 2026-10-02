@@ -33,7 +33,7 @@ class ToggleFlipFlopTriggerData:
         return ToggleFlipFlopTriggerData(output_value=output_value, minimum_delay=minimum_delay)
 
 
-@native_block_type(native_block_types, has_state=False, data_type=ToggleFlipFlopTriggerData)
+@native_block_type(native_block_types, has_native_state=False, data_type=ToggleFlipFlopTriggerData)
 class ToggleFlipFlopTrigger:
     @native_procedure
     @staticmethod
@@ -52,7 +52,7 @@ class ToggleFlipFlopTrigger:
     @staticmethod
     def update(*, context):
         data = context.configuration
-        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
+        now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
 
         inp = context.inputs['input']
         feedback = context.inputs['Feedback']

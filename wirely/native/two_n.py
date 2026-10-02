@@ -53,7 +53,7 @@ class TwoNDeviceData:
         print(f'  Using TLSA: {self.tlsa!r}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNDeviceData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNDeviceData)
 class Connection(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -163,7 +163,7 @@ class TwoNCodeData:
             print(f'  Code: {self.code!r}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNKeyData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNKeyData)
 class KeyEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -220,7 +220,7 @@ class KeyEvent(blocks.NativeState):
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNCodeData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNCodeData)
 class CodeEnteredEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -273,7 +273,7 @@ class CodeEnteredEvent(blocks.NativeState):
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_state=False, data_type=TwoNTimeoutData)
+@native_block_type(native_block_types, has_native_state=False, data_type=TwoNTimeoutData)
 class KeyState(blocks.NativeState):
     @native_procedure
     @staticmethod
@@ -293,7 +293,7 @@ class KeyState(blocks.NativeState):
 
         if event == blocks.Some(True):
             # KeyPressed
-            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.Default]
+            now = context.step_info.stage_start_time_monotonic[blocks.RunStage.DEFAULT]
             new_value = True
             new_timeout_time = now + data.timeout
         elif event == blocks.Some(False):
@@ -321,7 +321,7 @@ class KeyState(blocks.NativeState):
         context.set_result('current_value', new_value)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNIOData)
 class IOState(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -397,7 +397,7 @@ class IOState(blocks.NativeState):
         context.set_result('output', value)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNSwitchData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNSwitchData)
 class SwitchState(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -471,7 +471,7 @@ class SwitchState(blocks.NativeState):
         context.set_result('output', value)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=TwoNIOData)
+@native_block_type(native_block_types, has_native_state=True, data_type=TwoNIOData)
 class OutputControl(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

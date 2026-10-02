@@ -28,7 +28,7 @@ async def run_test():
 
         engine.get_native_state('test_input').set_value(False)
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
         engine.get_native_state('test_input').set_value(False)
@@ -37,7 +37,7 @@ async def run_test():
 
         engine.get_native_state('test_input').set_value(True)
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},false,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -55,7 +55,7 @@ async def run_test():
         # Wait until shortly after the entry gets repeated
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(10))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -73,7 +73,7 @@ async def run_test():
         # Wait until shortly after the entry gets repeated again
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -97,7 +97,7 @@ async def run_test():
         engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -116,7 +116,7 @@ async def run_test():
         engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -142,7 +142,7 @@ async def run_test():
         engine.get_native_state('test_input').set_value(False)
 
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -164,7 +164,7 @@ async def run_test():
 
         engine.get_native_state('test_option_input').set_value(blocks.Some(False))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},,false\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn2, expected)
 
         engine.get_native_state('test_option_input').set_value(blocks.Some(False))
@@ -173,7 +173,7 @@ async def run_test():
 
         engine.get_native_state('test_option_input').set_value(blocks.Some(True))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},false,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -191,7 +191,7 @@ async def run_test():
         # Wait until shortly after the entry gets repeated
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(10))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -209,7 +209,7 @@ async def run_test():
         # Wait until shortly after the entry gets repeated again
         engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,true\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again
@@ -221,7 +221,7 @@ async def run_test():
 
         engine.get_native_state('test_option_input').set_value(None)
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[blocks.RunStage.Default].isoformat()},true,\r\n'
+        expected += f'{step_info.stage_start_time[blocks.RunStage.DEFAULT].isoformat()},true,\r\n'
         assert_content_is(fn2, expected)
 
         # Because of the changed RepeatTime some procedures will be executed again

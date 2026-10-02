@@ -117,9 +117,9 @@ class BlockConnectorType(enum.Enum):
 
 
 class RunStage(enum.Enum):
-    Input = enum.auto()
-    Default = enum.auto()
-    Output = enum.auto()
+    INPUT = enum.auto()
+    DEFAULT = enum.auto()
+    OUTPUT = enum.auto()
 
 
 class BlockConnectorTypeSpecifier(SourceElement):
@@ -1032,15 +1032,15 @@ class StageDeclaration(SourceElement):
 
     @staticmethod
     def create_input(*, source_position: SourcePosition):
-        return StageDeclaration(stage=RunStage.Input, source_position=source_position)
+        return StageDeclaration(stage=RunStage.INPUT, source_position=source_position)
 
     @staticmethod
     def create_default(*, source_position: SourcePosition):
-        return StageDeclaration(stage=RunStage.Default, source_position=source_position)
+        return StageDeclaration(stage=RunStage.DEFAULT, source_position=source_position)
 
     @staticmethod
     def create_output(*, source_position: SourcePosition):
-        return StageDeclaration(stage=RunStage.Output, source_position=source_position)
+        return StageDeclaration(stage=RunStage.OUTPUT, source_position=source_position)
 
 
 class ProcedureBinding(SourceElement):
@@ -1229,7 +1229,7 @@ class DeclarationProcedure(Declaration):
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state variable after writing to a CSV file. The new value for the state variable might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
         # Disallowing this would make it possible to save the state variables before the output stage (and therefore before any results of the current step become externally visible). Or state variables could be saved twice, once before and once after the output stage.
-        # if self.stage.stage == RunStage.Output and len(self.produces.outputs) > 0:
+        # if self.stage.stage == RunStage.OUTPUT and len(self.produces.outputs) > 0:
         #     hints = [
         #         CompilerHint(self.depends, 'Output declared here'),
         #     ]
@@ -1262,7 +1262,7 @@ class DeclarationProcedure(Declaration):
     def compile_pass2(self, graph):
         self.depends.compile_pass2(graph, self)
         self.produces.compile_pass2(graph, self)
-        if self.stage.stage == RunStage.Input:
+        if self.stage.stage == RunStage.INPUT:
             for dep in self.depends.get_resolved_dependencies():
                 if not dependency_is_resource(dep):
                     raise ProgramError(self.stage, f'Procedure name {self.name} is declared as input stage but depends on something else', hints=[

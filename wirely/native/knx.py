@@ -54,7 +54,7 @@ class KnxData:
         print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class Connection(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -85,7 +85,7 @@ class Connection(blocks.NativeState):
         print('Connecting to KNX bus done', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class ValueReceiver(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -149,7 +149,7 @@ class ValueReceiver(blocks.NativeState):
         context.set_result('output', res_opt)
 
 
-@native_block_type(native_block_types, has_state=True)
+@native_block_type(native_block_types, has_native_state=True)
 class ValueOptionProvider(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -235,7 +235,7 @@ class ValueOptionProvider(blocks.NativeState):
             print(f'Sending {value} to {self.address} done', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=KnxData)
+@native_block_type(native_block_types, has_native_state=True, data_type=KnxData)
 class EventReceiver(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -295,7 +295,7 @@ class EventReceiver(blocks.NativeState):
         self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_state=True, data_type=KnxData)
+@native_block_type(native_block_types, has_native_state=True, data_type=KnxData)
 class EventEmitter(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

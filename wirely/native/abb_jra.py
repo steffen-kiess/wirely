@@ -29,7 +29,7 @@ class JRAStatus(enum.IntFlag):
     # Unassigned14 = (1 << 14)
     # Unassigned15 = (1 << 15)
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class InterpretStatusInformation:
     @native_procedure
     @staticmethod
@@ -42,7 +42,7 @@ class InterpretStatusInformation:
             res = bool(val & flag)
             context.set_result(name, res)
 
-@native_block_type(native_block_types, has_state=False)
+@native_block_type(native_block_types, has_native_state=False)
 class InterpretStatusInformationOption:
     @native_procedure
     @staticmethod

@@ -27,6 +27,7 @@ engine.assert_value_is('fallback.Value', True)
 
 registry = {}
 prepared = []
+prepared_names = {}
 seen = []
 callback = None
 
@@ -37,20 +38,22 @@ class PreparedData:
         assert isinstance(context, wirely.NativeNodeConfigurationContext)
         assert isinstance(context.parameters, MappingProxyType)
         assert '' not in context.parameters
+        prepared_names[id(context.parameters)] = context.name
         prepared.append(context.parameters)
         return context.parameters
 
 
-@native_block_type(registry, has_state=False, data_type=PreparedData)
+@native_block_type(registry, has_native_state=False, data_type=PreparedData)
 class ParameterProbe:
     @native_procedure
     @staticmethod
     def run(*, context):
+        assert context.name == prepared_names[id(context.parameters)]
         callback(context)
         seen.append(context.parameters)
 
 
-@native_block_type(registry, has_state=True, data_type=PreparedData)
+@native_block_type(registry, has_native_state=True, data_type=PreparedData)
 class StateParameterProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -61,6 +64,8 @@ class StateParameterProbe(wirely.NativeState):
     @native_procedure
     def run(self, *, context):
         assert self.parameters is context.parameters
+        assert context.name == self.context.name
+        assert context.name == prepared_names[id(context.parameters)]
         callback(context)
         seen.append(context.parameters)
 

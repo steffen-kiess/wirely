@@ -7,11 +7,11 @@ from wirely.util import check_parameters
 
 
 @check_parameters
-def native_block_type(namespace_dict, *, has_state: bool, data_type: typing.Optional[type] = None):
+def native_block_type(namespace_dict, *, has_native_state: bool, data_type: typing.Optional[type] = None):
     def native_block_type_impl(cls):
         cls_name = cls.__name__
 
-        cls.native_block_has_state = has_state
+        cls.native_block_has_native_state = has_native_state
         cls.native_block_data_type = data_type
 
         native_procedures = {}
@@ -21,8 +21,8 @@ def native_block_type(namespace_dict, *, has_state: bool, data_type: typing.Opti
             if not hasattr(value, 'is_native_procedure') or not value.is_native_procedure:
                 continue
 
-            if not has_state and not isinstance(inspect.getattr_static(cls, name), staticmethod):
-                raise Exception(f'Native procedure name {name!r} in block {cls_name!r} is not static but block type is stateless')
+            if not has_native_state and not isinstance(inspect.getattr_static(cls, name), staticmethod):
+                raise ValueError(f'Native procedure {name!r} on {cls_name!r} must be static when has_native_state=False')
 
             if name in native_procedures:
                 raise Exception(f'Duplicate native procedure name {name!r} in block {cls_name!r}')

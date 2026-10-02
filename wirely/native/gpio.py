@@ -42,7 +42,7 @@ class GPIOData:
         print(f'  GPIO name: {self.name!r}', flush=True)
 
 
-@native_block_type(native_block_types, has_state=True, data_type=GPIOData)
+@native_block_type(native_block_types, has_native_state=True, data_type=GPIOData)
 class Output(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
