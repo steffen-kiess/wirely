@@ -14,8 +14,7 @@ needs a map entry. Each module supplies a `native_block_types` dictionary;
 `@native_block_type` registers a class under its Python name. Class and
 procedure names match their `.wrl` declarations unless the procedure has
 an alias, such as `native procedure Poll as "poll";`. The alias supplies
-both the Python method name and its trigger key. Python procedure names
-must be unique within a node type.
+both the Python method name and its trigger key.
 
 For example, `Std.OptionSome` declares:
 
@@ -49,73 +48,35 @@ class OptionSome:
         context.set_result('output', wirely.Some(context.inputs['input']))
 ```
 
-Use `has_native_state=False` for a `node type` with native procedures;
-methods are called on the Python class. A `native node type` uses
-`has_native_state=True`; methods are called on its engine-owned instance.
-Normal Python binding applies to instance, static, and class methods.
-Either form can also declare `.wrl` state variables.
+Use `has_native_state=False` for a `node type` with native procedures, as
+above. For a `native node type`, use `has_native_state=True` and instance
+methods such as `def run(self, *, context)`. Either form can also declare
+`.wrl` state variables.
 
 Procedures run synchronously with the keyword argument `context`; their
-return values are ignored. Compilation rejects incompatible signatures,
-properties, unsupported descriptors, and async or generator methods.
-Use native node tasks for asynchronous I/O.
+return values are ignored. Use native node tasks for asynchronous I/O.
 
 ## Inputs, results, and state
 
 `context.name` is read-only and uses the node naming described under
 [native objects](#native-objects-resources-and-tasks).
 
-`context.inputs` is a read-only `Mapping[str, object]` from
-`collections.abc`, backed by `types.MappingProxyType`. It holds dependency
-values for this invocation. Unknown keys raise `KeyError`. A `list value T`
-input provides a Python list of connected values in connection order, or
-`[]` when unconnected. A `value List[T]` input carries a single list-valued
-datum.
+`context.inputs` is a read-only mapping of dependency names to values for
+this invocation. A `list value T` input provides a Python list of connected
+values in connection order, or `[]` when unconnected. A `value List[T]` input
+carries a single list-valued datum.
 
 A resource dependency supplies the provider's native object; a list
 resource supplies these objects in connection order. Resource identity is
 stable, and changes inside an object do not trigger a procedure rerun.
 
-`context.set_result(name, value)` writes outputs, temporaries, and state
-updates through the same interface. Unknown names, repeated writes, and
-invalid values raise `ValueError` at the call. Write every declared result
-once per invocation, including `None` for no event. Missing results raise
-`ValueError` after the procedure returns.
+`context.set_result(name, value)` writes outputs, temporaries, and state.
+Write every declared result once per invocation, including `None` for no
+event. To preserve a state result, write its previous value again.
 
-Keys come from the `depends on` and `produces` bindings:
-
-- A simple identifier uses its exact name unless given an alias.
-- `reference as "key"` supplies an alias, decoded using normal string
-  literal rules without case conversion.
-- Implicit connectors and complex references require aliases.
-- Keys must be unique within each clause; an input and result may share a
-  key.
-
-Dependencies can name local inputs, temporaries, a child node's implicit
-output, direct child outputs such as `sensor.Value`, or old local state
-such as `count.old`. Results name local outputs, temporaries, or state.
-Arbitrary expressions, deeper paths, and `count.new` reads are unsupported.
-
-For example, a state update can bind its old value and its next value:
-
-```wrl
-state count : uint8 = 0;
-
-native procedure run
-  depends on count.old as "previous"
-  produces count as "next";
-```
-
-```python
-def run(*, context):
-    context.set_result('next', context.inputs['previous'] + 1)
-```
-
-Old state is the previous step's snapshot, even after another procedure
-writes it in this step. Old-state dependencies introduce no producer edge
-or self-update cycle. To preserve a declared state result, write its old
-value again. Temporaries instead pass results between procedures in the
-same step. See `Std.Delay` and `Std.TwoStageValueForward` for examples.
+Input and result names come from the `.wrl` `depends on` and `produces`
+clauses. See [state and execution](language.md#state-and-execution) for
+aliases, dependencies, and state access.
 
 ## Parameters and prepared data
 
@@ -127,23 +88,18 @@ provide `wirely.ValueType` descriptors.
 Pass `data_type=SomeClass` to `@native_block_type` to prepare configuration
 once per instance. Wirely calls `SomeClass.create(context=context)` during
 compilation, with a `wirely.NativeNodeConfigurationContext`. It provides
-`parameters` as described above and `name`, the dotted instance name or
-qualified singleton type name. The returned object is available as
+`parameters` and `name`. The returned object is available as
 `context.configuration` in procedures and `self.context.configuration` in
-native nodes, with either `has_native_state` setting.
+native nodes.
 
-Raise `context.error(message, parameter='Name')` for a configuration error.
-Its location identifies the parameter's argument, default, or declaration;
-forwarded parameters retain their origin and add hints at forwarding sites.
-Omit `parameter` to locate the error at the node. A plain `ValueError` also
-becomes a node error.
+Raise `context.error(message, parameter='Name')` to report invalid
+configuration at the parameter's source. Omit `parameter` for a node error.
 
 `context.resolve_path(value, parameter='Name')` returns a normalized absolute
 `pathlib.Path`, using the parameter's source directory for relative paths.
 Without `parameter`, it uses the node's source directory. Relative paths
-require a source filename; virtual sources such as `<test>` have no base.
-This method does not access the filesystem. Preparation can read
-configuration files, but execution services need not be available.
+require a source filename. Preparation can read configuration files, but
+execution services need not be available.
 
 ## Python representations for native externs
 
@@ -174,9 +130,8 @@ Event connectors use the same representation, adding an outer option:
 | `event Option[boolean]` | `None` | `wirely.Some(None)` for an absent payload; `wirely.Some(wirely.Some(True))` for a present payload |
 
 These encodings apply to both reads and writes. Value connectors carry
-values directly. Event sources must clear an emitted event on a later
-invocation: `Std.DebugEventSource` clears its pending Python field and
-triggers itself again to write `None` instead of retaining a cached event.
+values directly. After emitting an event, schedule another invocation with
+`self.trigger('run')` to write `None`.
 
 ## Value type descriptors
 
@@ -211,13 +166,12 @@ calls `Class(context=context)` with a `wirely.NativeNodeContext`; define
 | `configuration` | Prepared configuration object, or `None` |
 | `name` | Dotted instance name, or qualified type name for a singleton |
 
-The mappings are read-only. `self.parameters` and `self.inputs` give the
-same mappings. Native singletons share one object.
+`self.parameters` and `self.inputs` give the same mappings. Native
+singletons share one object.
 
 Changes to Python fields do not automatically schedule procedures. Call
 `self.trigger('get_value')` to schedule a procedure on this native node.
-Execution is scheduled rather than called directly, and repeated triggers are
-coalesced.
+Repeated triggers before execution schedule one invocation.
 
 Declare constructor resource inputs inside a native node type:
 
@@ -230,8 +184,7 @@ with `context.inputs['Broker']` in the constructor or `self.inputs['Broker']`
 in tasks. Providers are constructed before their consumers. An initializer
 accepts only resource dependencies and has no `produces` clause.
 
-Resolution follows forwarded resources through composite nodes. Resource
-outputs need no procedure to publish a value. See
+Resource outputs need no procedure to publish a value. See
 [`mqtt.py`](../wirely/native/mqtt.py) for provider and client examples.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
@@ -240,25 +193,23 @@ Use these hooks for task creation and resource acquisition; initialize
 fields in the constructor. Use the supplied `AsyncExitStack` for resource
 contexts and cleanup callbacks, which run in reverse registration order.
 
-`self.start_task(task_group, async_exit_stack, coroutine)` starts a task
-expected to run until cancellation and registers its cancellation with the
-exit stack. Normal completion is an error. Tasks can update Python fields
+Use `self.start_task(task_group, async_exit_stack, coroutine)` for a task
+that runs until cancellation during cleanup. Tasks can update Python fields
 and trigger procedures, or send data handed off by output procedures.
 
 ## Scheduling and time
 
 Procedures run in dependency order within input, default calculation, and
 output stages. Input procedures can depend only on resources. After the
-first step, the engine can reuse cached results when dependencies and
-state have not changed, unless explicitly triggered or due for a wakeup.
-No-dependency procedures therefore do not automatically run every step.
+first step, procedures run when dependencies or state change, when
+explicitly triggered, or when due for a wakeup. A procedure without
+dependencies does not automatically run every step.
 
 `context.start_time_for_stage(stage)` returns a read-only
 `wirely.TimeSnapshot` captured at the start of `wirely.RunStage.INPUT`,
 `DEFAULT`, or `OUTPUT`. Its attributes are `monotonic` (`MonotonicTime`),
-`utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Repeated
-access returns the same snapshot. Invalid stage arguments raise
-`ValueError`; stages not yet started raise `KeyError`.
+`utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Timestamps
+are available for stages that have started.
 
 Set `context.wakeup_time` to a `MonotonicTime` deadline to request another
 invocation. It starts as `None` each time; leaving it unset cancels any

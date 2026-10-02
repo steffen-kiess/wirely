@@ -41,6 +41,13 @@ information documented elsewhere when it belongs there.
 Describe the behavior after the change, not the change itself. Do not
 mention old behavior except in migration guides or similar documents.
 
+Write for the reader's task: explain what to do and the behavior needed for
+correct use. Omit implementation details, validation machinery, and
+explanations of ordinary Python behavior unless the reader needs them.
+Describe valid usage rather than listing invalid forms or checks. Document
+errors only when readers need to handle or recover from them. Review every
+added sentence for practical value to the intended reader.
+
 ## Tests
 
 Run the full block suite with `tools/run-tests`. This is the preferred local

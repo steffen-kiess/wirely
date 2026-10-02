@@ -192,13 +192,13 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 Inside a node type, `state name : Type = value;` declares a persistent value
 with an initial value. `temporary name : Type;` holds a value calculated
 within a step. Native procedures declare which inputs or temporaries they
-`depend on` and which connectors or variables they `produce`. The engine
-orders procedures from these dependencies and rejects dependency cycles.
+`depend on` and which connectors or variables they `produce`. Procedures
+run in dependency order; dependencies must be acyclic.
 
 Use `reference as "key"` to name a procedure's Python input or result.
 An unaliased simple identifier uses its own name. Implicit connectors and
-complex references require aliases. Input and result keys are checked for
-uniqueness separately, and aliases are not automatically case-converted.
+complex references require aliases. Keys must be unique within each clause;
+aliases preserve their exact spelling.
 For example:
 
 ```wrl

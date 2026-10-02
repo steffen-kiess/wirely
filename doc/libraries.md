@@ -1,6 +1,6 @@
 # Library reference
 
-The compiler loads all ten libraries below by default. Instantiate a node
+The libraries below are available by default. Instantiate a node
 as `node name : Library.Type(Parameter = value);`. Names and parameter
 capitalization matter. Public library namespaces, node and resource types,
 parameters, and named connectors use PascalCase, preserving acronyms such
@@ -22,7 +22,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `Constant` | `Type: ValueType`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
 | `And` | None | In: `list value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
 | `Delay` | `Type: ValueType`, `InitialValue: Type` | In/out: `value Type`. Outputs the previous step's input, initially `InitialValue`. |
-| `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Forwards through two native procedures. |
+| `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Passes the input to the output. |
 | `DebugValuePrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
 | `DebugValueSource` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
@@ -63,15 +63,12 @@ KNX nodes use a `KNX.Connection` node and a named
 | `Connection` | Optional `Host: String`, `Protocol: String`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
 | `ValueReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
 | `ValueOptionProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
-| `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Wraps the value with `Std.OptionSome` and uses `ValueOptionProvider`. |
+| `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
 | `EventReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits received KNX events. |
 | `EventEmitter` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
 
-The current native value receiver and provider support `boolean` and
-`uint16`. Other declared `Type` values may fail when those nodes are
-instantiated. Event support depends on the KNX value type handled by the
-native implementation. KNX use requires the `xknx` package and a reachable
-KNX service.
+Value receivers and providers support `boolean` and `uint16`. KNX use
+requires the `xknx` package and a reachable KNX service.
 
 Choose one connection mode:
 
@@ -83,9 +80,8 @@ Choose one connection mode:
   `Protocol = "Unix"` unless `UnixPath` is also supplied.
 - `Protocol = "Auto"` uses automatic discovery.
 
-`IndividualAddress` is supported for TCP and Unix socket connections. An
-empty connection, an SSH target without a protocol or Unix path, and
-parameters from conflicting modes are errors. For example,
+`IndividualAddress` is supported for TCP and Unix socket connections.
+Choose parameters for one connection mode. For example,
 `KNX.Connection(UnixPath = "/run/knxnet")` uses a local socket.
 
 ## ABB.JRA
@@ -106,7 +102,7 @@ Both expose the same named outputs: `ManualOperation`, `BlockActive`,
 MQTT nodes use a `MQTT.Connection` and a named
 `Broker: resource MQTT.Broker` input.
 `Topic` is a topic string. `Format` and `Template`, where offered, are
-optional strings used by the native JSON encoder. A template embeds the
+optional strings controlling JSON output. A template embeds the
 encoded value at one `%s` placeholder; `%%` represents a literal percent
 sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
@@ -114,11 +110,11 @@ sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 | --- | --- | --- |
 | `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
-| `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Wraps the value and uses `ValueOptionProvider`. |
+| `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
 | `EventEmitter` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
 | `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: String` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
-Only types supported by the native JSON encoder/decoder can be used. MQTT
+Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
 
 ## CSV
