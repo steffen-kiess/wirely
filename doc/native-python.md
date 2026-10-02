@@ -37,27 +37,28 @@ Its Python implementation is:
 
 ```python
 import wirely
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionSome:
-    @native_procedure
     @staticmethod
     def run(*, context):
         context.set_result('output', wirely.Some(context.inputs['input']))
 ```
 
-Use `has_native_state=False` and static methods for a `node type` with native
-procedures. Put `@native_procedure` above `@staticmethod`, as shown.
-A `native node type` uses `has_native_state=True` and instance methods,
-`def run(self, *, context)`. The engine owns the Python instance.
+Use `has_native_state=False` for a `node type` with native procedures;
+methods are called on the Python class. A `native node type` uses
+`has_native_state=True`; methods are called on its engine-owned instance.
+Normal Python binding applies to instance, static, and class methods.
 Either form can also declare `.wrl` state variables.
 
 Procedures run synchronously with the keyword argument `context`; their
-return values are ignored. Use native node tasks for asynchronous I/O.
+return values are ignored. Compilation rejects incompatible signatures,
+properties, unsupported descriptors, and async or generator methods.
+Use native node tasks for asynchronous I/O.
 
 ## Inputs, results, and state
 

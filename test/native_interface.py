@@ -13,7 +13,7 @@ from unittest.mock import patch
 import wirely as blocks
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 
 checks = TestCase()
@@ -25,12 +25,10 @@ def make_engine(declaration, callback, *, extra='', parameters='', singleton=Fal
 
     @native_block_type(registry, has_native_state=False)
     class Probe:
-        @native_procedure
         @staticmethod
         def run(*, context):
             callback(context)
 
-        @native_procedure
         @staticmethod
         def run2(*, context):
             callback(context)
@@ -142,7 +140,6 @@ for has_native_state in [False, True]:
 
     @native_block_type(registry, has_native_state=has_native_state)
     class RegistrationProbe:
-        @native_procedure
         @staticmethod
         def run(*, context):
             pass
@@ -226,7 +223,7 @@ for stage in stages:
             check_stage_time(context, stage)
 
         name = f'{stage.name.lower()}_{index}'
-        clock_methods[name] = native_procedure(staticmethod(record_time))
+        clock_methods[name] = staticmethod(record_time)
         stage_clause = '' if stage is blocks.RunStage.DEFAULT else f' stage {stage.name.lower()}'
         clock_declarations.append(f'native procedure {name}{stage_clause};')
 
@@ -303,7 +300,6 @@ class TriggerProbe(blocks.NativeState):
         self.trigger('refresh')
         assert not self.calls
 
-    @native_procedure
     def refresh(self, *, context):
         assert not hasattr(context, 'trigger')
         assert context.name == self.context.name
@@ -312,7 +308,6 @@ class TriggerProbe(blocks.NativeState):
             self.reschedule_once = False
             self.trigger('refresh')
 
-    @native_procedure
     def run(self, *, context):
         self.calls.append('run')
 

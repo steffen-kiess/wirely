@@ -14,21 +14,6 @@ def native_block_type(namespace_dict, *, has_native_state: bool, data_type: typi
         cls.native_block_has_native_state = has_native_state
         cls.native_block_data_type = data_type
 
-        native_procedures = {}
-        for name, value in cls.__dict__.items():
-            if not inspect.isfunction(value):
-                continue
-            if not hasattr(value, 'is_native_procedure') or not value.is_native_procedure:
-                continue
-
-            if not has_native_state and not isinstance(inspect.getattr_static(cls, name), staticmethod):
-                raise ValueError(f'Native procedure {name!r} on {cls_name!r} must be static when has_native_state=False')
-
-            if name in native_procedures:
-                raise Exception(f'Duplicate native procedure name {name!r} in block {cls_name!r}')
-            native_procedures[name] = value
-        cls.native_procedures = native_procedures
-
         if cls_name in namespace_dict:
             raise Exception(f'Duplicate native block name {cls_name!r}')
         namespace_dict[cls_name] = cls
@@ -37,10 +22,39 @@ def native_block_type(namespace_dict, *, has_native_state: bool, data_type: typi
     return native_block_type_impl
 
 
-def native_procedure(proc):
-    # TODO: Check parameters of procedure?
-    proc.is_native_procedure = True
-    return proc
+def _validate_native_procedure(native_class, procedure, *, has_native_state):
+    name = procedure.python_name
+    source = procedure.alias or procedure.name
+    try:
+        method = inspect.getattr_static(native_class, name)
+    except AttributeError:
+        raise blocks.ProgramError(
+            source, f'Cannot find native procedure {name!r} in native block type {native_class.__name__!r}',
+        ) from None
+
+    if type(method) is staticmethod:
+        function = method.__func__
+        arguments = ()
+    elif type(method) is classmethod:
+        function = method.__func__
+        arguments = (native_class,)
+    elif inspect.isfunction(method):
+        function = method
+        arguments = (object(),) if has_native_state else ()
+    else:
+        raise blocks.ProgramError(source, f'Unsupported native procedure method {name!r}')
+
+    if not inspect.isfunction(function):
+        raise blocks.ProgramError(source, f'Unsupported native procedure method {name!r}')
+    try:
+        implementation = inspect.unwrap(function)
+        if (inspect.iscoroutinefunction(implementation)
+                or inspect.isgeneratorfunction(implementation)
+                or inspect.isasyncgenfunction(implementation)):
+            raise blocks.ProgramError(source, f'Native procedure {name!r} must be synchronous and cannot be a generator')
+        inspect.signature(function).bind(*arguments, context=object())
+    except (TypeError, ValueError) as error:
+        raise blocks.ProgramError(source, f'Invalid signature for native procedure {name!r}: {error}') from error
 
 
 native_block_pkgs = {

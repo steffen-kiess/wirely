@@ -4,7 +4,7 @@ import dataclasses
 import typing
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -134,7 +134,6 @@ class ValueReceiver(blocks.NativeState):
 
         self.trigger('get_value')
 
-    @native_procedure
     def get_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
@@ -198,7 +197,6 @@ class ValueOptionProvider(blocks.NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure
     def set_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
@@ -278,7 +276,6 @@ class EventReceiver(blocks.NativeState):
         self.received_values.append(value)
         self.trigger('get_value')
 
-    @native_procedure
     def get_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
@@ -331,7 +328,6 @@ class EventEmitter(blocks.NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 

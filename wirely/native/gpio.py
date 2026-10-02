@@ -1,7 +1,7 @@
 import dataclasses
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -92,7 +92,6 @@ class Output(blocks.NativeState):
         ))
         self.direction_set = False
 
-    @native_procedure
     def set_value(self, *, context):
         import gpiod
         from gpiod.line import Bias, Direction, Drive, Value

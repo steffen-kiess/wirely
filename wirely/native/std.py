@@ -1,14 +1,13 @@
 import dataclasses
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=False)
 class Constant:
-    @native_procedure
     @staticmethod
     def run(*, context):
         par_value = context.parameters['Value']
@@ -18,7 +17,6 @@ class Constant:
 
 @native_block_type(native_block_types, has_native_state=False)
 class And:
-    @native_procedure
     @staticmethod
     def run(*, context):
         res = True
@@ -34,7 +32,6 @@ class And:
 
 @native_block_type(native_block_types, has_native_state=False)
 class Delay:
-    @native_procedure
     @staticmethod
     def copy_from_input(*, context):
         # print('COPY_FROM_INPUT')
@@ -43,7 +40,6 @@ class Delay:
         value = context.inputs['input']
         context.set_result('value', value)
 
-    @native_procedure
     @staticmethod
     def copy_to_output(*, context):
         # print('COPY_TO_OUTPUT')
@@ -56,12 +52,10 @@ class Delay:
 
 @native_block_type(native_block_types, has_native_state=False)
 class TwoStageValueForward:
-    @native_procedure
     @staticmethod
     def run1(*, context):
         context.set_result('temp', context.inputs['input'])
 
-    @native_procedure
     @staticmethod
     def run2(*, context):
         context.set_result('output', context.inputs['temp'])
@@ -69,7 +63,6 @@ class TwoStageValueForward:
 
 @native_block_type(native_block_types, has_native_state=False)
 class DebugValuePrinter:
-    @native_procedure
     @staticmethod
     def run(*, context):
         value = context.inputs['input']
@@ -79,7 +72,6 @@ class DebugValuePrinter:
 
 @native_block_type(native_block_types, has_native_state=False)
 class DebugEventPrinter:
-    @native_procedure
     @staticmethod
     def run(*, context):
         value = context.inputs['input']
@@ -95,7 +87,6 @@ class DebugValueSource(blocks.NativeState):
 
         self.out_type = context.parameters['Type']
 
-    @native_procedure
     def run(self, *, context):
         context.set_result('output', self.current_value)
 
@@ -132,7 +123,6 @@ class DebugEventSource(blocks.NativeState):
 
         self.out_type = context.parameters['Type']
 
-    @native_procedure
     def run(self, *, context):
         context.set_result('output', self.next_value)
         if self.next_value is not None:
@@ -168,7 +158,6 @@ class DebugEventSource(blocks.NativeState):
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionNone:
-    @native_procedure
     @staticmethod
     def run(*, context):
         val = None
@@ -178,7 +167,6 @@ class OptionNone:
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionSome:
-    @native_procedure
     @staticmethod
     def run(*, context):
         val = context.inputs['input']
@@ -190,7 +178,6 @@ class OptionSome:
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionUnwrapOrDefault:
-    @native_procedure
     @staticmethod
     def run(*, context):
         par_default = context.parameters['Default']
@@ -207,7 +194,6 @@ class OptionUnwrapOrDefault:
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionIsSome:
-    @native_procedure
     @staticmethod
     def run(*, context):
         context.set_result('output', context.inputs['input'] is not None)
@@ -215,7 +201,6 @@ class OptionIsSome:
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionCreate:
-    @native_procedure
     @staticmethod
     def run(*, context):
         if context.inputs['HasValue']:
@@ -243,7 +228,6 @@ class EdgeData:
 
 @native_block_type(native_block_types, has_native_state=False, data_type=EdgeData)
 class DetectEdge:
-    @native_procedure
     @staticmethod
     def run(*, context):
         last_value = context.inputs['last_value_old']

@@ -7,7 +7,7 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 from wirely.native.csv import CsvWriterParameters
 from wirely.native.gpio import GPIOData
 from wirely.native.knx import KnxData
@@ -33,7 +33,6 @@ class Configuration:
 
 @native_block_type(registry, has_native_state=False, data_type=Configuration)
 class ConfigurationProbe:
-    @native_procedure
     @staticmethod
     def run(*, context):
         assert context.configuration is context.parameters

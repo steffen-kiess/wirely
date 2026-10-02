@@ -1,7 +1,7 @@
 import enum
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -31,7 +31,6 @@ class JRAStatus(enum.IntFlag):
 
 @native_block_type(native_block_types, has_native_state=False)
 class InterpretStatusInformation:
-    @native_procedure
     @staticmethod
     def run(*, context):
         val = context.inputs['input']
@@ -44,7 +43,6 @@ class InterpretStatusInformation:
 
 @native_block_type(native_block_types, has_native_state=False)
 class InterpretStatusInformationOption:
-    @native_procedure
     @staticmethod
     def run(*, context):
         val = context.inputs['input']

@@ -6,7 +6,7 @@ import typing
 
 import wirely.misc.service
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 from wirely.util import check_parameters
 
 native_block_types = {}
@@ -14,7 +14,6 @@ native_block_types = {}
 
 @native_block_type(native_block_types, has_native_state=False)
 class MonotonicTimeReached(blocks.NativeState):
-    @native_procedure
     @staticmethod
     def run(*, context):
         time = context.inputs['input']
@@ -50,13 +49,11 @@ class DelayChangeData:
 
 @native_block_type(native_block_types, has_native_state=False, data_type=DelayChangeData)
 class DelayChange(blocks.NativeState):
-    @native_procedure
     @staticmethod
     def read_update_time(*, context):
         value = context.inputs['update_time_old']
         context.set_result('update_time_old', value)
 
-    @native_procedure
     @staticmethod
     def run(*, context):
         data = context.configuration
@@ -155,7 +152,6 @@ class TimeOfDayMinute(blocks.NativeState):
             # print(f'Waiting for {wait_time_s}', flush=True)
             await asyncio.sleep(wait_time_s)
 
-    @native_procedure
     def get_value(self, *, context):
         if self._fake_time is not None:
             context.set_result('output', self._fake_time)
@@ -231,7 +227,6 @@ class IsBetweenData:
 
 @native_block_type(native_block_types, has_native_state=False, data_type=IsBetweenData)
 class IsBetween:
-    @native_procedure
     @staticmethod
     def run(*, context):
         data = context.configuration
@@ -276,7 +271,6 @@ class TriggerAtData:
 
 @native_block_type(native_block_types, has_native_state=False, data_type=TriggerAtData)
 class TriggerAt:
-    @native_procedure
     @staticmethod
     def run(*, context):
         data = context.configuration

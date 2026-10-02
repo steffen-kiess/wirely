@@ -5,7 +5,7 @@ import os
 import sys
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -140,12 +140,10 @@ class ValueWriter(blocks.NativeState):
         self.last_value_csv = new_value_csv
         return True
 
-    @native_procedure
     def read_update_time(self, *, context):
         value = context.inputs['repeat_time_old']
         context.set_result('repeat_time_old', value)
 
-    @native_procedure
     def run(self, *, context):
         data = context.configuration
 

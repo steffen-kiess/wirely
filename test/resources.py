@@ -11,7 +11,7 @@ import lark
 import wirely as blocks
 import wirely.parser
 import wirely.native.test_library
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 
 program = engine.program
@@ -145,13 +145,11 @@ class Consumer(blocks.NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         startup_inputs.append(self.inputs)
 
-    @native_procedure
     def read(self, *, context):
         assert dict(context.inputs) == dict(self.inputs)
         procedure_calls.append(('read', context.inputs['Service']))
         context.set_result('Count', context.inputs['Service'].value)
 
-    @native_procedure
     def poll(self, *, context):
         assert context.inputs['Service'] is self.inputs['Service']
         procedure_calls.append(('poll', context.inputs['Service']))
@@ -159,7 +157,6 @@ class Consumer(blocks.NativeState):
 
 @native_block_type(registry, has_native_state=False)
 class ProcedureConsumer:
-    @native_procedure
     @staticmethod
     def read(*, context):
         assert context.inputs['Service'] is context.inputs['child']

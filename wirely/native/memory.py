@@ -1,7 +1,7 @@
 import dataclasses
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -35,7 +35,6 @@ class ToggleFlipFlopTriggerData:
 
 @native_block_type(native_block_types, has_native_state=False, data_type=ToggleFlipFlopTriggerData)
 class ToggleFlipFlopTrigger:
-    @native_procedure
     @staticmethod
     def read_time(*, context):
         value = context.inputs['next_event_allowed_at_old']
@@ -48,7 +47,6 @@ class ToggleFlipFlopTrigger:
 
         context.set_result('next_event_allowed_at_snapshot', value)
 
-    @native_procedure
     @staticmethod
     def update(*, context):
         data = context.configuration

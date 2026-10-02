@@ -22,6 +22,7 @@ import wirely.compiler
 
 test_names = [
     'native_interface',
+    'native_procedures',
     'native_parameters',
     'native_configuration',
     'types',

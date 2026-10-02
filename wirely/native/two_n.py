@@ -6,7 +6,7 @@ import typing
 import contextlib
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -207,7 +207,6 @@ class KeyEvent(blocks.NativeState):
         self.trigger('get_value')
         self.received_value = new_value
 
-    @native_procedure
     def get_value(self, *, context):
         value = self.received_value
         self.received_value = None
@@ -260,7 +259,6 @@ class CodeEnteredEvent(blocks.NativeState):
         self.trigger('get_value')
         self.pending = True
 
-    @native_procedure
     def get_value(self, *, context):
         value = self.pending
         self.pending = False
@@ -275,13 +273,11 @@ class CodeEnteredEvent(blocks.NativeState):
 
 @native_block_type(native_block_types, has_native_state=False, data_type=TwoNTimeoutData)
 class KeyState(blocks.NativeState):
-    @native_procedure
     @staticmethod
     def read_timeout_time(*, context):
         value = context.inputs['timeout_time_old']
         context.set_result('timeout_time_old', value)
 
-    @native_procedure
     @staticmethod
     def get_value(*, context):
         data = context.configuration
@@ -388,7 +384,6 @@ class IOState(blocks.NativeState):
         self.trigger('get_value')
         self.current_value = new_value
 
-    @native_procedure
     def get_value(self, *, context):
         value = self.current_value
         if value is None:
@@ -462,7 +457,6 @@ class SwitchState(blocks.NativeState):
         self.trigger('get_value')
         self.current_value = new_value
 
-    @native_procedure
     def get_value(self, *, context):
         value = self.current_value
         if value is None:
@@ -500,7 +494,6 @@ class OutputControl(blocks.NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 

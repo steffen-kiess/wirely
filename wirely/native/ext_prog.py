@@ -3,7 +3,7 @@ import contextlib
 import asyncio
 
 import wirely as blocks
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 native_block_types = {}
 
@@ -39,7 +39,6 @@ class LaunchOnEvent(blocks.NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure
     def run(self, *, context):
         inp = context.inputs['input']
 

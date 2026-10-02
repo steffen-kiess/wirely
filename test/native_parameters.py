@@ -10,7 +10,7 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type, native_procedure
+from wirely.native import native_block_type
 
 
 checks = TestCase()
@@ -45,7 +45,6 @@ class PreparedData:
 
 @native_block_type(registry, has_native_state=False, data_type=PreparedData)
 class ParameterProbe:
-    @native_procedure
     @staticmethod
     def run(*, context):
         assert context.name == prepared_names[id(context.parameters)]
@@ -61,7 +60,6 @@ class StateParameterProbe(wirely.NativeState):
         assert any(self.context.configuration is data for data in prepared)
         assert '' not in self.parameters
 
-    @native_procedure
     def run(self, *, context):
         assert self.parameters is context.parameters
         assert context.name == self.context.name

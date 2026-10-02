@@ -294,16 +294,14 @@ class BlockType(blocks.Scope):
             if not procedure.is_native:
                 raise Exception('Got non-native procedure')
             else:
-                # TODO: Think about e.g. static stateful procedures
-                func = getattr(native_class, procedure.python_name, None)
-                if func is None:
-                    raise blocks.ProgramError(procedure.alias or procedure.name, f'Cannot find native procedure {procedure.python_name!r} in native block type {self.name!r}')
-                if self.is_native:
-                    def run(*, context, native_state, func=func):
-                        func(native_state, context=context)
-                else:
-                    def run(*, context, native_state, func=func):
-                        func(context=context)
+                wirely.native._validate_native_procedure(
+                    native_class, procedure, has_native_state=self.is_native,
+                )
+
+                def run(*, context, native_state, native_class=native_class,
+                        name=procedure.python_name, has_native_state=self.is_native):
+                    target = native_state if has_native_state else native_class
+                    getattr(target, name)(context=context)
             # print('QQ', [type(x) for x in inputs], [type(x) for x in outputs])
             block_procedure = blocks.Block.Procedure(block, inputs, outputs, run, name=procedure.name.id_str, static_context=static_context, declaration_procedure=procedure)
             if procedure in procedures:
