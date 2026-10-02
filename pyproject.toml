@@ -14,8 +14,8 @@ requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{name = "Steffen Kieß"}]
 dependencies = [
-    "lark",
-    "sdnotify",
+    "lark>=1.1.5",
+    "sdnotify>=0.3.0",
 ]
 
 [project.urls]
@@ -25,11 +25,11 @@ Issues = "https://github.com/steffen-kiess/wirely/issues"
 [project.optional-dependencies]
 knx = ["xknx>=3.0,<4"]
 mqtt = ["aiomqtt>=2.3,<3"]
-two-n = ["aiohttp>=3.12,<4", "cryptography"]
-graphviz = ["graphviz"]
+two-n = ["aiohttp>=3.12,<4", "cryptography>=38.0.0"]
+graphviz = ["graphviz>=0.20.1"]
 gpio = ["gpiod>=2.1,<3"]
 all = ["wirely[knx,mqtt,two-n,graphviz,gpio]"]
-test = ["pyOpenSSL"]
+test = ["pyOpenSSL>=23.0.0"]
 pex = ["pex"]
 dev = ["wirely[test,pex]", "uv"]
 

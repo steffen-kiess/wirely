@@ -72,7 +72,6 @@ tools/run-tests-dependencies --versions all-min --python 3.11
 `--versions` defaults to `min`: minimum direct dependencies, with latest
 compatible transitive dependencies. `all-min` also minimizes transitive
 dependencies; `max` selects the newest compatible dependency set.
-Dependencies without lower bounds may select very old releases.
 
 `--python` accepts a uv version request or an executable name/path and
 defaults to the interpreter running the script. `min` selects the latest
