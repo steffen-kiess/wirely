@@ -28,7 +28,7 @@ class TwoNDeviceData:
     hostname: str
     port: int
     # TODO: Parse into (int,int,int,bytes)?
-    tlsa: list[str]
+    tlsa: tuple[str, ...]
     username: str
     password: str
 

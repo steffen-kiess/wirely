@@ -18,7 +18,7 @@ for name, member in {
     'dry': modes.Dry,
     'sleep': modes.Sleep,
     'present': wirely.Some(modes.Heat),
-    'modes': [modes.Off, modes.Cool],
+    'modes': (modes.Off, modes.Cool),
     'settings.mode.': modes.Heat,
     'delay': modes.Off,
 }.items():

@@ -249,13 +249,13 @@ class TypeList(Type):
         return f'TypeList({self.inner_type})'
 
     def verify_value(self, value):
-        if type(value) == list:
-            return [self.inner_type.verify_value(v) for v in value]
+        if type(value) in (list, tuple):
+            return tuple(self.inner_type.verify_value(v) for v in value)
         else:
-            raise Exception(f'Expected list, got {value!r}')
+            raise Exception(f'Expected list or tuple, got {value!r}')
 
     def equals(self, value1, value2):
-        if type(value1) != list or type(value2) != list:
+        if type(value1) not in (list, tuple) or type(value2) not in (list, tuple):
             raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
         if len(value1) != len(value2):
             return False
@@ -270,7 +270,7 @@ class TypeList(Type):
     def _parse_value_impl(self, value):
         if not isinstance(value, blocks.ListLiteral):
             raise blocks.ProgramError(value, f'Invalid List value {value!r}')
-        return [self.inner_type.parse_value(v) for v in value.values]
+        return tuple(self.inner_type.parse_value(v) for v in value.values)
 
 
 # TODO: Add to_csv_value?

@@ -16,16 +16,16 @@ for name, expected in {
     'unit_some': wirely.Some(wirely.Unit()),
     'nested_none': wirely.Some(None),
     'nested_unit': wirely.Some(wirely.Some(wirely.Unit())),
-    'list_some': wirely.Some([1, 2]),
-    'list_options': [wirely.Some(1), None, wirely.Some(-42)],
+    'list_some': wirely.Some((1, 2)),
+    'list_options': (wirely.Some(1), None, wirely.Some(-42)),
     'time_some': wirely.Some(datetime.time(0, 30)),
     'delay': wirely.Some(False),
     'settings.flag.': wirely.Some(True),
     'settings.nested.': wirely.Some(wirely.Some(True)),
-    'settings.items.': [wirely.Some(5), None],
-    'settings.numbers.': wirely.Some([5, -42]),
+    'settings.items.': (wirely.Some(5), None),
+    'settings.numbers.': wirely.Some((5, -42)),
     'settings.at.': wirely.Some(datetime.time(0, 30)),
-    'settings.times.': [wirely.Some(datetime.time(0, 30)), None],
+    'settings.times.': (wirely.Some(datetime.time(0, 30)), None),
     'forwarded.constant.': wirely.Some(datetime.time(0, 30)),
 }.items():
     engine.assert_value_is(name, expected)
@@ -46,7 +46,7 @@ option_type = wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.unit)
 assert option_type.parse_value(parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(wirely.Unit()))
 assert option_type.parse_value(parse_expression('Some(None)')) == wirely.Some(None)
 list_type = wirely.types.TypeList(wirely.types.TypeOption(wirely.types.unit))
-assert list_type.parse_value(parse_expression('[None, Some(())]')) == [None, wirely.Some(wirely.Unit())]
+assert list_type.parse_value(parse_expression('[None, Some(())]')) == (None, wirely.Some(wirely.Unit()))
 
 for expression in ['Some()', 'Some((), ())']:
     try:

@@ -18,11 +18,11 @@ types = wirely.value_types
 engine.step()
 engine.assert_value_is('defaults.value.', 7)
 engine.assert_value_is('defaults.wrapped.', datetime.time(0, 30))
-engine.assert_value_is('defaults.items.', [wirely.Some(7), None])
+engine.assert_value_is('defaults.items.', (wirely.Some(7), None))
 engine.assert_value_is('overridden.value.', -12)
 engine.assert_value_is('overridden.wrapped.', datetime.time(1, 30))
 engine.assert_value_is('forwarded.child.value.', 42)
-engine.assert_value_is('generic.child.value.', wirely.Some([1, 2]))
+engine.assert_value_is('generic.child.value.', wirely.Some((1, 2)))
 engine.assert_value_is('fallback.Value', True)
 
 registry = {}
@@ -106,7 +106,7 @@ def check_parameters(context):
         'Unit': wirely.Unit(),
         'Present': wirely.Some(wirely.Unit()),
         'Absent': None,
-        'Items': [wirely.Some(7), None],
+        'Items': (wirely.Some(7), None),
         'At': datetime.time(0, 30),
         'Duration': wirely.Duration.parse('PT1S'),
         'Mode': wirely.enum.ThermostatSystemMode.Cool,
@@ -151,7 +151,7 @@ def check_composite(context):
     assert len({first, second, types.uint16}) == 2
     assert first != types.uint16
     assert first != wirely.types.TypeOption(wirely.types.TypeList(wirely.types.uint16))
-    assert first.validate(wirely.Some([True, 7])) == wirely.Some([1, 7])
+    assert first.validate(wirely.Some([True, 7])) == wirely.Some((1, 7))
     assert first.validate(None) is None
     assert not first.supports_json and not first.supports_csv
     for invalid in [[7], wirely.Some(['invalid'])]:
@@ -240,16 +240,20 @@ probe.assert_is_idle()
 
 
 def check_type_values(context):
-    expected = [wirely.Some(types.uint16), None]
+    expected = (wirely.Some(types.uint16), None)
     assert context.parameters['Values'] == expected
     assert context.inputs['input'] == expected
     descriptor = context.parameters['Type']
     assert descriptor.validate(expected) == expected
+    supplied = list(expected)
+    assert descriptor.validate(supplied) == expected
     with checks.assertRaises(ValueError):
         descriptor.validate([wirely.Some(wirely.types.uint16)])
     with checks.assertRaises(ValueError):
         context.set_result('output', [wirely.Some(wirely.types.uint16)])
-    context.set_result('output', expected)
+    context.set_result('output', supplied)
+    supplied.append(wirely.Some(types.uint8))
+    assert context.parameters['Values'] == expected
 
 
 probe = make_probe('''
@@ -267,7 +271,7 @@ node source : Std.Constant(
 );
 connect source -> probe;
 ''')
-probe.assert_value_is('probe', [wirely.Some(wirely.types.uint16), None])
+probe.assert_value_is('probe', (wirely.Some(wirely.types.uint16), None))
 
 for name, descriptor in vars(types).items():
     if isinstance(descriptor, wirely.ValueType):

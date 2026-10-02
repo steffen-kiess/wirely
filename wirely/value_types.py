@@ -19,8 +19,8 @@ def _to_native(value_type, value):
         return ValueType(value)
     if isinstance(value_type, _types.TypeOption) and type(value) is Some:
         return Some(_to_native(value_type.inner_type, value.value))
-    if isinstance(value_type, _types.TypeList) and type(value) is list:
-        return [_to_native(value_type.inner_type, item) for item in value]
+    if isinstance(value_type, _types.TypeList) and type(value) in (list, tuple):
+        return tuple(_to_native(value_type.inner_type, item) for item in value)
     return value
 
 
@@ -31,8 +31,8 @@ def _from_native(value_type, value):
         return value._type
     if isinstance(value_type, _types.TypeOption) and type(value) is Some:
         return Some(_from_native(value_type.inner_type, value.value))
-    if isinstance(value_type, _types.TypeList) and type(value) is list:
-        return [_from_native(value_type.inner_type, item) for item in value]
+    if isinstance(value_type, _types.TypeList) and type(value) in (list, tuple):
+        return tuple(_from_native(value_type.inner_type, item) for item in value)
     return value
 
 

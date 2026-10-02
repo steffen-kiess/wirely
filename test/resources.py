@@ -133,8 +133,8 @@ class Consumer(blocks.NativeState):
         assert isinstance(inputs, MappingProxyType)
         assert list(inputs) == ['Service', 'Services', 'Empty', 'implicit', 'child']
         assert inputs['Service'] in constructed
-        assert inputs['Services'] == [inputs['Service'], inputs['implicit'], inputs['Service']]
-        assert inputs['Empty'] == []
+        assert inputs['Services'] == (inputs['Service'], inputs['implicit'], inputs['Service'])
+        assert inputs['Empty'] == ()
         assert inputs['child'] is inputs['Service']
         with checks.assertRaises(TypeError):
             inputs['Service'] = None

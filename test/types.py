@@ -176,6 +176,34 @@ assert_is(ty.json_decode('Heat', None), wirely.enum.ThermostatSystemMode.Heat)
 checks = TestCase()
 
 
+list_type = wirely.types.TypeList(wirely.types.uint8)
+for supplied in [[], (), [True, 7], (True, 7)]:
+    normalized = list_type.verify_value(supplied)
+    assert type(normalized) is tuple
+    assert normalized == tuple(int(value) for value in supplied)
+    assert all(type(value) is int for value in normalized)
+assert list_type.equals([1, 7], (1, 7))
+assert not list_type.equals((1,), [1, 7])
+assert not list_type.equals([1], (2,))
+for invalid in ['12', {1, 2}, iter([1, 2]), ['invalid'], (None,)]:
+    with checks.assertRaises(Exception):
+        list_type.verify_value(invalid)
+
+nested_list_type = wirely.types.TypeList(list_type)
+supplied = [[1, 2], [3]]
+normalized = nested_list_type.verify_value(supplied)
+supplied[0].append(4)
+supplied.append([5])
+assert normalized == ((1, 2), (3,))
+with checks.assertRaises(TypeError):
+    normalized[0][0] = 7
+assert nested_list_type.equals(normalized, [[1, 2], [3]])
+
+optional_list_type = wirely.types.TypeOption(list_type)
+assert optional_list_type.verify_value(wirely.Some([1, 2])) == wirely.Some((1, 2))
+assert optional_list_type.equals(wirely.Some([1, 2]), wirely.Some((1, 2)))
+
+
 def check_immutable_time(value, equivalent, fields):
     mapping = {value: 'timestamp'}
     values = {value}

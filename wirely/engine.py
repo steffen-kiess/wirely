@@ -55,7 +55,7 @@ class Engine:
     def _resource_inputs(self, bindings):
         inputs = {}
         for name, paths, is_list in bindings:
-            values = [self.native_states[path] for path in paths]
+            values = tuple(self.native_states[path] for path in paths)
             inputs[name] = values if is_list else values[0]
         return inputs
 
@@ -155,7 +155,7 @@ class Engine:
                         values.append(blocks.value_types._to_native(variable.var_type, value))
                         if skip_step and not variable.var_type.equals(value, cache[variable]):
                             skip_step = False
-                    inputs[name] = values if is_list else values[0]
+                    inputs[name] = tuple(values) if is_list else values[0]
                 # TODO: Avoid depending on the value of all state variables?
                 for dep in proc.block.block_statevars:
                     if skip_step and cache[self.program.state_map_changed[path, dep]]:

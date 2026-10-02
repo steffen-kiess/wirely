@@ -67,7 +67,7 @@ with checks.assertRaises(Exception):
     integer_option.parse('128')
 
 list_option = wirely.types.TypeOption(wirely.types.TypeList(option_type))
-assert list_option.verify_value(wirely.Some([None, wirely.Some(True)])) == wirely.Some([None, wirely.Some(True)])
+assert list_option.verify_value(wirely.Some([None, wirely.Some(True)])) == wirely.Some((None, wirely.Some(True)))
 with checks.assertRaises(Exception):
     list_option.verify_value(wirely.Some([wirely.Some(1)]))
 

@@ -184,7 +184,7 @@ class ValueList(ComputedValue):
         )
 
     def evaluate(self):
-        return self.value_type.verify_value([element.evaluate() for element in self.elements])
+        return self.value_type.verify_value(tuple(element.evaluate() for element in self.elements))
 
 
 class ValueFunctionCall(ComputedValue):

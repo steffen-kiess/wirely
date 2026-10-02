@@ -62,13 +62,14 @@ return values are ignored. Use native node tasks for asynchronous I/O.
 [native objects](#native-objects-resources-and-tasks).
 
 `context.inputs` is a read-only mapping of dependency names to values for
-this invocation. A `list value T` input provides a Python list of connected
-values in connection order, or `[]` when unconnected. A `value List[T]` input
-carries a single list-valued datum.
+this invocation. A `list value T` input provides a tuple of connected
+values in connection order, or `()` when unconnected. A `value List[T]`
+input carries a single tuple-valued datum.
 
 A resource dependency supplies the provider's native object; a list
-resource supplies these objects in connection order. Resource identity is
-stable, and changes inside an object do not trigger a procedure rerun.
+resource supplies a tuple of these objects in connection order. Resource
+identity is stable, and changes inside an object do not trigger a procedure
+rerun.
 
 `context.set_result(name, value)` writes outputs, temporaries, and state.
 Write every declared result once per invocation, including `None` for no
@@ -115,7 +116,10 @@ execution services need not be available.
 | `ThermostatSystemModeEnum` | `wirely.enum.ThermostatSystemMode` |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
-| `List[T]` | `list` of inner values |
+| `List[T]` | `tuple` of inner values |
+
+`List[T]` values can be supplied as Python lists or tuples; nested lists
+are normalized into tuples.
 
 `Unit` is immutable and fieldless; all instances compare equal.
 
