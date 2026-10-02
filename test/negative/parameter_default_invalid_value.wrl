@@ -1,0 +1,4 @@
+node type Invalid {
+  parameter Value : uint8 = "invalid"; // E: Invalid int value
+}
+node invalid : Invalid;

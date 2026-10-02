@@ -63,10 +63,10 @@ return values are ignored. Use native node tasks for asynchronous I/O.
 
 `context.inputs` is a read-only `Mapping[str, object]` from
 `collections.abc`, backed by `types.MappingProxyType`. It holds dependency
-values for this invocation; contained values are not deeply immutable.
-Unknown keys raise `KeyError`. A `list value T` input provides a Python
-list of connected values in connection order, or `[]` when unconnected.
-A `value List[T]` input carries a single list-valued datum.
+values for this invocation. Unknown keys raise `KeyError`. A `list value T`
+input provides a Python list of connected values in connection order, or
+`[]` when unconnected. A `value List[T]` input carries a single list-valued
+datum.
 
 A resource dependency supplies the provider's native object; a list
 resource supplies these objects in connection order. Resource identity is
@@ -115,17 +115,17 @@ same step. See `Std.Delay` and `Std.TwoStageValueForward` for examples.
 
 ## Parameters and prepared data
 
-`context.static.name` identifies the node for diagnostics.
-`context.static.block.parameter_values` contains resolved parameters:
-call `.evaluate()` on a value parameter to obtain its Python value; a
-`ValueType` parameter is already a `wirely.types.Type` object. Prefer these
-resolved parameters over `context.static.block_parameter_values`, which
-contains compilation bindings. Optional parameters may be absent.
+`context.parameters` and `self.parameters` are read-only mappings with
+resolved Python values, using exact `.wrl` parameter names. Declared defaults
+are applied; omitted optional parameters are absent. `ValueType` parameters
+provide `wirely.ValueType` descriptors.
 
-The parameter dictionary also contains source metadata:
+Constructors and configuration preparation receive compiler parameter
+objects through `static_block_context.parameter_values` and
+`parameter_values`, respectively. Call `.evaluate()` on value parameters;
+type parameters contain compiler types. The key `''` holds source metadata:
 `parameters['']['BlkFilename']` is the instantiation's `.wrl` filename, or
-`None` for a singleton. Use it to resolve configuration paths relative to
-that file.
+`None` for a singleton, for resolving relative configuration paths.
 
 Pass `data_type=SomeClass` to `@native_block_type` to prepare configuration
 once per instance. Wirely calls
@@ -148,7 +148,7 @@ The returned object is available as
 | `TimeOfDay` | `datetime.time` |
 | `MonotonicTime` | `wirely.time.MonotonicTime`, with `generation` and `time_ns` |
 | `ThermostatSystemModeEnum` | `wirely.enum.ThermostatSystemMode` |
-| `ValueType` | `wirely.types.Type` instance |
+| `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `list` of inner values |
 
@@ -168,6 +168,24 @@ These encodings apply to both reads and writes. Value connectors carry
 values directly. Event sources must clear an emitted event on a later
 invocation: `Std.DebugEventSource` clears its pending Python field and
 triggers itself again to write `None` instead of retaining a cached event.
+
+## Value type descriptors
+
+`wirely.ValueType` is immutable and supports equality, hashing, and `str()`
+with Wirely type names. Built-in descriptors are in `wirely.value_types`,
+using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
+`uint64`, `string`, `duration`, `time_of_day`, `monotonic_time`,
+`thermostat_system_mode`, and `value_type`.
+
+- `validate(value)` normalizes a Python value; `parse(text)` parses text.
+- `supports_json` indicates support for `json_encode(value, format=None)`
+  and `json_decode(value, format=None)`. These convert Python values to or
+  from JSON-compatible Python values, without serializing JSON text.
+- `supports_csv` indicates support for `to_csv_value(value)`, which returns
+  `(text, needs_quotes)`.
+
+Invalid values and unsupported conversions raise `ValueError`. Composite
+descriptors are available through resolved parameters.
 
 ## Native objects, resources, and tasks
 

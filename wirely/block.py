@@ -2,6 +2,7 @@ import abc
 
 import wirely as blocks
 from wirely.util import check_parameters
+from wirely.parameters import ParameterValues
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -457,53 +458,40 @@ class BlockInstance(blocks.NodeInstance):
         else:
             self.parameter_values = dict(self.block.par_values)
 
-            # Resolve parameter values from parent
-            parent_parameter_values = None
-            if self.parent_instance is not None:
-                parent_parameter_values = self.parent_instance.parameter_values
-            # TODO: Do this properly, handle nested parameters etc.
-            for key in list(self.parameter_values):
-                # TODO: Clean up
-                val = self.parameter_values[key]
-                if isinstance(val, blocks.TypeParameter) or isinstance(val, blocks.ValueParameter):
-                    par = val.parameter
-                    if par not in parent_parameter_values:
-                        if key.is_optional:
-                            # TODO: Clean this up. Store a value like None in this case?
-                            del self.parameter_values[key]
-                            continue
-                        raise Exception(f'Could not find parameter {par.name} in parent')
-                    # TODO: Check type etc.
-                    new_val = parent_parameter_values[par]
-                    # print('QQQ', val, new_val)
-                    # TODO: Properly handle type parameters
-                    if isinstance(val, blocks.TypeParameter):
-                        if not isinstance(val, blocks.Type):
-                            # TODO: hints?
-                            raise blocks.ProgramError(val.parameter, f'[TODO: Error message] Got parameter of type {new_val.value_type} for {val.parameter.name} where type parameter was expected')
-                    else:
-                        if val.value_type != new_val.value_type:
-                            # TODO: Fix error message / hints
-                            hints = [
-                                blocks.CompilerHint(val.parameter, 'Parameter is declared here'),
-                            ]
-                            raise blocks.ProgramError(val.parameter, f'[TODO: Error message] Got parameter of type {new_val.value_type} for {val.parameter.name} where parameter of type {val.value_type} expected', hints=hints)
-                    # TODO: Check whether this is fully resolved
-                    self.parameter_values[key] = new_val
-
-        # TODO: Clean this up. Probably other places should also used the parents' parameters
-        # TODO: Also, probably make sure that no parameters have been resolved here? Or should the be resolved as far as possible? Currently they are resolved in a weird way (a direct parameter might be resolved while the same parameter in a function call is not).
-        all_par_values = dict(self.parameter_values)
+        all_par_values = {}
         next_parent = self.parent_instance
         while next_parent is not None:
-            for key in next_parent.parameter_values:
-                if key not in all_par_values:
-                    all_par_values[key] = next_parent.parameter_values[key]
+            for key, value in next_parent.parameter_values.items():
+                all_par_values.setdefault(key, value)
             next_parent = next_parent.parent_instance
 
-        # print(f'Resolving while creating BlockInstance: {self.parameter_values} /// {all_par_values}')
-        # TODO: Store this?
-        parameter_values_resolved = {key: value.resolve_self(par_values=all_par_values) for key, value in self.parameter_values.items()}
+        # An omitted optional parameter can be forwarded to another optional
+        # parameter without introducing a value.
+        for key, value in list(self.parameter_values.items()):
+            if isinstance(value, (blocks.TypeParameter, blocks.ValueParameter)):
+                source = value.parameter
+                if (source is not key and source not in all_par_values
+                        and source.default_value is None and key.is_optional):
+                    del self.parameter_values[key]
+
+        all_par_values.update(self.parameter_values)
+        all_par_values = ParameterValues(all_par_values)
+        parameter_values_resolved = {}
+        parameter_keys = list(self.parameter_values)
+        parameter_keys.extend(
+            parameter for parameter in self.block_type.parsed_parameters.values()
+            if parameter not in self.parameter_values and parameter.default_value is not None
+        )
+        for key in parameter_keys:
+            value = all_par_values[key]
+            if isinstance(value, blocks.Value):
+                value_type = key.type_resolved.resolve_self(all_par_values)
+                blocks.value.check_value_type(value.value_type, value_type, value.ast_element)
+                value = blocks.ConstantValue(
+                    value_type, value_type.verify_value(value.evaluate()), ast_element=value.ast_element,
+                )
+            parameter_values_resolved[key] = value
+        self.parameter_values = parameter_values_resolved
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         native_class = self.block_type.native_class

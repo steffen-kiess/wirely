@@ -106,11 +106,14 @@ class TypeParameter(Type):
         return True
 
     def resolve_self(self, par_values):
-        if self.parameter in par_values:
+        from .parameters import ParameterValues, resolve_parameter
+
+        if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             return par_values[self.parameter]
-        elif self.parameter.default_value is not None:
-            scope = self.parameter.interface
-            return scope.resolve_type(self.parameter.default_value, par_values)
+        if not isinstance(par_values, ParameterValues) and self.parameter.default_value is not None:
+            return self.parameter.interface.resolve_type(self.parameter.default_value, par_values)
+        if self.parameter in par_values or self.parameter.default_value is not None:
+            return resolve_parameter(self.parameter, par_values)
         else:
             # TODO
             hints = []
@@ -376,6 +379,11 @@ class TypeInt(TypeConcrete):
 class TypeValueType(TypeConcrete):
     def __init__(self):
         super().__init__(name='ValueType', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
+
+    def verify_value(self, value):
+        if not isinstance(value, Type):
+            raise ValueError(f'Expected a value type, got {value!r}')
+        return value
 
     def _parse_impl(self, s):
         raise Exception('TODO: TypeValueType.parse()')

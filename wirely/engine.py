@@ -141,12 +141,12 @@ class Engine:
                 skip_step = cache is not None and (path, proc) not in self.triggered_procs
                 for name, variables, is_state, is_list in static._input_bindings:
                     if is_state:
-                        inputs[name] = state_old[variables[0]]
+                        inputs[name] = blocks.value_types._to_native(variables[0].var_type, state_old[variables[0]])
                         continue
                     values = []
                     for variable in variables:
                         value = vars[variable]
-                        values.append(value)
+                        values.append(blocks.value_types._to_native(variable.var_type, value))
                         if skip_step and not variable.var_type.equals(value, cache[variable]):
                             skip_step = False
                     inputs[name] = values if is_list else values[0]

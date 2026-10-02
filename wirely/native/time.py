@@ -191,7 +191,7 @@ class TimeOfDayMinute(blocks.NativeState):
             if parameters[1].lower() == 'none':
                 self.set_fake_time(None)
             else:
-                value = blocks.types.TimeOfDay.parse(parameters[1])
+                value = blocks.value_types.time_of_day.parse(parameters[1])
                 self.set_fake_time(value)
         elif cmd == 'get':
             if len(parameters) != 1:

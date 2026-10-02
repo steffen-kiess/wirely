@@ -153,7 +153,7 @@ class ValueWriter(blocks.NativeState):
         reached = context.inputs['repeat_time_reached']
         repeat_time = context.inputs['repeat_time_old']
 
-        new_value_csv = self.data.type.to_csv_value(new_value)
+        new_value_csv = context.parameters['Type'].to_csv_value(new_value)
 
         # If reached is None or Some(True), the value has to be repeated
         # Note: The empty value is not repeated

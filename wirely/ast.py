@@ -598,6 +598,9 @@ class Scope(Declaration):
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
+            if value_type == blocks.types.ValueType:
+                return blocks.ConstantValue(value_type, self.resolve_type(value, par_values=par_values),
+                                            ast_element=value)
             if isinstance(value, blocks.ListLiteral) and isinstance(value_type, blocks.types.TypeList):
                 elements = [self.get_const_value(element, value_type.inner_type, par_values=par_values)
                             for element in value.values]

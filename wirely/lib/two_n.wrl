@@ -33,7 +33,7 @@ namespace TwoN {
     // Timeout after which the key will be assumed to be released (because "2N
     // -> Calling -> Dialing -> Quick dial button functionality test" will
     // trigger a KeyPressed event but no KeyReleased event).
-    parameter Timeout : Duration = "30s";
+    parameter Timeout : Duration = "PT30S";
 
     input Device : resource Device;
 

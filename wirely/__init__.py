@@ -11,6 +11,8 @@ import wirely as blocks
 from .time import MonotonicTime, Duration
 from . import enum, types
 from .types import Type, TypeParameter
+from . import value_types
+from .value_types import ValueType
 from .value import Value, ConstantValue, ValueParameter
 
 from .util import check_parameters
@@ -229,6 +231,10 @@ class NativeState:
         self.static_block_context = static_block_context
         self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
 
+    @property
+    def parameters(self) -> Mapping[str, object]:
+        return self.static_block_context.parameters
+
     def trigger(self, name: str) -> None:
         procedures = self.engine.program.native_triggers[self.block_path]
         if not isinstance(name, str) or name not in procedures:
@@ -350,6 +356,11 @@ class VariableBlockInstance:
 class StaticBlockContext:
     def __init__(self, *, parameter_values, parsed_native_instance):
         self.parameter_values = parameter_values
+        self.parameters: Mapping[str, object] = MappingProxyType({
+            name: (ValueType(value) if isinstance(value, Type)
+                   else value_types._to_native(value.value_type, value.evaluate()))
+            for name, value in parameter_values.items() if name
+        })
         # TODO: Rename?
         self.parsed_native_instance = parsed_native_instance
 
@@ -384,13 +395,18 @@ class ProcedureContext:
         self.step_info = step_info
         self.wakeup_time = None
 
+    @property
+    def parameters(self) -> Mapping[str, object]:
+        return self.static.block.parameters
+
     def set_result(self, name: str, value: object):
         if not isinstance(name, str) or name not in self.static._targets:
             raise ValueError(f'Unknown result name {name!r} in procedure on {self.static.name}')
         if name in self._written_results:
             raise ValueError(f'Result {name!r} was already written')
         try:
-            value = self.static._result_types[name].verify_value(value)
+            value_type = self.static._result_types[name]
+            value = value_type.verify_value(value_types._from_native(value_type, value))
         except Exception as exc:
             raise ValueError(f'Invalid value for result {name!r}: {exc}') from exc
         target = self.static._targets[name]

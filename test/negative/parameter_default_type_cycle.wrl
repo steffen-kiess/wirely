@@ -1,0 +1,5 @@
+node type Invalid {
+  parameter First : ValueType = Option[Second]; // E: Cyclic parameter resolution: First -> Second -> First
+  parameter Second : ValueType = First;
+}
+node invalid : Invalid;

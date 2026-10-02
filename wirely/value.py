@@ -47,6 +47,9 @@ class ConstantValue(Value):
         return False
 
     def resolve_self(self, par_values):
+        if self.value_type == blocks.types.ValueType and self.value.contains_parameters:
+            return ConstantValue(self.value_type, self.value.resolve_self(par_values),
+                                 ast_element=self.ast_element)
         return self
 
     def evaluate(self):
@@ -67,12 +70,12 @@ class ValueParameter(Value):
         return True
 
     def resolve_self(self, par_values):
-        if self.parameter in par_values:
+        from .parameters import ParameterValues, resolve_parameter
+
+        if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             return par_values[self.parameter]
-        elif self.parameter.default_value is not None:
-            scope = self.parameter.interface
-            raise Exception('TODO: Default value for values')
-            # return scope.resolve_type(self.parameter.default_value, par_values)
+        if self.parameter in par_values or self.parameter.default_value is not None:
+            return resolve_parameter(self.parameter, par_values)
         else:
             # TODO
             hints = []

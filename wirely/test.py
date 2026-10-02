@@ -21,6 +21,7 @@ import wirely.compiler
 
 test_names = [
     'native_interface',
+    'native_parameters',
     'types',
     'resources',
     'string_literals',
@@ -58,6 +59,11 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/parameter_default_invalid_value.wrl',
+    'test/negative/parameter_default_invalid_type.wrl',
+    'test/negative/parameter_default_value_cycle.wrl',
+    'test/negative/parameter_default_type_cycle.wrl',
+
     'test/negative/procedure_duplicate_alias.wrl',
     'test/negative/procedure_alias_name_collision.wrl',
     'test/negative/procedure_name_alias_collision.wrl',
@@ -181,6 +187,8 @@ def compile_negative_test(fn):
     errors = io.StringIO()
     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
         result = blocks.compiler.compile_files([full_fn])
+        if result is not None:
+            result = blocks.Program.compile(result)
 
     stdout = output.getvalue()
     stderr = errors.getvalue()

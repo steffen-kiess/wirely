@@ -11,7 +11,7 @@ class Constant:
     @native_procedure
     @staticmethod
     def run(*, context):
-        par_value = context.static.block.parameter_values['Value'].evaluate()
+        par_value = context.parameters['Value']
 
         context.set_result('output', par_value)
 
@@ -112,7 +112,7 @@ class DebugValueSource(blocks.NativeState):
         if cmd == 'set':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = self.out_type.parse(parameters[1])
+            value = self.parameters['Type'].parse(parameters[1])
             self.set_value(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -155,7 +155,7 @@ class DebugEventSource(blocks.NativeState):
         if cmd == 'send':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = blocks.Some(self.out_type.parse(parameters[1]))
+            value = blocks.Some(self.parameters['Type'].parse(parameters[1]))
             self.send_event(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -193,7 +193,7 @@ class OptionUnwrapOrDefault:
     @native_procedure
     @staticmethod
     def run(*, context):
-        par_default = context.static.block_parameter_values['Default'].value
+        par_default = context.parameters['Default']
 
         val = context.inputs['input']
 

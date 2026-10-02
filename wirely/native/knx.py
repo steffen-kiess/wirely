@@ -141,7 +141,7 @@ class ValueReceiver(blocks.NativeState):
         else:
             val = device.sensor_value.value
         # print(f'  got value: {val!r}', flush=True)
-        self.value_type.verify_value(val)
+        self.parameters['Type'].validate(val)
 
         self.current_value = val
 
@@ -299,7 +299,7 @@ class EventReceiver(blocks.NativeState):
         else:
             val = device.sensor_value.value
         print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
-        value = self.data.value_type.verify_value(val)
+        value = self.parameters['Type'].validate(val)
 
         self.received_values.append(value)
         self.trigger('get_value')

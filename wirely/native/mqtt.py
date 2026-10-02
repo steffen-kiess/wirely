@@ -559,7 +559,7 @@ class EventReceiver(blocks.NativeState):
                                 value = value[:-len(self.data.template_suffix)]
 
                             value = json.loads(value)
-                            value = self.data.value_type.json_decode(value, self.data.format)
+                            value = self.parameters['Type'].json_decode(value, self.data.format)
 
                             self.received_values.append(value)
                             self.trigger('get_value')
