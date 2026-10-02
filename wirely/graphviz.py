@@ -81,6 +81,11 @@ def get_graph(graph, engine=None):
             if input.connected_source is not None:
                 source = input.connected_source
                 source_block = source.block
+                if isinstance(source, blocks.StateRead):
+                    source_name = source.name + '.' + source.phase
+                    digraph.node(source_name, label=source_name)
+                    digraph.edge(source_name, block.name + ':' + input.name)
+                    continue
                 if isinstance(source, blocks.BlockStateVariable):
                     digraph.node(source_block.name, label=source.name + '.old')
 

@@ -247,8 +247,8 @@ class BlockType(blocks.Scope):
                     input = dep.block_outputs_byname['']
                     inputs.append(input)
                     sources[binding.key] = input
-                elif isinstance(dep, blocks.ast.DeclarationStateVariable):
-                    input = state_variables[dep.name.id_str]
+                elif isinstance(dep, blocks.StateRead):
+                    input = blocks.StateRead(state_variables[dep.state.name.id_str], dep.phase, dep.reference)
                     inputs.append(input)
                     sources[binding.key] = input
                 elif isinstance(dep, (blocks.Block.Temporary, blocks.Block.Output)):

@@ -473,9 +473,14 @@ class ResolvedReferenceBlockMember(SourceElement):
         if ref_type == RefType.BlockOutput:
             variable = graph.variables.get(self.block_name_str)
             if isinstance(variable, DeclarationStateVariable):
-                if self.member_name_str != 'old':
-                    raise ProgramError(self.member_name_elem, 'State connection sources must explicitly reference the old value with .old')
-                self.member = graph.block_state_variables[self.block_name_str]
+                if self.member_name_str not in ('old', 'new'):
+                    raise ProgramError(self.member_name_elem, 'State connection sources must explicitly reference .old or .new')
+                if self.member_name_str == 'new':
+                    check_state_read_writer(graph, variable, self.member_name_elem)
+                self.member = blocks.StateRead(
+                    graph.block_state_variables[self.block_name_str],
+                    self.member_name_str, self.member_name_elem,
+                )
                 return
             if self.block_name_str in graph.block_inputs and self.member_name_str == '':
                 self.member = graph.block_inputs[self.block_name_str]
@@ -992,6 +997,12 @@ class DeclarationStateVariable(Declaration):
         blocks.BlockStateVariable(new_graph, ty, name=self.name_str, initial_value=self.initial_value)
 
 
+def check_state_read_writer(graph, state, reference):
+    if not any(state in procedure.produces.get_resolved_outputs()
+               for procedure in graph.procedures.values()):
+        raise ProgramError(reference, f'State {state.name.id_str}.new requires a producing procedure')
+
+
 class DeclarationTemporaryVariable(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, var_type: Reference, *, source_position: SourcePosition):
@@ -1100,8 +1111,10 @@ class DependsDeclaration(SourceElement):
             if dep.length == 2:
                 name, member = [identifier.id_str for identifier in dep.identifiers]
                 variable = self.graph.variables.get(name)
-                if isinstance(variable, DeclarationStateVariable) and member == 'old':
-                    resolved.append(variable)
+                if isinstance(variable, DeclarationStateVariable) and member in ('old', 'new'):
+                    if member == 'new':
+                        check_state_read_writer(self.graph, variable, dep)
+                    resolved.append(blocks.StateRead(variable, member, dep))
                     continue
                 child = self.graph.blocks.get(name)
                 if child is not None:
@@ -1120,7 +1133,7 @@ class DependsDeclaration(SourceElement):
             elif name in self.graph.variables:
                 res = self.graph.variables[name]
                 if isinstance(res, DeclarationStateVariable):
-                    raise ProgramError(dep, 'State dependencies must explicitly reference the old value with .old')
+                    raise ProgramError(dep, 'State dependencies must explicitly reference .old or .new')
             elif name in self.graph.block_inputs:
                 res = self.graph.block_inputs[name]
             else:

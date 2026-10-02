@@ -245,8 +245,8 @@ class Block(blocks.Node):
 
         def connect(self, output):
             # TODO: Clean up class structure for value sources / targets
-            if not isinstance(output, Block.Output) and not isinstance(output, blocks.BlockInput) and not isinstance(output, blocks.BlockStateVariable) and not isinstance(output, blocks.BlockTemporaryVariable):
-                raise Exception('output parameter value is not an Output instance and not a BlockInput, BlockStateVariable or BlockTemporaryVariable')
+            if not isinstance(output, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, blocks.StateRead)):
+                raise Exception('output parameter value is not a data or resource source')
             if self.is_list:
                 # TODO: Clean up
                 # TODO: What should be used for block_input here?
@@ -397,9 +397,9 @@ class Block(blocks.Node):
 
             self.dependencies = []
             for dependency in dependencies:
-                if not isinstance(dependency, (Block.Source, Block.Output)):
+                if not isinstance(dependency, (Block.Source, Block.Output, blocks.StateRead)):
                     raise Exception('dependencies parameter value is not an Input or Temporary instance')
-                # State dependencies read the previous step and have no producer edge.
+                # Old-state dependencies have no producer edge; new-state reads depend on the writer.
                 # TODO: Allow dependencies on other blocks? Probably yes. Maybe check where dependency.block is a child of the current block?
                 # if dependency.block != self.block:
                 #     raise Exception('dependencies parameter value is for another block')

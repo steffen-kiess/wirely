@@ -227,7 +227,7 @@ class Engine:
                         state_new.add(self.program.state_map[path, res_var], val)
 
                         new_value = res_var.impl_var_type.verify_value(val)
-                        vars.add(self.program.state_map_new[path, res_var], state_old_block[res_var])
+                        vars.add(self.program.state_map_new[path, res_var], new_value)
                         if not res_var.impl_var_type.equals(state_old_block[res_var], new_value):
                             state_change_count += 1
                             vars.add(self.program.state_map_changed[path, res_var], True)
@@ -315,12 +315,11 @@ class Engine:
                 # raise Exception('Cannot find block ' + '.'.join([block.name for block in path] + [part]))
                 raise Exception('Cannot find block ' + '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path] + [part]))
             block = graph.blocks[part]
-            path.append(block)
+            if block.block_type.is_singleton:
+                path = [block.block_type]
+            else:
+                path.append(block)
             graph = block.block_type
-
-        # For singletons, return the block type
-        if path[-1].block_type.is_singleton:
-            return (path[-1].block_type,)
 
         return tuple(path)
 

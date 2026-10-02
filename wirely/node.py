@@ -1,7 +1,33 @@
 import typing
+from dataclasses import dataclass
 
 import wirely as blocks
 from wirely.util import check_parameters
+
+
+@dataclass(frozen=True)
+class StateRead:
+    """A read of a declared or instantiated state's old or new value."""
+
+    state: object
+    phase: str
+    reference: object
+
+    @property
+    def block(self):
+        return self.state.block
+
+    @property
+    def graph(self):
+        return self.block.graph
+
+    @property
+    def name(self):
+        return self.state.name
+
+    @property
+    def var_type(self):
+        return self.state.var_type
 
 
 # A node appearing in a block type (or in the global scope)
@@ -77,7 +103,7 @@ class BlockOutput(Node):
 
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(source, (blocks.Block.Output, blocks.BlockInput, blocks.BlockStateVariable)):
+        if not isinstance(source, (blocks.Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.StateRead)):
             raise Exception('source parameter value is not an Output, BlockInput or BlockStateVariable')
         # if self.is_list:
         if False:

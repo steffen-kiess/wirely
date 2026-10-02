@@ -67,6 +67,16 @@ class Program:
 
         def resolve_binding(path, source):
             source_path, variable = blocks.resolve_variable(path, source)
+            if isinstance(variable, blocks.StateRead):
+                state = variable.state
+                if variable.phase == 'new':
+                    if state.producer is None:
+                        raise blocks.ProgramError(variable.reference, f'State {state.name}.new requires a producing procedure')
+                    return blocks.InputSourceBinding(state_map_new[source_path, state])
+                return blocks.InputSourceBinding(
+                    state_map[source_path, state],
+                    state_map_changed[source_path, state],
+                )
             if isinstance(variable, blocks.Block.StateVariable):
                 return blocks.InputSourceBinding(
                     state_map[source_path, variable],
@@ -83,7 +93,7 @@ class Program:
         procs = {}
         done = set()
         doing = []
-        def do(path, proc):
+        def do(path, proc, reference=None):
             # TODO: Clean this up (this makes sure that the correct Procedure instance is used for singletons)
             if proc.block.block_type.is_singleton and proc.block.block_type.singleton_instance != proc.block:
                 proc3 = None
@@ -104,12 +114,17 @@ class Program:
                 return
 
             if proc.declaration_procedure.stage.stage != stage:
-                # TODO: Nicer error message?
-                raise Exception(f'Attempt to add procedure {proc} which is in stage {proc.declaration_procedure.stage.stage} during stage {stage}')
+                raise blocks.ProgramError(reference or proc.declaration_procedure,
+                                          'Dependency producer belongs to a later execution stage', hints=[
+                    blocks.CompilerHint(proc.declaration_procedure, 'Producer was declared here'),
+                ])
 
             # print(f'Going to add {path} {proc}')
             if (path, proc.proc_identifier) in doing:
-                raise Exception(f'Got circular procedure dependency: {doing}')
+                raise blocks.ProgramError(reference or proc.declaration_procedure,
+                                          'Circular procedure dependency', hints=[
+                    blocks.CompilerHint(proc.declaration_procedure, 'Producer was declared here'),
+                ])
             doing.append((path, proc.proc_identifier))
             for dep in proc.dependencies:
                 if blocks.ast.dependency_is_resource(dep):
@@ -118,8 +133,12 @@ class Program:
                     members = dep.members if isinstance(dep, blocks.Block.Input) and dep.is_list else (dep,)
                     for member in members:
                         producer_path, variable = blocks.resolve_variable(path, member)
+                        if isinstance(variable, blocks.StateRead):
+                            if variable.phase == 'new':
+                                do(producer_path, variable.state.producer, variable.reference)
+                            continue
                         if not isinstance(variable, blocks.Block.StateVariable):
-                            do(producer_path, variable.producer)
+                            do(producer_path, variable.producer, proc.declaration_procedure.depends)
             if doing.pop() != (path, proc.proc_identifier):
                 raise Exception('doing.pop() != (path, proc.proc_identifier)')
             # print(f'Adding {path} {proc}')

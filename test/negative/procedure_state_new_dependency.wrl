@@ -2,5 +2,5 @@ node type Invalid {
   state value : boolean = false;
 
   native procedure run depends on value.new as "value";
-  // ^E: Cannot resolve procedure dependency value.new
+  // ^E: State value.new requires a producing procedure
 }

@@ -210,12 +210,18 @@ native procedure run
 `last_value.old` reads the previous step's state without depending on this
 step's writer. Dependencies can also name direct child outputs, such as
 `sensor.Value as "value"`. Result destinations are local output connectors,
-temporaries, or state variables. Arbitrary expressions, deeper paths, and
-`last_value.new` dependencies are not supported.
+temporaries, or state variables. Arbitrary expressions and deeper paths
+are not supported.
 
 Use `connect last_value.old -> target;` to feed local state into a
 `value Type` input or output. It reads the initial value on the first step
 and the previous step's state thereafter.
+
+`last_value.new` reads the value produced this step. Use it in procedure
+dependencies or as a connection source. It requires a writer in the same
+or an earlier stage and makes the reader depend on that writer. If the
+writer is skipped because its inputs are unchanged, it supplies the
+retained state value.
 
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends

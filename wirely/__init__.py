@@ -22,14 +22,14 @@ from .util import check_parameters
 
 # TODO: Rename graph to block_type everywhere
 
-from .node import Node, NodeInstance, BlockInput, BlockOutput, BlockTemporaryVariable, BlockStateVariable
+from .node import Node, NodeInstance, BlockInput, BlockOutput, BlockTemporaryVariable, BlockStateVariable, StateRead
 
 from .block import Block, BlockInstance
 
 def connect(source, target, source_element):
     # TODO: Clean up
-    if not isinstance(source, Block.Output) and not isinstance(source, blocks.BlockInput) and not isinstance(source, blocks.BlockStateVariable) and not isinstance(source, blocks.BlockTemporaryVariable):
-        raise Exception('source parameter is not a Block.Output, BlockInput, BlockStateVariable, BlockTemporaryVariable')
+    if not isinstance(source, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
+        raise Exception('source parameter is not a data or resource source')
     # TODO: Clean up
     if not isinstance(target, Block.Input) and not isinstance(target, blocks.BlockOutput):
         raise Exception('target parameter is not a Block.Input and not a BlockOutput')
@@ -63,7 +63,7 @@ def connect(source, target, source_element):
         target.connect(source)
         return
 
-    if isinstance(source, (blocks.BlockStateVariable, blocks.BlockTemporaryVariable)):
+    if isinstance(source, (blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
         source_kind = blocks.ConnectionKind.Value
     else:
         source_kind = source.conn_spec.kind_spec.kind
@@ -99,6 +99,10 @@ def path_resolve_singleton(path):
 def resolve_variable(path, var):
     if debug_variable_resolution:
         print(f'resolve_variable({path}, {var})')
+
+    if isinstance(var, StateRead):
+        owner_path, state = resolve_variable(path, var.state)
+        return owner_path, StateRead(state, var.phase, var.reference)
 
     if isinstance(var.block, Block) and var.block.block_type.is_singleton:
         owner = var.block.block_type.singleton_instance
