@@ -95,6 +95,108 @@ connect source -> probe.named;
 ''')
 probe.step()
 probe.assert_value_is('probe', 7)
+
+
+trigger_registry = {}
+
+
+@native_block_type(trigger_registry, has_state=True)
+class TriggerProbe(blocks.NativeState):
+    def __init__(self, path, engine, static_block_context, *, inputs):
+        super().__init__(path, engine, static_block_context, inputs=inputs)
+        self.calls = []
+        self.reschedule_once = False
+        self.trigger('refresh')
+        assert not self.calls
+
+    @native_procedure
+    def refresh(self, *, context):
+        assert not hasattr(context, 'trigger')
+        self.calls.append('refresh')
+        if self.reschedule_once:
+            self.reschedule_once = False
+            self.trigger('refresh')
+
+    @native_procedure
+    def run(self, *, context):
+        self.calls.append('run')
+
+
+@native_block_type(trigger_registry, has_state=True)
+class SharedTriggerProbe(TriggerProbe):
+    pass
+
+
+with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+    trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
+namespace TestLibrary {
+  native node type TriggerProbe {
+    native procedure Poll as "refresh";
+    native procedure run;
+  }
+  singleton native node type SharedTriggerProbe {
+    native procedure Poll as "refresh";
+    native procedure run;
+  }
+}
+node first : TestLibrary.TriggerProbe;
+node second : TestLibrary.TriggerProbe;
+node shared : TestLibrary.SharedTriggerProbe;
+node shared_again : TestLibrary.SharedTriggerProbe;
+''')])
+assert trigger_graph is not None
+trigger_program = blocks.Program.compile(trigger_graph)
+assert trigger_program is not None
+trigger_engine = blocks.Engine(trigger_program)
+first = trigger_engine.get_native_state('first')
+second = trigger_engine.get_native_state('second')
+shared = trigger_engine.get_native_state('shared')
+assert shared is trigger_engine.get_native_state('shared_again')
+assert not first.calls and not second.calls and not shared.calls
+trigger_engine.step()
+for state in [first, second, shared]:
+    assert state.calls == ['refresh', 'run']
+trigger_engine.step()
+trigger_engine.assert_is_idle()
+
+for invalid in ['Poll', 'Refresh', '', 'missing', first.refresh, 1, []]:
+    with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
+        first.trigger(invalid)
+trigger_engine.step()
+assert first.calls == ['refresh', 'run']
+
+first.trigger('refresh')
+first.trigger('refresh')
+assert first.calls == ['refresh', 'run']
+trigger_engine.step()
+assert first.calls == ['refresh', 'run', 'refresh']
+assert second.calls == shared.calls == ['refresh', 'run']
+trigger_engine.step()
+trigger_engine.assert_is_idle()
+
+first.reschedule_once = True
+first.trigger('refresh')
+trigger_engine.step()
+assert first.calls == ['refresh', 'run', 'refresh', 'refresh']
+trigger_engine.step()
+assert first.calls == ['refresh', 'run', 'refresh', 'refresh', 'refresh']
+trigger_engine.step()
+trigger_engine.assert_is_idle()
+
+second.trigger('run')
+shared.trigger('refresh')
+trigger_engine.step()
+assert second.calls == ['refresh', 'run', 'run']
+assert shared.calls == ['refresh', 'run', 'refresh']
+assert len(first.calls) == 5
+trigger_engine.step()
+trigger_engine.assert_is_idle()
+
+static_alias = make_engine(
+    'native procedure Poll as "run";',
+    lambda context: checks.assertFalse(hasattr(context, 'trigger')),
+)
+static_alias.step()
 probe.step()
 assert len(seen) == 1  # Unchanged dependencies use cached results.
 assert seen[0]['value'] == 7

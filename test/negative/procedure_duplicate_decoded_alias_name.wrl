@@ -1,0 +1,4 @@
+node type Invalid {
+  native procedure First as r"refresh"; // H: Previous Python procedure name was here
+  native procedure Second as "\x72efresh"; // E: Duplicate Python procedure name
+}

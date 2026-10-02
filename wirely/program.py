@@ -145,6 +145,9 @@ class Program:
         res.temporaries = blocks.VariableBlock(all_variables, f'{graph}.temporaries')
         res.state_variables = blocks.VariableBlock(state_variables, f'{graph}.state_variables')
         res.instances = instances
+        res.native_triggers = {path: {} for path in instances}
+        for path, proc in all_procs:
+            res.native_triggers[path][proc.declaration_procedure.python_name] = proc
 
         def resource_paths(path, source, binding):
             is_list = isinstance(source, blocks.Block.Input) and source.is_list

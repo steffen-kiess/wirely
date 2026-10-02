@@ -434,15 +434,6 @@ class EventEmitter(blocks.NativeState):
 
         self.data = static_block_context.parsed_native_instance
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'send_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT EventEmitter', flush=True)
@@ -488,7 +479,7 @@ class EventEmitter(blocks.NativeState):
         self.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('send_value')
 
     async def run_task(self):
         while True:
@@ -517,15 +508,6 @@ class EventReceiver(blocks.NativeState):
 
         print('Create MQTT EventReceiver', flush=True)
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         self.data.dump()
 
         self.native_server = inputs['Broker']
@@ -553,7 +535,7 @@ class EventReceiver(blocks.NativeState):
 
         context.set_result('output', res_opt)
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
     async def run_task(self):
         # TODO: Should subscribing be done here or in start_tasks()?
@@ -580,7 +562,7 @@ class EventReceiver(blocks.NativeState):
                             value = self.data.value_type.json_decode(value, self.data.format)
 
                             self.received_values.append(value)
-                            self.engine.trigger(self.block_path, self.proc)
+                            self.trigger('get_value')
                     except Exception as e:
                         # TODO: Do something else here?
                         # TODO: Print stack trace?

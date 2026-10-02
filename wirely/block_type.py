@@ -296,9 +296,9 @@ class BlockType(blocks.Scope):
                 raise Exception('Got non-native procedure')
             else:
                 # TODO: Think about e.g. static stateful procedures
-                func = getattr(native_class, procedure.name.id_str, None)
+                func = getattr(native_class, procedure.python_name, None)
                 if func is None:
-                    raise Exception(f'Cannot find native procedure {procedure.name.id_str!r} in native block type {self.name!r}')
+                    raise blocks.ProgramError(procedure.alias or procedure.name, f'Cannot find native procedure {procedure.python_name!r} in native block type {self.name!r}')
                 if self.is_native:
                     def run(*, context, native_state, func=func):
                         func(native_state, context=context)

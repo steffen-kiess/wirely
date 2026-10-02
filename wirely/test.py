@@ -58,6 +58,13 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/procedure_duplicate_alias.wrl',
+    'test/negative/procedure_alias_name_collision.wrl',
+    'test/negative/procedure_name_alias_collision.wrl',
+    'test/negative/procedure_duplicate_decoded_alias_name.wrl',
+    'test/negative/procedure_missing_aliased_method.wrl',
+    'test/negative/procedure_missing_method.wrl',
+
     'test/negative/initializer_non_native.wrl',
     'test/negative/initializer_namespace.wrl',
     'test/negative/initializer_duplicate.wrl',

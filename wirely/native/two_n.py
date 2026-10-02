@@ -176,15 +176,6 @@ class KeyEvent(blocks.NativeState):
 
         print('Create TwoN KeyEvent', flush=True)
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         self.data.dump()
 
         self.native_device = inputs['Device']
@@ -215,7 +206,7 @@ class KeyEvent(blocks.NativeState):
             print(f'Warning: TwoN.KeyEvent: Got event while old event is pending: {self.received_value} -> {new_value}', flush=True)
 
         # print(f'New value: {new_value}')
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
         self.received_value = new_value
 
     @native_procedure
@@ -228,7 +219,7 @@ class KeyEvent(blocks.NativeState):
         else:
             context.set_result('output', blocks.Some(value))
             # Trigger to set value to None again
-            self.engine.trigger(self.block_path, self.proc)
+            self.trigger('get_value')
 
 
 @native_block_type(native_block_types, has_state=True, data_type=TwoNCodeData)
@@ -241,15 +232,6 @@ class CodeEnteredEvent(blocks.NativeState):
         self.data = static_block_context.parsed_native_instance
 
         print('Create TwoN CodeEnteredEvent', flush=True)
-
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
 
         self.data.dump()
 
@@ -277,7 +259,7 @@ class CodeEnteredEvent(blocks.NativeState):
             print('Warning: TwoN.CodeEnteredEvent: Got event while old event is pending', flush=True)
 
         # print(f'New value: {new_value}')
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
         self.pending = True
 
     @native_procedure
@@ -290,7 +272,7 @@ class CodeEnteredEvent(blocks.NativeState):
         else:
             context.set_result('output', blocks.Some(blocks.Unit()))
             # Trigger to set value to None again
-            self.engine.trigger(self.block_path, self.proc)
+            self.trigger('get_value')
 
 
 @native_block_type(native_block_types, has_state=False, data_type=TwoNTimeoutData)
@@ -355,15 +337,6 @@ class IOState(blocks.NativeState):
 
         print('Create TwoN IOState', flush=True)
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         self.data.dump()
 
         self.native_device = inputs['Device']
@@ -414,7 +387,7 @@ class IOState(blocks.NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
         self.current_value = new_value
 
     @native_procedure
@@ -439,15 +412,6 @@ class SwitchState(blocks.NativeState):
         self.data = static_block_context.parsed_native_instance
 
         print('Create TwoN SwitchState', flush=True)
-
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
 
         self.data.dump()
 
@@ -497,7 +461,7 @@ class SwitchState(blocks.NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
         self.current_value = new_value
 
     @native_procedure
@@ -524,15 +488,6 @@ class OutputControl(blocks.NativeState):
         self.data = static_block_context.parsed_native_instance
 
         print('Create TwoN OutputControl', flush=True)
-
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'send_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
 
         self.data.dump()
 
@@ -564,7 +519,7 @@ class OutputControl(blocks.NativeState):
         self.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('send_value')
 
     async def run_task(self):
         while True:

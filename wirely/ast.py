@@ -1214,10 +1214,11 @@ class DeclarationInitializer(Declaration):
 
 class DeclarationProcedure(Declaration):
     @check_parameters
-    def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration, *, source_position: SourcePosition):
+    def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, alias: typing.Optional[StringConstant], stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.is_native = native_spec is not None
         self.name = name
+        self.alias = alias
         self.stage = stage
         self.depends = depends
         self.produces = produces
@@ -1238,10 +1239,19 @@ class DeclarationProcedure(Declaration):
                 CompilerHint(graph.procedures[name], 'Previous procedure was here'),
             ]
             raise ProgramError(self, f'Duplicate procedure name {name} in {graph}', hints=hints)
+        for previous in graph.procedures.values():
+            if previous.python_name == self.python_name:
+                raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name {self.python_name!r}', hints=[
+                    CompilerHint(previous.alias or previous.name, 'Previous Python procedure name was here'),
+                ])
         graph.procedures[name] = self
 
         self.depends.compile_pass1(graph, self)
         self.produces.compile_pass1(graph, self)
+
+    @property
+    def python_name(self):
+        return self.alias.value if self.alias is not None else self.name.id_str
 
     def compile_pass1_5(self, graph):
         pass

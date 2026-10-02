@@ -30,15 +30,6 @@ class LaunchOnEvent(blocks.NativeState):
         self.pending = False
         self.event = asyncio.Event()
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'run':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         super().start_tasks(task_group, async_exit_stack)
 
@@ -60,7 +51,7 @@ class LaunchOnEvent(blocks.NativeState):
         self.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('run')
 
     async def run_task(self):
         while True:

@@ -95,15 +95,6 @@ class ValueReceiver(blocks.NativeState):
 
         print('Create KNX ValueReceiver', flush=True)
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         # TODO: Clean up
         par_values = engine.program.instances[path].parameter_values
         par_group_address = None
@@ -154,7 +145,7 @@ class ValueReceiver(blocks.NativeState):
 
         self.current_value = val
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
     @native_procedure
     def get_value(self, *, context):
@@ -284,15 +275,6 @@ class EventReceiver(blocks.NativeState):
 
         import xknx
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         self.data.dump()
 
         self.native_bus = inputs['Bus']
@@ -320,7 +302,7 @@ class EventReceiver(blocks.NativeState):
         value = self.data.value_type.verify_value(val)
 
         self.received_values.append(value)
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
     @native_procedure
     def get_value(self, *, context):
@@ -336,7 +318,7 @@ class EventReceiver(blocks.NativeState):
 
         context.set_result('output', res_opt)
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
 
 @native_block_type(native_block_types, has_state=True, data_type=KnxData)
@@ -356,15 +338,6 @@ class EventEmitter(blocks.NativeState):
         print('Create KNX ValueOptionProvider', flush=True)
 
         self.data = static_block_context.parsed_native_instance
-
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'send_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
 
         self.native_bus = inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
@@ -407,7 +380,7 @@ class EventEmitter(blocks.NativeState):
         self.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('send_value')
 
     async def run_task(self):
         while True:

@@ -76,15 +76,6 @@ class ValueWriter(blocks.NativeState):
 
         self.last_value_csv = ('', False)
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'run':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         super().start_tasks(task_group, async_exit_stack)
 
@@ -123,7 +114,7 @@ class ValueWriter(blocks.NativeState):
                     else:
                         self.write_value(('', False), time)
                         # Make sure that if after the shutdown another step is run run() will be called again
-                        self.engine.trigger(self.block_path, self.proc)
+                        self.trigger('run')
             finally:
                 self.writer = None
                 self.file = None
@@ -175,7 +166,7 @@ class ValueWriter(blocks.NativeState):
         if force:
             # Make sure that if in the next cycle/step the timeout is reached again, the procedure will be called again.
             # TODO: Should this simply be done whenever write_value() is called?
-            self.engine.trigger(self.block_path, self.proc)
+            self.trigger('run')
 
         written = self.write_value(new_value_csv, time, force=force)
         if written:

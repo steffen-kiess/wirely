@@ -93,20 +93,7 @@ class DebugValueSource(blocks.NativeState):
         super().__init__(path, engine, static_block_context, inputs=inputs)
         self.current_value = None
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block.block_procedures:
-            if p.name == 'run':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
-        # TODO
-        self.out = self.proc.results[0]
-
-        # TODO: Can this be done in an easier way?
-        self.out_type = self.out.var_type.resolve_self(par_values=engine.program.instances[path].parameter_values)
+        self.out_type = static_block_context.parameter_values['Type']
 
     @native_procedure
     def run(self, *, context):
@@ -115,7 +102,7 @@ class DebugValueSource(blocks.NativeState):
     def set_value(self, value):
         self.current_value = value
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('run')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:
@@ -143,27 +130,14 @@ class DebugEventSource(blocks.NativeState):
         # TODO: Allow a queue of values?
         self.next_value = None
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block.block_procedures:
-            if p.name == 'run':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
-        # TODO
-        self.out = self.proc.results[0]
-
-        # TODO: Clean up?
-        self.out_type = self.out.var_type.resolve_self(engine.program.instances[path].parameter_values)
+        self.out_type = static_block_context.parameter_values['Type']
 
     @native_procedure
     def run(self, *, context):
         context.set_result('output', self.next_value)
         if self.next_value is not None:
             self.next_value = None
-            self.engine.trigger(self.block_path, self.proc)
+            self.trigger('run')
 
     def send_event(self, value):
         if self.next_value is not None:
@@ -171,7 +145,7 @@ class DebugEventSource(blocks.NativeState):
 
         self.next_value = value
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('run')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:

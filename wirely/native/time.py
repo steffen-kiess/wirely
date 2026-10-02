@@ -118,15 +118,6 @@ class TimeOfDayMinute(blocks.NativeState):
         self.task = None
         self._fake_time = None
 
-        # TODO: Clean this up
-        proc = None
-        for p in self.block_or_singleton.block_procedures:
-            if p.name == 'get_value':
-                proc = p
-        if proc is None:
-            raise Exception('proc is None')
-        self.proc = proc
-
         # Make sure current_value is always initialized
         self._update_value()
 
@@ -149,7 +140,7 @@ class TimeOfDayMinute(blocks.NativeState):
         self.current_value = now_min
         # TODO: Should this avoid triggering if the value doesn't change?
         # TODO: Should this avoid triggering while _fake_time is set?
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
         return wait_time_s
 
@@ -179,7 +170,7 @@ class TimeOfDayMinute(blocks.NativeState):
     def update_value(self):
         import datetime
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
     @check_parameters
     def set_fake_time(self, fake_time: typing.Optional[datetime.time]):
@@ -187,7 +178,7 @@ class TimeOfDayMinute(blocks.NativeState):
 
         # TODO: Make sure that seconds/microseconds are 0?
 
-        self.engine.trigger(self.block_path, self.proc)
+        self.trigger('get_value')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:

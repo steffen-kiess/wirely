@@ -229,6 +229,12 @@ class NativeState:
         self.static_block_context = static_block_context
         self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
 
+    def trigger(self, name: str) -> None:
+        procedures = self.engine.program.native_triggers[self.block_path]
+        if not isinstance(name, str) or name not in procedures:
+            raise ValueError(f'Unknown procedure name {name!r} on {self.block_type}')
+        self.engine.trigger(self.block_path, procedures[name])
+
     @property
     def block_type(self):
         value = self.block_path[-1]

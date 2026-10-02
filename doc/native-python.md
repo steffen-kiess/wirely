@@ -12,7 +12,10 @@ See the [language guide](language.md) for `.wrl` syntax and the
 to modules: `Std` maps to `std`, and `ABB.JRA` to `abb_jra`. A new namespace
 needs a map entry. Each module supplies a `native_block_types` dictionary;
 `@native_block_type` registers a class under its Python name. Class and
-procedure names must match their `.wrl` declarations exactly.
+procedure names match their `.wrl` declarations unless the procedure has
+an alias, such as `native procedure Poll as "poll";`. The alias supplies
+both the Python method name and its trigger key. Python procedure names
+must be unique within a node type.
 
 For example, `Std.OptionSome` declares:
 
@@ -177,11 +180,10 @@ Native singletons share one object at
 `(block_type,)`; use `block_type` or `block_or_singleton` because `block`
 is unavailable for them.
 
-Changes to Python fields do not automatically schedule procedures. Find
-the compiled procedure by name in `self.block_or_singleton.block_procedures`
-and call `self.engine.trigger(self.block_path, proc)` with that object.
-Repeated triggers are coalesced; retain individual occurrences in a queue
-when needed.
+Changes to Python fields do not automatically schedule procedures. Call
+`self.trigger('get_value')` to schedule a procedure on this native node.
+Execution is scheduled rather than called directly, and repeated triggers are
+coalesced.
 
 Declare constructor resource inputs inside a native node type:
 
