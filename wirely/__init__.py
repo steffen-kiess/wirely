@@ -386,14 +386,36 @@ class StaticProcedureContext:
 
 
 class ProcedureContext:
+    __slots__ = (
+        '_inputs', '_results', '_state_new', '_written_results', '_static',
+        '_step_info', '_wakeup_time', '_wakeup_time_set',
+    )
+
     def __init__(self, *, inputs: Mapping[str, object], results, state_new, static, step_info):
-        self.inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
+        self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
         self._results = results
         self._state_new = state_new
         self._written_results = set()
         self._static = static
         self._step_info = step_info
-        self.wakeup_time = None
+        self._wakeup_time = None
+        self._wakeup_time_set = False
+
+    @property
+    def inputs(self) -> Mapping[str, object]:
+        return self._inputs
+
+    @property
+    def wakeup_time(self) -> MonotonicTime | None:
+        return self._wakeup_time
+
+    def set_wakeup_time(self, deadline: MonotonicTime | None) -> None:
+        if self._wakeup_time_set:
+            raise ValueError(f'Wakeup time on {self.name} was already set')
+        if deadline is not None and not isinstance(deadline, MonotonicTime):
+            raise ValueError(f'Expected a MonotonicTime or None, got {deadline!r}')
+        self._wakeup_time = deadline
+        self._wakeup_time_set = True
 
     @property
     def name(self) -> str:

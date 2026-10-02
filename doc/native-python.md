@@ -215,8 +215,9 @@ dependencies does not automatically run every step.
 `utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Timestamps
 are available for stages that have started.
 
-Set `context.wakeup_time` to a `MonotonicTime` deadline to request another
-invocation. It starts as `None` each time; leaving it unset cancels any
-previous deadline. An incomparable clock generation also causes a rerun;
-handle that case as `Time.MonotonicTimeReached` does in
+Call `context.set_wakeup_time(deadline)` at most once per invocation with a
+`MonotonicTime` deadline to request another invocation. Passing `None` or
+leaving it unset cancels any previous deadline. An incomparable clock
+generation also causes a rerun; handle that case as
+`Time.MonotonicTimeReached` does in
 [`time.py`](../wirely/native/time.py).

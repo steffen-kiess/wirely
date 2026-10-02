@@ -22,13 +22,13 @@ class MonotonicTimeReached(blocks.NativeState):
         # print('MonotonicTimeReached', time, now)
         if not blocks.MonotonicTime.is_comparable(time, now):
             result = None
-            context.wakeup_time = None
+            context.set_wakeup_time(None)
         elif blocks.MonotonicTime.compare(now, time) >= 0:
             result = blocks.Some(True)
-            context.wakeup_time = None
+            context.set_wakeup_time(None)
         else:
             result = blocks.Some(False)
-            context.wakeup_time = time
+            context.set_wakeup_time(time)
         # print('MonotonicTimeReached', time, now, result)
 
         context.set_result('output', result)

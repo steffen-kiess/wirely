@@ -71,6 +71,15 @@ def check_inputs(context):
     assert isinstance(context.inputs, MappingProxyType)
     assert dict(context.inputs) == {'value': 7, 'named': 7}
     assert context.inputs.get('missing') is None
+    inputs = context.inputs
+    with checks.assertRaises(AttributeError):
+        context.inputs = {'value': 8}
+    with checks.assertRaises(AttributeError):
+        del context.inputs
+    with checks.assertRaises(AttributeError):
+        context.not_inputs = 5
+    assert context.inputs is inputs
+    assert dict(context.inputs) == {'value': 7, 'named': 7}
     with checks.assertRaises(TypeError):
         context.inputs['value'] = 8
     with checks.assertRaises(KeyError):
@@ -100,6 +109,70 @@ connect source -> probe.named;
 ''')
 probe.step()
 probe.assert_value_is('probe', 7)
+
+
+def check_wakeup(context, deadline):
+    assert context.wakeup_time is None
+    with checks.assertRaises(AttributeError):
+        context.wakeup_time = deadline
+    with checks.assertRaises(AttributeError):
+        del context.wakeup_time
+    for invalid in [False, 0, 'soon', [], datetime.datetime.now(), blocks.Duration.from_seconds(1)]:
+        with checks.assertRaises(ValueError):
+            context.set_wakeup_time(invalid)
+        assert context.wakeup_time is None
+    context.set_wakeup_time(deadline)
+    assert context.wakeup_time is deadline
+    for repeated in [None, blocks.MonotonicTime(1, 100), 'invalid']:
+        with checks.assertRaisesRegex(ValueError, 'already set'):
+            context.set_wakeup_time(repeated)
+        assert context.wakeup_time is deadline
+
+
+for deadline in [None, blocks.MonotonicTime(1, 100),
+                 blocks.MonotonicTime.create_invalid(), blocks.MonotonicTime(2, 100)]:
+    wakeup_probe = make_engine(
+        'native procedure run;',
+        lambda context, deadline=deadline: check_wakeup(context, deadline),
+    )
+    with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+        wakeup_probe.step()
+    if deadline is None:
+        assert not wakeup_probe.wakeups
+        assert wakeup_probe.next_wakeup is None
+    else:
+        assert list(wakeup_probe.wakeups.values()) == [deadline]
+        expected = deadline if deadline.generation == 1 else blocks.MonotonicTime.create_invalid()
+        assert wakeup_probe.next_wakeup == expected
+
+
+for explicit_cancellation in [False, True]:
+    wakeup_calls = []
+    deadline = blocks.MonotonicTime(1, 10)
+
+    def schedule_wakeup(context):
+        assert context.wakeup_time is None
+        wakeup_calls.append(context)
+        if len(wakeup_calls) == 1:
+            context.set_wakeup_time(deadline)
+        elif explicit_cancellation:
+            context.set_wakeup_time(None)
+
+    wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
+    with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+        wakeup_probe.step()
+        assert wakeup_probe.next_wakeup == deadline
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 1
+        assert wakeup_probe.next_wakeup == deadline
+    with patch.object(blocks.MonotonicTime, 'current_time', return_value=deadline):
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 2
+        assert not wakeup_probe.wakeups
+        assert wakeup_probe.next_wakeup is None
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 2
+        wakeup_probe.assert_is_idle()
 
 
 named_contexts = []
