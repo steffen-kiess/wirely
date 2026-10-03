@@ -150,9 +150,6 @@ class Engine:
                                 skip_step = False
                         values.append(blocks.value_types._to_native(variable.var_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
-                for variable in proc.state_dependencies:
-                    if skip_step and not variable.var_type.equals(state_old[variable], self.last_step_state[variable]):
-                        skip_step = False
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
                     if not blocks.MonotonicTime.is_comparable(now, deadline) or blocks.MonotonicTime.compare(now, deadline) >= 0:

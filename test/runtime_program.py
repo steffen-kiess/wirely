@@ -10,6 +10,7 @@ import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
+import wirely.native.std
 import wirely.native.test_library
 from wirely.native import native_block_type
 from wirely.compiler.native_configuration import register_configuration
@@ -80,6 +81,23 @@ for schedule in program.procs.values():
         assert all(isinstance(part, str) for part in type_name)
         assert isinstance(method_name, str)
         assert isinstance(proc.node_id, str)
+
+# A state change reruns its reader while an unchanged input stays skipped.
+delay = wirely.native.std.Delay
+with patch.object(delay, 'copy_from_input', wraps=delay.copy_from_input) as writer, \
+        patch.object(delay, 'copy_to_output', wraps=delay.copy_to_output) as reader:
+    isolated = blocks.Engine(program)
+    isolated.get_native_state('source').set_value(True)
+    isolated.step()
+    isolated.assert_value_is('envelope', False)
+    assert writer.call_count == reader.call_count == 1
+    isolated.step()
+    isolated.assert_value_is('envelope', True)
+    assert writer.call_count == 1
+    assert reader.call_count == 2
+    isolated.assert_is_idle()
+    assert writer.call_count == 1
+    assert reader.call_count == 2
 
 # Engines share the program descriptions and have independent live state.
 second = blocks.Engine(program)

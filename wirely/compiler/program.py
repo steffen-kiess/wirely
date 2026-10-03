@@ -257,7 +257,6 @@ def compile_nocatch(global_block_type):
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
                 results=results,
-                state_dependencies=tuple(state_map[path, state] for state in proc.block.block_statevars),
             ))
         schedules[stage] = tuple(schedule)
     node_aliases = {}

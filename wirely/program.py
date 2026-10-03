@@ -125,7 +125,6 @@ class Procedure:
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
-    state_dependencies: tuple[Variable, ...]  # State variables whose changes require execution.
 
     def __post_init__(self):
         type_name, proc_name = self.reference
@@ -136,7 +135,6 @@ class Procedure:
                 for name, bindings, is_list in getattr(self, field)
             ))
         object.__setattr__(self, 'results', MappingProxyType(dict(self.results)))
-        object.__setattr__(self, 'state_dependencies', tuple(self.state_dependencies))
 
     @property
     def key(self):
@@ -242,7 +240,6 @@ class Program:
                     line(f'{name}: {source}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
-                value('state dependencies', [var.name for var in proc.state_dependencies], 6)
                 line('results:', 6)
                 for name, binding in proc.results.items():
                     line(f'{name}: {binding.variable.name}', 8)
