@@ -4,6 +4,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely as blocks
+from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -158,7 +159,7 @@ connect provider -> consumer.Service;
 connect provider, provider_alias -> consumer.Services;
 ''')])
     assert graph is not None
-    resource_program = blocks.Program.compile_nocatch(graph)
+    resource_program = program_compiler.compile_nocatch(graph)
     resource_program.graph = None
     check_runtime_data(resource_program)
     first = blocks.Engine(resource_program)

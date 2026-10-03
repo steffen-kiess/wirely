@@ -8,6 +8,7 @@ import sys
 import logging
 
 import wirely as blocks
+from wirely import program_compiler
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
@@ -50,7 +51,7 @@ async def async_run(args) -> None:
     if global_block_type is None:
         sys.exit(1)
 
-    prog = blocks.Program.compile(global_block_type)
+    prog = program_compiler.compile(global_block_type)
     if prog is None:
         sys.exit(1)
 

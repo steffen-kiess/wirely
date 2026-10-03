@@ -4,6 +4,7 @@ from functools import wraps
 from unittest.mock import patch
 
 import wirely
+from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -61,7 +62,7 @@ def compile_program(source, implementations):
     with patch.dict(wirely.native.test_library.native_block_types, implementations):
         graph = wirely.compiler.compile_strs([('<native-procedures>', source)])
         assert graph is not None
-        return wirely.Program.compile_nocatch(graph)
+        return program_compiler.compile_nocatch(graph)
 
 
 
@@ -71,7 +72,7 @@ def check_invalid(source, implementations, message, line):
     with patch.dict(wirely.native.test_library.native_block_types, implementations):
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
             graph = wirely.compiler.compile_strs([('<native-procedures>', source)])
-            result = wirely.Program.compile(graph) if graph is not None else None
+            result = program_compiler.compile(graph) if graph is not None else None
     assert result is None
     assert not errors.getvalue(), errors.getvalue()
     assert message in output.getvalue(), output.getvalue()

@@ -11,6 +11,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely as blocks
+from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -50,7 +51,7 @@ node probe : TestLibrary.Probe{parameters};
             ('<native-interface>', source),
         ])
         assert graph is not None
-        program = blocks.Program.compile(graph)
+        program = program_compiler.compile(graph)
         assert program is not None
         return blocks.Engine(program)
 
@@ -230,7 +231,7 @@ node probe : TestLibrary.RegistrationProbe;
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
             graph = wirely.compiler.compile_strs([('<native-registration>', source)])
-            program = blocks.Program.compile(graph) if graph is not None else None
+            program = program_compiler.compile(graph) if graph is not None else None
     assert program is None
     assert not errors.getvalue()
     assert f'requires has_native_state={not has_native_state}' in output.getvalue()
@@ -313,7 +314,7 @@ node probe : TestLibrary.ClockProbe;
 with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
     graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
     assert graph is not None
-    program = blocks.Program.compile(graph)
+    program = program_compiler.compile(graph)
     assert program is not None
     clock_engine = blocks.Engine(program)
 clock_engine.fake_monotonic_time_offset = clock_offset
@@ -408,7 +409,7 @@ node shared : TestLibrary.SharedTriggerProbe;
 node shared_again : TestLibrary.SharedTriggerProbe;
 ''')])
 assert trigger_graph is not None
-trigger_program = blocks.Program.compile(trigger_graph)
+trigger_program = program_compiler.compile(trigger_graph)
 assert trigger_program is not None
 with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
     trigger_engine = blocks.Engine(trigger_program)
@@ -865,7 +866,7 @@ node first : TestLibrary.LifecycleProbe;
 node second : TestLibrary.LifecycleProbe(Fail = {'true' if fail else 'false'});
 ''')])
         assert graph is not None
-        program = blocks.Program.compile(graph)
+        program = program_compiler.compile(graph)
         assert program is not None
         return blocks.Engine(program)
 

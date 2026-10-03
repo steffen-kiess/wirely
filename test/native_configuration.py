@@ -5,6 +5,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
+from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -42,7 +43,7 @@ def compile_sources(*sources):
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         graph = wirely.compiler.compile_strs(sources)
         assert graph is not None
-        return wirely.Program.compile_nocatch(graph)
+        return program_compiler.compile_nocatch(graph)
 
 
 def probe(declarations, *, arguments='', filename='/tmp/config/main.wrl',

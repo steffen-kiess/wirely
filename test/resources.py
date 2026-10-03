@@ -9,6 +9,7 @@ from unittest.mock import patch
 import lark
 
 import wirely as blocks
+from wirely import program_compiler
 import wirely.parser
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -253,7 +254,7 @@ connect other_shared -> consumer;
 connect factory -> procedure_consumer.Service;
 connect value_source -> procedure_consumer.Value;
 '''
-native_resource_program = blocks.Program.compile_nocatch(compile_resources(source))
+native_resource_program = program_compiler.compile_nocatch(compile_resources(source))
 with patch.dict(wirely.native.test_library.native_block_types, registry):
     native_resource_engine = blocks.Engine(native_resource_program)
 consumer = native_resource_engine.get_native_state('consumer')
@@ -300,7 +301,7 @@ node source : TestLibrary.Provider;
 connect source -> sink.Service;
 ''')
 with patch.dict(wirely.native.test_library.native_block_types, registry):
-    alias_engine = blocks.Engine(blocks.Program.compile_nocatch(alias_graph))
+    alias_engine = blocks.Engine(program_compiler.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')
 assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
@@ -331,7 +332,7 @@ namespace TestLibrary {{
 {connection}
 ''')
     with checks.assertRaisesRegex(blocks.ProgramError, 'Circular native initializer dependency') as error:
-        blocks.Program.compile_nocatch(graph)
+        program_compiler.compile_nocatch(graph)
     assert error.exception.source_element.key == 'Service'
 
 graph = compile_resources('''
@@ -355,7 +356,7 @@ connect b -> a.Service;
 connect a -> sink.Service;
 ''')
 with checks.assertRaisesRegex(blocks.ProgramError, 'Circular resource connection'):
-    blocks.Program.compile_nocatch(graph)
+    program_compiler.compile_nocatch(graph)
 
 for binding in ['initializer', 'procedure']:
     declaration = ('native initializer depends on Service;' if binding == 'initializer'
@@ -379,7 +380,7 @@ node sink : TestLibrary.{'Dependent' if binding == 'initializer' else 'Procedure
 connect source -> sink.Service;
 ''')
     with checks.assertRaisesRegex(blocks.ProgramError, 'Resource binding has no native provider') as error:
-        blocks.Program.compile_nocatch(graph)
+        program_compiler.compile_nocatch(graph)
     assert error.exception.source_element.key == 'Service'
 
 

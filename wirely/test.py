@@ -16,6 +16,7 @@ from dataclasses import replace
 from types import MappingProxyType
 
 import wirely as blocks
+from wirely import program_compiler
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
@@ -194,7 +195,7 @@ def compile_negative_test(fn):
     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
         result = blocks.compiler.compile_files([full_fn])
         if result is not None:
-            result = blocks.Program.compile(result)
+            result = program_compiler.compile(result)
 
     stdout = output.getvalue()
     stderr = errors.getvalue()
@@ -246,7 +247,7 @@ def compile_test(fn):
     if global_block_type is None:
         sys.exit(1)
 
-    prog = blocks.Program.compile(global_block_type)
+    prog = program_compiler.compile(global_block_type)
     if prog is None:
         sys.exit(1)
 
@@ -459,7 +460,7 @@ async def run_test(test_name):
     if global_block_type is None:
         sys.exit(1)
 
-    prog = blocks.Program.compile(global_block_type)
+    prog = program_compiler.compile(global_block_type)
     if prog is None:
         sys.exit(1)
 

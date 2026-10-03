@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import wirely as blocks
+from wirely import program_compiler
 import wirely.compiler
 import wirely.graphviz
 import wirely.native.test_library
@@ -140,7 +141,7 @@ def compile_graph(source):
 def make_engine(source, *, declarations=definitions):
     graph = compile_graph(declarations + source)
     assert graph is not None
-    program = blocks.Program.compile(graph)
+    program = program_compiler.compile(graph)
     assert program is not None
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         return blocks.Engine(program)
@@ -464,7 +465,7 @@ for body, message in invalid_programs:
       produces saved;''', body + '\nconnect saved.old -> implicit output;',
         ) + 'node feedback : TestLibrary.Feedback;')
         assert invalid_graph is not None, output.getvalue()
-        assert blocks.Program.compile(invalid_graph) is None
+        assert program_compiler.compile(invalid_graph) is None
     assert message in output.getvalue(), output.getvalue()
     assert 'Hint:' in output.getvalue()
     assert 'Internal compiler error' not in output.getvalue()

@@ -5,6 +5,7 @@ import traceback
 import lark
 
 import wirely as blocks
+from wirely import program_compiler
 from wirely.util import check_parameters
 
 
@@ -122,7 +123,7 @@ def run(args):
         return 1
 
     if args.create_program:
-        prog = blocks.Program.compile(global_block_type)
+        prog = program_compiler.compile(global_block_type)
         if prog is None:
             return 1
         if args.dump_program:
