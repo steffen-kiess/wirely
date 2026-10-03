@@ -1,7 +1,7 @@
 import enum
 
 import wirely
-import wirely.parser
+import wirely.compiler.parser
 from wirely.compiler.types import parse_value
 
 
@@ -28,7 +28,7 @@ engine.step()
 engine.assert_value_is('delay', modes.Heat)
 
 for member in modes:
-    declarations = wirely.parser.parse_str(
+    declarations = wirely.compiler.parser.parse_str(
         f'parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.{member.name};',
         filename='<enum-test>',
     )
@@ -40,7 +40,7 @@ class OtherMode(enum.Enum):
 
 
 other_type = wirely.types.TypeEnum('OtherMode', OtherMode)
-declarations = wirely.parser.parse_str(
+declarations = wirely.compiler.parser.parse_str(
     'parameter Mode : OtherMode = OtherMode.Heat;', filename='<enum-test>',
 )
 assert parse_value(other_type, declarations[0].default_value) is OtherMode.Heat

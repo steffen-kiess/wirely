@@ -11,7 +11,7 @@ import lark
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
-import wirely.parser
+import wirely.compiler.parser
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -88,7 +88,7 @@ for block in graph.blocks.values():
 
 for legacy_type in ['knx_bus', 'mqtt_server', 'two_n_device']:
     try:
-        wirely.parser.parse_str(
+        wirely.compiler.parser.parse_str(
             'node type Legacy {\n'
             f'  implicit output : {legacy_type};\n'
             '}',
@@ -308,7 +308,7 @@ assert alias_inputs['service'] is alias_engine.get_native_state('source')
 assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
 
 with checks.assertRaises(lark.UnexpectedInput):
-    wirely.parser.parse_str(
+    wirely.compiler.parser.parse_str(
         'native node type Invalid { native initializer produces Service; }',
         filename='<initializer-produces>',
     )

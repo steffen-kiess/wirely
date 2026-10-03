@@ -2,7 +2,7 @@ import contextlib
 import io
 
 import wirely.compiler
-import wirely.parser
+import wirely.compiler.parser
 
 
 engine.step()
@@ -19,7 +19,7 @@ for name, expected in {
 
 
 def parse_literal(literal):
-    declarations = wirely.parser.parse_str(
+    declarations = wirely.compiler.parser.parse_str(
         f'parameter Value : String = {literal};', filename='<string-test>'
     )
     return declarations[0].default_value.value

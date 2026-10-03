@@ -1,8 +1,8 @@
 from collections.abc import Mapping
 
 from . import model as blocks
-from ..block import Block
-from ..node import StateRead
+from .block import Block
+from .node import StateRead
 from .types import resolve_type
 
 

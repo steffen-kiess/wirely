@@ -31,7 +31,7 @@ class TypeParameter(Type):
         return True
 
     def resolve_self(self, par_values):
-        from ..parameters import ParameterValues, resolve_parameter
+        from .parameters import ParameterValues, resolve_parameter
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             return par_values[self.parameter]

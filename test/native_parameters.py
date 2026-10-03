@@ -12,7 +12,7 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
 
 

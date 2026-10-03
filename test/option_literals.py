@@ -5,7 +5,7 @@ from pathlib import Path
 
 import wirely
 import wirely.compiler
-import wirely.parser
+import wirely.compiler.parser
 from wirely.compiler import model as compiler_model
 from wirely.compiler.types import parse_value
 
@@ -36,7 +36,7 @@ engine.assert_value_is('delay', wirely.Some(True))
 
 
 def parse_expression(expression):
-    declarations = wirely.parser.parse_str(
+    declarations = wirely.compiler.parser.parse_str(
         f'parameter Value : Option[unit] = {expression};', filename='<some-test>'
     )
     return declarations[0].default_value

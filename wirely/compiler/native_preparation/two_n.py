@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.two_n import get_username_password, TwoNDeviceData, TwoNTimeoutData, TwoNKeyData, TwoNIOData, TwoNSwitchData, TwoNCodeData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_two_n_device_data(*, context):

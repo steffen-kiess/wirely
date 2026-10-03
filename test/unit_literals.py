@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 from unittest import TestCase
 
 import wirely
-import wirely.parser
+import wirely.compiler.parser
 from wirely.compiler import model as compiler_model
 from wirely.compiler.types import parse_value
 
@@ -44,7 +44,7 @@ engine.assert_value_is('delay', wirely.Unit())
 
 
 def parse_expression(expression):
-    declarations = wirely.parser.parse_str(
+    declarations = wirely.compiler.parser.parse_str(
         f'parameter Value : unit = {expression};', filename='<unit-test>'
     )
     return declarations[0].default_value

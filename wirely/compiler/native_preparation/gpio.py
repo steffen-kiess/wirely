@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.gpio import GPIOData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_gpio_data(*, context):

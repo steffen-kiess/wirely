@@ -3,7 +3,7 @@
 import wirely as blocks
 
 from wirely.native.memory import ToggleFlipFlopTriggerData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_toggle_flip_flop_trigger_data(*, context):

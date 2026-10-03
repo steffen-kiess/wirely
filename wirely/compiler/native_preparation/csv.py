@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.csv import CsvWriterParameters
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_csv_writer_parameters(*, context):

@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.std import EdgeData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_edge_data(*, context):

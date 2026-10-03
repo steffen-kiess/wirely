@@ -12,7 +12,7 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 checks = TestCase()
@@ -31,14 +31,14 @@ subprocess.run([sys.executable, '-c', dedent('''
         importlib.import_module(module.name)
 
     compiler_modules = {
-        'wirely.ast', 'wirely.parser', 'wirely.block', 'wirely.block_type',
-        'wirely.node', 'wirely.parameters', 'wirely.value',
-        'wirely.compiler.program', 'wirely.native_configuration',
+        'wirely.compiler.ast', 'wirely.compiler.parser', 'wirely.compiler.block', 'wirely.compiler.block_type',
+        'wirely.compiler.node', 'wirely.compiler.parameters', 'wirely.compiler.value',
+        'wirely.compiler.program', 'wirely.compiler.native_configuration',
     }
     unexpected = {
         name for name in sys.modules
         if name in compiler_modules or name == 'lark' or name.startswith((
-            'lark.', 'wirely.compiler', 'wirely.native_preparation',
+            'lark.', 'wirely.compiler', 'wirely.compiler.native_preparation',
         ))
     }
     assert not unexpected, unexpected

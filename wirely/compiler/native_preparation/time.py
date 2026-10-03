@@ -3,7 +3,7 @@
 import wirely as blocks
 
 from wirely.native.time import DelayChangeData, IsBetweenData, TriggerAtData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_delay_change_data(*, context):

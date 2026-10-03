@@ -10,7 +10,7 @@ from wirely.util import check_parameters
 
 def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stacktrace=None):
     # TODO: Where should this import be done?
-    import wirely.parser
+    import wirely.compiler.parser
 
     if verbose_passes is None:
         verbose_passes = blocks.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
@@ -21,7 +21,7 @@ def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stackt
     try:
         decls = []
         for filename, input_data in filename_inpudatas:
-            decls += wirely.parser.parse_str(input_data, filename=filename)
+            decls += wirely.compiler.parser.parse_str(input_data, filename=filename)
         filename = None
         global_source_position = blocks.SourcePosition(filename='<global>', meta=None, input_data='')
         global_block_type = blocks.BlockType([], None, decls, source_position=global_source_position)

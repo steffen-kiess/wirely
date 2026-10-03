@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from .compiler import model as blocks
+from . import model as blocks
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -62,16 +62,16 @@ def register_configuration(data_type, factory):
 
 def configuration_factory(data_type, type_name):
     import importlib
-    from .native import native_block_pkgs
+    from ..native import native_block_pkgs
 
     namespace = type_name[:-1]
     if namespace not in _loaded_namespaces:
         pkg_name = native_block_pkgs.get(namespace)
         if pkg_name is not None:
             try:
-                importlib.import_module('.native_preparation.' + pkg_name, 'wirely')
+                importlib.import_module('.native_preparation.' + pkg_name, 'wirely.compiler')
             except ModuleNotFoundError as error:
-                if error.name != 'wirely.native_preparation.' + pkg_name:
+                if error.name != 'wirely.compiler.native_preparation.' + pkg_name:
                     raise
             _loaded_namespaces.add(namespace)
     try:

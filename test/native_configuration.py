@@ -17,15 +17,15 @@ from wirely.native.mqtt import MqttData
 from wirely.native.std import EdgeData
 from wirely.native.time import IsBetweenData, TriggerAtData
 from wirely.native.two_n import TwoNCodeData, TwoNDeviceData
-from wirely.native_preparation.csv import prepare_csv_writer_parameters
-from wirely.native_preparation.gpio import prepare_gpio_data
-from wirely.native_preparation.knx import prepare_knx_data
-from wirely.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
-from wirely.native_preparation.mqtt import prepare_mqtt_data
-from wirely.native_preparation.std import prepare_edge_data
-from wirely.native_preparation.time import prepare_is_between_data, prepare_trigger_at_data
-from wirely.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_preparation.csv import prepare_csv_writer_parameters
+from wirely.compiler.native_preparation.gpio import prepare_gpio_data
+from wirely.compiler.native_preparation.knx import prepare_knx_data
+from wirely.compiler.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
+from wirely.compiler.native_preparation.mqtt import prepare_mqtt_data
+from wirely.compiler.native_preparation.std import prepare_edge_data
+from wirely.compiler.native_preparation.time import prepare_is_between_data, prepare_trigger_at_data
+from wirely.compiler.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
+from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
 
 

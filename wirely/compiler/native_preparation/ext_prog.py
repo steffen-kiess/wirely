@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.ext_prog import LaunchOnEventData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_launch_on_event_data(*, context):

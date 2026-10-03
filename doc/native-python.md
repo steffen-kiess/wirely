@@ -95,15 +95,15 @@ Pass `data_type=SomeClass` to `@native_block_type` and register its factory
 in a separate compiler support module:
 
 ```python
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 register_configuration(SomeClass, prepare_configuration)
 ```
 
 Import this support module before compiling custom nodes. Wirely calls
 `prepare_configuration(context=context)` once per instance during compilation.
-Its `wirely.native_configuration.NativeNodeConfigurationContext` provides
-`parameters` and `name`. The returned object is available as
+Its `wirely.compiler.native_configuration.NativeNodeConfigurationContext`
+provides `parameters` and `name`. The returned object is available as
 `context.configuration` in procedures and `self.context.configuration` in
 native nodes.
 

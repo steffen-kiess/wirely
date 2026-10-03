@@ -1,7 +1,7 @@
 """Prepare native configuration during compilation."""
 
 from wirely.native.mqtt import MqttData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_mqtt_data(*, context):

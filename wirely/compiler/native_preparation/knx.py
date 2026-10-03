@@ -3,7 +3,7 @@
 import wirely as blocks
 
 from wirely.native.knx import KnxData
-from wirely.native_configuration import register_configuration
+from wirely.compiler.native_configuration import register_configuration
 
 
 def prepare_knx_data(*, context):

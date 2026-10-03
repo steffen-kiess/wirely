@@ -2,7 +2,7 @@ import contextlib
 import io
 
 import wirely.compiler
-import wirely.parser
+import wirely.compiler.parser
 
 
 engine.step()
@@ -30,7 +30,7 @@ for bits in [8, 16, 32, 64]:
 
 
 def parse_literal(literal):
-    declarations = wirely.parser.parse_str(
+    declarations = wirely.compiler.parser.parse_str(
         f'parameter Value : int64 = {literal};', filename='<integer-test>'
     )
     return declarations[0].default_value.value
