@@ -66,3 +66,8 @@ native node type Invalid {
     depends on First as "Service", // H: Previous binding was here
       Second as "\x53ervice"; // E: Duplicate procedure binding key
 }
+
+// TEST: initializer_produces
+native node type Invalid {
+  native initializer produces Service; // E: Syntax error
+}

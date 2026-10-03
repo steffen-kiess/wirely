@@ -6,12 +6,10 @@ from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
 
-import lark
-
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
-import wirely.compiler.parser
+import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -84,21 +82,6 @@ for block in graph.blocks.values():
         assert isinstance(connector.conn_spec, blocks.ConnectorSpecificationResource)
         assert connector.resource_type is not None
         assert not hasattr(connector, 'orig_temporary')
-
-
-for legacy_type in ['knx_bus', 'mqtt_server', 'two_n_device']:
-    try:
-        wirely.compiler.parser.parse_str(
-            'node type Legacy {\n'
-            f'  implicit output : {legacy_type};\n'
-            '}',
-            filename='<legacy-resource>',
-        )
-    except lark.UnexpectedInput:
-        pass
-    else:
-        raise AssertionError(f'Legacy resource syntax was accepted: {legacy_type}')
-
 
 checks = TestCase()
 registry = {}
@@ -307,11 +290,6 @@ alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')
 assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
 
-with checks.assertRaises(lark.UnexpectedInput):
-    wirely.compiler.parser.parse_str(
-        'native node type Invalid { native initializer produces Service; }',
-        filename='<initializer-produces>',
-    )
 
 for nodes, connection in [
     ('node a : TestLibrary.Dependent;', 'connect a -> a.Service;'),

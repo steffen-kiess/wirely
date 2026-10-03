@@ -1,0 +1,241 @@
+// TEST: missing_state_phase
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved -> implicit output; // E: explicitly reference .old or .new
+}
+
+// TEST: unproduced_new_state
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved.new -> implicit output; // E: requires a producing procedure
+}
+
+// TEST: wrong_value_type
+resource type Handle;
+node type Sink {
+  implicit input : value uint8; // H: Target was declared here
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false; // H: Source was declared here
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved.old -> sink; // E: source has type
+}
+
+// TEST: wrong_connection_kind
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean; // H: Target was declared here
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false; // H: Source was declared here
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved.old -> event_sink; // E: source has kind
+}
+
+// TEST: phase_on_temporary
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect temporary_value.old -> sink; // E: Unable to find source block
+}
+
+// TEST: unknown_state
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect missing.old -> sink; // E: Unable to find source block
+}
+
+// TEST: state_to_resource
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle; // H: Target was declared here
+}
+node type Invalid {
+  state saved : boolean = false; // H: Source was declared here
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved.old -> resource_sink; // E: Cannot connect resource and data
+}
+
+// TEST: target_old_state
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect source -> saved.old; // E: Unable to find target block
+}
+
+// TEST: nested_state_reference
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect child.saved.old -> sink; // E: unexpected number of identifiers
+}
+
+// TEST: target_new_state
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect source -> saved.new; // E: Unable to find target block
+}
+
+// TEST: unknown_state_phase
+resource type Handle;
+node type Sink {
+  implicit input : value uint8;
+}
+node type EventSink {
+  implicit input : event boolean;
+}
+node type ResourceSink {
+  implicit input : resource Handle;
+}
+node type Invalid {
+  state saved : boolean = false;
+  temporary temporary_value : boolean;
+  implicit output : value boolean;
+  node sink : Sink;
+  node event_sink : EventSink;
+  node resource_sink : ResourceSink;
+  node source : Std.Constant(Type = boolean, Value = true);
+  connect saved.other -> implicit output; // E: explicitly reference .old or .new
+}

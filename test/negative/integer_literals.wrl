@@ -6,3 +6,159 @@ node source : Std.Constant(Type = int8, Value = +128); // E: Int value out of ra
 
 // TEST: integer_negative_unsigned
 node source : Std.Constant(Type = uint8, Value = -1); // E: Int value out of range: -1
+
+// TEST: double_minus
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = --42); // E: Syntax error
+
+// TEST: double_plus
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = ++42); // E: Syntax error
+
+// TEST: minus_plus
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = -+42); // E: Syntax error
+
+// TEST: plus_minus
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = +-42); // E: Syntax error
+
+// TEST: minus_reference
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = -Value); // E: Syntax error
+
+// TEST: plus_reference
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = +Value); // E: Syntax error
+
+// TEST: minus_parentheses
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = -(42)); // E: Syntax error
+
+// TEST: empty_hex
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = 0x); // E: Invalid integer literal
+
+// TEST: empty_negative_hex
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = -0x); // E: Invalid integer literal
+
+// TEST: empty_octal
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = +0o); // E: Invalid integer literal
+
+// TEST: int8_parameter_underflow
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = -129); // E: Int value out of range
+
+// TEST: int8_parameter_overflow
+node type Settings {
+  parameter Value : int8;
+}
+node settings : Settings(Value = +128); // E: Int value out of range
+
+// TEST: uint8_parameter_negative
+node type Settings {
+  parameter Value : uint8;
+}
+node settings : Settings(Value = -1); // E: Int value out of range
+
+// TEST: uint8_parameter_overflow
+node type Settings {
+  parameter Value : uint8;
+}
+node settings : Settings(Value = +256); // E: Int value out of range
+
+// TEST: int16_parameter_underflow
+node type Settings {
+  parameter Value : int16;
+}
+node settings : Settings(Value = -32769); // E: Int value out of range
+
+// TEST: int16_parameter_overflow
+node type Settings {
+  parameter Value : int16;
+}
+node settings : Settings(Value = +32768); // E: Int value out of range
+
+// TEST: uint16_parameter_negative
+node type Settings {
+  parameter Value : uint16;
+}
+node settings : Settings(Value = -1); // E: Int value out of range
+
+// TEST: uint16_parameter_overflow
+node type Settings {
+  parameter Value : uint16;
+}
+node settings : Settings(Value = +65536); // E: Int value out of range
+
+// TEST: int32_parameter_underflow
+node type Settings {
+  parameter Value : int32;
+}
+node settings : Settings(Value = -2147483649); // E: Int value out of range
+
+// TEST: int32_parameter_overflow
+node type Settings {
+  parameter Value : int32;
+}
+node settings : Settings(Value = +2147483648); // E: Int value out of range
+
+// TEST: uint32_parameter_negative
+node type Settings {
+  parameter Value : uint32;
+}
+node settings : Settings(Value = -1); // E: Int value out of range
+
+// TEST: uint32_parameter_overflow
+node type Settings {
+  parameter Value : uint32;
+}
+node settings : Settings(Value = +4294967296); // E: Int value out of range
+
+// TEST: int64_parameter_underflow
+node type Settings {
+  parameter Value : int64;
+}
+node settings : Settings(Value = -9223372036854775809); // E: Int value out of range
+
+// TEST: int64_parameter_overflow
+node type Settings {
+  parameter Value : int64;
+}
+node settings : Settings(Value = +9223372036854775808); // E: Int value out of range
+
+// TEST: uint64_parameter_negative
+node type Settings {
+  parameter Value : uint64;
+}
+node settings : Settings(Value = -1); // E: Int value out of range
+
+// TEST: uint64_parameter_overflow
+node type Settings {
+  parameter Value : uint64;
+}
+node settings : Settings(Value = +18446744073709551616); // E: Int value out of range

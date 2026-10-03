@@ -85,6 +85,8 @@ negative_tests = [
     'test/negative/string_literals.wrl',
     'test/negative/node_types.wrl',
     'test/negative/enum_literals.wrl',
+    'test/negative/enum_declarations.wrl',
+    'test/negative/state_connections.wrl',
 ]
 
 diagnostic_pattern = re.compile(

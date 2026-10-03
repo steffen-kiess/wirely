@@ -1,12 +1,7 @@
-import contextlib
 import datetime
-import io
-from pathlib import Path
 
 import wirely
-import wirely.compiler
 import wirely.compiler.parser
-from wirely.compiler import model as compiler_model
 from wirely.compiler.types import parse_value
 
 
@@ -52,33 +47,3 @@ assert parse_value(option_type, parse_expression('Some(Some(()))')) == wirely.So
 assert parse_value(option_type, parse_expression('Some(None)')) == wirely.Some(None)
 list_type = wirely.types.TypeList(wirely.types.TypeOption(wirely.types.unit))
 assert parse_value(list_type, parse_expression('[None, Some(())]')) == (None, wirely.Some(wirely.Unit()))
-
-for expression in ['Some()', 'Some((), ())']:
-    try:
-        parse_value(wirely.types.TypeOption(wirely.types.unit), parse_expression(expression))
-    except compiler_model.ProgramError as error:
-        assert 'Some expects exactly one argument' in str(error)
-    else:
-        raise AssertionError(expression)
-
-# A parameter reference is checked against the expected inner type.
-source = (
-    'node type Settings {\n'
-    '  parameter Number : int8;\n'
-    '\n'
-    '  node constant : Std.Constant(Type = Option[boolean], Value = Some(Number));\n'
-    '}\n'
-    'node settings : Settings(Number = 1);'
-)
-output = io.StringIO()
-errors = io.StringIO()
-with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-    std_source = Path('wirely/lib/std.wrl').read_text(encoding='utf-8')
-    result = wirely.compiler.compile_strs([
-        ('wirely/lib/std.wrl', std_source), ('<some-test>', source),
-    ])
-assert result is None
-assert 'Error in <some-test>:4' in output.getvalue()
-assert 'Expected value of type boolean, got int8' in output.getvalue()
-assert 'Internal compiler error' not in output.getvalue()
-assert not errors.getvalue()

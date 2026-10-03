@@ -472,39 +472,3 @@ for body, message in invalid_programs:
     assert message in output.getvalue(), output.getvalue()
     assert 'Hint:' in output.getvalue()
     assert 'Internal compiler error' not in output.getvalue()
-
-invalid_connections = [
-    ('saved -> implicit output;', 'explicitly reference .old or .new'),
-    ('saved.new -> implicit output;', 'requires a producing procedure'),
-    ('saved.old -> sink;', 'source has type'),
-    ('saved.old -> event_sink;', 'source has kind'),
-    ('temporary_value.old -> sink;', 'Unable to find source block'),
-    ('missing.old -> sink;', 'Unable to find source block'),
-    ('saved.old -> resource_sink;', 'Cannot connect resource and data'),
-    ('source -> saved.old;', 'Unable to find target block'),
-    ('child.saved.old -> sink;', 'unexpected number of identifiers'),
-    ('source -> saved.new;', 'Unable to find target block'),
-    ('saved.other -> implicit output;', 'explicitly reference .old or .new'),
-]
-for connection, message in invalid_connections:
-    source = '''
-resource type Handle;
-node type Sink { implicit input : value uint8; }
-node type EventSink { implicit input : event boolean; }
-node type ResourceSink { implicit input : resource Handle; }
-node type Invalid {
-  state saved : boolean = false;
-  temporary temporary_value : boolean;
-  implicit output : value boolean;
-  node sink : Sink;
-  node event_sink : EventSink;
-  node resource_sink : ResourceSink;
-  node source : Std.Constant(Type = boolean, Value = true);
-  CONNECTION
-}
-'''.replace('CONNECTION', 'connect ' + connection)
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert compile_graph(source) is None
-    assert message in output.getvalue(), output.getvalue()
-    assert 'Internal compiler error' not in output.getvalue()

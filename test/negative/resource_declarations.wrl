@@ -85,3 +85,18 @@ resource type Handle;
 node type Invalid {
   implicit output : list resource Handle; // E: Got list specifier for non-input
 }
+
+// TEST: legacy_knx_bus_syntax
+node type Legacy {
+  implicit output : knx_bus; // E: Syntax error
+}
+
+// TEST: legacy_mqtt_server_syntax
+node type Legacy {
+  implicit output : mqtt_server; // E: Syntax error
+}
+
+// TEST: legacy_two_n_device_syntax
+node type Legacy {
+  implicit output : two_n_device; // E: Syntax error
+}

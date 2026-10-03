@@ -51,30 +51,11 @@ for literal, expected in [
     assert actual == expected, (literal, actual, expected)
 
 
+# File loading normalizes carriage returns; test these bytes directly.
 for literal, message in [
-    (r'"\x"', 'Hex escape requires two hexadecimal digits'),
-    (r'"\xF"', 'Hex escape requires two hexadecimal digits'),
-    (r'"\xGG"', 'Hex escape requires two hexadecimal digits'),
-    (r'"\u0041"', 'Unicode escape requires braces'),
-    (r'"\u{"', 'Unterminated Unicode escape'),
-    (r'"\u{}"', 'Invalid Unicode escape digits'),
-    (r'"\u{_41}"', 'Invalid Unicode escape digits'),
-    (r'"\u{GG}"', 'Invalid Unicode escape digits'),
-    (r'"\u{0000041}"', 'at most six hexadecimal digits'),
-    (r'"\u{D800}"', 'not a Unicode scalar value'),
-    (r'"\u{DFFF}"', 'not a Unicode scalar value'),
-    (r'"\u{110000}"', 'not a Unicode scalar value'),
-    (r'"\U00000041"', 'Unknown string escape'),
-    (r'"\N{LATIN CAPITAL LETTER A}"', 'Unknown string escape'),
-    (r'"\101"', 'Unknown string escape'),
-    *[(f'"\\{escape}"', 'Unknown string escape')
-      for escape in ['a', 'b', 'f', 'v', 'q', '7']],
     ('"first\rsecond"', 'Bare carriage return'),
     ('r"first\rsecond"', 'Bare carriage return'),
     ('r#"first\rsecond"#', 'Bare carriage return'),
-    ('r##"text"##', None),
-    ('"unterminated', None),
-    ('"trailing\\', None),
 ]:
     source = f'node type Settings {{\n  parameter Value : String = {literal};\n}}'
     output = io.StringIO()
