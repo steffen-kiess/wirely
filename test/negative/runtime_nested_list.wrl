@@ -1,0 +1,3 @@
+node type Invalid {
+  implicit input : value Option[List[Option[uint8]]]; // E: parameter-only
+}

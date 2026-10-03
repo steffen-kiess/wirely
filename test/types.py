@@ -278,3 +278,10 @@ assert invalid + short is invalid
 assert invalid - short is invalid
 with checks.assertRaises(Exception):
     later - invalid
+
+# Runtime eligibility follows option payloads; lists remain parameter-only.
+assert not wirely.types.String.is_runtime_type
+assert not wirely.types.TypeList(wirely.types.uint8).is_runtime_type
+assert wirely.types.TypeOption(wirely.types.uint8).is_runtime_type
+assert not wirely.types.TypeOption(wirely.types.String).is_runtime_type
+assert not wirely.types.TypeOption(wirely.types.TypeList(wirely.types.uint8)).is_runtime_type

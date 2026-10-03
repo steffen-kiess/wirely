@@ -19,11 +19,11 @@ for name, member in {
     'dry': modes.Dry,
     'sleep': modes.Sleep,
     'present': wirely.Some(modes.Heat),
-    'modes': (modes.Off, modes.Cool),
     'settings.mode.': modes.Heat,
     'delay': modes.Off,
 }.items():
     engine.assert_value_is(name, member)
+assert engine.program.instances['modes'].parameters['Value'] == (modes.Off, modes.Cool)
 engine.step()
 engine.assert_value_is('delay', modes.Heat)
 

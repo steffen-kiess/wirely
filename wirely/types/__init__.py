@@ -37,7 +37,6 @@ class TypeConcrete(Type):
         self.name = name
         self.python_type = python_type
 
-        # TODO: Actually enforce is_runtime_type (i.e. disallow strings at runtime)
         self.is_runtime_type = is_runtime_type
 
         self.is_json_serializable = is_json_serializable
@@ -82,6 +81,10 @@ class TypeOption(Type):
         return self.inner_type.contains_parameters
 
     @property
+    def is_runtime_type(self):
+        return self.inner_type.is_runtime_type
+
+    @property
     def has_to_csv_value(self):
         return self.inner_type.has_to_csv_value
 
@@ -119,6 +122,8 @@ class TypeOption(Type):
 
 
 class TypeList(Type):
+    is_runtime_type = False
+
     def __init__(self, inner_type):
         self.inner_type = inner_type
 

@@ -1,0 +1,3 @@
+node type Invalid {
+  implicit output : value Option[String]; // E: parameter-only
+}

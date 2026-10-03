@@ -67,6 +67,19 @@ to_compile = [
 ]
 
 negative_tests = [
+    'test/negative/runtime_string_input.wrl',
+    'test/negative/runtime_list_output.wrl',
+    'test/negative/runtime_list_state.wrl',
+    'test/negative/runtime_string_temporary.wrl',
+    'test/negative/runtime_optional_string.wrl',
+    'test/negative/runtime_list_event.wrl',
+    'test/negative/runtime_nested_list.wrl',
+    'test/negative/runtime_value_type_state.wrl',
+    'test/negative/runtime_generic_string.wrl',
+    'test/negative/runtime_generic_list.wrl',
+    'test/negative/runtime_generic_state.wrl',
+    'test/negative/runtime_generic_temporary.wrl',
+
     'test/negative/parameter_default_invalid_value.wrl',
     'test/negative/parameter_default_invalid_type.wrl',
     'test/negative/parameter_default_value_cycle.wrl',

@@ -1,0 +1,3 @@
+node type Invalid {
+  implicit input : value String; // E: parameter-only
+}

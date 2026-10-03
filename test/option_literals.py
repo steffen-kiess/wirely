@@ -30,7 +30,10 @@ for name, expected in {
     'settings.times.': (wirely.Some(datetime.time(0, 30)), None),
     'forwarded.constant.': wirely.Some(datetime.time(0, 30)),
 }.items():
-    engine.assert_value_is(name, expected)
+    if name in {'list_some', 'list_options', 'settings.items.', 'settings.numbers.', 'settings.times.'}:
+        assert engine.program.instances[name.rstrip('.')].parameters['Value'] == expected
+    else:
+        engine.assert_value_is(name, expected)
 engine.step()
 engine.assert_value_is('delay', wirely.Some(True))
 

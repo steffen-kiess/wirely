@@ -1,9 +1,14 @@
-node escapes : Std.Constant(Type = String, Value = "\0\t\n\r\"\'\\");
-node null_digits : Std.Constant(Type = String, Value = "\012");
-node hex : Std.Constant(Type = String, Value = "\x00\x7F\x80\xFF");
-node unicode : Std.Constant(Type = String, Value = "\u{41}\u{1F_600}");
-node raw : Std.Constant(Type = String, Value = r#"Say "hello"\n"#);
-node multiline : Std.Constant(Type = String, Value = "first
+node type LiteralParameter {
+  parameter Type : ValueType;
+  parameter Value : Type;
+}
+
+node escapes : LiteralParameter(Type = String, Value = "\0\t\n\r\"\'\\");
+node null_digits : LiteralParameter(Type = String, Value = "\012");
+node hex : LiteralParameter(Type = String, Value = "\x00\x7F\x80\xFF");
+node unicode : LiteralParameter(Type = String, Value = "\u{41}\u{1F_600}");
+node raw : LiteralParameter(Type = String, Value = r#"Say "hello"\n"#);
+node multiline : LiteralParameter(Type = String, Value = "first
 second");
-node continuation : Std.Constant(Type = String, Value = "first\
+node continuation : LiteralParameter(Type = String, Value = "first\
     second");

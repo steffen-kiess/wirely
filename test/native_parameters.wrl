@@ -8,7 +8,6 @@ node type Defaults {
 
   node value : Std.Constant(Type = Type, Value = Value);
   node wrapped : Std.Constant(Type = TimeOfDay, Value = Wrapped);
-  node items : Std.Constant(Type = List[Option[Type]], Value = Items);
 }
 
 node defaults : Defaults;
@@ -25,7 +24,6 @@ node type GenericDefaults {
   parameter Type : ValueType;
   parameter Alias : ValueType = Option[List[Type]];
   parameter Value : Alias = Some([1, 2]);
-  node value : Std.Constant(Type = Alias, Value = Value);
 }
 node type GenericForward {
   parameter Type : ValueType;

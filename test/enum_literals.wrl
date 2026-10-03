@@ -1,3 +1,8 @@
+node type LiteralParameter {
+  parameter Type : ValueType;
+  parameter Value : Type;
+}
+
 node off : Std.Constant(
   Type = ThermostatSystemModeEnum,
   Value = ThermostatSystemModeEnum.Off
@@ -38,10 +43,7 @@ node present : Std.Constant(
   Type = Option[ThermostatSystemModeEnum],
   Value = Some(ThermostatSystemModeEnum.Heat)
 );
-node modes : Std.Constant(
-  Type = List[ThermostatSystemModeEnum],
-  Value = [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]
-);
+node modes : LiteralParameter(Type = List[ThermostatSystemModeEnum], Value = [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]);
 node delay : Std.Delay(
   Type = ThermostatSystemModeEnum,
   InitialValue = ThermostatSystemModeEnum.Off

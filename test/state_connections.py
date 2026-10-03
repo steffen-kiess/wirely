@@ -18,6 +18,7 @@ engine.assert_value_is('empty', True)
 registry = {}
 calls = Counter()
 list_inputs = []
+observations = {}
 
 
 @native_block_type(registry, has_native_state=False)
@@ -56,7 +57,8 @@ class Collect:
         calls[context.name] += 1
         values = context.inputs['input']
         list_inputs.append(values)
-        context.set_result('output', list(values))
+        observations[context.name] = values
+        context.set_result('output', True)
 
 
 definitions = '''
@@ -120,7 +122,7 @@ namespace TestLibrary {
 
   node type Collect {
     implicit input : list value boolean;
-    implicit output : value List[boolean];
+    implicit output : value boolean;
     native procedure run
       depends on implicit input as "input"
       produces implicit output as "output";
@@ -163,7 +165,7 @@ probe.assert_value_is('owner', False)
 probe.assert_value_is('owner.reader', False)
 probe.assert_value_is('second', True)
 assert list_inputs[-1] == (False, True, True)
-probe.assert_value_is('collector', (False, True, True))
+assert observations['collector'] == (False, True, True)
 owner_variable = probe.get_variable('owner')
 assert probe.state[owner_variable] is True
 assert probe.get_value('owner.relay') is False
@@ -271,7 +273,8 @@ class Current(Owner):
 
     @staticmethod
     def observe(*, context):
-        context.set_result('output', [context.inputs['previous'], context.inputs['current']])
+        observations[context.name] = (context.inputs['previous'], context.inputs['current'])
+        context.set_result('output', True)
 
 
 @native_block_type(registry, has_native_state=False)
@@ -284,7 +287,7 @@ namespace TestLibrary {
   node type Mixed {
     parameter Type : ValueType;
     implicit input : list value Type;
-    implicit output : value List[Type];
+    implicit output : value boolean;
     native procedure run
       depends on implicit input as "input"
       produces implicit output as "output";
@@ -294,7 +297,7 @@ namespace TestLibrary {
     parameter Type : ValueType;
     parameter InitialValue : Type;
     implicit input : value Type;
-    implicit output : value List[Type];
+    implicit output : value boolean;
     output Old : value Type;
     output New : value Type;
     state saved : Type = InitialValue;
@@ -331,12 +334,12 @@ connect owner.New -> observer;
 current = make_engine(current_source, declarations=current_definitions)
 current.get_native_state('source').set_value(5)
 current.step()
-current.assert_value_is('owner', (0, 5))
+assert observations['owner'] == (0, 5)
 current.assert_value_is('owner.Old', 0)
 current.assert_value_is('owner.New', 5)
 current.assert_value_is('owner.old_reader', 0)
 current.assert_value_is('owner.new_reader', 5)
-current.assert_value_is('owner.mixed', (0, 5, 5))
+assert observations['owner.mixed'] == (0, 5, 5)
 current.assert_value_is('observer', 5)
 new_variable = current.get_variable('owner.New')
 assert current.get_variable('owner.relay') is new_variable
@@ -348,8 +351,8 @@ new_reader_calls = calls['owner.new_reader']
 observer_calls = calls['observer']
 
 current.step()
-current.assert_value_is('owner', (5, 5))
-current.assert_value_is('owner.mixed', (5, 5, 5))
+assert observations['owner'] == (5, 5)
+assert observations['owner.mixed'] == (5, 5, 5)
 assert calls['owner.new_reader'] == new_reader_calls
 assert calls['observer'] == observer_calls
 current.step()
@@ -367,8 +370,8 @@ current.assert_value_is('owner.New', 5)
 
 current.get_native_state('source').set_value(9)
 current.step()
-current.assert_value_is('owner', (5, 9))
-current.assert_value_is('owner.mixed', (5, 9, 9))
+assert observations['owner'] == (5, 9)
+assert observations['owner.mixed'] == (5, 9, 9)
 current.assert_value_is('owner.new_reader', 9)
 current.assert_value_is('observer', 9)
 assert calls['owner.new_reader'] == new_reader_calls + 1
@@ -380,7 +383,7 @@ later_current = make_engine(current_source, declarations=current_definitions.rep
 ))
 later_current.get_native_state('source').set_value(11)
 later_current.step()
-later_current.assert_value_is('owner', (0, 11))
+assert observations['owner'] == (0, 11)
 
 new_shared_definitions = definitions.replace(
     'connect saved.old -> relay;', 'connect saved.new -> relay;',
@@ -418,8 +421,8 @@ connect other -> second;
 new_nested.step()
 new_nested.assert_value_is('first', 8)
 new_nested.assert_value_is('second', 9)
-new_nested.assert_value_is('first.owner', (0, 8))
-new_nested.assert_value_is('second.owner', (0, 9))
+assert observations['first.owner'] == (0, 8)
+assert observations['second.owner'] == (0, 9)
 
 # Graph labels preserve the phase even when both read the same state.
 owner_graph = current.program.graph.libraries['TestLibrary'].block_type_implementations['Current']

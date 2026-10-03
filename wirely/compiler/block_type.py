@@ -1,6 +1,7 @@
 import typing
 
 from . import native as compiler_native
+from .types import check_runtime_type, resolve_type
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
@@ -162,6 +163,8 @@ class BlockType(blocks.Scope):
             # if not isinstance(input.conn_spec, blocks.ConnectorSpecificationData):
             #     continue
             # TODO: Is the name of the block and the name of the input always the same?
+            if input.var_type is not None:
+                check_runtime_type(resolve_type(input.var_type, block.par_values), instantiation)
             new_input = blocks.Block.Input(block, input.input_name, input.is_list, input.var_type, block_input=input)
             block.custom_inputs[input] = new_input
         for output in self.block_outputs.values():
@@ -169,6 +172,8 @@ class BlockType(blocks.Scope):
             # if not isinstance(output.conn_spec, blocks.ConnectorSpecificationData):
             #     continue
             # TODO: Is the name of the block and the name of the output always the same?
+            if output.var_type is not None:
+                check_runtime_type(resolve_type(output.var_type, block.par_values), instantiation)
             new_output = blocks.Block.Output(block, output.output_name, output.var_type, block_output=output)
             block.custom_outputs[output] = new_output
 
@@ -177,6 +182,7 @@ class BlockType(blocks.Scope):
         for variable in self.variables.values():
             if isinstance(variable, blocks.ast.DeclarationStateVariable):
                 var_type = self.resolve_type(variable.var_type, par_values=block.parameter_values)
+                check_runtime_type(var_type, instantiation)
                 initial_value = self.get_const_value(variable.initial_value, value_type=var_type, par_values=block.parameter_values)
                 # TODO: Can there be type parameters here?
                 initial_value = initial_value.value
@@ -187,6 +193,7 @@ class BlockType(blocks.Scope):
                 state_variables[variable.name.id_str] = block_var
             elif isinstance(variable, blocks.ast.DeclarationTemporaryVariable):
                 var_type = self.resolve_type(variable.var_type, par_values=block.parameter_values)
+                check_runtime_type(var_type, instantiation)
                 impl_var_type = var_type  # TODO: ?
                 block_var = blocks.Block.Temporary(block, variable.name.id_str, var_type, impl_var_type=impl_var_type)
                 if hasattr(var_type, 'block_var'):

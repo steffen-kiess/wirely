@@ -174,36 +174,36 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            # Test StringEventEmitter
+            # Test NumberEventEmitter
 
-            engine.get_native_state('string_event_source').send_event(None)
+            engine.get_native_state('number_event_source').send_event(None)
             await expect_msgs()
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('string_event_source').send_event(wirely.Some('X1'))
+            engine.get_native_state('number_event_source').send_event(wirely.Some(17))
             await expect_msgs()
 
             engine.step()
-            await expect_msgs(('test/t4', b'"X1"'))
+            await expect_msgs(('test/t4', b'17'))
 
-            engine.get_native_state('string_event_source').send_event(wirely.Some('X1'))
+            engine.get_native_state('number_event_source').send_event(wirely.Some(17))
             await expect_msgs()
 
             engine.step()
-            await expect_msgs(('test/t4', b'"X1"'))
+            await expect_msgs(('test/t4', b'17'))
 
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('string_event_source').send_event(wirely.Some('X2'))
+            engine.get_native_state('number_event_source').send_event(wirely.Some(23))
             await expect_msgs()
 
             engine.step()
-            await expect_msgs(('test/t4', b'"X2"'))
+            await expect_msgs(('test/t4', b'23'))
 
-            engine.get_native_state('string_event_source').send_event(None)
+            engine.get_native_state('number_event_source').send_event(None)
             await expect_msgs()
 
             engine.step()

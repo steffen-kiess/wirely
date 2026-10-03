@@ -30,6 +30,8 @@ class Variable:
             raise Exception('name parameter is not a str')
         if self.var_type.contains_parameters:
             raise Exception('var_type parameter is not a concrete type')
+        if not self.var_type.is_runtime_type:
+            raise ValueError(f'Type {self.var_type} is parameter-only')
         object.__setattr__(self, 'name', str(self.name))
 
     def __repr__(self):

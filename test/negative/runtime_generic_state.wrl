@@ -1,0 +1,6 @@
+node type Invalid {
+  parameter Type : ValueType;
+  parameter Initial : Type;
+  state saved : Type = Initial;
+}
+node invalid : Invalid(Type = List[uint8], Initial = []); // E: parameter-only

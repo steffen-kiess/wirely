@@ -9,7 +9,8 @@ complements the [language guide](language.md) and
 
 A runtime type represents values used during execution, for example on a
 `value` or `event` connector. Parameter-only types configure a node when it
-is instantiated. Runtime types can also be used for parameters.
+is instantiated. Value and event connectors, state, and temporaries
+require runtime types. Runtime types can also be used for parameters.
 
 | Type | Allowed values | Use |
 | --- | --- | --- |
@@ -30,7 +31,7 @@ is instantiated. Runtime types can also be used for parameters.
 | `ThermostatSystemModeEnum` | A Matter thermostat system mode | Runtime |
 | `ValueType` | A value type | Parameter-only |
 | `Option[T]` | No value, or one value of type `T` | Runtime when `T` is runtime |
-| `List[T]` | An ordered list of values of type `T`, including an empty list | Runtime when `T` is runtime |
+| `List[T]` | An ordered list of values of type `T`, including an empty list | Parameter-only |
 
 Integer ranges are inclusive. For a signed integer of width `n`, the range
 is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.
@@ -218,8 +219,9 @@ node present : Std.OptionSome(InnerType = boolean);
 connect source -> present;
 ```
 
-`List[T]` represents an ordered list of values of type `T`. List literals
-use brackets, such as `[]`, `[1, 2]`, or `["first", "second"]`. For example:
+`List[T]` represents an ordered list parameter containing values of type
+`T`. List literals use brackets, such as `[]`, `[1, 2]`, or
+`["first", "second"]`. For example:
 
 ```wrl
 node type ListSettings {

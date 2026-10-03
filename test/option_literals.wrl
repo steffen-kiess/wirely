@@ -1,3 +1,8 @@
+node type LiteralParameter {
+  parameter Type : ValueType;
+  parameter Value : Type;
+}
+
 node absent : Std.Constant(Type = Option[unit], Value = None);
 node boolean_some : Std.Constant(Type = Option[boolean], Value = Some(true));
 node number_some : Std.Constant(Type = Option[int8], Value = Some(-42));
@@ -10,8 +15,8 @@ node nested_unit : Std.Constant(
   Type = Option[Option[unit]],
   Value = Some(Some(()))
 );
-node list_some : Std.Constant(Type = Option[List[int8]], Value = Some([1, 2]));
-node list_options : Std.Constant(
+node list_some : LiteralParameter(Type = Option[List[int8]], Value = Some([1, 2]));
+node list_options : LiteralParameter(
   Type = List[Option[int8]],
   Value = [Some(1), None, Some(-42)]
 );
@@ -32,11 +37,11 @@ node type Settings {
     Type = Option[Option[boolean]],
     Value = Some(Some(Flag))
   );
-  node items : Std.Constant(
+  node items : LiteralParameter(
     Type = List[Option[int8]],
     Value = [Some(Number), None]
   );
-  node numbers : Std.Constant(
+  node numbers : LiteralParameter(
     Type = Option[List[int8]],
     Value = Some([Number, -42])
   );
@@ -44,7 +49,7 @@ node type Settings {
     Type = Option[TimeOfDay],
     Value = Some(TimeOfDay_AddWrap(At, Offset))
   );
-  node times : Std.Constant(
+  node times : LiteralParameter(
     Type = List[Option[TimeOfDay]],
     Value = [Some(TimeOfDay_AddWrap(At, Offset)), None]
   );

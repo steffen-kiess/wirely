@@ -11,7 +11,7 @@ from ..program import RunStage
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
-from wirely.compiler.types import parse_value, resolve_type
+from wirely.compiler.types import parse_value, resolve_type, check_runtime_type
 
 
 class SourcePosition:
@@ -767,6 +767,7 @@ class DeclarationConnector(Declaration):
         # TODO: Should the entires conn_spec instance be passed?
         if isinstance(self.conn_spec, ConnectorSpecificationData):
             ty = self.interface.resolve_type(self.ty)
+            check_runtime_type(ty, self)
             resource_type = None
         elif isinstance(self.conn_spec, ConnectorSpecificationResource):
             ty = None
@@ -990,6 +991,7 @@ class DeclarationStateVariable(Declaration):
 
     def create_io(self, new_graph):
         ty = self.interface.resolve_type(self.var_type)
+        check_runtime_type(ty, self)
         # TODO: Resolve initial_value
         blocks.BlockStateVariable(new_graph, ty, name=self.name_str, initial_value=self.initial_value)
 
@@ -1031,6 +1033,7 @@ class DeclarationTemporaryVariable(Declaration):
 
     def create_io(self, new_graph):
         ty = self.interface.resolve_type(self.var_type)
+        check_runtime_type(ty, self)
         blocks.BlockTemporaryVariable(new_graph, ty, name=self.name_str)
 
 

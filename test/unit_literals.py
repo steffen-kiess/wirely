@@ -36,7 +36,7 @@ with checks.assertRaises(Exception):
 engine.step()
 for name in ['source', 'spaced', 'commented', 'delay']:
     engine.assert_value_is(name, wirely.Unit())
-engine.assert_value_is('units', (wirely.Unit(), wirely.Unit()))
+assert engine.program.instances['units'].parameters['Value'] == (wirely.Unit(), wirely.Unit())
 engine.assert_value_is('present', wirely.Some(wirely.Unit()))
 engine.assert_value_is('absent', None)
 engine.step()

@@ -1,0 +1,5 @@
+node type Invalid {
+  parameter Type : ValueType;
+  temporary saved : Type;
+}
+node invalid : Invalid(Type = Option[String]); // E: parameter-only

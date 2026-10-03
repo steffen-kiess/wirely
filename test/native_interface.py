@@ -508,94 +508,31 @@ native procedure run
 probe.step()
 probe.assert_value_is('probe', 0)
 
-list_snapshots = []
-
-
-def check_list_value(context):
-    value = context.inputs['value']
-    assert type(value) is tuple
-    assert all(type(item) is tuple for item in value)
-    list_snapshots.append(value)
-    supplied = [list(item) for item in value]
-    context.set_result('result', supplied)
-    supplied[0].append(99)
-    supplied.append([99])
-
-
-probe = make_engine('''
-implicit input : value List[List[uint8]];
-implicit output : value List[List[uint8]];
-
-native procedure run
-  depends on implicit input as "value"
-  produces implicit output as "result";
-''', check_list_value, extra='''
-node source : Std.DebugValueSource(Type = List[List[uint8]]);
-connect source -> probe;
-''')
-source = probe.get_native_state('source')
-supplied = [[1, 2], [3]]
-source.set_value(supplied)
-probe.step()
-supplied[0].append(4)
-assert list_snapshots == [((1, 2), (3,))]
-probe.assert_value_is('probe', ((1, 2), (3,)))
-probe.assert_is_idle()
-source.set_value(((1, 2), (3,)))
-probe.step()
-assert len(list_snapshots) == 1
-source.set_value(supplied)
-probe.step()
-assert list_snapshots[-1] == ((1, 2, 4), (3,))
-probe.assert_value_is('probe', ((1, 2, 4), (3,)))
-
-
-def check_list_state(context):
-    previous = context.inputs['previous']
-    assert type(previous) is tuple
-    supplied = list(previous) + [len(previous)]
-    context.set_result('next', supplied)
-    supplied.append(99)
-    context.set_result('result', previous)
-
-
-probe = make_engine('''
-state items : List[uint8] = [];
-implicit output : value List[uint8];
-
-native procedure run
-  depends on items.old as "previous"
-  produces items as "next", implicit output as "result";
-''', check_list_state)
-for expected in [(), (0,), (0, 1)]:
-    probe.step()
-    probe.assert_value_is('probe', expected)
-
 event_snapshots = []
 
 
-def check_event_list(context):
+def check_event_connections(context):
     values = context.inputs['values']
     assert type(values) is tuple
     event_snapshots.append(values)
 
 
 probe = make_engine('''
-implicit input : list event List[uint8];
+implicit input : list event uint8;
 
 native procedure run
   depends on implicit input as "values";
-''', check_event_list, extra='''
-node first : Std.DebugEventSource(Type = List[uint8]);
-node second : Std.DebugEventSource(Type = List[uint8]);
+''', check_event_connections, extra='''
+node first : Std.DebugEventSource(Type = uint8);
+node second : Std.DebugEventSource(Type = uint8);
 connect first, second -> probe;
 ''')
 probe.step()
 assert event_snapshots[-1] == (None, None)
-probe.get_native_state('first').send_event(blocks.Some([1, 2]))
-probe.get_native_state('second').send_event(blocks.Some((3,)))
+probe.get_native_state('first').send_event(blocks.Some(1))
+probe.get_native_state('second').send_event(blocks.Some(3))
 probe.step()
-assert event_snapshots[-1] == (blocks.Some((1, 2)), blocks.Some((3,)))
+assert event_snapshots[-1] == (blocks.Some(1), blocks.Some(3))
 probe.step()
 assert event_snapshots[-1] == (None, None)
 probe.assert_is_idle()

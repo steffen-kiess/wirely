@@ -21,11 +21,11 @@ types = wirely.value_types
 engine.step()
 engine.assert_value_is('defaults.value.', 7)
 engine.assert_value_is('defaults.wrapped.', datetime.time(0, 30))
-engine.assert_value_is('defaults.items.', (wirely.Some(7), None))
+assert engine.program.instances['defaults'].parameters['Items'] == (wirely.Some(7), None)
 engine.assert_value_is('overridden.value.', -12)
 engine.assert_value_is('overridden.wrapped.', datetime.time(1, 30))
 engine.assert_value_is('forwarded.child.value.', 42)
-engine.assert_value_is('generic.child.value.', wirely.Some((1, 2)))
+assert engine.program.instances['generic.child'].parameters['Value'] == wirely.Some((1, 2))
 engine.assert_value_is('fallback.Value', True)
 
 registry = {}
@@ -227,59 +227,24 @@ assert shared_child.context.name == 'TestLibrary.SharedContainer.child'
 assert shared_path == nested.get_block_path('shared_again')
 
 
-def check_type_state(context):
-    previous = context.inputs['previous']
-    assert isinstance(previous, wirely.ValueType)
-    context.set_result('selected', types.uint8)
-    context.set_result('output', previous)
-
-
-probe = make_probe('''
-state selected : ValueType = uint16;
-implicit output : value ValueType;
-native procedure run
-  depends on selected.old as "previous"
-  produces selected, implicit output as "output";
-''', check_type_state)
-probe.assert_value_is('probe', wirely.types.uint16)
-probe.step()
-probe.assert_value_is('probe', wirely.types.uint8)
-probe.assert_is_idle()
-
-
 def check_type_values(context):
     expected = (wirely.Some(types.uint16), None)
     assert context.parameters['Values'] == expected
-    assert context.inputs['input'] == expected
     descriptor = context.parameters['Type']
     assert descriptor.validate(expected) == expected
     supplied = list(expected)
     assert descriptor.validate(supplied) == expected
     with checks.assertRaises(ValueError):
         descriptor.validate([wirely.Some(wirely.types.uint16)])
-    with checks.assertRaises(ValueError):
-        context.set_result('output', [wirely.Some(wirely.types.uint16)])
-    context.set_result('output', supplied)
     supplied.append(wirely.Some(types.uint8))
     assert context.parameters['Values'] == expected
 
 
-probe = make_probe('''
+make_probe('''
 parameter Type : ValueType = List[Option[ValueType]];
 parameter Values : Type = [Some(uint16), None];
-implicit input : value Type;
-implicit output : value Type;
-native procedure run
-  depends on implicit input as "input"
-  produces implicit output as "output";
-''', check_type_values, extra='''
-node source : Std.Constant(
-  Type = List[Option[ValueType]],
-  Value = [Some(uint16), None]
-);
-connect source -> probe;
-''')
-probe.assert_value_is('probe', (wirely.Some(wirely.types.uint16), None))
+native procedure run;
+''', check_type_values)
 
 for name, descriptor in vars(types).items():
     if isinstance(descriptor, wirely.ValueType):

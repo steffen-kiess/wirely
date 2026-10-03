@@ -38,15 +38,15 @@ connect event_source -> event_emitter;
 
 connect server -> event_emitter.Broker;
 
-node string_event_source : Std.DebugEventSource(Type = String);
+node number_event_source : Std.DebugEventSource(Type = uint8);
 
-node string_event_emitter : MQTT.EventEmitter(
+node number_event_emitter : MQTT.EventEmitter(
   Topic = "test/t4",
-  Type = String
+  Type = uint8
 );
-connect string_event_source -> string_event_emitter;
+connect number_event_source -> number_event_emitter;
 
-connect server -> string_event_emitter.Broker;
+connect server -> number_event_emitter.Broker;
 
 node enum_event_source : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
 

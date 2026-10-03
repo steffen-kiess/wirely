@@ -15,7 +15,7 @@ for name, expected in {
     'multiline': 'first\nsecond',
     'continuation': 'firstsecond',
 }.items():
-    engine.assert_value_is(name, expected)
+    assert engine.program.instances[name].parameters['Value'] == expected
 
 
 def parse_literal(literal):
