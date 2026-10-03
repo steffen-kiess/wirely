@@ -90,6 +90,7 @@ negative_tests = [
 diagnostic_pattern = re.compile(
     r'^(Error in |Hint: |Warning in |Warning: )(.+):(\d+): (.+)$'
 )
+syntax_diagnostic_pattern = re.compile(r'^Error in (.+):(\d+)$')
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
 case_marker_pattern = re.compile(r'[ \t]*//[ \t]+TEST(?:[ \t]*:[ \t]*(.*?))?[ \t]*')
 
@@ -168,13 +169,20 @@ def compile_negative_case(full_fn, case):
         raise AssertionError(f'compiler failed internally:\n{stdout}{stderr}')
 
     actual = []
-    for line in stdout.splitlines():
+    output_lines = stdout.splitlines()
+    for index, line in enumerate(output_lines):
         match = diagnostic_pattern.fullmatch(line)
         if match is not None:
             prefix, filename, line_number, message = match.groups()
             kind = {'Error in ': 'E', 'Hint: ': 'H',
                     'Warning in ': 'W', 'Warning: ': 'W'}[prefix]
             actual.append((kind, os.path.abspath(filename), int(line_number), message))
+        elif (match := syntax_diagnostic_pattern.fullmatch(line)) is not None:
+            if index + 1 == len(output_lines) or not output_lines[index + 1].strip():
+                raise AssertionError(f'malformed syntax diagnostic: {line!r}')
+            filename, line_number = match.groups()
+            message = 'Syntax error: ' + output_lines[index + 1]
+            actual.append(('E', os.path.abspath(filename), int(line_number), message))
         elif line.startswith(('Error', 'Hint', 'Warning')):
             raise AssertionError(f'malformed diagnostic: {line!r}')
 

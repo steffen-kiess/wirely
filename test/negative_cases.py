@@ -60,6 +60,43 @@ node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
 
 
+# Syntax diagnostics use the same annotations and physical line numbers.
+run_fixture('enum type Bad : int8 { One = 1; } // E: Unexpected token\n')
+run_fixture('''// TEST: unexpected token
+enum type Bad : int8 {
+  One = 1; // E: Unexpected token
+}
+// TEST: unexpected character
+node bad : Std.Constant(Type = String, Value = "unterminated);
+// ^E: No terminal matches
+// TEST: unexpected end of input
+enum type Bad : int8 { One = 1 // E: Syntax error
+// TEST: semantic error after syntax errors
+node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+''')
+
+with checks.assertRaises(AssertionError) as error:
+    run_fixture('''// TEST: wrong syntax expectation
+enum type Bad : int8 { One = 1; } // E: No terminal matches
+// TEST: another mismatch
+node bad : Std.Constant(Type = uint8, Value = -1); // E: wrong expectation
+''')
+message = str(error.exception)
+assert 'wrong syntax expectation' in message and 'another mismatch' in message
+assert 'Unexpected token' in message
+
+# A location header alone is not a complete syntax diagnostic.
+for suffix in ['', '\n']:
+    def incomplete_syntax(sources, *, suffix=suffix, **kwargs):
+        print(f'Error in {sources[0][0]}:1' + suffix)
+        return None
+
+    with patch('wirely.compiler.compile_strs', side_effect=incomplete_syntax):
+        with checks.assertRaises(AssertionError) as error:
+            run_fixture(legacy)
+    assert 'malformed syntax diagnostic' in str(error.exception)
+
+
 invalid = [
     ('', 'no expected diagnostics'),
     ('// TEST\n', 'no expected diagnostics'),
