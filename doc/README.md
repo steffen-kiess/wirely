@@ -6,6 +6,9 @@ them. Then use the [library reference](libraries.md) to find the nodes supplied
 with Wirely. The [value type reference](value-types.md) describes the types
 used by parameters, connectors, and state.
 
+The [binary program format proposal](bytecode-format.md) describes program
+tables, value encodings, and optional debugging information.
+
 For `.wrl` formatting and naming, follow the
 [Wirely style guide](wirely-style.md).
 
