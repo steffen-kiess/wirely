@@ -11,6 +11,34 @@ from . import enum
 # A value type supporting runtime validation, equality, and text parsing.
 class Type(abc.ABC):
     @property
+    def alignment(self):
+        """Required byte alignment of this runtime type."""
+        from .serialization import _alignment
+        return _alignment(self)
+
+    @property
+    def data_size(self):
+        """Encoded byte length, excluding reusable tail padding."""
+        from .serialization import _data_size
+        return _data_size(self)
+
+    @property
+    def size(self):
+        """Aligned storage size in bytes, including zero tail padding."""
+        alignment = self.alignment
+        return (self.data_size + alignment - 1) & ~(alignment - 1)
+
+    def serialize(self, value):
+        """Return exactly data_size little-endian bytes for value."""
+        from .serialization import _serialize
+        return _serialize(self, value)
+
+    def deserialize(self, data):
+        """Decode exactly data_size bytes, validating flags and absent payloads."""
+        from .serialization import _deserialize
+        return _deserialize(self, data)
+
+    @property
     @abc.abstractmethod
     def contains_parameters(self):
         ...
@@ -316,8 +344,17 @@ class TypeString(TypeConcrete):
 
 # TODO: Add to_csv_value?
 class TypeEnum(TypeConcrete):
-    def __init__(self, name, python_type):
+    """A named Python enumeration encoded with an explicit integer type."""
+
+    def __init__(self, name, python_type, *, underlying_type):
+        """Define the enum and check that its member numbers fit the integer type."""
+        if not isinstance(underlying_type, TypeInt):
+            raise ValueError('Enum underlying_type must be an integer type')
+        for member in python_type.__members__.values():
+            if type(member.value) is not int or not underlying_type.min_value <= member.value <= underlying_type.max_value:
+                raise ValueError(f'Enum member {member.name} does not fit {underlying_type}')
         super().__init__(name=name, python_type=python_type, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
+        self.underlying_type = underlying_type  # Wire width and signedness of member numbers.
 
     def _parse_impl(self, s):
         try:
@@ -366,7 +403,9 @@ TimeOfDay = TypeTimeOfDay()
 Duration = TypeDuration()
 MonotonicTime = TypeMonotonicTime()
 String = TypeString()
-ThermostatSystemMode = TypeEnum('ThermostatSystemModeEnum', enum.ThermostatSystemMode)
+ThermostatSystemMode = TypeEnum(
+    'ThermostatSystemModeEnum', enum.ThermostatSystemMode, underlying_type=uint8,
+)
 
 # def option(inner_type):
 #     return TypeOption(inner_type)

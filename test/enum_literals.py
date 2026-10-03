@@ -39,9 +39,28 @@ class OtherMode(enum.Enum):
     Heat = 1
 
 
-other_type = wirely.types.TypeEnum('OtherMode', OtherMode)
+other_type = wirely.types.TypeEnum('OtherMode', OtherMode, underlying_type=wirely.types.uint8)
 declarations = wirely.compiler.parser.parse_str(
     'parameter Mode : OtherMode = OtherMode.Heat;', filename='<enum-test>',
 )
 assert parse_value(other_type, declarations[0].default_value) is OtherMode.Heat
 assert other_type.parse('Heat') is OtherMode.Heat
+
+
+class SignedMode(enum.Enum):
+    """Enum members exercising a signed underlying integer."""
+
+    Negative = -2
+    Positive = 300
+
+
+signed_type = wirely.types.TypeEnum('SignedMode', SignedMode, underlying_type=wirely.types.int16)
+assert (signed_type.size, signed_type.data_size, signed_type.alignment) == (2, 2, 2)
+assert signed_type.serialize(SignedMode.Negative) == bytes.fromhex('fe ff')
+assert signed_type.deserialize(bytes.fromhex('2c 01')) is SignedMode.Positive
+try:
+    wirely.types.TypeEnum('TooSmall', SignedMode, underlying_type=wirely.types.uint8)
+except ValueError:
+    pass
+else:
+    raise AssertionError('Enum members outside the underlying range were accepted')

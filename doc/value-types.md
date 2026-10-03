@@ -163,6 +163,7 @@ Time library nodes produce and work with monotonic times, including
 `ThermostatSystemModeEnum` represents the Thermostat cluster's `SystemModeEnum`
 from the Matter Application Cluster Specification. Its names and numeric
 values follow the [Matter Thermostat data model](https://github.com/project-chip/connectedhomeip/blob/master/data_model/1.4/clusters/Thermostat.xml).
+Its underlying integer type is `uint8`, matching Matter's `enum8`.
 
 | Member | Numeric value |
 | --- | --- |
@@ -261,3 +262,45 @@ For CSV, an absent optional value becomes an empty field; a present value
 uses the inner type's conversion. MQTT's `ValueOptionProvider` handles
 optionality itself: it publishes an empty payload for `None`, and JSON
 encoded using the inner type for a present value.
+
+
+## Runtime binary representation
+
+Each runtime type has a fixed binary representation, independent of its
+value. Its data size is the number of encoded bytes. Its alignment is the
+required multiple for its starting byte offset in aligned storage. Its
+storage size rounds the data size up to that alignment, adding zero tail
+padding so consecutive values start at aligned offsets.
+
+All multibyte values are little-endian. Signed integers use two's
+complement.
+
+| Type | Data bytes | Alignment | Encoding |
+| --- | --- | --- | --- |
+| `unit` | 0 | 1 | Empty |
+| `boolean` | 1 | 1 | `00` or `01` |
+| Integer of width N bytes | N | N | Declared integer width |
+| Enum | Underlying integer size | Underlying integer alignment | Member number |
+| `Duration` | 8 | 8 | `u64` nanoseconds |
+| `MonotonicTime` | 16 | 8 | `u64` generation, then `u64` nanoseconds |
+| `TimeOfDay` | 8 | 8 | `u64` nanoseconds since midnight |
+| `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
+
+Each enum uses its declared underlying integer type.
+
+An option's presence byte follows its payload's data bytes: `00` means
+`None`, with all payload bytes zero; `01` means `Some(value)`. Nested
+flags follow the underlying payload from innermost to outermost, reusing
+tail padding. For `Option[Option[uint64]]`, the flags occupy offsets 8 and
+9: data size is 10, alignment is 8, and storage size is 16. `Some(None)` ends
+in `00 01`; `None` contains ten zero bytes.
+
+Duration and monotonic fields fit unsigned 64-bit integers. Monotonic
+`(0, 0)` retains its invalid-timestamp meaning. The time-of-day format
+extends through `86_400_000_000_000` nanoseconds (24:00). Wirely currently
+accepts times before 24:00 at microsecond precision, without a timezone.
+
+Boolean and presence bytes are exactly `00` or `01`. Absent payloads and
+tail padding contain only zeros. Integer values fit their encoded widths,
+and enum numbers identify declared members. Each serialized value has
+exactly the data size of its resolved runtime type.

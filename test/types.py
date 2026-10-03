@@ -285,3 +285,101 @@ assert not wirely.types.TypeList(wirely.types.uint8).is_runtime_type
 assert wirely.types.TypeOption(wirely.types.uint8).is_runtime_type
 assert not wirely.types.TypeOption(wirely.types.String).is_runtime_type
 assert not wirely.types.TypeOption(wirely.types.TypeList(wirely.types.uint8)).is_runtime_type
+
+# Runtime codecs return data bytes; aligned storage may have extra tail padding.
+for ty, value, encoded, alignment in [
+    (wirely.types.unit, wirely.Unit(), b'', 1),
+    (wirely.types.boolean, False, b'\x00', 1),
+    (wirely.types.boolean, True, b'\x01', 1),
+    (wirely.types.uint32, 0x12345678, bytes.fromhex('78 56 34 12'), 4),
+    (wirely.types.int16, -2, bytes.fromhex('fe ff'), 2),
+    (wirely.types.Duration, wirely.Duration(duration_ns=1_000_000),
+     bytes.fromhex('40 42 0f 00 00 00 00 00'), 8),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(7, 123),
+     bytes.fromhex('07 00 00 00 00 00 00 00 7b 00 00 00 00 00 00 00'), 8),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime.create_invalid(), bytes(16), 8),
+    (wirely.types.TimeOfDay, datetime.time(0, 0, 1),
+     bytes.fromhex('00 ca 9a 3b 00 00 00 00'), 8),
+    (wirely.types.ThermostatSystemMode, wirely.enum.ThermostatSystemMode.Heat, b'\x04', 1),
+]:
+    assert ty.alignment == alignment
+    assert ty.data_size == len(encoded)
+    assert ty.size == len(encoded)
+    assert ty.serialize(value) == encoded
+    assert ty.deserialize(encoded) == value
+    assert ty.deserialize(memoryview(encoded)) == value
+
+for bits in (8, 16, 32, 64):
+    for signed in (False, True):
+        ty = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
+        assert ty.size == ty.data_size == ty.alignment == bits // 8
+        for value in (ty.min_value, 0, ty.max_value):
+            encoded = value.to_bytes(bits // 8, 'little', signed=signed)
+            assert ty.serialize(value) == encoded
+            assert ty.deserialize(encoded) == value
+        for invalid in (ty.min_value - 1, ty.max_value + 1):
+            with checks.assertRaises(ValueError):
+                ty.serialize(invalid)
+
+option_uint64 = wirely.types.TypeOption(wirely.types.uint64)
+nested_uint64 = wirely.types.TypeOption(option_uint64)
+assert (option_uint64.data_size, option_uint64.size, option_uint64.alignment) == (9, 16, 8)
+assert (nested_uint64.data_size, nested_uint64.size, nested_uint64.alignment) == (10, 16, 8)
+for ty, value, encoded in [
+    (option_uint64, None, bytes(9)),
+    (option_uint64, wirely.Some(7), b'\x07' + bytes(7) + b'\x01'),
+    (nested_uint64, None, bytes(10)),
+    (nested_uint64, wirely.Some(None), bytes(9) + b'\x01'),
+    (nested_uint64, wirely.Some(wirely.Some(7)), b'\x07' + bytes(7) + b'\x01\x01'),
+    (wirely.types.TypeOption(wirely.types.unit), None, b'\x00'),
+    (wirely.types.TypeOption(wirely.types.unit), wirely.Some(wirely.Unit()), b'\x01'),
+]:
+    assert ty.serialize(value) == encoded
+    assert ty.deserialize(encoded) == value
+    for malformed in (encoded[:-1], encoded + b'\x00', encoded + b'\x01'):
+        with checks.assertRaises(ValueError):
+            ty.deserialize(malformed)
+
+for ty, malformed in [
+    (wirely.types.boolean, b'\x02'),
+    (wirely.types.boolean, b'\xff'),
+    (option_uint64, bytes(8) + b'\x02'),
+    (option_uint64, b'\x01' + bytes(8)),
+    (nested_uint64, bytes(8) + b'\x01\x00'),
+    (nested_uint64, b'\x01' + bytes(8) + b'\x01'),
+    (nested_uint64, bytes(8) + b'\x02\x01'),
+    (wirely.types.ThermostatSystemMode, b'\x02'),
+    (wirely.types.TimeOfDay, (86_400_000_000_000).to_bytes(8, 'little')),
+    (wirely.types.TimeOfDay, (86_400_000_000_001).to_bytes(8, 'little')),
+    (wirely.types.TimeOfDay, (1).to_bytes(8, 'little')),
+]:
+    with checks.assertRaises(ValueError):
+        ty.deserialize(malformed)
+
+for value in (datetime.time(0), datetime.time(23, 59, 59, 999999)):
+    assert wirely.types.TimeOfDay.deserialize(wirely.types.TimeOfDay.serialize(value)) == value
+with checks.assertRaises(ValueError):
+    wirely.types.TimeOfDay.serialize(datetime.time(12, tzinfo=datetime.timezone.utc))
+
+maximum = 2**64 - 1
+for ty, value in [
+    (wirely.types.Duration, wirely.Duration(duration_ns=maximum)),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum, maximum)),
+]:
+    assert ty.deserialize(ty.serialize(value)) == value
+for ty, invalid in [
+    (wirely.types.Duration, wirely.Duration(duration_ns=maximum + 1)),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(-1, 0)),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(1, -1)),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum + 1, 0)),
+    (wirely.types.MonotonicTime, wirely.MonotonicTime(1, maximum + 1)),
+]:
+    with checks.assertRaises(ValueError):
+        ty.serialize(invalid)
+
+for ty in (wirely.types.String, wirely.types.ValueType,
+           wirely.types.TypeList(wirely.types.uint8), wirely.types.TypeOption(wirely.types.String)):
+    for operation in (lambda: ty.size, lambda: ty.data_size, lambda: ty.alignment,
+                      lambda: ty.serialize(None), lambda: ty.deserialize(b'')):
+        with checks.assertRaises(ValueError):
+            operation()
