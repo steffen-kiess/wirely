@@ -79,24 +79,28 @@ struct type Record {
 node n : Std.Constant(Type = Record, Value = { x : 1 }); // E: Syntax error
 
 // TEST: missing_field
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Record {}); // E: Missing fields
 
 // TEST: unknown_field
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Record { y : 1 }); // E: Unknown field
 
 // TEST: duplicate_literal_field
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Record { x : 1, x : 2 }); // E: Duplicate struct field x // H: Previous field was here
 
 // TEST: wrong_literal_type
+// LIBRARIES: std
 struct type First {
   x : uint8,
 }
@@ -106,42 +110,49 @@ struct type Second {
 node n : Std.Constant(Type = First, Value = Second { x : 1 }); // E: Expected struct type First
 
 // TEST: unknown_literal_type
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Missing { x : 1 }); // E: Cannot find type Missing
 
 // TEST: nonstruct_literal_type
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = uint8 { x : 1 }); // E: Expected struct type Record
 
 // TEST: literal_in_scalar
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = uint8, Value = Record { x : 1 }); // E: got struct literal
 
 // TEST: scalar_in_struct
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = 1); // E: Expected struct literal
 
 // TEST: overflow
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Record { x : 256 }); // E: out of range
 
 // TEST: wrong_field_value
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
 node n : Std.Constant(Type = Record, Value = Record { x : "text" }); // E: Invalid int value
 
 // TEST: wrong_nested_value
+// LIBRARIES: std
 struct type Inner {
   x : uint8,
 }
@@ -151,6 +162,7 @@ struct type Outer {
 node n : Std.Constant(Type = Outer, Value = Outer { inner : 1 }); // E: Expected struct literal
 
 // TEST: wrong_parameter_type
+// LIBRARIES: std
 struct type Record {
   x : uint8,
 }
@@ -161,6 +173,7 @@ node type Settings {
 node n : Settings;
 
 // TEST: wrong_namespaced_type
+// LIBRARIES: std
 namespace A { struct type Record {
   x : uint8,
 } }

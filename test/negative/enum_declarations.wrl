@@ -140,6 +140,7 @@ enum type Bad : int8 {
 }
 
 // TEST: unknown_member
+// LIBRARIES: std
 enum type Bad : int8 {
   One = 1,
 }
@@ -149,6 +150,7 @@ node n : Std.Constant(
 );
 
 // TEST: wrong_qualified_enum
+// LIBRARIES: std
 namespace A {
   enum type Mode : int8 {
     One = 1,
@@ -165,6 +167,7 @@ node n : Std.Constant(
 );
 
 // TEST: wrong_relative_enum
+// LIBRARIES: std
 namespace A {
   enum type Mode : int8 {
     One = 1,

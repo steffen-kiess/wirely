@@ -74,8 +74,14 @@ and `// W: message` to match diagnostics on that line; each `^` before the
 letter targets one line above. For syntax errors, match `Syntax error` or a
 fragment of the parser message. Start independent cases with a standalone
 `// TEST` or `// TEST: label`. Each case needs expected diagnostics and
-compiles separately with the default libraries. Line numbers and caret
-annotations refer to the original file; declarations stay within their case.
+compiles separately. Line numbers and caret annotations refer to the
+original file; declarations stay within their case.
+
+Negative cases load no libraries by default. Use `// LIBRARIES: std, matter`
+to select library filenames without `.wrl`, including any dependencies.
+A directive before the first `// TEST` sets the file default; one inside a
+case replaces it for that case only. `// LIBRARIES:` selects no libraries.
+In an unmarked file, the directive applies to its single case.
 
 ## Working practices
 

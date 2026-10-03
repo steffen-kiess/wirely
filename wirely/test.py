@@ -96,6 +96,8 @@ diagnostic_pattern = re.compile(
 )
 syntax_diagnostic_pattern = re.compile(r'^Error in (.+):(\d+)$')
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
+library_metadata_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES[ \t]*:[ \t]*(.*?)[ \t]*')
+library_metadata_prefix_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES\b')
 case_marker_pattern = re.compile(r'[ \t]*//[ \t]+TEST(?:[ \t]*:[ \t]*(.*?))?[ \t]*')
 
 
@@ -124,6 +126,35 @@ class NegativeTestCase:
     start_line: int
     end_line: int
     source: str
+    libraries: tuple[str, ...] = ()
+
+
+def negative_test_libraries(lines, *, start_line):
+    libraries = None
+    for offset, line in enumerate(lines):
+        line = line.rstrip('\r\n')
+        if not library_metadata_prefix_pattern.match(line):
+            continue
+        line_number = start_line + offset
+        match = library_metadata_pattern.fullmatch(line)
+        if match is None:
+            raise AssertionError(f'Malformed library metadata on line {line_number}')
+        if libraries is not None:
+            raise AssertionError(f'Multiple library directives on line {line_number}')
+        text = match.group(1)
+        if not text:
+            libraries = ()
+            continue
+        names = tuple(name.strip() for name in text.split(','))
+        for name in names:
+            if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
+                raise AssertionError(f'Malformed library name {name!r} on line {line_number}')
+            if name not in blocks.compiler._STANDARD_LIBRARY_NAMES:
+                raise AssertionError(f'Unknown library {name!r} on line {line_number}')
+        if len(set(names)) != len(names):
+            raise AssertionError(f'Duplicate library name on line {line_number}')
+        libraries = names
+    return libraries
 
 
 def negative_test_cases(source):
@@ -133,9 +164,16 @@ def negative_test_cases(source):
         match = case_marker_pattern.fullmatch(line.rstrip('\r\n'))
         if match is not None:
             markers.append((index, match.group(1)))
+    header_end = markers[0][0] if markers else len(lines)
+    default_libraries = negative_test_libraries(lines[:header_end], start_line=1) or ()
     boundaries = [(-1, None), *markers, (len(lines), None)]
     for (marker, label), (end, _) in zip(boundaries, boundaries[1:]):
         start = marker + 1
+        libraries = default_libraries
+        if marker != -1:
+            override = negative_test_libraries(lines[start:end], start_line=start + 1)
+            if override is not None:
+                libraries = override
         if marker == -1 and markers:
             preamble = ''.join(lines[start:end])
             if not re.search(r'//\s*\^*[EHW]:', preamble):
@@ -148,7 +186,7 @@ def negative_test_cases(source):
                         continue
         padded = ''.join(line if start <= index < end else '\n'
                          for index, line in enumerate(lines))
-        yield NegativeTestCase(label, start + 1, end, padded)
+        yield NegativeTestCase(label, start + 1, end, padded, libraries)
 
 
 def compile_negative_case(full_fn, case):
@@ -163,7 +201,8 @@ def compile_negative_case(full_fn, case):
     output = io.StringIO()
     errors = io.StringIO()
     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-        result = blocks.compiler.compile_strs([(full_fn, case.source)], add_std=True)
+        sources = blocks.compiler._standard_library_sources(case.libraries)
+        result = blocks.compiler.compile_strs(sources + [(full_fn, case.source)], add_std=False)
         if result is not None:
             result = program_compiler.compile(result)
 

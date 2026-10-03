@@ -22,14 +22,18 @@ def run_fixture(source):
             compile_negative_test(str(filename))
 
 
+def run_fixture_with_std(source):
+    run_fixture('// LIBRARIES: std\n' + source)
+
+
 # Unmarked fixtures, initial annotated cases, and comment-only preambles.
 legacy = 'node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range\n'
-run_fixture(legacy)
-run_fixture(legacy + '''
+run_fixture_with_std(legacy)
+run_fixture_with_std(legacy + '''
 // TEST
 node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
 ''')
-run_fixture('''// A description before the first case.
+run_fixture_with_std('''// A description before the first case.
 /* A block comment /* with nesting */ in the preamble. */
 
   // TEST: duplicate members
@@ -48,21 +52,21 @@ node bad : Std.Constant(Type = Mode, Value = Mode.Missing);
 node bad : Std.Constant(Type = Mode, Value = Mode.On); // E: Cannot find type Mode
 ''')
 # Labels are descriptive; repeated labels and indentation are accepted.
-run_fixture('''\t// TEST: bounds\x20\x20
+run_fixture_with_std('''\t// TEST: bounds\x20\x20
 node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
   // TEST: bounds\t
 node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
 ''')
 # Inline strings and comments containing TEST are not case boundaries.
-run_fixture('''node type Holder { parameter Text : String = "// TEST"; }
+run_fixture_with_std('''node type Holder { parameter Text : String = "// TEST"; }
 // TESTING is an ordinary comment.
 node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
 
 
 # Syntax diagnostics use the same annotations and physical line numbers.
-run_fixture('enum type Bad : int8 { One = 1; } // E: Unexpected token\n')
-run_fixture('''// TEST: unexpected token
+run_fixture_with_std('enum type Bad : int8 { One = 1; } // E: Unexpected token\n')
+run_fixture_with_std('''// TEST: unexpected token
 enum type Bad : int8 {
   One = 1; // E: Unexpected token
 }
@@ -76,7 +80,7 @@ node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
 
 with checks.assertRaises(AssertionError) as error:
-    run_fixture('''// TEST: wrong syntax expectation
+    run_fixture_with_std('''// TEST: wrong syntax expectation
 enum type Bad : int8 { One = 1; } // E: No terminal matches
 // TEST: another mismatch
 node bad : Std.Constant(Type = uint8, Value = -1); // E: wrong expectation
@@ -88,12 +92,12 @@ assert 'Unexpected token' in message
 # A location header alone is not a complete syntax diagnostic.
 for suffix in ['', '\n']:
     def incomplete_syntax(sources, *, suffix=suffix, **kwargs):
-        print(f'Error in {sources[0][0]}:1' + suffix)
+        print(f'Error in {sources[-1][0]}:1' + suffix)
         return None
 
     with patch('wirely.compiler.compile_strs', side_effect=incomplete_syntax):
         with checks.assertRaises(AssertionError) as error:
-            run_fixture(legacy)
+            run_fixture_with_std(legacy)
     assert 'malformed syntax diagnostic' in str(error.exception)
 
 
@@ -110,28 +114,28 @@ invalid = [
     ('// TEST\n' + legacy.replace('out of range', 'wrong expectation'),
      'diagnostic mismatch'),
     ('// TEST\n' + legacy.replace('// E: out of range', '// E:'),
-     'Malformed annotation on line 2'),
-    ('// TEST\n// ^E: out of range\n' + legacy,
-     'Malformed annotation on line 2'),
-    (legacy + '// TEST\n// ^^E: out of range\n' + legacy,
      'Malformed annotation on line 3'),
+    ('// TEST\n// ^E: out of range\n' + legacy,
+     'Malformed annotation on line 3'),
+    (legacy + '// TEST\n// ^^E: out of range\n' + legacy,
+     'Malformed annotation on line 4'),
     ('// TEST\nenum type Mode : uint8 {\n  On = 1,\n'
      '  On = 2, // E: Duplicate enum member On\n}', 'unexpected='),
 ]
 for source, expected in invalid:
     with checks.assertRaises(AssertionError) as error:
-        run_fixture(source)
+        run_fixture_with_std(source)
     assert expected in str(error.exception), str(error.exception)
 
 # Validate every case and report both failures with their names and locations.
 with checks.assertRaises(AssertionError) as error:
-    run_fixture('''// TEST: first
+    run_fixture_with_std('''// TEST: first
 node bad : Std.Constant(Type = uint8, Value = -1); // E: first mismatch
 // TEST: second
 node bad : Std.Constant(Type = uint8, Value = 256); // E: second mismatch
 ''')
 message = str(error.exception)
-assert 'first (line 2)' in message and 'second (line 4)' in message
+assert 'first (line 3)' in message and 'second (line 5)' in message
 assert 'first mismatch' in message and 'second mismatch' in message
 
 # An internally failed case still allows later cases to run.
@@ -139,7 +143,7 @@ original_compile = wirely.compiler.compile_strs
 
 
 def fail_first(sources, **kwargs):
-    if '// E: simulated' in sources[0][1]:
+    if '// E: simulated' in sources[-1][1]:
         print('Internal compiler error: simulated failure')
         return None
     return original_compile(sources, **kwargs)
@@ -147,7 +151,7 @@ def fail_first(sources, **kwargs):
 
 with patch('wirely.compiler.compile_strs', side_effect=fail_first) as compiler:
     with checks.assertRaises(AssertionError) as error:
-        run_fixture('''// TEST: internal failure
+        run_fixture_with_std('''// TEST: internal failure
 node bad : Missing; // E: simulated
 // TEST: later case
 node bad : Missing; // E: wrong expectation
@@ -165,7 +169,7 @@ for stream, text in [('stderr', 'unexpected stderr'),
 
     with patch('wirely.compiler.compile_strs', side_effect=emit_failure):
         with checks.assertRaises(AssertionError) as error:
-            run_fixture(legacy)
+            run_fixture_with_std(legacy)
     assert ('malformed diagnostic' if text.startswith('Error')
             else 'compiler failed internally') in str(error.exception)
 
@@ -180,3 +184,81 @@ compiled = wirely.compiler.compile_strs([
 ], add_std=True)
 assert compiled is not None
 assert program_compiler.compile(compiled) is not None
+
+
+# Library availability is explicit, and built-in types need no library.
+run_fixture('node bad : Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant\n')
+run_fixture('enum type Mode : uint8 { Bad = -1 } // E: out of range\n')
+run_fixture('''// LIBRARIES: matter
+// TEST: std is absent
+node bad : Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant
+// TEST: matter is available
+node type Holder {
+  parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.Missing; // E: Unknown member
+}
+node holder : Holder;
+''')
+run_fixture('''// LIBRARIES: std
+// TEST: matter is absent
+node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Off); // E: Cannot find type ThermostatSystemModeEnum
+// TEST: multiple selected libraries
+// LIBRARIES: std, matter
+node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing); // E: Unknown member
+''')
+
+# File defaults include an initial unmarked case; overrides replace the list.
+run_fixture('// LIBRARIES: std\n' + legacy + '''
+// TEST: empty override
+// LIBRARIES:
+node bad : Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
+// TEST: override does not carry forward
+node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+''')
+run_fixture('// LIBRARIES:\nnode bad : Missing; // E: Cannot find block type Missing\n')
+run_fixture('// TEST: selected case\n\t// LIBRARIES : std\t\n' + legacy)
+run_fixture('''// TEST: a directive in a string is ordinary content
+node type Holder { parameter Text : String = "// LIBRARIES: missing"; }
+// LIBRARIES_EXTRA is an ordinary comment.
+node bad : Missing; // E: Cannot find block type Missing
+''')
+
+for metadata, message in [
+    ('// LIBRARIES std', 'Malformed library metadata'),
+    ('// LIBRARIES: missing', 'Unknown library'),
+    ('// LIBRARIES: ../std', 'Malformed library name'),
+    ('// LIBRARIES: STD', 'Malformed library name'),
+    ('// LIBRARIES: std,', 'Malformed library name'),
+    ('// LIBRARIES: std,,matter', 'Malformed library name'),
+    ('// LIBRARIES: std, std', 'Duplicate library name'),
+    ('// LIBRARIES: std\n// LIBRARIES:', 'Multiple library directives'),
+    ('// LIBRARIES:\n// LIBRARIES: std', 'Multiple library directives'),
+]:
+    for prefix in ['', '// TEST: malformed metadata\n']:
+        with checks.assertRaises(AssertionError) as error:
+            run_fixture(prefix + metadata + '\n' + legacy)
+        assert message in str(error.exception), str(error.exception)
+
+# Only the requested sources are supplied, and physical locations survive headers.
+source_selections = []
+
+
+def observe_sources(sources, **kwargs):
+    source_selections.append(([Path(filename).stem for filename, _ in sources[:-1]], kwargs['add_std']))
+    return original_compile(sources, **kwargs)
+
+
+with patch('wirely.compiler.compile_strs', side_effect=observe_sources):
+    run_fixture('''// LIBRARIES: std
+
+// TEST: inherited library
+node bad : Std.Constant(Type = uint8, Value = -1);
+// ^E: out of range
+// TEST: no libraries
+// LIBRARIES:
+node bad : Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
+// TEST: selected libraries
+// LIBRARIES: std, matter
+node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing);
+// ^E: Unknown member
+''')
+assert source_selections == [(['std'], False), ([], False), (['std', 'matter'], False)]

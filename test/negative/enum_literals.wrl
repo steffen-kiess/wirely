@@ -1,3 +1,5 @@
+// LIBRARIES: std, matter
+
 // TEST: unknown member
 node mode : Std.Constant(
   Type = ThermostatSystemModeEnum,

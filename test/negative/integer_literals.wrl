@@ -1,10 +1,13 @@
 // TEST: integer_signed_underflow
+// LIBRARIES: std
 node source : Std.Constant(Type = int8, Value = -129); // E: Int value out of range: -129
 
 // TEST: integer_positive_overflow
+// LIBRARIES: std
 node source : Std.Constant(Type = int8, Value = +128); // E: Int value out of range: 128
 
 // TEST: integer_negative_unsigned
+// LIBRARIES: std
 node source : Std.Constant(Type = uint8, Value = -1); // E: Int value out of range: -1
 
 // TEST: double_minus

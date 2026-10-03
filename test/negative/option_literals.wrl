@@ -1,3 +1,5 @@
+// LIBRARIES: std
+
 // TEST: some_missing_argument
 node source : Std.Constant(Type = Option[boolean], Value = Some()); // E: Some expects exactly one argument
 

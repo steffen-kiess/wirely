@@ -25,4 +25,5 @@ node type Invalid {
 node invalid : Invalid;
 
 // TEST: unknown_parameter
+// LIBRARIES: std
 node node1 : Std.DebugEventSource(missing_keyword = boolean); // E: Unknown parameter for DebugEventSource: missing_keyword

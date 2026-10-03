@@ -30,6 +30,7 @@ node type Invalid {
 }
 
 // TEST: procedure_child_alias
+// LIBRARIES: std
 node type Child {
   output Value : value boolean;
   node source : Std.Constant(Type = boolean, Value = true);
@@ -74,6 +75,7 @@ node type Invalid {
 }
 
 // TEST: procedure_unknown_child_output
+// LIBRARIES: std
 node type Child {
   output Value : value boolean;
   node source : Std.Constant(Type = boolean, Value = true);

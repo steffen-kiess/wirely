@@ -1,4 +1,5 @@
 // TEST: unknown_node_type
+// LIBRARIES: std
 node node2 : Std.NonExisting(Type = Option[boolean]); // E: Cannot find block type Std.NonExisting
 
 // TEST: singleton_input

@@ -87,11 +87,17 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     return None
 
 
-def _standard_library_sources():
-    names = [
-        'std', 'matter', 'time', 'knx', 'abb_jra', 'mqtt', 'csv',
-        'two_n', 'gpio', 'memory', 'ext_prog',
-    ]
+_STANDARD_LIBRARY_NAMES = (
+    'std', 'matter', 'time', 'knx', 'abb_jra', 'mqtt', 'csv',
+    'two_n', 'gpio', 'memory', 'ext_prog',
+)
+
+
+def _standard_library_sources(names=None):
+    names = _STANDARD_LIBRARY_NAMES if names is None else tuple(names)
+    for name in names:
+        if name not in _STANDARD_LIBRARY_NAMES:
+            raise ValueError(f'Unknown library {name!r}')
     directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib')
     sources = []
     for name in names:

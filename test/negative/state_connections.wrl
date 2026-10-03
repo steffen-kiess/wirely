@@ -1,3 +1,5 @@
+// LIBRARIES: std
+
 // TEST: missing_state_phase
 resource type Handle;
 node type Sink {
