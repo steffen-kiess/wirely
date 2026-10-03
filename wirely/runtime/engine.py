@@ -15,7 +15,7 @@ class Engine:
 
         self.program = program
 
-        self.cache = None
+        self.cache = None  # Temporary values from the last completed step.
 
         self.debug = False
 
@@ -31,7 +31,9 @@ class Engine:
         self.wakeups = {}
         self.next_wakeup = None
 
+        # The current state, will be .old during the next step.
         self.state = blocks.VariableBlockInstance(self.program.state_variables)
+        # The state before the last step. Was .old during the last step.
         self.last_step_state = None
         self.native_states = {}
 
@@ -120,7 +122,8 @@ class Engine:
             print(f'Starting step of {self.program.name}')
         self.next_wakeup = None
         cache = self.cache
-        state_old = self.state
+        state_old = self.state  # Snapshot read throughout this step.
+        # State produced by this step, published when it completes.
         state_new = blocks.VariableBlockInstance(self.program.state_variables)
         variables = blocks.VariableBlockInstance(self.program.temporaries)
         run_count = 0
@@ -137,9 +140,9 @@ class Engine:
                     values = []
                     for binding in bindings:
                         variable = binding.variable
-                        if binding.state_changed is not None:
+                        if variable in self.program.state_variables.variable_set:
                             value = state_old[variable]
-                            if skip_step and cache[binding.state_changed]:
+                            if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
                                 skip_step = False
                         else:
                             value = variables[variable]
@@ -147,8 +150,8 @@ class Engine:
                                 skip_step = False
                         values.append(blocks.value_types._to_native(variable.var_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
-                for changed in proc.state_dependencies:
-                    if skip_step and cache[changed]:
+                for variable in proc.state_dependencies:
+                    if skip_step and not variable.var_type.equals(state_old[variable], self.last_step_state[variable]):
                         skip_step = False
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
@@ -161,7 +164,6 @@ class Engine:
                             value = state_old[variable]
                             state_new.add(variable, value)
                             variables.add(result.state_new, value)
-                            variables.add(result.state_changed, False)
                         else:
                             variables.add(variable, cache[variable])
                     if key in self.wakeups:
@@ -193,7 +195,6 @@ class Engine:
                         state_new.add(variable, value)
                         variables.add(result.state_new, value)
                         changed = not variable.var_type.equals(state_old[variable], value)
-                        variables.add(result.state_changed, changed)
                         state_change_count += changed
                     else:
                         variables.add(variable, value)

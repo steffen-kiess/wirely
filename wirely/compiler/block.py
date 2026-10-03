@@ -78,7 +78,7 @@ class Block(blocks.Node):
     # TODO: Rename
     # TODO: Must probably be cleaned up to allow multiple instantiations of the same block
     # path: A tuple which contains the name of the block being instantiated
-    def instantiate(self, *, singletons, variable_map, state_map_new, all_variables, state_map_changed, state_map, state_variables, instances, path, parent_instance):
+    def instantiate(self, *, singletons, variable_map, state_map_new, all_variables, state_map, state_variables, instances, path, parent_instance):
         if self.block_type.is_singleton:
             if self.block_type in singletons:
                 return
@@ -108,7 +108,7 @@ class Block(blocks.Node):
 
         for name, child_block in self.block_type.blocks.items():
             child_path = path + (child_block,)
-            child_block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
+            child_block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
 
         # TODO: Clean up
         # path_prefix = '.'.join([block.name for block in path])
@@ -116,10 +116,6 @@ class Block(blocks.Node):
         for state_var in self.block_statevars:
             v = blocks.Variable(path_prefix + '.' + state_var.name + '.new', state_var.var_type)
             state_map_new[path, state_var] = v
-            all_variables.append(v)
-
-            v = blocks.Variable(path_prefix + '.' + state_var.name + '.changed', blocks.types.boolean)
-            state_map_changed[path, state_var] = v
             all_variables.append(v)
 
             v = blocks.Variable(path_prefix + '.' + state_var.name, state_var.var_type)

@@ -29,7 +29,6 @@ def compile_nocatch(global_block_type):
 
     variable_map = {}
     state_map_new = {}
-    state_map_changed = {}
     all_variables = []
     state_map = {}
     state_variables = []
@@ -62,7 +61,7 @@ def compile_nocatch(global_block_type):
     # TODO: Use get_all_block_paths()?
     singletons = {}
     for block in graph.blocks.values():
-        block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map_changed=state_map_changed, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
+        block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
 
     def resolve_binding(path, source):
         source_path, variable = blocks.resolve_variable(path, source)
@@ -74,12 +73,10 @@ def compile_nocatch(global_block_type):
                 return blocks.InputSourceBinding(state_map_new[source_path, state])
             return blocks.InputSourceBinding(
                 state_map[source_path, state],
-                state_map_changed[source_path, state],
             )
         if isinstance(variable, blocks.Block.StateVariable):
             return blocks.InputSourceBinding(
                 state_map[source_path, variable],
-                state_map_changed[source_path, variable],
             )
         return blocks.InputSourceBinding(add_var(source_path, variable))
 
@@ -251,7 +248,6 @@ def compile_nocatch(global_block_type):
                 if isinstance(target, blocks.Block.StateVariable):
                     results[name] = ResultBinding(
                         state_map[path, target], state_map_new[path, target],
-                        state_map_changed[path, target],
                     )
                 else:
                     results[name] = ResultBinding(variable_map[path, target.var_identifier])
@@ -261,7 +257,7 @@ def compile_nocatch(global_block_type):
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
                 results=results,
-                state_dependencies=tuple(state_map_changed[path, state] for state in proc.block.block_statevars),
+                state_dependencies=tuple(state_map[path, state] for state in proc.block.block_statevars),
             ))
         schedules[stage] = tuple(schedule)
     node_aliases = {}

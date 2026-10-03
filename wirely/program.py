@@ -65,7 +65,6 @@ class InputSourceBinding:
     """A procedure input from a temporary or the step's state snapshot."""
 
     variable: Variable  # Source in the temporaries or the step's old state.
-    state_changed: Variable | None = None  # Change flag; marks an old-state input.
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +73,6 @@ class ResultBinding:
 
     variable: Variable  # Destination temporary or persistent state variable.
     state_new: Variable | None = None  # Temporary exposing the new state value.
-    state_changed: Variable | None = None  # Temporary recording a state change.
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +108,7 @@ class Procedure:
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
-    state_dependencies: tuple[Variable, ...]  # State change flags that require execution.
+    state_dependencies: tuple[Variable, ...]  # State variables whose changes require execution.
 
     def __post_init__(self):
         type_name, proc_name = self.reference
@@ -216,8 +214,8 @@ class Program:
                     sources = []
                     for binding in bindings:
                         source = binding.variable.name
-                        if binding.state_changed is not None:
-                            source += f' (old state; changed: {binding.state_changed.name})'
+                        if binding.variable in self.state_variables.variable_set:
+                            source += ' (old state)'
                         sources.append(source)
                     source = ', '.join(sources)
                     if is_list:
@@ -225,13 +223,12 @@ class Program:
                     line(f'{name}: {source}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
-                value('state-change dependencies', [var.name for var in proc.state_dependencies], 6)
+                value('state dependencies', [var.name for var in proc.state_dependencies], 6)
                 line('results:', 6)
                 for name, binding in proc.results.items():
                     line(f'{name}: {binding.variable.name}', 8)
                     if binding.state_new is not None:
                         line(f'new: {binding.state_new.name}', 10)
-                        line(f'changed: {binding.state_changed.name}', 10)
 
         for label, aliases in [('Node aliases', self.node_aliases),
                                ('Singleton aliases', self.singleton_aliases),

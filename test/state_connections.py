@@ -194,7 +194,7 @@ probe.step()
 probe.assert_is_idle()
 
 feedback = make_engine('node feedback : TestLibrary.Feedback;')
-assert len(feedback.program.temporaries.variable_set) == 3
+assert len(feedback.program.temporaries.variable_set) == 2
 for value in (0, 1, 2):
     feedback.step()
     feedback.assert_value_is('feedback', value)
@@ -221,7 +221,7 @@ node source : Std.Constant(Type = boolean, Value = true);
 node owner : TestLibrary.Owner(Type = boolean, InitialValue = false);
 connect source -> owner;
 ''')
-assert all('saved' not in var.name or var.name.endswith(('.new', '.changed'))
+assert all('saved' not in var.name or var.name.endswith('.new')
            for var in minimal.program.temporaries.variable_set)
 
 # A later-stage reader still sees the snapshot from before the state writer.
