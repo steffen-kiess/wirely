@@ -32,21 +32,6 @@ class TwoNDeviceData:
     username: str
     password: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_hostname = parameters['Host']
-        par_port = parameters['Port']
-        par_tlsa = parameters['TLSA']
-        par_pwdfile = context.resolve_path(
-            parameters['UsernamePasswordFile'], parameter='UsernamePasswordFile',
-        )
-        try:
-            username, password = get_username_password(par_pwdfile)
-        except (OSError, ValueError) as error:
-            raise context.error(str(error), parameter='UsernamePasswordFile') from error
-
-        return TwoNDeviceData(hostname=par_hostname, port=par_port, tlsa=par_tlsa, username=username, password=password)
 
     def dump(self):
         print(f'  Connecting to: {self.hostname!r}:{self.port}', flush=True)
@@ -84,12 +69,6 @@ class Connection(blocks.NativeState):
 class TwoNTimeoutData:
     timeout: blocks.Duration
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_timeout = parameters['Timeout']
-
-        return TwoNTimeoutData(timeout=par_timeout)
 
     def dump(self):
         print(f'  Timeout: {self.timeout!r}', flush=True)
@@ -99,12 +78,6 @@ class TwoNTimeoutData:
 class TwoNKeyData:
     key: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_key = parameters['Key']
-
-        return TwoNKeyData(key=par_key)
 
     def dump(self):
         if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
@@ -115,12 +88,6 @@ class TwoNKeyData:
 class TwoNIOData:
     port: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_port = parameters['Port']
-
-        return TwoNIOData(port=par_port)
 
     def dump(self):
         print(f'  Port: {self.port!r}', flush=True)
@@ -130,12 +97,6 @@ class TwoNIOData:
 class TwoNSwitchData:
     switch_number: int
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_switch_number = int(parameters['SwitchNumber'])
-
-        return TwoNSwitchData(switch_number=par_switch_number)
 
     def dump(self):
         print(f'  SwitchNumber: {self.switch_number!r}', flush=True)
@@ -145,18 +106,6 @@ class TwoNSwitchData:
 class TwoNCodeData:
     code: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_code = parameters['Code']
-
-        if len(par_code) > 15:
-            raise context.error('Code exceeds 15 digits', parameter='Code')
-        for c in par_code:
-            if c < '0' or c > '9':
-                raise context.error(f'Got non-digit in code {par_code!r}', parameter='Code')
-
-        return TwoNCodeData(code=par_code)
 
     def dump(self):
         if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):

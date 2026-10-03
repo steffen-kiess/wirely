@@ -12,13 +12,6 @@ native_block_types = {}
 class LaunchOnEventData:
     shell_command: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_shell_command = parameters['ShellCommand']
-
-        return LaunchOnEventData(shell_command=par_shell_command)
-
 
 @native_block_type(native_block_types, has_native_state=True, data_type=LaunchOnEventData)
 class LaunchOnEvent(blocks.NativeState):

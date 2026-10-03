@@ -2,7 +2,8 @@
 
 from types import MappingProxyType
 
-import wirely as blocks
+from wirely import compiler_model as blocks
+from wirely.compiler_types import resolve_type
 
 
 class ParameterValues(dict):
@@ -26,7 +27,7 @@ class ParameterValues(dict):
             if super().__contains__(parameter):
                 value = super().__getitem__(parameter)
             elif parameter.default_value is not None:
-                value_type = parameter.type_resolved.resolve_self(self)
+                value_type = resolve_type(parameter.type_resolved, self)
                 if value_type == blocks.types.ValueType:
                     value = parameter.interface.resolve_type(parameter.default_value, par_values=self)
                 else:
@@ -35,7 +36,8 @@ class ParameterValues(dict):
                     )
             else:
                 raise blocks.ProgramError(parameter, f'Unable to resolve parameter {parameter.name.id_str}')
-            value = value.resolve_self(par_values=self)
+            value = (resolve_type(value, self) if isinstance(value, blocks.Type)
+                     else value.resolve_self(par_values=self))
             self._resolved[parameter] = value
             return value
         finally:

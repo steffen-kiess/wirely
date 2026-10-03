@@ -24,7 +24,7 @@ def main():
     compile_parser.add_argument('--dump-program', action='store_true',
                                 help='dump the compiled runtime program to stdout')
     compile_parser.add_argument('input_filename', nargs='+')
-    compile_parser.set_defaults(module_name='wirely.compiler',
+    compile_parser.set_defaults(module_name='wirely.compile_command',
                                 create_program=True, create_engine=False)
 
     show_graph_parser = subparsers.add_parser('show-graph')

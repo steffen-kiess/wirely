@@ -2,8 +2,9 @@
 
 import traceback
 
-import wirely as blocks
+from wirely import compiler_model as blocks
 from wirely.program import NativeInstance, Procedure, Program, ResultBinding
+from wirely.compiler_types import resolve_type
 
 
 def compile(global_block_type):
@@ -48,7 +49,7 @@ def compile_nocatch(global_block_type):
         var_type = var.impl_var_type
         for block in reversed(path):
             if isinstance(block, blocks.Block):  # TODO: Handle singletons here?
-                var_type = var_type.resolve_self(block.par_values)
+                var_type = resolve_type(var_type, block.par_values)
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path])

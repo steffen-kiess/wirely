@@ -14,28 +14,6 @@ class GPIOData:
     drive: str
     bias: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        chip_device_file = parameters['ChipDeviceFile']
-        name = parameters['Name']
-
-        active_state = parameters['ActiveState']
-        drive = parameters['Drive']
-        bias = parameters['Bias']
-        choices = {
-            'ActiveState': ('High', 'Low'),
-            'Drive': ('PushPull', 'OpenDrain', 'OpenSource'),
-            'Bias': ('AsIs', 'Disable', 'PullDown', 'PullUp'),
-        }
-        for parameter_name, allowed in choices.items():
-            if parameters[parameter_name] not in allowed:
-                raise context.error(
-                    f'Unknown {parameter_name}: {parameters[parameter_name]!r}',
-                    parameter=parameter_name,
-                )
-
-        return GPIOData(chip_device_file=chip_device_file, name=name, active_state=active_state, drive=drive, bias=bias)
 
     def dump(self):
         print(f'  Chip device file: {self.chip_device_file!r}', flush=True)

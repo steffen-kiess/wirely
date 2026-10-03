@@ -91,9 +91,18 @@ resolved Python values, using exact `.wrl` parameter names. Declared defaults
 are applied; omitted optional parameters are absent. `ValueType` parameters
 provide `wirely.ValueType` descriptors.
 
-Pass `data_type=SomeClass` to `@native_block_type` to prepare configuration
-once per instance. Wirely calls `SomeClass.create(context=context)` during
-compilation, with a `wirely.NativeNodeConfigurationContext`. It provides
+Pass `data_type=SomeClass` to `@native_block_type` and register its factory
+in a separate compiler support module:
+
+```python
+from wirely.native_configuration import register_configuration
+
+register_configuration(SomeClass, prepare_configuration)
+```
+
+Import this support module before compiling custom nodes. Wirely calls
+`prepare_configuration(context=context)` once per instance during compilation.
+Its `wirely.native_configuration.NativeNodeConfigurationContext` provides
 `parameters` and `name`. The returned object is available as
 `context.configuration` in procedures and `self.context.configuration` in
 native nodes.

@@ -51,17 +51,6 @@ class CsvWriterParameters:
     type: blocks.ValueType
     filename: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        ty = parameters['Type']
-        if not ty.supports_csv:
-            raise context.error(f'Type {ty} does not support converting to CSV', parameter='Type')
-
-        filename = parameters['Filename']
-
-        return CsvWriterParameters(type=ty, filename=filename)
-
 
 @native_block_type(native_block_types, has_native_state=True, data_type=CsvWriterParameters)
 class ValueWriter(blocks.NativeState):

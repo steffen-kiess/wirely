@@ -15,7 +15,8 @@ import signal
 from dataclasses import replace
 from types import MappingProxyType
 
-import wirely as blocks
+import wirely
+from wirely import compiler_model as blocks
 from wirely import program_compiler
 from wirely.util import check_parameters
 

@@ -2,7 +2,8 @@ import abc
 import datetime
 import re
 
-import wirely as blocks
+from wirely import compiler_model as blocks
+from wirely.compiler_types import resolve_type
 
 
 # TODO: Move value types out of types.py
@@ -48,7 +49,7 @@ class ConstantValue(Value):
 
     def resolve_self(self, par_values):
         if self.value_type == blocks.types.ValueType and self.value.contains_parameters:
-            return ConstantValue(self.value_type, self.value.resolve_self(par_values),
+            return ConstantValue(self.value_type, resolve_type(self.value, par_values),
                                  ast_element=self.ast_element)
         return self
 
@@ -156,7 +157,7 @@ class ValueOptionSome(ComputedValue):
 
     def resolve_self(self, par_values):
         return ValueOptionSome(
-            self.value_type.resolve_self(par_values),
+            resolve_type(self.value_type, par_values),
             self.inner_value.resolve_self(par_values), ast_element=self.ast_element,
         )
 
@@ -178,7 +179,7 @@ class ValueList(ComputedValue):
 
     def resolve_self(self, par_values):
         return ValueList(
-            self.value_type.resolve_self(par_values),
+            resolve_type(self.value_type, par_values),
             [element.resolve_self(par_values) for element in self.elements],
             ast_element=self.ast_element,
         )

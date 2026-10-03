@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-import wirely as blocks
+from . import compiler_model as blocks
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -47,3 +47,34 @@ class NativeNodeConfigurationContext:
                 raise self.error('Relative path requires a source directory', parameter=parameter)
             path = Path(os.path.abspath(filename)).parent / path
         return Path(os.path.normpath(path))
+
+
+_configuration_factories = {}
+_loaded_namespaces = set()
+
+
+def register_configuration(data_type, factory):
+    """Register a compile-time factory for a native configuration class."""
+    if data_type in _configuration_factories:
+        raise ValueError(f'Configuration factory already registered for {data_type!r}')
+    _configuration_factories[data_type] = factory
+
+
+def configuration_factory(data_type, type_name):
+    import importlib
+    from .native import native_block_pkgs
+
+    namespace = type_name[:-1]
+    if namespace not in _loaded_namespaces:
+        pkg_name = native_block_pkgs.get(namespace)
+        if pkg_name is not None:
+            try:
+                importlib.import_module('.native_preparation.' + pkg_name, 'wirely')
+            except ModuleNotFoundError as error:
+                if error.name != 'wirely.native_preparation.' + pkg_name:
+                    raise
+            _loaded_namespaces.add(namespace)
+    try:
+        return _configuration_factories[data_type]
+    except KeyError:
+        raise ValueError(f'No configuration factory registered for {data_type!r}') from None

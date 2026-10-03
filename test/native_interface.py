@@ -330,7 +330,7 @@ class ClockDateTime(datetime.datetime):
 
 
 with patch.object(blocks.MonotonicTime, 'current_time', side_effect=monotonic_times) as monotonic_clock:
-    with patch('wirely.datetime.datetime', ClockDateTime):
+    with patch('wirely.runtime.datetime.datetime', ClockDateTime):
         _, _, step_info = clock_engine.step()
 assert monotonic_clock.call_count == 3
 assert len(clock_contexts) == 6

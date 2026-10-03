@@ -1,8 +1,10 @@
 import abc
 
-import wirely as blocks
+from wirely import compiler_model as blocks
 from wirely.util import check_parameters
+from wirely.native_configuration import configuration_factory
 from wirely.parameters import ParameterValues, native_parameters, parameter_origins
+from wirely.compiler_types import resolve_type
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -478,7 +480,7 @@ class BlockInstance(blocks.NodeInstance):
         for key in parameter_keys:
             value = all_par_values[key]
             if isinstance(value, blocks.Value):
-                value_type = key.type_resolved.resolve_self(all_par_values)
+                value_type = resolve_type(key.type_resolved, all_par_values)
                 blocks.value.check_value_type(value.value_type, value_type, value.ast_element)
                 value = blocks.ConstantValue(
                     value_type, value_type.verify_value(value.evaluate()), ast_element=value.ast_element,
@@ -502,7 +504,8 @@ class BlockInstance(blocks.NodeInstance):
             data_type = native_class.native_block_data_type
             if data_type is not None:
                 try:
-                    configuration = data_type.create(context=context)
+                    factory = configuration_factory(data_type, self.block_type.fullname_tuple)
+                    configuration = factory(context=context)
                 except blocks.ProgramError:
                     raise
                 except ValueError as error:

@@ -11,27 +11,6 @@ class ToggleFlipFlopTriggerData:
     output_value: object
     minimum_delay: blocks.Duration
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_type = parameters['OutputType']
-
-        if 'OutputValue' not in parameters:
-            output_value = blocks.Unit()
-            if par_type != blocks.value_types.unit:
-                raise context.error(f'Trigger type is not unit ({par_type}) but no value is given', parameter='OutputValue')
-        else:
-            output_value = parameters['OutputValue']
-
-        try:
-            output_value = par_type.validate(output_value)
-        except ValueError as error:
-            raise context.error(str(error), parameter='OutputValue') from error
-
-        minimum_delay = parameters['MinimumDelay']
-
-        return ToggleFlipFlopTriggerData(output_value=output_value, minimum_delay=minimum_delay)
-
 
 @native_block_type(native_block_types, has_native_state=False, data_type=ToggleFlipFlopTriggerData)
 class ToggleFlipFlopTrigger:

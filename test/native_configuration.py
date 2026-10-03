@@ -17,6 +17,16 @@ from wirely.native.mqtt import MqttData
 from wirely.native.std import EdgeData
 from wirely.native.time import IsBetweenData, TriggerAtData
 from wirely.native.two_n import TwoNCodeData, TwoNDeviceData
+from wirely.native_preparation.csv import prepare_csv_writer_parameters
+from wirely.native_preparation.gpio import prepare_gpio_data
+from wirely.native_preparation.knx import prepare_knx_data
+from wirely.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
+from wirely.native_preparation.mqtt import prepare_mqtt_data
+from wirely.native_preparation.std import prepare_edge_data
+from wirely.native_preparation.time import prepare_is_between_data, prepare_trigger_at_data
+from wirely.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
+from wirely.native_configuration import register_configuration
+from wirely import compiler_model
 
 
 checks = TestCase()
@@ -26,10 +36,15 @@ prepare = None
 
 
 class Configuration:
-    @staticmethod
-    def create(*, context):
-        contexts.append(context)
-        return prepare(context) if prepare else context.parameters
+    pass
+
+
+def prepare_configuration(*, context):
+    contexts.append(context)
+    return prepare(context) if prepare else context.parameters
+
+
+register_configuration(Configuration, prepare_configuration)
 
 
 @native_block_type(registry, has_native_state=False, data_type=Configuration)
@@ -85,7 +100,7 @@ assert contexts[0].resolve_path('settings.json') == Path('/tmp/config/settings.j
 probe('parameter Path : String = "settings.json";', filename='<test>')
 context = contexts[-1]
 assert context.resolve_path('/settings.json', parameter='Path') == Path('/settings.json')
-with checks.assertRaises(wirely.ProgramError) as caught:
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     context.resolve_path('settings.json', parameter='Path')
 assert caught.exception.source_element.source_position.start_line == 4
 
@@ -95,14 +110,14 @@ def fail_parameter(context):
 
 
 prepare = fail_parameter
-with checks.assertRaises(wirely.ProgramError) as caught:
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     probe('parameter Path : String = "default.json";')
 assert caught.exception.source_element.source_position.start_line == 4
-with checks.assertRaises(wirely.ProgramError) as caught:
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     probe('optional parameter Path : String;')
 assert caught.exception.source_element.source_position.start_line == 4
 
-with checks.assertRaises(wirely.ProgramError) as caught:
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     compile_sources(
         ('/tmp/config/types.wrl', '''
 namespace TestLibrary {
@@ -151,9 +166,9 @@ def plain_error(context):
 
 
 prepare = plain_error
-with checks.assertRaises(wirely.ProgramError) as caught:
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     probe('')
-assert type(caught.exception) is wirely.ProgramError
+assert type(caught.exception) is compiler_model.ProgramError
 assert caught.exception.source_element.source_position.start_line == 8
 
 
@@ -162,14 +177,14 @@ def unexpected_error(context):
 
 
 prepare = unexpected_error
-with checks.assertRaises(wirely.InternalCompilerError):
+with checks.assertRaises(compiler_model.InternalCompilerError):
     probe('')
 
 # Credentials are prepared for execution on a host without the source file.
 with tempfile.TemporaryDirectory() as directory:
     filename = Path(directory) / 'credentials.txt'
     filename.write_text('username\npassword\n')
-    prepare = lambda context: TwoNDeviceData.create(context=context)
+    prepare = lambda context: prepare_two_n_device_data(context=context)
     program = probe('''parameter Host : String = "localhost";
     parameter Port : uint16 = 443;
     parameter TLSA : List[String] = [];
@@ -182,7 +197,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert data.username == 'username'
     assert data.password == 'password'
     assert not hasattr(data, 'filename')
-    with checks.assertRaises(wirely.ProgramError) as caught:
+    with checks.assertRaises(compiler_model.ProgramError) as caught:
         probe('''parameter Host : String = "localhost";
         parameter Port : uint16 = 443;
         parameter TLSA : List[String] = [];
@@ -191,6 +206,17 @@ with tempfile.TemporaryDirectory() as directory:
     assert caught.exception.source_element.source_position.start_line == 7
 
 
+factories = {
+    EdgeData: prepare_edge_data,
+    TwoNCodeData: prepare_two_n_code_data,
+    CsvWriterParameters: prepare_csv_writer_parameters,
+    KnxData: prepare_knx_data,
+    MqttData: prepare_mqtt_data,
+    GPIOData: prepare_gpio_data,
+    IsBetweenData: prepare_is_between_data,
+    TriggerAtData: prepare_trigger_at_data,
+    ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
+}
 invalid_configurations = [
     (EdgeData, 'parameter EdgeType : String = "invalid";', 'EdgeType'),
     (TwoNCodeData, 'parameter Code : String = "123x";', 'Code'),
@@ -218,16 +244,16 @@ invalid_configurations = [
      'optional parameter OutputValue : OutputType;', 'OutputValue'),
 ]
 for data_type, declarations, parameter in invalid_configurations:
-    prepare = lambda context: data_type.create(context=context)
-    with checks.assertRaises(wirely.ProgramError) as caught:
+    prepare = lambda context: factories[data_type](context=context)
+    with checks.assertRaises(compiler_model.ProgramError) as caught:
         probe(declarations)
     error = caught.exception
-    assert type(error) is wirely.ProgramError, data_type
+    assert type(error) is compiler_model.ProgramError, data_type
     assert error.source_element is contexts[-1]._origins[parameter][0], data_type
 
 # Explicit arguments take precedence over the default's source location.
-prepare = lambda context: EdgeData.create(context=context)
-with checks.assertRaises(wirely.ProgramError) as caught:
+prepare = lambda context: prepare_edge_data(context=context)
+with checks.assertRaises(compiler_model.ProgramError) as caught:
     probe('parameter EdgeType : String = "Both";',
           arguments='(EdgeType = "invalid")')
 assert caught.exception.source_element.source_position.start_line == 8

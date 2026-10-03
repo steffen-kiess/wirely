@@ -215,16 +215,6 @@ class OptionCreate:
 class EdgeData:
     edge_type: str
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_edge_type = parameters['EdgeType']
-
-        if par_edge_type not in ['Rising', 'Falling', 'Both']:
-            raise context.error(f'Invalid edge type: {par_edge_type!r}', parameter='EdgeType')
-
-        return EdgeData(edge_type=par_edge_type)
-
 
 @native_block_type(native_block_types, has_native_state=False, data_type=EdgeData)
 class DetectEdge:

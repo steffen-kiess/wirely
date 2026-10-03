@@ -3,6 +3,8 @@ from unittest import TestCase
 
 import wirely
 import wirely.parser
+from wirely import compiler_model
+from wirely.compiler_types import parse_value
 
 
 checks = TestCase()
@@ -51,15 +53,15 @@ def parse_expression(expression):
 for expression in ['()', '( )', '(\n\t)', '(/* outer /* inner */ */)',
                    '(\n// unit\n)']:
     literal = parse_expression(expression)
-    assert isinstance(literal, wirely.UnitLiteral), expression
-    assert wirely.types.unit.parse_value(literal) == wirely.Unit()
+    assert isinstance(literal, compiler_model.UnitLiteral), expression
+    assert parse_value(wirely.types.unit, literal) == wirely.Unit()
 
 for expression in ['Function()', 'Function( )', 'Function(/* empty */)']:
     call = parse_expression(expression)
-    assert isinstance(call, wirely.FunctionCall), expression
+    assert isinstance(call, compiler_model.FunctionCall), expression
     assert call.parameters == [], expression
 
 call = parse_expression('Function(())')
-assert isinstance(call, wirely.FunctionCall)
+assert isinstance(call, compiler_model.FunctionCall)
 assert len(call.parameters) == 1
-assert isinstance(call.parameters[0], wirely.UnitLiteral)
+assert isinstance(call.parameters[0], compiler_model.UnitLiteral)

@@ -1,16 +1,48 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, is_dataclass, replace
+import subprocess
+import sys
+from textwrap import dedent
 from unittest import TestCase
 from unittest.mock import patch
 
-import wirely as blocks
+import wirely
+from wirely import compiler_model as blocks
 from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
+from wirely.native_configuration import register_configuration
 
 
 checks = TestCase()
+
+
+# Import execution and every native namespace without any compiler machinery.
+subprocess.run([sys.executable, '-c', dedent('''
+    import importlib
+    import pkgutil
+    import sys
+
+    from wirely import Program, Engine
+    import wirely.native
+
+    for module in pkgutil.iter_modules(wirely.native.__path__, 'wirely.native.'):
+        importlib.import_module(module.name)
+
+    compiler_modules = {
+        'wirely.ast', 'wirely.parser', 'wirely.block', 'wirely.block_type',
+        'wirely.node', 'wirely.parameters', 'wirely.value',
+        'wirely.program_compiler', 'wirely.native_configuration',
+    }
+    unexpected = {
+        name for name in sys.modules
+        if name in compiler_modules or name == 'lark' or name.startswith((
+            'lark.', 'wirely.compiler', 'wirely.native_preparation',
+        ))
+    }
+    assert not unexpected, unexpected
+''')], check=True)
 
 
 def check_runtime_data(value, seen=None):
@@ -84,9 +116,12 @@ registry = {}
 class Prepared:
     label: str
 
-    @staticmethod
-    def create(*, context):
-        return Prepared(context.parameters['Label'])
+
+def prepare_prepared(*, context):
+    return Prepared(context.parameters['Label'])
+
+
+register_configuration(Prepared, prepare_prepared)
 
 
 @native_block_type(registry, has_native_state=True)

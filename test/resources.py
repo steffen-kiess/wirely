@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import lark
 
-import wirely as blocks
+import wirely
+from wirely import compiler_model as blocks
 from wirely import program_compiler
 import wirely.parser
 import wirely.native.test_library

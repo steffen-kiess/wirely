@@ -7,8 +7,11 @@ import datetime
 
 import lark
 
-import wirely as blocks
+from .run_stage import RunStage
+
+from wirely import compiler_model as blocks
 from wirely.util import check_parameters
+from wirely.compiler_types import parse_value, resolve_type
 
 
 class SourcePosition:
@@ -114,12 +117,6 @@ class RefType(enum.Enum):
 class BlockConnectorType(enum.Enum):
     BlockInput = enum.auto()
     BlockOutput = enum.auto()
-
-
-class RunStage(enum.Enum):
-    INPUT = enum.auto()
-    DEFAULT = enum.auto()
-    OUTPUT = enum.auto()
 
 
 class BlockConnectorTypeSpecifier(SourceElement):
@@ -651,7 +648,7 @@ class Scope(Declaration):
                             if par not in par_values:
                                 return blocks.ValueParameter(value_type, par, ast_element=value)
                             return blocks.ConstantValue(value_type, value_type.verify_value(par_values[par].evaluate()), ast_element=value)
-            return blocks.ConstantValue(value_type, value_type.parse_value(value), ast_element=value)
+            return blocks.ConstantValue(value_type, parse_value(value_type, value), ast_element=value)
             # raise blocks.ProgramError(value, f'Cannot turn {value!r} into constant value of type {value_type}')
 
     def resolve_block_type(self, name, par_values={}):
@@ -704,7 +701,7 @@ class DeclarationResourceType(Declaration):
             fullname = graph.fullname + '.' + name
         else:
             fullname = name
-        graph.resource_types[name] = blocks.types.ResourceType(fullname, self)
+        graph.resource_types[name] = blocks.ResourceType(fullname, self)
 
     def create_io(self, new_graph):
         pass
@@ -904,7 +901,7 @@ class DeclarationBlockInstantiation(Declaration):
             if key.id_str not in self.block_type.parameters_by_name:
                 raise ProgramError(key, f'Unknown parameter for {self.block_type.name.id_str}: {key}')
             par = self.block_type.parameters_by_name[key.id_str]
-            par_type = par.type_resolved.resolve_self(self.par_values)
+            par_type = resolve_type(par.type_resolved, self.par_values)
             # TODO: Is passing par_values=self.par_values here the correct thing to do?
             if par_type == blocks.types.ValueType:
                 ty = graph.resolve_type(parameter.value, par_values=self.par_values)

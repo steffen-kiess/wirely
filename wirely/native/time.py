@@ -39,13 +39,6 @@ class MonotonicTimeReached(blocks.NativeState):
 class DelayChangeData:
     time: blocks.Duration
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        time = parameters['Duration']
-
-        return DelayChangeData(time=time)
-
 
 @native_block_type(native_block_types, has_native_state=False, data_type=DelayChangeData)
 class DelayChange(blocks.NativeState):
@@ -209,16 +202,6 @@ class IsBetweenData:
         if self.start == self.end:
             raise Exception('self.start == self.end')
 
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_start = parameters['Start']
-        par_end = parameters['End']
-
-        if par_start == par_end:
-            raise context.error('Start and end must differ', parameter='End')
-        return IsBetweenData(start=par_start, end=par_end)
-
 
 @native_block_type(native_block_types, has_native_state=False, data_type=IsBetweenData)
 class IsBetween:
@@ -243,25 +226,6 @@ class IsBetween:
 @dataclasses.dataclass(frozen=True)
 class TriggerAtData:
     value: object
-
-    @staticmethod
-    def create(*, context):
-        parameters = context.parameters
-        par_type = parameters['OutputType']
-
-        if 'OutputValue' not in parameters:
-            value = blocks.Unit()
-            if par_type != blocks.value_types.unit:
-                raise context.error(f'Trigger type is not unit ({par_type}) but no value is given', parameter='OutputValue')
-        else:
-            value = parameters['OutputValue']
-
-        try:
-            value = par_type.validate(value)
-        except ValueError as error:
-            raise context.error(str(error), parameter='OutputValue') from error
-
-        return TriggerAtData(value=value)
 
 
 @native_block_type(native_block_types, has_native_state=False, data_type=TriggerAtData)

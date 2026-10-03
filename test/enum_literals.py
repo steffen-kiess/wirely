@@ -2,6 +2,7 @@ import enum
 
 import wirely
 import wirely.parser
+from wirely.compiler_types import parse_value
 
 
 mode_type = wirely.types.ThermostatSystemMode
@@ -31,7 +32,7 @@ for member in modes:
         f'parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.{member.name};',
         filename='<enum-test>',
     )
-    assert mode_type.parse_value(declarations[0].default_value) is member
+    assert parse_value(mode_type, declarations[0].default_value) is member
 
 # TypeEnum resolves members of its own Python enum, not a thermostat-specific table.
 class OtherMode(enum.Enum):
@@ -42,5 +43,5 @@ other_type = wirely.types.TypeEnum('OtherMode', OtherMode)
 declarations = wirely.parser.parse_str(
     'parameter Mode : OtherMode = OtherMode.Heat;', filename='<enum-test>',
 )
-assert other_type.parse_value(declarations[0].default_value) is OtherMode.Heat
+assert parse_value(other_type, declarations[0].default_value) is OtherMode.Heat
 assert other_type.parse('Heat') is OtherMode.Heat

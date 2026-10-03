@@ -1,11 +1,10 @@
 import os
-import sys
 import traceback
 
 import lark
 
-import wirely as blocks
-from wirely import program_compiler
+import wirely
+from wirely import compiler_model as blocks
 from wirely.util import check_parameters
 
 
@@ -22,10 +21,10 @@ def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stackt
     try:
         decls = []
         for filename, input_data in filename_inpudatas:
-            decls += blocks.parser.parse_str(input_data, filename=filename)
+            decls += wirely.parser.parse_str(input_data, filename=filename)
         filename = None
         global_source_position = blocks.SourcePosition(filename='<global>', meta=None, input_data='')
-        global_block_type = wirely.block_type.BlockType([], None, decls, source_position=global_source_position)
+        global_block_type = blocks.BlockType([], None, decls, source_position=global_source_position)
         if verbose_passes:
             print('Starting pass 1', flush=True)
         global_block_type.compile_pass1(None)
@@ -106,27 +105,3 @@ def compile_files(input_filenames, *, add_std=True):
         with open(input_filename, 'r') as file:
             filename_inpudatas.append((input_filename, file.read()))
     return compile_strs(filename_inpudatas)
-
-
-def run(args):
-    if args.dump_program and not args.create_program:
-        print('Error: --dump-program cannot be used with --no-create-program',
-              file=sys.stderr)
-        return 2
-    if args.create_engine and not args.create_program:
-        print('Error: --create-engine cannot be used with --no-create-program',
-              file=sys.stderr)
-        return 2
-
-    global_block_type = compile_files(args.input_filename)
-    if global_block_type is None:
-        return 1
-
-    if args.create_program:
-        prog = program_compiler.compile(global_block_type)
-        if prog is None:
-            return 1
-        if args.dump_program:
-            prog.dump()
-        if args.create_engine:
-            blocks.Engine(prog)

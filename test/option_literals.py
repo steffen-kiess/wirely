@@ -6,6 +6,8 @@ from pathlib import Path
 import wirely
 import wirely.compiler
 import wirely.parser
+from wirely import compiler_model
+from wirely.compiler_types import parse_value
 
 
 engine.step()
@@ -41,17 +43,17 @@ def parse_expression(expression):
 
 
 for expression in ['Some(())', 'Some ( () )', 'Some(/* value */ ())']:
-    assert wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression)) == wirely.Some(wirely.Unit())
+    assert parse_value(wirely.types.TypeOption(wirely.types.unit), parse_expression(expression)) == wirely.Some(wirely.Unit())
 option_type = wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.unit))
-assert option_type.parse_value(parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(wirely.Unit()))
-assert option_type.parse_value(parse_expression('Some(None)')) == wirely.Some(None)
+assert parse_value(option_type, parse_expression('Some(Some(()))')) == wirely.Some(wirely.Some(wirely.Unit()))
+assert parse_value(option_type, parse_expression('Some(None)')) == wirely.Some(None)
 list_type = wirely.types.TypeList(wirely.types.TypeOption(wirely.types.unit))
-assert list_type.parse_value(parse_expression('[None, Some(())]')) == (None, wirely.Some(wirely.Unit()))
+assert parse_value(list_type, parse_expression('[None, Some(())]')) == (None, wirely.Some(wirely.Unit()))
 
 for expression in ['Some()', 'Some((), ())']:
     try:
-        wirely.types.TypeOption(wirely.types.unit).parse_value(parse_expression(expression))
-    except wirely.ProgramError as error:
+        parse_value(wirely.types.TypeOption(wirely.types.unit), parse_expression(expression))
+    except compiler_model.ProgramError as error:
         assert 'Some expects exactly one argument' in str(error)
     else:
         raise AssertionError(expression)

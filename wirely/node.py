@@ -1,7 +1,7 @@
 import typing
 from dataclasses import dataclass
 
-import wirely as blocks
+from wirely import compiler_model as blocks
 from wirely.util import check_parameters
 
 

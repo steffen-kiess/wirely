@@ -12,6 +12,8 @@ from wirely import program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
+from wirely.native_configuration import register_configuration
+from wirely import compiler_model
 
 
 checks = TestCase()
@@ -34,14 +36,19 @@ callback = None
 
 
 class PreparedData:
-    @staticmethod
-    def create(*, context):
-        assert isinstance(context, wirely.NativeNodeConfigurationContext)
-        assert isinstance(context.parameters, MappingProxyType)
-        assert '' not in context.parameters
-        prepared_names[id(context.parameters)] = context.name
-        prepared.append(context.parameters)
-        return context.parameters
+    pass
+
+
+def prepare_prepared_data(*, context):
+    assert isinstance(context, compiler_model.NativeNodeConfigurationContext)
+    assert isinstance(context.parameters, MappingProxyType)
+    assert '' not in context.parameters
+    prepared_names[id(context.parameters)] = context.name
+    prepared.append(context.parameters)
+    return context.parameters
+
+
+register_configuration(PreparedData, prepare_prepared_data)
 
 
 @native_block_type(registry, has_native_state=False, data_type=PreparedData)

@@ -1,6 +1,8 @@
 import typing
 
-import wirely as blocks
+from . import compiler_native
+
+from wirely import compiler_model as blocks
 from wirely.util import check_parameters
 
 
@@ -141,9 +143,6 @@ class BlockType(blocks.Scope):
         # TODO: Validate parameters
 
     def create(self, *, name, graph, par_values, instantiation):
-        # Do this here to avoid problems with circular imports
-        import wirely.native
-
         # print('create', name, graph, par_values)
         block = blocks.Block(name=name, graph=graph, block_type=self, par_values=par_values, instantiation=instantiation)
         # TODO: Remove
@@ -202,7 +201,7 @@ class BlockType(blocks.Scope):
         native_class = None
         if have_native:
             # TODO: Should this be done here? This will be called if 'self' is used in another block, even if that block is not instantiated. Probably looking up the native block type should be delayed until then to avoid loading the native module needed for that. Alternatively, the native class should be looked up even if 'self' is not used at all to do proper error checking.
-            native_class = wirely.native.get_native_block_type(self)
+            native_class = compiler_native.get_native_block_type(self)
             if self.is_native and not native_class.native_block_has_native_state:
                 raise blocks.ProgramError(self, f'Node type {self.fullname!r} requires has_native_state=True')
             if not self.is_native and native_class.native_block_has_native_state:
@@ -294,7 +293,7 @@ class BlockType(blocks.Scope):
             if not procedure.is_native:
                 raise Exception('Got non-native procedure')
             else:
-                wirely.native._validate_native_procedure(
+                compiler_native._validate_native_procedure(
                     native_class, procedure, has_native_state=self.is_native,
                 )
 
