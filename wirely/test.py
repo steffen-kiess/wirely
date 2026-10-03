@@ -12,8 +12,10 @@ import re
 import pwd
 import shlex
 import signal
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from types import MappingProxyType
+
+import lark
 
 import wirely
 from wirely.compiler import model as blocks
@@ -38,6 +40,7 @@ test_names = [
     'option_literals',
     'enum_literals',
     'enum_declarations',
+    'negative_cases',
     'delay',
     'std',
     'and',
@@ -144,13 +147,7 @@ negative_tests = [
     'test/negative/resource_to_data_event.wrl',
     'test/negative/data_to_resource_event.wrl',
 
-    'test/negative/enum_unknown_member.wrl',
-    'test/negative/enum_wrong_case.wrl',
-    'test/negative/enum_wrong_type.wrl',
-    'test/negative/enum_bare_member.wrl',
-    'test/negative/enum_extra_qualifier.wrl',
-    'test/negative/enum_number.wrl',
-    'test/negative/enum_string.wrl',
+    'test/negative/enum_literals.wrl',
     'test/negative/some_missing_argument.wrl',
     'test/negative/some_extra_argument.wrl',
     'test/negative/some_non_option.wrl',
@@ -178,9 +175,10 @@ diagnostic_pattern = re.compile(
     r'^(Error in |Hint: |Warning in |Warning: )(.+):(\d+): (.+)$'
 )
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
+case_marker_pattern = re.compile(r'[ \t]*//[ \t]+TEST(?:[ \t]*:[ \t]*(.*?))?[ \t]*')
 
 
-def expected_diagnostics(source):
+def expected_diagnostics(source, *, start_line=1, end_line=None):
     expected = []
     for line_number, line in enumerate(source.splitlines(), 1):
         for comment in line.split('//')[1:]:
@@ -191,31 +189,67 @@ def expected_diagnostics(source):
                 continue
             carets, kind, message = match.groups()
             target_line = line_number - len(carets)
-            if target_line < 1 or not message:
+            if (target_line < start_line
+                    or (end_line is not None and target_line > end_line)
+                    or not message):
                 raise AssertionError(f'Malformed annotation on line {line_number}: //{comment}')
             expected.append((kind, target_line, message))
     return expected
 
 
-def compile_negative_test(fn):
-    print(f'Compiling negative test {fn}')
-    full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
-    with open(full_fn, encoding='utf-8') as file:
-        expected = expected_diagnostics(file.read())
+@dataclass(frozen=True)
+class NegativeTestCase:
+    label: str | None
+    start_line: int
+    end_line: int
+    source: str
+
+
+def negative_test_cases(source):
+    lines = source.splitlines(keepends=True)
+    markers = []
+    for index, line in enumerate(lines):
+        match = case_marker_pattern.fullmatch(line.rstrip('\r\n'))
+        if match is not None:
+            markers.append((index, match.group(1)))
+    boundaries = [(-1, None), *markers, (len(lines), None)]
+    for (marker, label), (end, _) in zip(boundaries, boundaries[1:]):
+        start = marker + 1
+        if marker == -1 and markers:
+            preamble = ''.join(lines[start:end])
+            if not re.search(r'//\s*\^*[EHW]:', preamble):
+                try:
+                    declarations = blocks.parser.parse_str(preamble, filename='<preamble>')
+                except (lark.UnexpectedInput, lark.exceptions.VisitError):
+                    pass
+                else:
+                    if not declarations:
+                        continue
+        padded = ''.join(line if start <= index < end else '\n'
+                         for index, line in enumerate(lines))
+        yield NegativeTestCase(label, start + 1, end, padded)
+
+
+def compile_negative_case(full_fn, case):
+    if case.label == '':
+        raise AssertionError('empty test label')
+    expected = expected_diagnostics(
+        case.source, start_line=case.start_line, end_line=case.end_line,
+    )
     if not expected:
-        raise AssertionError(f'{fn}: no expected diagnostics')
+        raise AssertionError('no expected diagnostics')
 
     output = io.StringIO()
     errors = io.StringIO()
     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-        result = blocks.compiler.compile_files([full_fn])
+        result = blocks.compiler.compile_strs([(full_fn, case.source)], add_std=True)
         if result is not None:
             result = program_compiler.compile(result)
 
     stdout = output.getvalue()
     stderr = errors.getvalue()
     if stderr or 'Internal compiler error' in stdout or 'Traceback (most recent call last)' in stdout:
-        raise AssertionError(f'{fn}: compiler failed internally:\n{stdout}{stderr}')
+        raise AssertionError(f'compiler failed internally:\n{stdout}{stderr}')
 
     actual = []
     for line in stdout.splitlines():
@@ -226,7 +260,7 @@ def compile_negative_test(fn):
                     'Warning in ': 'W', 'Warning: ': 'W'}[prefix]
             actual.append((kind, os.path.abspath(filename), int(line_number), message))
         elif line.startswith(('Error', 'Hint', 'Warning')):
-            raise AssertionError(f'{fn}: malformed diagnostic: {line!r}')
+            raise AssertionError(f'malformed diagnostic: {line!r}')
 
     matched = {}
 
@@ -248,9 +282,25 @@ def compile_negative_test(fn):
     unexpected = [item for index, item in enumerate(actual) if index not in matched]
     if result is not None or missing or unexpected:
         raise AssertionError(
-            f'{fn}: diagnostic mismatch; missing={missing}, unexpected={unexpected}, '
+            f'diagnostic mismatch; missing={missing}, unexpected={unexpected}, '
             f'compiled={result is not None}\n{stdout}'
         )
+
+
+def compile_negative_test(fn):
+    print(f'Compiling negative test {fn}')
+    full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
+    with open(full_fn, encoding='utf-8') as file:
+        cases = list(negative_test_cases(file.read()))
+    failures = []
+    for case in cases:
+        try:
+            compile_negative_case(full_fn, case)
+        except AssertionError as error:
+            name = case.label or 'case'
+            failures.append(f'{fn}: {name} (line {case.start_line}): {error}')
+    if failures:
+        raise AssertionError('\n\n'.join(failures))
     print(f'Compiling negative test {fn} done')
 
 

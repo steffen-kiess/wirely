@@ -63,6 +63,13 @@ The runner compiles the block program, creates an engine, then loads the
 Python file for assertions. Add new runnable tests to `test_names` in
 `wirely/test.py`.
 
+Negative fixtures in `test/negative/` use `// E: message`, `// H: message`,
+and `// W: message` to match diagnostics on that line; each `^` before the
+letter targets one line above. Start independent cases with a standalone
+`// TEST` or `// TEST: label`. Each case needs expected diagnostics and
+compiles separately with the default libraries. Line numbers and caret
+annotations refer to the original file; declarations stay within their case.
+
 ## Working practices
 
 Prefer a focused test for the affected block, then run the full suite when

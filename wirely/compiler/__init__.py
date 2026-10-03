@@ -8,7 +8,7 @@ from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 
 
-def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stacktrace=None):
+def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, always_print_stacktrace=None):
     # TODO: Where should this import be done?
     import wirely.compiler.parser
 
@@ -16,6 +16,9 @@ def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stackt
         verbose_passes = blocks.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
     if always_print_stacktrace is None:
         always_print_stacktrace = blocks.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
+
+    if add_std:
+        filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
 
     exc = None
     try:
@@ -84,25 +87,23 @@ def compile_strs(filename_inpudatas, *, verbose_passes=None, always_print_stackt
     return None
 
 
-def compile_files(input_filenames, *, add_std=True):
-    if add_std:
-        std_lib = [
-            'std',
-            'matter',
-            'time',
-            'knx',
-            'abb_jra',
-            'mqtt',
-            'csv',
-            'two_n',
-            'gpio',
-            'memory',
-            'ext_prog',
-        ]
-        input_filenames = [os.path.dirname(os.path.dirname(__file__)) + '/lib/' + name + '.wrl' for name in std_lib] + input_filenames
+def _standard_library_sources():
+    names = [
+        'std', 'matter', 'time', 'knx', 'abb_jra', 'mqtt', 'csv',
+        'two_n', 'gpio', 'memory', 'ext_prog',
+    ]
+    directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib')
+    sources = []
+    for name in names:
+        filename = os.path.join(directory, name + '.wrl')
+        with open(filename, encoding='utf-8') as file:
+            sources.append((filename, file.read()))
+    return sources
 
+
+def compile_files(input_filenames, *, add_std=True):
     filename_inpudatas = []
     for input_filename in input_filenames:
-        with open(input_filename, 'r') as file:
+        with open(input_filename, encoding='utf-8') as file:
             filename_inpudatas.append((input_filename, file.read()))
-    return compile_strs(filename_inpudatas)
+    return compile_strs(filename_inpudatas, add_std=add_std)

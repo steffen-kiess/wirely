@@ -1,0 +1,145 @@
+import contextlib
+import io
+import sys
+import tempfile
+from pathlib import Path
+from unittest import TestCase
+from unittest.mock import patch
+
+import wirely.compiler
+from wirely.compiler import program as program_compiler
+from wirely.test import compile_negative_test
+
+
+checks = TestCase()
+
+
+def run_fixture(source):
+    with tempfile.TemporaryDirectory(prefix='wirely-negative-cases-') as directory:
+        filename = Path(directory) / 'cases.wrl'
+        filename.write_text(source, encoding='utf-8')
+        with contextlib.redirect_stdout(io.StringIO()):
+            compile_negative_test(str(filename))
+
+
+# Unmarked fixtures, initial annotated cases, and comment-only preambles.
+legacy = 'node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range\n'
+run_fixture(legacy)
+run_fixture(legacy + '''
+// TEST
+node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
+''')
+run_fixture('''// A description before the first case.
+/* A block comment /* with nesting */ in the preamble. */
+
+  // TEST: duplicate members
+// Reusing names below also exercises isolation between cases.
+enum type Mode : uint8 {
+  On = 1, // H: Previous member was here
+  On = 2, // E: Duplicate enum member On
+}
+
+// TEST: unknown member
+enum type Mode : uint8 { On = 1 }
+node bad : Std.Constant(Type = Mode, Value = Mode.Missing);
+// ^E: Unknown member 'Missing' of Mode
+
+// TEST: declaration isolation
+node bad : Std.Constant(Type = Mode, Value = Mode.On); // E: Cannot find type Mode
+''')
+# Labels are descriptive; repeated labels and indentation are accepted.
+run_fixture('''\t// TEST: bounds\x20\x20
+node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+  // TEST: bounds\t
+node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
+''')
+# Inline strings and comments containing TEST are not case boundaries.
+run_fixture('''node type Holder { parameter Text : String = "// TEST"; }
+// TESTING is an ordinary comment.
+node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+''')
+
+
+invalid = [
+    ('', 'no expected diagnostics'),
+    ('// TEST\n', 'no expected diagnostics'),
+    ('// TEST\n// TEST\n' + legacy, 'no expected diagnostics'),
+    (legacy + '// TEST\n', 'no expected diagnostics'),
+    ('// TEST:   \n' + legacy, 'empty test label'),
+    ('// TEST\nnode valid : Std.Constant(Type = uint8, Value = 1);',
+     'no expected diagnostics'),
+    ('// TEST\nnode valid : Std.Constant(Type = uint8, Value = 1); // E: out of range',
+     'compiled=True'),
+    ('// TEST\n' + legacy.replace('out of range', 'wrong expectation'),
+     'diagnostic mismatch'),
+    ('// TEST\n' + legacy.replace('// E: out of range', '// E:'),
+     'Malformed annotation on line 2'),
+    ('// TEST\n// ^E: out of range\n' + legacy,
+     'Malformed annotation on line 2'),
+    (legacy + '// TEST\n// ^^E: out of range\n' + legacy,
+     'Malformed annotation on line 3'),
+    ('// TEST\nenum type Mode : uint8 {\n  On = 1,\n'
+     '  On = 2, // E: Duplicate enum member On\n}', 'unexpected='),
+]
+for source, expected in invalid:
+    with checks.assertRaises(AssertionError) as error:
+        run_fixture(source)
+    assert expected in str(error.exception), str(error.exception)
+
+# Validate every case and report both failures with their names and locations.
+with checks.assertRaises(AssertionError) as error:
+    run_fixture('''// TEST: first
+node bad : Std.Constant(Type = uint8, Value = -1); // E: first mismatch
+// TEST: second
+node bad : Std.Constant(Type = uint8, Value = 256); // E: second mismatch
+''')
+message = str(error.exception)
+assert 'first (line 2)' in message and 'second (line 4)' in message
+assert 'first mismatch' in message and 'second mismatch' in message
+
+# An internally failed case still allows later cases to run.
+original_compile = wirely.compiler.compile_strs
+
+
+def fail_first(sources, **kwargs):
+    if '// E: simulated' in sources[0][1]:
+        print('Internal compiler error: simulated failure')
+        return None
+    return original_compile(sources, **kwargs)
+
+
+with patch('wirely.compiler.compile_strs', side_effect=fail_first) as compiler:
+    with checks.assertRaises(AssertionError) as error:
+        run_fixture('''// TEST: internal failure
+node bad : Missing; // E: simulated
+// TEST: later case
+node bad : Missing; // E: wrong expectation
+''')
+    assert compiler.call_count == 2
+message = str(error.exception)
+assert 'compiler failed internally' in message and 'later case' in message
+
+for stream, text in [('stderr', 'unexpected stderr'),
+                     ('stdout', 'Traceback (most recent call last)'),
+                     ('stdout', 'Error without a location')]:
+    def emit_failure(sources, *, stream=stream, text=text, **kwargs):
+        print(text, file=getattr(sys, stream))
+        return None
+
+    with patch('wirely.compiler.compile_strs', side_effect=emit_failure):
+        with checks.assertRaises(AssertionError) as error:
+            run_fixture(legacy)
+    assert ('malformed diagnostic' if text.startswith('Error')
+            else 'compiler failed internally') in str(error.exception)
+
+# Default library loading remains opt-in for source compilation.
+with contextlib.redirect_stdout(io.StringIO()) as output:
+    assert wirely.compiler.compile_strs([
+        ('<no-libraries>', 'node value : Std.Constant(Type = uint8, Value = 1);'),
+    ]) is None
+assert 'Cannot find block type Std.Constant' in output.getvalue()
+compiled = wirely.compiler.compile_strs([
+    ('<with-libraries>', 'node value : Std.Constant(Type = uint8, Value = 1);'),
+], add_std=True)
+assert compiled is not None
+assert program_compiler.compile(compiled) is not None

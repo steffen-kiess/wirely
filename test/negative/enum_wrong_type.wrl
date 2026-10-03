@@ -1,4 +1,0 @@
-node mode : Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = OtherMode.Heat
-); // ^E: Cannot find type OtherMode

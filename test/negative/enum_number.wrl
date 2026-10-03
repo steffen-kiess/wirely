@@ -1,1 +1,0 @@
-node mode : Std.Constant(Type = ThermostatSystemModeEnum, Value = 4); // E: Expected enum literal ThermostatSystemModeEnum.Member
