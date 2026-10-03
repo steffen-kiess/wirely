@@ -1,0 +1,102 @@
+// TEST: resource_mismatch
+namespace Fixture {
+  resource type First;
+  resource type Second;
+
+  node type Source {
+    implicit output : resource First; // H: Source was declared here
+  }
+
+  node type Target {
+    input Service : resource Second; // H: Target was declared here
+  }
+}
+node source : Fixture.Source;
+node target : Fixture.Target;
+connect source -> target.Service; // E: source has resource type Fixture.First but target has resource type Fixture.Second
+
+// TEST: resource_same_name_mismatch
+namespace First {
+  resource type Handle;
+}
+
+namespace Second {
+  resource type Handle;
+}
+
+node type Source {
+  implicit output : resource First.Handle; // H: Source was declared here
+}
+
+node type Target {
+  implicit input : resource Second.Handle; // H: Target was declared here
+}
+node source : Source;
+node target : Target;
+connect source -> target; // E: source has resource type First.Handle but target has resource type Second.Handle
+
+// TEST: resource_boundary_mismatch
+resource type First;
+resource type Second;
+
+node type Invalid {
+  input Service : resource First; // H: Source was declared here
+  implicit output : resource Second; // H: Target was declared here
+  connect Service -> implicit output; // E: source has resource type First but target has resource type Second
+}
+
+// TEST: resource_to_data_value
+resource type Handle;
+
+node type Source {
+  implicit output : resource Handle; // H: Source was declared here
+}
+
+node type Target {
+  implicit input : value boolean; // H: Target was declared here
+}
+node source : Source;
+node target : Target;
+connect source -> target; // E: Cannot connect resource and data connectors
+
+// TEST: data_to_resource_value
+resource type Handle;
+
+node type Source {
+  implicit output : value boolean; // H: Source was declared here
+}
+
+node type Target {
+  implicit input : resource Handle; // H: Target was declared here
+}
+node source : Source;
+node target : Target;
+connect source -> target; // E: Cannot connect resource and data connectors
+
+// TEST: resource_to_data_event
+resource type Handle;
+
+node type Source {
+  implicit output : resource Handle; // H: Source was declared here
+}
+
+node type Target {
+  implicit input : event boolean; // H: Target was declared here
+}
+node source : Source;
+node target : Target;
+connect source -> target; // E: Cannot connect resource and data connectors
+
+// TEST: data_to_resource_event
+resource type Handle;
+
+node type Source {
+  implicit output : event boolean; // H: Source was declared here
+}
+
+node type Target {
+  implicit input : resource Handle; // H: Target was declared here
+}
+node source : Source;
+node target : Target;
+connect source -> target; // E: Cannot connect resource and data connectors

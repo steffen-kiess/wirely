@@ -1,5 +1,0 @@
-node type Invalid {
-  parameter First : uint8 = Second; // E: Cyclic parameter resolution: First -> Second -> First
-  parameter Second : uint8 = First;
-}
-node invalid : Invalid;

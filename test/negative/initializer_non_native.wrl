@@ -1,3 +1,0 @@
-node type Invalid {
-  native initializer; // E: Native initializer requires a native node type
-}

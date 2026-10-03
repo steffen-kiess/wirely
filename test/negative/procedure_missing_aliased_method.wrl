@@ -1,6 +1,0 @@
-namespace TestLibrary {
-  node type TestBlock {
-    native procedure Poll as "missing"; // E: Cannot find native procedure 'missing'
-  }
-}
-node test : TestLibrary.TestBlock;

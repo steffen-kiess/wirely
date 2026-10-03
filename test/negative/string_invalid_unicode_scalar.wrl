@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = String, Value = "\u{D800}"); // E: Unicode escape is not a Unicode scalar value

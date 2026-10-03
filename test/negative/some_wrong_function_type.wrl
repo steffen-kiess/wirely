@@ -1,4 +1,0 @@
-node source : Std.Constant(
-  Type = Option[boolean],
-  Value = Some(TimeOfDay_AddWrap("23:30", "01:00"))
-); // ^E: Expected value of type boolean, got TimeOfDay

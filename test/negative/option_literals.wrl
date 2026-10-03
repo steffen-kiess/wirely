@@ -1,0 +1,17 @@
+// TEST: some_missing_argument
+node source : Std.Constant(Type = Option[boolean], Value = Some()); // E: Some expects exactly one argument
+
+// TEST: some_extra_argument
+node source : Std.Constant(Type = Option[boolean], Value = Some(true, false)); // E: Some expects exactly one argument
+
+// TEST: some_non_option
+node source : Std.Constant(Type = boolean, Value = Some(true)); // E: Some requires an Option type
+
+// TEST: some_wrong_inner_type
+node source : Std.Constant(Type = Option[boolean], Value = Some(42)); // E: Invalid boolean value
+
+// TEST: some_wrong_function_type
+node source : Std.Constant(
+  Type = Option[boolean],
+  Value = Some(TimeOfDay_AddWrap("23:30", "01:00"))
+); // ^E: Expected value of type boolean, got TimeOfDay

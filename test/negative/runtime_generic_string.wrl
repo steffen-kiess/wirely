@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = String, Value = "text"); // E: parameter-only

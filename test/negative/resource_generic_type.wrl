@@ -1,5 +1,0 @@
-resource type Handle;
-
-node type Invalid {
-  implicit output : value Option[Handle]; // E: Cannot find type Handle
-}

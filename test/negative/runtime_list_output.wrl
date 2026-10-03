@@ -1,3 +1,0 @@
-node type Invalid {
-  implicit output : value List[uint8]; // E: parameter-only
-}

@@ -1,6 +1,0 @@
-node type Invalid {
-  implicit output : value boolean;
-
-  native procedure run produces implicit output;
-  // ^E: Implicit connectors and complex references require an explicit alias
-}

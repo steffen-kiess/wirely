@@ -1,4 +1,0 @@
-native node type Invalid {
-  state count : uint8 = 0;
-  native initializer depends on count.old as "old"; // E: Initializer dependencies must be resources
-}

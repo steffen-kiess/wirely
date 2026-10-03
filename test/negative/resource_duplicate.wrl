@@ -1,7 +1,0 @@
-namespace Fixture {
-  resource type Handle; // H: Previous resource type was here
-}
-
-namespace Fixture {
-  resource type Handle; // E: Duplicate resource type Handle
-}

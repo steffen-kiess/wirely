@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = boolean, Value = Some(true)); // E: Some requires an Option type

@@ -1,0 +1,11 @@
+// TEST: string_invalid_hex_escape
+node source : Std.Constant(Type = String, Value = "\xGG"); // E: Hex escape requires two hexadecimal digits
+
+// TEST: string_unicode_missing_braces
+node source : Std.Constant(Type = String, Value = "\u0041"); // E: Unicode escape requires braces
+
+// TEST: string_invalid_unicode_scalar
+node source : Std.Constant(Type = String, Value = "\u{D800}"); // E: Unicode escape is not a Unicode scalar value
+
+// TEST: string_unknown_escape
+node source : Std.Constant(Type = String, Value = "\q"); // E: Unknown string escape

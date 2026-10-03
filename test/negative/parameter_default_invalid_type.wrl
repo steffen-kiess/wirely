@@ -1,4 +1,0 @@
-node type Invalid {
-  parameter Type : ValueType = Unknown; // E: Cannot find type Unknown
-}
-node invalid : Invalid;

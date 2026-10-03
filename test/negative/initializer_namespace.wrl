@@ -1,3 +1,0 @@
-namespace Invalid { // H: In this namespace
-  native initializer; // E: Declaration not allowed in namespace
-}

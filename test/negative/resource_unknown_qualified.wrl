@@ -1,7 +1,0 @@
-namespace Fixture {
-  resource type Handle;
-}
-
-node type Invalid {
-  input Service : resource Fixture.Missing; // E: Cannot find resource type Fixture.Missing
-}

@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = String, Value = "\u0041"); // E: Unicode escape requires braces

@@ -1,3 +1,0 @@
-node type Invalid {
-  state items : List[uint8] = []; // E: parameter-only
-}

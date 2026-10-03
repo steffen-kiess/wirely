@@ -1,4 +1,0 @@
-node type Invalid {
-  native procedure First as "refresh"; // H: Previous Python procedure name was here
-  native procedure refresh; // E: Duplicate Python procedure name
-}

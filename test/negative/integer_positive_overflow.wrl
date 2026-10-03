@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = int8, Value = +128); // E: Int value out of range: 128

@@ -1,4 +1,0 @@
-native node type Invalid {
-  input Value : value boolean;
-  native initializer depends on Value; // E: Initializer dependencies must be resources
-}

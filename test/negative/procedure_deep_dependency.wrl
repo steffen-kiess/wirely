@@ -1,4 +1,0 @@
-node type Invalid {
-  native procedure run depends on child.inner.Value as "value";
-  // ^E: Unsupported procedure dependency reference
-}

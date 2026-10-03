@@ -1,0 +1,5 @@
+// TEST: unit_boolean_value
+node source : Std.Constant(Type = unit, Value = false); // E: Invalid unit value
+
+// TEST: unit_used_as_boolean
+node source : Std.Constant(Type = boolean, Value = ()); // E: Invalid boolean value

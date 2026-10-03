@@ -1,5 +1,0 @@
-resource type Handle;
-
-node type Invalid {
-  state service : Handle = (); // E: Cannot find type Handle
-}

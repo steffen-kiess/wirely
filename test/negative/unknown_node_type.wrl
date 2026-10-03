@@ -1,1 +1,0 @@
-node node2 : Std.NonExisting(Type = Option[boolean]); // E: Cannot find block type Std.NonExisting

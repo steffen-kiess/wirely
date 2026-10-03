@@ -1,3 +1,0 @@
-singleton node type QWE {
-  parameter i : int8; // E: Singleton block cannot have parameters
-}

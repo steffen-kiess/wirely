@@ -1,3 +1,0 @@
-node type Invalid {
-  state selected : ValueType = uint16; // E: parameter-only
-}

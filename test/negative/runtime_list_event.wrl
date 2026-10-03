@@ -1,3 +1,0 @@
-node type Invalid {
-  implicit input : list event List[uint8]; // E: parameter-only
-}

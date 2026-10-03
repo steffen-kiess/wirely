@@ -1,0 +1,87 @@
+// TEST: resource_unknown
+node type Client {
+  input Service : resource Missing; // E: Cannot find resource type Missing
+}
+
+// TEST: resource_unknown_qualified
+namespace Fixture {
+  resource type Handle;
+}
+
+node type Invalid {
+  input Service : resource Fixture.Missing; // E: Cannot find resource type Fixture.Missing
+}
+
+// TEST: resource_data_type
+node type Invalid {
+  input Service : resource boolean; // E: Cannot find resource type boolean
+}
+
+// TEST: resource_duplicate
+namespace Fixture {
+  resource type Handle; // H: Previous resource type was here
+}
+
+namespace Fixture {
+  resource type Handle; // E: Duplicate resource type Handle
+}
+
+// TEST: resource_inside_node
+node type Container {
+  resource type Handle; // E: Resource type declaration not allowed inside node type
+}
+
+// TEST: resource_node_collision
+namespace Fixture {
+  resource type Service; // H: Previous resource type was here
+  node type Service {
+  } // ^E: Node type Service conflicts with resource type
+}
+
+// TEST: node_resource_collision
+namespace Fixture {
+  node type Service {
+  } // ^H: Previous node type was here
+  resource type Service; // E: Resource type Service conflicts with node type
+}
+
+// TEST: resource_node_collision_reopened
+namespace Fixture.Deep {
+  resource type Service; // H: Previous resource type was here
+}
+
+namespace Fixture {
+  namespace Deep {
+    node type Service {
+    } // ^E: Node type Service conflicts with resource type
+  }
+}
+
+// TEST: node_resource_collision_reopened
+namespace Fixture {
+  namespace Deep {
+    node type Service {
+    } // ^H: Previous node type was here
+  }
+}
+
+namespace Fixture.Deep {
+  resource type Service; // E: Resource type Service conflicts with node type
+}
+
+// TEST: resource_node_collision_global
+resource type Service; // H: Previous resource type was here
+node type Service {
+} // ^E: Node type Service conflicts with resource type
+
+// TEST: node_resource_collision_global
+node type Service {
+} // ^H: Previous node type was here
+resource type Service; // E: Resource type Service conflicts with node type
+
+// TEST: resource_list_output
+resource type Handle;
+
+node type Invalid {
+  implicit output : list resource Handle; // E: Got list specifier for non-input
+}

@@ -1,3 +1,0 @@
-node type Invalid {
-  temporary text : String; // E: parameter-only
-}

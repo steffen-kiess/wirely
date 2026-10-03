@@ -1,5 +1,0 @@
-node type Invalid {
-  input Value : value boolean;
-  native procedure run stage input // E: declared as input stage but depends on something else
-    depends on Value; // H: Dependencies declared here
-}

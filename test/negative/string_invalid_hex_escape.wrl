@@ -1,1 +1,0 @@
-node source : Std.Constant(Type = String, Value = "\xGG"); // E: Hex escape requires two hexadecimal digits

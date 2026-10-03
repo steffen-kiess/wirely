@@ -1,0 +1,68 @@
+// TEST: initializer_non_native
+node type Invalid {
+  native initializer; // E: Native initializer requires a native node type
+}
+
+// TEST: initializer_namespace
+namespace Invalid { // H: In this namespace
+  native initializer; // E: Declaration not allowed in namespace
+}
+
+// TEST: initializer_duplicate
+native node type Invalid {
+  native initializer; // H: Previous initializer was here
+  native initializer; // E: Duplicate native initializer
+}
+
+// TEST: initializer_value_dependency
+native node type Invalid {
+  input Value : value boolean;
+  native initializer depends on Value; // E: Initializer dependencies must be resources
+}
+
+// TEST: initializer_state_dependency
+native node type Invalid {
+  state count : uint8 = 0;
+  native initializer depends on count.old as "old"; // E: Initializer dependencies must be resources
+}
+
+// TEST: initializer_unknown_dependency
+native node type Invalid {
+  native initializer depends on Missing; // E: Could not find dependency
+}
+
+// TEST: initializer_implicit_alias
+resource type Handle;
+native node type Invalid {
+  implicit input : resource Handle;
+  native initializer depends on implicit input; // E: Implicit connectors and complex references require an explicit alias
+}
+
+// TEST: initializer_complex_alias
+resource type Handle;
+node type Source {
+  output Handle : resource Handle;
+}
+native node type Invalid {
+  node source : Source;
+  native initializer depends on source.Handle; // E: Implicit connectors and complex references require an explicit alias
+}
+
+// TEST: initializer_duplicate_key
+resource type Handle;
+native node type Invalid {
+  input Service : resource Handle;
+  native initializer
+    depends on Service, // H: Previous binding was here
+      Service; // E: Duplicate procedure binding key
+}
+
+// TEST: initializer_duplicate_decoded_alias
+resource type Handle;
+native node type Invalid {
+  input First : resource Handle;
+  input Second : resource Handle;
+  native initializer
+    depends on First as "Service", // H: Previous binding was here
+      Second as "\x53ervice"; // E: Duplicate procedure binding key
+}
