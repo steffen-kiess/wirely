@@ -247,3 +247,88 @@ other.step()
 other.assert_value_is('consumer.New', False)
 with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
     consumer.trigger('Poll')
+
+# Slots share one compact layout while instances keep independent byte values.
+flag = wirely.Variable('flag', wirely.types.boolean)
+small = wirely.Variable('small', wirely.types.uint16)
+unit_a = wirely.Variable('unit_a', wirely.types.unit)
+unit_b = wirely.Variable('unit_b', wirely.types.unit)
+nested_type = wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64))
+nested = wirely.Variable('nested', nested_type)
+clock = wirely.Variable('clock', wirely.types.MonotonicTime)
+number = wirely.Variable('number', wirely.types.int64)
+block = wirely.VariableBlock([flag, small, unit_a, nested, clock, number, unit_b], 'bytes')
+assert list(block.variables) == ['flag', 'small', 'unit_a', 'nested', 'clock', 'number', 'unit_b']
+assert list(block.offsets.items()) == [
+    (nested, 0), (clock, 16), (number, 32), (small, 40),
+    (flag, 42), (unit_a, 43), (unit_b, 43),
+]
+assert (block.size, block.alignment) == (48, 8)
+values = wirely.VariableBlockInstance(block)
+independent = wirely.VariableBlockInstance(block)
+assert isinstance(values.data, bytearray)
+assert values.data == bytes(48)
+with checks.assertRaisesRegex(Exception, 'not yet set'):
+    values[flag]
+with checks.assertRaisesRegex(Exception, 'not yet set'):
+    values[unit_a]
+expected = {
+    flag: True, small: 0x1234, unit_a: wirely.Unit(), unit_b: wirely.Unit(),
+    nested: wirely.Some(None), clock: wirely.MonotonicTime(7, 123), number: -2,
+}
+for variable, value in expected.items():
+    values.add(variable, value)
+    assert values[variable] == value
+assert values.data == (
+    bytes(9) + b'\x01' + bytes(6)
+    + bytes.fromhex('07 00 00 00 00 00 00 00 7b 00 00 00 00 00 00 00')
+    + bytes.fromhex('fe ff ff ff ff ff ff ff 34 12 01') + bytes(5)
+)
+assert independent.data == bytes(48)
+with checks.assertRaisesRegex(Exception, 'not yet set'):
+    independent[flag]
+with checks.assertRaisesRegex(Exception, 'already set'):
+    values.add(unit_a, wirely.Unit())
+with checks.assertRaisesRegex(Exception, 'already set'):
+    values.add(flag, False)
+foreign = wirely.Variable('flag', wirely.types.boolean)
+with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
+    values.add(foreign, True)
+with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
+    values[foreign]
+
+# Failed writes preserve the buffer and leave the variable available for retry.
+with checks.assertRaises(ValueError):
+    independent.add(small, 65536)
+assert independent.data == bytes(48)
+with checks.assertRaisesRegex(Exception, 'not yet set'):
+    independent[small]
+independent.add(small, 65535)
+assert independent[small] == 65535
+
+# A slot write clears its padding; reads validate slot and final block padding.
+independent.data[10] = 1
+independent.add(nested, None)
+assert independent[nested] is None
+for offset, variable in [(10, nested), (47, flag)]:
+    values.data[offset] = 1
+    with checks.assertRaisesRegex(ValueError, 'Non-zero padding'):
+        values[variable]
+    values.data[offset] = 0
+values.data[42] = 2
+with checks.assertRaises(ValueError):
+    values[flag]
+values.data[42] = 1
+
+empty_block = wirely.VariableBlock([], 'empty')
+assert (empty_block.size, empty_block.alignment) == (0, 1)
+assert wirely.VariableBlockInstance(empty_block).data == b''
+units = wirely.VariableBlock([unit_a, unit_b], 'units')
+assert units.size == 0
+unit_values = wirely.VariableBlockInstance(units)
+unit_values.add(unit_a, wirely.Unit())
+with checks.assertRaisesRegex(Exception, 'not yet set'):
+    unit_values[unit_b]
+unit_values.add(unit_b, wirely.Unit())
+assert unit_values[unit_a] == unit_values[unit_b] == wirely.Unit()
+assert unit_values.data == b''

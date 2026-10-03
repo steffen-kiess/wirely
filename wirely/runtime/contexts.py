@@ -79,28 +79,44 @@ class NativeState:
 
 
 class VariableBlockInstance:
+    """Write-once runtime values stored in an aligned byte buffer."""
+
     def __init__(self, variable_block):
+        """Allocate zeroed storage and track initialization separately."""
         if not isinstance(variable_block, VariableBlock):
             raise Exception('variable_block parameter is not a VariableBlock')
         self.variable_block = variable_block
 
-        self.data = {}
+        self.data = bytearray(variable_block.size)
+        self._initialized = set()  # Variable identities, including zero-sized units.
+        last = next(reversed(variable_block.offsets), None)
+        # Final block padding follows the last slot in layout order.
+        self._padding_start = 0 if last is None else variable_block.offsets[last] + last.var_type.size
 
     def add(self, variable, value):
-        # print(f'Setting {variable}')
+        """Serialize a value into its slot, allowing one successful write."""
         if variable not in self.variable_block.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableBlock {self.variable_block.name}')
-        if variable in self.data:
+        if variable in self._initialized:
             raise Exception(f'Variable {variable} already set')
-        self.data[variable] = variable.var_type.verify_value(value)
+        encoded = variable.var_type.serialize(value)
+        offset = self.variable_block.offsets[variable]
+        self.data[offset:offset + variable.var_type.size] = (
+            encoded + bytes(variable.var_type.size - len(encoded))
+        )
+        self._initialized.add(variable)
 
     def __getitem__(self, variable):
-        # print(f'Getting {variable}')
+        """Read an initialized value, validating its slot and block padding."""
         if variable not in self.variable_block.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableBlock {self.variable_block.name}')
-        if variable not in self.data:
+        if variable not in self._initialized:
             raise Exception(f'Variable {variable} not yet set')
-        return self.data[variable]
+        offset = self.variable_block.offsets[variable]
+        end = offset + variable.var_type.data_size
+        if any(self.data[end:offset + variable.var_type.size]) or any(self.data[self._padding_start:]):
+            raise ValueError(f'Non-zero padding in VariableBlock {self.variable_block.name}')
+        return variable.var_type.deserialize(memoryview(self.data)[offset:end])
 
 
 class ProcedureContext:

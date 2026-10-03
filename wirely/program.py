@@ -48,8 +48,12 @@ class VariableBlock:
     name: str  # Collection name for diagnostics.
     variables: Mapping[str, Variable]  # Variables indexed by qualified name.
     variable_set: frozenset[Variable]  # Variables allowed in a runtime instance.
+    offsets: Mapping[Variable, int]  # Byte offsets, ordered by decreasing alignment.
+    size: int  # Buffer size in bytes, including final alignment padding.
+    alignment: int  # Required alignment of the block's starting byte offset.
 
     def __init__(self, variables, name):
+        """Build a shared compact layout while preserving name lookup order."""
         by_name = {}
         for var in variables:
             if not isinstance(var, Variable):
@@ -57,9 +61,20 @@ class VariableBlock:
             if var.name in by_name:
                 raise Exception(f'Duplicate variable name {var.name!r}')
             by_name[var.name] = var
+        offsets = {}
+        size = 0
+        alignment = 1
+        for var in sorted(by_name.values(), key=lambda var: -var.var_type.alignment):
+            alignment = max(alignment, var.var_type.alignment)
+            offsets[var] = size
+            size += var.var_type.size
+        size = (size + alignment - 1) & ~(alignment - 1)
         object.__setattr__(self, 'name', name)
         object.__setattr__(self, 'variables', MappingProxyType(by_name))
         object.__setattr__(self, 'variable_set', frozenset(by_name.values()))
+        object.__setattr__(self, 'offsets', MappingProxyType(offsets))
+        object.__setattr__(self, 'size', size)
+        object.__setattr__(self, 'alignment', alignment)
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,8 +197,10 @@ class Program:
                                       ('Temporaries', self.temporaries)]:
             line()
             line(f'{label} ({variable_block.name}):')
+            line(f'size: {variable_block.size}, alignment: {variable_block.alignment}', 2)
             for name, variable in sorted(variable_block.variables.items()):
                 line(f'{name}: {variable.var_type}', 2)
+                line(f'offset: {variable_block.offsets[variable]}', 4)
                 if variable in self.initial_state:
                     value('initial', self.initial_state[variable], 4)
 
