@@ -1,10 +1,10 @@
 import abc
 
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 from wirely.native_configuration import configuration_factory
 from wirely.parameters import ParameterValues, native_parameters, parameter_origins
-from wirely.compiler_types import resolve_type
+from wirely.compiler.types import resolve_type
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType

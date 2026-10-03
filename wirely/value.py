@@ -2,8 +2,8 @@ import abc
 import datetime
 import re
 
-from wirely import compiler_model as blocks
-from wirely.compiler_types import resolve_type
+from wirely.compiler import model as blocks
+from wirely.compiler.types import resolve_type
 
 
 # TODO: Move value types out of types.py

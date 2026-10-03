@@ -5,7 +5,7 @@ import traceback
 import contextlib
 
 import wirely as blocks
-from wirely import program_compiler
+from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
 
 import wirely.misc.service

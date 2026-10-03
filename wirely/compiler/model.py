@@ -11,8 +11,8 @@ from wirely import (
 
 
 _exports = {
-    'ResourceType': 'compiler_types',
-    'TypeParameter': 'compiler_types',
+    'ResourceType': 'compiler.types',
+    'TypeParameter': 'compiler.types',
     'Value': 'value',
     'ConstantValue': 'value',
     'ValueParameter': 'value',
@@ -27,11 +27,11 @@ _exports = {
     'StateRead': 'node',
     'Block': 'block',
     'BlockInstance': 'block',
-    'connect': 'compiler_support',
-    'path_resolve_singleton': 'compiler_support',
-    'resolve_variable': 'compiler_support',
-    'StaticBlockContext': 'compiler_support',
-    'StaticProcedureContext': 'compiler_support',
+    'connect': 'compiler.support',
+    'path_resolve_singleton': 'compiler.support',
+    'resolve_variable': 'compiler.support',
+    'StaticBlockContext': 'compiler.support',
+    'StaticProcedureContext': 'compiler.support',
     'UnitLiteral': 'ast',
     'ProcedureBinding': 'ast',
     'DeclarationInitializer': 'ast',
@@ -81,9 +81,9 @@ _modules = {'ast', 'block_type', 'value', 'compiler', 'parser', 'util'}
 def __getattr__(name):
     # Compiler modules also use this facade while defining their own objects.
     if name in _modules:
-        value = importlib.import_module('.' + name, __package__)
+        value = importlib.import_module('.' + name, 'wirely')
     elif name in _exports:
-        module = importlib.import_module('.' + _exports[name], __package__)
+        module = importlib.import_module('.' + _exports[name], 'wirely')
         value = getattr(module, name)
     else:
         raise AttributeError(name)

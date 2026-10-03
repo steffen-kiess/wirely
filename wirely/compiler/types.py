@@ -1,8 +1,8 @@
 """Compiler types, source literals, and parameter resolution."""
 
-from .types import Type, TypeOption, TypeList
-from . import types
-from . import compiler_model as blocks
+from ..types import Type, TypeOption, TypeList
+from .. import types
+from . import model as blocks
 
 
 class ResourceType:
@@ -31,7 +31,7 @@ class TypeParameter(Type):
         return True
 
     def resolve_self(self, par_values):
-        from .parameters import ParameterValues, resolve_parameter
+        from ..parameters import ParameterValues, resolve_parameter
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             return par_values[self.parameter]

@@ -3,8 +3,8 @@ from unittest import TestCase
 
 import wirely
 import wirely.parser
-from wirely import compiler_model
-from wirely.compiler_types import parse_value
+from wirely.compiler import model as compiler_model
+from wirely.compiler.types import parse_value
 
 
 checks = TestCase()

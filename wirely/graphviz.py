@@ -1,6 +1,6 @@
 import graphviz
 import wirely
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 
 def htmlescape(s):
     return s.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')

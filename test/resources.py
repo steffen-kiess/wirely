@@ -9,8 +9,8 @@ from unittest.mock import patch
 import lark
 
 import wirely
-from wirely import compiler_model as blocks
-from wirely import program_compiler
+from wirely.compiler import model as blocks
+from wirely.compiler import program as program_compiler
 import wirely.parser
 import wirely.native.test_library
 from wirely.native import native_block_type

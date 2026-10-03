@@ -3,7 +3,7 @@
 import sys
 
 from .compiler import compile_files
-from . import program_compiler
+from .compiler import program as program_compiler
 from .engine import Engine
 
 

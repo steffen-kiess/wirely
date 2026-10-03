@@ -2,7 +2,7 @@ import enum
 
 import wirely
 import wirely.parser
-from wirely.compiler_types import parse_value
+from wirely.compiler.types import parse_value
 
 
 mode_type = wirely.types.ThermostatSystemMode

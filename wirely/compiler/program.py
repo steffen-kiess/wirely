@@ -2,9 +2,9 @@
 
 import traceback
 
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.program import NativeInstance, Procedure, Program, ResultBinding
-from wirely.compiler_types import resolve_type
+from wirely.compiler.types import resolve_type
 
 
 def compile(global_block_type):

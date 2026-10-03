@@ -11,7 +11,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely as blocks
-from wirely import program_compiler
+from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type

@@ -5,7 +5,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
-from wirely import program_compiler
+from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -26,7 +26,7 @@ from wirely.native_preparation.std import prepare_edge_data
 from wirely.native_preparation.time import prepare_is_between_data, prepare_trigger_at_data
 from wirely.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
 from wirely.native_configuration import register_configuration
-from wirely import compiler_model
+from wirely.compiler import model as compiler_model
 
 
 checks = TestCase()

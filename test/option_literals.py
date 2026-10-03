@@ -6,8 +6,8 @@ from pathlib import Path
 import wirely
 import wirely.compiler
 import wirely.parser
-from wirely import compiler_model
-from wirely.compiler_types import parse_value
+from wirely.compiler import model as compiler_model
+from wirely.compiler.types import parse_value
 
 
 engine.step()

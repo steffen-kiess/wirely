@@ -4,7 +4,7 @@ import traceback
 import lark
 
 import wirely
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 
 
@@ -98,7 +98,7 @@ def compile_files(input_filenames, *, add_std=True):
             'memory',
             'ext_prog',
         ]
-        input_filenames = [os.path.dirname(__file__) + '/lib/' + name + '.wrl' for name in std_lib] + input_filenames
+        input_filenames = [os.path.dirname(os.path.dirname(__file__)) + '/lib/' + name + '.wrl' for name in std_lib] + input_filenames
 
     filename_inpudatas = []
     for input_filename in input_filenames:

@@ -3,7 +3,7 @@ import os
 
 import lark
 
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 
 

@@ -2,8 +2,8 @@
 
 import inspect
 
-from . import compiler_model as blocks
-from .native import get_native_block_type_by_name
+from . import model as blocks
+from ..native import get_native_block_type_by_name
 
 
 def _validate_native_procedure(native_class, procedure, *, has_native_state):

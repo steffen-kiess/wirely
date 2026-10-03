@@ -7,8 +7,8 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
-from wirely import compiler_model as blocks
-from wirely import program_compiler
+from wirely.compiler import model as blocks
+from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -33,7 +33,7 @@ subprocess.run([sys.executable, '-c', dedent('''
     compiler_modules = {
         'wirely.ast', 'wirely.parser', 'wirely.block', 'wirely.block_type',
         'wirely.node', 'wirely.parameters', 'wirely.value',
-        'wirely.program_compiler', 'wirely.native_configuration',
+        'wirely.compiler.program', 'wirely.native_configuration',
     }
     unexpected = {
         name for name in sys.modules

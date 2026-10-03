@@ -8,7 +8,7 @@ import sys
 import logging
 
 import wirely as blocks
-from wirely import program_compiler
+from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?

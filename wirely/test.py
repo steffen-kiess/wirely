@@ -16,8 +16,8 @@ from dataclasses import replace
 from types import MappingProxyType
 
 import wirely
-from wirely import compiler_model as blocks
-from wirely import program_compiler
+from wirely.compiler import model as blocks
+from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?

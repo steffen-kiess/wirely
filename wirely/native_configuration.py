@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 
-from . import compiler_model as blocks
+from .compiler import model as blocks
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)

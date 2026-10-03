@@ -2,8 +2,8 @@
 
 from types import MappingProxyType
 
-from wirely import compiler_model as blocks
-from wirely.compiler_types import resolve_type
+from wirely.compiler import model as blocks
+from wirely.compiler.types import resolve_type
 
 
 class ParameterValues(dict):

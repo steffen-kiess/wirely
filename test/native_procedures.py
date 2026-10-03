@@ -4,7 +4,7 @@ from functools import wraps
 from unittest.mock import patch
 
 import wirely
-from wirely import program_compiler
+from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type

@@ -9,9 +9,9 @@ import lark
 
 from .run_stage import RunStage
 
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.util import check_parameters
-from wirely.compiler_types import parse_value, resolve_type
+from wirely.compiler.types import parse_value, resolve_type
 
 
 class SourcePosition:

@@ -1,8 +1,8 @@
 import typing
 
-from . import compiler_native
+from .compiler import native as compiler_native
 
-from wirely import compiler_model as blocks
+from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 
 

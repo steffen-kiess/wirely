@@ -1,9 +1,9 @@
 from collections.abc import Mapping
 
-from . import compiler_model as blocks
-from .block import Block
-from .node import StateRead
-from .compiler_types import resolve_type
+from . import model as blocks
+from ..block import Block
+from ..node import StateRead
+from .types import resolve_type
 
 
 debug_variable_resolution = False
