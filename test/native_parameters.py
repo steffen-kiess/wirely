@@ -43,7 +43,7 @@ def prepare_prepared_data(*, context):
     assert isinstance(context, compiler_model.NativeNodeConfigurationContext)
     assert isinstance(context.parameters, MappingProxyType)
     assert '' not in context.parameters
-    prepared_names[id(context.parameters)] = context.name
+    prepared_names[context.name] = context.parameters
     prepared.append(context.parameters)
     return context.parameters
 
@@ -55,7 +55,7 @@ register_configuration(PreparedData, prepare_prepared_data)
 class ParameterProbe:
     @staticmethod
     def run(*, context):
-        assert context.name == prepared_names[id(context.parameters)]
+        assert context.parameters == prepared_names[context.name]
         callback(context)
         seen.append(context.parameters)
 
@@ -65,13 +65,13 @@ class StateParameterProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         assert self.parameters is context.parameters
-        assert any(self.context.configuration is data for data in prepared)
+        assert any(self.context.configuration == data for data in prepared)
         assert '' not in self.parameters
 
     def run(self, *, context):
         assert self.parameters is context.parameters
         assert context.name == self.context.name
-        assert context.name == prepared_names[id(context.parameters)]
+        assert context.parameters == prepared_names[context.name]
         callback(context)
         seen.append(context.parameters)
 

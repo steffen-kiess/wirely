@@ -1,22 +1,75 @@
 from __future__ import annotations
 
+import enum
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pprint import pformat
 from types import MappingProxyType
 
-import wirely as blocks
+from .types import Type
 
 
-@dataclass(frozen=True)
+class RunStage(enum.Enum):
+    INPUT = enum.auto()
+    DEFAULT = enum.auto()
+    OUTPUT = enum.auto()
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class Variable:
+    name: str
+    var_type: Type
+
+    def __post_init__(self):
+        if not isinstance(self.name, str):
+            raise Exception('name parameter is not a str')
+        if self.var_type.contains_parameters:
+            raise Exception('var_type parameter is not a concrete type')
+        object.__setattr__(self, 'name', str(self.name))
+
+    def __repr__(self):
+        return f'Variable[{self}]'
+
+    def __str__(self):
+        return self.name
+
+
+@dataclass(frozen=True, slots=True, init=False, eq=False)
+class VariableBlock:
+    name: str
+    variables: Mapping[str, Variable]
+    variable_set: frozenset[Variable]
+
+    def __init__(self, variables, name):
+        by_name = {}
+        for var in variables:
+            if not isinstance(var, Variable):
+                raise Exception('var parameter contains object that is not a Variable')
+            if var.name in by_name:
+                raise Exception(f'Duplicate variable name {var.name!r}')
+            by_name[var.name] = var
+        object.__setattr__(self, 'name', name)
+        object.__setattr__(self, 'variables', MappingProxyType(by_name))
+        object.__setattr__(self, 'variable_set', frozenset(by_name.values()))
+
+
+@dataclass(frozen=True, slots=True)
+class InputSourceBinding:
+    """A procedure input from a temporary or the step's state snapshot."""
+
+    variable: Variable
+    state_changed: Variable | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ResultBinding:
-    variable: blocks.Variable
-    state_new: blocks.Variable | None = None
-    state_changed: blocks.Variable | None = None
+    variable: Variable
+    state_new: Variable | None = None
+    state_changed: Variable | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NativeInstance:
     name: str
     type_name: tuple[str, ...]
@@ -25,8 +78,19 @@ class NativeInstance:
     configuration: object
     initializer_bindings: tuple
 
+    def __post_init__(self):
+        object.__setattr__(self, 'type_name', tuple(self.type_name))
+        parameters = MappingProxyType(dict(self.parameters))
+        if self.configuration is self.parameters:
+            object.__setattr__(self, 'configuration', parameters)
+        object.__setattr__(self, 'parameters', parameters)
+        object.__setattr__(self, 'initializer_bindings', tuple(
+            (name, tuple(node_ids), is_list)
+            for name, node_ids, is_list in self.initializer_bindings
+        ))
 
-@dataclass(frozen=True)
+
+@dataclass(frozen=True, slots=True)
 class Procedure:
     node_id: str
     reference: tuple[tuple[str, ...], str]
@@ -34,7 +98,18 @@ class Procedure:
     dependencies: tuple
     resources: tuple
     results: Mapping[str, ResultBinding]
-    state_dependencies: tuple[blocks.Variable, ...]
+    state_dependencies: tuple[Variable, ...]
+
+    def __post_init__(self):
+        type_name, proc_name = self.reference
+        object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
+        for field in ('dependencies', 'resources'):
+            object.__setattr__(self, field, tuple(
+                (name, tuple(bindings), is_list)
+                for name, bindings, is_list in getattr(self, field)
+            ))
+        object.__setattr__(self, 'results', MappingProxyType(dict(self.results)))
+        object.__setattr__(self, 'state_dependencies', tuple(self.state_dependencies))
 
     @property
     def key(self):
@@ -44,15 +119,15 @@ class Procedure:
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Program:
     name: str
-    state_variables: blocks.VariableBlock
-    temporaries: blocks.VariableBlock
-    initial_state: Mapping[blocks.Variable, object]
+    state_variables: VariableBlock
+    temporaries: VariableBlock
+    initial_state: Mapping[Variable, object]
     instances: Mapping[str, NativeInstance]
     native_construction_order: tuple[str, ...]
-    procs: Mapping[blocks.RunStage, tuple[Procedure, ...]]
+    procs: Mapping[RunStage, tuple[Procedure, ...]]
     node_aliases: Mapping[str, str]
     singleton_aliases: Mapping[str, str]
-    variables: Mapping[str, blocks.Variable]
+    variables: Mapping[str, Variable]
     graph: object | None = None
 
     def __post_init__(self):

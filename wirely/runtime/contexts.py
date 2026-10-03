@@ -6,7 +6,7 @@ from types import MappingProxyType
 
 import wirely as blocks
 from ..types import value_types
-from .run_stage import RunStage
+from ..program import RunStage, Variable, VariableBlock, InputSourceBinding
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 
@@ -78,40 +78,6 @@ class NativeState:
         return async_exit_stack.enter_context(NativeState.start_task_context(task_group, coroutine))
 
 
-class Variable:
-    def __init__(self, name, var_type):
-        if not isinstance(name, str):
-            raise Exception('name parameter is not a str')
-        if var_type.contains_parameters:
-            raise Exception('var_type parameter is not a concrete type')
-
-        self.name = str(name)
-        self.var_type = var_type
-
-    def __repr__(self):
-        return f'Variable[{self}]'
-
-    def __str__(self):
-        return f'{self.name}'
-
-
-class VariableBlock:
-    def __init__(self, variables, name):
-        self.name = name
-
-        self.variables = {}
-        self.variable_set = set()
-
-        for var in variables:
-            if not isinstance(var, Variable):
-                raise Exception('var parameter contains object that is not a Variable')
-            name = var.name
-            if name in self.variables:
-                raise Exception(f'Duplicate variable name {name!r}')
-            self.variables[name] = var
-            self.variable_set.add(var)
-
-
 class VariableBlockInstance:
     def __init__(self, variable_block):
         if not isinstance(variable_block, VariableBlock):
@@ -135,14 +101,6 @@ class VariableBlockInstance:
         if variable not in self.data:
             raise Exception(f'Variable {variable} not yet set')
         return self.data[variable]
-
-
-@dataclass(frozen=True)
-class InputSourceBinding:
-    """A procedure input from a temporary or the step's state snapshot."""
-
-    variable: Variable
-    state_changed: Variable | None = None
 
 
 class ProcedureContext:

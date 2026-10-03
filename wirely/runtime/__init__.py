@@ -1,4 +1,4 @@
+from ..program import Variable, VariableBlock, InputSourceBinding
 from .contexts import (
-    NativeNodeContext, NativeState, Variable, VariableBlock,
-    VariableBlockInstance, InputSourceBinding, ProcedureContext, StepContext,
+    NativeNodeContext, NativeState, VariableBlockInstance, ProcedureContext, StepContext,
 )
