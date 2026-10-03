@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -38,8 +38,8 @@ def check_runtime_data(value, seen=None):
         assert not callable(value)
 
 
-program = engine.program
-program.graph = None
+program = replace(engine.program, graph=None)
+engine.program = program
 check_runtime_data(program)
 for schedule in program.procs.values():
     for proc in schedule:
@@ -159,8 +159,7 @@ connect provider -> consumer.Service;
 connect provider, provider_alias -> consumer.Services;
 ''')])
     assert graph is not None
-    resource_program = program_compiler.compile_nocatch(graph)
-    resource_program.graph = None
+    resource_program = replace(program_compiler.compile_nocatch(graph), graph=None)
     check_runtime_data(resource_program)
     first = blocks.Engine(resource_program)
     other = blocks.Engine(resource_program)

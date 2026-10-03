@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pprint import pformat
+from types import MappingProxyType
 
 import wirely as blocks
 
@@ -38,9 +41,27 @@ class Procedure:
         return self.node_id, self.reference[1]
 
 
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Program:
-    def __init__(self):
-        pass
+    name: str
+    state_variables: blocks.VariableBlock
+    temporaries: blocks.VariableBlock
+    initial_state: Mapping[blocks.Variable, object]
+    instances: Mapping[str, NativeInstance]
+    native_construction_order: tuple[str, ...]
+    procs: Mapping[blocks.RunStage, tuple[Procedure, ...]]
+    node_aliases: Mapping[str, str]
+    singleton_aliases: Mapping[str, str]
+    variables: Mapping[str, blocks.Variable]
+    graph: object | None = None
+
+    def __post_init__(self):
+        for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables'):
+            object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
+        object.__setattr__(self, 'procs', MappingProxyType({
+            stage: tuple(schedule) for stage, schedule in self.procs.items()
+        }))
+        object.__setattr__(self, 'native_construction_order', tuple(self.native_construction_order))
 
     def dump(self, file=None):
         """Write the runtime program to a text stream (stdout by default)."""

@@ -159,9 +159,6 @@ def compile_nocatch(global_block_type):
                 if len(doing):
                     raise Exception('len(doing)')
 
-    res = Program()
-    res.name = str(graph)
-    res.graph = graph
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
@@ -215,8 +212,8 @@ def compile_nocatch(global_block_type):
 
     for path in instances:
         order_construction(path)
-    res.native_construction_order = tuple(node_ids[path] for path in construction_order)
-    res.instances = {
+    native_construction_order = tuple(node_ids[path] for path in construction_order)
+    native_instances = {
         node_ids[path]: NativeInstance(
             name=node_ids[path], type_name=instance.block_type.fullname_tuple,
             has_native_state=instance.block_type.is_native,
@@ -226,13 +223,13 @@ def compile_nocatch(global_block_type):
         )
         for path, instance in instances.items()
     }
-    res.initial_state = {}
+    initial_state = {}
     for path, instance in instances.items():
         block = instance.block or instance.block_type.singleton_instance
         for state in block.block_statevars:
-            res.initial_state[state_map[path, state]] = state.initial_value
+            initial_state[state_map[path, state]] = state.initial_value
 
-    res.procs = {}
+    schedules = {}
     for stage, stage_procs in procs.items():
         schedule = []
         for path, proc in stage_procs:
@@ -260,38 +257,43 @@ def compile_nocatch(global_block_type):
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].block_type.fullname_tuple, proc.declaration_procedure.python_name),
-                node_context=res.instances[node_ids[path]],
+                node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
                 results=results,
                 state_dependencies=tuple(state_map_changed[path, state] for state in proc.block.block_statevars),
             ))
-        res.procs[stage] = tuple(schedule)
-    res.node_aliases = {}
-    res.variables = {}
+        schedules[stage] = tuple(schedule)
+    node_aliases = {}
+    variables = {}
 
     def add_aliases(scope, path=(), prefix=''):
         for name, block in scope.blocks.items():
             child_path = blocks.path_resolve_singleton(path + (block,))
             alias = prefix + name
-            res.node_aliases[alias] = node_ids[child_path]
+            node_aliases[alias] = node_ids[child_path]
             owner = block.block_type.singleton_instance if block.block_type.is_singleton else block
             members = owner.block_inputs + owner.block_outputs + owner.block_statevars + owner.block_temporaries
             for member in members:
                 variable = variable_map.get((child_path, member.var_identifier))
                 if variable is not None:
-                    res.variables.setdefault(alias + '.' + member.name, variable)
+                    variables.setdefault(alias + '.' + member.name, variable)
             output = owner.block_outputs_byname.get('')
             if output is not None:
                 variable = variable_map.get((child_path, output.var_identifier))
                 if variable is not None:
-                    res.variables.setdefault(alias, variable)
+                    variables.setdefault(alias, variable)
             add_aliases(block.block_type, child_path, alias + '.')
 
     add_aliases(graph)
-    res.singleton_aliases = {
+    singleton_aliases = {
         instance.block_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton
     }
-    res.temporaries = blocks.VariableBlock(all_variables, f'{graph}.temporaries')
-    res.state_variables = blocks.VariableBlock(state_variables, f'{graph}.state_variables')
-    return res
+    return Program(
+        name=str(graph), graph=graph,
+        temporaries=blocks.VariableBlock(all_variables, f'{graph}.temporaries'),
+        state_variables=blocks.VariableBlock(state_variables, f'{graph}.state_variables'),
+        native_construction_order=native_construction_order,
+        instances=native_instances, initial_state=initial_state, procs=schedules,
+        node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
+    )

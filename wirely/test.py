@@ -494,14 +494,16 @@ async def run_test(test_name):
         print('Test requires KNX')
 
     async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(require_knx) as knxd_socket_path, with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
+        instances = dict(prog.instances)
+
         def override_instance(node_id, parameters, **configuration):
-            instance = prog.instances[node_id]
+            instance = instances[node_id]
             values = dict(instance.parameters)
             values.update(parameters)
             data = instance.configuration
             if configuration:
                 data = replace(data, **configuration)
-            prog.instances[node_id] = replace(
+            instances[node_id] = replace(
                 instance, parameters=MappingProxyType(values), configuration=data,
             )
 
@@ -518,10 +520,11 @@ async def run_test(test_name):
                           'TLSA': (twon_info.server.tlsa,)},
                 hostname=twon_info.host, port=twon_info.port, tlsa=(twon_info.server.tlsa,),
             )
-        for stage, schedule in prog.procs.items():
-            prog.procs[stage] = tuple(
-                replace(proc, node_context=prog.instances[proc.node_id]) for proc in schedule
-            )
+        schedules = {
+            stage: tuple(replace(proc, node_context=instances[proc.node_id]) for proc in schedule)
+            for stage, schedule in prog.procs.items()
+        }
+        prog = replace(prog, instances=instances, procs=schedules)
 
         eng = blocks.Engine(prog)
 
