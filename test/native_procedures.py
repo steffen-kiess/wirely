@@ -109,7 +109,8 @@ node class_only : TestLibrary.ClassProbe;
 node shared : TestLibrary.SharedProbe;
 node shared_again : TestLibrary.SharedProbe;
 ''', registry)
-probe_engine = wirely.Engine(program)
+with patch.dict(wirely.native.test_library.native_block_types, registry):
+    probe_engine = wirely.Engine(program)
 probe_engine.step()
 assert len(calls) == 14
 for name, class_name in [('instance', 'InstanceProbe'),

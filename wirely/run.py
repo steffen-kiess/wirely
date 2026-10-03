@@ -23,11 +23,15 @@ async def execute(engine, line):
 
     if line == 'list':
         print('Got blocks:')
-        for block_name in engine.program.graph.blocks:
+        for block_name in engine.program.node_aliases:
+            if '.' in block_name:
+                continue
             print(f'  {block_name}')
         print('---', flush=True)
     elif line == 'graph':
         import wirely.graphviz
+        if engine.program.graph is None:
+            raise CommandException('Graph visualization requires the compiler graph')
         wirely.graphviz.get_graph(engine.program.graph, engine).view()
     elif parts[0] == 'debug':
         if len(parts) == 1:
@@ -44,16 +48,12 @@ async def execute(engine, line):
         block_path = engine.get_block_path(parts[0])
         native_block = engine.native_states[block_path]
 
-        # TODO: Clean up block paths to avoid this
-        if isinstance(block_path[-1], blocks.BlockType):
-            block_type = block_path[-1]
-        else:
-            block_type = block_path[-1].block_type
+        block_type_name = '.'.join(engine.program.instances[block_path].type_name)
 
         if native_block is None:
-            raise CommandException(f'Block "{parts[0]}" ({block_type.name}) has no native state')
+            raise CommandException(f'Block "{parts[0]}" ({block_type_name}) has no native state')
         if not hasattr(native_block, 'debug_command'):
-            raise CommandException(f'Block "{parts[0]}" ({block_type.name}) has no debug_command function')
+            raise CommandException(f'Block "{parts[0]}" ({block_type_name}) has no debug_command function')
         native_block.debug_command(parts[1:])
 
 
@@ -121,13 +121,10 @@ def main():
 
     eng = blocks.Engine(prog)
 
-    for block in global_block_type.blocks.values():
-        # TODO: Do this differently
-        # TODO: Also handle nested blocks?
-        if block.block_type.name.id_str == 'DebugValueSource':
-            block_inst = prog.instances[(block,)]
-            ty = block_inst.static_context.parameter_values['Type']
-            native_inst = eng.native_states[(block,)]
+    for node_id, instance in prog.instances.items():
+        if instance.type_name == ('Std', 'DebugValueSource'):
+            ty = instance.parameters['Type']._type
+            native_inst = eng.native_states[node_id]
             if ty == blocks.types.boolean:
                 native_inst.set_value(False)
             elif isinstance(ty, blocks.types.TypeOption):

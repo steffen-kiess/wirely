@@ -71,7 +71,8 @@ assert context.resolve_path('./a/../b') == Path('/tmp/config/b')
 assert context.resolve_path('/a/../b') == Path('/b')
 with checks.assertRaises(ValueError):
     context.error('bad', parameter='Unknown')
-wirely.Engine(program).step()
+with patch.dict(wirely.native.test_library.native_block_types, registry):
+    wirely.Engine(program).step()
 assert len(contexts) == 2
 
 contexts.clear()
@@ -174,9 +175,9 @@ with tempfile.TemporaryDirectory() as directory:
     parameter UsernamePasswordFile : String = "credentials.txt";''',
                     filename=str(Path(directory) / 'main.wrl'))
     filename.unlink()
-    data = next(instance.static_context.configuration
+    data = next(instance.configuration
                 for instance in program.instances.values()
-                if isinstance(instance.static_context.configuration, TwoNDeviceData))
+                if isinstance(instance.configuration, TwoNDeviceData))
     assert data.username == 'username'
     assert data.password == 'password'
     assert not hasattr(data, 'filename')

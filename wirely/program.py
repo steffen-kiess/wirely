@@ -1,11 +1,132 @@
+import sys
 import traceback
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pprint import pformat
 
 import wirely as blocks
-from wirely.util import check_parameters
+
+
+@dataclass(frozen=True)
+class ResultBinding:
+    variable: blocks.Variable
+    state_new: blocks.Variable | None = None
+    state_changed: blocks.Variable | None = None
+
+
+@dataclass(frozen=True)
+class NativeInstance:
+    name: str
+    type_name: tuple[str, ...]
+    has_native_state: bool
+    parameters: Mapping[str, object]
+    configuration: object
+    initializer_bindings: tuple
+
+
+@dataclass(frozen=True)
+class Procedure:
+    node_id: str
+    reference: tuple[tuple[str, ...], str]
+    node_context: NativeInstance
+    dependencies: tuple
+    resources: tuple
+    results: Mapping[str, ResultBinding]
+    state_dependencies: tuple[blocks.Variable, ...]
+
+    @property
+    def key(self):
+        return self.node_id, self.reference[1]
+
 
 class Program:
     def __init__(self):
         pass
+
+    def dump(self, file=None):
+        """Write the runtime program to a text stream (stdout by default)."""
+        if file is None:
+            file = sys.stdout
+
+        def line(text='', indent=0):
+            print(' ' * indent + text, file=file)
+
+        def value(label, item, indent):
+            formatted = pformat(item, width=100 - indent, sort_dicts=True)
+            line(label + ':', indent)
+            for part in formatted.splitlines():
+                line(part, indent + 2)
+
+        def resources(bindings, indent):
+            for name, node_ids, is_list in bindings:
+                providers = ', '.join(node_ids)
+                if is_list:
+                    providers = '[' + providers + ']'
+                line(f'{name}: {providers}', indent)
+
+        line(f'Program {self.name}')
+        for label, variable_block in [('State variables', self.state_variables),
+                                      ('Temporaries', self.temporaries)]:
+            line()
+            line(f'{label} ({variable_block.name}):')
+            for name, variable in sorted(variable_block.variables.items()):
+                line(f'{name}: {variable.var_type}', 2)
+                if variable in self.initial_state:
+                    value('initial', self.initial_state[variable], 4)
+
+        line()
+        line('Native construction order:')
+        for index, node_id in enumerate(self.native_construction_order, 1):
+            line(f'{index}. {node_id}', 2)
+
+        line()
+        line('Node instances:')
+        for node_id, instance in sorted(self.instances.items()):
+            line(f'{node_id}: {".".join(instance.type_name)}', 2)
+            line(f'name: {instance.name}', 4)
+            line(f'has native state: {instance.has_native_state}', 4)
+            value('parameters', dict(instance.parameters), 4)
+            value('configuration', instance.configuration, 4)
+            line('initializer resources:', 4)
+            resources(instance.initializer_bindings, 6)
+
+        line()
+        line('Stages:')
+        for stage, schedule in self.procs.items():
+            line(f'{stage.name}:', 2)
+            for index, proc in enumerate(schedule, 1):
+                type_name, method_name = proc.reference
+                line(f'{index}. {proc.node_id}: {".".join(type_name)}.{method_name}', 4)
+                line(f'node context: {proc.node_context.name}', 6)
+                line('dependencies:', 6)
+                for name, bindings, is_list in proc.dependencies:
+                    sources = []
+                    for binding in bindings:
+                        source = binding.variable.name
+                        if binding.state_changed is not None:
+                            source += f' (old state; changed: {binding.state_changed.name})'
+                        sources.append(source)
+                    source = ', '.join(sources)
+                    if is_list:
+                        source = '[' + source + ']'
+                    line(f'{name}: {source}', 8)
+                line('resources:', 6)
+                resources(proc.resources, 8)
+                value('state-change dependencies', [var.name for var in proc.state_dependencies], 6)
+                line('results:', 6)
+                for name, binding in proc.results.items():
+                    line(f'{name}: {binding.variable.name}', 8)
+                    if binding.state_new is not None:
+                        line(f'new: {binding.state_new.name}', 10)
+                        line(f'changed: {binding.state_changed.name}', 10)
+
+        for label, aliases in [('Node aliases', self.node_aliases),
+                               ('Singleton aliases', self.singleton_aliases),
+                               ('Variable aliases', self.variables)]:
+            line()
+            line(label + ':')
+            for name, target in sorted(aliases.items()):
+                line(f'{name!r}: {target}', 2)
 
     @staticmethod
     def compile(global_block_type):
@@ -161,24 +282,11 @@ class Program:
                     if len(doing):
                         raise Exception('len(doing)')
 
-        all_procs = []
-        for stage_procs in procs.values():
-            all_procs += stage_procs
-
         res = Program()
-        res.procs = procs
-        res.all_procs_set = set(all_procs)
+        res.name = str(graph)
         res.graph = graph
-        res.variable_map = variable_map
-        res.state_map = state_map
-        res.state_map_new = state_map_new
-        res.state_map_changed = state_map_changed
-        res.temporaries = blocks.VariableBlock(all_variables, f'{graph}.temporaries')
-        res.state_variables = blocks.VariableBlock(state_variables, f'{graph}.state_variables')
-        res.instances = instances
-        res.native_triggers = {path: {} for path in instances}
-        for path, proc in all_procs:
-            res.native_triggers[path][proc.declaration_procedure.python_name] = proc
+        node_ids = {path: instance.static_context.name
+                    for path, instance in instances.items()}
 
         def resource_paths(path, source, binding):
             is_list = isinstance(source, blocks.Block.Input) and source.is_list
@@ -196,7 +304,7 @@ class Program:
                 paths.append(provider_path)
             return tuple(paths), is_list
 
-        res.initializer_bindings = {}
+        initializer_bindings = {}
         construction_dependencies = {}
         for path, instance in instances.items():
             block = instance.block if instance.block is not None else instance.block_type.singleton_instance
@@ -206,7 +314,10 @@ class Program:
                 paths, is_list = resource_paths(path, source, binding)
                 bindings.append((name, paths, is_list))
                 dependencies.extend((provider, binding) for provider in paths)
-            res.initializer_bindings[path] = bindings
+            initializer_bindings[path] = tuple(
+                (name, tuple(node_ids[provider] for provider in paths), is_list)
+                for name, paths, is_list in bindings
+            )
             construction_dependencies[path] = dependencies
 
         construction_order = []
@@ -227,32 +338,83 @@ class Program:
 
         for path in instances:
             order_construction(path)
-        res.native_construction_order = construction_order
+        res.native_construction_order = tuple(node_ids[path] for path in construction_order)
+        res.instances = {
+            node_ids[path]: NativeInstance(
+                name=node_ids[path], type_name=instance.block_type.fullname_tuple,
+                has_native_state=instance.block_type.is_native,
+                parameters=instance.static_context.parameters,
+                configuration=instance.static_context.configuration,
+                initializer_bindings=initializer_bindings[path],
+            )
+            for path, instance in instances.items()
+        }
+        res.initial_state = {}
+        for path, instance in instances.items():
+            block = instance.block or instance.block_type.singleton_instance
+            for state in block.block_statevars:
+                res.initial_state[state_map[path, state]] = state.initial_value
 
-        proc_static_contexts = {}
-        for stage_procs in res.procs.values():
+        res.procs = {}
+        for stage, stage_procs in procs.items():
+            schedule = []
             for path, proc in stage_procs:
-                instance = res.instances[path]
-                proc_context = proc.static_context
-                proc_context = blocks.StaticProcedureContext(sources=proc_context._sources, targets=proc_context._targets, name=proc_context.name, block_parameter_values=proc_context.block_parameter_values, node_context=instance.static_context)
-                for name, source in proc_context._sources.items():
+                dependencies = []
+                resources = []
+                results = {}
+                for name, source in proc.static_context._sources.items():
                     if blocks.ast.dependency_is_resource(source):
-                        binding = next(binding for binding in proc.declaration_procedure.depends.dependencies if binding.key == name)
+                        binding = next(binding for binding in proc.declaration_procedure.depends.dependencies
+                                       if binding.key == name)
                         paths, is_list = resource_paths(path, source, binding)
-                        proc_context._resource_bindings.append((name, paths, is_list))
+                        resources.append((name, tuple(node_ids[provider] for provider in paths), is_list))
                         continue
                     is_list = isinstance(source, blocks.Block.Input) and source.is_list
                     members = source.members if is_list else (source,)
-                    bindings = tuple(resolve_binding(path, member) for member in members)
-                    proc_context._input_bindings.append((name, bindings, is_list))
-                for name, target in proc_context._targets.items():
+                    dependencies.append((name, tuple(resolve_binding(path, member) for member in members), is_list))
+                for name, target in proc.static_context._targets.items():
                     if isinstance(target, blocks.Block.StateVariable):
-                        variable = state_map[path, target]
+                        results[name] = ResultBinding(
+                            state_map[path, target], state_map_new[path, target],
+                            state_map_changed[path, target],
+                        )
                     else:
-                        variable = variable_map[path, target.var_identifier]
-                    proc_context._result_types[name] = variable.var_type
-                proc_static_contexts[(instance, proc)] = proc_context
-                # print(instance, proc, proc_context)
-        res.proc_static_contexts = proc_static_contexts
+                        results[name] = ResultBinding(variable_map[path, target.var_identifier])
+                schedule.append(Procedure(
+                    node_id=node_ids[path],
+                    reference=(instances[path].block_type.fullname_tuple, proc.declaration_procedure.python_name),
+                    node_context=res.instances[node_ids[path]],
+                    dependencies=tuple(dependencies), resources=tuple(resources),
+                    results=results,
+                    state_dependencies=tuple(state_map_changed[path, state] for state in proc.block.block_statevars),
+                ))
+            res.procs[stage] = tuple(schedule)
+        res.node_aliases = {}
+        res.variables = {}
 
+        def add_aliases(scope, path=(), prefix=''):
+            for name, block in scope.blocks.items():
+                child_path = blocks.path_resolve_singleton(path + (block,))
+                alias = prefix + name
+                res.node_aliases[alias] = node_ids[child_path]
+                owner = block.block_type.singleton_instance if block.block_type.is_singleton else block
+                members = owner.block_inputs + owner.block_outputs + owner.block_statevars + owner.block_temporaries
+                for member in members:
+                    variable = variable_map.get((child_path, member.var_identifier))
+                    if variable is not None:
+                        res.variables.setdefault(alias + '.' + member.name, variable)
+                output = owner.block_outputs_byname.get('')
+                if output is not None:
+                    variable = variable_map.get((child_path, output.var_identifier))
+                    if variable is not None:
+                        res.variables.setdefault(alias, variable)
+                add_aliases(block.block_type, child_path, alias + '.')
+
+        add_aliases(graph)
+        res.singleton_aliases = {
+            instance.block_type.fullname: node_ids[path]
+            for path, instance in instances.items() if instance.is_singleton
+        }
+        res.temporaries = blocks.VariableBlock(all_variables, f'{graph}.temporaries')
+        res.state_variables = blocks.VariableBlock(state_variables, f'{graph}.state_variables')
         return res

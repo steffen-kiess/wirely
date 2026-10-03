@@ -74,15 +74,15 @@ native_block_pkgs = {
 
 @check_parameters
 def get_native_block_type(block_type: blocks.BlockType):
-    pkg_name = native_block_pkgs.get(block_type.fullname_tuple[:-1], None)
+    return get_native_block_type_by_name(block_type.fullname_tuple)
+
+
+def get_native_block_type_by_name(type_name: tuple[str, ...]):
+    pkg_name = native_block_pkgs.get(type_name[:-1])
     if pkg_name is None:
-        raise Exception(f'Block type {block_type.fullname!r} needs a native class but no native classes found for {block_type.fullname_tuple[:-1]}')
-
+        raise ValueError(f'No native namespace for node type {".".join(type_name)!r}')
     pkg = importlib.import_module('.' + pkg_name, __name__)
-    native_classes = pkg.native_block_types
-
-    native_class = native_classes.get(block_type.name.id_str, None)
+    native_class = pkg.native_block_types.get(type_name[-1])
     if native_class is None:
-        raise Exception(f'Block type {block_type.fullname!r} needs a native class but cannot find one')
-
+        raise ValueError(f'Cannot find native class for node type {".".join(type_name)!r}')
     return native_class

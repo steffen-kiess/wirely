@@ -343,20 +343,3 @@ class BlockType(blocks.Scope):
 
     def create_io(self, new_graph):
         pass
-
-    # TODO: Currently only used for singletons, clean this up, merge with block.create_native_state
-    def create_native_state(self, *, context):
-        path = context._block_path
-        if len(path) != 1:
-            raise Exception('len(path) != 1')
-        if path[-1] != self:
-            raise Exception('path[-1] != self')
-
-        if self.is_native:
-            # print('QQQ', self.name)
-            return self.native_class(context=context)
-        else:
-            # print('WWW', self.name)
-            pass
-
-        return None

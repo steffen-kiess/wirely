@@ -75,11 +75,8 @@ shared_sink = graph.blocks['shared_sink']
 assert_source((shared_sink,), shared_sink.block_inputs_byname['Service'],
               (shared.block_type,), shared.block_outputs_byname[''])
 
-assert not program.variable_map
-for instance in program.instances.values():
-    block = instance.block
-    if block is None:
-        block = instance.block_type.singleton_instance
+assert not program.variables
+for block in graph.blocks.values():
     assert not block.block_temporaries
     for connector in block.block_inputs + block.block_outputs:
         assert isinstance(connector.conn_spec, blocks.ConnectorSpecificationResource)
@@ -257,7 +254,8 @@ connect factory -> procedure_consumer.Service;
 connect value_source -> procedure_consumer.Value;
 '''
 native_resource_program = blocks.Program.compile_nocatch(compile_resources(source))
-native_resource_engine = blocks.Engine(native_resource_program)
+with patch.dict(wirely.native.test_library.native_block_types, registry):
+    native_resource_engine = blocks.Engine(native_resource_program)
 consumer = native_resource_engine.get_native_state('consumer')
 provider = native_resource_engine.get_native_state('factory.source')
 shared = native_resource_engine.get_native_state('shared')
@@ -301,7 +299,8 @@ node sink : TestLibrary.Dependent;
 node source : TestLibrary.Provider;
 connect source -> sink.Service;
 ''')
-alias_engine = blocks.Engine(blocks.Program.compile_nocatch(alias_graph))
+with patch.dict(wirely.native.test_library.native_block_types, registry):
+    alias_engine = blocks.Engine(blocks.Program.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')
 assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')

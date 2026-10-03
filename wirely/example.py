@@ -22,8 +22,8 @@ eng = blocks.Engine(prog)
 
 # eng.debug = True
 
-inp1_inst = eng.native_states[(global_block_type.blocks['inp1'],)]
-inp2_inst = eng.native_states[(global_block_type.blocks['inp2'],)]
+inp1_inst = eng.get_native_state('inp1')
+inp2_inst = eng.get_native_state('inp2')
 
 if True:
     inp1_inst.set_value(True)

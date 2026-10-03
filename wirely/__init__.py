@@ -262,7 +262,7 @@ class NativeNodeContext:
     inputs: Mapping[str, object]
     configuration: object
     _engine: object = field(repr=False)
-    _block_path: tuple = field(repr=False)
+    _node_id: str = field(repr=False)
 
     def __post_init__(self):
         for name in ('parameters', 'inputs'):
@@ -293,10 +293,7 @@ class NativeState:
 
     def trigger(self, name: str) -> None:
         context = self.context
-        procedures = context._engine.program.native_triggers[context._block_path]
-        if not isinstance(name, str) or name not in procedures:
-            raise ValueError(f'Unknown procedure name {name!r} on {context.name}')
-        context._engine.trigger(context._block_path, procedures[name])
+        context._engine.trigger(context._node_id, name)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         pass
@@ -422,14 +419,13 @@ class StaticProcedureContext:
 
 class ProcedureContext:
     __slots__ = (
-        '_inputs', '_results', '_state_new', '_written_results', '_static',
+        '_inputs', '_results', '_written_results', '_static',
         '_step_info', '_wakeup_time', '_wakeup_time_set',
     )
 
-    def __init__(self, *, inputs: Mapping[str, object], results, state_new, static, step_info):
+    def __init__(self, *, inputs: Mapping[str, object], results, static, step_info):
         self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
         self._results = results
-        self._state_new = state_new
         self._written_results = set()
         self._static = static
         self._step_info = step_info
@@ -470,20 +466,16 @@ class ProcedureContext:
         return self._step_info._stage_times[stage]
 
     def set_result(self, name: str, value: object):
-        if not isinstance(name, str) or name not in self._static._targets:
+        if not isinstance(name, str) or name not in self._static.results:
             raise ValueError(f'Unknown result name {name!r} in procedure on {self.name}')
         if name in self._written_results:
             raise ValueError(f'Result {name!r} on {self.name} was already written')
         try:
-            value_type = self._static._result_types[name]
+            value_type = self._static.results[name].variable.var_type
             value = value_type.verify_value(value_types._from_native(value_type, value))
         except Exception as exc:
             raise ValueError(f'Invalid value for result {name!r} on {self.name}: {exc}') from exc
-        target = self._static._targets[name]
-        if isinstance(target, blocks.Block.StateVariable):
-            self._state_new[target] = value
-        else:
-            self._results[target] = value
+        self._results[name] = value
         self._written_results.add(name)
 
     def __repr__(self):

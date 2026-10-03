@@ -410,7 +410,8 @@ node shared_again : TestLibrary.SharedTriggerProbe;
 assert trigger_graph is not None
 trigger_program = blocks.Program.compile(trigger_graph)
 assert trigger_program is not None
-trigger_engine = blocks.Engine(trigger_program)
+with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+    trigger_engine = blocks.Engine(trigger_program)
 first = trigger_engine.get_native_state('first')
 second = trigger_engine.get_native_state('second')
 shared = trigger_engine.get_native_state('shared')

@@ -18,9 +18,9 @@ def get_graph(graph, engine=None):
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                key = blocks.path_resolve_singleton((block,)), input.var_identifier
-                if key in engine.program.variable_map:
-                    label += f' = {engine.get_bound_value(engine.program.variable_map[key])}'
+                name = block.name + '.' + input.name
+                if name in engine.program.variables:
+                    label += f' = {engine.get_value(name)}'
                 else:
                     # TODO: Handle this
                     label += f' = MISSING'
@@ -40,9 +40,9 @@ def get_graph(graph, engine=None):
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                key = blocks.path_resolve_singleton((block,)), output.var_identifier
-                if key in engine.program.variable_map:
-                    label += f' = {engine.get_bound_value(engine.program.variable_map[key])}'
+                name = block.name + '.' + output.name
+                if name in engine.program.variables:
+                    label += f' = {engine.get_value(name)}'
                 else:
                     # TODO: Handle this
                     label += f' = MISSING'

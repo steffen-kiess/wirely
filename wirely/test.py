@@ -12,15 +12,17 @@ import re
 import pwd
 import shlex
 import signal
+from dataclasses import replace
+from types import MappingProxyType
 
 import wirely as blocks
-from wirely.parameters import native_parameters
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
 import wirely.compiler
 
 test_names = [
+    'runtime_program',
     'native_interface',
     'native_procedures',
     'native_parameters',
@@ -248,6 +250,9 @@ def compile_test(fn):
     if prog is None:
         sys.exit(1)
 
+    with open(os.devnull, 'w') as file:
+        prog.dump(file=file)
+
     eng = blocks.Engine(prog)
 
     print(f'Compiling {fn} done')
@@ -458,6 +463,9 @@ async def run_test(test_name):
     if prog is None:
         sys.exit(1)
 
+    with open(os.devnull, 'w') as file:
+        prog.dump(file=file)
+
     # TODO: Clean up
     require_testdir = False
     require_knx = False
@@ -467,173 +475,52 @@ async def run_test(test_name):
     knx_connection_paths = []
     mqtt_server_paths = []
     twon_device_paths = []
-    for block_name in prog.graph.blocks:
-        for block_path in prog.graph.blocks[block_name].get_all_block_paths(()):
-            if isinstance(block_path[-1], blocks.BlockType):
-                block_type = block_path[-1]
-            else:
-                block_type = block_path[-1].block_type
-            if block_type.fullname == 'CSV.ValueWriter':
-                require_testdir = True
-                csv_writer_paths.append(block_path)
-            if block_type.fullname == 'KNX.Connection':
-                require_knx = True
-                knx_connection_paths.append(block_path)
-            if block_type.fullname == 'MQTT.Connection':
-                require_mqtt = True
-                mqtt_server_paths.append(block_path)
-            if block_type.fullname == 'TwoN.Connection':
-                require_twon = True
-                twon_device_paths.append(block_path)
+    for node_id, instance in prog.instances.items():
+        if instance.type_name == ('CSV', 'ValueWriter'):
+            require_testdir = True
+            csv_writer_paths.append(node_id)
+        if instance.type_name == ('KNX', 'Connection'):
+            require_knx = True
+            knx_connection_paths.append(node_id)
+        if instance.type_name == ('MQTT', 'Connection'):
+            require_mqtt = True
+            mqtt_server_paths.append(node_id)
+        if instance.type_name == ('TwoN', 'Connection'):
+            require_twon = True
+            twon_device_paths.append(node_id)
 
     if require_knx:
         print('Test requires KNX')
 
     async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(require_knx) as knxd_socket_path, with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
-        # TODO: Clean up
-        if require_testdir:
-            for path in csv_writer_paths:
-                block = path[-1]
-                found = False
-                for key in block.par_values:
-                    if key.name.id_str != 'Filename':
-                        continue
-                    found = True
-                    old_value = block.par_values[key].value
-                    new_value = testdir + '/' + os.path.basename(old_value)
-                    print(f'Changing Filename from {old_value} to {new_value}', flush=True)
-                    block.par_values[key] = blocks.ConstantValue(block.par_values[key].value_type, new_value, ast_element=None)
-                if not found:
-                    raise Exception('Could not find Filename parameter')
+        def override_instance(node_id, parameters, **configuration):
+            instance = prog.instances[node_id]
+            values = dict(instance.parameters)
+            values.update(parameters)
+            data = instance.configuration
+            if configuration:
+                data = replace(data, **configuration)
+            prog.instances[node_id] = replace(
+                instance, parameters=MappingProxyType(values), configuration=data,
+            )
 
-                block_instance = prog.instances[path]
-                old_value = block_instance.static_context.configuration.filename
-                new_value = testdir + '/' + os.path.basename(old_value)
-                print(f'Changing static_context Filename from {old_value} to {new_value}', flush=True)
-                # TODO: Clean up
-                # block_instance.static_context.configuration.filename = new_value
-                block_instance.static_context.configuration.__dict__['filename'] = new_value
-                found = False
-                for key in block_instance.parameter_values:
-                    if key.name.id_str != 'Filename':
-                        continue
-                    found = True
-                    old_value = block_instance.parameter_values[key].value
-                    new_value = testdir + '/' + os.path.basename(old_value)
-                    print(f'Changing instance Filename from {old_value} to {new_value}', flush=True)
-                    block_instance.parameter_values[key] = blocks.ConstantValue(block_instance.parameter_values[key].value_type, new_value, ast_element=None)
-                if not found:
-                    raise Exception('Could not find Filename parameter')
-        if require_knx:
-            for path in knx_connection_paths:
-                # TODO: Check whether this does the right thing if the Connection instantiation does not happen on the global level
-                # TODO: Is this needed or should this all be done on the instance level?
-                block = path[-1]
-                found = False
-                for key in block.par_values:
-                    if key.name.id_str != 'UnixPath':
-                        continue
-                    found = True
-                    print(f'Changing UnixPath from {block.par_values[key].value} to {knxd_socket_path}', flush=True)
-                    block.par_values[key] = blocks.ConstantValue(block.par_values[key].value_type, knxd_socket_path, ast_element=None)
-                if not found:
-                    raise Exception('Could not find UnixPath parameter')
-
-                block_instance = prog.instances[path]
-                found = False
-                for key in block_instance.parameter_values:
-                    if key.name.id_str != 'UnixPath':
-                        continue
-                    found = True
-                    print(f'Changing instance UnixPath from {block_instance.parameter_values[key].value} to {knxd_socket_path}', flush=True)
-                    new_value = blocks.ConstantValue(block_instance.parameter_values[key].value_type, knxd_socket_path, ast_element=None)
-                    block_instance.parameter_values[key] = new_value
-                if not found:
-                    raise Exception('Could not find UnixPath parameter')
-        if require_mqtt:
-            new_uri = 'mqtt+unix://' + mqtt_socket_path
-            for path in mqtt_server_paths:
-                # TODO: Check whether this does the right thing if the Connection instantiation does not happen on the global level
-                # TODO: Is this needed or should this all be done on the instance level?
-                block = path[-1]
-                found = False
-                for key in block.par_values:
-                    if key.name.id_str != 'URI':
-                        continue
-                    found = True
-                    print(f'Changing URI from {block.par_values[key].value} to {new_uri}', flush=True)
-                    block.par_values[key] = blocks.ConstantValue(block.par_values[key].value_type, new_uri, ast_element=None)
-                if not found:
-                    raise Exception('Could not find URI parameter')
-
-                block_instance = prog.instances[path]
-                found = False
-                for key in block_instance.parameter_values:
-                    if key.name.id_str != 'URI':
-                        continue
-                    found = True
-                    print(f'Changing instance URI from {block_instance.parameter_values[key].value} to {new_uri}', flush=True)
-                    block_instance.parameter_values[key] = blocks.ConstantValue(block_instance.parameter_values[key].value_type, new_uri, ast_element=None)
-                if not found:
-                    raise Exception('Could not find URI parameter')
-        if require_twon:
-            new_hostname = twon_info.host
-            new_port = twon_info.port
-            new_tlsa = [twon_info.server.tlsa]
-            for path in twon_device_paths:
-                # TODO: Clean this up / where does the value have to be changed?
-                # TODO: Check whether this does the right thing if the Connection instantiation does not happen on the global level
-                # TODO: Is this needed or should this all be done on the instance level?
-                block = path[-1]
-                found = False
-                for key in block.par_values:
-                    if key.name.id_str != 'Host':
-                        continue
-                    found = True
-                    print(f'Changing Host from {block.par_values[key].value} to {new_hostname}', flush=True)
-                    block.par_values[key] = blocks.ConstantValue(block.par_values[key].value_type, new_hostname, ast_element=None)
-                if not found:
-                    raise Exception('Could not find Host parameter')
-
-                block_instance = prog.instances[path]
-                old_value = block_instance.static_context.configuration.hostname
-                new_value = new_hostname
-                print(f'Changing static_context Host from {old_value} to {new_value}', flush=True)
-                found = False
-                for key in block_instance.parameter_values:
-                    if key.name.id_str != 'Host':
-                        continue
-                    found = True
-                    old_value = block_instance.parameter_values[key].value
-                    new_value = new_hostname
-                    print(f'Changing instance Host from {old_value} to {new_value}', flush=True)
-                    block_instance.parameter_values[key] = blocks.ConstantValue(block_instance.parameter_values[key].value_type, new_value, ast_element=None)
-                if not found:
-                    raise Exception('Could not find Host parameter')
-
-                # TODO: Clean up
-                # block_instance.static_context.configuration.hostname = new_value
-                block_instance.static_context.configuration.__dict__['hostname'] = new_value
-                block_instance.static_context.configuration.__dict__['port'] = new_port
-                block_instance.static_context.configuration.__dict__['tlsa'] = new_tlsa
-
-                replacements = {'Port': new_port, 'TLSA': new_tlsa}
-                for key, value in block_instance.parameter_values.items():
-                    if key.name.id_str in replacements:
-                        block_instance.parameter_values[key] = blocks.ConstantValue(
-                            value.value_type, replacements[key.name.id_str], ast_element=None,
-                        )
-
-        # Apply test service overrides to the resolved native mappings before
-        # constructing native objects, preserving procedure context references.
-        overridden_paths = set(csv_writer_paths + knx_connection_paths
-                               + mqtt_server_paths + twon_device_paths)
-        for path in overridden_paths:
-            instance = prog.instances[path]
-            static = instance.static_context
-            static.parameters = native_parameters({
-                key.name.id_str: value for key, value in instance.parameter_values.items()
-            })
+        for node_id in csv_writer_paths:
+            filename = testdir + '/' + os.path.basename(prog.instances[node_id].configuration.filename)
+            override_instance(node_id, {'Filename': filename}, filename=filename)
+        for node_id in knx_connection_paths:
+            override_instance(node_id, {'UnixPath': knxd_socket_path})
+        for node_id in mqtt_server_paths:
+            override_instance(node_id, {'URI': 'mqtt+unix://' + mqtt_socket_path})
+        for node_id in twon_device_paths:
+            override_instance(
+                node_id, {'Host': twon_info.host, 'Port': twon_info.port,
+                          'TLSA': (twon_info.server.tlsa,)},
+                hostname=twon_info.host, port=twon_info.port, tlsa=(twon_info.server.tlsa,),
+            )
+        for stage, schedule in prog.procs.items():
+            prog.procs[stage] = tuple(
+                replace(proc, node_context=prog.instances[proc.node_id]) for proc in schedule
+            )
 
         eng = blocks.Engine(prog)
 

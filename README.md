@@ -30,6 +30,9 @@ wirely compile program.wrl
 python3 -m wirely compile program.wrl
 ```
 
+Use `wirely compile --dump-program program.wrl` to print the compiled
+runtime program, including its variables, configuration, and procedures.
+
 Install optional integrations as needed:
 
 ```

@@ -214,7 +214,7 @@ node shared_again : TestLibrary.SharedContainer;
 assert nested.get_native_state('outer.child').context.name == 'outer.child'
 assert nested.get_native_state('probe').context.name == 'probe'
 shared_path = nested.get_block_path('shared_container')
-shared_child = nested.native_states[shared_path + (shared_path[0].blocks['child'],)]
+shared_child = nested.get_native_state('shared_container.child')
 assert shared_child.context.name == 'TestLibrary.SharedContainer.child'
 assert shared_path == nested.get_block_path('shared_again')
 

@@ -21,6 +21,8 @@ def main():
     engine_group = compile_parser.add_mutually_exclusive_group()
     engine_group.add_argument('--create-engine', action='store_true')
     engine_group.add_argument('--no-create-engine', dest='create_engine', action='store_false')
+    compile_parser.add_argument('--dump-program', action='store_true',
+                                help='dump the compiled runtime program to stdout')
     compile_parser.add_argument('input_filename', nargs='+')
     compile_parser.set_defaults(module_name='wirely.compiler',
                                 create_program=True, create_engine=False)

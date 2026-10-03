@@ -16,6 +16,11 @@ procedure names match their `.wrl` declarations unless the procedure has
 an alias, such as `native procedure Poll as "poll";`. The alias supplies
 both the Python method name and its trigger key.
 
+Native registries must be available when constructing an `Engine`: it resolves
+classes using the fully qualified type names stored in `Program` as tuples,
+for example `("ABB", "JRA", "Blind")`. Each engine creates its own native
+states from the program's prepared configuration objects.
+
 For example, `Std.OptionSome` declares:
 
 ```wrl

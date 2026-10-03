@@ -4,10 +4,12 @@ import datetime
 from types import MappingProxyType
 
 import wirely as blocks
-from wirely.util import check_parameters
+
 
 class Engine:
     def __init__(self, program):
+        from wirely.native import get_native_block_type_by_name
+
         if not isinstance(program, blocks.Program):
             raise Exception('program parameter is not a Program')
 
@@ -35,23 +37,25 @@ class Engine:
 
         self.fake_monotonic_time_offset = None
 
-        for block_path in self.program.native_construction_order:
-            block = block_path[-1]
-            instance = self.program.instances[block_path]
-            inputs = MappingProxyType(self._resource_inputs(self.program.initializer_bindings[block_path]))
-            context = blocks.NativeNodeContext(
-                name=instance.static_context.name,
-                parameters=instance.static_context.parameters,
-                inputs=inputs,
-                configuration=instance.static_context.configuration,
-                _engine=self,
-                _block_path=block_path,
-            )
-            self.native_states[block_path] = block.create_native_state(context=context)
-            if not isinstance(block, blocks.Block):
-                block = block.singleton_instance
-            for var in block.block_statevars:
-                self.state.add(self.program.state_map[block_path, var], var.initial_value)
+        type_names = {proc.reference[0] for schedule in program.procs.values() for proc in schedule}
+        self.native_classes = {name: get_native_block_type_by_name(name) for name in type_names}
+        for node_id in program.native_construction_order:
+            instance = program.instances[node_id]
+            native_state = None
+            if instance.has_native_state:
+                native_class = self.native_classes.get(instance.type_name)
+                if native_class is None:
+                    native_class = get_native_block_type_by_name(instance.type_name)
+                    self.native_classes[instance.type_name] = native_class
+                context = blocks.NativeNodeContext(
+                    name=instance.name, parameters=instance.parameters,
+                    inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
+                    configuration=instance.configuration, _engine=self, _node_id=node_id,
+                )
+                native_state = native_class(context=context)
+            self.native_states[node_id] = native_state
+        for variable, value in program.initial_state.items():
+            self.state.add(variable, value)
 
     def _resource_inputs(self, bindings):
         inputs = {}
@@ -91,16 +95,13 @@ class Engine:
         async_exit_stack.callback(start_task_cleanup)
 
     # TODO: Threading?
-    def trigger(self, path, proc):
-        # TODO: More checks with path
-        if not isinstance(proc, blocks.Block.Procedure):
-            raise Exception('proc parameter is not a Block.Procedure')
-
-        if (path, proc) not in self.program.all_procs_set:
-            # print(self.program.all_procs_set)
-            raise Exception(f'Got procedure {path} {proc} which is not in {self.program.graph}')
-
-        self.triggered_procs.add((path, proc))
+    def trigger(self, node_id, proc_name):
+        key = node_id, proc_name
+        if not isinstance(proc_name, str) or not any(
+            proc.key == key for schedule in self.program.procs.values() for proc in schedule
+        ):
+            raise ValueError(f'Unknown procedure name {proc_name!r} on {node_id}')
+        self.triggered_procs.add(key)
         self.triggered_procs_event.set()
 
     # Update self.next_wakeup to include wakeup_time
@@ -116,37 +117,23 @@ class Engine:
 
     def step(self):
         if self.debug:
-            print(f'Starting step of {self.program.graph}')
-            # print(f'Wakeups: {self.wakeups}')
-
+            print(f'Starting step of {self.program.name}')
         self.next_wakeup = None
-
         cache = self.cache
         state_old = self.state
         state_new = blocks.VariableBlockInstance(self.program.state_variables)
-        vars = blocks.VariableBlockInstance(self.program.temporaries)
+        variables = blocks.VariableBlockInstance(self.program.temporaries)
         run_count = 0
-        change_count = 0
         state_change_count = 0
         step_info = blocks.StepContext()
         for stage, stage_procs in self.program.procs.items():
-            # print(f'Stage {stage}', flush=True)
             step_info.start_stage(self, stage)
-
             now = step_info.stage_start_time_monotonic[stage]
-
-            for path, proc in stage_procs:
-                if path[-1] != proc.block:
-                    if isinstance(path[-1], blocks.Block):  # TODO: Handle singletons here?
-                        raise Exception('path[-1] != proc.block')
-                native_state = self.native_states[path]
-
-                # print(proc)
-                instance = self.program.instances[path]
-                static = self.program.proc_static_contexts[(instance, proc)]
-                inputs = self._resource_inputs(static._resource_bindings)
-                skip_step = cache is not None and (path, proc) not in self.triggered_procs
-                for name, bindings, is_list in static._input_bindings:
+            for proc in stage_procs:
+                key = proc.key
+                inputs = self._resource_inputs(proc.resources)
+                skip_step = cache is not None and key not in self.triggered_procs
+                for name, bindings, is_list in proc.dependencies:
                     values = []
                     for binding in bindings:
                         variable = binding.variable
@@ -155,123 +142,66 @@ class Engine:
                             if skip_step and cache[binding.state_changed]:
                                 skip_step = False
                         else:
-                            value = vars[variable]
+                            value = variables[variable]
                             if skip_step and not variable.var_type.equals(value, cache[variable]):
                                 skip_step = False
                         values.append(blocks.value_types._to_native(variable.var_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
-                # TODO: Avoid depending on the value of all state variables?
-                for dep in proc.block.block_statevars:
-                    if skip_step and cache[self.program.state_map_changed[path, dep]]:
+                for changed in proc.state_dependencies:
+                    if skip_step and cache[changed]:
                         skip_step = False
-                res = {}
-
-                if (path, proc) in self.wakeups:
-                    if not blocks.MonotonicTime.is_comparable(now, self.wakeups[(path, proc)]) or blocks.MonotonicTime.compare(now, self.wakeups[(path, proc)]) >= 0:
-                        # Timeout, run step
+                if key in self.wakeups:
+                    deadline = self.wakeups[key]
+                    if not blocks.MonotonicTime.is_comparable(now, deadline) or blocks.MonotonicTime.compare(now, deadline) >= 0:
                         skip_step = False
-
                 if skip_step:
-                    for res_var in proc.results:
-                        if isinstance(res_var, blocks.Block.StateVariable):
-                            old_value = state_old[self.program.state_map[path, res_var]]
-                            state_new.add(self.program.state_map[path, res_var], old_value)
-                            vars.add(self.program.state_map_new[path, res_var], old_value)
-                            vars.add(self.program.state_map_changed[path, res_var], False)
+                    for result in proc.results.values():
+                        variable = result.variable
+                        if result.state_new is not None:
+                            value = state_old[variable]
+                            state_new.add(variable, value)
+                            variables.add(result.state_new, value)
+                            variables.add(result.state_changed, False)
                         else:
-                            # TODO: Clean up temporary / output stuff
-                            vars.add(self.program.variable_map[path, res_var.var_identifier], cache[self.program.variable_map[path, res_var.var_identifier]])
-
-                    if (path, proc) in self.wakeups:
-                        self.update_next_wakeup(now, self.wakeups[(path, proc)])
+                            variables.add(variable, cache[variable])
+                    if key in self.wakeups:
+                        self.update_next_wakeup(now, self.wakeups[key])
                     continue
-
                 if self.debug:
-                    print(f'Running procedure {path} {proc}')
-
+                    print(f'Running procedure {proc.node_id} {proc.reference}')
                 run_count += 1
-
-                if (path, proc) in self.triggered_procs:
-                    self.triggered_procs.remove((path, proc))
-
-                state_old_block = {}
-                # TODO: Remove state_new_block, use res instead?
-                state_new_block = {}
-                for var in proc.block.block_statevars:
-                    state_old_block[var] = state_old[self.program.state_map[path, var]]
-                    # TODO: Should this be initialized here?
-                    # state_new_block[var] = state_old[var]
-
-                pcontext = blocks.ProcedureContext(inputs=inputs, results=res, state_new=state_new_block, static=static, step_info=step_info)
-                proc.impl(context=pcontext, native_state=native_state)
-                missing = set(static._targets) - pcontext._written_results
+                self.triggered_procs.discard(key)
+                results = {}
+                context = blocks.ProcedureContext(
+                    inputs=inputs, results=results, static=proc, step_info=step_info,
+                )
+                native_state = self.native_states[proc.node_id]
+                target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
+                getattr(target, proc.reference[1])(context=context)
+                missing = set(proc.results) - context._written_results
                 if missing:
-                    raise ValueError(f'Procedure {proc.declaration_procedure.python_name!r} on {pcontext.name} did not write results: {sorted(missing)!r}')
-
-                if pcontext.wakeup_time is None:
-                    if (path, proc) in self.wakeups:
-                        del self.wakeups[(path, proc)]
+                    raise ValueError(f'Procedure {proc.reference[1]!r} on {context.name} did not write results: {sorted(missing)!r}')
+                if context.wakeup_time is None:
+                    self.wakeups.pop(key, None)
                 else:
-                    self.wakeups[(path, proc)] = pcontext.wakeup_time
-                self.update_next_wakeup(now=now, wakeup_time=pcontext.wakeup_time)
-
-                unknown = set(res)
-                unknown_newstate = set(state_new_block)
-                # TODO: Clean up, more checking for state variables
-                for res_var in proc.results:
-                    if isinstance(res_var, blocks.Block.StateVariable):
-                        if res_var not in unknown_newstate:
-                            raise Exception(f'State output {res_var.name} of native procedure {proc} is missing')
-                        unknown_newstate.remove(res_var)
-                        val = state_new_block[res_var]
-                        state_new.add(self.program.state_map[path, res_var], val)
-
-                        new_value = res_var.impl_var_type.verify_value(val)
-                        vars.add(self.program.state_map_new[path, res_var], new_value)
-                        if not res_var.impl_var_type.equals(state_old_block[res_var], new_value):
-                            state_change_count += 1
-                            vars.add(self.program.state_map_changed[path, res_var], True)
-                        else:
-                            vars.add(self.program.state_map_changed[path, res_var], False)
-
-                        continue
-
-                    if res_var not in unknown:
-                        raise Exception(f'Output {res_var.name_desc} of native procedure {proc} is missing')
-                    unknown.remove(res_var)
-                    val = res[res_var]
-                    # print(f'Writing {res_var}')
-                    # TODO: Clean up temporary / output stuff
-
-                    # TODO: Move this code somewhere else? / Use already resolved type?
-                    var_type = res_var.impl_var_type
-                    for block in reversed(path):
-                        if isinstance(block, blocks.Block):  # TODO: Handle singletons here?
-                            var_type = var_type.resolve_self(block.par_values)
-
-                    # print('RESULT', proc.block.block_type, proc, res_var)
-                    new_value = var_type.verify_value(val)
-                    if cache is None or not var_type.equals(new_value, cache[self.program.variable_map[path, res_var.var_identifier]]):
-                        change_count += 1
-                    # print(self.program.variable_map, [path, res_var.var_identifier])
-                    vars.add(self.program.variable_map[path, res_var.var_identifier], new_value)
-                if len(unknown):
-                    raise Exception(f'{proc} returned unknown values: {sorted(unknown)}')
-                if len(unknown_newstate):
-                    raise Exception(f'{proc} returned unknown state values: {sorted(unknown_newstate)}')
-
-        self.cache = vars
+                    self.wakeups[key] = context.wakeup_time
+                self.update_next_wakeup(now, context.wakeup_time)
+                for name, result in proc.results.items():
+                    variable = result.variable
+                    value = results[name]
+                    if result.state_new is not None:
+                        state_new.add(variable, value)
+                        variables.add(result.state_new, value)
+                        changed = not variable.var_type.equals(state_old[variable], value)
+                        variables.add(result.state_changed, changed)
+                        state_change_count += changed
+                    else:
+                        variables.add(variable, value)
+        self.cache = variables
         self.last_step_state = state_old
         self.state = state_new
-
         if self.debug:
-            print(f'Finished step of {self.program.graph}')
-
-        # print(state_old, state_new)
-        # print(run_count, change_count, state_change_count)
-        # return run_count
-        # return change_count
-        # TODO: Clean up return values
+            print(f'Finished step of {self.program.name}')
         return run_count, state_change_count, step_info
 
     async def run(self):
@@ -306,89 +236,34 @@ class Engine:
                 self.triggered_procs_event.clear()
 
     def get_block_path_list(self, name_parts):
-        path = []
-        graph = self.program.graph
-        for part in name_parts:
-            # print('XXX', graph, part, list(graph.blocks))
-            if part not in graph.blocks:
-                # TODO: Clean up
-                # raise Exception('Cannot find block ' + '.'.join([block.name for block in path] + [part]))
-                raise Exception('Cannot find block ' + '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path] + [part]))
-            block = graph.blocks[part]
-            if block.block_type.is_singleton:
-                path = [block.block_type]
-            else:
-                path.append(block)
-            graph = block.block_type
-
-        return tuple(path)
+        return self.get_block_path('.'.join(name_parts))
 
     def get_block_path(self, name):
-        return self.get_block_path_list(name.split('.'))
+        try:
+            return self.program.node_aliases[name]
+        except KeyError:
+            raise ValueError(f'Cannot find block {name!r}') from None
 
     def get_block_path_singleton(self, name):
-        scope = self.program.graph
-        parts = name.split('.')
-        for part in parts[:-1]:
-            scope = scope.libraries[part]
-        ty = scope.block_type_implementations[parts[-1]]
-        return (ty,)
+        try:
+            return self.program.singleton_aliases[name]
+        except KeyError:
+            raise ValueError(f'Cannot find singleton {name!r}') from None
 
-    # TODO: Name? get_native_state? get_native_block? get_block_instance?
     def get_native_state(self, name):
-        path = self.get_block_path(name)
-        return self.native_states[path]
+        return self.native_states[self.get_block_path(name)]
 
     def get_native_state_singleton(self, name):
-        path = self.get_block_path_singleton(name)
-        return self.native_states[path]
+        return self.native_states[self.get_block_path_singleton(name)]
 
     def get_variable(self, name):
-        name_parts = name.split('.')
-
-        # TODO: Avoid special case
-        if len(name_parts) == 1:
-            path = self.get_block_path_list(name_parts)
-            block = path[-1]
-            if not isinstance(block, blocks.Block):
-                block = block.singleton_instance
-            return path, block.block_outputs_byname[''].var_identifier
-
-        path = self.get_block_path_list(name_parts[:-1])
-        block = path[-1]
-        if not isinstance(block, blocks.Block):
-            block = block.singleton_instance
-        lname = name_parts[-1]
-
-        # TODO: Clean this up
-        # TODO: How to handle input/output clashes?
-        for value in block.block_inputs:
-            if value.name == lname:
-                return path, value.var_identifier
-        for value in block.block_outputs:
-            if value.name == lname:
-                return path, value.var_identifier
-        for value in block.block_statevars:
-            if value.name == lname:
-                return path, value.var_identifier
-        for value in block.block_temporaries:
-            if value.name == lname:
-                return path, value.var_identifier
-
-        if lname in block.block_type.blocks:
-            path = self.get_block_path_list(name_parts)
-            child = path[-1]
-            if not isinstance(child, blocks.Block):
-                child = child.singleton_instance
-            return path, child.block_outputs_byname[''].var_identifier
-
-        # print(block.block_inputs, block.block_temporaries, block.block_statevars)
-        raise Exception(f'Could not find {name}')
-
+        try:
+            return self.program.variables[name]
+        except KeyError:
+            raise ValueError(f'Could not find variable {name!r}') from None
 
     def get_value(self, name):
-        var = self.program.variable_map[self.get_variable(name)]
-        return self.get_bound_value(var)
+        return self.get_bound_value(self.get_variable(name))
 
     def get_bound_value(self, variable):
         if variable in self.program.state_variables.variable_set:

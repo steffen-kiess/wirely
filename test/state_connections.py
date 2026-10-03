@@ -142,7 +142,8 @@ def make_engine(source, *, declarations=definitions):
     assert graph is not None
     program = blocks.Program.compile(graph)
     assert program is not None
-    return blocks.Engine(program)
+    with patch.dict(wirely.native.test_library.native_block_types, registry):
+        return blocks.Engine(program)
 
 
 probe = make_engine('''
@@ -162,17 +163,13 @@ probe.assert_value_is('owner.reader', False)
 probe.assert_value_is('second', True)
 assert list_inputs[-1] == (False, True, True)
 probe.assert_value_is('collector', (False, True, True))
-owner_path = probe.get_block_path('owner')
-owner_state = owner_path[-1].block_statevars[0]
-assert probe.state[probe.program.state_map[owner_path, owner_state]] is True
+owner_variable = probe.get_variable('owner')
+assert probe.state[owner_variable] is True
 assert probe.get_value('owner.relay') is False
 assert probe.get_value('owner.reader.') is False
-
-owner_variable = probe.program.variable_map[probe.get_variable('owner')]
-assert owner_variable is probe.program.state_map[owner_path, owner_state]
 assert owner_variable not in probe.program.temporaries.variable_set
-assert probe.program.variable_map[probe.get_variable('owner.relay')] is owner_variable
-assert probe.program.variable_map[probe.get_variable('owner.reader.')] is owner_variable
+assert probe.get_variable('owner.relay') is owner_variable
+assert probe.get_variable('owner.reader.') is owner_variable
 assert '() = False' in wirely.graphviz.get_graph(probe.program.graph, probe).source
 
 probe.step()
@@ -340,16 +337,12 @@ current.assert_value_is('owner.old_reader', 0)
 current.assert_value_is('owner.new_reader', 5)
 current.assert_value_is('owner.mixed', (0, 5, 5))
 current.assert_value_is('observer', 5)
-new_path = current.get_block_path('owner')
-new_state = new_path[-1].block_statevars[0]
-new_variable = current.program.state_map_new[new_path, new_state]
-assert current.program.variable_map[current.get_variable('owner.New')] is new_variable
-assert current.program.variable_map[current.get_variable('owner.relay')] is new_variable
+new_variable = current.get_variable('owner.New')
+assert current.get_variable('owner.relay') is new_variable
 assert sum(var.name.endswith('.saved.new') for var in current.program.temporaries.variable_set) == 1
-writer = new_state.producer
-reader = next(proc for proc in new_path[-1].block_procedures if proc.name == 'observe')
 scheduled = current.program.procs[blocks.RunStage.DEFAULT]
-assert scheduled.index((new_path, writer)) < scheduled.index((new_path, reader))
+keys = [proc.key for proc in scheduled]
+assert keys.index(('owner', 'write')) < keys.index(('owner', 'observe'))
 new_reader_calls = calls['owner.new_reader']
 observer_calls = calls['observer']
 
@@ -364,8 +357,7 @@ write_calls = calls['owner.write']
 
 # A skipped writer still supplies .new when its reader is triggered.
 observer_path = current.get_block_path('observer')
-observer_proc = observer_path[-1].block_procedures[0]
-current.trigger(observer_path, observer_proc)
+current.trigger(observer_path, 'run')
 current.step()
 assert calls['owner.write'] == write_calls
 assert calls['observer'] == observer_calls + 1
