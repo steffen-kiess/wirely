@@ -88,6 +88,7 @@ def compile_files(input_filenames, *, add_std=True):
     if add_std:
         std_lib = [
             'std',
+            'matter',
             'time',
             'knx',
             'abb_jra',

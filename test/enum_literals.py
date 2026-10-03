@@ -5,8 +5,8 @@ import wirely.compiler.parser
 from wirely.compiler.types import parse_value
 
 
-mode_type = wirely.types.ThermostatSystemMode
-modes = wirely.enum.ThermostatSystemMode
+mode_type = engine.program.instances['off'].parameters['Type']._type
+modes = mode_type.python_type
 engine.step()
 for name, member in {
     'off': modes.Off,

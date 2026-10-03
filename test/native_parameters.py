@@ -18,6 +18,7 @@ from wirely.compiler import model as compiler_model
 
 checks = TestCase()
 types = wirely.value_types
+mode_type = engine.program.instances['thermostat'].parameters['Type']
 engine.step()
 engine.assert_value_is('defaults.value.', 7)
 engine.assert_value_is('defaults.wrapped.', datetime.time(0, 30))
@@ -93,6 +94,7 @@ node probe : TestLibrary.{class_name}{arguments};
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         graph = wirely.compiler.compile_strs([
             ('wirely/lib/std.wrl', Path('wirely/lib/std.wrl').read_text()),
+            ('wirely/lib/matter.wrl', Path('wirely/lib/matter.wrl').read_text()),
             ('<native-parameters>', source),
         ])
         assert graph is not None
@@ -117,7 +119,8 @@ def check_parameters(context):
         'Items': (wirely.Some(7), None),
         'At': datetime.time(0, 30),
         'Duration': wirely.Duration.parse('PT1S'),
-        'Mode': wirely.enum.ThermostatSystemMode.Cool,
+        'ModeType': context.parameters['ModeType'],
+        'Mode': context.parameters['ModeType'].parse('Cool'),
     }
     assert 'Missing' not in context.parameters
     with checks.assertRaises(KeyError):
@@ -138,6 +141,7 @@ optional parameter Missing : boolean;
 parameter Items : List[Option[Type]] = [Some(Number), None];
 parameter At : TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
 parameter Duration : Duration = "PT1S";
+parameter ModeType : ValueType = ThermostatSystemModeEnum;
 parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;
 native procedure run;
 '''
@@ -268,10 +272,10 @@ assert types.string.json_decode('hello') == 'hello'
 assert types.duration.parse('PT1S') == wirely.Duration.parse('PT1S')
 assert types.time_of_day.parse('12:34') == datetime.time(12, 34)
 assert types.value_type.validate(types.uint16) == types.uint16
-assert types.thermostat_system_mode.json_encode(
-    wirely.enum.ThermostatSystemMode.EmergencyHeat, 'SnakeCase',
+assert mode_type.json_encode(
+    mode_type.parse('EmergencyHeat'), 'SnakeCase',
 ) == 'emergency_heat'
-assert types.thermostat_system_mode.json_decode('Cool') == wirely.enum.ThermostatSystemMode.Cool
+assert mode_type.json_decode('Cool') == mode_type.parse('Cool')
 
 for operation in [lambda: types.unit.validate(None),
                   lambda: types.uint16.parse('65536'),
@@ -284,6 +288,6 @@ for operation in [lambda: types.unit.validate(None),
                   lambda: types.unit.json_decode(None),
                   lambda: types.unit.to_csv_value(wirely.Unit()),
                   lambda: types.value_type.validate(wirely.types.uint16),
-                  lambda: types.thermostat_system_mode.json_decode('invalid')]:
+                  lambda: mode_type.json_decode('invalid')]:
     with checks.assertRaises(ValueError):
         operation()

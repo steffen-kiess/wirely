@@ -176,3 +176,39 @@ Events received while a launch is pending may be combined into one launch.
 It takes `ShellCommand: String` and `Type: ValueType = unit`, with an implicit
 `event Type` input. The event payload is ignored. The command is passed to
 `sh -c` in the output stage and runs with the service process's permissions.
+
+## Matter
+
+### Thermostat system mode
+
+The Matter library declares this enum in the global namespace.
+
+`ThermostatSystemModeEnum` represents the Thermostat cluster's `SystemModeEnum`
+from the Matter Application Cluster Specification. Its names and numeric
+values follow the [Matter Thermostat data model](https://github.com/project-chip/connectedhomeip/blob/master/data_model/1.4/clusters/Thermostat.xml).
+Its underlying integer type is `uint8`, matching Matter's `enum8`.
+
+| Member | Numeric value |
+| --- | --- |
+| `Off` | 0 |
+| `Auto` | 1 |
+| `Cool` | 3 |
+| `Heat` | 4 |
+| `EmergencyHeat` | 5 |
+| `Precooling` | 6 |
+| `FanOnly` | 7 |
+| `Dry` | 8 |
+| `Sleep` | 9 |
+
+Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
+member names. For example:
+
+```wrl
+node mode : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Heat
+);
+node modes : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
+node printer : Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
+connect modes -> printer;
+```

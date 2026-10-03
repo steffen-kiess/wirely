@@ -5,7 +5,6 @@ import re
 from .option import Some
 from .unit import Unit
 from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration
-from . import enum
 
 
 # A value type supporting runtime validation, equality, and text parsing.
@@ -403,9 +402,6 @@ TimeOfDay = TypeTimeOfDay()
 Duration = TypeDuration()
 MonotonicTime = TypeMonotonicTime()
 String = TypeString()
-ThermostatSystemMode = TypeEnum(
-    'ThermostatSystemModeEnum', enum.ThermostatSystemMode, underlying_type=uint8,
-)
 
 # def option(inner_type):
 #     return TypeOption(inner_type)
@@ -419,6 +415,5 @@ for ty in [
         int8, int16, int32, int64,
         uint8, uint16, uint32, uint64,
         ValueType, Duration, TimeOfDay, MonotonicTime, String,
-        ThermostatSystemMode
 ]:
     type_by_name[ty.name] = ty

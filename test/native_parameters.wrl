@@ -42,3 +42,8 @@ node type OptionalForward {
 node fallback : OptionalForward(Default = true);
 node absent : Std.OptionNone(InnerType = boolean);
 connect absent -> fallback;
+
+node thermostat : Std.Constant(
+  Type = ThermostatSystemModeEnum,
+  Value = ThermostatSystemModeEnum.Heat
+);

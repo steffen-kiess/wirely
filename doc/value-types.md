@@ -28,7 +28,7 @@ require runtime types. Runtime types can also be used for parameters.
 | `Duration` | Non-negative elapsed time, in nanoseconds | Runtime |
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
-| `ThermostatSystemModeEnum` | A Matter thermostat system mode | Runtime |
+| Declared enums | A named member | Runtime |
 | `ValueType` | A value type | Parameter-only |
 | `Option[T]` | No value, or one value of type `T` | Runtime when `T` is runtime |
 | `List[T]` | An ordered list of values of type `T`, including an empty list | Parameter-only |
@@ -158,38 +158,6 @@ node deadline : Std.Constant(
 Time library nodes produce and work with monotonic times, including
 `Time.MonotonicTimeReached`.
 
-### Thermostat system mode
-
-`ThermostatSystemModeEnum` represents the Thermostat cluster's `SystemModeEnum`
-from the Matter Application Cluster Specification. Its names and numeric
-values follow the [Matter Thermostat data model](https://github.com/project-chip/connectedhomeip/blob/master/data_model/1.4/clusters/Thermostat.xml).
-Its underlying integer type is `uint8`, matching Matter's `enum8`.
-
-| Member | Numeric value |
-| --- | --- |
-| `Off` | 0 |
-| `Auto` | 1 |
-| `Cool` | 3 |
-| `Heat` | 4 |
-| `EmergencyHeat` | 5 |
-| `Precooling` | 6 |
-| `FanOnly` | 7 |
-| `Dry` | 8 |
-| `Sleep` | 9 |
-
-Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
-member names. For example:
-
-```wrl
-node mode : Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = ThermostatSystemModeEnum.Heat
-);
-node modes : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
-node printer : Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
-connect modes -> printer;
-```
-
 ### Type parameters
 
 `ValueType` is the type of a parameter whose value is itself a type, such as
@@ -248,14 +216,14 @@ Serialization support is used by library nodes such as MQTT providers and
 | `boolean` | Boolean | `false` or `true` |
 | All integer types | Number | Decimal integer |
 | `String` | String | No |
-| `ThermostatSystemModeEnum` | Member name | No |
+| Declared enums | Member name | No |
 | `unit`, `Duration`, `TimeOfDay`, `MonotonicTime`, `ValueType` | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
 
-For the enum, the default JSON format encodes and decodes names such as
-`"Heat"` and `"EmergencyHeat"`. Encoding with `Format = "SnakeCase"` uses
-strings such as `"heat"` and `"emergency_heat"`. Use the default format for
+For enums, the default JSON format encodes and decodes names such as
+`"Enabled"` and `"StandbyMode"`. Encoding with `Format = "SnakeCase"` uses
+strings such as `"enabled"` and `"standby_mode"`. Use the default format for
 receiving enum values.
 
 For CSV, an absent optional value becomes an empty field; a present value

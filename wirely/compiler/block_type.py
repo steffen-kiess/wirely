@@ -52,6 +52,10 @@ class BlockType(blocks.Scope):
         self.parent_graph = graph
 
         if self.parent_graph is not None:
+            if self.name.id_str in graph.enum_types:
+                raise blocks.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
+                    blocks.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
+                ])
             if self.name.id_str in graph.resource_types:
                 raise blocks.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
                     blocks.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),

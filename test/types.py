@@ -150,25 +150,27 @@ assert_is(ty.json_decode('ewq', None), 'ewq')
 
 # ThermostatSystemMode
 
-ty = wirely.types.ThermostatSystemMode
+thermostat_type = engine.program.instances['thermostat'].parameters['Type']._type
+thermostat_modes = thermostat_type.python_type
+ty = thermostat_type
 check_type(ty)
 
 assert_is(ty.name, 'ThermostatSystemModeEnum')
-assert_is(ty.python_type, wirely.enum.ThermostatSystemMode)
+assert_is(ty.python_type.__name__, 'ThermostatSystemModeEnum')
 assert_is(ty.is_runtime_type, True)
 assert_is(ty.is_json_serializable, True)
 # TODO: Implement
 assert_is(ty.has_to_csv_value, False)
 
-for member in wirely.enum.ThermostatSystemMode:
+for member in thermostat_modes:
     assert_is(ty.parse(member.name), member)
 assert_fail(lambda: ty.parse('NotCool'))
 assert_fail(lambda: ty.parse('cool'))
 assert_fail(lambda: ty.parse('ThermostatSystemModeEnum.Cool'))
 # TODO: Test parse_value()?
-assert_is(ty.json_encode(wirely.enum.ThermostatSystemMode.Cool, None), 'Cool')
-assert_is(ty.json_encode(wirely.enum.ThermostatSystemMode.EmergencyHeat, 'SnakeCase'), 'emergency_heat')
-assert_is(ty.json_decode('Heat', None), wirely.enum.ThermostatSystemMode.Heat)
+assert_is(ty.json_encode(thermostat_modes.Cool, None), 'Cool')
+assert_is(ty.json_encode(thermostat_modes.EmergencyHeat, 'SnakeCase'), 'emergency_heat')
+assert_is(ty.json_decode('Heat', None), thermostat_modes.Heat)
 # TODO: Test SnakeCase decoding
 # TODO: CSV
 
@@ -300,7 +302,7 @@ for ty, value, encoded, alignment in [
     (wirely.types.MonotonicTime, wirely.MonotonicTime.create_invalid(), bytes(16), 8),
     (wirely.types.TimeOfDay, datetime.time(0, 0, 1),
      bytes.fromhex('00 ca 9a 3b 00 00 00 00'), 8),
-    (wirely.types.ThermostatSystemMode, wirely.enum.ThermostatSystemMode.Heat, b'\x04', 1),
+    (thermostat_type, thermostat_modes.Heat, b'\x04', 1),
 ]:
     assert ty.alignment == alignment
     assert ty.data_size == len(encoded)
@@ -348,7 +350,7 @@ for ty, malformed in [
     (nested_uint64, bytes(8) + b'\x01\x00'),
     (nested_uint64, b'\x01' + bytes(8) + b'\x01'),
     (nested_uint64, bytes(8) + b'\x02\x01'),
-    (wirely.types.ThermostatSystemMode, b'\x02'),
+    (thermostat_type, b'\x02'),
     (wirely.types.TimeOfDay, (86_400_000_000_000).to_bytes(8, 'little')),
     (wirely.types.TimeOfDay, (86_400_000_000_001).to_bytes(8, 'little')),
     (wirely.types.TimeOfDay, (1).to_bytes(8, 'little')),

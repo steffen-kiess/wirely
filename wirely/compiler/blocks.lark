@@ -1,6 +1,7 @@
 file_input: declaration*
 
 declaration: "resource" "type" identifier ";" -> declaration_resource_type
+           | "enum" "type" identifier ":" value "{" enum_member_list "}" -> declaration_enum_type
            | "node" identifier ":" block_instantiation ";" -> declaration_block_instantiation
            | "connect" reference_list "->" reference ";" -> declaration_connection
            // TODO: Can this be done in a nicer way?
@@ -15,6 +16,9 @@ declaration: "resource" "type" identifier ";" -> declaration_resource_type
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
 declaration_list: declaration* -> copy_list
+
+enum_member_list: (enum_member ("," enum_member)* ","?)? -> copy_list
+enum_member: identifier "=" value
 
 block_instantiation: reference                              -> block_instantiation
                    | reference "(" block_parameter_list ")" -> block_instantiation

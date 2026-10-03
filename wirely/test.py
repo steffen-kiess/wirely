@@ -37,6 +37,7 @@ test_names = [
     'unit_literals',
     'option_literals',
     'enum_literals',
+    'enum_declarations',
     'delay',
     'std',
     'and',

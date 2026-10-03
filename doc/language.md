@@ -80,7 +80,8 @@ namespace ABB.JRA {
 
 Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
-unique. Namespaces contain node types or other namespaces, not instances.
+unique. Namespaces contain node, enum, and resource types or other
+namespaces, not instances.
 A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
@@ -109,10 +110,25 @@ node type Example {
 
 Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
 unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
-`TimeOfDay`, `MonotonicTime`, and `ThermostatSystemModeEnum`. `ValueType` is
-used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
+`TimeOfDay`, and `MonotonicTime`. `ValueType` is used for type parameters.
+`Option[T]` and `List[T]` construct types from `T`.
 See the [value type reference](value-types.md) for allowed values, runtime
 status, and serialization support.
+
+Declare an enum at top level or inside a namespace:
+
+```wrl
+enum type Mode : int8 {
+  Off = 0,
+  Heat = 1,
+}
+```
+
+Choose an underlying integer type and give each member an integer literal
+within its range. Member names and values are unique. Separate members with
+commas; a trailing comma is optional. Use `Mode.Heat` as a value, or
+`Example.Mode.Heat` when referring to an enum in namespace `Example`.
+The Matter library declares the global `ThermostatSystemModeEnum` type.
 
 Use `()` for unit, `true` and `false` for booleans, decimal or `0x`/`0o`
 integers for integer parameters, quoted strings for `String`, and `[a, b]`

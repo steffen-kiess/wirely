@@ -90,7 +90,7 @@ def resolve_type(value_type, par_values):
     raise TypeError(f'Unsupported parameter-dependent type {value_type!r}')
 
 
-def _parse_option(self, value):
+def _parse_option(self, value, *, scope=None):
     if isinstance(value, blocks.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
         return None
     if (isinstance(value, blocks.FunctionCall)
@@ -99,23 +99,23 @@ def _parse_option(self, value):
             and value.fun.identifiers[0].id_str == 'Some'):
         if len(value.parameters) != 1:
             raise blocks.ProgramError(value, 'Some expects exactly one argument')
-        return blocks.Some(parse_value(self.inner_type, value.parameters[0]))
+        return blocks.Some(parse_value(self.inner_type, value.parameters[0], scope=scope))
     raise blocks.ProgramError(value, f'Invalid Option value {value!r}')
 
 
-def _parse_list(self, value):
+def _parse_list(self, value, *, scope=None):
     if not isinstance(value, blocks.ListLiteral):
         raise blocks.ProgramError(value, f'Invalid List value {value!r}')
-    return tuple(parse_value(self.inner_type, v) for v in value.values)
+    return tuple(parse_value(self.inner_type, v, scope=scope) for v in value.values)
 
 
-def _parse_unit(self, value):
+def _parse_unit(self, value, *, scope=None):
     if isinstance(value, blocks.UnitLiteral):
         return blocks.Unit()
     raise blocks.ProgramError(value, f'Invalid unit value {value!r}')
 
 
-def _parse_boolean(self, value):
+def _parse_boolean(self, value, *, scope=None):
     if isinstance(value, blocks.Reference) and value.length == 1:
         s = value.identifiers[0].id_str
         if s == 'false':
@@ -125,7 +125,7 @@ def _parse_boolean(self, value):
     raise blocks.ProgramError(value, f'Invalid boolean value {value!r}')
 
 
-def _parse_int(self, value):
+def _parse_int(self, value, *, scope=None):
     if isinstance(value, blocks.IntNumber):
         i = value.value
         if i < self.min_value or i > self.max_value:
@@ -134,17 +134,17 @@ def _parse_int(self, value):
     raise blocks.ProgramError(value, f'Invalid int value {value!r}')
 
 
-def _parse_value_type(self, value):
+def _parse_value_type(self, value, *, scope=None):
     raise Exception('TODO: TypeValueType.parse_value()')
 
 
-def _parse_monotonic_time(self, value):
+def _parse_monotonic_time(self, value, *, scope=None):
     if isinstance(value, blocks.Reference) and value.length == 2 and value.identifiers[0].id_str == 'MonotonicTime' and value.identifiers[1].id_str == 'Invalid':
         return blocks.MonotonicTime.create_invalid()
     raise blocks.ProgramError(value, f'Invalid MonotonicTime value {value!r}')
 
 
-def _parse_duration(self, expr):
+def _parse_duration(self, expr, *, scope=None):
     # TODO
     if isinstance(expr, blocks.StringConstant):
         s = expr.value
@@ -155,7 +155,7 @@ def _parse_duration(self, expr):
     raise blocks.ProgramError(expr, f'Invalid Duration value {expr!r}')
 
 
-def _parse_time_of_day(self, expr):
+def _parse_time_of_day(self, expr, *, scope=None):
     # TODO
     if isinstance(expr, blocks.StringConstant):
         s = expr.value
@@ -166,17 +166,26 @@ def _parse_time_of_day(self, expr):
     raise blocks.ProgramError(expr, f'Invalid TimeOfDay value {expr!r}')
 
 
-def _parse_string(self, value):
+def _parse_string(self, value, *, scope=None):
     if isinstance(value, blocks.StringConstant):
         return value.value
     raise blocks.ProgramError(value, f'Invalid string value {value!r}')
 
 
-def _parse_enum(self, expr):
-    if not isinstance(expr, blocks.Reference) or expr.length != 2:
+def _parse_enum(self, expr, *, scope=None):
+    if not isinstance(expr, blocks.Reference) or expr.length < 2:
         raise blocks.ProgramError(expr, f'Expected enum literal {self.name}.Member')
-    type_name, member_name = [identifier.id_str for identifier in expr.identifiers]
-    if type_name != self.name:
+    type_name = '.'.join(identifier.id_str for identifier in expr.identifiers[:-1])
+    member_name = expr.identifiers[-1].id_str
+    if scope is not None:
+        type_reference = blocks.Reference.from_list(
+            *expr.identifiers[:-1], source_position=expr.source_position,
+        )
+        enum_type = scope.resolve_type(type_reference)
+        matches = enum_type is self
+    else:
+        matches = type_name == self.name
+    if not matches:
         raise blocks.ProgramError(expr, f'Expected enum type {self.name}, got {type_name}')
     try:
         return self._parse_impl(member_name)
@@ -199,6 +208,6 @@ _literal_parsers = {
 }
 
 
-def parse_value(value_type, value):
+def parse_value(value_type, value, *, scope=None):
     parser = _literal_parsers[type(value_type)]
-    return value_type.verify_value(parser(value_type, value))
+    return value_type.verify_value(parser(value_type, value, scope=scope))

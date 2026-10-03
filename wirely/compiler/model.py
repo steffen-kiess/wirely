@@ -4,7 +4,7 @@ import importlib
 
 from wirely import (
     Some, Unit, MonotonicTime, Duration, TimeSnapshot, RunStage,
-    enum, types, value_types, Type, ValueType, NativeNodeContext, NativeState,
+    types, value_types, Type, ValueType, NativeNodeContext, NativeState,
     Variable, VariableBlock, VariableBlockInstance, InputSourceBinding,
     ProcedureContext, StepContext, Program, Engine,
 )
@@ -65,6 +65,8 @@ _exports = {
     'ConnectorSpecificationData': 'compiler.ast',
     'ConnectorSpecificationResource': 'compiler.ast',
     'DeclarationResourceType': 'compiler.ast',
+    'DeclarationEnumType': 'compiler.ast',
+    'EnumMember': 'compiler.ast',
     'DeclarationLibrary': 'compiler.ast',
     'BlockParameter': 'compiler.ast',
     'Scope': 'compiler.ast',

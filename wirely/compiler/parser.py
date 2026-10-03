@@ -18,6 +18,8 @@ ast_classes = [
     blocks.ConnectorSpecificationData,
     blocks.ConnectorSpecificationResource,
     blocks.DeclarationResourceType,
+    blocks.DeclarationEnumType,
+    blocks.EnumMember,
     blocks.BlockConnectorTypeSpecifier,
     blocks.ListSpecifier,
     blocks.ProgramError,

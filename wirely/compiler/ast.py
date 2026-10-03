@@ -538,6 +538,7 @@ class Scope(Declaration):
         self.block_type_interfaces = {}
         self.block_type_implementations = {}
         self.resource_types = {}
+        self.enum_types = {}
 
     # TODO: Move to Declaration?
     @property
@@ -582,6 +583,18 @@ class Scope(Declaration):
                         return par_values[par]
                 if name in blocks.types.type_by_name:
                     return blocks.types.type_by_name[name]
+            scope = self
+            while scope is not None:
+                candidate = scope
+                for identifier in ty.identifiers[:-1]:
+                    candidate = candidate.libraries.get(identifier.id_str)
+                    if candidate is None:
+                        break
+                if candidate is not None:
+                    enum_type = candidate.enum_types.get(ty.identifiers[-1].id_str)
+                    if enum_type is not None:
+                        return enum_type
+                scope = scope.parent_graph
             raise blocks.ProgramError(ty, f'Cannot find type {ty}')
 
     def resolve_resource_type(self, name):
@@ -648,7 +661,7 @@ class Scope(Declaration):
                             if par not in par_values:
                                 return blocks.ValueParameter(value_type, par, ast_element=value)
                             return blocks.ConstantValue(value_type, value_type.verify_value(par_values[par].evaluate()), ast_element=value)
-            return blocks.ConstantValue(value_type, parse_value(value_type, value), ast_element=value)
+            return blocks.ConstantValue(value_type, parse_value(value_type, value, scope=self), ast_element=value)
             # raise blocks.ProgramError(value, f'Cannot turn {value!r} into constant value of type {value_type}')
 
     def resolve_block_type(self, name, par_values={}):
@@ -676,6 +689,88 @@ class Scope(Declaration):
         return self.parent_graph.resolve_block_type(name, par_values=par_values)
 
 
+class EnumMember(SourceElement):
+    @check_parameters
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.value = value
+
+
+class DeclarationEnumType(Declaration):
+    @check_parameters
+    def __init__(self, name: Identifier, underlying_type: Value,
+                 members: typing.List[EnumMember], *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.underlying_type = underlying_type
+        self.members = members
+
+    def compile_pass1_btd(self, interface):
+        if interface.name is not None:
+            raise ProgramError(self, 'Enum type declaration not allowed inside node type')
+
+    def compile_pass1(self, graph):
+        name = self.name.id_str
+        if name in blocks.types.type_by_name or name in ('Option', 'List'):
+            raise ProgramError(self.name, f'Enum type {name} conflicts with built-in type')
+        for kind, declarations in (
+                ('enum type', graph.enum_types),
+                ('node type', graph.block_type_interfaces),
+                ('resource type', graph.resource_types),
+                ('namespace', graph.libraries)):
+            if name in declarations:
+                previous = declarations[name]
+                if kind in ('enum type', 'resource type'):
+                    previous = previous.declaration
+                raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
+                    CompilerHint(previous, 'Previous declaration was here'),
+                ])
+        underlying = self.underlying_type
+        if not isinstance(underlying, Reference) or underlying.length != 1:
+            raise ProgramError(underlying, 'Enum underlying type must be a supported integer type')
+        underlying = blocks.types.type_by_name.get(underlying.identifiers[0].id_str)
+        if not isinstance(underlying, blocks.types.TypeInt):
+            raise ProgramError(self.underlying_type, 'Enum underlying type must be a supported integer type')
+        names = {}
+        values = {}
+        numbers = {}
+        for member in self.members:
+            member_name = member.name.id_str
+            if member_name in names:
+                raise ProgramError(member.name, f'Duplicate enum member {member_name}', hints=[
+                    CompilerHint(names[member_name], 'Previous member was here'),
+                ])
+            number = parse_value(underlying, member.value)
+            if number in values:
+                raise ProgramError(member.value, f'Duplicate enum value {number}', hints=[
+                    CompilerHint(values[number], 'Previous member was here'),
+                ])
+            names[member_name] = member
+            values[number] = member
+            numbers[member_name] = number
+        fullname = graph.fullname + '.' + name if isinstance(graph, DeclarationLibrary) else name
+        try:
+            python_type = enum.Enum(name, numbers)
+        except (TypeError, ValueError) as error:
+            raise ProgramError(self, str(error)) from None
+        for member_name, member in names.items():
+            if member_name not in python_type.__members__:
+                raise ProgramError(member.name, f'Unsupported enum member name {member_name}')
+        self.value_type = blocks.types.TypeEnum(fullname, python_type, underlying_type=underlying)
+        self.value_type.declaration = self
+        graph.enum_types[name] = self.value_type
+
+    def create_io(self, new_graph):
+        pass
+
+    def compile_pass1_5(self, graph):
+        pass
+
+    def compile_pass2(self, graph):
+        pass
+
+
 class DeclarationResourceType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, *, source_position: SourcePosition):
@@ -688,6 +783,10 @@ class DeclarationResourceType(Declaration):
 
     def compile_pass1(self, graph):
         name = self.name.id_str
+        if name in graph.enum_types:
+            raise ProgramError(self.name, f'Resource type {name} conflicts with enum type', hints=[
+                CompilerHint(graph.enum_types[name].declaration, 'Previous declaration was here'),
+            ])
         if name in graph.resource_types:
             previous = graph.resource_types[name].declaration
             raise ProgramError(self, f'Duplicate resource type {name}', hints=[
@@ -1333,12 +1432,16 @@ class DeclarationLibrary(Scope):
         if not isinstance(graph, DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Attempt to put namespace into invalid context')
 
+        if self.name.id_str in graph.enum_types:
+            raise ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with enum type', hints=[
+                CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
+            ])
         self.compiled_scope = graph.libraries.setdefault(self.name.id_str, self)
 
         for decl in self.declarations:
             with decl.context:
                 # TODO: What is allowed here?
-                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType)):
+                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]

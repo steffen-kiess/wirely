@@ -31,6 +31,15 @@ namespace Example {
 }
 ```
 
+For enum bodies, put each member on its own line with a trailing comma:
+
+```wrl
+enum type Mode : uint8 {
+  Off = 0,
+  Heat = 1,
+}
+```
+
 ## Breaking lines
 
 Keep short declarations on one line. For longer procedures, break before

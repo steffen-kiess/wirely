@@ -127,7 +127,7 @@ execution services need not be available.
 | `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
 | `TimeOfDay` | `datetime.time` |
 | `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
-| `ThermostatSystemModeEnum` | `wirely.types.enum.ThermostatSystemMode` |
+| Declared enums | Members of a Python `enum.Enum` class |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
@@ -157,7 +157,7 @@ values directly. After emitting an event, schedule another invocation with
 with Wirely type names. Built-in descriptors are in `wirely.types.value_types`,
 using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
 `uint64`, `string`, `duration`, `time_of_day`, `monotonic_time`,
-`thermostat_system_mode`, and `value_type`.
+and `value_type`.
 
 - `validate(value)` normalizes a Python value; `parse(text)` parses text.
 - `supports_json` indicates support for `json_encode(value, format=None)`
@@ -167,7 +167,10 @@ using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
   `(text, needs_quotes)`.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
-descriptors are available through resolved parameters.
+descriptors are available through resolved parameters. For a declared enum,
+pass its type as a `ValueType` parameter and use `parse("MemberName")` on
+that descriptor to obtain a member. Each compiled program owns its enum
+classes; pass values belonging to that program.
 
 ## Native objects, resources, and tasks
 
