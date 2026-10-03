@@ -41,6 +41,7 @@ test_names = [
     'unit/enum_literals',
     'unit/enum_declarations',
     'unit/structs',
+    'unit/bytecode_format',
     'unit/negative_cases',
     'unit/attributes',
     'wrl/delay',
