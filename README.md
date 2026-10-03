@@ -55,7 +55,7 @@ checkout launchers:
 
 ```
 tools/setup-venv
-tools/wirely compile test/simple.wrl
+tools/wirely compile test/wrl/simple.wrl
 tools/run-tests
 ```
 
