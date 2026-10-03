@@ -1,10 +1,12 @@
-file_input: declaration*
+file_input: inner_attribute* declaration*
 
-declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
+declaration: outer_attribute* bare_declaration -> attributed
+
+bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
            | "resource" "type" identifier ";" -> declaration_resource_type
            | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type
            | "node" identifier ":" block_instantiation ";" -> declaration_block_instantiation
-           | "connect" reference_list "->" reference ";" -> declaration_connection
+           | "connect" connection_source_list "->" reference ";" -> declaration_connection
            // TODO: Can this be done in a nicer way?
            | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
            | "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
@@ -16,17 +18,19 @@ declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration
            | "implicit" block_connector_type ":" connector_specification ";" -> declaration_connector__create_implicit
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
-declaration_list: declaration* -> copy_list
+declaration_list: inner_attribute* declaration* -> file_input
 
 enum_underlying_type: reference -> copy
                     | enum_underlying_type "[" value "]" -> bracket_operator
-struct_field_list: (struct_field ("," struct_field)* ","?)? -> copy_list
-struct_field: identifier ":" value
+struct_field_list: inner_attribute* (struct_field ("," struct_field)* ","?)? -> file_input
+struct_field: outer_attribute* bare_struct_field -> attributed
+bare_struct_field: identifier ":" value -> struct_field
 struct_literal_field_list: (struct_literal_field ("," struct_literal_field)* ","?)? -> copy_list
 struct_literal_field: identifier ":" value
 
-enum_member_list: (enum_member ("," enum_member)* ","?)? -> copy_list
-enum_member: identifier "=" value
+enum_member_list: inner_attribute* (enum_member ("," enum_member)* ","?)? -> file_input
+enum_member: outer_attribute* bare_enum_member -> attributed
+bare_enum_member: identifier "=" value -> enum_member
 
 block_instantiation: reference                              -> block_instantiation
                    | reference "(" block_parameter_list ")" -> block_instantiation
@@ -143,3 +147,20 @@ RAW_IDENTIFIER: "r#" CNAME
 
 _separated_nonempty{x, sep}: x (sep x)*
 _separated_empty{x, sep}: (x (sep x)*)?
+
+outer_attribute: "#[" metadata "]"
+inner_attribute: "#![" metadata "]"
+metadata_path: identifier ("::" identifier)*
+metadata: metadata_path -> metadata_flag
+        | metadata_path "=" metadata_value_literal -> metadata_value
+        | metadata_path "(" metadata_arguments ")" -> metadata_list
+metadata_arguments: ((metadata | metadata_literal) ("," (metadata | metadata_literal))* ","?)? -> metadata_arguments
+metadata_value_literal: metadata_literal -> copy
+                      | metadata_path -> metadata_named_literal
+metadata_literal: int_number -> metadata_literal
+                | float_number -> metadata_literal
+                | "+" float_number -> metadata_positive_float
+                | "-" float_number -> metadata_negative_float
+                | string_constant -> metadata_literal
+connection_source_list: _separated_empty{connection_source, ","} -> copy_list
+connection_source: outer_attribute* reference -> attributed

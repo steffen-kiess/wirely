@@ -42,6 +42,7 @@ test_names = [
     'unit/enum_declarations',
     'unit/structs',
     'unit/negative_cases',
+    'unit/attributes',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
@@ -89,6 +90,7 @@ negative_tests = [
     'test/negative/enum_declarations.wrl',
     'test/negative/structs.wrl',
     'test/negative/state_connections.wrl',
+    'test/negative/attributes.wrl',
 ]
 
 diagnostic_pattern = re.compile(
@@ -182,7 +184,7 @@ def negative_test_cases(source):
                 except (lark.UnexpectedInput, lark.exceptions.VisitError):
                     pass
                 else:
-                    if not declarations:
+                    if not declarations and not declarations.inner_attributes:
                         continue
         padded = ''.join(line if start <= index < end else '\n'
                          for index, line in enumerate(lines))

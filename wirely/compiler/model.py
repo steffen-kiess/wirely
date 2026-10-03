@@ -25,6 +25,7 @@ _exports = {
     'BlockTemporaryVariable': 'compiler.node',
     'BlockStateVariable': 'compiler.node',
     'StateRead': 'compiler.node',
+    'Connection': 'compiler.node',
     'Block': 'compiler.block',
     'BlockInstance': 'compiler.block',
     'connect': 'compiler.support',

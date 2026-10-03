@@ -1,6 +1,7 @@
 import typing
 
 from . import native as compiler_native
+from .attributes import copy_attributes
 from .types import check_runtime_type, resolve_type
 
 from wirely.compiler import model as blocks
@@ -9,10 +10,11 @@ from wirely.util import check_parameters
 
 class BlockType(blocks.Scope):
     @check_parameters
-    def __init__(self, specifiers: typing.List[blocks.BlockTypeSpecifier], name: typing.Optional[blocks.Identifier], declarations: typing.List[blocks.Declaration], *, source_position: typing.Optional[blocks.SourcePosition]):
+    def __init__(self, specifiers: typing.List[blocks.BlockTypeSpecifier], name: typing.Optional[blocks.Identifier], declarations: list, *, source_position: typing.Optional[blocks.SourcePosition]):
         super().__init__(source_position=source_position)
         self.name = name
         self.declarations = declarations
+        self.inner_attributes = getattr(declarations, 'inner_attributes', ())
 
         all_specifiers = ['native', 'singleton']
         specifiers_status = dict({key: False for key in all_specifiers})
@@ -197,6 +199,7 @@ class BlockType(blocks.Scope):
                 block_var = blocks.Block.StateVariable(block, variable.name.id_str, var_type, initial_value)
                 if hasattr(var_type, 'block_var'):
                     raise Exception("hasattr(var_type, 'block_var')")
+                copy_attributes(block_var, variable)
                 variable.block_var = block_var
                 state_variables[variable.name.id_str] = block_var
             elif isinstance(variable, blocks.ast.DeclarationTemporaryVariable):
@@ -206,6 +209,7 @@ class BlockType(blocks.Scope):
                 block_var = blocks.Block.Temporary(block, variable.name.id_str, var_type, impl_var_type=impl_var_type)
                 if hasattr(var_type, 'block_var'):
                     raise Exception("hasattr(var_type, 'block_var')")
+                copy_attributes(block_var, variable)
                 variable.block_var = block_var
             else:
                 raise Exception(f'Got unexpected variable: {variable}')

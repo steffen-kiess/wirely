@@ -2,6 +2,7 @@ import abc
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
+from .attributes import copy_attributes
 from wirely.compiler.native_configuration import configuration_factory
 from wirely.compiler.parameters import ParameterValues, native_parameters, parameter_origins
 from wirely.compiler.types import resolve_type
@@ -15,6 +16,7 @@ class Block(blocks.Node):
         self.block_type = block_type
         self.par_values = par_values
         self.instantiation = instantiation
+        copy_attributes(self, instantiation)
         # TODO: Clean up
         for par in self.par_values:
             val = self.par_values[par]
@@ -44,6 +46,11 @@ class Block(blocks.Node):
 
     def __str__(self):
         return f"{self.graph}.{self.name}"
+
+    @property
+    def position(self):
+        return next((attribute.value for attribute in self.attributes
+                     if attribute.name == 'position'), None)
 
     def validate(self):
         for input in self.all_block_inputs:
@@ -189,6 +196,7 @@ class Block(blocks.Node):
             self.is_list = bool(is_list)
             self.var_type = var_type
             self.block_input = block_input
+            copy_attributes(self, block_input)
 
             self.conn_spec = self.block_input.conn_spec
             self.resource_type = self.block_input.resource_type
@@ -258,6 +266,7 @@ class Block(blocks.Node):
 
             self.var_type = var_type
             self.block_output = block_output
+            copy_attributes(self, block_output)
 
             self.conn_spec = self.block_output.conn_spec
             self.resource_type = self.block_output.resource_type
@@ -372,6 +381,7 @@ class Block(blocks.Node):
             self.block = block
             self.name = name
             self.declaration_procedure = declaration_procedure
+            copy_attributes(self, declaration_procedure)
             # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current block. Move this somewhere else?
             self.static_context = static_context
 

@@ -22,12 +22,18 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
 
     exc = None
     try:
+        from .attributes import validate_files
         decls = []
+        parsed_files = []
         for filename, input_data in filename_inpudatas:
-            decls += wirely.compiler.parser.parse_str(input_data, filename=filename)
+            parsed = wirely.compiler.parser.parse_str(input_data, filename=filename)
+            parsed_files.append((filename, parsed))
+            decls += parsed
+        file_metadata = validate_files(parsed_files)
         filename = None
         global_source_position = blocks.SourcePosition(filename='<global>', meta=None, input_data='')
         global_block_type = blocks.BlockType([], None, decls, source_position=global_source_position)
+        global_block_type.file_metadata = file_metadata
         if verbose_passes:
             print('Starting pass 1', flush=True)
         global_block_type.compile_pass1(None)

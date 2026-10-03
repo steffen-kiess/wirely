@@ -2,14 +2,14 @@ from collections.abc import Mapping
 
 from . import model as blocks
 from .block import Block
-from .node import StateRead
+from .node import Connection, StateRead
 from .types import resolve_type
 
 
 debug_variable_resolution = False
 
 
-def connect(source, target, source_element):
+def connect(source, target, source_element, *, attributes=()):
     # TODO: Clean up
     if not isinstance(source, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
         raise Exception('source parameter is not a data or resource source')
@@ -36,6 +36,12 @@ def connect(source, target, source_element):
             blocks.CompilerHint(declaration(target), 'Target was declared here'),
         ])
 
+    def record(kind):
+        actual_target = target.members[-1] if isinstance(target, Block.Input) and target.is_list else target
+        source.block.graph.connections.append(Connection(
+            source, actual_target, attributes, source_element, kind,
+        ))
+
     source_resource = isinstance(getattr(source, 'conn_spec', None), blocks.ConnectorSpecificationResource)
     target_resource = isinstance(target.conn_spec, blocks.ConnectorSpecificationResource)
     if source_resource or target_resource:
@@ -44,6 +50,7 @@ def connect(source, target, source_element):
         if source.resource_type is not target.resource_type:
             incompatible(f'source has resource type {source.resource_type} but target has resource type {target.resource_type}')
         target.connect(source)
+        record('resource')
         return
 
     if isinstance(source, (blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
@@ -64,6 +71,7 @@ def connect(source, target, source_element):
         incompatible(f'source has type {source_type} but target has type {target_type}')
 
     target.connect(source)
+    record('state' if isinstance(source, (blocks.BlockStateVariable, StateRead)) else 'data')
 
 
 def path_resolve_singleton(path):

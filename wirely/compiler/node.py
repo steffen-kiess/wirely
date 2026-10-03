@@ -30,6 +30,17 @@ class StateRead:
         return self.state.var_type
 
 
+@dataclass(frozen=True)
+class Connection:
+    """A compiler edge, whose target is the actual slot of a list input."""
+
+    source: object
+    target: object
+    attributes: tuple
+    source_element: object
+    kind: str
+
+
 # A node appearing in a block type (or in the global scope)
 class Node:
     # TODO: Should 'name' be a member of Node?
@@ -40,6 +51,9 @@ class Node:
 
         self.graph = graph
         self.name = name
+        self.outer_attributes = ()
+        self.inner_attributes = ()
+        self.attributes = ()
 
 
 # A single instance of a node. A node might have multiple instances if the block

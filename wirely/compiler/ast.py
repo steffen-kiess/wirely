@@ -8,6 +8,7 @@ import datetime
 import lark
 
 from ..program import RunStage
+from .attributes import copy_attributes
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
@@ -35,6 +36,9 @@ class SourceElement:
     @check_parameters
     def __init__(self, *, source_position: SourcePosition):
         self.source_position = source_position
+        self.outer_attributes = ()
+        self.inner_attributes = ()
+        self.attributes = ()
 
     @property
     @contextlib.contextmanager
@@ -540,6 +544,7 @@ class Scope(Declaration):
         self.resource_types = {}
         self.enum_types = {}
         self.struct_types = {}
+        self.connections = []
 
     # TODO: Move to Declaration?
     @property
@@ -756,11 +761,12 @@ def check_struct_literal(value_type, literal, scope):
 
 class DeclarationStructType(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, fields: typing.List[StructField],
+    def __init__(self, name: Identifier, fields: list,
                  *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.fields = fields
+        self.inner_attributes = getattr(fields, 'inner_attributes', ())
         self.value_type = None
         self.resolving = False
 
@@ -822,11 +828,12 @@ class DeclarationStructType(Declaration):
 class DeclarationEnumType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, underlying_type: Value,
-                 members: typing.List[EnumMember], *, source_position: SourcePosition):
+                 members: list, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.underlying_type = underlying_type
         self.members = members
+        self.inner_attributes = getattr(members, 'inner_attributes', ())
 
     def compile_pass1_btd(self, interface):
         if interface.name is not None:
@@ -1004,14 +1011,16 @@ class DeclarationConnector(Declaration):
             name = self.name_str
             if name == '':
                 name = 'implicit input'
-            blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec, resource_type=resource_type)
+            connector = blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec, resource_type=resource_type)
         elif self.conn_type == BlockConnectorType.BlockOutput:
             name = self.name_str
             if name == '':
                 name = 'implicit output'
-            blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec, resource_type=resource_type)
+            connector = blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec, resource_type=resource_type)
         else:
             raise Exception(f'Unknown conn_type: {self.conn_type!r}')
+
+        copy_attributes(connector, self)
 
     # TODO: Clean up compilation passes
 
@@ -1173,8 +1182,8 @@ class DeclarationConnection(Declaration):
 
         # TODO: Disallow multiple connect statements to a list input?
         with self.context:
-            for source in res_sources:
-                blocks.connect(source.member, res_target.member, self)
+            for source, attributes in zip(res_sources, self.edge_attributes):
+                blocks.connect(source.member, res_target.member, self, attributes=attributes)
 
     # TODO: Clean up compilation passes
 
@@ -1219,7 +1228,8 @@ class DeclarationStateVariable(Declaration):
         ty = self.interface.resolve_type(self.var_type)
         check_runtime_type(ty, self)
         # TODO: Resolve initial_value
-        blocks.BlockStateVariable(new_graph, ty, name=self.name_str, initial_value=self.initial_value)
+        variable = blocks.BlockStateVariable(new_graph, ty, name=self.name_str, initial_value=self.initial_value)
+        copy_attributes(variable, self)
 
 
 def check_state_read_writer(graph, state, reference):
@@ -1260,7 +1270,8 @@ class DeclarationTemporaryVariable(Declaration):
     def create_io(self, new_graph):
         ty = self.interface.resolve_type(self.var_type)
         check_runtime_type(ty, self)
-        blocks.BlockTemporaryVariable(new_graph, ty, name=self.name_str)
+        variable = blocks.BlockTemporaryVariable(new_graph, ty, name=self.name_str)
+        copy_attributes(variable, self)
 
 
 class StageDeclaration(SourceElement):
@@ -1522,10 +1533,11 @@ class DeclarationProcedure(Declaration):
 # TODO: Should this to some extend be merged with BlockType? Should there be a common base class?
 class DeclarationLibrary(Scope):
     @check_parameters
-    def __init__(self, name: Identifier, declarations: typing.List[Declaration], *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, declarations: list, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.declarations = declarations
+        self.inner_attributes = getattr(declarations, 'inner_attributes', ())
 
         # TODO?
         self.libraries = {}

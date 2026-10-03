@@ -25,6 +25,32 @@ python3 -m wirely compile hello.wrl
 use `python3 -m wirely run-service hello.wrl`. Runtime service dependencies
 are described in [the library reference](libraries.md).
 
+## Attributes
+
+Outer attributes `#[...]` attach to the following declaration, struct field,
+or enum member. Inner attributes `#![...]` at the beginning of a file,
+namespace, node type, struct, or enum body attach to that enclosing item.
+They do not inherit onto its contents. Repeated namespace declarations
+combine their attributes.
+
+Attribute metadata supports `::`-separated names, flags, `name = literal`,
+and nested comma-separated argument lists with optional trailing commas.
+The compiler defines the available attributes and their permitted targets.
+Currently, `position` supplies node-instance coordinates:
+
+```wrl
+#[position(x = 120, y = -40.5)]
+node source : Std.Constant(Type = boolean, Value = true);
+```
+
+`position` requires one finite numeric literal for each of `x` and `y`, and
+can appear once per node instance. Coordinates are compiler metadata.
+
+Attributes before `connect` apply to every edge in that statement;
+attributes before an individual source apply to that source's edge. Each
+edge combines statement attributes followed by source attributes, subject
+to the attribute's repeatability rules.
+
 ## Declarations and names
 
 Declarations may appear at the top level or inside a node type. Node
