@@ -7,7 +7,7 @@ from unittest.mock import patch
 import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
-import wirely.graphviz
+import wirely.cli.graphviz
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -171,7 +171,7 @@ assert probe.get_value('owner.reader.') is False
 assert owner_variable not in probe.program.temporaries.variable_set
 assert probe.get_variable('owner.relay') is owner_variable
 assert probe.get_variable('owner.reader.') is owner_variable
-assert '() = False' in wirely.graphviz.get_graph(probe.program.graph, probe).source
+assert '() = False' in wirely.cli.graphviz.get_graph(probe.program.graph, probe).source
 
 probe.step()
 probe.assert_value_is('owner.reader', True)
@@ -423,7 +423,7 @@ new_nested.assert_value_is('second.owner', (0, 9))
 
 # Graph labels preserve the phase even when both read the same state.
 owner_graph = current.program.graph.libraries['TestLibrary'].block_type_implementations['Current']
-rendered = wirely.graphviz.get_graph(owner_graph).source
+rendered = wirely.cli.graphviz.get_graph(owner_graph).source
 assert 'saved.old' in rendered
 assert 'saved.new' in rendered
 

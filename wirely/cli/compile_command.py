@@ -2,9 +2,9 @@
 
 import sys
 
-from .compiler import compile_files
-from .compiler import program as program_compiler
-from .engine import Engine
+from ..compiler import compile_files
+from ..compiler import program as program_compiler
+from ..runtime.engine import Engine
 
 
 def run(args):

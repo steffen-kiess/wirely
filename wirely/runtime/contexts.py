@@ -5,9 +5,9 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 import wirely as blocks
-from . import value_types
+from ..types import value_types
 from .run_stage import RunStage
-from .time import MonotonicTime
+from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 
 

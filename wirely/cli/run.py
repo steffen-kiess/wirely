@@ -30,10 +30,10 @@ async def execute(engine, line):
             print(f'  {block_name}')
         print('---', flush=True)
     elif line == 'graph':
-        import wirely.graphviz
+        import wirely.cli.graphviz
         if engine.program.graph is None:
             raise CommandException('Graph visualization requires the compiler graph')
-        wirely.graphviz.get_graph(engine.program.graph, engine).view()
+        wirely.cli.graphviz.get_graph(engine.program.graph, engine).view()
     elif parts[0] == 'debug':
         if len(parts) == 1:
             print(f'Debug is {"on" if engine.debug else "off"}', flush=True)
@@ -108,7 +108,7 @@ async def run(engine) -> None:
 
 def main():
     if len(sys.argv) < 2:
-        print('Usage: python3 -m wirely.run <file.wrl> [...]')
+        print('Usage: python3 -m wirely.cli.run <file.wrl> [...]')
         sys.exit(1)
     input_filenames = sys.argv[1:]
 

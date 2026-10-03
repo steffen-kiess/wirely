@@ -227,7 +227,7 @@ for arguments in [('7', 5), (7, '5')]:
         wirely.MonotonicTime(*arguments)
 with checks.assertRaises(Exception):
     wirely.MonotonicTime(generation='7', time_ns=5)
-with patch('wirely.time.time.clock_gettime_ns', return_value=123):
+with patch('wirely.types.time.time.clock_gettime_ns', return_value=123):
     assert wirely.MonotonicTime.current_time() == wirely.MonotonicTime(1, 123)
 
 invalid = wirely.MonotonicTime.create_invalid()

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from . import types as _types
+from .. import types as _types
 from .option import Some
 
 

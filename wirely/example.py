@@ -8,7 +8,7 @@ from wirely.util import check_parameters
 
 # TODO: Where should these imports be done?
 import wirely.compiler
-import wirely.run
+import wirely.cli.run
 
 fn = os.path.dirname(__file__) + '/../examples/test.wrl'
 global_block_type = blocks.compiler.compile_files([fn])
@@ -34,4 +34,4 @@ if True:
 
     inp2_inst.set_value(False)
 
-asyncio.run(blocks.run.run(eng))
+asyncio.run(blocks.cli.run.run(eng))

@@ -124,10 +124,10 @@ execution services need not be available.
 | `boolean` | `bool` |
 | All integer types | `int` |
 | `String` | `str` |
-| `Duration` | `wirely.time.Duration`, with `duration_ns` |
+| `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
 | `TimeOfDay` | `datetime.time` |
-| `MonotonicTime` | `wirely.time.MonotonicTime`, with `generation` and `time_ns` |
-| `ThermostatSystemModeEnum` | `wirely.enum.ThermostatSystemMode` |
+| `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
+| `ThermostatSystemModeEnum` | `wirely.types.enum.ThermostatSystemMode` |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
@@ -154,7 +154,7 @@ values directly. After emitting an event, schedule another invocation with
 ## Value type descriptors
 
 `wirely.ValueType` is immutable and supports equality, hashing, and `str()`
-with Wirely type names. Built-in descriptors are in `wirely.value_types`,
+with Wirely type names. Built-in descriptors are in `wirely.types.value_types`,
 using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
 `uint64`, `string`, `duration`, `time_of_day`, `monotonic_time`,
 `thermostat_system_mode`, and `value_type`.

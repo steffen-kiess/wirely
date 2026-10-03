@@ -3,7 +3,7 @@
 import datetime
 from dataclasses import dataclass
 
-from .time import MonotonicTime
+from ..types.time import MonotonicTime
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -7,7 +7,7 @@ import datetime
 
 import lark
 
-from ..run_stage import RunStage
+from ..runtime.run_stage import RunStage
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters

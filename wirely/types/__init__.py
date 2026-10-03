@@ -2,7 +2,10 @@ import abc
 import datetime
 import re
 
-import wirely as blocks
+from .option import Some
+from .unit import Unit
+from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration
+from . import enum
 
 
 # A value type supporting runtime validation, equality, and text parsing.
@@ -93,8 +96,8 @@ class TypeOption(Type):
     def verify_value(self, value):
         if value is None:
             return None
-        elif type(value) is blocks.Some:
-            return blocks.Some(self.inner_type.verify_value(value.value))
+        elif type(value) is Some:
+            return Some(self.inner_type.verify_value(value.value))
         else:
             raise Exception(f'Expected None or Some, got {value!r}')
 
@@ -103,7 +106,7 @@ class TypeOption(Type):
             return True
         elif value1 is None or value2 is None:
             return False
-        elif type(value1) is blocks.Some and type(value2) is blocks.Some:
+        elif type(value1) is Some and type(value2) is Some:
             return self.inner_type.equals(value1.value, value2.value)
         else:
             raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
@@ -112,7 +115,7 @@ class TypeOption(Type):
         if s == 'none':
             return None
         # TODO: Use different format for strings?
-        return blocks.Some(self.inner_type.parse(s))
+        return Some(self.inner_type.parse(s))
 
 
 class TypeList(Type):
@@ -161,12 +164,12 @@ class TypeList(Type):
 # TODO: Add to_csv_value?
 class TypeUnit(TypeConcrete):
     def __init__(self):
-        super().__init__(name='unit', python_type=blocks.Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='unit', python_type=Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def _parse_impl(self, s):
         if s != '()':
             raise Exception(f'Invalid unit value {s!r}')
-        return blocks.Unit()
+        return Unit()
 
 
 class TypeBoolean(TypeConcrete):
@@ -254,7 +257,7 @@ class TypeValueType(TypeConcrete):
 
 class TypeMonotonicTime(TypeConcrete):
     def __init__(self):
-        super().__init__(name='MonotonicTime', python_type=blocks.MonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeMonotonicTime.parse')
@@ -266,10 +269,10 @@ class TypeMonotonicTime(TypeConcrete):
 # TODO: Add to_csv_value and make json serializable?
 class TypeDuration(TypeConcrete):
     def __init__(self):
-        super().__init__(name='Duration', python_type=blocks.Duration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def _parse_impl(self, s):
-        return blocks.Duration.parse(s)
+        return RuntimeDuration.parse(s)
 
 
 # TODO: Add to_csv_value?
@@ -358,7 +361,7 @@ TimeOfDay = TypeTimeOfDay()
 Duration = TypeDuration()
 MonotonicTime = TypeMonotonicTime()
 String = TypeString()
-ThermostatSystemMode = TypeEnum('ThermostatSystemModeEnum', blocks.enum.ThermostatSystemMode)
+ThermostatSystemMode = TypeEnum('ThermostatSystemModeEnum', enum.ThermostatSystemMode)
 
 # def option(inner_type):
 #     return TypeOption(inner_type)
