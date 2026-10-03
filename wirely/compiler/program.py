@@ -3,7 +3,7 @@
 import traceback
 
 from wirely.compiler import model as blocks
-from wirely.runtime.program import NativeInstance, Procedure, Program, ResultBinding
+from wirely.program import NativeInstance, Procedure, Program, ResultBinding
 from wirely.compiler.types import resolve_type
 
 

@@ -13,5 +13,5 @@ from .runtime import (
     NativeNodeContext, NativeState, Variable, VariableBlock,
     VariableBlockInstance, InputSourceBinding, ProcedureContext, StepContext,
 )
-from .runtime.program import Program
+from .program import Program
 from .runtime.engine import Engine
