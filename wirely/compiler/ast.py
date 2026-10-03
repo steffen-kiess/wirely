@@ -539,6 +539,7 @@ class Scope(Declaration):
         self.block_type_implementations = {}
         self.resource_types = {}
         self.enum_types = {}
+        self.struct_types = {}
 
     # TODO: Move to Declaration?
     @property
@@ -591,6 +592,9 @@ class Scope(Declaration):
                     if candidate is None:
                         break
                 if candidate is not None:
+                    struct = candidate.struct_types.get(ty.identifiers[-1].id_str)
+                    if struct is not None:
+                        return struct.resolve_fields()
                     enum_type = candidate.enum_types.get(ty.identifiers[-1].id_str)
                     if enum_type is not None:
                         return enum_type
@@ -618,6 +622,13 @@ class Scope(Declaration):
             if value_type == blocks.types.ValueType:
                 return blocks.ConstantValue(value_type, self.resolve_type(value, par_values=par_values),
                                             ast_element=value)
+            if isinstance(value, StructLiteral):
+                fields = check_struct_literal(value_type, value, self)
+                return blocks.value.ValueStruct(
+                    value_type,
+                    {name: self.get_const_value(field.value, value_type.fields[name], par_values=par_values)
+                     for name, field in fields.items()}, ast_element=value,
+                )
             if isinstance(value, blocks.ListLiteral) and isinstance(value_type, blocks.types.TypeList):
                 elements = [self.get_const_value(element, value_type.inner_type, par_values=par_values)
                             for element in value.values]
@@ -697,6 +708,117 @@ class EnumMember(SourceElement):
         self.value = value
 
 
+class StructField(SourceElement):
+    @check_parameters
+    def __init__(self, name: Identifier, field_type: Value, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.field_type = field_type
+
+
+class StructLiteralField(SourceElement):
+    @check_parameters
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.value = value
+
+
+class StructLiteral(Value):
+    @check_parameters
+    def __init__(self, struct_type: Reference, fields: typing.List[StructLiteralField],
+                 *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.struct_type = struct_type
+        self.fields = fields
+
+
+def check_struct_literal(value_type, literal, scope):
+    if not isinstance(value_type, blocks.types.TypeStruct):
+        raise ProgramError(literal, f'Expected {value_type}, got struct literal')
+    if scope is None or scope.resolve_type(literal.struct_type) is not value_type:
+        raise ProgramError(literal.struct_type, f'Expected struct type {value_type}, got {literal.struct_type}')
+    fields = {}
+    for field in literal.fields:
+        name = field.name.id_str
+        if name in fields:
+            raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
+                CompilerHint(fields[name].name, 'Previous field was here'),
+            ])
+        if name not in value_type.fields:
+            raise ProgramError(field.name, f'Unknown field {name!r} of {value_type}')
+        fields[name] = field
+    missing = value_type.fields.keys() - fields.keys()
+    if missing:
+        raise ProgramError(literal, f'Missing fields of {value_type}: {", ".join(sorted(missing))}')
+    return fields
+
+
+class DeclarationStructType(Declaration):
+    @check_parameters
+    def __init__(self, name: Identifier, fields: typing.List[StructField],
+                 *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.fields = fields
+        self.value_type = None
+        self.resolving = False
+
+    def compile_pass1_btd(self, interface):
+        if interface.name is not None:
+            raise ProgramError(self, 'Struct type declaration not allowed inside node type')
+
+    def compile_pass1(self, graph):
+        name = self.name.id_str
+        if name in blocks.types.type_by_name or name in ('Option', 'List'):
+            raise ProgramError(self.name, f'Struct type {name} conflicts with built-in type')
+        for kind, declarations in (
+                ('struct type', graph.struct_types), ('enum type', graph.enum_types),
+                ('node type', graph.block_type_interfaces), ('resource type', graph.resource_types),
+                ('namespace', graph.libraries)):
+            if name in declarations:
+                previous = declarations[name]
+                if kind in ('enum type', 'resource type'):
+                    previous = previous.declaration
+                raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
+                    CompilerHint(previous, 'Previous declaration was here'),
+                ])
+        self.scope = graph
+        graph.struct_types[name] = self
+
+    def resolve_fields(self):
+        if self.value_type is not None:
+            return self.value_type
+        if self.resolving:
+            raise ProgramError(self.name, f'Recursive struct type {self.name.id_str}')
+        self.resolving = True
+        try:
+            fields = {}
+            previous = {}
+            for field in self.fields:
+                name = field.name.id_str
+                if name in fields:
+                    raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
+                        CompilerHint(previous[name].name, 'Previous field was here'),
+                    ])
+                fields[name] = self.scope.resolve_type(field.field_type)
+                previous[name] = field
+            fullname = self.scope.fullname + '.' + self.name.id_str if isinstance(self.scope, DeclarationLibrary) else self.name.id_str
+            self.value_type = blocks.types.TypeStruct(fullname, fields)
+            return self.value_type
+        finally:
+            self.resolving = False
+
+    def create_io(self, new_graph):
+        pass
+
+    def compile_pass1_5(self, graph):
+        self.resolve_fields()
+
+    def compile_pass2(self, graph):
+        pass
+
+
 class DeclarationEnumType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, underlying_type: Value,
@@ -716,6 +838,7 @@ class DeclarationEnumType(Declaration):
             raise ProgramError(self.name, f'Enum type {name} conflicts with built-in type')
         for kind, declarations in (
                 ('enum type', graph.enum_types),
+                ('struct type', graph.struct_types),
                 ('node type', graph.block_type_interfaces),
                 ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
@@ -783,6 +906,10 @@ class DeclarationResourceType(Declaration):
 
     def compile_pass1(self, graph):
         name = self.name.id_str
+        if name in graph.struct_types:
+            raise blocks.ProgramError(self.name, f'Resource type {name} conflicts with struct type', hints=[
+                blocks.CompilerHint(graph.struct_types[name], 'Previous declaration was here'),
+            ])
         if name in graph.enum_types:
             raise ProgramError(self.name, f'Resource type {name} conflicts with enum type', hints=[
                 CompilerHint(graph.enum_types[name].declaration, 'Previous declaration was here'),
@@ -1432,6 +1559,10 @@ class DeclarationLibrary(Scope):
         if not isinstance(graph, DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Attempt to put namespace into invalid context')
 
+        if self.name.id_str in graph.struct_types:
+            raise blocks.ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with struct type', hints=[
+                blocks.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
+            ])
         if self.name.id_str in graph.enum_types:
             raise ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with enum type', hints=[
                 CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
@@ -1441,7 +1572,7 @@ class DeclarationLibrary(Scope):
         for decl in self.declarations:
             with decl.context:
                 # TODO: What is allowed here?
-                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType)):
+                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]

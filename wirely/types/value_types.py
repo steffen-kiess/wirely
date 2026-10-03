@@ -1,5 +1,6 @@
 """Value type descriptors for native Python implementations."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from .. import types as _types
@@ -15,6 +16,13 @@ def _type_name(value_type):
 
 
 def _to_native(value_type, value):
+    if isinstance(value_type, _types.TypeStruct):
+        if not isinstance(value, _types.StructValue) or value._type is not value_type:
+            raise ValueError(f'Expected struct value of type {value_type}')
+        if value.keys() != value_type.fields.keys():
+            raise ValueError(f'Expected exactly the fields of {value_type}')
+        return _types.StructValue(value_type, {name: _to_native(field_type, value[name])
+                                               for name, field_type in value_type.fields.items()})
     if value_type == _types.ValueType:
         return ValueType(value)
     if isinstance(value_type, _types.TypeOption) and type(value) is Some:
@@ -25,6 +33,13 @@ def _to_native(value_type, value):
 
 
 def _from_native(value_type, value):
+    if isinstance(value_type, _types.TypeStruct):
+        if not isinstance(value, _types.StructValue) or value._type is not value_type:
+            raise ValueError(f'Expected struct value of type {value_type}')
+        if value.keys() != value_type.fields.keys():
+            raise ValueError(f'Expected exactly the fields of {value_type}')
+        return _types.StructValue(value_type, {name: _from_native(field_type, value[name])
+                                               for name, field_type in value_type.fields.items()})
     if value_type == _types.ValueType:
         if not isinstance(value, ValueType):
             raise ValueError(f'Expected wirely.ValueType, got {value!r}')
@@ -58,6 +73,14 @@ class ValueType:
             return _to_native(self._type, value)
         except Exception as error:
             raise ValueError(str(error)) from error
+
+    def make_struct(self, fields):
+        """Construct a struct from a mapping of native field values."""
+        if not isinstance(self._type, _types.TypeStruct):
+            raise ValueError(f'{self} is not a struct type')
+        if not isinstance(fields, Mapping):
+            raise ValueError('Struct fields must be a mapping')
+        return self.validate(_types.StructValue(self._type, fields))
 
     def parse(self, text):
         try:

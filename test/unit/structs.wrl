@@ -1,0 +1,90 @@
+node source : Std.Constant(
+  Type = Sample.Packet,
+  Value = Sample.Packet {
+    flag : true,
+    number : 513,
+    mode : Sample.Mode.On,
+  }
+);
+node delay : Std.Delay(
+  Type = Sample.Packet,
+  InitialValue = Sample.Packet { number : 0, mode : Sample.Mode.Off, flag : false }
+);
+connect source -> delay;
+node forward : Std.TwoStageValueForward(Type = Sample.Packet);
+connect source -> forward;
+node events : Std.DebugEventSource(Type = Sample.Packet);
+node event_forward : Std.DebugEventPrinter(Type = Sample.Packet);
+connect events -> event_forward;
+
+node type LiteralParameter {
+  parameter Type : ValueType;
+  parameter Value : Type;
+}
+node settings : LiteralParameter(
+  Type = Settings,
+  Value = Settings {
+    text : "hello",
+    items : [Some(Sample.Packet { number : 513, mode : Sample.Mode.On, flag : true }), None],
+    inner : Sample.Nested { packet : Sample.Packet { number : 513, mode : Sample.Mode.On, flag : true } },
+    type : uint8,
+  }
+);
+
+struct type Settings {
+  text : String,
+  items : List[Option[Sample.Packet]],
+  inner : Sample.Nested,
+  type : ValueType,
+}
+
+namespace Sample {
+  struct type Nested {
+    packet : Packet,
+  }
+  struct type Packet {
+    number : uint16,
+    mode : Mode,
+    flag : boolean,
+  }
+  enum type Mode : uint8 {
+    Off = 0,
+    On = 1,
+  }
+  node type Configured {
+    parameter Number : uint16 = 7;
+    parameter At : TimeOfDay = "23:30";
+    node value : LiteralParameter(
+      Type = Clock,
+      Value = Clock { number : Number, at : TimeOfDay_AddWrap(At, "01:00") }
+    );
+  }
+  struct type Clock {
+    at : TimeOfDay,
+    number : uint16,
+  }
+}
+node configured : Sample.Configured;
+
+namespace Sample.Deep {
+  struct type Escaped {
+    r#struct : unit,
+    r#class : uint8,
+  }
+}
+node escaped : LiteralParameter(
+  Type = Sample.Deep.Escaped,
+  Value = Sample.Deep.Escaped { r#class : 5, r#struct : () }
+);
+struct type Empty {
+}
+node empty : Std.Constant(Type = Empty, Value = Empty {});
+struct type Slot {
+  a : Option[uint64],
+  b : uint8,
+}
+struct type Other {
+  number : uint16,
+  mode : Sample.Mode,
+  flag : boolean,
+}

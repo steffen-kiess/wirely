@@ -2,6 +2,7 @@
 
 from .types.option import Some
 from .types.unit import Unit
+from .types.struct import StructValue
 from .types.time import MonotonicTime, Duration
 from .runtime.time_snapshot import TimeSnapshot
 from . import types

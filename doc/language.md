@@ -80,7 +80,7 @@ namespace ABB.JRA {
 
 Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
-unique. Namespaces contain node, enum, and resource types or other
+unique. Namespaces contain node, enum, struct, and resource types or other
 namespaces, not instances.
 A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
@@ -114,6 +114,24 @@ unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
 `Option[T]` and `List[T]` construct types from `T`.
 See the [value type reference](value-types.md) for allowed values, runtime
 status, and serialization support.
+
+Declare a struct at top level or inside a namespace:
+
+```wrl
+struct type Reading {
+  temperature : int16,
+  valid : boolean,
+}
+node reading : Std.Constant(
+  Type = Reading,
+  Value = Reading { valid : true, temperature : 215 }
+);
+```
+
+Fields and literal entries are comma-separated, with an optional trailing
+comma. Literals name their type and supply every field exactly once, in any
+order. Structs are distinct named types; fields may use other structs,
+enums, options, or lists. Struct definitions cannot be recursive.
 
 Declare an enum at top level or inside a namespace:
 

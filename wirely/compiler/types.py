@@ -193,6 +193,14 @@ def _parse_enum(self, expr, *, scope=None):
         raise blocks.ProgramError(expr, str(error)) from None
 
 
+def _parse_struct(self, value, *, scope=None):
+    if not isinstance(value, blocks.StructLiteral):
+        raise blocks.ProgramError(value, f'Expected struct literal {self.name} {{ ... }}')
+    fields = blocks.ast.check_struct_literal(self, value, scope)
+    return self.make_value({name: parse_value(self.fields[name], field.value, scope=scope)
+                            for name, field in fields.items()})
+
+
 _literal_parsers = {
     types.TypeOption: _parse_option,
     types.TypeList: _parse_list,
@@ -205,6 +213,7 @@ _literal_parsers = {
     types.TypeTimeOfDay: _parse_time_of_day,
     types.TypeString: _parse_string,
     types.TypeEnum: _parse_enum,
+    types.TypeStruct: _parse_struct,
 }
 
 

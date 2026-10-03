@@ -2,6 +2,10 @@ import abc
 import datetime
 import re
 
+from collections.abc import Mapping
+from types import MappingProxyType
+
+from .struct import StructValue
 from .option import Some
 from .unit import Unit
 from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration
@@ -146,6 +150,54 @@ class TypeOption(Type):
             return None
         # TODO: Use different format for strings?
         return Some(self.inner_type.parse(s))
+
+
+class TypeStruct(Type):
+    """A nominal value type with fields kept in declaration order."""
+
+    is_json_serializable = False
+    has_to_csv_value = False
+
+    def __init__(self, name, fields):
+        self.name = name
+        self.fields = MappingProxyType(dict(fields))
+        if any(not isinstance(field_type, Type) or field_type.contains_parameters
+               for field_type in self.fields.values()):
+            raise ValueError('Struct fields require resolved value types')
+
+    @property
+    def contains_parameters(self):
+        return False
+
+    @property
+    def is_runtime_type(self):
+        return all(field_type.is_runtime_type for field_type in self.fields.values())
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f'TypeStruct({self.name})'
+
+    def make_value(self, fields):
+        if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
+            raise ValueError(f'Expected exactly the fields of {self.name}: {", ".join(self.fields)}')
+        return StructValue(self, {name: field_type.verify_value(fields[name])
+                                  for name, field_type in self.fields.items()})
+
+    def verify_value(self, value):
+        if not isinstance(value, StructValue) or value._type is not self:
+            raise ValueError(f'Expected struct value of type {self.name}, got {value!r}')
+        return self.make_value(value)
+
+    def equals(self, value1, value2):
+        value1 = self.verify_value(value1)
+        value2 = self.verify_value(value2)
+        return all(field_type.equals(value1[name], value2[name])
+                   for name, field_type in self.fields.items())
+
+    def _parse_impl(self, text):
+        raise ValueError(f'{self.name} does not support text parsing')
 
 
 class TypeList(Type):

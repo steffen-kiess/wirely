@@ -128,6 +128,7 @@ execution services need not be available.
 | `TimeOfDay` | `datetime.time` |
 | `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
 | Declared enums | Members of a Python `enum.Enum` class |
+| Declared structs | Immutable `wirely.StructValue` mappings |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
@@ -160,6 +161,8 @@ using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
 and `value_type`.
 
 - `validate(value)` normalizes a Python value; `parse(text)` parses text.
+- `make_struct(fields)` constructs a struct from a mapping of field values.
+  Read fields with `value["field"]`; values belong to their declared type.
 - `supports_json` indicates support for `json_encode(value, format=None)`
   and `json_decode(value, format=None)`. These convert Python values to or
   from JSON-compatible Python values, without serializing JSON text.

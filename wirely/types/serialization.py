@@ -4,7 +4,7 @@ import datetime
 
 from . import (
     TypeBoolean, TypeDuration, TypeEnum, TypeInt, TypeMonotonicTime,
-    TypeOption, TypeTimeOfDay, TypeUnit,
+    TypeOption, TypeStruct, TypeTimeOfDay, TypeUnit,
 )
 from .option import Some
 from .time import Duration, MonotonicTime
@@ -23,6 +23,8 @@ def _check_runtime(value_type):
 def _alignment(value_type):
     """Return the required byte alignment of a runtime value."""
     _check_runtime(value_type)
+    if isinstance(value_type, TypeStruct):
+        return max((field.alignment for field in value_type.fields.values()), default=1)
     if isinstance(value_type, TypeOption):
         return value_type.inner_type.alignment
     if isinstance(value_type, TypeEnum):
@@ -41,6 +43,12 @@ def _alignment(value_type):
 def _data_size(value_type):
     """Return the encoded byte length, excluding tail padding."""
     _check_runtime(value_type)
+    if isinstance(value_type, TypeStruct):
+        offsets = _struct_offsets(value_type)
+        if not offsets:
+            return 0
+        name = next(reversed(offsets))
+        return offsets[name] + value_type.fields[name].data_size
     if isinstance(value_type, TypeOption):
         return value_type.inner_type.data_size + 1
     if isinstance(value_type, TypeEnum):
@@ -50,6 +58,17 @@ def _data_size(value_type):
     if isinstance(value_type, TypeMonotonicTime):
         return 16
     return _alignment(value_type)
+
+
+def _struct_offsets(value_type):
+    offsets = {}
+    end = 0
+    for name, field_type in value_type.fields.items():
+        alignment = field_type.alignment
+        offset = (end + alignment - 1) & ~(alignment - 1)
+        offsets[name] = offset
+        end = offset + field_type.size
+    return offsets
 
 
 def _integer_bytes(value, size, *, signed=False):
@@ -64,6 +83,12 @@ def _serialize(value_type, value):
     """Encode a validated value without tail padding."""
     length = value_type.data_size
     value = value_type.verify_value(value)
+    if isinstance(value_type, TypeStruct):
+        data = bytearray(length)
+        for name, offset in _struct_offsets(value_type).items():
+            encoded = value_type.fields[name].serialize(value[name])
+            data[offset:offset + len(encoded)] = encoded
+        return bytes(data)
     if isinstance(value_type, TypeOption):
         if value is None:
             return bytes(length)
@@ -95,6 +120,16 @@ def _deserialize(value_type, data):
     data = memoryview(data).tobytes()
     if len(data) != length:
         raise ValueError(f'Expected {length} bytes for {value_type}, got {len(data)}')
+    if isinstance(value_type, TypeStruct):
+        fields = {}
+        end = 0
+        for name, offset in _struct_offsets(value_type).items():
+            if any(data[end:offset]):
+                raise ValueError('Struct padding must be zero')
+            field_type = value_type.fields[name]
+            end = offset + field_type.data_size
+            fields[name] = field_type.deserialize(data[offset:end])
+        return value_type.make_value(fields)
     if isinstance(value_type, TypeOption):
         present = data[-1]
         if present > 1:

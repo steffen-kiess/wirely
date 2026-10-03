@@ -31,7 +31,8 @@ namespace Example {
 }
 ```
 
-For enum bodies, put each member on its own line with a trailing comma:
+For enum and struct bodies, put each member on its own line with a trailing
+comma:
 
 ```wrl
 enum type Mode : uint8 {

@@ -40,6 +40,7 @@ test_names = [
     'unit/option_literals',
     'unit/enum_literals',
     'unit/enum_declarations',
+    'unit/structs',
     'unit/negative_cases',
     'wrl/delay',
     'wrl/std',
@@ -86,6 +87,7 @@ negative_tests = [
     'test/negative/node_types.wrl',
     'test/negative/enum_literals.wrl',
     'test/negative/enum_declarations.wrl',
+    'test/negative/structs.wrl',
     'test/negative/state_connections.wrl',
 ]
 

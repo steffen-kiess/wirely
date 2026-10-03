@@ -224,3 +224,24 @@ class ValueFunctionCall(ComputedValue):
             raise Exception('Attempt to call evaluate() for non-concrete function call')
 
         return self.function.implementation(*self.parameters)
+
+
+class ValueStruct(ComputedValue):
+    def __init__(self, value_type, fields, *, ast_element):
+        super().__init__(ast_element=ast_element)
+        self.value_type = value_type
+        self.fields = fields
+        for name, value in fields.items():
+            check_value_type(value.value_type, value_type.fields[name], value.ast_element)
+
+    @property
+    def contains_parameters(self):
+        return any(value.contains_parameters for value in self.fields.values())
+
+    def resolve_self(self, par_values):
+        return ValueStruct(self.value_type,
+                           {name: value.resolve_self(par_values) for name, value in self.fields.items()},
+                           ast_element=self.ast_element)
+
+    def evaluate(self):
+        return self.value_type.make_value({name: value.evaluate() for name, value in self.fields.items()})

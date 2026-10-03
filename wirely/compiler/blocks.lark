@@ -1,7 +1,8 @@
 file_input: declaration*
 
-declaration: "resource" "type" identifier ";" -> declaration_resource_type
-           | "enum" "type" identifier ":" value "{" enum_member_list "}" -> declaration_enum_type
+declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
+           | "resource" "type" identifier ";" -> declaration_resource_type
+           | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type
            | "node" identifier ":" block_instantiation ";" -> declaration_block_instantiation
            | "connect" reference_list "->" reference ";" -> declaration_connection
            // TODO: Can this be done in a nicer way?
@@ -16,6 +17,13 @@ declaration: "resource" "type" identifier ";" -> declaration_resource_type
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
 declaration_list: declaration* -> copy_list
+
+enum_underlying_type: reference -> copy
+                    | enum_underlying_type "[" value "]" -> bracket_operator
+struct_field_list: (struct_field ("," struct_field)* ","?)? -> copy_list
+struct_field: identifier ":" value
+struct_literal_field_list: (struct_literal_field ("," struct_literal_field)* ","?)? -> copy_list
+struct_literal_field: identifier ":" value
 
 enum_member_list: (enum_member ("," enum_member)* ","?)? -> copy_list
 enum_member: identifier "=" value
@@ -60,7 +68,8 @@ block_connector_type: "input" -> block_connector_type_specifier__create_input
 list_specifier: "list" -> list_specifier__create_list
               | ()     -> list_specifier__create_nolist
 
-value: reference       -> copy
+value: reference "{" struct_literal_field_list "}" -> struct_literal
+     | reference       -> copy
      | int_number      -> copy
      | float_number    -> copy
      | string_constant -> copy

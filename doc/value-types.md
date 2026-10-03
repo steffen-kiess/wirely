@@ -29,6 +29,7 @@ require runtime types. Runtime types can also be used for parameters.
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
 | Declared enums | A named member | Runtime |
+| Declared structs | Named fields | Runtime when every field is runtime |
 | `ValueType` | A value type | Parameter-only |
 | `Option[T]` | No value, or one value of type `T` | Runtime when `T` is runtime |
 | `List[T]` | An ordered list of values of type `T`, including an empty list | Parameter-only |
@@ -217,7 +218,7 @@ Serialization support is used by library nodes such as MQTT providers and
 | All integer types | Number | Decimal integer |
 | `String` | String | No |
 | Declared enums | Member name | No |
-| `unit`, `Duration`, `TimeOfDay`, `MonotonicTime`, `ValueType` | No | No |
+| `unit`, `Duration`, `TimeOfDay`, `MonotonicTime`, `ValueType`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
 
@@ -249,12 +250,20 @@ complement.
 | `boolean` | 1 | 1 | `00` or `01` |
 | Integer of width N bytes | N | N | Declared integer width |
 | Enum | Underlying integer size | Underlying integer alignment | Member number |
+| Struct | Through the last field's data bytes | Maximum field alignment | Fields in declaration order |
 | `Duration` | 8 | 8 | `u64` nanoseconds |
 | `MonotonicTime` | 16 | 8 | `u64` generation, then `u64` nanoseconds |
 | `TimeOfDay` | 8 | 8 | `u64` nanoseconds since midnight |
 | `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
 
 Each enum uses its declared underlying integer type.
+
+Struct fields start at offsets aligned for their types, in declaration
+order. Each field reserves its full storage size before the next field;
+internal padding is zero. The outer struct's final tail padding is omitted
+from serialized data. An empty struct has zero data and storage size and
+alignment 1. With fields `a : Option[uint64]` then `b : uint8`, `b` starts
+at offset 16; data size is 17, alignment is 8, and storage size is 24.
 
 An option's presence byte follows its payload's data bytes: `00` means
 `None`, with all payload bytes zero; `01` means `Some(value)`. Nested
