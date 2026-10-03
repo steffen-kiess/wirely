@@ -49,23 +49,23 @@ parsed = parse('''
   #![inner]
   #[outer] node type T {
     #![inner]
-    #[tag] parameter P : ValueType;
-    #[tag] optional parameter Q : uint8;
-    #[tag] parameter R : uint8 = 1;
-    #[tag] implicit input : value boolean;
-    #[tag] output Out : resource Handle;
-    #[tag] state saved : uint8 = 0;
-    #[tag] temporary tmp : boolean;
+    #[tag] parameter P: ValueType;
+    #[tag] optional parameter Q: uint8;
+    #[tag] parameter R: uint8 = 1;
+    #[tag] implicit input: value boolean;
+    #[tag] output Out: resource Handle;
+    #[tag] state saved: uint8 = 0;
+    #[tag] temporary tmp: boolean;
     #[tag] native procedure run depends on saved.old produces saved;
     #[tag] native initializer;
-    #[tag] node child : T;
+    #[tag] node child: T;
     #[tag] connect #[source] child -> Out;
   }
   #[outer] struct type S {
     #![inner]
-    #[field] item : uint8,
+    #[field] item: uint8,
   }
-  #[outer] enum type E : uint8 {
+  #[outer] enum type E: uint8 {
     #![inner]
     #[member] First = 0,
   }
@@ -98,7 +98,7 @@ assert two.outer_attributes[0].source_position.filename == '<attributes>'
 
 attribute = parse('''// comment
 #[tool::label(flag, key = "value", nested(path::flag, -2, +3.5, true,),)]
-node n : T;
+node n: T;
 ''')[0].outer_attributes[0]
 assert attribute.name == 'tool::label'
 assert attribute.source_position.start_line == 2
@@ -127,25 +127,25 @@ with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool::mark': marker, 'uniq
 #![mark]
 #[mark] namespace A.B {
   #![mark]
-  #[mark] struct type S { #![mark] #[mark] f : uint8, }
-  #[mark] enum type E : uint8 { #![mark] #[mark] First = 0, }
+  #[mark] struct type S { #![mark] #[mark] f: uint8, }
+  #[mark] enum type E: uint8 { #![mark] #[mark] First = 0, }
   #[mark] resource type R;
   #[mark] native node type T {
     #![mark]
-    #[mark] parameter P : ValueType;
-    #[mark] optional parameter Q : uint8;
-    #[mark] parameter V : uint8 = 0;
-    #[mark] implicit input : value boolean;
-    #[mark] output Out : value boolean;
-    #[mark] state s : uint8 = 0;
-    #[mark] temporary t : boolean;
+    #[mark] parameter P: ValueType;
+    #[mark] optional parameter Q: uint8;
+    #[mark] parameter V: uint8 = 0;
+    #[mark] implicit input: value boolean;
+    #[mark] output Out: value boolean;
+    #[mark] state s: uint8 = 0;
+    #[mark] temporary t: boolean;
     #[mark] native procedure run depends on implicit input as "input" produces Out;
     #[mark] native initializer;
   }
 }
 #[tool::mark] namespace A.B { #![mark] #[mark] node type Other {} }
-#[mark] node n : A.B.Other;
-node plain : A.B.Other;
+#[mark] node n: A.B.Other;
+node plain: A.B.Other;
 ''')
     scope = compiled.libraries['A'].libraries['B']
     assert len(scope.attributes) == 4
@@ -176,27 +176,27 @@ node plain : A.B.Other;
     assert not files.attributes and not files.block_type_interfaces['T'].attributes
 
     edges = compile_source('''
-node a : Std.Constant(Type = boolean, Value = true);
-node b : Std.Constant(Type = boolean, Value = false);
-node sink : Std.And;
+node a: Std.Constant(Type = boolean, Value = true);
+node b: Std.Constant(Type = boolean, Value = false);
+node sink: Std.And;
 #[mark(shared)] connect #[mark(first)] a, #[mark(second)] b -> sink;
 node type Stateful {
-  state saved : boolean = false;
-  implicit output : value boolean;
+  state saved: boolean = false;
+  implicit output: value boolean;
   #[mark(r#state)] connect #[mark(source)] saved.old -> implicit output;
 }
 node type Fresh {
-  state saved : boolean = false;
-  implicit output : value boolean;
+  state saved: boolean = false;
+  implicit output: value boolean;
   native procedure write produces saved;
   #[mark(fresh)] connect saved.new -> implicit output;
 }
 resource type Handle;
-node type Provider { implicit output : resource Handle; }
-node type Consumer { implicit input : list resource Handle; }
-node p : Provider;
-node q : Provider;
-node consumer : Consumer;
+node type Provider { implicit output: resource Handle; }
+node type Consumer { implicit input: list resource Handle; }
+node p: Provider;
+node q: Provider;
+node consumer: Consumer;
 #[mark(r#resource)] connect #[mark(p)] p, #[mark(q)] q -> consumer;
 ''', add_std=True)
     assert [edge.kind for edge in edges.connections] == ['data', 'data', 'resource', 'resource']
@@ -230,9 +230,9 @@ node consumer : Consumer;
 # A shared non-repeatable attribute can be used by multiple distinct edges.
 with patch.dict(ATTRIBUTE_REGISTRY, {'unique': unique}):
     compiled = compile_source('''
-node a : Std.Constant(Type = boolean, Value = true);
-node b : Std.Constant(Type = boolean, Value = false);
-node sink : Std.And;
+node a: Std.Constant(Type = boolean, Value = true);
+node b: Std.Constant(Type = boolean, Value = false);
+node sink: Std.And;
 #[unique] connect a, b -> sink;
 ''', add_std=True)
     assert all(len(edge.attributes) == 1 for edge in compiled.connections)
@@ -240,18 +240,18 @@ node sink : Std.And;
 # Position is validated before resolving an otherwise unknown node type.
 output = io.StringIO()
 with contextlib.redirect_stdout(output):
-    assert compile_strs([('early', '#[position(x = true, y = 0)] node n : Missing;')]) is None
+    assert compile_strs([('early', '#[position(x = true, y = 0)] node n: Missing;')]) is None
 assert 'finite numeric literal' in output.getvalue()
 for literal, expected in [('-0x2a', -42), ('+0o52', 42), ('- 1.5', -1.5), ('+ 2.5', 2.5), ('1e2', 100.0)]:
-    compiled = compile_source(f'node type T {{}} #[position(x = {literal}, y = 0)] node n : T;')
+    compiled = compile_source(f'node type T {{}} #[position(x = {literal}, y = 0)] node n: T;')
     assert compiled.blocks['n'].position == (expected, 0)
 
 # List slots retain order across statements, and source-only attributes do not
 # conflict with the same non-repeatable attribute on a different edge.
 with patch.dict(ATTRIBUTE_REGISTRY, {'unique': unique}):
     compiled = compile_source('''
-node a : Std.Constant(Type = boolean, Value = true);
-node sink : Std.And;
+node a: Std.Constant(Type = boolean, Value = true);
+node sink: Std.And;
 connect #[unique] a, #[unique] a -> sink;
 connect a -> sink;
 ''', add_std=True)
@@ -269,7 +269,7 @@ with patch.dict(ATTRIBUTE_REGISTRY, {
 }):
     compiled = compile_source('''
 #[position(x = 1, y = 2)] node type T {}
-node n : T;
+node n: T;
 ''')
     assert compiled.block_type_interfaces['T'].attributes[0].value == (1, 2)
     assert compiled.blocks['n'].position is None

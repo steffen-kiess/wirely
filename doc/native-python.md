@@ -26,9 +26,9 @@ For example, `Std.OptionSome` declares:
 ```wrl
 namespace Std {
   node type OptionSome {
-    parameter InnerType : ValueType;
-    implicit input : value InnerType;
-    implicit output : value Option[InnerType];
+    parameter InnerType: ValueType;
+    implicit input: value InnerType;
+    implicit output: value Option[InnerType];
 
     native procedure run
       depends on implicit input as "input"

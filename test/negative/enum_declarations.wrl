@@ -1,150 +1,150 @@
 // TEST: boolean_underlying_type
-enum type Bad : boolean { // E: Enum underlying type must be a supported integer type
+enum type Bad: boolean { // E: Enum underlying type must be a supported integer type
   One = 1,
 }
 
 // TEST: generic_underlying_type
-enum type Bad : Option[int8] { // E: Enum underlying type must be a supported integer type
+enum type Bad: Option[int8] { // E: Enum underlying type must be a supported integer type
   One = 1,
 }
 
 // TEST: unknown_underlying_type
-enum type Bad : Missing { // E: Enum underlying type must be a supported integer type
+enum type Bad: Missing { // E: Enum underlying type must be a supported integer type
   One = 1,
 }
 
 // TEST: boolean_member
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = true, // E: Invalid int value
 }
 
 // TEST: string_member
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = "1", // E: Invalid int value
 }
 
 // TEST: float_member
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1.0, // E: Invalid int value
 }
 
 // TEST: int8_overflow
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 128, // E: Int value out of range
 }
 
 // TEST: int8_underflow
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = -129, // E: Int value out of range
 }
 
 // TEST: negative_unsigned_member
-enum type Bad : uint8 {
+enum type Bad: uint8 {
   One = -1, // E: Int value out of range
 }
 
 // TEST: uint64_overflow
-enum type Bad : uint64 {
+enum type Bad: uint64 {
   One = 18446744073709551616, // E: Int value out of range
 }
 
 // TEST: duplicate_member_name
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1, // H: Previous member was here
   One = 2, // E: Duplicate enum member One
 }
 
 // TEST: duplicate_member_value
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1, // H: Previous member was here
   Two = 1, // E: Duplicate enum value 1
 }
 
 // TEST: duplicate_global_enum
-enum type Bad : int8 { // H: Previous declaration was here
+enum type Bad: int8 { // H: Previous declaration was here
 }
-enum type Bad : int8 { // E: Enum type Bad conflicts with enum type
+enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
 }
 
 // TEST: duplicate_namespaced_enum
 namespace A {
-  enum type Bad : int8 { // H: Previous declaration was here
+  enum type Bad: int8 { // H: Previous declaration was here
   }
 }
 namespace A {
-  enum type Bad : int8 { // E: Enum type Bad conflicts with enum type
+  enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
   }
 }
 
 // TEST: builtin_type_collision
-enum type int8 : int8 { // E: Enum type int8 conflicts with built-in type
+enum type int8: int8 { // E: Enum type int8 conflicts with built-in type
 }
 
 // TEST: generic_type_collision
-enum type List : int8 { // E: Enum type List conflicts with built-in type
+enum type List: int8 { // E: Enum type List conflicts with built-in type
 }
 
 // TEST: enum_after_node
 node type Bad { // H: Previous declaration was here
 }
-enum type Bad : int8 { // E: Enum type Bad conflicts with node type
+enum type Bad: int8 { // E: Enum type Bad conflicts with node type
 }
 
 // TEST: node_after_enum
-enum type Bad : int8 { // H: Previous declaration was here
+enum type Bad: int8 { // H: Previous declaration was here
 }
 node type Bad { // E: Node type Bad conflicts with enum type
 }
 
 // TEST: enum_after_resource
 resource type Bad; // H: Previous declaration was here
-enum type Bad : int8 { // E: Enum type Bad conflicts with resource type
+enum type Bad: int8 { // E: Enum type Bad conflicts with resource type
 }
 
 // TEST: resource_after_enum
-enum type Bad : int8 { // H: Previous declaration was here
+enum type Bad: int8 { // H: Previous declaration was here
 }
 resource type Bad; // E: Resource type Bad conflicts with enum type
 
 // TEST: enum_after_namespace
 namespace Bad { // H: Previous declaration was here
 }
-enum type Bad : int8 { // E: Enum type Bad conflicts with namespace
+enum type Bad: int8 { // E: Enum type Bad conflicts with namespace
 }
 
 // TEST: namespace_after_enum
-enum type Bad : int8 { // H: Previous declaration was here
+enum type Bad: int8 { // H: Previous declaration was here
 }
 namespace Bad { // E: Namespace Bad conflicts with enum type
 }
 
 // TEST: enum_inside_node
 node type Bad {
-  enum type Inner : int8 { // E: Enum type declaration not allowed inside node type
+  enum type Inner: int8 { // E: Enum type declaration not allowed inside node type
   }
 }
 
 // TEST: missing_member_value
-enum type Bad : int8 {
+enum type Bad: int8 {
   Missing
 } // E: Syntax error
 
 // TEST: semicolon_separator
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1; // E: Syntax error
 }
 
 // TEST: arithmetic_member_value
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1 + 2 // E: Syntax error
 }
 
 // TEST: unknown_member
 // LIBRARIES: std
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1,
 }
-node n : Std.Constant(
+node n: Std.Constant(
   Type = Bad,
   Value = Bad.Two // E: Unknown member 'Two' of Bad
 );
@@ -152,16 +152,16 @@ node n : Std.Constant(
 // TEST: wrong_qualified_enum
 // LIBRARIES: std
 namespace A {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
 }
 namespace B {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
 }
-node n : Std.Constant(
+node n: Std.Constant(
   Type = A.Mode,
   Value = B.Mode.One // E: Expected enum type A.Mode, got B.Mode
 );
@@ -169,46 +169,46 @@ node n : Std.Constant(
 // TEST: wrong_relative_enum
 // LIBRARIES: std
 namespace A {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
 }
 namespace B {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
   node type Bad {
-    parameter Value : A.Mode = Mode.One; // E: Expected enum type A.Mode, got Mode
-    node value : Std.Constant(
+    parameter Value: A.Mode = Mode.One; // E: Expected enum type A.Mode, got Mode
+    node value: Std.Constant(
       Type = A.Mode,
       Value = Value
     );
   }
 }
-node n : B.Bad;
+node n: B.Bad;
 
 // TEST: wrong_nested_enum
 namespace A {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
 }
 namespace B {
-  enum type Mode : int8 {
+  enum type Mode: int8 {
     One = 1,
   }
 }
 node type LiteralParameter {
-  parameter Type : ValueType;
-  parameter Value : Type;
+  parameter Type: ValueType;
+  parameter Value: Type;
 }
-node n : LiteralParameter(
+node n: LiteralParameter(
   Type = List[Option[A.Mode]],
   Value = [Some(B.Mode.One)] // E: Expected enum type A.Mode, got B.Mode
 );
 
 // TEST: duplicate_value_locations
-enum type Duplicate : int8 {
+enum type Duplicate: int8 {
   First = 1, // H: Previous member was here
   Second = 1, // E: Duplicate enum value 1
 }

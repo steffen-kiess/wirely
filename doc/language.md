@@ -8,8 +8,8 @@ service. Several `.wrl` files passed to the compiler form one program.
 ## A first program
 
 ```wrl
-node source : Std.Constant(Type = boolean, Value = true);
-node printer : Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant(Type = boolean, Value = true);
+node printer: Std.DebugValuePrinter(Type = boolean);
 connect source -> printer;
 ```
 
@@ -40,7 +40,7 @@ Currently, `position` supplies node-instance coordinates:
 
 ```wrl
 #[position(x = 120, y = -40.5)]
-node source : Std.Constant(Type = boolean, Value = true);
+node source: Std.Constant(Type = boolean, Value = true);
 ```
 
 `position` requires one finite numeric literal for each of `x` and `y`, and
@@ -54,11 +54,11 @@ to the attribute's repeatability rules.
 ## Declarations and names
 
 Declarations may appear at the top level or inside a node type. Node
-instantiation uses `node name : Type;` or named parameters in parentheses:
+instantiation uses `node name: Type;` or named parameters in parentheses:
 
 ```wrl
-node source : Std.Constant(Type = boolean, Value = true);
-node sink : Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant(Type = boolean, Value = true);
+node sink: Std.DebugValuePrinter(Type = boolean);
 connect source -> sink;
 ```
 
@@ -67,8 +67,8 @@ The type name may be a local name or a namespace-qualified name such as
 
 ```wrl
 node type Forward {
-  implicit input : value boolean;
-  implicit output : value boolean;
+  implicit input: value boolean;
+  implicit output: value boolean;
 
   native procedure run
     depends on implicit input as "input"
@@ -83,13 +83,13 @@ nodes:
 
 ```wrl
 node type PrintBoolean {
-  implicit input : value boolean;
-  node printer : Std.DebugValuePrinter(Type = boolean);
+  implicit input: value boolean;
+  node printer: Std.DebugValuePrinter(Type = boolean);
   connect implicit input -> printer;
 }
 
-node source : Std.Constant(Type = boolean, Value = true);
-node sink : PrintBoolean;
+node source: Std.Constant(Type = boolean, Value = true);
+node sink: PrintBoolean;
 connect source -> sink;
 ```
 
@@ -113,23 +113,23 @@ parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
 Identifiers are case-sensitive. A keyword can be used as an identifier with
-the `r#` prefix, for example `node r#node : Std.And;`. Declarations end with
+the `r#` prefix, for example `node r#node: Std.And;`. Declarations end with
 `;`, except type and namespace bodies, which use braces. `//` starts a line
 comment, and `/* ... */` block comments may be nested.
 
 ## Parameters, types, and literals
 
-A node type declares parameters with `parameter Name : Type;`. A parameter
+A node type declares parameters with `parameter Name: Type;`. A parameter
 may have a default (`= value`) or be marked `optional`. Instantiation passes
 named arguments, for example `Time.TriggerAt(Time = "08:00")`. Type parameters
 use `ValueType`; a later parameter or connector can refer to one:
 
 ```wrl
 node type Example {
-  parameter Type : ValueType;
-  parameter Initial : Type;
-  implicit output : value Type;
-  node constant : Std.Constant(Type = Type, Value = Initial);
+  parameter Type: ValueType;
+  parameter Initial: Type;
+  implicit output: value Type;
+  node constant: Std.Constant(Type = Type, Value = Initial);
   connect constant -> implicit output;
 }
 ```
@@ -145,12 +145,12 @@ Declare a struct at top level or inside a namespace:
 
 ```wrl
 struct type Reading {
-  temperature : int16,
-  valid : boolean,
+  temperature: int16,
+  valid: boolean,
 }
-node reading : Std.Constant(
+node reading: Std.Constant(
   Type = Reading,
-  Value = Reading { valid : true, temperature : 215 }
+  Value = Reading { valid: true, temperature: 215 }
 );
 ```
 
@@ -162,7 +162,7 @@ enums, options, or lists. Struct definitions cannot be recursive.
 Declare an enum at top level or inside a namespace:
 
 ```wrl
-enum type Mode : int8 {
+enum type Mode: int8 {
   Off = 0,
   Heat = 1,
 }
@@ -197,8 +197,8 @@ An `input` or `output` declares a named connector. `implicit input` and
 the node. For example:
 
 ```wrl
-node bus : KNX.Connection(UnixPath = "/run/knxnet");
-node receiver : KNX.ValueReceiver(Type = boolean, GroupAddress = "0/4/5");
+node bus: KNX.Connection(UnixPath = "/run/knxnet");
+node receiver: KNX.ValueReceiver(Type = boolean, GroupAddress = "0/4/5");
 connect bus -> receiver.Bus;
 ```
 
@@ -224,11 +224,11 @@ namespace Example {
   resource type Session;
 
   native node type Connection {
-    implicit output : resource Session;
+    implicit output: resource Session;
   }
 
   native node type Client {
-    input Service : resource Session;
+    input Service: resource Session;
   }
 }
 ```
@@ -249,8 +249,8 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 ## State and execution
 
-Inside a node type, `state name : Type = value;` declares a persistent value
-with an initial value. `temporary name : Type;` holds a value calculated
+Inside a node type, `state name: Type = value;` declares a persistent value
+with an initial value. `temporary name: Type;` holds a value calculated
 within a step. Native procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. Procedures
 run in dependency order; dependencies must be acyclic.

@@ -1,62 +1,62 @@
 // TEST: runtime_string_input
 node type Invalid {
-  implicit input : value String; // E: parameter-only
+  implicit input: value String; // E: parameter-only
 }
 
 // TEST: runtime_list_output
 node type Invalid {
-  implicit output : value List[uint8]; // E: parameter-only
+  implicit output: value List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_list_state
 node type Invalid {
-  state items : List[uint8] = []; // E: parameter-only
+  state items: List[uint8] = []; // E: parameter-only
 }
 
 // TEST: runtime_string_temporary
 node type Invalid {
-  temporary text : String; // E: parameter-only
+  temporary text: String; // E: parameter-only
 }
 
 // TEST: runtime_optional_string
 node type Invalid {
-  implicit output : value Option[String]; // E: parameter-only
+  implicit output: value Option[String]; // E: parameter-only
 }
 
 // TEST: runtime_list_event
 node type Invalid {
-  implicit input : list event List[uint8]; // E: parameter-only
+  implicit input: list event List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_nested_list
 node type Invalid {
-  implicit input : value Option[List[Option[uint8]]]; // E: parameter-only
+  implicit input: value Option[List[Option[uint8]]]; // E: parameter-only
 }
 
 // TEST: runtime_value_type_state
 node type Invalid {
-  state selected : ValueType = uint16; // E: parameter-only
+  state selected: ValueType = uint16; // E: parameter-only
 }
 
 // TEST: runtime_generic_string
 // LIBRARIES: std
-node source : Std.Constant(Type = String, Value = "text"); // E: parameter-only
+node source: Std.Constant(Type = String, Value = "text"); // E: parameter-only
 
 // TEST: runtime_generic_list
 // LIBRARIES: std
-node source : Std.DebugValueSource(Type = List[uint8]); // E: parameter-only
+node source: Std.DebugValueSource(Type = List[uint8]); // E: parameter-only
 
 // TEST: runtime_generic_state
 node type Invalid {
-  parameter Type : ValueType;
-  parameter Initial : Type;
-  state saved : Type = Initial;
+  parameter Type: ValueType;
+  parameter Initial: Type;
+  state saved: Type = Initial;
 }
-node invalid : Invalid(Type = List[uint8], Initial = []); // E: parameter-only
+node invalid: Invalid(Type = List[uint8], Initial = []); // E: parameter-only
 
 // TEST: runtime_generic_temporary
 node type Invalid {
-  parameter Type : ValueType;
-  temporary saved : Type;
+  parameter Type: ValueType;
+  temporary saved: Type;
 }
-node invalid : Invalid(Type = Option[String]); // E: parameter-only
+node invalid: Invalid(Type = Option[String]); // E: parameter-only

@@ -7,7 +7,7 @@ namespace Fixture {
   }
 }
 
-node instance : Fixture.Deep.Level.Empty;
+node instance: Fixture.Deep.Level.Empty;
 
 namespace Fixture {
   node type TopLevel {
@@ -37,7 +37,7 @@ namespace Empty {
 namespace Empty {
 }
 
-node top_level : Fixture.TopLevel;
-node dotted : Fixture.Deep.Level.AddedWithDottedName;
-node first : Fixture.Inner.First;
-node second : Fixture.Inner.Second;
+node top_level: Fixture.TopLevel;
+node dotted: Fixture.Deep.Level.AddedWithDottedName;
+node first: Fixture.Inner.First;
+node second: Fixture.Inner.Second;

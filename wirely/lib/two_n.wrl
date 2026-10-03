@@ -2,21 +2,21 @@ namespace TwoN {
   resource type Device;
 
   native node type Connection {
-    parameter Host : String;
-    parameter Port : uint16 = 443;
-    parameter TLSA : List[String];
-    parameter UsernamePasswordFile : String;
+    parameter Host: String;
+    parameter Port: uint16 = 443;
+    parameter TLSA: List[String];
+    parameter UsernamePasswordFile: String;
 
-    implicit output : resource Device;
+    implicit output: resource Device;
   }
 
   // Get an event whenever a key is pressed or released
   native node type KeyEvent {
-    parameter Key : String;
+    parameter Key: String;
 
-    input Device : resource Device;
+    input Device: resource Device;
     // True if the key is pressed, false if it released.
-    implicit output : event boolean;
+    implicit output: event boolean;
 
     native initializer depends on Device;
 
@@ -29,32 +29,32 @@ namespace TwoN {
   // TODO: When the connection is lost, this also should reset the value to
   // "False"
   node type KeyState {
-    parameter Key : String;
+    parameter Key: String;
     // Timeout after which the key will be assumed to be released (because "2N
     // -> Calling -> Dialing -> Quick dial button functionality test" will
     // trigger a KeyPressed event but no KeyReleased event).
-    parameter Timeout : Duration = "PT30S";
+    parameter Timeout: Duration = "PT30S";
 
-    input Device : resource Device;
+    input Device: resource Device;
 
     // True if the key is pressed, false otherwise.
-    implicit output : value boolean;
+    implicit output: value boolean;
 
-    node key_event : KeyEvent(Key = Key);
+    node key_event: KeyEvent(Key = Key);
     connect Device -> key_event.Device;
 
     // The current value which is kept if there is no new event
-    state current_value : boolean = false;
+    state current_value: boolean = false;
 
     // The next time at which the the state will be reset to False. If this time
     // is not comparable to the current time, the the state will be reset to
     // False.
-    state timeout_time : MonotonicTime = MonotonicTime.Invalid;
+    state timeout_time: MonotonicTime = MonotonicTime.Invalid;
 
-    node timeout_reached : Time.MonotonicTimeReached;
+    node timeout_reached: Time.MonotonicTimeReached;
     // TODO: Allow this?
     // connect timeout_time.old -> timeout_reached;
-    temporary timeout_time_old : MonotonicTime;
+    temporary timeout_time_old: MonotonicTime;
 
     native procedure read_timeout_time
       depends on timeout_time.old as "timeout_time_old"
@@ -70,14 +70,14 @@ namespace TwoN {
   // Get the current state of an input or output
   // TODO: Regularly get the current value?
   native node type IOState {
-    parameter Port : String;
+    parameter Port: String;
 
-    input Device : resource Device;
+    input Device: resource Device;
 
     native initializer depends on Device;
 
     // True if the input/output is on, false otherwise.
-    implicit output : value boolean;
+    implicit output: value boolean;
 
     native procedure get_value stage input produces implicit output as "output";
   }
@@ -85,14 +85,14 @@ namespace TwoN {
   // Get the current state of a switch
   // TODO: Regularly get the current value?
   native node type SwitchState {
-    parameter SwitchNumber : int32;
+    parameter SwitchNumber: int32;
 
-    input Device : resource Device;
+    input Device: resource Device;
 
     native initializer depends on Device;
 
     // True if the switch is active, false otherwise.
-    implicit output : value boolean;
+    implicit output: value boolean;
 
     // TODO: Outputs for "locked" and "held"?
 
@@ -100,10 +100,10 @@ namespace TwoN {
   }
 
   native node type CodeEnteredEvent {
-    parameter Code : String;
+    parameter Code: String;
 
-    input Device : resource Device;
-    implicit output : event unit;
+    input Device: resource Device;
+    implicit output: event unit;
 
     native initializer depends on Device;
 
@@ -111,14 +111,14 @@ namespace TwoN {
   }
 
   native node type OutputControl {
-    parameter Port : String;
+    parameter Port: String;
 
-    input Device : resource Device;
+    input Device: resource Device;
 
     native initializer depends on Device;
 
     // True to turn the output is on, false to turn it off.
-    implicit input : event boolean;
+    implicit input: event boolean;
 
     native procedure send_value stage output
       depends on implicit input as "input";

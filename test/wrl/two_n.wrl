@@ -1,46 +1,46 @@
-node device : TwoN.Connection(
+node device: TwoN.Connection(
   Host = "invalid",
   TLSA = ["3 1 2 0FB5E4477C3C8DE7888B1886639ECC0A8478CA158FBD183984398B987EC66640B2EE02EBEA48DFAF2F8ADF069384F7AF0A8A3D0BEBDCBB4A01D0A3002CC78FB8"],
   UsernamePasswordFile = "username_password.txt"
 );
 
-node key2_event : TwoN.KeyEvent(Key = "%2");
+node key2_event: TwoN.KeyEvent(Key = "%2");
 connect device -> key2_event.Device;
 
-node key2 : TwoN.KeyState(Key = "%2", Timeout = "PT45S");
+node key2: TwoN.KeyState(Key = "%2", Timeout = "PT45S");
 connect device -> key2.Device;
 
-node key3 : TwoN.KeyState(Key = "%3");
+node key3: TwoN.KeyState(Key = "%3");
 connect device -> key3.Device;
 
-node tamper_input : TwoN.IOState(Port = "ext3.tamper");
+node tamper_input: TwoN.IOState(Port = "ext3.tamper");
 connect device -> tamper_input.Device;
 
-node input1 : TwoN.IOState(Port = "ext3.input1");
+node input1: TwoN.IOState(Port = "ext3.input1");
 connect device -> input1.Device;
 
-node relay1_value : TwoN.IOState(Port = "ext3.relay1");
+node relay1_value: TwoN.IOState(Port = "ext3.relay1");
 connect device -> relay1_value.Device;
 
-node switch1 : TwoN.SwitchState(SwitchNumber = 1);
+node switch1: TwoN.SwitchState(SwitchNumber = 1);
 connect device -> switch1.Device;
 
-node switch2 : TwoN.SwitchState(SwitchNumber = 2);
+node switch2: TwoN.SwitchState(SwitchNumber = 2);
 connect device -> switch2.Device;
 
-node code_1 : TwoN.CodeEnteredEvent(Code = "1234");
+node code_1: TwoN.CodeEnteredEvent(Code = "1234");
 connect device -> code_1.Device;
 
-node code_2 : TwoN.CodeEnteredEvent(Code = "01");
+node code_2: TwoN.CodeEnteredEvent(Code = "01");
 connect device -> code_2.Device;
 
-node code_3 : TwoN.CodeEnteredEvent(Code = "1234");
+node code_3: TwoN.CodeEnteredEvent(Code = "1234");
 connect device -> code_3.Device;
 
-node output_led : TwoN.OutputControl(Port = "led_secured");
+node output_led: TwoN.OutputControl(Port = "led_secured");
 connect device -> output_led.Device;
-node output_debug : Std.DebugEventSource(Type = boolean);
+node output_debug: Std.DebugEventSource(Type = boolean);
 connect output_debug -> output_led;
 
-node led_feedback : TwoN.IOState(Port = "led_secured");
+node led_feedback: TwoN.IOState(Port = "led_secured");
 connect device -> led_feedback.Device;

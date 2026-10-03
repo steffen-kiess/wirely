@@ -29,7 +29,7 @@ engine.assert_value_is('delay', modes.Heat)
 
 for member in modes:
     declarations = wirely.compiler.parser.parse_str(
-        f'parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.{member.name};',
+        f'parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.{member.name};',
         filename='<enum-test>',
     )
     assert parse_value(mode_type, declarations[0].default_value) is member
@@ -41,7 +41,7 @@ class OtherMode(enum.Enum):
 
 other_type = wirely.types.TypeEnum('OtherMode', OtherMode, underlying_type=wirely.types.uint8)
 declarations = wirely.compiler.parser.parse_str(
-    'parameter Mode : OtherMode = OtherMode.Heat;', filename='<enum-test>',
+    'parameter Mode: OtherMode = OtherMode.Heat;', filename='<enum-test>',
 )
 assert parse_value(other_type, declarations[0].default_value) is OtherMode.Heat
 assert other_type.parse('Heat') is OtherMode.Heat

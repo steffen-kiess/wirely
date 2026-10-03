@@ -10,8 +10,9 @@ guidelines.
 - Prefer lines of at most 80 characters. Longer lines are fine when clearer.
 - Put opening braces on the declaration line and closing braces on their
   own lines, aligned with the declaration.
-- Use spaces around `:`, `=`, and `->`, and after commas. Keep qualified
-  names and brackets compact: `Std.Constant`, `Option[boolean]`.
+- Use no space before `:` and one space after it. Use spaces around
+  `=` and `->`, and after commas. Keep qualified names and brackets
+  compact: `Std.Constant`, `Option[boolean]`.
 
 Use one declaration per line. Separate type declarations and logical groups
 with one blank line. Keep closely related declarations together, such as
@@ -20,9 +21,9 @@ a node and its connections. Avoid blank lines immediately inside braces.
 ```wrl
 namespace Example {
   node type Forward {
-    parameter Type : ValueType;
-    implicit input : value Type;
-    implicit output : value Type;
+    parameter Type: ValueType;
+    implicit input: value Type;
+    implicit output: value Type;
 
     native procedure run
       depends on implicit input as "input"
@@ -35,7 +36,7 @@ For enum and struct bodies, put each member on its own line with a trailing
 comma:
 
 ```wrl
-enum type Mode : uint8 {
+enum type Mode: uint8 {
   Off = 0,
   Heat = 1,
 }
@@ -63,11 +64,11 @@ lines. Align the closing parenthesis with the declaration. Use similar
 layouts for other long lists; avoid elaborate column alignment.
 
 ```wrl
-node source : Std.Constant(
+node source: Std.Constant(
   Type = boolean,
   Value = true
 );
-node printer : Std.DebugValuePrinter(Type = boolean);
+node printer: Std.DebugValuePrinter(Type = boolean);
 connect source -> printer;
 ```
 
@@ -83,7 +84,7 @@ Explain purpose or non-obvious behavior rather than restating the code.
 
 ```wrl
 // Keep the lights off until an occupancy value has been received.
-node occupied : Std.OptionUnwrapOrDefault(
+node occupied: Std.OptionUnwrapOrDefault(
   InnerType = boolean,
   Default = false
 );

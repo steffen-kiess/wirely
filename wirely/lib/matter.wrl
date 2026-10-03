@@ -1,5 +1,5 @@
 // See Matter Application Cluster Specification
-enum type ThermostatSystemModeEnum : uint8 {
+enum type ThermostatSystemModeEnum: uint8 {
   Off = 0,
   Auto = 1,
   Cool = 3,

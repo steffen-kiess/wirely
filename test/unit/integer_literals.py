@@ -27,7 +27,7 @@ for bits in [8, 16, 32, 64]:
 
 def parse_literal(literal):
     declarations = wirely.compiler.parser.parse_str(
-        f'parameter Value : int64 = {literal};', filename='<integer-test>'
+        f'parameter Value: int64 = {literal};', filename='<integer-test>'
     )
     return declarations[0].default_value.value
 

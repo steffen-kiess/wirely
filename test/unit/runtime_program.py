@@ -183,18 +183,18 @@ with patch.dict(wirely.native.test_library.native_block_types, registry):
 namespace TestLibrary {
   resource type Service;
   singleton native node type Provider {
-    implicit output : resource Service;
+    implicit output: resource Service;
   }
   native node type Consumer {
-    parameter Label : String;
-    input Service : resource Service;
-    input Services : list resource Service;
-    state saved : boolean = false;
-    output Old : value boolean;
-    output New : value boolean;
+    parameter Label: String;
+    input Service: resource Service;
+    input Services: list resource Service;
+    state saved: boolean = false;
+    output Old: value boolean;
+    output New: value boolean;
     connect saved.old -> Old;
     connect saved.new -> New;
-    implicit output : value boolean;
+    implicit output: value boolean;
     native initializer depends on Service as "service", Services as "services";
     native procedure Poll as "refresh"
       depends on Service as "service", Services as "services",
@@ -205,9 +205,9 @@ namespace TestLibrary {
       produces implicit output as "output";
   }
 }
-node consumer : TestLibrary.Consumer(Label = "prepared");
-node provider : TestLibrary.Provider;
-node provider_alias : TestLibrary.Provider;
+node consumer: TestLibrary.Consumer(Label = "prepared");
+node provider: TestLibrary.Provider;
+node provider_alias: TestLibrary.Provider;
 connect provider -> consumer.Service;
 connect provider, provider_alias -> consumer.Services;
 ''')])

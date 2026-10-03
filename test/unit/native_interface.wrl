@@ -1,6 +1,6 @@
-node source : Std.Constant(Type = boolean, Value = true);
-node forward : Std.TwoStageValueForward(Type = boolean);
-node delay : Std.Delay(Type = boolean, InitialValue = false);
-node empty : Std.And;
+node source: Std.Constant(Type = boolean, Value = true);
+node forward: Std.TwoStageValueForward(Type = boolean);
+node delay: Std.Delay(Type = boolean, InitialValue = false);
+node empty: Std.And;
 connect source -> forward;
 connect forward -> delay;

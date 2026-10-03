@@ -5,8 +5,8 @@ namespace Time {
   // current time is at or after input and None if the current time is not
   // comparable to input.
   node type MonotonicTimeReached {
-    implicit input : value MonotonicTime;
-    implicit output : value Option[boolean];
+    implicit input: value MonotonicTime;
+    implicit output: value Option[boolean];
 
     native procedure run
       depends on implicit input as "input"
@@ -15,21 +15,21 @@ namespace Time {
 
   // Delay changes until the input has be stable for at least time
   node type DelayChange {
-    parameter Type : ValueType;
-    parameter Duration : Duration;
+    parameter Type: ValueType;
+    parameter Duration: Duration;
 
-    implicit input : value Type;
-    implicit output : value Type;
+    implicit input: value Type;
+    implicit output: value Type;
 
     // The value which was last sent as output
-    state current_value : Option[Type] = None;
+    state current_value: Option[Type] = None;
     // The value which was the last input
-    state new_value : Option[Type] = None;
+    state new_value: Option[Type] = None;
     // The time when the output will change to new_value if there are no further
     // changes
-    state update_time : MonotonicTime = MonotonicTime.Invalid;
+    state update_time: MonotonicTime = MonotonicTime.Invalid;
 
-    node reached : MonotonicTimeReached;
+    node reached: MonotonicTimeReached;
     connect update_time.old -> reached;
 
     native procedure run
@@ -42,7 +42,7 @@ namespace Time {
 
   // Note: Should not be used directly if possible
   native singleton node type TimeOfDayMinute {
-    implicit output : value TimeOfDay;
+    implicit output: value TimeOfDay;
 
     // TODO: Should this be "stage input"? Should this use some global time?
     native procedure get_value produces implicit output as "output";
@@ -51,12 +51,12 @@ namespace Time {
   // TODO: Implement this in a way which does not cause code to be run every
   // minute
   node type IsBetween {
-    parameter Start : TimeOfDay;
-    parameter End : TimeOfDay;
+    parameter Start: TimeOfDay;
+    parameter End: TimeOfDay;
 
-    implicit output : value boolean;
+    implicit output: value boolean;
 
-    node current_time : TimeOfDayMinute;
+    node current_time: TimeOfDayMinute;
 
     native procedure run
       depends on current_time
@@ -72,14 +72,14 @@ namespace Time {
   // TODO: Make ranges configurable? (In that case something needs to make sure
   // that the don't overlap, and probably that they don't add up to 24h.)
   node type TriggerAt {
-    parameter Time : TimeOfDay;
+    parameter Time: TimeOfDay;
 
     // Defaults to unit
-    parameter OutputType : ValueType = unit;
+    parameter OutputType: ValueType = unit;
     // Defaults to ()
-    optional parameter OutputValue : OutputType;
+    optional parameter OutputValue: OutputType;
 
-    implicit output : event OutputType;
+    implicit output: event OutputType;
 
     // Keeps track of the last state
     // TODO: Introduce an enum for this?
@@ -87,15 +87,15 @@ namespace Time {
     // 1: In 'before' range, transition to 'after' range will trigger output
     // 2: Has already triggered (or at least was in 'after' range), waiting for
     // time outside any range
-    state trigger_state : uint8 = 0;
+    state trigger_state: uint8 = 0;
 
     // Note: This relies on both blocks using the same time source, so that
     // there is no cycle/step at the Time where both or neither are true.
-    node before : IsBetween(
+    node before: IsBetween(
       Start = TimeOfDay_AddWrap(Time, "-08:00"),
       End = Time
     );
-    node after : IsBetween(
+    node after: IsBetween(
       Start = Time,
       End = TimeOfDay_AddWrap(Time, "02:00")
     );

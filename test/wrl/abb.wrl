@@ -1,8 +1,8 @@
-node inp0 : Std.DebugValueSource(Type = uint16);
-node inp1 : Std.DebugValueSource(Type = Option[uint16]);
+node inp0: Std.DebugValueSource(Type = uint16);
+node inp1: Std.DebugValueSource(Type = Option[uint16]);
 
-node val0 : ABB.JRA.InterpretStatusInformation;
+node val0: ABB.JRA.InterpretStatusInformation;
 connect inp0 -> val0;
 
-node val1 : ABB.JRA.InterpretStatusInformationOption;
+node val1: ABB.JRA.InterpretStatusInformationOption;
 connect inp1 -> val1;

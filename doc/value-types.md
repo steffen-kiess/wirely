@@ -51,7 +51,7 @@ time. The default event type is `unit`, so no payload parameter is needed.
 The unit literal is `()`:
 
 ```wrl
-node source : Std.Constant(Type = unit, Value = ());
+node source: Std.Constant(Type = unit, Value = ());
 ```
 
 `()` is a value of type `unit`; `None` is an absent `Option[T]` value.
@@ -59,8 +59,8 @@ node source : Std.Constant(Type = unit, Value = ());
 Boolean literals are `true` and `false`:
 
 ```wrl
-node source : Std.Constant(Type = boolean, Value = true);
-node printer : Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant(Type = boolean, Value = true);
+node printer: Std.DebugValuePrinter(Type = boolean);
 connect source -> printer;
 ```
 
@@ -71,9 +71,9 @@ notation. A parameter's declared type determines the integer width and
 signedness. For example:
 
 ```wrl
-node small : Std.Constant(Type = uint8, Value = 42);
-node large : Std.Constant(Type = int32, Value = 100000);
-node negative : Std.Constant(Type = int8, Value = -128);
+node small: Std.Constant(Type = uint8, Value = 42);
+node large: Std.Constant(Type = int32, Value = 100000);
+node negative: Std.Constant(Type = int8, Value = -128);
 ```
 
 Write negative integers with a leading minus sign, such as `-42`, `-0x2a`,
@@ -91,9 +91,9 @@ and MQTT topics. Use double-quoted strings, with escapes such as `\n` and
 
 ```wrl
 node type TextSettings {
-  parameter Label : String = "Kitchen";
-  parameter Path : String = r"C:\logs\wirely";
-  parameter Message : String = r#"Say "hello""#;
+  parameter Label: String = "Kitchen";
+  parameter Path: String = r"C:\logs\wirely";
+  parameter Message: String = r#"Say "hello""#;
 }
 ```
 
@@ -113,8 +113,8 @@ Days are fixed periods of 24 hours. Duration components use days, hours,
 minutes, and seconds rather than calendar months or years.
 
 ```wrl
-node source : Std.Constant(Type = boolean, Value = true);
-node delay : Time.DelayChange(Type = boolean, Duration = "PT1.5S");
+node source: Std.Constant(Type = boolean, Value = true);
+node delay: Time.DelayChange(Type = boolean, Duration = "PT1.5S");
 connect source -> delay;
 ```
 
@@ -130,10 +130,10 @@ written as an hours-and-minutes string, with an optional `+` or `-` sign,
 and wraps at midnight:
 
 ```wrl
-node morning : Time.TriggerAt(Time = "08:00");
+node morning: Time.TriggerAt(Time = "08:00");
 
 node type Schedule {
-  parameter Late : TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
+  parameter Late: TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
 }
 ```
 
@@ -150,7 +150,7 @@ monotonic time is distinct from a wall-clock time or a time of day.
 Use `MonotonicTime.Invalid` as an initial value when there is no deadline:
 
 ```wrl
-node deadline : Std.Constant(
+node deadline: Std.Constant(
   Type = MonotonicTime,
   Value = MonotonicTime.Invalid
 );
@@ -167,10 +167,10 @@ can refer to that parameter:
 
 ```wrl
 node type ConstantValue {
-  parameter Type : ValueType;
-  parameter Initial : Type;
-  implicit output : value Type;
-  node constant : Std.Constant(Type = Type, Value = Initial);
+  parameter Type: ValueType;
+  parameter Initial: Type;
+  implicit output: value Type;
+  node constant: Std.Constant(Type = Type, Value = Initial);
   connect constant -> implicit output;
 }
 ```
@@ -182,10 +182,10 @@ for absence and `Some(x)` for presence, where `x` has type `T`.
 `Some` takes exactly one argument and requires an `Option[T]` context:
 
 ```wrl
-node absent : Std.Constant(Type = Option[boolean], Value = None);
-node literal : Std.Constant(Type = Option[boolean], Value = Some(true));
-node source : Std.Constant(Type = boolean, Value = true);
-node present : Std.OptionSome(InnerType = boolean);
+node absent: Std.Constant(Type = Option[boolean], Value = None);
+node literal: Std.Constant(Type = Option[boolean], Value = Some(true));
+node source: Std.Constant(Type = boolean, Value = true);
+node present: Std.OptionSome(InnerType = boolean);
 connect source -> present;
 ```
 
@@ -195,8 +195,8 @@ connect source -> present;
 
 ```wrl
 node type ListSettings {
-  parameter Names : List[String] = ["Kitchen", "Hall"];
-  parameter Values : List[uint8] = [1, 2, 3];
+  parameter Names: List[String] = ["Kitchen", "Hall"];
+  parameter Values: List[uint8] = [1, 2, 3];
 }
 ```
 
@@ -262,7 +262,7 @@ Struct fields start at offsets aligned for their types, in declaration
 order. Each field reserves its full storage size before the next field;
 internal padding is zero. The outer struct's final tail padding is omitted
 from serialized data. An empty struct has zero data and storage size and
-alignment 1. With fields `a : Option[uint64]` then `b : uint8`, `b` starts
+alignment 1. With fields `a: Option[uint64]` then `b: uint8`, `b` starts
 at offset 16; data size is 17, alignment is 8, and storage size is 24.
 
 An option's presence byte follows its payload's data bytes: `00` means

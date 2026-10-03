@@ -35,7 +35,7 @@ engine.assert_value_is('delay', wirely.Some(True))
 
 def parse_expression(expression):
     declarations = wirely.compiler.parser.parse_str(
-        f'parameter Value : Option[unit] = {expression};', filename='<some-test>'
+        f'parameter Value: Option[unit] = {expression};', filename='<some-test>'
     )
     return declarations[0].default_value
 

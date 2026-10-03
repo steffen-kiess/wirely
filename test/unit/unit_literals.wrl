@@ -1,14 +1,14 @@
 node type LiteralParameter {
-  parameter Type : ValueType;
-  parameter Value : Type;
+  parameter Type: ValueType;
+  parameter Value: Type;
 }
 
-node source : Std.Constant(Type = unit, Value = ());
-node spaced : Std.Constant(Type = unit, Value = ( ));
-node commented : Std.Constant(Type = unit, Value = (/* unit */));
-node delay : Std.Delay(Type = unit, InitialValue = ());
+node source: Std.Constant(Type = unit, Value = ());
+node spaced: Std.Constant(Type = unit, Value = ( ));
+node commented: Std.Constant(Type = unit, Value = (/* unit */));
+node delay: Std.Delay(Type = unit, InitialValue = ());
 connect source -> delay;
-node units : LiteralParameter(Type = List[unit], Value = [(), ( )]);
-node present : Std.OptionSome(InnerType = unit);
+node units: LiteralParameter(Type = List[unit], Value = [(), ( )]);
+node present: Std.OptionSome(InnerType = unit);
 connect source -> present;
-node absent : Std.Constant(Type = Option[unit], Value = None);
+node absent: Std.Constant(Type = Option[unit], Value = None);

@@ -1,20 +1,20 @@
-node t0 : Time.IsBetween(Start = "00:00", End = "12:00");
+node t0: Time.IsBetween(Start = "00:00", End = "12:00");
 // TODO
 // node t1 : Time.IsBetween(Start = "12:00", End = "24:00");
-node t1 : Time.IsBetween(Start = "12:00", End = "23:59");
+node t1: Time.IsBetween(Start = "12:00", End = "23:59");
 
-node trigger : Time.TriggerAt(Time = "12:34");
-node trigger_value : Time.TriggerAt(
+node trigger: Time.TriggerAt(Time = "12:34");
+node trigger_value: Time.TriggerAt(
   Time = "12:34",
   OutputType = boolean,
   OutputValue = true
 );
 
 // TODO: Add tests
-node trigger2 : Time.TriggerAt(Time = "03:10");
+node trigger2: Time.TriggerAt(Time = "03:10");
 
-node delay_input : Std.DebugValueSource(Type = int8);
-node delay : Time.DelayChange(Type = int8, Duration = "PT10S");
-node delay_output : Std.DebugValuePrinter(Type = int8);
+node delay_input: Std.DebugValueSource(Type = int8);
+node delay: Time.DelayChange(Type = int8, Duration = "PT10S");
+node delay_output: Std.DebugValuePrinter(Type = int8);
 connect delay_input -> delay;
 connect delay -> delay_output;

@@ -1,14 +1,14 @@
-node inp0 : Std.DebugValueSource(Type = boolean);
-node inp1 : Std.DebugValueSource(Type = boolean);
-node inp2 : Std.DebugValueSource(Type = boolean);
+node inp0: Std.DebugValueSource(Type = boolean);
+node inp1: Std.DebugValueSource(Type = boolean);
+node inp2: Std.DebugValueSource(Type = boolean);
 
-node and0 : Std.And;
+node and0: Std.And;
 
-node and1 : Std.And;
+node and1: Std.And;
 connect inp0 -> and1;
 
-node and2 : Std.And;
+node and2: Std.And;
 connect inp0, inp1 -> and2;
 
-node and3 : Std.And;
+node and3: Std.And;
 connect inp0, inp1, inp2 -> and3;

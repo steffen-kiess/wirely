@@ -1,49 +1,49 @@
 node type Defaults {
-  parameter Type : ValueType = uint8;
-  parameter Value : Type = 7;
-  parameter At : TimeOfDay = "23:30";
-  parameter Offset : String = "01:00";
-  parameter Wrapped : TimeOfDay = TimeOfDay_AddWrap(At, Offset);
-  parameter Items : List[Option[Type]] = [Some(Value), None];
+  parameter Type: ValueType = uint8;
+  parameter Value: Type = 7;
+  parameter At: TimeOfDay = "23:30";
+  parameter Offset: String = "01:00";
+  parameter Wrapped: TimeOfDay = TimeOfDay_AddWrap(At, Offset);
+  parameter Items: List[Option[Type]] = [Some(Value), None];
 
-  node value : Std.Constant(Type = Type, Value = Value);
-  node wrapped : Std.Constant(Type = TimeOfDay, Value = Wrapped);
+  node value: Std.Constant(Type = Type, Value = Value);
+  node wrapped: Std.Constant(Type = TimeOfDay, Value = Wrapped);
 }
 
-node defaults : Defaults;
-node overridden : Defaults(Type = int16, Value = -12, Offset = "02:00");
+node defaults: Defaults;
+node overridden: Defaults(Type = int16, Value = -12, Offset = "02:00");
 
 node type Forward {
-  parameter Type : ValueType = uint16;
-  parameter Value : Type = 42;
-  node child : Defaults(Type = Type, Value = Value);
+  parameter Type: ValueType = uint16;
+  parameter Value: Type = 42;
+  node child: Defaults(Type = Type, Value = Value);
 }
-node forwarded : Forward;
+node forwarded: Forward;
 
 node type GenericDefaults {
-  parameter Type : ValueType;
-  parameter Alias : ValueType = Option[List[Type]];
-  parameter Value : Alias = Some([1, 2]);
+  parameter Type: ValueType;
+  parameter Alias: ValueType = Option[List[Type]];
+  parameter Value: Alias = Some([1, 2]);
 }
 node type GenericForward {
-  parameter Type : ValueType;
-  node child : GenericDefaults(Type = Type);
+  parameter Type: ValueType;
+  node child: GenericDefaults(Type = Type);
 }
-node generic : GenericForward(Type = int8);
+node generic: GenericForward(Type = int8);
 
 node type OptionalForward {
-  optional parameter Default : boolean;
-  implicit input : value Option[boolean];
-  output Value : value boolean;
-  node value : Std.OptionUnwrapOrDefault(InnerType = boolean, Default = Default);
+  optional parameter Default: boolean;
+  implicit input: value Option[boolean];
+  output Value: value boolean;
+  node value: Std.OptionUnwrapOrDefault(InnerType = boolean, Default = Default);
   connect implicit input -> value;
   connect value -> Value;
 }
-node fallback : OptionalForward(Default = true);
-node absent : Std.OptionNone(InnerType = boolean);
+node fallback: OptionalForward(Default = true);
+node absent: Std.OptionNone(InnerType = boolean);
 connect absent -> fallback;
 
-node thermostat : Std.Constant(
+node thermostat: Std.Constant(
   Type = ThermostatSystemModeEnum,
   Value = ThermostatSystemModeEnum.Heat
 );

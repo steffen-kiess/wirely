@@ -1,10 +1,10 @@
-node c0 : Std.Constant(Type = boolean, Value = true);
+node c0: Std.Constant(Type = boolean, Value = true);
 
 // TODO: Support unary minus
 // node c1 : Std.Constant(Type = int16, Value = -1000);
-node c1 : Std.Constant(Type = int16, Value = 1000);
+node c1: Std.Constant(Type = int16, Value = 1000);
 
-node in : Std.DebugValueSource(Type = boolean);
+node in: Std.DebugValueSource(Type = boolean);
 
-node edge : Std.DetectEdge(EdgeType = "Falling");
+node edge: Std.DetectEdge(EdgeType = "Falling");
 connect in -> edge;

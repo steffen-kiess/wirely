@@ -2,19 +2,19 @@ namespace MQTT {
   resource type Broker;
 
   native node type Connection {
-    parameter URI : String;
+    parameter URI: String;
 
-    implicit output : resource Broker;
+    implicit output: resource Broker;
   }
 
   native node type ValueOptionProvider {
-    parameter Type : ValueType;
-    parameter Topic : String;
-    optional parameter Format : String;
-    optional parameter Template : String;
+    parameter Type: ValueType;
+    parameter Topic: String;
+    optional parameter Format: String;
+    optional parameter Template: String;
 
-    input Broker : resource Broker;
-    implicit input : value Option[Type];
+    input Broker: resource Broker;
+    implicit input: value Option[Type];
 
     native initializer depends on Broker;
 
@@ -23,19 +23,19 @@ namespace MQTT {
   }
 
   node type ValueProvider {
-    parameter Type : ValueType;
-    parameter Topic : String;
-    optional parameter Format : String;
-    optional parameter Template : String;
+    parameter Type: ValueType;
+    parameter Topic: String;
+    optional parameter Format: String;
+    optional parameter Template: String;
 
-    input Broker : resource Broker;
-    implicit input : value Type;
+    input Broker: resource Broker;
+    implicit input: value Type;
 
-    node create_option : Std.OptionSome(InnerType = Type);
+    node create_option: Std.OptionSome(InnerType = Type);
     connect implicit input -> create_option;
 
     // Note: Format and Template will only be forwarded if they are set.
-    node impl : ValueOptionProvider(
+    node impl: ValueOptionProvider(
       Type = Type,
       Topic = Topic,
       Format = Format,
@@ -47,13 +47,13 @@ namespace MQTT {
 
   // TODO: Rename to EventProvider or EventSender?
   native node type EventEmitter {
-    parameter Type : ValueType;
-    parameter Topic : String;
-    optional parameter Format : String;
-    optional parameter Template : String;
+    parameter Type: ValueType;
+    parameter Topic: String;
+    optional parameter Format: String;
+    optional parameter Template: String;
 
-    input Broker : resource Broker;
-    implicit input : event Type;
+    input Broker: resource Broker;
+    implicit input: event Type;
 
     native initializer depends on Broker;
 
@@ -62,13 +62,13 @@ namespace MQTT {
   }
 
   native node type EventReceiver {
-    parameter Type : ValueType;
-    parameter Topic : String;
-    optional parameter Format : String;
+    parameter Type: ValueType;
+    parameter Topic: String;
+    optional parameter Format: String;
     // TODO optional parameter Template : String;
 
-    input Broker : resource Broker;
-    implicit output : event Type;
+    input Broker: resource Broker;
+    implicit output: event Type;
 
     native initializer depends on Broker;
 

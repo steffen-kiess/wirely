@@ -1,13 +1,13 @@
 // TEST: procedure_input_stage_value
 node type Invalid {
-  input Value : value boolean;
+  input Value: value boolean;
   native procedure run stage input // E: declared as input stage but depends on something else
     depends on Value; // H: Dependencies declared here
 }
 
 // TEST: procedure_implicit_input_alias
 node type Invalid {
-  implicit input : value boolean;
+  implicit input: value boolean;
 
   native procedure run depends on implicit input;
   // ^E: Implicit connectors and complex references require an explicit alias
@@ -15,7 +15,7 @@ node type Invalid {
 
 // TEST: procedure_implicit_output_alias
 node type Invalid {
-  implicit output : value boolean;
+  implicit output: value boolean;
 
   native procedure run produces implicit output;
   // ^E: Implicit connectors and complex references require an explicit alias
@@ -23,7 +23,7 @@ node type Invalid {
 
 // TEST: procedure_state_alias
 node type Invalid {
-  state value : boolean = false;
+  state value: boolean = false;
 
   native procedure run depends on value.old;
   // ^E: Implicit connectors and complex references require an explicit alias
@@ -32,13 +32,13 @@ node type Invalid {
 // TEST: procedure_child_alias
 // LIBRARIES: std
 node type Child {
-  output Value : value boolean;
-  node source : Std.Constant(Type = boolean, Value = true);
+  output Value: value boolean;
+  node source: Std.Constant(Type = boolean, Value = true);
   connect source -> Value;
 }
 
 node type Invalid {
-  node child : Child;
+  node child: Child;
 
   native procedure run depends on child.Value;
   // ^E: Implicit connectors and complex references require an explicit alias
@@ -46,8 +46,8 @@ node type Invalid {
 
 // TEST: procedure_duplicate_input_key
 node type Invalid {
-  input Value : value boolean;
-  input Other : value boolean;
+  input Value: value boolean;
+  input Other: value boolean;
 
   native procedure run
     depends on Value, // H: Previous binding was here
@@ -56,8 +56,8 @@ node type Invalid {
 
 // TEST: procedure_duplicate_result_key
 node type Invalid {
-  output Value : value boolean;
-  output Other : value boolean;
+  output Value: value boolean;
+  output Other: value boolean;
 
   native procedure run
     produces Value, // H: Previous binding was here
@@ -66,8 +66,8 @@ node type Invalid {
 
 // TEST: procedure_duplicate_decoded_alias
 node type Invalid {
-  input First : value boolean;
-  input Second : value boolean;
+  input First: value boolean;
+  input Second: value boolean;
 
   native procedure run
     depends on First as "\x61", // H: Previous binding was here
@@ -77,13 +77,13 @@ node type Invalid {
 // TEST: procedure_unknown_child_output
 // LIBRARIES: std
 node type Child {
-  output Value : value boolean;
-  node source : Std.Constant(Type = boolean, Value = true);
+  output Value: value boolean;
+  node source: Std.Constant(Type = boolean, Value = true);
   connect source -> Value;
 }
 
 node type Invalid {
-  node child : Child;
+  node child: Child;
 
   native procedure run depends on child.Missing as "value";
   // ^E: Cannot resolve procedure dependency child.Missing
@@ -91,7 +91,7 @@ node type Invalid {
 
 // TEST: procedure_state_new_dependency
 node type Invalid {
-  state value : boolean = false;
+  state value: boolean = false;
 
   native procedure run depends on value.new as "value";
   // ^E: State value.new requires a producing procedure
@@ -105,7 +105,7 @@ node type Invalid {
 
 // TEST: procedure_state_dependency
 node type Invalid {
-  state value : boolean = false;
+  state value: boolean = false;
 
   native procedure run depends on value;
   // ^E: State dependencies must explicitly reference .old or .new
@@ -113,7 +113,7 @@ node type Invalid {
 
 // TEST: procedure_complex_result
 node type Invalid {
-  state value : boolean = false;
+  state value: boolean = false;
 
   native procedure run produces value.old as "value";
   // ^E: Output does not have exactly one component

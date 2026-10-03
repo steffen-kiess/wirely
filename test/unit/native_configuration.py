@@ -71,12 +71,12 @@ namespace TestLibrary {{
     native procedure run;
   }}
 }}
-node probe : TestLibrary.ConfigurationProbe{arguments};
-node again : TestLibrary.ConfigurationProbe{arguments};
+node probe: TestLibrary.ConfigurationProbe{arguments};
+node again: TestLibrary.ConfigurationProbe{arguments};
 '''))
 
 
-program = probe('parameter Path : String = "../data/config.json";')
+program = probe('parameter Path: String = "../data/config.json";')
 context = contexts[-1]
 assert context.name == 'again'
 assert isinstance(context.parameters, MappingProxyType)
@@ -97,7 +97,7 @@ assert len(contexts) == 1
 assert contexts[0].name == 'TestLibrary.ConfigurationProbe'
 assert contexts[0].resolve_path('settings.json') == Path('/tmp/config/settings.json')
 
-probe('parameter Path : String = "settings.json";', filename='<test>')
+probe('parameter Path: String = "settings.json";', filename='<test>')
 context = contexts[-1]
 assert context.resolve_path('/settings.json', parameter='Path') == Path('/settings.json')
 with checks.assertRaises(compiler_model.ProgramError) as caught:
@@ -111,10 +111,10 @@ def fail_parameter(context):
 
 prepare = fail_parameter
 with checks.assertRaises(compiler_model.ProgramError) as caught:
-    probe('parameter Path : String = "default.json";')
+    probe('parameter Path: String = "default.json";')
 assert caught.exception.source_element.source_position.start_line == 4
 with checks.assertRaises(compiler_model.ProgramError) as caught:
-    probe('optional parameter Path : String;')
+    probe('optional parameter Path: String;')
 assert caught.exception.source_element.source_position.start_line == 4
 
 with checks.assertRaises(compiler_model.ProgramError) as caught:
@@ -122,20 +122,20 @@ with checks.assertRaises(compiler_model.ProgramError) as caught:
         ('/tmp/config/types.wrl', '''
 namespace TestLibrary {
   node type ConfigurationProbe {
-    parameter Path : String;
+    parameter Path: String;
     native procedure run;
   }
 }
 node type Inner {
-  parameter Path : String;
-  node leaf : TestLibrary.ConfigurationProbe(Path = Path);
+  parameter Path: String;
+  node leaf: TestLibrary.ConfigurationProbe(Path = Path);
 }
 node type Outer {
-  parameter Path : String;
-  node child : Inner(Path = Path);
+  parameter Path: String;
+  node child: Inner(Path = Path);
 }
 '''),
-        ('/tmp/settings/main.wrl', 'node outer : Outer(Path = "relative.json");'),
+        ('/tmp/settings/main.wrl', 'node outer: Outer(Path = "relative.json");'),
     )
 error = caught.exception
 assert error.source_element.source_position.filename == '/tmp/settings/main.wrl'
@@ -147,16 +147,16 @@ program = compile_sources(
     ('/tmp/config/types.wrl', '''
 namespace TestLibrary {
   node type ConfigurationProbe {
-    parameter Path : String;
+    parameter Path: String;
     native procedure run;
   }
 }
 node type Outer {
-  parameter Path : String;
-  node child : TestLibrary.ConfigurationProbe(Path = Path);
+  parameter Path: String;
+  node child: TestLibrary.ConfigurationProbe(Path = Path);
 }
 '''),
-    ('/tmp/settings/main.wrl', 'node outer : Outer(Path = "relative.json");'),
+    ('/tmp/settings/main.wrl', 'node outer: Outer(Path = "relative.json");'),
 )
 assert contexts[-1].resolve_path('relative.json', parameter='Path') == Path('/tmp/settings/relative.json')
 
@@ -185,10 +185,10 @@ with tempfile.TemporaryDirectory() as directory:
     filename = Path(directory) / 'credentials.txt'
     filename.write_text('username\npassword\n')
     prepare = lambda context: prepare_two_n_device_data(context=context)
-    program = probe('''parameter Host : String = "localhost";
-    parameter Port : uint16 = 443;
-    parameter TLSA : List[String] = [];
-    parameter UsernamePasswordFile : String = "credentials.txt";''',
+    program = probe('''parameter Host: String = "localhost";
+    parameter Port: uint16 = 443;
+    parameter TLSA: List[String] = [];
+    parameter UsernamePasswordFile: String = "credentials.txt";''',
                     filename=str(Path(directory) / 'main.wrl'))
     filename.unlink()
     data = next(instance.configuration
@@ -198,10 +198,10 @@ with tempfile.TemporaryDirectory() as directory:
     assert data.password == 'password'
     assert not hasattr(data, 'filename')
     with checks.assertRaises(compiler_model.ProgramError) as caught:
-        probe('''parameter Host : String = "localhost";
-        parameter Port : uint16 = 443;
-        parameter TLSA : List[String] = [];
-        parameter UsernamePasswordFile : String = "credentials.txt";''',
+        probe('''parameter Host: String = "localhost";
+        parameter Port: uint16 = 443;
+        parameter TLSA: List[String] = [];
+        parameter UsernamePasswordFile: String = "credentials.txt";''',
               filename=str(Path(directory) / 'main.wrl'))
     assert caught.exception.source_element.source_position.start_line == 7
 
@@ -218,30 +218,30 @@ factories = {
     ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
 }
 invalid_configurations = [
-    (EdgeData, 'parameter EdgeType : String = "invalid";', 'EdgeType'),
-    (TwoNCodeData, 'parameter Code : String = "123x";', 'Code'),
-    (TwoNCodeData, 'parameter Code : String = "1234567890123456";', 'Code'),
-    (CsvWriterParameters, 'parameter Type : ValueType = List[uint8];', 'Type'),
-    (KnxData, 'parameter GroupAddress : String = "invalid";'
-     'parameter Type : ValueType = boolean;', 'GroupAddress'),
-    (KnxData, 'parameter GroupAddress : String = "1/2/3";'
-     'parameter Type : ValueType = String;', 'Type'),
-    (MqttData, 'parameter Type : ValueType = MonotonicTime;'
-     'parameter Topic : String = "topic";', 'Type'),
-    (MqttData, 'parameter Type : ValueType = String;'
-     'parameter Topic : String = "topic";'
-     'parameter Template : String = "%x";', 'Template'),
-    (GPIOData, 'parameter ChipDeviceFile : String = "/dev/gpiochip0";'
-     'parameter Name : String = "test";'
-     'parameter ActiveState : String = "invalid";'
-     'parameter Drive : String = "PushPull";'
-     'parameter Bias : String = "AsIs";', 'ActiveState'),
-    (IsBetweenData, 'parameter Start : TimeOfDay = "12:00";'
-     'parameter End : TimeOfDay = "12:00";', 'End'),
-    (TriggerAtData, 'parameter OutputType : ValueType = boolean;'
-     'optional parameter OutputValue : OutputType;', 'OutputValue'),
-    (ToggleFlipFlopTriggerData, 'parameter OutputType : ValueType = boolean;'
-     'optional parameter OutputValue : OutputType;', 'OutputValue'),
+    (EdgeData, 'parameter EdgeType: String = "invalid";', 'EdgeType'),
+    (TwoNCodeData, 'parameter Code: String = "123x";', 'Code'),
+    (TwoNCodeData, 'parameter Code: String = "1234567890123456";', 'Code'),
+    (CsvWriterParameters, 'parameter Type: ValueType = List[uint8];', 'Type'),
+    (KnxData, 'parameter GroupAddress: String = "invalid";'
+     'parameter Type: ValueType = boolean;', 'GroupAddress'),
+    (KnxData, 'parameter GroupAddress: String = "1/2/3";'
+     'parameter Type: ValueType = String;', 'Type'),
+    (MqttData, 'parameter Type: ValueType = MonotonicTime;'
+     'parameter Topic: String = "topic";', 'Type'),
+    (MqttData, 'parameter Type: ValueType = String;'
+     'parameter Topic: String = "topic";'
+     'parameter Template: String = "%x";', 'Template'),
+    (GPIOData, 'parameter ChipDeviceFile: String = "/dev/gpiochip0";'
+     'parameter Name: String = "test";'
+     'parameter ActiveState: String = "invalid";'
+     'parameter Drive: String = "PushPull";'
+     'parameter Bias: String = "AsIs";', 'ActiveState'),
+    (IsBetweenData, 'parameter Start: TimeOfDay = "12:00";'
+     'parameter End: TimeOfDay = "12:00";', 'End'),
+    (TriggerAtData, 'parameter OutputType: ValueType = boolean;'
+     'optional parameter OutputValue: OutputType;', 'OutputValue'),
+    (ToggleFlipFlopTriggerData, 'parameter OutputType: ValueType = boolean;'
+     'optional parameter OutputValue: OutputType;', 'OutputValue'),
 ]
 for data_type, declarations, parameter in invalid_configurations:
     prepare = lambda context: factories[data_type](context=context)
@@ -254,6 +254,6 @@ for data_type, declarations, parameter in invalid_configurations:
 # Explicit arguments take precedence over the default's source location.
 prepare = lambda context: prepare_edge_data(context=context)
 with checks.assertRaises(compiler_model.ProgramError) as caught:
-    probe('parameter EdgeType : String = "Both";',
+    probe('parameter EdgeType: String = "Both";',
           arguments='(EdgeType = "invalid")')
 assert caught.exception.source_element.source_position.start_line == 8

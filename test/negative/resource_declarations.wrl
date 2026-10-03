@@ -1,6 +1,6 @@
 // TEST: resource_unknown
 node type Client {
-  input Service : resource Missing; // E: Cannot find resource type Missing
+  input Service: resource Missing; // E: Cannot find resource type Missing
 }
 
 // TEST: resource_unknown_qualified
@@ -9,12 +9,12 @@ namespace Fixture {
 }
 
 node type Invalid {
-  input Service : resource Fixture.Missing; // E: Cannot find resource type Fixture.Missing
+  input Service: resource Fixture.Missing; // E: Cannot find resource type Fixture.Missing
 }
 
 // TEST: resource_data_type
 node type Invalid {
-  input Service : resource boolean; // E: Cannot find resource type boolean
+  input Service: resource boolean; // E: Cannot find resource type boolean
 }
 
 // TEST: resource_duplicate
@@ -83,20 +83,20 @@ resource type Service; // E: Resource type Service conflicts with node type
 resource type Handle;
 
 node type Invalid {
-  implicit output : list resource Handle; // E: Got list specifier for non-input
+  implicit output: list resource Handle; // E: Got list specifier for non-input
 }
 
 // TEST: legacy_knx_bus_syntax
 node type Legacy {
-  implicit output : knx_bus; // E: Syntax error
+  implicit output: knx_bus; // E: Syntax error
 }
 
 // TEST: legacy_mqtt_server_syntax
 node type Legacy {
-  implicit output : mqtt_server; // E: Syntax error
+  implicit output: mqtt_server; // E: Syntax error
 }
 
 // TEST: legacy_two_n_device_syntax
 node type Legacy {
-  implicit output : two_n_device; // E: Syntax error
+  implicit output: two_n_device; // E: Syntax error
 }

@@ -1,6 +1,6 @@
-node in : Std.DebugValueSource(Type = boolean);
+node in: Std.DebugValueSource(Type = boolean);
 
-node gpio : GPIO.Output(
+node gpio: GPIO.Output(
   ChipDeviceFile = "/dev/gpiochip0",
   Name = "GPIO5",
   ActiveState = "Low",

@@ -27,63 +27,63 @@ def run_fixture_with_std(source):
 
 
 # Unmarked fixtures, initial annotated cases, and comment-only preambles.
-legacy = 'node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range\n'
+legacy = 'node bad: Std.Constant(Type = uint8, Value = -1); // E: out of range\n'
 run_fixture_with_std(legacy)
 run_fixture_with_std(legacy + '''
 // TEST
-node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = 256); // E: out of range
 ''')
 run_fixture_with_std('''// A description before the first case.
 /* A block comment /* with nesting */ in the preamble. */
 
   // TEST: duplicate members
 // Reusing names below also exercises isolation between cases.
-enum type Mode : uint8 {
+enum type Mode: uint8 {
   On = 1, // H: Previous member was here
   On = 2, // E: Duplicate enum member On
 }
 
 // TEST: unknown member
-enum type Mode : uint8 { On = 1 }
-node bad : Std.Constant(Type = Mode, Value = Mode.Missing);
+enum type Mode: uint8 { On = 1 }
+node bad: Std.Constant(Type = Mode, Value = Mode.Missing);
 // ^E: Unknown member 'Missing' of Mode
 
 // TEST: declaration isolation
-node bad : Std.Constant(Type = Mode, Value = Mode.On); // E: Cannot find type Mode
+node bad: Std.Constant(Type = Mode, Value = Mode.On); // E: Cannot find type Mode
 ''')
 # Labels are descriptive; repeated labels and indentation are accepted.
 run_fixture_with_std('''\t// TEST: bounds\x20\x20
-node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = -1); // E: out of range
   // TEST: bounds\t
-node bad : Std.Constant(Type = uint8, Value = 256); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = 256); // E: out of range
 ''')
 # Inline strings and comments containing TEST are not case boundaries.
-run_fixture_with_std('''node type Holder { parameter Text : String = "// TEST"; }
+run_fixture_with_std('''node type Holder { parameter Text: String = "// TEST"; }
 // TESTING is an ordinary comment.
-node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
 
 
 # Syntax diagnostics use the same annotations and physical line numbers.
-run_fixture_with_std('enum type Bad : int8 { One = 1; } // E: Unexpected token\n')
+run_fixture_with_std('enum type Bad: int8 { One = 1; } // E: Unexpected token\n')
 run_fixture_with_std('''// TEST: unexpected token
-enum type Bad : int8 {
+enum type Bad: int8 {
   One = 1; // E: Unexpected token
 }
 // TEST: unexpected character
-node bad : Std.Constant(Type = String, Value = "unterminated);
+node bad: Std.Constant(Type = String, Value = "unterminated);
 // ^E: No terminal matches
 // TEST: unexpected end of input
-enum type Bad : int8 { One = 1 // E: Syntax error
+enum type Bad: int8 { One = 1 // E: Syntax error
 // TEST: semantic error after syntax errors
-node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
 
 with checks.assertRaises(AssertionError) as error:
     run_fixture_with_std('''// TEST: wrong syntax expectation
-enum type Bad : int8 { One = 1; } // E: No terminal matches
+enum type Bad: int8 { One = 1; } // E: No terminal matches
 // TEST: another mismatch
-node bad : Std.Constant(Type = uint8, Value = -1); // E: wrong expectation
+node bad: Std.Constant(Type = uint8, Value = -1); // E: wrong expectation
 ''')
 message = str(error.exception)
 assert 'wrong syntax expectation' in message and 'another mismatch' in message
@@ -107,9 +107,9 @@ invalid = [
     ('// TEST\n// TEST\n' + legacy, 'no expected diagnostics'),
     (legacy + '// TEST\n', 'no expected diagnostics'),
     ('// TEST:   \n' + legacy, 'empty test label'),
-    ('// TEST\nnode valid : Std.Constant(Type = uint8, Value = 1);',
+    ('// TEST\nnode valid: Std.Constant(Type = uint8, Value = 1);',
      'no expected diagnostics'),
-    ('// TEST\nnode valid : Std.Constant(Type = uint8, Value = 1); // E: out of range',
+    ('// TEST\nnode valid: Std.Constant(Type = uint8, Value = 1); // E: out of range',
      'compiled=True'),
     ('// TEST\n' + legacy.replace('out of range', 'wrong expectation'),
      'diagnostic mismatch'),
@@ -119,7 +119,7 @@ invalid = [
      'Malformed annotation on line 3'),
     (legacy + '// TEST\n// ^^E: out of range\n' + legacy,
      'Malformed annotation on line 4'),
-    ('// TEST\nenum type Mode : uint8 {\n  On = 1,\n'
+    ('// TEST\nenum type Mode: uint8 {\n  On = 1,\n'
      '  On = 2, // E: Duplicate enum member On\n}', 'unexpected='),
 ]
 for source, expected in invalid:
@@ -130,9 +130,9 @@ for source, expected in invalid:
 # Validate every case and report both failures with their names and locations.
 with checks.assertRaises(AssertionError) as error:
     run_fixture_with_std('''// TEST: first
-node bad : Std.Constant(Type = uint8, Value = -1); // E: first mismatch
+node bad: Std.Constant(Type = uint8, Value = -1); // E: first mismatch
 // TEST: second
-node bad : Std.Constant(Type = uint8, Value = 256); // E: second mismatch
+node bad: Std.Constant(Type = uint8, Value = 256); // E: second mismatch
 ''')
 message = str(error.exception)
 assert 'first (line 3)' in message and 'second (line 5)' in message
@@ -152,9 +152,9 @@ def fail_first(sources, **kwargs):
 with patch('wirely.compiler.compile_strs', side_effect=fail_first) as compiler:
     with checks.assertRaises(AssertionError) as error:
         run_fixture_with_std('''// TEST: internal failure
-node bad : Missing; // E: simulated
+node bad: Missing; // E: simulated
 // TEST: later case
-node bad : Missing; // E: wrong expectation
+node bad: Missing; // E: wrong expectation
 ''')
     assert compiler.call_count == 2
 message = str(error.exception)
@@ -176,50 +176,50 @@ for stream, text in [('stderr', 'unexpected stderr'),
 # Default library loading remains opt-in for source compilation.
 with contextlib.redirect_stdout(io.StringIO()) as output:
     assert wirely.compiler.compile_strs([
-        ('<no-libraries>', 'node value : Std.Constant(Type = uint8, Value = 1);'),
+        ('<no-libraries>', 'node value: Std.Constant(Type = uint8, Value = 1);'),
     ]) is None
 assert 'Cannot find block type Std.Constant' in output.getvalue()
 compiled = wirely.compiler.compile_strs([
-    ('<with-libraries>', 'node value : Std.Constant(Type = uint8, Value = 1);'),
+    ('<with-libraries>', 'node value: Std.Constant(Type = uint8, Value = 1);'),
 ], add_std=True)
 assert compiled is not None
 assert program_compiler.compile(compiled) is not None
 
 
 # Library availability is explicit, and built-in types need no library.
-run_fixture('node bad : Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant\n')
-run_fixture('enum type Mode : uint8 { Bad = -1 } // E: out of range\n')
+run_fixture('node bad: Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant\n')
+run_fixture('enum type Mode: uint8 { Bad = -1 } // E: out of range\n')
 run_fixture('''// LIBRARIES: matter
 // TEST: std is absent
-node bad : Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant
+node bad: Std.Constant(Type = uint8, Value = 1); // E: Cannot find block type Std.Constant
 // TEST: matter is available
 node type Holder {
-  parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.Missing; // E: Unknown member
+  parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Missing; // E: Unknown member
 }
-node holder : Holder;
+node holder: Holder;
 ''')
 run_fixture('''// LIBRARIES: std
 // TEST: matter is absent
-node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Off); // E: Cannot find type ThermostatSystemModeEnum
+node bad: Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Off); // E: Cannot find type ThermostatSystemModeEnum
 // TEST: multiple selected libraries
 // LIBRARIES: std, matter
-node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing); // E: Unknown member
+node bad: Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing); // E: Unknown member
 ''')
 
 # File defaults include an initial unmarked case; overrides replace the list.
 run_fixture('// LIBRARIES: std\n' + legacy + '''
 // TEST: empty override
 // LIBRARIES:
-node bad : Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
+node bad: Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
 // TEST: override does not carry forward
-node bad : Std.Constant(Type = uint8, Value = -1); // E: out of range
+node bad: Std.Constant(Type = uint8, Value = -1); // E: out of range
 ''')
-run_fixture('// LIBRARIES:\nnode bad : Missing; // E: Cannot find block type Missing\n')
+run_fixture('// LIBRARIES:\nnode bad: Missing; // E: Cannot find block type Missing\n')
 run_fixture('// TEST: selected case\n\t// LIBRARIES : std\t\n' + legacy)
 run_fixture('''// TEST: a directive in a string is ordinary content
-node type Holder { parameter Text : String = "// LIBRARIES: missing"; }
+node type Holder { parameter Text: String = "// LIBRARIES: missing"; }
 // LIBRARIES_EXTRA is an ordinary comment.
-node bad : Missing; // E: Cannot find block type Missing
+node bad: Missing; // E: Cannot find block type Missing
 ''')
 
 for metadata, message in [
@@ -251,14 +251,14 @@ with patch('wirely.compiler.compile_strs', side_effect=observe_sources):
     run_fixture('''// LIBRARIES: std
 
 // TEST: inherited library
-node bad : Std.Constant(Type = uint8, Value = -1);
+node bad: Std.Constant(Type = uint8, Value = -1);
 // ^E: out of range
 // TEST: no libraries
 // LIBRARIES:
-node bad : Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
+node bad: Std.Constant(Type = uint8, Value = -1); // E: Cannot find block type Std.Constant
 // TEST: selected libraries
 // LIBRARIES: std, matter
-node bad : Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing);
+node bad: Std.Constant(Type = ThermostatSystemModeEnum, Value = ThermostatSystemModeEnum.Missing);
 // ^E: Unknown member
 ''')
 assert source_selections == [(['std'], False), ([], False), (['std', 'matter'], False)]

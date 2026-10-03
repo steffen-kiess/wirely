@@ -42,7 +42,7 @@ namespace TestLibrary {{
   }}
 }}
 
-node probe : TestLibrary.Probe{parameters};
+node probe: TestLibrary.Probe{parameters};
 {extra}
 '''
     with patch.dict(wirely.native.test_library.native_block_types, registry):
@@ -96,15 +96,15 @@ def check_inputs(context):
 
 
 probe = make_engine('''
-implicit input : value uint8;
-input named : value uint8;
-implicit output : value uint8;
+implicit input: value uint8;
+input named: value uint8;
+implicit output: value uint8;
 
 native procedure run
   depends on implicit input as "value", named
   produces implicit output as "result";
 ''', check_inputs, extra='''
-node source : Std.Constant(Type = uint8, Value = 7);
+node source: Std.Constant(Type = uint8, Value = 7);
 connect source -> probe;
 connect source -> probe.named;
 ''')
@@ -188,16 +188,16 @@ def check_node_name(context):
 
 named_engine = make_engine('native procedure run;', check_node_name, extra='''
 node type Outer {
-  node child : TestLibrary.Probe;
+  node child: TestLibrary.Probe;
 }
-node outer : Outer;
+node outer: Outer;
 namespace TestLibrary {
   singleton node type SharedContainer {
-    node child : Probe;
+    node child: Probe;
   }
 }
-node shared : TestLibrary.SharedContainer;
-node shared_again : TestLibrary.SharedContainer;
+node shared: TestLibrary.SharedContainer;
+node shared_again: TestLibrary.SharedContainer;
 ''')
 named_engine.step()
 assert sorted(named_contexts) == ['TestLibrary.SharedContainer.child', 'outer.child', 'probe']
@@ -224,7 +224,7 @@ for has_native_state in [False, True]:
     native procedure run;
   }}
 }}
-node probe : TestLibrary.RegistrationProbe;
+node probe: TestLibrary.RegistrationProbe;
 '''
     output = io.StringIO()
     errors = io.StringIO()
@@ -309,7 +309,7 @@ clock_source = '''namespace TestLibrary {
 ''' + '\n'.join(f'    {line}' for line in clock_declarations) + '''
   }
 }
-node probe : TestLibrary.ClockProbe;
+node probe: TestLibrary.ClockProbe;
 '''
 with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
     graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
@@ -403,10 +403,10 @@ namespace TestLibrary {
     native procedure run;
   }
 }
-node first : TestLibrary.TriggerProbe;
-node second : TestLibrary.TriggerProbe;
-node shared : TestLibrary.SharedTriggerProbe;
-node shared_again : TestLibrary.SharedTriggerProbe;
+node first: TestLibrary.TriggerProbe;
+node second: TestLibrary.TriggerProbe;
+node shared: TestLibrary.SharedTriggerProbe;
+node shared_again: TestLibrary.SharedTriggerProbe;
 ''')])
 assert trigger_graph is not None
 trigger_program = program_compiler.compile(trigger_graph)
@@ -477,15 +477,15 @@ def check_list(context):
 
 
 probe = make_engine('''
-implicit input : list value uint8;
-implicit output : value uint8;
+implicit input: list value uint8;
+implicit output: value uint8;
 
 native procedure run
   depends on implicit input as "values"
   produces implicit output as "result";
 ''', check_list, extra='''
-node first : Std.Constant(Type = uint8, Value = 7);
-node second : Std.Constant(Type = uint8, Value = 2);
+node first: Std.Constant(Type = uint8, Value = 7);
+node second: Std.Constant(Type = uint8, Value = 2);
 connect first, second -> probe;
 ''')
 probe.step()
@@ -498,8 +498,8 @@ def check_empty_list(context):
 
 
 probe = make_engine('''
-implicit input : list value uint8;
-implicit output : value uint8;
+implicit input: list value uint8;
+implicit output: value uint8;
 
 native procedure run
   depends on implicit input as "values"
@@ -518,13 +518,13 @@ def check_event_connections(context):
 
 
 probe = make_engine('''
-implicit input : list event uint8;
+implicit input: list event uint8;
 
 native procedure run
   depends on implicit input as "values";
 ''', check_event_connections, extra='''
-node first : Std.DebugEventSource(Type = uint8);
-node second : Std.DebugEventSource(Type = uint8);
+node first: Std.DebugEventSource(Type = uint8);
+node second: Std.DebugEventSource(Type = uint8);
 connect first, second -> probe;
 ''')
 probe.step()
@@ -546,8 +546,8 @@ def check_state(context):
 
 
 probe = make_engine('''
-state count : uint8 = 0;
-implicit output : value uint8;
+state count: uint8 = 0;
+implicit output: value uint8;
 
 native procedure run
   depends on count.old as "previous"
@@ -566,8 +566,8 @@ def check_state_snapshot(context):
 
 
 probe = make_engine('''
-state count : uint8 = 0;
-implicit output : value uint8;
+state count: uint8 = 0;
+implicit output: value uint8;
 
 native procedure run
   depends on count.old as "previous"
@@ -588,8 +588,8 @@ def forward_value(context):
 # Named data outputs work alongside resource outputs and shared singletons.
 for singleton in ('', 'singleton '):
     probe = make_engine('''
-node child : Child;
-implicit output : value uint8;
+node child: Child;
+implicit output: value uint8;
 
 native procedure run
   depends on child.Value as "value"
@@ -598,14 +598,14 @@ native procedure run
 resource type Session;
 
 {singleton}node type Child {{
-  output Service : resource Session;
-  output Value : value uint8;
+  output Service: resource Session;
+  output Value: value uint8;
 
-  node source : Std.Constant(Type = uint8, Value = 7);
+  node source: Std.Constant(Type = uint8, Value = 7);
   connect source -> Value;
 }}
 
-node another : TestLibrary.Probe;
+node another: TestLibrary.Probe;
 ''')
     probe.step()
     probe.assert_value_is('probe', 7)
@@ -631,7 +631,7 @@ def check_result_errors(context):
 
 
 probe = make_engine('''
-implicit output : value uint8;
+implicit output: value uint8;
 
 native procedure run produces implicit output as "result";
 ''', check_result_errors)
@@ -639,7 +639,7 @@ probe.step()
 probe.assert_value_is('probe', 7)
 
 probe = make_engine('''
-implicit output : value uint8;
+implicit output: value uint8;
 
 native procedure run produces implicit output as "result";
 ''', lambda context: None)
@@ -662,8 +662,8 @@ def check_generic_result(context):
 
 
 probe = make_engine('''
-parameter Type : ValueType;
-implicit output : value Type;
+parameter Type: ValueType;
+implicit output: value Type;
 
 native procedure run produces implicit output as "result";
 ''', check_generic_result, parameters='(Type = Option[boolean])')
@@ -684,14 +684,14 @@ for payload_type, event, command in [
         context.set_result('result', context.inputs['event'])
 
     probe = make_engine(f'''
-implicit input : event {payload_type};
-implicit output : event {payload_type};
+implicit input: event {payload_type};
+implicit output: event {payload_type};
 
 native procedure run
   depends on implicit input as "event"
   produces implicit output as "result";
 ''', forward_event, extra=f'''
-node source : Std.DebugEventSource(Type = {payload_type});
+node source: Std.DebugEventSource(Type = {payload_type});
 connect source -> probe;
 ''')
     probe.step()
@@ -718,7 +718,7 @@ def check_unit_result(context):
 
 
 probe = make_engine('''
-implicit output : value unit;
+implicit output: value unit;
 
 native procedure run produces implicit output as "result";
 ''', check_unit_result)
@@ -734,7 +734,7 @@ def check_unit_event_result(context):
 
 
 probe = make_engine('''
-implicit output : event unit;
+implicit output: event unit;
 
 native procedure run produces implicit output as "result";
 ''', check_unit_event_result)
@@ -749,8 +749,8 @@ def check_keys(context):
 
 
 probe = make_engine(r'''
-node source : Std.Constant(Type = uint8, Value = 7);
-implicit output : value uint8;
+node source: Std.Constant(Type = uint8, Value = 7);
+implicit output: value uint8;
 
 native procedure run
   depends on source as "line\nkey", source as r"raw\key"
@@ -762,8 +762,8 @@ probe.assert_value_is('probe', 7)
 
 # Aliases are checked independently for input and result bindings.
 probe = make_engine('''
-node source : Std.Constant(Type = uint8, Value = 7);
-implicit output : value uint8;
+node source: Std.Constant(Type = uint8, Value = 7);
+implicit output: value uint8;
 
 native procedure run
   depends on source as "value"
@@ -796,11 +796,11 @@ def make_lifecycle_engine(*, fail=False):
         graph = wirely.compiler.compile_strs([('<native-lifecycle>', f'''
 namespace TestLibrary {{
   native node type LifecycleProbe {{
-    parameter Fail : boolean = false;
+    parameter Fail: boolean = false;
   }}
 }}
-node first : TestLibrary.LifecycleProbe;
-node second : TestLibrary.LifecycleProbe(Fail = {'true' if fail else 'false'});
+node first: TestLibrary.LifecycleProbe;
+node second: TestLibrary.LifecycleProbe(Fail = {'true' if fail else 'false'});
 ''')])
         assert graph is not None
         program = program_compiler.compile(graph)

@@ -20,7 +20,7 @@ for name, expected in {
 
 def parse_literal(literal):
     declarations = wirely.compiler.parser.parse_str(
-        f'parameter Value : String = {literal};', filename='<string-test>'
+        f'parameter Value: String = {literal};', filename='<string-test>'
     )
     return declarations[0].default_value.value
 
@@ -57,7 +57,7 @@ for literal, message in [
     ('r"first\rsecond"', 'Bare carriage return'),
     ('r#"first\rsecond"#', 'Bare carriage return'),
 ]:
-    source = f'node type Settings {{\n  parameter Value : String = {literal};\n}}'
+    source = f'node type Settings {{\n  parameter Value: String = {literal};\n}}'
     output = io.StringIO()
     errors = io.StringIO()
     with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):

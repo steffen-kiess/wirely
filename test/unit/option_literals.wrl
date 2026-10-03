@@ -1,60 +1,60 @@
 node type LiteralParameter {
-  parameter Type : ValueType;
-  parameter Value : Type;
+  parameter Type: ValueType;
+  parameter Value: Type;
 }
 
-node absent : Std.Constant(Type = Option[unit], Value = None);
-node boolean_some : Std.Constant(Type = Option[boolean], Value = Some(true));
-node number_some : Std.Constant(Type = Option[int8], Value = Some(-42));
-node unit_some : Std.Constant(Type = Option[unit], Value = Some(()));
-node nested_none : Std.Constant(
+node absent: Std.Constant(Type = Option[unit], Value = None);
+node boolean_some: Std.Constant(Type = Option[boolean], Value = Some(true));
+node number_some: Std.Constant(Type = Option[int8], Value = Some(-42));
+node unit_some: Std.Constant(Type = Option[unit], Value = Some(()));
+node nested_none: Std.Constant(
   Type = Option[Option[unit]],
   Value = Some(None)
 );
-node nested_unit : Std.Constant(
+node nested_unit: Std.Constant(
   Type = Option[Option[unit]],
   Value = Some(Some(()))
 );
-node list_some : LiteralParameter(Type = Option[List[int8]], Value = Some([1, 2]));
-node list_options : LiteralParameter(
+node list_some: LiteralParameter(Type = Option[List[int8]], Value = Some([1, 2]));
+node list_options: LiteralParameter(
   Type = List[Option[int8]],
   Value = [Some(1), None, Some(-42)]
 );
-node time_some : Std.Constant(
+node time_some: Std.Constant(
   Type = Option[TimeOfDay],
   Value = Some(TimeOfDay_AddWrap("23:30", "01:00"))
 );
-node delay : Std.Delay(Type = Option[boolean], InitialValue = Some(false));
+node delay: Std.Delay(Type = Option[boolean], InitialValue = Some(false));
 connect boolean_some -> delay;
 
 node type Settings {
-  parameter Flag : boolean;
-  parameter Number : int8;
-  parameter At : TimeOfDay;
-  parameter Offset : String;
-  node flag : Std.Constant(Type = Option[boolean], Value = Some(Flag));
-  node nested : Std.Constant(
+  parameter Flag: boolean;
+  parameter Number: int8;
+  parameter At: TimeOfDay;
+  parameter Offset: String;
+  node flag: Std.Constant(Type = Option[boolean], Value = Some(Flag));
+  node nested: Std.Constant(
     Type = Option[Option[boolean]],
     Value = Some(Some(Flag))
   );
-  node items : LiteralParameter(
+  node items: LiteralParameter(
     Type = List[Option[int8]],
     Value = [Some(Number), None]
   );
-  node numbers : LiteralParameter(
+  node numbers: LiteralParameter(
     Type = Option[List[int8]],
     Value = Some([Number, -42])
   );
-  node at : Std.Constant(
+  node at: Std.Constant(
     Type = Option[TimeOfDay],
     Value = Some(TimeOfDay_AddWrap(At, Offset))
   );
-  node times : LiteralParameter(
+  node times: LiteralParameter(
     Type = List[Option[TimeOfDay]],
     Value = [Some(TimeOfDay_AddWrap(At, Offset)), None]
   );
 }
-node settings : Settings(
+node settings: Settings(
   Flag = true,
   Number = 5,
   At = "23:30",
@@ -62,9 +62,9 @@ node settings : Settings(
 );
 
 node type ForwardOption {
-  parameter Initial : Option[TimeOfDay];
-  node constant : Std.Constant(Type = Option[TimeOfDay], Value = Initial);
+  parameter Initial: Option[TimeOfDay];
+  node constant: Std.Constant(Type = Option[TimeOfDay], Value = Initial);
 }
-node forwarded : ForwardOption(
+node forwarded: ForwardOption(
   Initial = Some(TimeOfDay_AddWrap("23:30", "01:00"))
 );

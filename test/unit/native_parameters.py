@@ -88,7 +88,7 @@ namespace TestLibrary {{
 {indent(declaration.strip(), "    ")}
   }}
 }}
-node probe : TestLibrary.{class_name}{arguments};
+node probe: TestLibrary.{class_name}{arguments};
 {extra}
 '''
     with patch.dict(wirely.native.test_library.native_block_types, registry):
@@ -130,19 +130,19 @@ def check_parameters(context):
 
 
 parameter_declarations = '''
-parameter Type : ValueType = uint16;
-parameter Number : Type = 7;
-parameter Flag : boolean = true;
-parameter Text : String = "hello";
-parameter Unit : unit = ();
-parameter Present : Option[unit] = Some(());
-optional parameter Absent : Option[unit];
-optional parameter Missing : boolean;
-parameter Items : List[Option[Type]] = [Some(Number), None];
-parameter At : TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
-parameter Duration : Duration = "PT1S";
-parameter ModeType : ValueType = ThermostatSystemModeEnum;
-parameter Mode : ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;
+parameter Type: ValueType = uint16;
+parameter Number: Type = 7;
+parameter Flag: boolean = true;
+parameter Text: String = "hello";
+parameter Unit: unit = ();
+parameter Present: Option[unit] = Some(());
+optional parameter Absent: Option[unit];
+optional parameter Missing: boolean;
+parameter Items: List[Option[Type]] = [Some(Number), None];
+parameter At: TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
+parameter Duration: Duration = "PT1S";
+parameter ModeType: ValueType = ThermostatSystemModeEnum;
+parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;
 native procedure run;
 '''
 for native in [False, True]:
@@ -182,8 +182,8 @@ def check_composite(context):
 
 
 make_probe('''
-parameter First : ValueType = Option[List[uint16]];
-parameter Second : ValueType = Option[List[uint16]];
+parameter First: ValueType = Option[List[uint16]];
+parameter Second: ValueType = Option[List[uint16]];
 native procedure run;
 ''', check_composite)
 
@@ -200,7 +200,7 @@ def check_optional_descriptor(context):
 
 
 make_probe('''
-parameter Type : ValueType = Option[uint16];
+parameter Type: ValueType = Option[uint16];
 native procedure run;
 ''', check_optional_descriptor)
 
@@ -212,16 +212,16 @@ nested = make_probe('native procedure run;',
                     lambda context: checks.assertEqual(dict(context.parameters), {}),
                     native=True, extra='''
 node type Outer {
-  node child : TestLibrary.StateParameterProbe;
+  node child: TestLibrary.StateParameterProbe;
 }
-node outer : Outer;
+node outer: Outer;
 namespace TestLibrary {
   singleton node type SharedContainer {
-    node child : StateParameterProbe;
+    node child: StateParameterProbe;
   }
 }
-node shared_container : TestLibrary.SharedContainer;
-node shared_again : TestLibrary.SharedContainer;
+node shared_container: TestLibrary.SharedContainer;
+node shared_again: TestLibrary.SharedContainer;
 ''')
 assert nested.get_native_state('outer.child').context.name == 'outer.child'
 assert nested.get_native_state('probe').context.name == 'probe'
@@ -245,8 +245,8 @@ def check_type_values(context):
 
 
 make_probe('''
-parameter Type : ValueType = List[Option[ValueType]];
-parameter Values : Type = [Some(uint16), None];
+parameter Type: ValueType = List[Option[ValueType]];
+parameter Values: Type = [Some(uint16), None];
 native procedure run;
 ''', check_type_values)
 

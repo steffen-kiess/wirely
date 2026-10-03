@@ -137,8 +137,8 @@ for parameter_type in [settings_type, wirely.types.TypeOption(settings_type)]:
         parameter_type.alignment
 
 # Equivalent declarations in separate compilations must keep distinct identities.
-first = wirely.compiler.compile_strs([('<first>', 'struct type Record { value : uint8, }')])
-second = wirely.compiler.compile_strs([('<second>', 'struct type Record { value : uint8, }')])
+first = wirely.compiler.compile_strs([('<first>', 'struct type Record { value: uint8, }')])
+second = wirely.compiler.compile_strs([('<second>', 'struct type Record { value: uint8, }')])
 assert first is not None and second is not None
 first_type = first.struct_types['Record'].value_type
 second_type = second.struct_types['Record'].value_type
@@ -148,8 +148,8 @@ with checks.assertRaises(ValueError):
 
 
 literal = parser.parse_str(
-    'node type Settings { parameter Value : Sample.Packet = '
-    'Sample.Packet { flag : true, mode : Sample.Mode.On, number : 513 }; }',
+    'node type Settings { parameter Value: Sample.Packet = '
+    'Sample.Packet { flag: true, mode: Sample.Mode.On, number: 513 }; }',
     filename='<struct-literal>',
 )[0].declarations[0].default_value
 assert parse_value(packet, literal, scope=graph) == expected

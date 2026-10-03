@@ -35,9 +35,9 @@ byte offsets use the full `uint32` range; files fit within that address space.
 // Size 8, alignment 4. Target table is specified at each use.
 struct type Range {
   // First target-table entry; zero when count is zero.
-  first : uint32,
+  first: uint32,
   // Number of consecutive target entries.
-  count : uint32,
+  count: uint32,
 }
 ```
 
@@ -46,9 +46,9 @@ struct type Range {
 // Size 8, alignment 4. Target buffer and element type are specified at use.
 struct type ArrayRange {
   // Byte offset of first element; zero when count is zero.
-  offset : uint32,
+  offset: uint32,
   // Number of consecutive elements.
-  count : uint32,
+  count: uint32,
 }
 ```
 
@@ -61,9 +61,9 @@ ranges and byte ranges fit their targets.
 // Size 8, alignment 4.
 struct type StringRef {
   // Byte offset into the associated data buffer.
-  offset : uint32,
+  offset: uint32,
   // Number of UTF-8 bytes starting at offset.
-  length_bytes : uint32,
+  length_bytes: uint32,
 }
 ```
 
@@ -77,13 +77,13 @@ An empty string has both fields zero. Equal strings can share bytes.
 // Size 16, alignment 4. File offset 0.
 struct type Header {
   // 0x594c5257; bytes 57 52 4c 59 ("WRLY").
-  magic : uint32,
+  magic: uint32,
   // 0 = unstable development format; current version.
-  version : uint32,
+  version: uint32,
   // Total file length in bytes.
-  file_length : uint32,
+  file_length: uint32,
   // Number of immediately following directory entries.
-  section_count : uint32,
+  section_count: uint32,
 }
 ```
 
@@ -92,13 +92,13 @@ struct type Header {
 // Size 16, alignment 4. Directory starts at file offset 16.
 struct type SectionEntry {
   // Absolute byte offset of the section from file start.
-  offset : uint32,
+  offset: uint32,
   // Section byte length, including internal padding.
-  length : uint32,
+  length: uint32,
   // Section's purpose, identified by name below.
-  section_type : uint32,
+  section_type: uint32,
   // Wire layout of the section's records or byte data.
-  record_type : uint32,
+  record_type: uint32,
 }
 ```
 
@@ -156,21 +156,21 @@ debug sections are optional as a group.
 // Size 64, alignment 8. Build ID section.
 struct type BuildId {
   // Digest bytes 0 through 7, little-endian.
-  word0 : uint64,
+  word0: uint64,
   // Digest bytes 8 through 15, little-endian.
-  word1 : uint64,
+  word1: uint64,
   // Digest bytes 16 through 23, little-endian.
-  word2 : uint64,
+  word2: uint64,
   // Digest bytes 24 through 31, little-endian.
-  word3 : uint64,
+  word3: uint64,
   // Digest bytes 32 through 39, little-endian.
-  word4 : uint64,
+  word4: uint64,
   // Digest bytes 40 through 47, little-endian.
-  word5 : uint64,
+  word5: uint64,
   // Digest bytes 48 through 55, little-endian.
-  word6 : uint64,
+  word6: uint64,
   // Digest bytes 56 through 63, little-endian.
-  word7 : uint64,
+  word7: uint64,
 }
 ```
 
@@ -195,14 +195,14 @@ zeroed.
 // Size 24, alignment 4. Nodes table.
 struct type Node {
   // Index into node types.
-  node_type : uint32,
+  node_type: uint32,
   // Native state and configuration-presence flags.
-  flags : uint8,
+  flags: uint8,
   // Three zero alignment bytes. Align ranges to 4 bytes.
   // Range into parameters.
-  parameters : Range,
+  parameters: Range,
   // Range into resource inputs.
-  initializers : Range,
+  initializers: Range,
 }
 ```
 
@@ -221,10 +221,10 @@ of a native state object. Each node instance retains its own entry.
 // Size 8, alignment 4. Parameter values, state, and temporaries.
 struct type Variable {
   // Index into value types; resolved stored-value type.
-  value_type : uint32,
+  value_type: uint32,
   // Byte offset into Program data for Parameter values, the state buffer
   // for State variables, or the temporary buffer for Temporaries.
-  offset : uint32,
+  offset: uint32,
 }
 ```
 
@@ -249,15 +249,15 @@ zero. The runtime allocates state and temporary buffers using this layout.
 // Size 32, alignment 4. Procedures table.
 struct type Procedure {
   // Index into nodes; supplies parameters and configuration.
-  r#node : uint32,
+  r#node: uint32,
   // Index into native methods.
-  method : uint32,
+  method: uint32,
   // Range into value inputs.
-  inputs : Range,
+  inputs: Range,
   // Range into resource inputs.
-  resources : Range,
+  resources: Range,
   // Range into results.
-  results : Range,
+  results: Range,
 }
 ```
 
@@ -271,10 +271,10 @@ wakeups can identify a scheduled procedure by its node and method indices.
 // Size 12, alignment 4. Stages table.
 struct type Stage {
   // 0 = input, 1 = default, 2 = output.
-  r#stage : uint8,
+  r#stage: uint8,
   // Three zero alignment bytes. Align schedule to 4 bytes.
   // Range into procedures, in execution order.
-  schedule : Range,
+  schedule: Range,
 }
 ```
 
@@ -287,9 +287,9 @@ zero-count range.
 // Size 8, alignment 4. Parameters table.
 struct type Parameter {
   // Interface names index; parameter receiving value.
-  name : uint32,
+  name: uint32,
   // Index into parameter values.
-  value : uint32,
+  value: uint32,
 }
 ```
 
@@ -302,12 +302,12 @@ absent.
 // Size 16, alignment 4. Value inputs table.
 struct type ValueInput {
   // Interface names index; input receiving sources.
-  name : uint32,
+  name: uint32,
   // 0 = one connection, 1 = ordered connection list.
-  is_list : uint8,
+  is_list: uint8,
   // Three zero alignment bytes. Align sources to 4 bytes.
   // Range into input sources.
-  sources : Range,
+  sources: Range,
 }
 ```
 
@@ -320,10 +320,10 @@ sequence, including an empty sequence.
 // Size 8, alignment 4. Input sources table.
 struct type InputSource {
   // 0 = old state, 1 = temporaries.
-  bank : uint8,
+  bank: uint8,
   // Three zero alignment bytes. Align indices to 4 bytes.
   // Index into state variables or temporaries.
-  variable : uint32,
+  variable: uint32,
 }
 ```
 
@@ -344,12 +344,12 @@ results.
 // Size 16, alignment 4. Resource inputs table.
 struct type ResourceInput {
   // Index into interface names; resource input receiving providers.
-  name : uint32,
+  name: uint32,
   // 0 = one provider, 1 = ordered provider list.
-  is_list : uint8,
+  is_list: uint8,
   // Three zero alignment bytes. Align providers to 4 bytes.
   // Range into resource providers.
-  providers : Range,
+  providers: Range,
 }
 ```
 
@@ -363,7 +363,7 @@ sequence, including an empty sequence.
 // Size 4, alignment 4. Resource providers sequence.
 struct type ResourceProvider {
   // Index into nodes; supplies a native state object.
-  r#node : uint32,
+  r#node: uint32,
 }
 ```
 
@@ -372,14 +372,14 @@ struct type ResourceProvider {
 // Size 16, alignment 4. Results table.
 struct type Result {
   // Interface names index; output supplying value.
-  name : uint32,
+  name: uint32,
   // 0 = next state, 1 = temporaries.
-  bank : uint8,
+  bank: uint8,
   // Three zero alignment bytes. Align indices to 4 bytes.
   // Index into state variables or temporaries.
-  variable : uint32,
+  variable: uint32,
   // New state value; index into temporaries, or NONE.
-  state_new : uint32,
+  state_new: uint32,
 }
 ```
 
@@ -398,17 +398,17 @@ zero.
 // Size 48, alignment 4. Node types table.
 struct type NodeType {
   // StringRef array in Program data; name parts.
-  components : ArrayRange,
+  components: ArrayRange,
   // Range into Interface names.
-  parameter_names : Range,
+  parameter_names: Range,
   // Range into Interface names.
-  initializer_names : Range,
+  initializer_names: Range,
   // Range into Interface names.
-  value_input_names : Range,
+  value_input_names: Range,
   // Range into Interface names.
-  resource_input_names : Range,
+  resource_input_names: Range,
   // Range into Native methods.
-  methods : Range,
+  methods: Range,
 }
 ```
 
@@ -430,11 +430,11 @@ after a restart.
 // Size 20, alignment 4. Native methods table.
 struct type NativeMethod {
   // Index into Node types; defines the method.
-  node_type : uint32,
+  node_type: uint32,
   // Method name in Program data.
-  name : StringRef,
+  name: StringRef,
   // Range into Interface names.
-  output_names : Range,
+  output_names: Range,
 }
 ```
 
@@ -447,7 +447,7 @@ can share their node type's input-name ranges.
 // Size 8, alignment 4. Interface names table.
 struct type InterfaceName {
   // Interface name in Program data.
-  name : StringRef,
+  name: StringRef,
 }
 ```
 
@@ -456,11 +456,11 @@ struct type InterfaceName {
 // Size 20, alignment 4. Enum definitions table.
 struct type EnumDefinition {
   // Enum name in Program data.
-  name : StringRef,
+  name: StringRef,
   // EnumType index in Value types.
-  value_type : uint32,
+  value_type: uint32,
   // EnumMember array in Program data.
-  members : ArrayRange,
+  members: ArrayRange,
 }
 ```
 
@@ -474,9 +474,9 @@ such as JSON. Members are ordered by numeric value.
 // Size 16, alignment 8.
 struct type EnumMember {
   // Member number; signed values use sign-extended bits.
-  number : uint64,
+  number: uint64,
   // Member name in Program data.
-  name : StringRef,
+  name: StringRef,
 }
 ```
 
@@ -498,12 +498,12 @@ by its first byte (`kind`).
 // Size 16, alignment 8. Primitive and parameter-only scalar type records.
 struct type SimpleType {
   // Primitive or parameter-only scalar kind.
-  kind : Kind,
+  kind: Kind,
   // Three zero alignment bytes.
   // Reserved; zero.
-  reserved32 : uint32,
+  reserved32: uint32,
   // Zero.
-  reserved64 : uint64,
+  reserved64: uint64,
 }
 ```
 
@@ -512,14 +512,14 @@ struct type SimpleType {
 // Size 16, alignment 4. Kind.Enum.
 struct type EnumType {
   // Kind.Enum.
-  kind : Kind,
+  kind: Kind,
   // Three zero alignment bytes. Align indices to 4 bytes.
   // Integer type index in value types.
-  underlying_type : uint32,
+  underlying_type: uint32,
   // Index into enum definitions.
-  definition : uint32,
+  definition: uint32,
   // Zero.
-  reserved : uint32,
+  reserved: uint32,
 }
 ```
 
@@ -528,18 +528,18 @@ struct type EnumType {
 // Size 16, alignment 8. Kind.Option or Kind.List.
 struct type CompositeType {
   // Kind.Option or parameter-only Kind.List.
-  kind : Kind,
+  kind: Kind,
   // Three zero alignment bytes. Align inner_type to 4 bytes.
   // Index into value types.
-  inner_type : uint32,
+  inner_type: uint32,
   // Zero.
-  reserved : uint64,
+  reserved: uint64,
 }
 ```
 
 ```wirely
 // Identifies a value type record's layout and represented type.
-enum type Kind : uint8 {
+enum type Kind: uint8 {
   Unit = 0,
   Boolean = 1,
   Int8 = 2,
@@ -587,7 +587,7 @@ the representations below, including strings and lists.
 // Size 4, alignment 4.
 struct type ValueTypeValue {
   // Index into Value types.
-  value_type : uint32,
+  value_type: uint32,
 }
 ```
 
@@ -596,9 +596,9 @@ struct type ValueTypeValue {
 // Size 8, alignment 4. Parameter-only.
 struct type ListValue {
   // Byte offset into Program data; first element.
-  offset : uint32,
+  offset: uint32,
   // Number of consecutive elements, including units.
-  element_count : uint32,
+  element_count: uint32,
 }
 ```
 
@@ -617,11 +617,11 @@ buffer.
 // Size 24, alignment 4. Debug metadata section.
 struct type DebugMetadata {
   // Program name in Debug data.
-  program_name : StringRef,
+  program_name: StringRef,
   // State block name in Debug data.
-  state_block_name : StringRef,
+  state_block_name: StringRef,
   // Temporary block name in Debug data.
-  temp_block_name : StringRef,
+  temp_block_name: StringRef,
 }
 ```
 
@@ -630,9 +630,9 @@ struct type DebugMetadata {
 // Size 12, alignment 4. Node/State variable/Temporary names tables.
 struct type DebugName {
   // Index into Nodes, State variables, or Temporaries, selected by table.
-  target : uint32,
+  target: uint32,
   // Display name in Debug data.
-  name : StringRef,
+  name: StringRef,
 }
 ```
 
@@ -649,9 +649,9 @@ sources use the same invariant.
 // Size 12, alignment 4. Node aliases and Singleton aliases tables.
 struct type NodeAlias {
   // Declared path or type name in Debug data.
-  name : StringRef,
+  name: StringRef,
   // Index into Nodes.
-  r#node : uint32,
+  r#node: uint32,
 }
 ```
 
@@ -663,12 +663,12 @@ one identity.
 // Size 16, alignment 4. Variable aliases table.
 struct type VariableAlias {
   // Alias name in Debug data.
-  name : StringRef,
+  name: StringRef,
   // 0 = state, 1 = temporaries.
-  bank : uint8,
+  bank: uint8,
   // Three zero alignment bytes. Align variable to 4 bytes.
   // Index into State variables or Temporaries.
-  variable : uint32,
+  variable: uint32,
 }
 ```
 

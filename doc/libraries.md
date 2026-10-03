@@ -1,7 +1,7 @@
 # Library reference
 
 The libraries below are available by default. Instantiate a node
-as `node name : Library.Type(Parameter = value);`. Names and parameter
+as `node name: Library.Type(Parameter = value);`. Names and parameter
 capitalization matter. Public library namespaces, node and resource types,
 parameters, and named connectors use PascalCase, preserving acronyms such
 as `KNX` and `URI`. In the signatures below, `in` and `out` mean implicit
@@ -204,11 +204,11 @@ Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
 member names. For example:
 
 ```wrl
-node mode : Std.Constant(
+node mode: Std.Constant(
   Type = ThermostatSystemModeEnum,
   Value = ThermostatSystemModeEnum.Heat
 );
-node modes : Std.DebugEventSource(Type = ThermostatSystemModeEnum);
-node printer : Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
+node modes: Std.DebugEventSource(Type = ThermostatSystemModeEnum);
+node printer: Std.DebugEventPrinter(Type = ThermostatSystemModeEnum);
 connect modes -> printer;
 ```
