@@ -11,15 +11,19 @@ from .types import Type
 
 
 class RunStage(enum.Enum):
-    INPUT = enum.auto()
-    DEFAULT = enum.auto()
-    OUTPUT = enum.auto()
+    """Ordered phases of an engine step."""
+
+    INPUT = enum.auto()  # Read external inputs before normal computation.
+    DEFAULT = enum.auto()  # Run normal computation.
+    OUTPUT = enum.auto()  # Write external outputs after normal computation.
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class Variable:
-    name: str
-    var_type: Type
+    """A state or temporary variable, identified by object identity."""
+
+    name: str  # Qualified variable name for lookup and diagnostics.
+    var_type: Type  # Resolved value type used for validation and comparison.
 
     def __post_init__(self):
         if not isinstance(self.name, str):
@@ -37,9 +41,11 @@ class Variable:
 
 @dataclass(frozen=True, slots=True, init=False, eq=False)
 class VariableBlock:
-    name: str
-    variables: Mapping[str, Variable]
-    variable_set: frozenset[Variable]
+    """An immutable collection of variable definitions, without live values."""
+
+    name: str  # Collection name for diagnostics.
+    variables: Mapping[str, Variable]  # Variables indexed by qualified name.
+    variable_set: frozenset[Variable]  # Variables allowed in a runtime instance.
 
     def __init__(self, variables, name):
         by_name = {}
@@ -58,25 +64,29 @@ class VariableBlock:
 class InputSourceBinding:
     """A procedure input from a temporary or the step's state snapshot."""
 
-    variable: Variable
-    state_changed: Variable | None = None
+    variable: Variable  # Source in the temporaries or the step's old state.
+    state_changed: Variable | None = None  # Change flag; marks an old-state input.
 
 
 @dataclass(frozen=True, slots=True)
 class ResultBinding:
-    variable: Variable
-    state_new: Variable | None = None
-    state_changed: Variable | None = None
+    """A procedure result targeting a temporary or the next step's state."""
+
+    variable: Variable  # Destination temporary or persistent state variable.
+    state_new: Variable | None = None  # Temporary exposing the new state value.
+    state_changed: Variable | None = None  # Temporary recording a state change.
 
 
 @dataclass(frozen=True, slots=True)
 class NativeInstance:
-    name: str
-    type_name: tuple[str, ...]
-    has_native_state: bool
-    parameters: Mapping[str, object]
-    configuration: object
-    initializer_bindings: tuple
+    """Stored node context for procedures and optional native state creation."""
+
+    name: str  # Instance name exposed to native code.
+    type_name: tuple[str, ...]  # Qualified node type name, split into components.
+    has_native_state: bool  # Whether the engine creates a native state object.
+    parameters: Mapping[str, object]  # Resolved parameters in native Python form.
+    configuration: object  # Prepared configuration passed to native code.
+    initializer_bindings: tuple  # (input name, provider node IDs, is_list) entries.
 
     def __post_init__(self):
         object.__setattr__(self, 'type_name', tuple(self.type_name))
@@ -92,13 +102,15 @@ class NativeInstance:
 
 @dataclass(frozen=True, slots=True)
 class Procedure:
-    node_id: str
-    reference: tuple[tuple[str, ...], str]
-    node_context: NativeInstance
-    dependencies: tuple
-    resources: tuple
-    results: Mapping[str, ResultBinding]
-    state_dependencies: tuple[Variable, ...]
+    """A scheduled native procedure with its inputs and result destinations."""
+
+    node_id: str  # Owning node's key in Program.instances.
+    reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
+    node_context: NativeInstance  # Parameters and configuration for this node.
+    dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
+    resources: tuple  # (input name, provider node IDs, is_list) entries.
+    results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
+    state_dependencies: tuple[Variable, ...]  # State change flags that require execution.
 
     def __post_init__(self):
         type_name, proc_name = self.reference
@@ -113,22 +125,28 @@ class Procedure:
 
     @property
     def key(self):
+        """Return the (node ID, method name) key for triggers and wakeups."""
         return self.node_id, self.reference[1]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Program:
-    name: str
-    state_variables: VariableBlock
-    temporaries: VariableBlock
-    initial_state: Mapping[Variable, object]
-    instances: Mapping[str, NativeInstance]
-    native_construction_order: tuple[str, ...]
-    procs: Mapping[RunStage, tuple[Procedure, ...]]
-    node_aliases: Mapping[str, str]
-    singleton_aliases: Mapping[str, str]
-    variables: Mapping[str, Variable]
-    graph: object | None = None
+    """An executable program with immutable structure and optional debug data.
+
+    Referenced type descriptors, payload objects, and graph are not frozen.
+    """
+
+    name: str  # Program name for diagnostics.
+    state_variables: VariableBlock  # Variables persisted between engine steps.
+    temporaries: VariableBlock  # Per-step variables, including new-state values and flags.
+    initial_state: Mapping[Variable, object]  # Starting values of persistent state.
+    instances: Mapping[str, NativeInstance]  # Stored node contexts indexed by node ID.
+    native_construction_order: tuple[str, ...]  # Node IDs ordered with providers first.
+    procs: Mapping[RunStage, tuple[Procedure, ...]]  # Stages and procedures in execution order.
+    node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
+    singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
+    variables: Mapping[str, Variable]  # Debug lookup from variable aliases to definitions.
+    graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self):
         for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables'):
