@@ -18,6 +18,8 @@ references instead of `implicit input` and `implicit output`.
 
 #### Library names
 
+Use `Process.LaunchOnEvent` instead of `ExtProg.LaunchOnEvent`.
+
 Use `MQTT.EventSender` and `KNX.EventSender` instead of
 `MQTT.EventEmitter` and `KNX.EventEmitter`.
 

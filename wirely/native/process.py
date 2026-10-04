@@ -39,7 +39,7 @@ class LaunchOnEvent(blocks.NativeState):
             return
 
         if self.pending:
-            print('Warning: ExtProg.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
+            print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
         self.pending = True
         self.event.set()
 

@@ -1,4 +1,4 @@
-namespace ExtProg {
+namespace Process {
   native node type LaunchOnEvent {
     // Will be passed to "sh -c"
     parameter ShellCommand: String;

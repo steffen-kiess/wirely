@@ -31,7 +31,7 @@ native_block_pkgs = {
     ('GPIO',): 'gpio',
     ('TestLibrary',): 'test_library',
     ('Memory',): 'memory',
-    ('ExtProg',): 'ext_prog',
+    ('Process',): 'process',
 }
 
 

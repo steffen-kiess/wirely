@@ -169,9 +169,9 @@ optional `OutputValue: OutputType`, and `MinimumDelay: Duration = "PT1S"`.
 Set `OutputValue` when `OutputType` is not `unit`. The minimum delay limits
 successive output events.
 
-## ExtProg
+## Process
 
-`ExtProg.LaunchOnEvent` launches a shell command when an input event arrives.
+`Process.LaunchOnEvent` launches a shell command when an input event arrives.
 Events received while a launch is pending may be combined into one launch.
 It takes `ShellCommand: String` and `Type: ValueType = unit`, with a default
 `event Type` input. The event payload is ignored. The command is passed to

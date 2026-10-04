@@ -59,7 +59,7 @@ test_names = [
     'wrl/knx_time',
     'wrl/flipflop',
     'wrl/two_n',
-    'wrl/ext_prog',
+    'wrl/process',
 ]
 
 to_compile = [

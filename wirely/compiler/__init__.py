@@ -95,7 +95,7 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
 
 _STANDARD_LIBRARY_NAMES = (
     'std', 'matter', 'time', 'knx', 'abb_jra', 'mqtt', 'csv',
-    'two_n', 'gpio', 'memory', 'ext_prog',
+    'two_n', 'gpio', 'memory', 'process',
 )
 
 
