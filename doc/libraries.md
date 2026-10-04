@@ -29,7 +29,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: ValueType` | Out: `value Option[InnerType]`. Produces `None`. |
 | `OptionSome` | `InnerType: ValueType` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |
-| `OptionUnwrapOrDefault` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
+| `OptionUnwrapOr` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
 | `OptionIsSome` | `InnerType: ValueType` | In: `value Option[InnerType]`; out: `value boolean`. True when a value is present. |
 | `OptionCreate` | `InnerType: ValueType` | Named in: `HasValue: value boolean`, `Value: value InnerType`; out: `value Option[InnerType]`. Wraps `Value` when `HasValue` is true; otherwise produces `None`. |
 | `DetectEdge` | `EdgeType: String` | In: `value boolean`; out: `event boolean`. Only `"Falling"` works; `"Rising"` and `"Both"` raise an error when run. |

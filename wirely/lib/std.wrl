@@ -97,7 +97,7 @@ namespace Std {
       produces implicit output as "output";
   }
 
-  node type OptionUnwrapOrDefault {
+  node type OptionUnwrapOr {
     parameter InnerType: ValueType;
     // TODO: Should this be a parameter or an input? Use an input an allow
     // inputs to be specified as options?

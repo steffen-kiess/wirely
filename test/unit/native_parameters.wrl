@@ -35,7 +35,7 @@ node type OptionalForward {
   optional parameter Default: boolean;
   implicit input: value Option[boolean];
   output Value: value boolean;
-  node value: Std.OptionUnwrapOrDefault { InnerType: boolean, Default: Default }
+  node value: Std.OptionUnwrapOr { InnerType: boolean, Default: Default }
   connect implicit input -> value;
   connect value -> Value;
 }

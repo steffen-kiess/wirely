@@ -177,7 +177,7 @@ class OptionSome:
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class OptionUnwrapOrDefault:
+class OptionUnwrapOr:
     @staticmethod
     def run(*, context):
         par_default = context.parameters['Default']

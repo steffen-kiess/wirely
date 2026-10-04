@@ -54,7 +54,7 @@ namespace ABB.JRA {
     // node have_value : Std.OptionIsSome { InnerType: uint16 }
     // connect implicit input -> have_value;
 
-    // node input_value: Std.OptionUnwrapOrDefault {
+    // node input_value: Std.OptionUnwrapOr {
     //   InnerType: uint16,
     //   Default: 0,
     // }

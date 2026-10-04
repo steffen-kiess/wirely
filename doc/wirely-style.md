@@ -85,7 +85,7 @@ Explain purpose or non-obvious behavior rather than restating the code.
 
 ```wrl
 // Keep the lights off until an occupancy value has been received.
-node occupied: Std.OptionUnwrapOrDefault {
+node occupied: Std.OptionUnwrapOr {
   InnerType: boolean,
   Default: false,
 }

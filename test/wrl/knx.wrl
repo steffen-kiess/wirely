@@ -10,12 +10,12 @@ connect bus -> receiver.Bus;
 node receiver_prnt: Std.DebugValuePrinter { Type: Option[boolean] }
 connect receiver -> receiver_prnt;
 
-node receiver_value: Std.OptionUnwrapOrDefault {
+node receiver_value: Std.OptionUnwrapOr {
   InnerType: boolean,
   Default: false,
 }
 connect receiver -> receiver_value;
-node receiver_value2: Std.OptionUnwrapOrDefault {
+node receiver_value2: Std.OptionUnwrapOr {
   InnerType: boolean,
   Default: true,
 }
@@ -33,7 +33,7 @@ connect bus -> jra_status.Bus;
 node status: ABB.JRA.InterpretStatusInformationOption {}
 connect jra_status -> status;
 
-node jra_status_non_option: Std.OptionUnwrapOrDefault {
+node jra_status_non_option: Std.OptionUnwrapOr {
   InnerType: uint16,
   Default: 0,
 }
