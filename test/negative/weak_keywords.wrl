@@ -30,3 +30,19 @@ node type T {
   default output: value boolean;
   connect source -> implicit output; // E: Syntax error
 }
+
+// TEST: old_list_value_modifier
+node type T {
+  input Values: list value boolean; // E: Syntax error
+}
+
+// TEST: old_list_event_modifier
+node type T {
+  default input: list event unit; // E: Syntax error
+}
+
+// TEST: old_list_resource_modifier
+resource type Handle;
+node type T {
+  input Services: list resource Handle; // E: Syntax error
+}

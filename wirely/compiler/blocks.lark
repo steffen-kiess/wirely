@@ -68,7 +68,7 @@ connection_kind: "value" -> connection_kind_specifier__create_value
 block_connector_type: "input" -> block_connector_type_specifier__create_input
                     | "output" -> block_connector_type_specifier__create_output
 
-list_specifier: "list" -> list_specifier__create_list
+list_specifier: "multi" -> list_specifier__create_list
               | ()     -> list_specifier__create_nolist
 
 value: reference "{" struct_literal_field_list "}" -> struct_literal
@@ -141,7 +141,7 @@ OCT_NUMBER: /0o[0-7]*(?!\w)/i
            | "default"
            | "event"
            | "input"
-           | "list"
+           | "multi"
            | "on"
            | "output"
            | "resource"

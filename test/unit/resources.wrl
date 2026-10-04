@@ -23,7 +23,7 @@ namespace ResourceFixture.Deep {
   }
 
   node type Many {
-    input Services: list resource Handle;
+    input Services: multi resource Handle;
   }
 
   singleton node type Shared {

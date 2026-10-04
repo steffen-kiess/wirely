@@ -188,7 +188,7 @@ namespace TestLibrary {
   native node type Consumer {
     parameter Label: String;
     input Service: resource Service;
-    input Services: list resource Service;
+    input Services: multi resource Service;
     state saved: boolean = false;
     output Old: value boolean;
     output New: value boolean;

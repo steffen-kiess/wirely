@@ -203,7 +203,7 @@ node type Fresh {
 }
 resource type Handle;
 node type Provider { default output: resource Handle; }
-node type Consumer { default input: list resource Handle; }
+node type Consumer { default input: multi resource Handle; }
 node p: Provider {}
 node q: Provider {}
 node consumer: Consumer {}

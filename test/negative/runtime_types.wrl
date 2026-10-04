@@ -25,7 +25,7 @@ node type Invalid {
 
 // TEST: runtime_list_event
 node type Invalid {
-  default input: list event List[uint8]; // E: parameter-only
+  default input: multi event List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_nested_list

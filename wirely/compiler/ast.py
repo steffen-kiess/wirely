@@ -965,7 +965,7 @@ class DeclarationConnector(Declaration):
         self.conn_type = self.conn_type_spec.conn_type
 
         if self.list_spec.is_list and self.conn_type != BlockConnectorType.BlockInput:
-            raise ProgramError(self, f'Got list specifier for non-input')
+            raise ProgramError(self, f'Got multi specifier for non-input')
 
         if self.name is None:
             if self.conn_type == BlockConnectorType.BlockInput:

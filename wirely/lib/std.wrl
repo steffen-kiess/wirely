@@ -9,7 +9,7 @@ namespace Std {
   }
 
   node type And {
-    default input: list value boolean;
+    default input: multi value boolean;
     default output: value boolean;
 
     native procedure run

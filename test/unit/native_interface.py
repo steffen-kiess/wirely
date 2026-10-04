@@ -477,7 +477,7 @@ def check_list(context):
 
 
 probe = make_engine('''
-default input: list value uint8;
+default input: multi value uint8;
 default output: value uint8;
 
 native procedure run
@@ -498,7 +498,7 @@ def check_empty_list(context):
 
 
 probe = make_engine('''
-default input: list value uint8;
+default input: multi value uint8;
 default output: value uint8;
 
 native procedure run
@@ -518,7 +518,7 @@ def check_event_connections(context):
 
 
 probe = make_engine('''
-default input: list event uint8;
+default input: multi event uint8;
 
 native procedure run
   depends on default input as "values";

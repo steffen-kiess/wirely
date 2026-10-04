@@ -4,6 +4,12 @@
 
 ### Breaking changes and migration
 
+#### Multi inputs
+
+Use `multi value`, `multi event`, and `multi resource` instead of `list value`,
+`list event`, and `list resource` in input declarations. `multi` is a weak
+keyword and can also be used as an identifier.
+
 #### Default connectors
 
 Use `default input` and `default output` in connector declarations and

@@ -121,7 +121,7 @@ namespace TestLibrary {
   }
 
   node type Collect {
-    default input: list value boolean;
+    default input: multi value boolean;
     default output: value boolean;
     native procedure run
       depends on default input as "input"
@@ -286,7 +286,7 @@ current_definitions = definitions + '''
 namespace TestLibrary {
   node type Mixed {
     parameter Type: ValueType;
-    default input: list value Type;
+    default input: multi value Type;
     default output: value boolean;
     native procedure run
       depends on default input as "input"

@@ -205,7 +205,7 @@ Generic types can nest, for example `Option[List[uint8]]` or
 `List[Option[boolean]]`. A type parameter can also be the inner type, as in
 `Option[Type]`.
 
-`List[T]` is a single list-valued datum. A `list value T` input instead
+`List[T]` is a single list-valued datum. A `multi value T` input instead
 accepts several connections, each carrying a value of type `T`.
 
 ## JSON and CSV support

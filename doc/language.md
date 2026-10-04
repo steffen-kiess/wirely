@@ -116,7 +116,7 @@ parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
 Identifiers are case-sensitive. Weak keywords `default`, `event`, `input`,
-`list`, `on`, `output`, `resource`, `stage`, `state`, `type`, and `value` can
+`multi`, `on`, `output`, `resource`, `stage`, `state`, `type`, and `value` can
 also be used as identifiers. Other keywords require the `r#` prefix when used
 as names, for example `node r#node: Std.And {}`. Declarations end with
 `;`, except node instances and type and namespace bodies, which end at `}`.
@@ -218,8 +218,8 @@ Data connectors have a kind and a type: `value boolean` carries the current
 value, while `event boolean` carries an occurrence with a boolean payload.
 An event may be absent in a step. Source and target must have the same kind
 and type; Wirely does not automatically convert them. Ordinary inputs accept
-one source. A `list value T` or `list event T` input accepts several sources;
-`connect a, b -> target;` connects both. `Std.And` is an example of a list
+one source. A `multi value T` or `multi event T` input accepts several sources;
+`connect a, b -> target;` connects both. `Std.And` is an example of a multi
 input.
 
 ### Opaque resource connectors

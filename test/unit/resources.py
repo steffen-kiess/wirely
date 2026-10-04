@@ -191,8 +191,8 @@ namespace TestLibrary {
 
   native node type Consumer {
     input Service: resource Service;
-    input Services: list resource Service;
-    input Empty: list resource Service;
+    input Services: multi resource Service;
+    input Empty: multi resource Service;
     default input: resource Service;
     output Count: value uint8;
 

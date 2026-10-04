@@ -12,7 +12,7 @@ from wirely.compiler.parser import parse_str, parser
 
 
 weak_keywords = [
-    'default', 'event', 'input', 'list', 'on', 'output', 'resource', 'stage',
+    'default', 'event', 'input', 'multi', 'on', 'output', 'resource', 'stage',
     'state', 'type', 'value',
 ]
 reserved_keywords = [
@@ -105,7 +105,7 @@ procedure = parse(
 assert procedure.name.id_str == 'stage'
 assert [binding.key for binding in procedure.depends.dependencies] == ['on', 'stage']
 assert [binding.key for binding in procedure.produces.outputs] == ['output']
-connector = parse('input input: list event unit;')
+connector = parse('input input: multi event unit;')
 assert connector.name.id_str == 'input'
 parse('output resource: resource Handle;')
 parse('native initializer depends on resource, on;')
@@ -122,6 +122,15 @@ for direction in ['input', 'output']:
     assert str(connection.target) == f'default {direction}'
 
 assert parse('node implicit: T {}').name.id_str == 'implicit'
+assert parse('node list: T {}').name.id_str == 'list'
+
+for specification in ['value boolean', 'event unit', 'resource Handle']:
+    connector = parse(f'input multi: multi {specification};')
+    assert connector.name.id_str == 'multi'
+    assert connector.list_spec.is_list
+    connector = parse(f'default input: multi {specification};')
+    assert connector.name is None
+    assert connector.list_spec.is_list
 
 for keyword in reserved_keywords:
     try:

@@ -83,7 +83,7 @@ resource type Service; // E: Resource type Service conflicts with node type
 resource type Handle;
 
 node type Invalid {
-  default output: list resource Handle; // E: Got list specifier for non-input
+  default output: multi resource Handle; // E: Got multi specifier for non-input
 }
 
 // TEST: legacy_knx_bus_syntax

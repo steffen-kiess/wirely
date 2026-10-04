@@ -1,7 +1,7 @@
 node default: Std.Constant { Type: boolean, Value: true }
 node event: Std.Constant { Type: boolean, Value: true }
 node input: Std.Constant { Type: boolean, Value: true }
-node list: Std.Constant { Type: boolean, Value: true }
+node multi: Std.Constant { Type: boolean, Value: true }
 node on: Std.Constant { Type: boolean, Value: true }
 node output: Std.Constant { Type: boolean, Value: true }
 node resource: Std.Constant { Type: boolean, Value: true }
@@ -10,7 +10,7 @@ node state: Std.Constant { Type: boolean, Value: true }
 node type: Std.Constant { Type: boolean, Value: true }
 node value: Std.Constant { Type: boolean, Value: true }
 node sink: Std.And {}
-connect default, event, r#input, list, r#on, output, r#resource, stage, r#state,
+connect default, event, r#input, multi, r#on, output, r#resource, stage, r#state,
   type, r#value -> sink;
 
 node r#depends: Std.Constant { Type: boolean, Value: true }
