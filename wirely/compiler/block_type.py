@@ -75,6 +75,8 @@ class BlockType(blocks.Scope):
 
         # TODO: Merge parsed_parameters and parameters?
         parsed_parameters = {}
+        parsed_constants = {}
+        static_declarations = {}
         for decl in self.declarations:
             decl.compile_pass1_btd(self)
 
@@ -82,20 +84,24 @@ class BlockType(blocks.Scope):
             if not isinstance(decl, blocks.DeclarationParameter):
                 continue
             with decl.context:
-                if self.is_singleton:
+                is_constant = isinstance(decl, blocks.DeclarationConstant)
+                if self.is_singleton and not is_constant:
                     # TODO: Allow parameters for singleton blocks and create one instance for each parameter combination?
                     raise blocks.ProgramError(decl, f'Singleton block cannot have parameters')
 
                 name = decl.name.id_str
-                if name in parsed_parameters:
-                    hints = [
-                        blocks.CompilerHint(parsed_parameters[name], 'Previous parameter was here'),
-                    ]
-                    raise blocks.ProgramError(decl, f'Duplicate parameter name {name!r}', hints=hints)
-                parsed_parameters[name] = decl
+                if name in static_declarations:
+                    previous = static_declarations[name]
+                    kind = 'constant' if is_constant else 'parameter'
+                    raise blocks.ProgramError(decl, f'Duplicate {kind} name {name!r}', hints=[
+                        blocks.CompilerHint(previous, 'Previous declaration was here'),
+                    ])
+                static_declarations[name] = decl
+                (parsed_constants if is_constant else parsed_parameters)[name] = decl
         if hasattr(self, 'parsed_parameters'):
             raise Exception("hasattr(self, 'parsed_parameters')")
         self.parsed_parameters = parsed_parameters
+        self.parsed_constants = parsed_constants
 
         # Former "implementation" part
 
@@ -121,6 +127,10 @@ class BlockType(blocks.Scope):
             return
         self.pass1_5_done = True
 
+        for declaration in self.static_declarations.values():
+            declaration.resolve_type()
+
+
         # Former "implementation" part
 
         for decl in self.declarations:
@@ -131,12 +141,6 @@ class BlockType(blocks.Scope):
             if isinstance(decl, blocks.Declaration):
                 with decl.context:
                     decl.compile_pass1_5(self)
-
-        # Resolve Parameters
-        for par_name in self.parsed_parameters:
-            par = self.parsed_parameters[par_name]
-
-            par.resolve_type()
 
         # TODO: Remove
         self.parameters_by_name = self.parsed_parameters
@@ -192,12 +196,11 @@ class BlockType(blocks.Scope):
         state_variables = {}
         for variable in self.variables.values():
             if isinstance(variable, blocks.ast.DeclarationStateVariable):
-                var_type = self.resolve_type(variable.var_type, par_values=block.parameter_values)
+                var_type = self.resolve_type(variable.var_type)
                 check_runtime_type(var_type, instantiation)
-                initial_value = self.get_const_value(variable.initial_value, value_type=var_type, par_values=block.parameter_values)
-                # TODO: Can there be type parameters here?
-                initial_value = initial_value.value
-                block_var = blocks.Block.StateVariable(block, variable.name.id_str, var_type, initial_value)
+                block_var = blocks.Block.StateVariable(
+                    block, variable.name.id_str, var_type, variable.initial_value,
+                )
                 if hasattr(var_type, 'block_var'):
                     raise Exception("hasattr(var_type, 'block_var')")
                 copy_attributes(block_var, variable)

@@ -1,0 +1,129 @@
+constant RootType: ValueType = int16;
+constant RootValue: RootType = 12;
+constant constant: boolean = true;
+state saved: RootType = RootValue;
+temporary root_result: RootType;
+procedure root_copy depends on saved.old as previous produces root_result {
+  root_result = if constant { previous } else { 0 };
+}
+
+enum type Mode: uint8 {
+  Off = 0,
+  On = 1,
+}
+
+struct type Settings {
+  enabled: boolean,
+  number: int16,
+}
+
+node type Capture {
+  parameter Text: String;
+  parameter Items: List[Option[int16]];
+}
+
+node type Select {
+  parameter Enabled: boolean;
+  parameter Default: SelectedType = Selected;
+  constant SelectedType: ValueType = int16;
+  constant Selected: SelectedType = {
+    let fallback: int16 = 0;
+    if Enabled { Later } else { fallback }
+  };
+  constant Later: int16 = 12;
+  constant Text: String = "hello";
+  constant Items: List[Option[int16]] = [Some(Selected), None];
+  constant Pair: Settings = Settings { enabled: Enabled, number: Selected };
+  constant At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
+  constant Duration: Duration = "PT1S";
+  constant Monotonic: MonotonicTime = MonotonicTime.Invalid;
+  constant Mode: Mode = Mode.On;
+  constant Unit: unit = ();
+  constant Same: boolean = Unit == ();
+  state saved: SelectedType = Selected;
+  default output: value SelectedType;
+  output Initial: value SelectedType;
+  output PairCopy: value Settings;
+  output SameUnit: value boolean;
+  node items: Std.Constant {
+    Type: Option[int16],
+    Value: if Enabled { Some(Selected) } else { None },
+  }
+  temporary selected: SelectedType;
+
+  node captured: Capture { Text: Text, Items: Items }
+  node compared: Std.Constant { Type: boolean, Value: Selected == Later }
+  node child: Std.Constant { Type: SelectedType, Value: Selected }
+  procedure run
+    depends on saved.old as previous
+    produces default output as output, Initial, PairCopy, SameUnit, selected
+  {
+    output = Selected;
+    Initial = previous;
+    PairCopy = Pair;
+    SameUnit = Same;
+    selected = Default;
+  }
+}
+
+node type Forward {
+  parameter Enabled: boolean;
+  constant Flag: boolean = Enabled;
+  node child: Select { Enabled: Flag }
+}
+
+singleton node type Shared {
+  constant Type: ValueType = boolean;
+  constant Flag: Type = true;
+  default output: value Type;
+  procedure run produces default output as output { output = Flag; }
+}
+
+node enabled: Select { Enabled: true }
+node disabled: Select { Enabled: false }
+node nested: Forward { Enabled: false }
+node shared: Shared {}
+node shared_again: Shared {}
+node root_child: Std.Constant { Type: RootType, Value: RootValue }
+
+node type GenericCapture {
+  parameter Type: ValueType;
+  parameter Value: Type;
+}
+
+node type Generic {
+  parameter Type: ValueType;
+  constant Value: Type = {
+    let number: uint8 = 7;
+    Some([number, 8])
+  };
+  default output: value boolean;
+  node child: GenericCapture { Type: Type, Value: Value }
+  procedure run produces default output as output { output = true; }
+}
+node generic: Generic { Type: Option[List[uint8]] }
+
+node type TypedList {
+  constant Type: ValueType = List[Option[int16]];
+  constant Items: Type = {
+    let number: int16 = 12;
+    [Some(number), None]
+  };
+  node child: GenericCapture { Type: Type, Value: Items }
+}
+node typed_list: TypedList {}
+
+node type TypedStruct {
+  parameter Type: ValueType;
+  constant Value: Type = Settings { enabled: true, number: 12 };
+  default output: value Type;
+  procedure run produces default output as output { output = Value; }
+}
+node typed_struct: TypedStruct { Type: Settings }
+
+node type TypeValue {
+  parameter Type: ValueType;
+  constant Value: Type = uint8;
+  node child: GenericCapture { Type: Type, Value: Value }
+}
+node type_value: TypeValue { Type: ValueType }

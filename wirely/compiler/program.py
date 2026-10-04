@@ -4,7 +4,7 @@ import traceback
 
 from wirely.compiler import model as blocks
 from wirely.program import NativeInstance, Procedure, Program, ResultBinding
-from wirely.compiler.types import resolve_type
+from wirely.compiler.types import resolve_type, check_runtime_type
 
 
 def compile(global_block_type):
@@ -27,7 +27,7 @@ def compile_nocatch(global_block_type):
     # TODO: More checks, e.g. that global_block_type has not parameters or inputs / outputs
     graph = global_block_type
     root = None
-    if graph.variables or graph.procedures:
+    if graph.variables or graph.procedures or graph.parsed_constants:
         for declaration in graph.procedures.values():
             if declaration.is_native:
                 raise blocks.ProgramError(declaration, 'Native procedures must belong to a node type')
@@ -56,9 +56,13 @@ def compile_nocatch(global_block_type):
         parameters = {}
         instance = instances[path]
         while instance is not None:
-            parameters.update(instance.parameter_values)
+            parameters.update(instance.static_values)
             instance = instance.parent_instance
         var_type = resolve_type(var.impl_var_type, parameters)
+        owner = instances[path].block or instances[path].block_type.singleton_instance
+        source = (owner.block_type.variables.get(var.name, owner.instantiation)
+                  if owner.is_root else owner.instantiation)
+        check_runtime_type(var_type, source)
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = blocks.Block.path_name(path)
@@ -239,7 +243,15 @@ def compile_nocatch(global_block_type):
     for path, instance in instances.items():
         block = instance.block or instance.block_type.singleton_instance
         for state in block.block_statevars:
-            initial_state[state_map[path, state]] = state.initial_value
+            value_type = resolve_type(state.var_type, instance.static_values)
+            with state.initial_value.context:
+                value = instance.block_type.get_const_value(
+                    state.initial_value, value_type, instance.static_values,
+                )
+                try:
+                    initial_state[state_map[path, state]] = value_type.verify_value(value.evaluate())
+                except (ValueError, ArithmeticError) as error:
+                    raise blocks.ProgramError(state.initial_value, str(error)) from error
 
     # Compile .wrl bodies after instance parameters and variable types resolve.
     from .expressions import compile_procedure

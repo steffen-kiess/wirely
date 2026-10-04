@@ -1,4 +1,4 @@
-"""Resolve compiler parameter bindings and declaration defaults."""
+"""Resolve per-instance parameters and constants on demand."""
 
 from types import MappingProxyType
 
@@ -21,9 +21,19 @@ class ParameterValues(dict):
             return self._resolved[parameter]
         if parameter in self._resolving:
             names = [item.name.id_str for item in self._resolving] + [parameter.name.id_str]
-            raise blocks.ProgramError(parameter, f'Cyclic parameter resolution: {" -> ".join(names)}')
+            kind = ('static value' if any(isinstance(item, blocks.DeclarationConstant)
+                                         for item in self._resolving + [parameter])
+                    else 'parameter')
+            raise blocks.ProgramError(parameter, f'Cyclic {kind} resolution: {" -> ".join(names)}')
         self._resolving.append(parameter)
         try:
+            return self._resolve(parameter)
+        finally:
+            self._resolving.pop()
+
+    def _resolve(self, parameter):
+        source = parameter.default_value or parameter
+        with source.context:
             if super().__contains__(parameter):
                 value = super().__getitem__(parameter)
             elif parameter.default_value is not None:
@@ -38,10 +48,17 @@ class ParameterValues(dict):
                 raise blocks.ProgramError(parameter, f'Unable to resolve parameter {parameter.name.id_str}')
             value = (resolve_type(value, self) if isinstance(value, blocks.Type)
                      else value.resolve_self(par_values=self))
+            if isinstance(value, blocks.Value):
+                value_type = resolve_type(parameter.type_resolved, self)
+                blocks.value.check_value_type(value.value_type, value_type, value.ast_element)
+                try:
+                    concrete = value_type.verify_value(value.evaluate())
+                except (ValueError, ArithmeticError) as error:
+                    raise blocks.ProgramError(value.ast_element, str(error)) from error
+                value = (concrete if value_type == blocks.types.ValueType else
+                         blocks.ConstantValue(value_type, concrete, ast_element=value.ast_element))
             self._resolved[parameter] = value
             return value
-        finally:
-            self._resolving.pop()
 
 
 def resolve_parameter(parameter, values):

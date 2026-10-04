@@ -92,6 +92,26 @@ class ValueParameter(Value):
         raise Exception('Attempt to call ValueParameter.evaluate()')
 
 
+class DeferredValue(Value):
+    """An initializer whose expected type needs instance values first."""
+
+    def __init__(self, scope, expression, value_type):
+        super().__init__(ast_element=expression)
+        self.scope = scope
+        self.value_type = value_type
+
+    @property
+    def contains_parameters(self):
+        return True
+
+    def resolve_self(self, par_values):
+        value_type = resolve_type(self.value_type, par_values)
+        return self.scope.get_const_value(self.ast_element, value_type, par_values)
+
+    def evaluate(self):
+        raise Exception('Attempt to evaluate an unresolved initializer')
+
+
 def impl_time_of_day_add_wrap(time, offset):
     # TODO: Probably the caller should call evaluate() for time and offset
 

@@ -142,6 +142,7 @@ def validate_files(files):
         ast.DeclarationTemporaryVariable: 'temporary',
         ast.DeclarationConnector: 'connector',
         ast.DeclarationParameter: 'parameter',
+        ast.DeclarationConstant: 'constant',
         ast.DeclarationProcedure: 'procedure',
         ast.DeclarationInitializer: 'initializer',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',

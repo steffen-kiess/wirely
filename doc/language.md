@@ -115,11 +115,12 @@ A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
-Identifiers are case-sensitive. Weak keywords `default`, `event`, `input`,
-`multi`, `on`, `output`, `resource`, `stage`, `state`, `type`, and `value` can
-also be used as identifiers. Other keywords require the `r#` prefix when used
-as names, for example `node r#node: Std.And {}`. Declarations end with
-`;`, except node instances and type and namespace bodies, which end at `}`.
+Identifiers are case-sensitive. Weak keywords `constant`, `default`,
+`event`, `input`, `multi`, `on`, `output`, `resource`, `stage`, `state`, `type`,
+and `value` can also be used as identifiers. Other keywords require the `r#`
+prefix when used as names, for example `node r#node: Std.And {}`. Declarations
+end with `;`, except node instances and type and namespace bodies, which end
+at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
@@ -139,6 +140,24 @@ node type Example {
   default output: value Type;
   node constant: Std.Constant { Type: Type, Value: Initial }
   connect constant -> default output;
+}
+```
+
+Declare a constant in a node type or at the program root with
+`constant Name: Type = expression;`. Constants use the same types as
+parameters, including `ValueType`, and cannot be overridden. Each instance
+resolves all its constants once, even unused ones. Initializers may refer to
+parameters and other constants in the same scope, in any declaration order.
+Pass constants to children through ordinary parameter bindings:
+
+```wrl
+node type Select {
+  parameter Enabled: boolean;
+  constant Selected: int16 = {
+    let fallback: int16 = 0;
+    if Enabled { 12 } else { fallback }
+  };
+  node child: Std.Constant { Type: int16, Value: Selected }
 }
 ```
 
@@ -194,8 +213,9 @@ value of type `T`.
 compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.
 
-Expressions have limited support: literals, parameter references, lists,
-generic types, and the named time function above. General arithmetic
+Compile-time expressions support literals, parameter and constant
+references, lists, generic types, expression blocks, conditionals, Boolean
+operators, and the named time function above. General arithmetic
 expressions are not currently implemented.
 
 ## Connectors and connections
@@ -323,14 +343,15 @@ node type Select {
 }
 ```
 
-Inside the body, use input aliases and runtime-valued parameter names as
-values. Assign each result exactly once; results cannot be read. Input,
-result, and parameter names must be distinct. Alias state reads and writes
-separately when a procedure uses both.
+Inside the body, use input aliases and runtime-valued parameter and constant
+names as values. Assign each result exactly once; results cannot be read.
+Input, result, parameter, and constant names must be distinct. Alias state
+reads and writes separately when a procedure uses both.
 
 `let` creates an immutable local. A later `let` may reuse a local name;
-locals cannot shadow inputs, results, or parameters. A block's locals are
-visible only inside that block. Results are assigned in the outer body.
+locals cannot shadow inputs, results, parameters, or constants. A block's
+locals are visible only inside that block. Results are assigned in the
+outer body.
 
 Local types are inferred from their initializers, or supplied by an
 annotation. Integer literals default to `int32` without an expected type.

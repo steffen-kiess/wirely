@@ -35,6 +35,9 @@ class TypeParameter(Type):
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             return par_values[self.parameter]
+        if (not isinstance(par_values, ParameterValues)
+                and isinstance(self.parameter, blocks.DeclarationConstant)):
+            return self
         if not isinstance(par_values, ParameterValues) and self.parameter.default_value is not None:
             return self.parameter.interface.resolve_type(self.parameter.default_value, par_values)
         if self.parameter in par_values or self.parameter.default_value is not None:
@@ -82,7 +85,11 @@ def resolve_type(value_type, par_values):
     if not value_type.contains_parameters:
         return value_type
     if isinstance(value_type, TypeParameter):
-        return value_type.resolve_self(par_values)
+        result = value_type.resolve_self(par_values)
+        if not isinstance(result, Type):
+            raise blocks.ProgramError(value_type.parameter,
+                                      f'Expected ValueType for {value_type.parameter.name.id_str!r}')
+        return result
     if isinstance(value_type, TypeOption):
         return TypeOption(resolve_type(value_type.inner_type, par_values))
     if isinstance(value_type, TypeList):

@@ -552,6 +552,11 @@ class Scope(Declaration):
     def fullname(self):
         ...
 
+    @property
+    def static_declarations(self):
+        return {**getattr(self, 'parsed_parameters', {}),
+                **getattr(self, 'parsed_constants', {})}
+
     # TODO: Handle parameters for parent types properly? Does this even make sense?
     def resolve_type(self, ty, par_values={}):
         with ty.context:
@@ -576,17 +581,19 @@ class Scope(Declaration):
             if ty.length == 1:
                 name = ty.identifiers[0].id_str
                 # TODO: Avoid hasattr
-                if hasattr(self, 'parsed_parameters') and name in self.parsed_parameters:
-                    par = self.parsed_parameters[name]
-                    # TODO
-                    # if par.ty == blocks.types.ValueType:
-                    if par.ty.length == 1 and par.ty.identifiers[0].id_str == 'ValueType':
-                        # TODO: Handle par_values=None?
-                        # TODO: More checks?
+                if name in self.static_declarations:
+                    par = self.static_declarations[name]
+                    declared_type = getattr(par, 'type_resolved', None)
+                    is_type = (isinstance(par.ty, Reference) and par.ty.length == 1
+                               and par.ty.identifiers[0].id_str == 'ValueType')
+                    if (is_type or declared_type == blocks.types.ValueType
+                            or (declared_type is not None and declared_type.contains_parameters)):
                         if par not in par_values:
-                            # TODO: Should TypeParameter creation happen here?
                             return blocks.TypeParameter(par)
-                        return par_values[par]
+                        result = par_values[par]
+                        if not isinstance(result, blocks.Type):
+                            raise ProgramError(ty, f'Expected ValueType for {name!r}')
+                        return result
                 if name in blocks.types.type_by_name:
                     return blocks.types.type_by_name[name]
             scope = self
@@ -625,6 +632,15 @@ class Scope(Declaration):
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
             from .expressions import Expression, compile_constant
+            if value_type.contains_parameters:
+                if (isinstance(value, Reference) and value.length == 1
+                        and value.identifiers[0].id_str not in self.static_declarations
+                        and value.identifiers[0].id_str not in ('true', 'false', 'None')):
+                    try:
+                        self.resolve_type(value, par_values)
+                    except ProgramError:
+                        raise ProgramError(value, f'Unknown static value {value}') from None
+                return blocks.value.DeferredValue(self, value, value_type)
             if isinstance(value, Expression):
                 return compile_constant(self, value, value_type, par_values)
             if value_type == blocks.types.ValueType:
@@ -667,8 +683,8 @@ class Scope(Declaration):
                 found = False
                 if isinstance(value, blocks.Reference) and value.length == 1:
                     name = value.identifiers[0].id_str
-                    if name in self.parsed_parameters:
-                        par = self.parsed_parameters[name]
+                    if name in self.static_declarations:
+                        par = self.static_declarations[name]
                         if not(isinstance(par.ty, blocks.Reference) and par.ty.length == 1
                                and par.ty.identifiers[0].id_str == 'ValueType'):
                             parameter_type = self.resolve_type(par.ty, par_values=par_values)
@@ -1089,6 +1105,20 @@ class DeclarationParameter(Declaration):
         pass
 
 
+class DeclarationConstant(DeclarationParameter):
+    def __init__(self, name, ty, initializer, *, source_position):
+        super().__init__(None, name, ty, default_value=initializer,
+                         source_position=source_position)
+
+    def compile_pass2(self, graph):
+        # Check concrete types and expression syntax without running initializers.
+        if self.type_resolved == blocks.types.ValueType:
+            graph.resolve_type(self.default_value)
+        else:
+            from .expressions import compile_constant
+            compile_constant(graph, self.default_value, self.type_resolved, {})
+
+
 class BlockParameter(SourceElement):
     @check_parameters
     def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
@@ -1140,6 +1170,8 @@ class DeclarationBlockInstantiation(Declaration):
             key = parameter.name
             value = parameter.value
 
+            if key.id_str in self.block_type.parsed_constants:
+                raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
             if key.id_str not in self.block_type.parameters_by_name:
                 raise ProgramError(key, f'Unknown parameter for {self.block_type.name.id_str}: {key}')
             par = self.block_type.parameters_by_name[key.id_str]

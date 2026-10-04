@@ -252,26 +252,35 @@ class ExpressionCompiler:
                     and not isinstance(self.known_type(expression), blocks.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
         if not self.runtime and isinstance(expression, blocks.StructLiteral):
-            value_type = expected or self.known_type(expression)
+            value_type = (self.known_type(expression)
+                          if expected is None or expected.contains_parameters else expected)
             fields = check_struct_literal(value_type, expression, self.scope)
             arguments = tuple(self.compile(field.value, value_type.fields[name])
                               for name, field in fields.items())
             return TypedExpression(value_type, 'struct', arguments, tuple(fields))
         if not self.runtime and isinstance(expression, blocks.ListLiteral):
-            if not isinstance(expected, blocks.types.TypeList):
+            if isinstance(expected, blocks.types.TypeList):
+                inner_type = expected.inner_type
+            elif expected is not None and expected.contains_parameters:
+                inner_type = expected
+            else:
                 raise ProgramError(expression, 'List literals require a List type')
-            arguments = tuple(self.compile(value, expected.inner_type) for value in expression.values)
+            arguments = tuple(self.compile(value, inner_type) for value in expression.values)
             return TypedExpression(expected, 'list', arguments)
         if not self.runtime and isinstance(expression, blocks.FunctionCall):
             if not isinstance(expression.fun, blocks.Reference):
                 raise ProgramError(expression.fun, 'Function is not a reference')
             name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
             if name == 'Some':
-                if not isinstance(expected, blocks.types.TypeOption):
+                if isinstance(expected, blocks.types.TypeOption):
+                    inner_type = expected.inner_type
+                elif expected is not None and expected.contains_parameters:
+                    inner_type = expected
+                else:
                     raise ProgramError(expression, 'Some requires an Option type')
                 if len(expression.parameters) != 1:
                     raise ProgramError(expression, 'Some expects exactly one argument')
-                argument = self.compile(expression.parameters[0], expected.inner_type)
+                argument = self.compile(expression.parameters[0], inner_type)
                 return TypedExpression(expected, 'some', (argument,))
             function = blocks.value.functions.get(name)
             if function is None:
@@ -329,7 +338,7 @@ class ExpressionCompiler:
                     return self.names[name].value_type
                 if name in ('true', 'false'):
                     return blocks.types.boolean
-                parameter = self.scope.parsed_parameters.get(name)
+                parameter = self.scope.static_declarations.get(name)
                 if parameter is not None and not self.runtime:
                     return resolve_type(parameter.type_resolved, self.parameters)
             elif expression.length >= 2:
@@ -372,15 +381,15 @@ def compile_constant(scope, expression, expected, parameters):
 
 def compile_procedure(procedure, instance, source_types, result_types):
     declaration = procedure.declaration_procedure
-    parameters = instance.parameter_values
+    parameters = instance.static_values
     names = {name: TypedExpression(value_type, 'input', payload=name)
              for name, value_type in source_types.items()}
-    protected = set(result_types) | set(instance.block_type.parsed_parameters)
+    protected = set(result_types) | set(instance.block_type.static_declarations)
     overlap = ((set(source_types) & protected)
-               | (set(result_types) & set(instance.block_type.parsed_parameters)))
+               | (set(result_types) & set(instance.block_type.static_declarations)))
     if overlap:
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
-    for parameter, value in parameters.items():
+    for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
         if isinstance(value, Value) and value.value_type.is_runtime_type:
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)

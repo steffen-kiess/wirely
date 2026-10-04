@@ -17,6 +17,7 @@ bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declar
            | "native" "initializer" depends_declaration ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
            | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
+           | "constant" identifier ":" value "=" value ";" -> declaration_constant
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
 declaration_list: inner_attribute* declaration* -> file_input
@@ -179,6 +180,7 @@ OCT_NUMBER: /0o[0-7]*(?!\w)/i
 !identifier: CNAME
            | RAW_IDENTIFIER
 // Weak keywords are also accepted as identifiers.
+           | "constant"
            | "default"
            | "event"
            | "input"

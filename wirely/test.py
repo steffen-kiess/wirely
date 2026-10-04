@@ -31,6 +31,7 @@ test_names = [
     'unit/native_procedures',
     'unit/procedures',
     'unit/native_parameters',
+    'unit/constants',
     'unit/native_configuration',
     'unit/state_connections',
     'unit/types',
@@ -79,6 +80,7 @@ to_compile = [
 negative_tests = [
     'test/negative/runtime_types.wrl',
     'test/negative/parameters.wrl',
+    'test/negative/constants.wrl',
     'test/negative/native_procedures.wrl',
     'test/negative/procedures.wrl',
     'test/negative/native_initializers.wrl',

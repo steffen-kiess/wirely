@@ -12,8 +12,8 @@ from wirely.compiler.parser import parse_str, parser
 
 
 weak_keywords = [
-    'default', 'event', 'input', 'multi', 'on', 'output', 'resource', 'stage',
-    'state', 'type', 'value',
+    'constant', 'default', 'event', 'input', 'multi', 'on', 'output',
+    'resource', 'stage', 'state', 'type', 'value',
 ]
 reserved_keywords = [
     'as', 'connect', 'depends', 'enum', 'initializer', 'namespace',
@@ -58,6 +58,7 @@ for keyword in weak_keywords:
             f'input {name}: value boolean;',
             f'output {name}: event unit;',
             f'parameter {name}: boolean;',
+            f'constant {name}: boolean = true;',
             f'state {name}: boolean = false;',
             f'temporary {name}: boolean;',
             f'native procedure {name};',

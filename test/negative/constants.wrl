@@ -1,0 +1,193 @@
+// TEST: missing type
+constant Missing = true; // E: Syntax error
+
+// TEST: missing initializer
+constant Missing: boolean; // E: Syntax error
+
+// TEST: duplicate constants
+constant Flag: boolean = true; // H: Previous declaration was here
+constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
+
+// TEST: parameter followed by constant
+node type Unused {
+  parameter Flag: boolean; // H: Previous declaration was here
+  constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
+}
+
+// TEST: constant followed by parameter
+node type Unused {
+  constant Flag: boolean = false; // H: Previous declaration was here
+  parameter Flag: boolean; // E: Duplicate parameter name 'Flag'
+}
+
+// TEST: override
+node type Probe {
+  constant Flag: boolean = true;
+}
+node probe: Probe { Flag: false } // E: Cannot override constant 'Flag'
+
+// TEST: unknown name in unused node
+node type Unused {
+  constant Value: int16 = Unknown; // E: Invalid int value
+}
+
+// TEST: unknown type in unused node
+node type Unused {
+  constant Value: Unknown = 0; // E: Cannot find type Unknown
+}
+
+// TEST: wrong type in unused node
+node type Unused {
+  constant Flag: boolean = true;
+  constant Value: int16 = Flag; // E: Expected value of type int16, got boolean
+}
+
+// TEST: out of range in unused node
+node type Unused {
+  constant Value: uint8 = 256; // E: out of range
+}
+
+// TEST: constant cycle
+node type Probe {
+  constant First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
+  constant Second: int16 = First;
+}
+node probe: Probe {}
+
+// TEST: mixed cycle
+node type Probe {
+  parameter First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
+  constant Second: int16 = First;
+}
+node probe: Probe {}
+
+// TEST: type cycle
+node type Probe {
+  constant First: ValueType = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
+  constant Second: ValueType = First;
+}
+node probe: Probe {}
+
+// TEST: type and initializer cycle
+node type Probe {
+  constant First: Second = 0;
+  constant Second: ValueType = Second; // E: Cyclic static value resolution: First -> Second -> Second
+}
+node probe: Probe {}
+
+// TEST: parameter only constant in runtime body
+node type Probe {
+  constant Text: String = "hello";
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Text == Text; // E: unavailable parameter 'Text'
+  }
+}
+node probe: Probe {}
+
+// TEST: procedure binding collision
+node type Probe {
+  constant Flag: boolean = true;
+  output Flag: value boolean;
+  procedure run produces Flag { // E: Procedure names must be distinct
+    Flag = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: local shadowing
+node type Probe {
+  constant Flag: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let Flag = false; // E: Cannot shadow procedure binding or parameter 'Flag'
+    output = Flag;
+  }
+}
+node probe: Probe {}
+
+// TEST: immutable
+node type Probe {
+  constant Flag: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    Flag = false; // E: Cannot assign to 'Flag'
+    output = Flag;
+  }
+}
+node probe: Probe {}
+
+// TEST: not a scheduling dependency
+node type Probe {
+  constant Flag: boolean = true;
+  default output: value boolean;
+  procedure run depends on Flag produces default output as output { // E: Could not find dependency
+    output = Flag;
+  }
+}
+node probe: Probe {}
+
+// TEST: namespace constants deferred
+namespace Example { // H: In this namespace
+  constant Flag: boolean = true; // E: Declaration not allowed in namespace
+}
+
+// TEST: qualified constants deferred
+node type Probe {
+  constant Flag: boolean = true;
+}
+node probe: Probe {}
+constant Flag: boolean = probe.Flag; // E: Invalid boolean value
+
+// TEST: parameter dependent unknown name in unused node
+node type Unused {
+  parameter Type: ValueType;
+  constant Value: Type = Missing; // E: Unknown static value Missing
+}
+
+// TEST: parameter dependent malformed expression in unused node
+node type Unused {
+  parameter Type: ValueType;
+  constant Value: Type = if 7 { 0 } else { 1 }; // E: Invalid boolean value
+}
+
+// TEST: parameter dependent type mismatch
+node type Probe {
+  parameter Type: ValueType;
+  constant Value: Type = true; // E: Invalid int value
+}
+node probe: Probe { Type: int16 }
+
+// TEST: parameter dependent range
+node type Probe {
+  parameter Type: ValueType;
+  constant Value: Type = 256; // E: out of range
+}
+node probe: Probe { Type: uint8 }
+
+// TEST: enclosing constants are not child procedure names
+constant Flag: boolean = true;
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Flag; // E: Unknown procedure value Flag
+  }
+}
+node probe: Probe {}
+
+// TEST: constant type in runtime connector
+node type Probe {
+  constant Type: ValueType = String;
+  default output: value Type;
+  procedure run produces default output as output { output = "hello"; }
+}
+node probe: Probe {} // E: parameter-only
+
+// TEST: constant type in root temporary
+constant Type: ValueType = String;
+temporary text: Type; // E: parameter-only
+procedure run produces text { text = "hello"; }
+
+// TEST: constant type in root state
+constant Type: ValueType = String;
+state text: Type = "hello"; // E: parameter-only

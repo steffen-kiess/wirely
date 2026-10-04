@@ -5,7 +5,7 @@ from wirely.util import check_parameters
 from .attributes import copy_attributes
 from wirely.compiler.native_configuration import configuration_factory
 from wirely.compiler.parameters import ParameterValues, native_parameters, parameter_origins
-from wirely.compiler.types import resolve_type
+from wirely.compiler.types import resolve_type, check_runtime_type
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -144,11 +144,15 @@ class Block(blocks.Node):
         if path_prefix:
             path_prefix += '.'
         for state_var in self.block_statevars:
-            v = blocks.Variable(path_prefix + state_var.name + '.new', state_var.var_type)
+            var_type = resolve_type(state_var.var_type, instance.static_values)
+            source = (self.block_type.variables[state_var.name]
+                      if self.is_root else self.instantiation)
+            check_runtime_type(var_type, source)
+            v = blocks.Variable(path_prefix + state_var.name + '.new', var_type)
             state_map_new[path, state_var] = v
             all_variables.append(v)
 
-            v = blocks.Variable(path_prefix + state_var.name, state_var.var_type)
+            v = blocks.Variable(path_prefix + state_var.name, var_type)
             state_map[path, state_var] = v
             variable_map[path, state_var.var_identifier] = v
             state_variables.append(v)
@@ -372,7 +376,7 @@ class Block(blocks.Node):
                 raise Exception('var_type parameter is not a Type')
 
             self.var_type = var_type
-            self.initial_value = self.var_type.verify_value(initial_value)
+            self.initial_value = initial_value
 
             self.impl_var_type = self.var_type
 
@@ -485,7 +489,7 @@ class BlockInstance(blocks.NodeInstance):
         all_par_values = {}
         next_parent = self.parent_instance
         while next_parent is not None:
-            for key, value in next_parent.parameter_values.items():
+            for key, value in next_parent.static_values.items():
                 all_par_values.setdefault(key, value)
             next_parent = next_parent.parent_instance
 
@@ -507,15 +511,13 @@ class BlockInstance(blocks.NodeInstance):
             if parameter not in self.parameter_values and parameter.default_value is not None
         )
         for key in parameter_keys:
-            value = all_par_values[key]
-            if isinstance(value, blocks.Value):
-                value_type = resolve_type(key.type_resolved, all_par_values)
-                blocks.value.check_value_type(value.value_type, value_type, value.ast_element)
-                value = blocks.ConstantValue(
-                    value_type, value_type.verify_value(value.evaluate()), ast_element=value.ast_element,
-                )
-            parameter_values_resolved[key] = value
+            parameter_values_resolved[key] = all_par_values[key]
         self.parameter_values = parameter_values_resolved
+        self.constant_values = {
+            declaration: all_par_values[declaration]
+            for declaration in self.block_type.parsed_constants.values()
+        }
+        self.static_values = {**all_par_values, **self.parameter_values, **self.constant_values}
 
         self.parameter_origins = parameter_origins(self)
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}

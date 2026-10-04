@@ -50,6 +50,7 @@ _exports = {
     'Reference': 'compiler.ast',
     'DeclarationConnector': 'compiler.ast',
     'DeclarationParameter': 'compiler.ast',
+    'DeclarationConstant': 'compiler.ast',
     'BlockInstantiation': 'compiler.ast',
     'DeclarationBlockInstantiation': 'compiler.ast',
     'DeclarationConnection': 'compiler.ast',
