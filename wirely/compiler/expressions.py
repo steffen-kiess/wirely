@@ -80,7 +80,7 @@ class ProcedureBody(SourceElement):
 
 
 @dataclass(frozen=True, slots=True)
-class CheckedExpression:
+class TypedExpression:
     value_type: object
     operation: str
     arguments: tuple = ()
@@ -196,7 +196,7 @@ class ExpressionCompiler:
         expression = self.compile(binding.initializer, expected)
         slot = self.next_slot
         self.next_slot += 1
-        self.names[name] = CheckedExpression(expected or expression.value_type, 'local', payload=slot)
+        self.names[name] = TypedExpression(expected or expression.value_type, 'local', payload=slot)
         return slot, expression
 
     def compile(self, expression, expected=None):
@@ -211,7 +211,7 @@ class ExpressionCompiler:
         boolean = blocks.types.boolean
         if isinstance(expression, UnaryExpression):
             operand = self.compile(expression.operand, boolean)
-            return CheckedExpression(boolean, 'not', (operand,))
+            return TypedExpression(boolean, 'not', (operand,))
         if isinstance(expression, BinaryExpression):
             if expression.operator in ('and', 'or'):
                 left = self.compile(expression.left, boolean)
@@ -221,13 +221,13 @@ class ExpressionCompiler:
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
                 left = self.compile(expression.left, operand_type)
                 right = self.compile(expression.right, left.value_type)
-            return CheckedExpression(boolean, expression.operator, (left, right))
+            return TypedExpression(boolean, expression.operator, (left, right))
         if isinstance(expression, IfExpression):
             condition = self.compile(expression.condition, boolean)
             branch_type = expected or self.context_type(expression.then) or self.context_type(expression.otherwise)
             then = self.compile(expression.then, branch_type)
             otherwise = self.compile(expression.otherwise, then.value_type)
-            return CheckedExpression(then.value_type, 'if', (condition, then, otherwise))
+            return TypedExpression(then.value_type, 'if', (condition, then, otherwise))
         if isinstance(expression, ExpressionBlock):
             previous = dict(self.names)
             try:
@@ -235,7 +235,7 @@ class ExpressionCompiler:
                 result = self.compile(expression.result, expected)
             finally:
                 self.names = previous
-            return CheckedExpression(result.value_type, 'block',
+            return TypedExpression(result.value_type, 'block',
                                      tuple(value for slot, value in bindings) + (result,),
                                      tuple(slot for slot, value in bindings))
         if isinstance(expression, blocks.Reference) and expression.length == 1:
@@ -256,12 +256,12 @@ class ExpressionCompiler:
             fields = check_struct_literal(value_type, expression, self.scope)
             arguments = tuple(self.compile(field.value, value_type.fields[name])
                               for name, field in fields.items())
-            return CheckedExpression(value_type, 'struct', arguments, tuple(fields))
+            return TypedExpression(value_type, 'struct', arguments, tuple(fields))
         if not self.runtime and isinstance(expression, blocks.ListLiteral):
             if not isinstance(expected, blocks.types.TypeList):
                 raise ProgramError(expression, 'List literals require a List type')
             arguments = tuple(self.compile(value, expected.inner_type) for value in expression.values)
-            return CheckedExpression(expected, 'list', arguments)
+            return TypedExpression(expected, 'list', arguments)
         if not self.runtime and isinstance(expression, blocks.FunctionCall):
             if not isinstance(expression.fun, blocks.Reference):
                 raise ProgramError(expression.fun, 'Function is not a reference')
@@ -272,7 +272,7 @@ class ExpressionCompiler:
                 if len(expression.parameters) != 1:
                     raise ProgramError(expression, 'Some expects exactly one argument')
                 argument = self.compile(expression.parameters[0], expected.inner_type)
-                return CheckedExpression(expected, 'some', (argument,))
+                return TypedExpression(expected, 'some', (argument,))
             function = blocks.value.functions.get(name)
             if function is None:
                 raise ProgramError(expression.fun, f'Cannot find function {name!r}')
@@ -280,7 +280,7 @@ class ExpressionCompiler:
                 raise ProgramError(expression, f'Function {name!r} expected {len(function.parameter_types)} parameters')
             arguments = tuple(self.compile(argument, value_type)
                               for argument, value_type in zip(expression.parameters, function.parameter_types))
-            return CheckedExpression(function.return_type, 'call', arguments,
+            return TypedExpression(function.return_type, 'call', arguments,
                                      (function, tuple(expression.parameters)))
         value_type = expected or self.known_type(expression)
         if value_type is None:
@@ -288,7 +288,7 @@ class ExpressionCompiler:
         if self.runtime:
             check_runtime_type(value_type, expression)
         value = self.scope.get_const_value(expression, value_type, par_values=self.parameters)
-        return CheckedExpression(value_type, 'constant', payload=value)
+        return TypedExpression(value_type, 'constant', payload=value)
 
     def check_runtime_syntax(self, expression):
         if isinstance(expression, (blocks.FunctionCall, blocks.BracketOperator)):
@@ -366,14 +366,14 @@ class ExpressionCompiler:
 
 def compile_constant(scope, expression, expected, parameters):
     compiler = ExpressionCompiler(scope, parameters)
-    checked = compiler.compile(expression, expected)
-    return ExpressionValue(checked, ast_element=expression)
+    typed_expression = compiler.compile(expression, expected)
+    return ExpressionValue(typed_expression, ast_element=expression)
 
 
 def compile_procedure(procedure, instance, source_types, result_types):
     declaration = procedure.declaration_procedure
     parameters = instance.parameter_values
-    names = {name: CheckedExpression(value_type, 'input', payload=name)
+    names = {name: TypedExpression(value_type, 'input', payload=name)
              for name, value_type in source_types.items()}
     protected = set(result_types) | set(instance.block_type.parsed_parameters)
     overlap = ((set(source_types) & protected)
@@ -383,7 +383,7 @@ def compile_procedure(procedure, instance, source_types, result_types):
     for parameter, value in parameters.items():
         name = parameter.name.id_str
         if isinstance(value, Value) and value.value_type.is_runtime_type:
-            names[name] = CheckedExpression(value.value_type, 'constant', payload=value)
+            names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.block_type, parameters, runtime=True,
                                   names=names, protected=protected | set(source_types))
     statements = []

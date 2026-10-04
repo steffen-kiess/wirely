@@ -1,4 +1,4 @@
-"""Execution of checked, loop-free .wrl procedure bodies."""
+"""Execution of compiled, loop-free .wrl procedure bodies."""
 
 from dataclasses import dataclass
 
@@ -37,7 +37,7 @@ class Expression:
             return left == right
         if operation == 'ne':
             return left != right
-        raise AssertionError(f'Unknown checked operation {operation!r}')
+        raise AssertionError(f'Unknown procedure operation {operation!r}')
 
 
 @dataclass(frozen=True, slots=True)

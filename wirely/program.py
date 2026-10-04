@@ -126,7 +126,7 @@ class Procedure:
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
-    body: ProcedureBody | None = None  # Checked .wrl body; None selects native dispatch.
+    body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
 
     def __post_init__(self):
         type_name, proc_name = self.reference
