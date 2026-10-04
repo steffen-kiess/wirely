@@ -138,7 +138,15 @@ OCT_NUMBER: /0o[0-7]*(?!\w)/i
 // https://lark-parser.readthedocs.io/en/latest/tree_construction.html#pinning-rule-terminals-with
 !identifier: CNAME
            | RAW_IDENTIFIER
-// TODO: Which keywords should be "weak" keywords?
+// Weak keywords are also accepted as identifiers.
+           | "event"
+           | "input"
+           | "list"
+           | "on"
+           | "output"
+           | "resource"
+           | "stage"
+           | "state"
            | "type"
            | "value"
 RAW_IDENTIFIER: "r#" CNAME

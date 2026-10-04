@@ -45,6 +45,7 @@ test_names = [
     'unit/negative_cases',
     'unit/attributes',
     'unit/syntax_lists',
+    'unit/weak_keywords',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
@@ -94,6 +95,7 @@ negative_tests = [
     'test/negative/state_connections.wrl',
     'test/negative/attributes.wrl',
     'test/negative/syntax_lists.wrl',
+    'test/negative/weak_keywords.wrl',
 ]
 
 diagnostic_pattern = re.compile(

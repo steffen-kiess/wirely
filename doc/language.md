@@ -112,8 +112,10 @@ A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
-Identifiers are case-sensitive. A keyword can be used as an identifier with
-the `r#` prefix, for example `node r#node: Std.And;`. Declarations end with
+Identifiers are case-sensitive. Weak keywords `event`, `input`, `list`, `on`,
+`output`, `resource`, `stage`, `state`, `type`, and `value` can also be used
+as identifiers. Other keywords require the `r#` prefix when used as names,
+for example `node r#node: Std.And;`. Declarations end with
 `;`, except type and namespace bodies, which use braces. `//` starts a line
 comment, and `/* ... */` block comments may be nested.
 
