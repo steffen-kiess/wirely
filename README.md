@@ -10,7 +10,8 @@ these signals; it does not model higher-level concepts such as rooms,
 as Home Assistant does.
 
 See the [language documentation](doc/language.md) for how to write Wirely
-programs.
+programs and the [changelog](CHANGELOG.md) for release notes and migration
+steps.
 
 Installation
 ------------
