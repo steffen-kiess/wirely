@@ -143,6 +143,7 @@ def validate_files(files):
         ast.DeclarationConnector: 'connector',
         ast.DeclarationParameter: 'parameter',
         ast.DeclarationConstant: 'constant',
+        ast.DeclarationAssertion: 'assertion',
         ast.DeclarationProcedure: 'procedure',
         ast.DeclarationInitializer: 'initializer',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',

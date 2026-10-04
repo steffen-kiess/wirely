@@ -16,7 +16,7 @@ weak_keywords = [
     'resource', 'stage', 'state', 'type', 'value',
 ]
 reserved_keywords = [
-    'as', 'connect', 'depends', 'enum', 'initializer', 'namespace',
+    'as', 'assert', 'connect', 'depends', 'enum', 'initializer', 'namespace',
     'native', 'node', 'optional', 'parameter', 'procedure', 'produces',
     'singleton', 'struct', 'temporary',
 ]

@@ -17,6 +17,7 @@ bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declar
            | "native" "initializer" depends_declaration ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
            | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
+           | "assert" value ["," string_constant] ";" -> declaration_assertion
            | "constant" identifier ":" value "=" value ";" -> declaration_constant
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value

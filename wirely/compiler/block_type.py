@@ -40,6 +40,7 @@ class BlockType(blocks.Scope):
         self.block_state_variables = {}
         self.block_temporary_variables = {}
         self.libraries = {}
+        self.assertions = []
 
     @staticmethod
     def make(*args, source_position: typing.Optional[blocks.SourcePosition]):

@@ -45,6 +45,7 @@ ast_classes = [
     blocks.DeclarationConnector,
     blocks.DeclarationParameter,
     blocks.DeclarationConstant,
+    blocks.DeclarationAssertion,
     blocks.BlockType,
     blocks.BlockParameter,
     blocks.BlockInstantiation,

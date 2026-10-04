@@ -1119,6 +1119,53 @@ class DeclarationConstant(DeclarationParameter):
             compile_constant(graph, self.default_value, self.type_resolved, {})
 
 
+class DeclarationAssertion(Declaration):
+    def __init__(self, condition, message, *, source_position):
+        super().__init__(source_position=source_position)
+        self.condition = condition
+        self.message = message
+
+    def compile_pass1_btd(self, interface):
+        interface.assertions.append(self)
+
+    def create_io(self, new_graph):
+        pass
+
+    def compile_pass1(self, graph):
+        pass
+
+    def compile_pass1_5(self, graph):
+        pass
+
+    def compile_pass2(self, graph):
+        from .expressions import compile_constant
+        compile_constant(graph, self.condition, blocks.types.boolean, {})
+
+    def evaluate(self, instance):
+        from .expressions import compile_constant
+        with self.context:
+            try:
+                condition = compile_constant(instance.block_type, self.condition,
+                                             blocks.types.boolean, instance.static_values)
+                try:
+                    result = condition.evaluate()
+                except (ValueError, ArithmeticError) as error:
+                    raise ProgramError(self.condition, str(error)) from error
+                if not result:
+                    message = 'Compile-time assertion failed'
+                    if self.message is not None:
+                        message += ': ' + self.message.value
+                    raise ProgramError(self, message)
+            except ProgramError as error:
+                owner = instance.block or instance.block_type.singleton_instance
+                if not owner.is_root:
+                    name = blocks.Block.path_name(instance.path, qualified=True)
+                    error.hints = [*error.hints, CompilerHint(
+                        owner.instantiation, f'While instantiating {name!r}',
+                    )]
+                raise
+
+
 class BlockParameter(SourceElement):
     @check_parameters
     def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):

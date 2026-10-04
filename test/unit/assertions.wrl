@@ -1,0 +1,37 @@
+assert Later;
+constant Later: boolean = true;
+constant r#assert: boolean = true;
+assert r#assert, "raw identifier";
+
+node type Checked {
+  assert Default == Selected;
+  assert {
+    let expected: int16 = 12;
+    if Enabled { Selected == expected } else { Selected == 0 }
+  }, r#"selected value"#;
+  parameter Enabled: boolean;
+  parameter Default: int16 = Selected;
+  constant Selected: int16 = if Enabled { Later } else { 0 };
+  constant Later: int16 = 12;
+}
+
+node type Parent {
+  parameter Enabled: boolean = true;
+  assert Enabled;
+  node child: Checked { Enabled: Enabled }
+}
+
+singleton node type Shared {
+  assert Flag;
+  constant Flag: boolean = true;
+}
+
+node type Unused {
+  assert false;
+}
+
+node enabled: Checked { Enabled: true }
+node disabled: Checked { Enabled: false }
+node nested: Parent {}
+node shared: Shared {}
+node repeated: Shared {}

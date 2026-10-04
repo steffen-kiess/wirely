@@ -161,6 +161,24 @@ node type Select {
 }
 ```
 
+Use `assert condition;` or `assert condition, "message";` at the program
+root or in a node type. The condition must be Boolean and may use compile-time
+expressions, parameters, and constants declared later in the same scope:
+
+```wrl
+node type Checked {
+  assert Start != End, "Start and end must differ";
+  parameter Start: int16;
+  parameter End: int16;
+}
+```
+
+Assertions run in declaration order after constants resolve, before native
+configuration preparation, once per instance (once for the root and each
+instantiated singleton). A false condition stops compilation. Unused node types have their
+assertions checked but do not evaluate them. Assertions generate no runtime
+code. Messages may also use raw string literals.
+
 Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
 unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
 `TimeOfDay`, and `MonotonicTime`. `ValueType` is used for type parameters.

@@ -519,6 +519,9 @@ class BlockInstance(blocks.NodeInstance):
         }
         self.static_values = {**all_par_values, **self.parameter_values, **self.constant_values}
 
+        for assertion in self.block_type.assertions:
+            assertion.evaluate(self)
+
         self.parameter_origins = parameter_origins(self)
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)

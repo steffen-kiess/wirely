@@ -51,6 +51,7 @@ _exports = {
     'DeclarationConnector': 'compiler.ast',
     'DeclarationParameter': 'compiler.ast',
     'DeclarationConstant': 'compiler.ast',
+    'DeclarationAssertion': 'compiler.ast',
     'BlockInstantiation': 'compiler.ast',
     'DeclarationBlockInstantiation': 'compiler.ast',
     'DeclarationConnection': 'compiler.ast',

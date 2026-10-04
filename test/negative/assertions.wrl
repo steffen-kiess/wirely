@@ -1,0 +1,109 @@
+// TEST: root failure
+assert false; // E: Compile-time assertion failed
+
+// TEST: custom message
+assert false, "must differ"; // E: Compile-time assertion failed: must differ
+
+// TEST: raw message
+assert false, r#"a "quoted" message\n"#; // E: Compile-time assertion failed: a "quoted" message\n
+
+// TEST: node failure
+node type Checked {
+  assert Enabled; // E: Compile-time assertion failed
+  parameter Enabled: boolean = false;
+}
+node checked: Checked {} // H: While instantiating 'checked'
+
+// TEST: nested failure
+node type Checked {
+  assert false; // E: Compile-time assertion failed
+}
+node type Parent {
+  node child: Checked {} // H: While instantiating 'parent.child'
+}
+node parent: Parent {}
+
+// TEST: singleton failure
+singleton node type Shared {
+  assert false; // E: Compile-time assertion failed
+}
+node shared: Shared {} // H: While instantiating 'Shared'
+
+// TEST: unused unknown name
+node type Unused {
+  assert Unknown; // E: Invalid boolean value
+}
+
+// TEST: unused non boolean
+node type Unused {
+  constant Number: int16 = 1;
+  assert Number; // E: Expected value of type boolean, got int16
+}
+
+// TEST: literal non boolean
+assert 1; // E: Invalid boolean value
+
+// TEST: string non boolean
+assert "true"; // E: Invalid boolean value
+
+// TEST: namespace
+namespace Example { // H: In this namespace
+  assert true; // E: Declaration not allowed in namespace
+}
+
+// TEST: procedure
+procedure run {
+  assert true; // E: Syntax error
+}
+
+// TEST: expression block
+assert {
+  assert true; // E: Syntax error
+  true
+};
+
+// TEST: missing condition
+assert; // E: Syntax error
+
+// TEST: missing semicolon
+assert true // E: Syntax error
+
+// TEST: missing message
+assert true,; // E: Syntax error
+
+// TEST: trailing comma
+assert true, "message",; // E: Syntax error
+
+// TEST: nonliteral message
+constant Message: String = "message";
+assert true, Message; // E: Syntax error
+
+// TEST: reserved name
+constant assert: boolean = true; // E: Syntax error
+
+// TEST: metadata
+#[unknown] assert true; // E: Unknown attribute
+
+// TEST: inappropriate metadata
+#[position(x = 1, y = 2)] assert true; // E: Attribute position is not permitted on assertion
+
+// TEST: evaluation error
+assert {
+  let time: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad");
+  // ^E: Cannot parse time delta 'bad'
+  true
+};
+
+// TEST: deferred non boolean
+node type Checked {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  assert Value; // E: Expected value of type boolean, got int16
+}
+node checked: Checked { Type: int16, Value: 1 } // H: While instantiating 'checked'
+
+// TEST: numeric message
+assert true, 1; // E: Syntax error
+
+// TEST: message expression
+assert true, "message" == "message"; // E: Syntax error

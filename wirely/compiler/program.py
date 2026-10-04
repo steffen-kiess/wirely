@@ -27,7 +27,7 @@ def compile_nocatch(global_block_type):
     # TODO: More checks, e.g. that global_block_type has not parameters or inputs / outputs
     graph = global_block_type
     root = None
-    if graph.variables or graph.procedures or graph.parsed_constants:
+    if graph.variables or graph.procedures or graph.parsed_constants or graph.assertions:
         for declaration in graph.procedures.values():
             if declaration.is_native:
                 raise blocks.ProgramError(declaration, 'Native procedures must belong to a node type')
