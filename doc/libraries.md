@@ -65,7 +65,7 @@ KNX nodes use a `KNX.Connection` node and a named
 | `ValueOptionProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
 | `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
 | `EventReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits received KNX events. |
-| `EventEmitter` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
+| `EventSender` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
 
 Value receivers and providers support `boolean` and `uint16`. KNX use
 requires the `xknx` package and a reachable KNX service.
@@ -111,7 +111,7 @@ sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 | `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
-| `EventEmitter` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
+| `EventSender` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
 | `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: String` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT

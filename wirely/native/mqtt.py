@@ -390,7 +390,7 @@ class ValueOptionProvider(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
-class EventEmitter(blocks.NativeState):
+class EventSender(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.current_value = None
@@ -405,7 +405,7 @@ class EventEmitter(blocks.NativeState):
 
         aiomqtt = get_aiomqtt()
 
-        print('Create MQTT EventEmitter', flush=True)
+        print('Create MQTT EventSender', flush=True)
 
         self.data.dump()
 

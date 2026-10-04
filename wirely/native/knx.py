@@ -266,7 +266,7 @@ class EventReceiver(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True, data_type=KnxData)
-class EventEmitter(blocks.NativeState):
+class EventSender(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 

@@ -71,8 +71,7 @@ namespace KNX {
     native procedure get_value stage input produces default output as "output";
   }
 
-  // TODO: Rename to EventProvider or EventSender?
-  native node type EventEmitter {
+  native node type EventSender {
     parameter Type: ValueType;
     parameter GroupAddress: String;
 

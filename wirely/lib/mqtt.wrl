@@ -45,8 +45,7 @@ namespace MQTT {
     connect create_option -> impl;
   }
 
-  // TODO: Rename to EventProvider or EventSender?
-  native node type EventEmitter {
+  native node type EventSender {
     parameter Type: ValueType;
     parameter Topic: String;
     optional parameter Format: String;

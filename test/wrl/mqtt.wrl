@@ -33,45 +33,45 @@ connect server -> option_provider.Broker;
 
 node event_source: Std.DebugEventSource { Type: boolean }
 
-node event_emitter: MQTT.EventEmitter { Topic: "test/t3", Type: boolean }
-connect event_source -> event_emitter;
+node event_sender: MQTT.EventSender { Topic: "test/t3", Type: boolean }
+connect event_source -> event_sender;
 
-connect server -> event_emitter.Broker;
+connect server -> event_sender.Broker;
 
 node number_event_source: Std.DebugEventSource { Type: uint8 }
 
-node number_event_emitter: MQTT.EventEmitter {
+node number_event_sender: MQTT.EventSender {
   Topic: "test/t4",
   Type: uint8,
 }
-connect number_event_source -> number_event_emitter;
+connect number_event_source -> number_event_sender;
 
-connect server -> number_event_emitter.Broker;
+connect server -> number_event_sender.Broker;
 
 node enum_event_source: Std.DebugEventSource { Type: ThermostatSystemModeEnum }
 
-node enum_event_emitter: MQTT.EventEmitter {
+node enum_event_sender: MQTT.EventSender {
   Topic: "test/t5",
   Type: ThermostatSystemModeEnum,
   Format: "SnakeCase",
 }
-connect enum_event_source -> enum_event_emitter;
+connect enum_event_source -> enum_event_sender;
 
-connect server -> enum_event_emitter.Broker;
+connect server -> enum_event_sender.Broker;
 
 node template_event_source: Std.DebugEventSource {
   Type: ThermostatSystemModeEnum,
 }
 
-node template_event_emitter: MQTT.EventEmitter {
+node template_event_sender: MQTT.EventSender {
   Topic: "test/t5",
   Type: ThermostatSystemModeEnum,
   Format: "SnakeCase",
   Template: "{\"value\": %s, \"other\": \"%s\"}",
 }
-connect template_event_source -> template_event_emitter;
+connect template_event_source -> template_event_sender;
 
-connect server -> template_event_emitter.Broker;
+connect server -> template_event_sender.Broker;
 
 node event_receiver: MQTT.EventReceiver { Topic: "test/t6", Type: boolean }
 connect server -> event_receiver.Broker;

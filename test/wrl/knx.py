@@ -373,75 +373,75 @@ async def run_test():
             engine.assert_value_is('int_event_receiver', None)
             engine.assert_value_is('event_receiver', None)
 
-            # Test EventEmitter
+            # Test EventSender
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/1", "binary")
 
-            engine.get_native_state('event_emitter_input').send_event(None)
+            engine.get_native_state('event_sender_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('event_emitter_input').send_event(wirely.Some(True))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(True)
-
-            engine.get_native_state('event_emitter_input').send_event(wirely.Some(True))
+            engine.get_native_state('event_sender_input').send_event(wirely.Some(True))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(True)
 
+            engine.get_native_state('event_sender_input').send_event(wirely.Some(True))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(True)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('event_emitter_input').send_event(wirely.Some(False))
+            engine.get_native_state('event_sender_input').send_event(wirely.Some(False))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(False)
 
-            engine.get_native_state('event_emitter_input').send_event(None)
+            engine.get_native_state('event_sender_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            # Test IntEventEmitter
+            # Test IntEventSender
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/3/2", "2byte_signed")
 
-            engine.get_native_state('int_event_emitter_input').send_event(None)
+            engine.get_native_state('int_event_sender_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(55))
-            await event_sensor_recv.expect()
-
-            engine.step()
-            await event_sensor_recv.expect(55)
-
-            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(55))
+            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(55))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(55)
 
+            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(55))
+            await event_sensor_recv.expect()
+
+            engine.step()
+            await event_sensor_recv.expect(55)
+
             engine.step()
             await event_sensor_recv.expect()
 
-            engine.get_native_state('int_event_emitter_input').send_event(wirely.Some(-10000))
+            engine.get_native_state('int_event_sender_input').send_event(wirely.Some(-10000))
             await event_sensor_recv.expect()
 
             engine.step()
             await event_sensor_recv.expect(-10000)
 
-            engine.get_native_state('int_event_emitter_input').send_event(None)
+            engine.get_native_state('int_event_sender_input').send_event(None)
             await event_sensor_recv.expect()
 
             engine.step()

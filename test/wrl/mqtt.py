@@ -141,7 +141,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            # Test EventEmitter
+            # Test EventSender
 
             engine.get_native_state('event_source').send_event(None)
             await expect_msgs()
@@ -176,7 +176,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            # Test NumberEventEmitter
+            # Test NumberEventSender
 
             engine.get_native_state('number_event_source').send_event(None)
             await expect_msgs()
@@ -211,7 +211,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            # Test EnumEventEmitter
+            # Test EnumEventSender
 
             engine.get_native_state('enum_event_source').send_event(None)
             await expect_msgs()
@@ -246,7 +246,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            # Test TemplateEventEmitter
+            # Test TemplateEventSender
 
             engine.get_native_state('template_event_source').send_event(None)
             await expect_msgs()

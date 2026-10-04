@@ -70,20 +70,20 @@ node motion_provider_non_option: KNX.ValueProvider {
 connect bus -> motion_provider_non_option.Bus;
 connect status_non_option.DriveInMotion -> motion_provider_non_option;
 
-node event_emitter_input: Std.DebugEventSource { Type: boolean }
+node event_sender_input: Std.DebugEventSource { Type: boolean }
 
-node event_emitter: KNX.EventEmitter { GroupAddress: "0/3/1", Type: boolean }
-connect bus -> event_emitter.Bus;
-connect event_emitter_input -> event_emitter;
+node event_sender: KNX.EventSender { GroupAddress: "0/3/1", Type: boolean }
+connect bus -> event_sender.Bus;
+connect event_sender_input -> event_sender;
 
-node int_event_emitter_input: Std.DebugEventSource { Type: int16 }
+node int_event_sender_input: Std.DebugEventSource { Type: int16 }
 
-node int_event_emitter: KNX.EventEmitter {
+node int_event_sender: KNX.EventSender {
   GroupAddress: "0/3/2",
   Type: int16,
 }
-connect bus -> int_event_emitter.Bus;
-connect int_event_emitter_input -> int_event_emitter;
+connect bus -> int_event_sender.Bus;
+connect int_event_sender_input -> int_event_sender;
 
 node event_receiver: KNX.EventReceiver {
   GroupAddress: "0/3/3",

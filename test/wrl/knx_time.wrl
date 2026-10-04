@@ -6,6 +6,6 @@ node trigger: Time.TriggerAt {
   OutputValue: true,
 }
 
-node event_emitter: KNX.EventEmitter { GroupAddress: "0/7/1", Type: boolean }
-connect bus -> event_emitter.Bus;
-connect trigger -> event_emitter;
+node event_sender: KNX.EventSender { GroupAddress: "0/7/1", Type: boolean }
+connect bus -> event_sender.Bus;
+connect trigger -> event_sender;
