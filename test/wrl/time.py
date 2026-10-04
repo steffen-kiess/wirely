@@ -289,7 +289,7 @@ async def run_test():
 
         # TODO: Tests for trigger2
 
-        # Tests for Time.DelayChange
+        # Tests for Time.DebounceStable
 
         engine.assert_value_is('delay', 4)
 

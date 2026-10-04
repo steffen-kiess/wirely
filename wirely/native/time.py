@@ -36,12 +36,12 @@ class MonotonicTimeReached(blocks.NativeState):
 
 # TODO: Use slots=True here / for other dataclasses?
 @dataclasses.dataclass(frozen=True)
-class DelayChangeData:
+class DebounceStableData:
     time: blocks.Duration
 
 
-@native_block_type(native_block_types, has_native_state=False, data_type=DelayChangeData)
-class DelayChange(blocks.NativeState):
+@native_block_type(native_block_types, has_native_state=False, data_type=DebounceStableData)
+class DebounceStable(blocks.NativeState):
     @staticmethod
     def run(*, context):
         data = context.configuration

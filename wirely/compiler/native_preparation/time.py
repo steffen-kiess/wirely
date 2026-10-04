@@ -2,15 +2,15 @@
 
 import wirely as blocks
 
-from wirely.native.time import DelayChangeData, IsBetweenData, TriggerAtData
+from wirely.native.time import DebounceStableData, IsBetweenData, TriggerAtData
 from wirely.compiler.native_configuration import register_configuration
 
 
-def prepare_delay_change_data(*, context):
+def prepare_debounce_stable_data(*, context):
     parameters = context.parameters
     time = parameters['Duration']
 
-    return DelayChangeData(time=time)
+    return DebounceStableData(time=time)
 
 
 def prepare_is_between_data(*, context):
@@ -42,6 +42,6 @@ def prepare_trigger_at_data(*, context):
     return TriggerAtData(value=value)
 
 
-register_configuration(DelayChangeData, prepare_delay_change_data)
+register_configuration(DebounceStableData, prepare_debounce_stable_data)
 register_configuration(IsBetweenData, prepare_is_between_data)
 register_configuration(TriggerAtData, prepare_trigger_at_data)

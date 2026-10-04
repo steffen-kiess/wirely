@@ -4,6 +4,10 @@
 
 ### Breaking changes and migration
 
+#### Library names
+
+Use `Time.DebounceStable` instead of `Time.DelayChange`.
+
 #### Node instance syntax
 
 Replace parameter parentheses with braces, parameter `=` with `:`, and

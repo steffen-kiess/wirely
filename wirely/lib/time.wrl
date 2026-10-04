@@ -13,8 +13,9 @@ namespace Time {
       produces implicit output as "output";
   }
 
-  // Delay changes until the input has be stable for at least time
-  node type DelayChange {
+  // Output the initial value immediately, then accept changes after the input
+  // remains stable for Duration.
+  node type DebounceStable {
     parameter Type: ValueType;
     parameter Duration: Duration;
 
@@ -39,6 +40,11 @@ namespace Time {
       produces implicit output as "output", current_value, new_value,
         update_time;
   }
+
+  // TODO: Add DebounceLockout (first change is passed though, fixed lock-out
+  // interval after that) and/or DebouncePrompt (first change is passed
+  // through, then wait for stability before allowing the next change to pass)?
+  // See also: <https://github.com/thomasfredericks/Bounce2/blob/master/README.md#alternate-algorithms>
 
   // Note: Should not be used directly if possible
   native singleton node type TimeOfDayMinute {
