@@ -60,13 +60,14 @@ native procedure run stage output
 ```
 
 For multiline argument lists, break after `(` and put arguments on separate
-lines. Align the closing parenthesis with the declaration. Use similar
-layouts for other long lists; avoid elaborate column alignment.
+lines with trailing commas. Align the closing parenthesis with the
+declaration. Use similar layouts for other long lists; avoid elaborate
+column alignment.
 
 ```wrl
 node source: Std.Constant(
   Type = boolean,
-  Value = true
+  Value = true,
 );
 node printer: Std.DebugValuePrinter(Type = boolean);
 connect source -> printer;
@@ -86,6 +87,6 @@ Explain purpose or non-obvious behavior rather than restating the code.
 // Keep the lights off until an occupancy value has been received.
 node occupied: Std.OptionUnwrapOrDefault(
   InnerType = boolean,
-  Default = false
+  Default = false,
 );
 ```

@@ -44,6 +44,7 @@ test_names = [
     'unit/bytecode_format',
     'unit/negative_cases',
     'unit/attributes',
+    'unit/syntax_lists',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
@@ -92,6 +93,7 @@ negative_tests = [
     'test/negative/structs.wrl',
     'test/negative/state_connections.wrl',
     'test/negative/attributes.wrl',
+    'test/negative/syntax_lists.wrl',
 ]
 
 diagnostic_pattern = re.compile(

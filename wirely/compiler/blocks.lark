@@ -145,8 +145,8 @@ RAW_IDENTIFIER: "r#" CNAME
 
 %ignore /[\t \f\r\n]+/
 
-_separated_nonempty{x, sep}: x (sep x)*
-_separated_empty{x, sep}: (x (sep x)*)?
+_separated_nonempty{x, sep}: x (sep x)* sep?
+_separated_empty{x, sep}: _separated_nonempty{x, sep}?
 
 outer_attribute: "#[" metadata "]"
 inner_attribute: "#![" metadata "]"
@@ -162,5 +162,5 @@ metadata_literal: int_number -> metadata_literal
                 | "+" float_number -> metadata_positive_float
                 | "-" float_number -> metadata_negative_float
                 | string_constant -> metadata_literal
-connection_source_list: _separated_empty{connection_source, ","} -> copy_list
+connection_source_list: _separated_nonempty{connection_source, ","} -> copy_list
 connection_source: outer_attribute* reference -> attributed

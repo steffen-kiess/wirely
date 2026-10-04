@@ -117,6 +117,9 @@ the `r#` prefix, for example `node r#node: Std.And;`. Declarations end with
 `;`, except type and namespace bodies, which use braces. `//` starts a line
 comment, and `/* ... */` block comments may be nested.
 
+Comma-separated lists allow an optional trailing comma, including arguments,
+list literals, connection sources, and procedure bindings.
+
 ## Parameters, types, and literals
 
 A node type declares parameters with `parameter Name: Type;`. A parameter

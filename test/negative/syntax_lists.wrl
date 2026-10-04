@@ -1,0 +1,59 @@
+// TEST: empty_connection
+connect -> target; // E: Syntax error
+
+// TEST: comma_only_connection
+connect , -> target; // E: Syntax error
+
+// TEST: leading_connection_comma
+connect , source -> target; // E: Syntax error
+
+// TEST: doubled_connection_comma
+connect source,, -> target; // E: Syntax error
+
+// TEST: comma_only_arguments
+node n: T(,); // E: Syntax error
+
+// TEST: leading_argument_comma
+node n: T(, A = 1); // E: Syntax error
+
+// TEST: doubled_argument_comma
+node n: T(A = 1,, B = 2); // E: Syntax error
+
+// TEST: repeated_argument_trailing_comma
+node n: T(A = 1,,); // E: Syntax error
+
+// TEST: comma_only_list
+parameter P: List[uint8] = [,]; // E: Syntax error
+
+// TEST: leading_list_comma
+parameter P: List[uint8] = [, 1]; // E: Syntax error
+
+// TEST: doubled_list_comma
+parameter P: List[uint8] = [1,, 2]; // E: Syntax error
+
+// TEST: repeated_list_trailing_comma
+parameter P: List[uint8] = [1,,]; // E: Syntax error
+
+// TEST: comma_only_call
+parameter P: Option[uint8] = Some(,); // E: Syntax error
+
+// TEST: repeated_call_trailing_comma
+parameter P: Option[uint8] = Some(1,,); // E: Syntax error
+
+// TEST: comma_only_dependencies
+native procedure run depends on ,; // E: Syntax error
+
+// TEST: comma_only_results
+native procedure run produces ,; // E: Syntax error
+
+// TEST: doubled_binding_comma
+native procedure run depends on First,, Second; // E: Syntax error
+
+// TEST: repeated_result_trailing_comma
+native procedure run produces Result,,; // E: Syntax error
+
+// TEST: comma_only_initializer_dependencies
+native initializer depends on ,; // E: Syntax error
+
+// TEST: comma_only_metadata
+#[tag(,)] node n: T; // E: Syntax error
