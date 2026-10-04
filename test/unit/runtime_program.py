@@ -83,7 +83,7 @@ for schedule in program.procs.values():
         assert isinstance(proc.node_id, str)
 
 # A state change reruns its reader while an unchanged input stays skipped.
-delay = wirely.native.std.Delay
+delay = wirely.native.std.DelayOneStep
 with patch.object(delay, 'copy_from_input', wraps=delay.copy_from_input) as writer, \
         patch.object(delay, 'copy_to_output', wraps=delay.copy_to_output) as reader:
     isolated = blocks.Engine(program)

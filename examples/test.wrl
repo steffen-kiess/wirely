@@ -28,7 +28,7 @@ node type SingleDelay {
   implicit input: value boolean;
   implicit output: value boolean;
 
-  node d1: Std.Delay { Type: boolean, InitialValue: false }
+  node d1: Std.DelayOneStep { Type: boolean, InitialValue: false }
   connect implicit input -> d1;
   connect d1 -> implicit output;
 }
@@ -37,8 +37,8 @@ node type DoubleDelay {
   implicit input: value boolean;
   implicit output: value boolean;
 
-  node d1: Std.Delay { Type: boolean, InitialValue: false }
-  node d2: Std.Delay { Type: boolean, InitialValue: false }
+  node d1: Std.DelayOneStep { Type: boolean, InitialValue: false }
+  node d2: Std.DelayOneStep { Type: boolean, InitialValue: false }
   connect implicit input -> d1;
   connect d1 -> d2;
   connect d2 -> implicit output;
@@ -47,13 +47,13 @@ node type DoubleDelay {
 node inp1: Std.DebugValueSource { Type: boolean }
 node inp2: Std.DebugValueSource { Type: boolean }
 
-// node inp1_d : Std.Delay { Type: boolean, InitialValue: false }
+// node inp1_d : Std.DelayOneStep { Type: boolean, InitialValue: false }
 // node inp1_d : Std.DoubleDelay {}
 // node inp1_d : Std.SingleDelay {}
-node inp1_d: Std.Delay { Type: boolean, InitialValue: false }
+node inp1_d: Std.DelayOneStep { Type: boolean, InitialValue: false }
 connect inp1 -> inp1_d;
 
-// node inp1x_d : Std.Delay {}
+// node inp1x_d : Std.DelayOneStep {}
 // connect inp1 -> inp1x_d;
 
 node inp2_d: Std.TwoStageValueForward { Type: boolean }

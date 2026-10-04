@@ -6,7 +6,8 @@
 
 #### Library names
 
-Use `Time.DebounceStable` instead of `Time.DelayChange`.
+Use `Time.DebounceStable` instead of `Time.DelayChange`, and
+`Std.DelayOneStep` instead of `Std.Delay`.
 
 #### Node instance syntax
 

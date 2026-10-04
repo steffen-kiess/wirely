@@ -44,7 +44,7 @@ node present: Std.Constant {
   Value: Some(ThermostatSystemModeEnum.Heat),
 }
 node modes: LiteralParameter { Type: List[ThermostatSystemModeEnum], Value: [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool] }
-node delay: Std.Delay {
+node delay: Std.DelayOneStep {
   Type: ThermostatSystemModeEnum,
   InitialValue: ThermostatSystemModeEnum.Off,
 }

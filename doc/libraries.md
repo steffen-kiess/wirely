@@ -21,7 +21,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | --- | --- | --- |
 | `Constant` | `Type: ValueType`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
 | `And` | None | In: `list value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
-| `Delay` | `Type: ValueType`, `InitialValue: Type` | In/out: `value Type`. Outputs the previous step's input, initially `InitialValue`. |
+| `DelayOneStep` | `Type: ValueType`, `InitialValue: Type` | In/out: `value Type`. Outputs the previous step's input, initially `InitialValue`. Can break dependency cycles. |
 | `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Passes the input to the output. |
 | `DebugValuePrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |

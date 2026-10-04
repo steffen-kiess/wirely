@@ -2,7 +2,7 @@ node type Envelope {
   implicit input: value boolean;
   implicit output: value boolean;
 
-  node delay: Std.Delay { Type: boolean, InitialValue: false }
+  node delay: Std.DelayOneStep { Type: boolean, InitialValue: false }
   connect implicit input -> delay;
   connect delay -> implicit output;
 }

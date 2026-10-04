@@ -6,7 +6,7 @@ node type LiteralParameter {
 node source: Std.Constant { Type: unit, Value: () }
 node spaced: Std.Constant { Type: unit, Value: ( ) }
 node commented: Std.Constant { Type: unit, Value: (/* unit */) }
-node delay: Std.Delay { Type: unit, InitialValue: () }
+node delay: Std.DelayOneStep { Type: unit, InitialValue: () }
 connect source -> delay;
 node units: LiteralParameter { Type: List[unit], Value: [(), ( )] }
 node present: Std.OptionSome { InnerType: unit }

@@ -24,7 +24,7 @@ node time_some: Std.Constant {
   Type: Option[TimeOfDay],
   Value: Some(TimeOfDay_AddWrap("23:30", "01:00")),
 }
-node delay: Std.Delay { Type: Option[boolean], InitialValue: Some(false) }
+node delay: Std.DelayOneStep { Type: Option[boolean], InitialValue: Some(false) }
 connect boolean_some -> delay;
 
 node type Settings {

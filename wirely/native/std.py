@@ -31,7 +31,7 @@ class And:
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class Delay:
+class DelayOneStep:
     @staticmethod
     def copy_from_input(*, context):
         # print('COPY_FROM_INPUT')

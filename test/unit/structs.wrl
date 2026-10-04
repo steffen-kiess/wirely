@@ -6,7 +6,7 @@ node source: Std.Constant {
     mode: Sample.Mode.On,
   },
 }
-node delay: Std.Delay {
+node delay: Std.DelayOneStep {
   Type: Sample.Packet,
   InitialValue: Sample.Packet { number: 0, mode: Sample.Mode.Off, flag: false },
 }

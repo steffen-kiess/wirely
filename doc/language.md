@@ -294,8 +294,8 @@ retained state value.
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends
 results to external systems. State updates become visible on the next step.
-`Std.Delay` demonstrates this: it outputs the previous value and stores the
-current input for the following step.
+`Std.DelayOneStep` outputs the previous step's input and stores the current
+input for the following step. Use it to break dependency cycles.
 
 The `.wrl` declaration specifies a native procedure's interface; its code
 lives in Python under `wirely/native/`; see the

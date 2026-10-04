@@ -17,7 +17,7 @@ namespace Std {
       produces implicit output as "output";
   }
 
-  node type Delay {
+  node type DelayOneStep {
     parameter Type: ValueType;
     parameter InitialValue: Type;
 
