@@ -184,11 +184,32 @@ class ExpressionCompiler:
         self.names = dict(names or {})
         self.protected = set(protected)
         self.next_slot = 0
+        self.static_usage = set()
+
+    def record_static_usage(self, expression):
+        if isinstance(expression, blocks.Reference):
+            if expression.length == 1:
+                declaration = self.scope.static_declarations.get(expression.identifiers[0].id_str)
+                if declaration is not None:
+                    self.static_usage.add(declaration)
+            return
+        # Only walk expression syntax, never resolved graph objects or positions.
+        if isinstance(expression, SourceElement):
+            for name, child in vars(expression).items():
+                if name in ('source_position', 'outer_attributes', 'attributes'):
+                    continue
+                if isinstance(child, (tuple, list)):
+                    for item in child:
+                        self.record_static_usage(item)
+                elif isinstance(child, SourceElement):
+                    self.record_static_usage(child)
 
     def local(self, binding):
         name = binding.name.id_str
         if name in self.protected:
             raise ProgramError(binding.name, f'Cannot shadow procedure binding or parameter {name!r}')
+        if self.runtime and binding.annotation is not None:
+            self.record_static_usage(binding.annotation)
         expected = (self.scope.resolve_type(binding.annotation, par_values=self.parameters)
                     if binding.annotation is not None else None)
         expression = self.compile(binding.initializer, expected)
@@ -198,6 +219,8 @@ class ExpressionCompiler:
         return slot, expression
 
     def compile(self, expression, expected=None):
+        if self.runtime:
+            self.record_static_usage(expression)
         result = replace(self._compile(expression, expected), source=expression,
                          expected_type=expected)
         result.check_types()
@@ -338,7 +361,8 @@ class ExpressionCompiler:
                     return blocks.types.boolean
                 parameter = self.scope.static_declarations.get(name)
                 if parameter is not None and not self.runtime:
-                    return resolve_type(parameter.type_resolved, self.parameters)
+                    return (resolve_type(parameter.type_resolved, self.parameters)
+                            if self.parameters else parameter.type_resolved)
             elif expression.length >= 2:
                 reference = blocks.Reference.from_list(*expression.identifiers[:-1],
                                                        source_position=expression.source_position)
@@ -408,5 +432,6 @@ def compile_procedure(procedure, instance, source_types, result_types):
     missing = set(result_types) - written
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign results: {sorted(missing)!r}')
+    procedure.static_usage = frozenset(compiler.static_usage)
     return RuntimeBody(tuple((destination, runtime_expression(expression))
                              for destination, expression in statements))

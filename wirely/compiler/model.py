@@ -35,6 +35,8 @@ _exports = {
     'StaticProcedureContext': 'compiler.support',
     'UnitLiteral': 'compiler.ast',
     'ProcedureBinding': 'compiler.ast',
+    'UsesDeclaration': 'compiler.ast',
+    'StaticBinding': 'compiler.ast',
     'DeclarationInitializer': 'compiler.ast',
     'ProgramError': 'compiler.ast',
     'InternalCompilerError': 'compiler.ast',

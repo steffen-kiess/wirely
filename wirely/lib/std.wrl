@@ -5,7 +5,7 @@ namespace Std {
 
     default output: value Type;
 
-    native procedure run produces default output as "output";
+    native procedure run produces default output as "output" uses Value;
   }
 
   node type And {
@@ -71,6 +71,8 @@ namespace Std {
 
     default output: value Type;
 
+    native initializer uses Type;
+
     native procedure run stage input produces default output as "output";
   }
 
@@ -78,6 +80,8 @@ namespace Std {
     parameter Type: ValueType;
 
     default output: event Type;
+
+    native initializer uses Type;
 
     native procedure run stage input produces default output as "output";
   }
@@ -112,7 +116,7 @@ namespace Std {
 
     native procedure run
       depends on default input as "input"
-      produces default output as "output";
+      produces default output as "output" uses Default;
   }
 
   node type OptionIsSome {

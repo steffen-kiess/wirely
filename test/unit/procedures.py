@@ -210,7 +210,7 @@ mixed_source = '''namespace Std {
     parameter Value: Type;
     default output: value Type;
     temporary temp: Type;
-    native procedure produce as "run" produces temp as temp;
+    native procedure produce as "run" produces temp as temp uses Value;
     procedure run depends on temp produces default output as output {
       output = temp;
     }
@@ -220,7 +220,7 @@ node mixed: Std.Constant { Type: boolean, Value: true }
 '''
 import wirely.native.std
 with patch.object(wirely.native.std.Constant, 'run',
-                  staticmethod(lambda *, context: context.set_result('temp', context.parameters['Value']))):
+                  staticmethod(lambda *, context: context.set_result('temp', context.values['Value']))):
     mixed_engine = wirely.Engine(compile_program(mixed_source))
     keys = [procedure.key for schedule in mixed_engine.program.procs.values() for procedure in schedule]
     assert len(set(keys)) == len(keys)

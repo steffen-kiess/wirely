@@ -1,0 +1,101 @@
+// TEST: duplicate bare name
+node type Probe {
+  parameter Flag: boolean;
+  native procedure run uses Flag, Flag; // E: Duplicate static binding key 'Flag'
+}
+
+// TEST: bare name and alias collision
+node type Probe {
+  parameter Flag: boolean;
+  native procedure run uses Flag, false as Flag; // E: Duplicate static binding key 'Flag'
+}
+
+// TEST: identifier and string alias collision
+node type Probe {
+  native procedure run uses true as flag, false as "flag"; // E: Duplicate static binding key 'flag'
+}
+
+// TEST: initializer duplicate key
+native node type Probe {
+  native initializer uses true as flag, false as flag; // E: Duplicate static binding key 'flag'
+}
+
+// TEST: unknown bare declaration
+node type Probe {
+  native procedure run uses Missing; // E: Unknown static declaration 'Missing'
+}
+
+// TEST: bare value must name a static declaration
+node type Probe {
+  native procedure run uses true; // E: Unknown static declaration 'true'
+}
+
+// TEST: expression requires alias
+node type Probe {
+  native procedure run uses !true; // E: Static binding requires an alias
+}
+
+// TEST: qualified reference requires alias
+namespace Example {
+  enum type Mode: uint8 { On = 1, }
+}
+node type Probe {
+  native procedure run uses Example.Mode.On; // E: Static binding requires an alias
+}
+
+// TEST: call requires alias
+// LIBRARIES: std
+node type Probe {
+  native procedure run uses TimeOfDay.AddWrap("00:00", "00:01"); // E: Static binding requires an alias
+}
+
+// TEST: unknown aliased value
+node type Probe {
+  native procedure run uses Missing as missing; // E: Cannot infer expression type
+}
+
+// TEST: inference needs context
+node type Probe {
+  native procedure run uses None as value; // E: Cannot infer expression type
+}
+
+// TEST: list inference needs context
+node type Probe {
+  native procedure run uses [true] as value; // E: List literals require a List type
+}
+
+// TEST: option inference needs context
+node type Probe {
+  native procedure run uses Some(true) as value; // E: Some requires an Option type
+}
+
+// TEST: typed local mismatch
+node type Probe {
+  native procedure run uses { let value: uint8 = true; value } as value; // E: Invalid int value
+}
+
+// TEST: bad function argument
+// LIBRARIES: std
+node type Probe {
+  native procedure run uses TimeOfDay.AddWrap(7, "00:01") as value; // E: Invalid TimeOfDay value
+}
+
+// TEST: unknown call
+node type Probe {
+  native procedure run uses Missing() as value; // E: Cannot find function 'Missing'
+}
+
+// TEST: initializer unknown declaration
+native node type Probe {
+  native initializer uses Missing; // E: Unknown static declaration 'Missing'
+}
+
+// TEST: Wirely body rejects uses
+node type Probe {
+  procedure run uses {} // E: Syntax error
+}
+
+// TEST: uses is reserved
+node type Probe {
+  parameter uses: boolean; // E: Syntax error
+}

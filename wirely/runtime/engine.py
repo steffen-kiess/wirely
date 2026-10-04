@@ -51,7 +51,7 @@ class Engine:
                     native_class = get_native_block_type_by_name(instance.type_name)
                     self.native_classes[instance.type_name] = native_class
                 context = blocks.NativeNodeContext(
-                    name=instance.name, parameters=instance.parameters,
+                    name=instance.name, values=instance.initializer_values,
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
                     configuration=instance.configuration, _engine=self, _node_id=node_id,
                 )

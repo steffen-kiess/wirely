@@ -136,7 +136,7 @@ register_configuration(PreparedConstants, prepare)
 class NativeConstantProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-        assert dict(context.parameters) == {'Enabled': True}
+        assert dict(context.values) == {'Enabled': True}
         assert context.configuration.enabled is True
 
 
@@ -144,7 +144,7 @@ class NativeConstantProbe(wirely.NativeState):
 class NativeConstantSingleton(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-        assert not context.parameters
+        assert not context.values
 
 
 calls.clear()
@@ -154,6 +154,7 @@ with patch.dict(native_function_impls, functions), patch.dict(
   native node type NativeConstantProbe {
     parameter Enabled: boolean;
     constant Unused: boolean = Count(Enabled);
+    native initializer uses Enabled;
   }
   singleton native node type NativeConstantSingleton {
     constant Unused: boolean = Count(false);

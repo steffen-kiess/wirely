@@ -354,9 +354,9 @@ class TriggerProbe(blocks.NativeState):
         super().__init__(context=context)
         assert isinstance(context, blocks.NativeNodeContext)
         assert self.context is context
-        assert self.parameters is context.parameters
+        assert self.values is context.values
         assert self.inputs is context.inputs
-        assert not context.parameters and not context.inputs
+        assert not context.values and not context.inputs
         assert context.configuration is None
         assert not hasattr(context, 'trigger')
         assert not hasattr(context, 'shutdown_time')
@@ -364,7 +364,7 @@ class TriggerProbe(blocks.NativeState):
             for name in ['engine', 'block_path', 'block', 'block_type',
                          'block_or_singleton', 'static_block_context']:
                 assert not hasattr(target, name)
-        for name in ['name', 'parameters', 'inputs', 'configuration']:
+        for name in ['name', 'values', 'inputs', 'configuration']:
             with checks.assertRaises(AttributeError):
                 setattr(context, name, None)
         with checks.assertRaises(AttributeError):
@@ -784,7 +784,7 @@ class LifecycleProbe(blocks.NativeState):
         async_exit_stack.callback(self.observe_cleanup)
 
     async def start_tasks_async(self, task_group, async_exit_stack):
-        if self.parameters['Fail']:
+        if self.values['Fail']:
             raise RuntimeError('Startup failed')
 
     def observe_cleanup(self):
@@ -797,6 +797,7 @@ def make_lifecycle_engine(*, fail=False):
 namespace TestLibrary {{
   native node type LifecycleProbe {{
     parameter Fail: boolean = false;
+    native initializer uses Fail;
   }}
 }}
 node first: TestLibrary.LifecycleProbe {{}}

@@ -236,6 +236,7 @@ def compile_nocatch(global_block_type):
             parameters=instance.static_context.parameters,
             configuration=instance.static_context.configuration,
             initializer_bindings=initializer_bindings[path],
+            initializer_values=instance.initializer_values,
         )
         for path, instance in instances.items()
     }
@@ -287,6 +288,7 @@ def compile_nocatch(global_block_type):
                 result_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types)
 
+    from .static_bindings import evaluate_bindings
     schedules = {}
     for stage, stage_procs in procs.items():
         schedule = []
@@ -317,6 +319,7 @@ def compile_nocatch(global_block_type):
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
                 results=results, body=bodies.get((path, proc)),
+                values=evaluate_bindings(proc.declaration_procedure.uses, instances[path]),
             ))
         schedules[stage] = tuple(schedule)
     node_aliases = {}

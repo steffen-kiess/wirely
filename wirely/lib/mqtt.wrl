@@ -5,6 +5,8 @@ namespace MQTT {
     parameter URI: String;
 
     default output: resource Broker;
+
+    native initializer uses URI;
   }
 
   native node type ValueOptionProvider {
@@ -69,7 +71,7 @@ namespace MQTT {
     input Broker: resource Broker;
     default output: event Type;
 
-    native initializer depends on Broker;
+    native initializer depends on Broker uses Type;
 
     native procedure get_value stage input produces default output as "output";
   }

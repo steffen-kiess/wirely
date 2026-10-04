@@ -522,6 +522,12 @@ class BlockInstance(blocks.NodeInstance):
         for assertion in self.block_type.assertions:
             assertion.evaluate(self)
 
+        from .static_bindings import evaluate_bindings
+        initializer = self.block_type.initializer
+        self.initializer_values = evaluate_bindings(
+            initializer.uses if initializer is not None else None, self,
+        )
+
         self.parameter_origins = parameter_origins(self)
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)

@@ -322,6 +322,13 @@ within a step. Procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. Procedures
 run in dependency order; dependencies must be acyclic.
 
+Native procedures accept `uses` after `produces`; native initializers accept
+it after `depends on`. Bind node parameters and constants by name, or use
+`expression as name` or `expression as "key"`. See
+[native static values](native-python.md#static-values-and-prepared-data)
+for binding syntax and Python access. Procedures with Wirely bodies refer
+to parameters and constants directly and do not accept `uses`.
+
 Use `reference as name` to name a procedure input or result. An unaliased
 simple identifier uses its own name. Default connectors and complex
 references require aliases. Names must be unique within each clause.

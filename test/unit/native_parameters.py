@@ -56,25 +56,28 @@ register_configuration(PreparedData, prepare_prepared_data)
 class ParameterProbe:
     @staticmethod
     def run(*, context):
-        assert context.parameters == prepared_names[context.name]
+        assert {key: value for key, value in context.values.items()
+                if value is not wirely.MISSING_PARAMETER} == prepared_names[context.name]
         callback(context)
-        seen.append(context.parameters)
+        seen.append(context.values)
 
 
 @native_block_type(registry, has_native_state=True, data_type=PreparedData)
 class StateParameterProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-        assert self.parameters is context.parameters
+        assert self.values is context.values
         assert any(self.context.configuration == data for data in prepared)
-        assert '' not in self.parameters
+        assert '' not in self.values
 
     def run(self, *, context):
-        assert self.parameters is context.parameters
+        assert self.values == context.values
+        assert self.values is not context.values
         assert context.name == self.context.name
-        assert context.parameters == prepared_names[context.name]
+        assert {key: value for key, value in context.values.items()
+                if value is not wirely.MISSING_PARAMETER} == prepared_names[context.name]
         callback(context)
-        seen.append(context.parameters)
+        seen.append(context.values)
 
 
 def make_probe(declaration, check, *, native=False, singleton=False, arguments='', extra=''):
@@ -82,6 +85,9 @@ def make_probe(declaration, check, *, native=False, singleton=False, arguments='
     callback = check
     class_name = 'StateParameterProbe' if native else 'ParameterProbe'
     specifier = ('singleton ' if singleton else '') + ('native ' if native else '')
+    if native:
+        clause = declaration.split('native procedure run', 1)[1].split(';', 1)[0]
+        declaration += '\nnative initializer' + clause + ';'
     source = f'''
 namespace TestLibrary {{
   {specifier}node type {class_name} {{
@@ -106,9 +112,9 @@ node probe: TestLibrary.{class_name} {{ {arguments} }}
 
 
 def check_parameters(context):
-    assert isinstance(context.parameters, Mapping)
-    assert isinstance(context.parameters, MappingProxyType)
-    assert dict(context.parameters) == {
+    assert isinstance(context.values, Mapping)
+    assert isinstance(context.values, MappingProxyType)
+    assert dict(context.values) == {
         'Type': types.uint16,
         'Number': 7,
         'Flag': True,
@@ -119,14 +125,15 @@ def check_parameters(context):
         'Items': (wirely.Some(7), None),
         'At': datetime.time(0, 30),
         'Duration': wirely.Duration.parse('PT1S'),
-        'ModeType': context.parameters['ModeType'],
-        'Mode': context.parameters['ModeType'].parse('Cool'),
+        'ModeType': context.values['ModeType'],
+        'Mode': context.values['ModeType'].parse('Cool'),
+        'Missing': wirely.MISSING_PARAMETER,
     }
-    assert 'Missing' not in context.parameters
+    assert context.values['Missing'] is wirely.MISSING_PARAMETER
     with checks.assertRaises(KeyError):
-        context.parameters['Missing']
+        context.values['Undeclared']
     with checks.assertRaises(TypeError):
-        context.parameters['Number'] = 8
+        context.values['Number'] = 8
 
 
 parameter_declarations = '''
@@ -143,7 +150,8 @@ parameter At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
 parameter Duration: Duration = "PT1S";
 parameter ModeType: ValueType = ThermostatSystemModeEnum;
 parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;
-native procedure run;
+native procedure run uses Type, Number, Flag, Text, Unit, Present, Absent,
+  Missing, Items, At, Duration, ModeType, Mode;
 '''
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,
@@ -155,8 +163,8 @@ for native in [False, True]:
 
 
 def check_composite(context):
-    first = context.parameters['First']
-    second = context.parameters['Second']
+    first = context.values['First']
+    second = context.values['Second']
     assert first == second
     assert hash(first) == hash(second)
     assert str(first) == 'Option[List[uint16]]'
@@ -184,12 +192,12 @@ def check_composite(context):
 make_probe('''
 parameter First: ValueType = Option[List[uint16]];
 parameter Second: ValueType = Option[List[uint16]];
-native procedure run;
+native procedure run uses First, Second;
 ''', check_composite)
 
 
 def check_optional_descriptor(context):
-    descriptor = context.parameters['Type']
+    descriptor = context.values['Type']
     assert descriptor.parse('none') is None
     assert descriptor.parse('7') == wirely.Some(7)
     assert descriptor.supports_csv
@@ -201,15 +209,15 @@ def check_optional_descriptor(context):
 
 make_probe('''
 parameter Type: ValueType = Option[uint16];
-native procedure run;
+native procedure run uses Type;
 ''', check_optional_descriptor)
 
 make_probe('native procedure run;',
-           lambda context: checks.assertEqual(dict(context.parameters), {}),
+           lambda context: checks.assertEqual(dict(context.values), {}),
            native=True, singleton=True)
 
 nested = make_probe('native procedure run;',
-                    lambda context: checks.assertEqual(dict(context.parameters), {}),
+                    lambda context: checks.assertEqual(dict(context.values), {}),
                     native=True, extra='''
 node type Outer {
   node child: TestLibrary.StateParameterProbe {}
@@ -233,21 +241,21 @@ assert shared_path == nested.get_block_path('shared_again')
 
 def check_type_values(context):
     expected = (wirely.Some(types.uint16), None)
-    assert context.parameters['Values'] == expected
-    descriptor = context.parameters['Type']
+    assert context.values['Values'] == expected
+    descriptor = context.values['Type']
     assert descriptor.validate(expected) == expected
     supplied = list(expected)
     assert descriptor.validate(supplied) == expected
     with checks.assertRaises(ValueError):
         descriptor.validate([wirely.Some(wirely.types.uint16)])
     supplied.append(wirely.Some(types.uint8))
-    assert context.parameters['Values'] == expected
+    assert context.values['Values'] == expected
 
 
 make_probe('''
 parameter Type: ValueType = List[Option[ValueType]];
 parameter Values: Type = [Some(uint16), None];
-native procedure run;
+native procedure run uses Type, Values;
 ''', check_type_values)
 
 for name, descriptor in vars(types).items():

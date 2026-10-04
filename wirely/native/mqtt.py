@@ -218,7 +218,7 @@ class Connection(blocks.NativeState):
 
         print('Create MQTT connection', flush=True)
 
-        uri = context.parameters['URI']
+        uri = context.values['URI']
         print(f'  Using URI: {uri!r}', flush=True)
 
         self.parsed_uri = parse_mqtt_uri(uri)
@@ -526,7 +526,7 @@ class EventReceiver(blocks.NativeState):
                                 value = value[:-len(self.data.template_suffix)]
 
                             value = json.loads(value)
-                            value = self.parameters['Type'].json_decode(value, self.data.format)
+                            value = self.values['Type'].json_decode(value, self.data.format)
 
                             self.received_values.append(value)
                             self.trigger('get_value')

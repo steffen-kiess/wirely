@@ -1,0 +1,4 @@
+node constant: Std.Constant { Type: uint16, Value: 7 }
+node unwrap: Std.OptionUnwrapOr { InnerType: uint16, Default: 9 }
+node none: Std.OptionNone { InnerType: uint16 }
+connect none -> unwrap;

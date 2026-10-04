@@ -10,7 +10,7 @@ native_block_types = {}
 class Constant:
     @staticmethod
     def run(*, context):
-        par_value = context.parameters['Value']
+        par_value = context.values['Value']
 
         context.set_result('output', par_value)
 
@@ -74,7 +74,7 @@ class DebugValueSource(blocks.NativeState):
         super().__init__(context=context)
         self.current_value = None
 
-        self.out_type = context.parameters['Type']
+        self.out_type = context.values['Type']
 
     def run(self, *, context):
         context.set_result('output', self.current_value)
@@ -92,7 +92,7 @@ class DebugValueSource(blocks.NativeState):
         if cmd == 'set':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = self.parameters['Type'].parse(parameters[1])
+            value = self.values['Type'].parse(parameters[1])
             self.set_value(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -110,7 +110,7 @@ class DebugEventSource(blocks.NativeState):
         # TODO: Allow a queue of values?
         self.next_value = None
 
-        self.out_type = context.parameters['Type']
+        self.out_type = context.values['Type']
 
     def run(self, *, context):
         context.set_result('output', self.next_value)
@@ -134,7 +134,7 @@ class DebugEventSource(blocks.NativeState):
         if cmd == 'send':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = blocks.Some(self.parameters['Type'].parse(parameters[1]))
+            value = blocks.Some(self.values['Type'].parse(parameters[1]))
             self.send_event(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -169,7 +169,7 @@ class OptionSome:
 class OptionUnwrapOr:
     @staticmethod
     def run(*, context):
-        par_default = context.parameters['Default']
+        par_default = context.values['Default']
 
         val = context.inputs['input']
 

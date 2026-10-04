@@ -28,7 +28,7 @@ namespace CSV {
     native procedure run stage output
       depends on repeat_time.old as "repeat_time_old",
         default input as "input", repeat_time_reached
-      produces repeat_time;
+      produces repeat_time uses Type;
   }
 
   // TODO: Add EventWriter

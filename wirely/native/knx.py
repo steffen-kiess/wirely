@@ -37,7 +37,9 @@ class Connection(blocks.NativeState):
 
         print('Create KNX connection', flush=True)
 
-        parameter = context.parameters.get
+        def parameter(name):
+            value = context.values[name]
+            return None if value is blocks.MISSING_PARAMETER else value
 
         self.connection_config = create_connection_config(
             host=parameter('Host'),
@@ -68,8 +70,8 @@ class ValueReceiver(blocks.NativeState):
 
         print('Create KNX ValueReceiver', flush=True)
 
-        group_address = context.parameters['GroupAddress']
-        ty = context.parameters['Type']
+        group_address = context.values['GroupAddress']
+        ty = context.values['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
@@ -101,7 +103,7 @@ class ValueReceiver(blocks.NativeState):
         else:
             val = device.sensor_value.value
         # print(f'  got value: {val!r}', flush=True)
-        self.parameters['Type'].validate(val)
+        self.values['Type'].validate(val)
 
         self.current_value = val
 
@@ -140,8 +142,8 @@ class ValueOptionProvider(blocks.NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        group_address = context.parameters['GroupAddress']
-        ty = context.parameters['Type']
+        group_address = context.values['GroupAddress']
+        ty = context.values['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
@@ -244,7 +246,7 @@ class EventReceiver(blocks.NativeState):
         else:
             val = device.sensor_value.value
         print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
-        value = self.parameters['Type'].validate(val)
+        value = self.values['Type'].validate(val)
 
         self.received_values.append(value)
         self.trigger('get_value')

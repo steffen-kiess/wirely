@@ -84,12 +84,37 @@ Input and result names come from the `.wrl` `depends on` and `produces`
 clauses. See [state and execution](language.md#state-and-execution) for
 aliases, dependencies, and state access.
 
-## Parameters and prepared data
+## Static values and prepared data
 
-`context.parameters` and `self.parameters` are read-only mappings with
-resolved Python values, using exact `.wrl` parameter names. Declared defaults
-are applied; omitted optional parameters are absent. `ValueType` parameters
-provide `wirely.ValueType` descriptors.
+Declare static values for each native procedure or initializer with `uses`:
+
+```wrl
+native procedure run
+  depends on input
+  produces output
+  uses Scale, Offset as offset, Example.Parse(Address) as "address";
+
+native initializer depends on Broker uses Topic as topic;
+```
+
+A bare name binds a parameter or constant in the node's scope. Expressions
+and qualified references require an alias; aliases may be identifiers or
+strings. Keys must be unique within each `uses` clause. For expressions
+that need type context, use a typed constant or a typed local in an
+expression block. Clauses may be empty and accept trailing commas.
+
+`context.values` is a read-only mapping of that consumer's bindings in
+native Python form. An initializer's bindings are also available as
+`self.values` throughout the native node's lifetime. Each expression is
+evaluated once per consumer per instance during compilation; constants
+are shared within the instance. Static values do not schedule procedures.
+Omitting `uses` provides an empty mapping.
+
+An undeclared key raises `KeyError`. A direct binding of an omitted optional
+parameter contains `wirely.MISSING_PARAMETER`; test it with `is`. Supplied
+parameters and resolved defaults contain their ordinary values, including
+`None` for an absent `Option`. General expressions require their parameters
+to be present. `ValueType` bindings provide `wirely.ValueType` descriptors.
 
 Pass `data_type=SomeClass` to `@native_block_type` and register its factory
 in a separate compiler support module:
@@ -170,7 +195,7 @@ and `value_type`.
   `(text, needs_quotes)`.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
-descriptors are available through resolved parameters. For a declared enum,
+descriptors are available through static bindings. For a declared enum,
 pass its type as a `ValueType` parameter and use `parse("MemberName")` on
 that descriptor to obtain a member. Each compiled program owns its enum
 classes; pass values belonging to that program.
@@ -185,12 +210,12 @@ calls `Class(context=context)` with a `wirely.NativeNodeContext`; define
 
 | Attribute | Value |
 | --- | --- |
-| `parameters` | Resolved parameter mapping |
+| `values` | Initializer static bindings |
 | `inputs` | Initializer resource mapping |
 | `configuration` | Prepared configuration object, or `None` |
 | `name` | Dotted instance name, or qualified type name for a singleton |
 
-`self.parameters` and `self.inputs` give the same mappings. Native
+`self.values` and `self.inputs` give the same mappings. Native
 singletons share one object.
 
 Changes to Python fields do not automatically schedule procedures. Call

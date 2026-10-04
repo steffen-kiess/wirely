@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 import sys
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pprint import pformat
 from types import MappingProxyType
 
@@ -103,8 +103,10 @@ class NativeInstance:
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
     configuration: object  # Prepared configuration passed to native code.
     initializer_bindings: tuple  # (input name, provider node IDs, is_list) entries.
+    initializer_values: Mapping[str, object] = field(default_factory=dict)  # Lifetime static bindings.
 
     def __post_init__(self):
+        object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
         object.__setattr__(self, 'type_name', tuple(self.type_name))
         parameters = MappingProxyType(dict(self.parameters))
         if self.configuration is self.parameters:
@@ -127,8 +129,10 @@ class Procedure:
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
+    values: Mapping[str, object] = field(default_factory=dict)  # Native static bindings.
 
     def __post_init__(self):
+        object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
         type_name, proc_name = self.reference
         object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
         for field in ('dependencies', 'resources'):
@@ -217,6 +221,7 @@ class Program:
             line(f'name: {instance.name}', 4)
             line(f'has native state: {instance.has_native_state}', 4)
             value('parameters', dict(instance.parameters), 4)
+            value('initializer values', dict(instance.initializer_values), 4)
             value('configuration', instance.configuration, 4)
             line('initializer resources:', 4)
             resources(instance.initializer_bindings, 6)
@@ -229,6 +234,7 @@ class Program:
                 type_name, method_name = proc.reference
                 line(f'{index}. {proc.node_id}: {".".join(type_name)}.{method_name}', 4)
                 line(f'node context: {proc.node_context.name}', 6)
+                value('values', dict(proc.values), 6)
                 line('dependencies:', 6)
                 for name, bindings, is_list in proc.dependencies:
                     sources = []

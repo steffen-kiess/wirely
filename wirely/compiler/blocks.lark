@@ -13,9 +13,9 @@ bare_declaration: "native" "function" identifier "(" function_argument_list ")" 
            | "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
            | "state" identifier ":" value "=" value ";" -> declaration_state_variable
            | "temporary" identifier ":" value ";" -> declaration_temporary_variable
-           | native_specifier "procedure" identifier ["as" string_constant] stage_declaration depends_declaration produces_declaration ";" -> declaration_procedure
+           | native_specifier "procedure" identifier ["as" string_constant] stage_declaration depends_declaration produces_declaration [uses_declaration] ";" -> declaration_procedure
            | "procedure" identifier stage_declaration depends_declaration produces_declaration procedure_body -> declaration_procedure__create_body
-           | "native" "initializer" depends_declaration ";" -> declaration_initializer
+           | "native" "initializer" depends_declaration [uses_declaration] ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
            | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
            | "assert" value ["," string_constant] ";" -> declaration_assertion
@@ -47,6 +47,9 @@ depends_declaration: -> depends_declaration
 
 produces_declaration: -> produces_declaration
                    | "produces" _separated_empty{procedure_binding, ","} -> produces_declaration
+
+uses_declaration: "uses" _separated_empty{static_binding, ","}
+static_binding: value ["as" identifier | "as" string_constant]
 
 procedure_binding: reference -> procedure_binding
                  | reference "as" string_constant -> procedure_binding

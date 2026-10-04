@@ -1539,10 +1539,48 @@ def dependency_is_resource(dependency):
     return isinstance(getattr(dependency, 'conn_spec', None), ConnectorSpecificationResource)
 
 
+class StaticBinding(SourceElement):
+    def __init__(self, expression, alias=None, *, source_position):
+        super().__init__(source_position=source_position)
+        self.expression = expression
+        self.alias = alias
+
+    @property
+    def key(self):
+        if self.alias is not None:
+            return self.alias.id_str if isinstance(self.alias, Identifier) else self.alias.value
+        if isinstance(self.expression, Reference) and self.expression.length == 1:
+            return self.expression.identifiers[0].id_str
+        raise ProgramError(self, 'Static binding requires an alias')
+
+
+class UsesDeclaration(SourceElement):
+    def __init__(self, *bindings, source_position):
+        super().__init__(source_position=source_position)
+        self.bindings = bindings
+
+    def check(self, scope):
+        from .expressions import compile_constant
+
+        keys = set()
+        for binding in self.bindings:
+            with binding.context:
+                key = binding.key
+                if key in keys:
+                    raise ProgramError(binding, f'Duplicate static binding key {key!r}')
+                keys.add(key)
+                expression = binding.expression
+                if binding.alias is None:
+                    if key not in scope.static_declarations:
+                        raise ProgramError(expression, f'Unknown static declaration {key!r}')
+                compile_constant(scope, expression, None, {})
+
+
 class DeclarationInitializer(Declaration):
-    def __init__(self, depends: DependsDeclaration, *, source_position: SourcePosition):
+    def __init__(self, depends: DependsDeclaration, uses=None, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.depends = depends
+        self.uses = uses
 
     def compile_pass1(self, graph):
         if not isinstance(graph, blocks.BlockType) or not graph.is_native:
@@ -1556,6 +1594,8 @@ class DeclarationInitializer(Declaration):
 
     def compile_pass2(self, graph):
         self.depends.compile_pass2(graph, self)
+        if self.uses is not None:
+            self.uses.check(graph)
         for binding, dep in zip(self.depends.dependencies, self.depends.get_resolved_dependencies()):
             if not dependency_is_resource(dep):
                 raise ProgramError(binding, 'Initializer dependencies must be resources')
@@ -1572,7 +1612,7 @@ class DeclarationInitializer(Declaration):
 
 class DeclarationProcedure(Declaration):
     @check_parameters
-    def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, alias: typing.Optional[StringConstant], stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration, *, source_position: SourcePosition):
+    def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, alias: typing.Optional[StringConstant], stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration, uses=None, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.is_native = native_spec is not None
         self.name = name
@@ -1580,6 +1620,7 @@ class DeclarationProcedure(Declaration):
         self.stage = stage
         self.depends = depends
         self.produces = produces
+        self.uses = uses
         self.body = None
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
@@ -1632,6 +1673,8 @@ class DeclarationProcedure(Declaration):
     def compile_interface(self, graph):
         self.depends.compile_pass2(graph, self)
         self.produces.compile_pass2(graph, self)
+        if self.uses is not None:
+            self.uses.check(graph)
         if self.stage.stage == RunStage.INPUT:
             for dep in self.depends.get_resolved_dependencies():
                 if not dependency_is_resource(dep):

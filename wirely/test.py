@@ -31,6 +31,7 @@ test_names = [
     'unit/native_procedures',
     'unit/procedures',
     'unit/native_parameters',
+    'unit/native_values',
     'unit/native_functions',
     'unit/constants',
     'unit/assertions',
@@ -85,6 +86,7 @@ negative_tests = [
     'test/negative/constants.wrl',
     'test/negative/assertions.wrl',
     'test/negative/native_procedures.wrl',
+    'test/negative/native_values.wrl',
     'test/negative/native_functions.wrl',
     'test/negative/procedures.wrl',
     'test/negative/native_initializers.wrl',
@@ -542,9 +544,14 @@ async def run_test(test_name):
 
     async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(require_knx) as knxd_socket_path, with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
         instances = dict(prog.instances)
+        parameter_overrides = {}
 
         def override_instance(node_id, parameters, **configuration):
+            parameter_overrides.setdefault(node_id, {}).update(parameters)
             instance = instances[node_id]
+            initializer_values = dict(instance.initializer_values)
+            initializer_values.update({key: value for key, value in parameters.items()
+                                       if key in initializer_values})
             values = dict(instance.parameters)
             values.update(parameters)
             data = instance.configuration
@@ -552,6 +559,7 @@ async def run_test(test_name):
                 data = replace(data, **configuration)
             instances[node_id] = replace(
                 instance, parameters=MappingProxyType(values), configuration=data,
+                initializer_values=initializer_values,
             )
 
         for node_id in csv_writer_paths:
@@ -568,7 +576,11 @@ async def run_test(test_name):
                 hostname=twon_info.host, port=twon_info.port, tlsa=(twon_info.server.tlsa,),
             )
         schedules = {
-            stage: tuple(replace(proc, node_context=instances[proc.node_id]) for proc in schedule)
+            stage: tuple(replace(
+                proc, node_context=instances[proc.node_id],
+                values={key: parameter_overrides.get(proc.node_id, {}).get(key, value)
+                        for key, value in proc.values.items()},
+            ) for proc in schedule)
             for stage, schedule in prog.procs.items()
         }
         prog = replace(prog, instances=instances, procs=schedules)

@@ -16,14 +16,14 @@ class NativeNodeContext:
     """Information available for the lifetime of a native node."""
 
     name: str
-    parameters: Mapping[str, object]
+    values: Mapping[str, object]
     inputs: Mapping[str, object]
     configuration: object
     _engine: object = field(repr=False)
     _node_id: str = field(repr=False)
 
     def __post_init__(self):
-        for name in ('parameters', 'inputs'):
+        for name in ('values', 'inputs'):
             value = getattr(self, name)
             if not isinstance(value, MappingProxyType):
                 object.__setattr__(self, name, MappingProxyType(dict(value)))
@@ -42,8 +42,8 @@ class NativeState:
         return self.context.inputs
 
     @property
-    def parameters(self) -> Mapping[str, object]:
-        return self.context.parameters
+    def values(self) -> Mapping[str, object]:
+        return self.context.values
 
     @property
     def _shutdown_time(self) -> datetime.datetime | None:
@@ -155,8 +155,8 @@ class ProcedureContext:
         return self._static.node_context.name
 
     @property
-    def parameters(self) -> Mapping[str, object]:
-        return self._static.node_context.parameters
+    def values(self) -> Mapping[str, object]:
+        return self._static.values
 
     @property
     def configuration(self):

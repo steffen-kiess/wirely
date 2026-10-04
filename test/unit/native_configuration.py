@@ -51,7 +51,10 @@ register_configuration(Configuration, prepare_configuration)
 class ConfigurationProbe:
     @staticmethod
     def run(*, context):
-        assert context.configuration is context.parameters
+        prepared = next(item for item in contexts if item.name == context.name)
+        assert context.configuration == prepared.parameters
+        assert not context.values
+        assert not hasattr(context, 'parameters')
 
 
 def compile_sources(*sources):
@@ -77,6 +80,7 @@ node again: TestLibrary.ConfigurationProbe {{ {arguments} }}
 
 
 program = probe('parameter Path: String = "../data/config.json";')
+assert program.instances['again'].configuration is program.instances['again'].parameters
 context = contexts[-1]
 assert context.name == 'again'
 assert isinstance(context.parameters, MappingProxyType)

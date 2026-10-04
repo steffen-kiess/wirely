@@ -18,7 +18,7 @@ weak_keywords = [
 reserved_keywords = [
     'as', 'assert', 'connect', 'depends', 'enum', 'initializer', 'namespace',
     'function', 'native', 'node', 'optional', 'parameter', 'procedure', 'produces',
-    'singleton', 'struct', 'temporary',
+    'singleton', 'struct', 'temporary', 'uses',
 ]
 
 
