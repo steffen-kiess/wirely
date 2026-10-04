@@ -4,30 +4,6 @@
 
 ### Breaking changes and migration
 
-#### Multi inputs
-
-Use `multi value`, `multi event`, and `multi resource` instead of `list value`,
-`list event`, and `list resource` in input declarations. `multi` is a weak
-keyword and can also be used as an identifier.
-
-#### Default connectors
-
-Use `default input` and `default output` in connector declarations and
-references instead of `implicit input` and `implicit output`.
-`default` is a weak keyword and can also be used as an identifier.
-
-#### Library names
-
-Use `Process.LaunchOnEvent` instead of `ExtProg.LaunchOnEvent`.
-
-Use `MQTT.EventSender` and `KNX.EventSender` instead of
-`MQTT.EventEmitter` and `KNX.EventEmitter`.
-
-Use `Time.DebounceStable` instead of `Time.DelayChange`,
-`Std.DelayOneStep` instead of `Std.Delay`, and
-`Time.IsInDailyInterval` instead of `Time.IsBetween`.
-Use `TimeOfDay.AddWrap` instead of `TimeOfDay_AddWrap`.
-
 #### Node instance syntax
 
 Replace parameter parentheses with braces, parameter `=` with `:`, and
@@ -38,6 +14,30 @@ remove the final semicolon. Every node instance needs braces:
 | `node n: T(P = value);` | `node n: T { P: value }` |
 | `node n: T;` | `node n: T {}` |
 | `node n: T();` | `node n: T {}` |
+
+#### Connector syntax
+
+Use `multi value`, `multi event`, and `multi resource` instead of `list value`,
+`list event`, and `list resource` in input declarations.
+
+Use `default input` and `default output` instead of `implicit input` and
+`implicit output` in connector declarations, connection endpoints, and
+procedure bindings.
+
+#### Library and function names
+
+Update node types and function calls as follows:
+
+| In 0.1.1 | In 0.1.2 |
+| --- | --- |
+| `ExtProg.LaunchOnEvent` | `Process.LaunchOnEvent` |
+| `MQTT.EventEmitter` | `MQTT.EventSender` |
+| `KNX.EventEmitter` | `KNX.EventSender` |
+| `Time.DelayChange` | `Time.DebounceStable` |
+| `Std.Delay` | `Std.DelayOneStep` |
+| `Time.IsBetween` | `Time.IsInDailyInterval` |
+| `Std.OptionUnwrapOrDefault` | `Std.OptionUnwrapOr` |
+| `TimeOfDay_AddWrap` | `TimeOfDay.AddWrap` |
 
 ## 0.1.1 - 2026-10-04
 
