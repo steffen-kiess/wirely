@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 from types import MappingProxyType
@@ -59,7 +60,9 @@ class ConfigurationProbe:
 
 def compile_sources(*sources):
     with patch.dict(wirely.native.test_library.native_block_types, registry):
-        graph = wirely.compiler.compile_strs(sources)
+        graph = wirely.compiler.compile_strs(
+            wirely.compiler._standard_library_sources(['path']) + list(sources),
+        )
         assert graph is not None
         return program_compiler.compile_nocatch(graph)
 
@@ -192,7 +195,8 @@ with tempfile.TemporaryDirectory() as directory:
     program = probe('''parameter Host: String = "localhost";
     parameter Port: uint16 = 443;
     parameter TLSA: List[String] = [];
-    parameter UsernamePasswordFile: String = "credentials.txt";''',
+    parameter UsernamePasswordFile: String =
+      Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt");''',
                     filename=str(Path(directory) / 'main.wrl'))
     filename.unlink()
     data = next(instance.configuration
@@ -201,13 +205,75 @@ with tempfile.TemporaryDirectory() as directory:
     assert data.username == 'username'
     assert data.password == 'password'
     assert not hasattr(data, 'filename')
+    # The engine can run after the credentials have been removed.
+    executed = []
+
+    def run_prepared(*, context):
+        assert context.configuration.username == 'username'
+        assert context.configuration.password == 'password'
+        executed.append(context.name)
+
+    with patch.dict(wirely.native.test_library.native_block_types, registry), \
+            patch.object(ConfigurationProbe, 'run', run_prepared):
+        wirely.Engine(program).step()
+    assert sorted(executed) == ['again', 'probe']
     with checks.assertRaises(compiler_model.ProgramError) as caught:
         probe('''parameter Host: String = "localhost";
         parameter Port: uint16 = 443;
         parameter TLSA: List[String] = [];
-        parameter UsernamePasswordFile: String = "credentials.txt";''',
+        parameter UsernamePasswordFile: String =
+          Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt");''',
               filename=str(Path(directory) / 'main.wrl'))
-    assert caught.exception.source_element.source_position.start_line == 7
+    assert caught.exception.source_element.source_position.start_line == 8
+    assert caught.exception.source_element.source_position.filename == str(Path(directory) / 'main.wrl')
+    assert 'No such file' in str(caught.exception)
+
+    declarations = '''parameter Host: String = "localhost";
+    parameter Port: uint16 = 443;
+    parameter TLSA: List[String] = [];
+    parameter UsernamePasswordFile: String;'''
+    # Absolute filenames work even when the source has no filesystem location.
+    filename.write_text('absolute_user\nabsolute_password\n')
+    arguments = 'UsernamePasswordFile: ' + json.dumps(str(filename))
+    program = probe(declarations, arguments=arguments, filename='<test>')
+    assert program.instances['probe'].configuration.username == 'absolute_user'
+    for contents in ('', 'username\n', '\npassword\n'):
+        filename.write_text(contents)
+        with checks.assertRaises(compiler_model.ProgramError) as caught:
+            probe(declarations, arguments=arguments)
+        assert 'Failed to read username and password' in str(caught.exception)
+        assert caught.exception.source_element is contexts[-1]._origins['UsernamePasswordFile'][0]
+    for relative in ('credentials.txt', '../credentials.txt', ''):
+        with checks.assertRaises(compiler_model.ProgramError) as caught:
+            probe(declarations, arguments='UsernamePasswordFile: ' + json.dumps(relative))
+        assert 'must be absolute' in str(caught.exception)
+        assert 'Path.Join' in str(caught.exception)
+        assert caught.exception.source_element is contexts[-1]._origins['UsernamePasswordFile'][0]
+
+    filename.write_text('forwarded_user\nforwarded_password\n')
+    program = compile_sources(
+        (str(Path(directory) / 'types/main.wrl'), '''
+namespace TestLibrary {
+  node type ConfigurationProbe {
+    parameter Host: String = "localhost";
+    parameter Port: uint16 = 443;
+    parameter TLSA: List[String] = [];
+    parameter UsernamePasswordFile: String;
+    native procedure run;
+  }
+}
+node type Wrapper {
+  parameter File: String;
+  node child: TestLibrary.ConfigurationProbe { UsernamePasswordFile: File }
+}
+'''),
+        (str(Path(directory) / 'main.wrl'), '''
+node wrapper: Wrapper {
+  File: Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt"),
+}
+'''),
+    )
+    assert program.instances['wrapper.child'].configuration.username == 'forwarded_user'
 
 
 factories = {

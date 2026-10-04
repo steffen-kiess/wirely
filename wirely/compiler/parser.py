@@ -6,7 +6,7 @@ import lark
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
-from .ast import SourceElement
+from .ast import SourceElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, ExpressionBlock,
     LocalBinding, ResultAssignment, ProcedureBody,
@@ -149,6 +149,7 @@ class Transformer(lark.Transformer):
     def __init__(self, filename, input_data):
         self.filename = filename
         self.input_data = input_data
+        self.source_path = capture_source_path(filename)
 
     def copy(self, arg):
         return arg
@@ -185,7 +186,10 @@ class Transformer(lark.Transformer):
         if data.startswith('__'):
             return lark.Tree(data, children, meta)
 
-        source_position = blocks.SourcePosition(filename=self.filename, meta=meta, input_data=self.input_data)
+        source_position = blocks.SourcePosition(
+            filename=self.filename, meta=meta, input_data=self.input_data,
+            source_path=self.source_path,
+        )
         if data in ('outer_attribute', 'inner_attribute'):
             return Attribute(children[0], 'outer' if data == 'outer_attribute' else 'inner', source_position)
         if data in ('metadata_flag', 'metadata_value', 'metadata_list'):

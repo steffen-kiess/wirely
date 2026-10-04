@@ -10,6 +10,9 @@ from . import model as blocks
 
 
 native_function_impls = {
+    ('Path', 'Join'): ('wirely.compiler.function_implementations.path', 'join'),
+    ('Path', 'Parent'): ('wirely.compiler.function_implementations.path', 'parent'),
+    ('Path', 'SourceFile'): ('wirely.compiler.function_implementations.path', 'source_file'),
     ('TimeOfDay', 'AddWrap'): (
         'wirely.compiler.function_implementations.time', 'add_wrap',
     ),

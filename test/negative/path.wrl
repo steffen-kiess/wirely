@@ -1,0 +1,46 @@
+// LIBRARIES: path
+
+// TEST: join argument count
+constant Invalid: String = Path.Join("base"); // E: expected 2 parameters
+
+// TEST: parent argument count
+constant Invalid: String = Path.Parent(); // E: expected 1 parameters
+
+// TEST: source argument count
+constant Invalid: String = Path.SourceFile("file"); // E: expected 0 parameters
+
+// TEST: join base type
+constant Invalid: String = Path.Join(true, "file"); // E: Invalid string value
+
+// TEST: join path type
+constant Invalid: String = Path.Join("base", 1); // E: Invalid string value
+
+// TEST: parent type
+constant Invalid: String = Path.Parent(false); // E: Invalid string value
+
+// TEST: runtime source
+node type Invalid {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Path.SourceFile() == ""; // E: Runtime calls
+  }
+}
+node invalid: Invalid {}
+
+// TEST: runtime join
+node type Invalid {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Path.Join("base", "file") == ""; // E: Runtime calls
+  }
+}
+node invalid: Invalid {}
+
+// TEST: runtime parent
+node type Invalid {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Path.Parent("file") == ""; // E: Runtime calls
+  }
+}
+node invalid: Invalid {}

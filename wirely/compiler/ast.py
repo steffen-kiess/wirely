@@ -4,6 +4,7 @@ import abc
 import contextlib
 import re
 import datetime
+import os
 
 import lark
 
@@ -15,12 +16,23 @@ from wirely.util import check_parameters
 from wirely.compiler.types import parse_value, resolve_type, check_runtime_type
 
 
+_UNSET_SOURCE_PATH = object()
+
+
+def capture_source_path(filename):
+    if not filename or (str(filename).startswith('<') and str(filename).endswith('>')):
+        return None
+    return os.path.abspath(filename)
+
+
 class SourcePosition:
     @check_parameters
-    def __init__(self, *, filename, meta, input_data):
+    def __init__(self, *, filename, meta, input_data, source_path=_UNSET_SOURCE_PATH):
         self.filename = filename
         self.meta = meta
         self.input_data = input_data
+        self.source_path = (capture_source_path(filename)
+                            if source_path is _UNSET_SOURCE_PATH else source_path)
 
     @property
     def start_pos(self):

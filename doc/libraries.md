@@ -13,6 +13,22 @@ See the [language guide](language.md) for syntax and connection rules. The
 declarations in [`wirely/lib/`](../wirely/lib/) are the source for exact
 signatures; behavior comes from [`wirely/native/`](../wirely/native/).
 
+## Path
+
+The `path` library provides compile-time functions returning `String` values
+using the compiler host's path conventions:
+
+- `Path.Join(base: String, path: String)` joins paths. An absolute second
+  path replaces the base; relative results stay relative and retain `..`.
+- `Path.Parent(path: String)` returns the lexical parent. A bare filename
+  returns `"."`; roots remain roots and trailing separators are ignored.
+- `Path.SourceFile()` returns the absolute path of the file containing the
+  call. Calls in library expressions and parameter defaults refer to those
+  files. The source must have a filesystem filename.
+
+These functions do not check existence or resolve symlinks and cannot be
+called in runtime procedure bodies.
+
 ## Std
 
 General data flow, optional values, edge detection, and debug nodes.
@@ -134,7 +150,7 @@ connect its default `resource TwoN.Device` output to each client's named
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file contains a username and password on separate lines; a relative path is resolved beside the `.wrl` file. |
+| `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
 | `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
@@ -144,6 +160,16 @@ connect its default `resource TwoN.Device` output to each client's named
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.
+
+To read credentials beside the file containing the configuration, supply:
+
+```wrl
+UsernamePasswordFile:
+  Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt"),
+```
+
+Credentials are read during compilation; execution uses the prepared
+username and password.
 
 ## GPIO
 
