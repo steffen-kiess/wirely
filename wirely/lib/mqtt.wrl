@@ -36,12 +36,11 @@ namespace MQTT {
     node create_option: Std.OptionSome { InnerType: Type }
     connect default input -> create_option;
 
-    // Note: Format and Template will only be forwarded if they are set.
     node impl: ValueOptionProvider {
       Type: Type,
       Topic: Topic,
-      Format: Format,
-      Template: Template,
+      Format?: parameter_option(Format),
+      Template?: parameter_option(Template),
     }
     connect Broker -> impl.Broker;
     connect create_option -> impl;

@@ -110,11 +110,12 @@ evaluated once per consumer per instance during compilation; constants
 are shared within the instance. Static values do not schedule procedures.
 Omitting `uses` provides an empty mapping.
 
-An undeclared key raises `KeyError`. A direct binding of an omitted optional
-parameter contains `wirely.MISSING_PARAMETER`; test it with `is`. Supplied
-parameters and resolved defaults contain their ordinary values, including
-`None` for an absent `Option`. General expressions require their parameters
-to be present. `ValueType` bindings provide `wirely.ValueType` descriptors.
+An undeclared key raises `KeyError`. Bind an optional parameter with
+`uses parameter_option(Foo) as foo`: `values['foo']` contains `None` when
+omitted and `wirely.Some(value)` when supplied. For an optional `Option[T]`,
+a supplied `None` becomes `wirely.Some(None)`. Ordinary bindings and resolved
+defaults contain their ordinary values. `ValueType` bindings provide
+`wirely.ValueType` descriptors, including inside options.
 
 Pass `data_type=SomeClass` to `@native_block_type` and register its factory
 in a separate compiler support module:

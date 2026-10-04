@@ -143,6 +143,29 @@ node type Example {
 }
 ```
 
+Read an optional parameter as an option with `parameter_option(Name)`.
+The unqualified name must refer to an `optional parameter` in the current
+node or root scope. For a parameter of type `T`, the result is `Option[T]`:
+`None` when omitted and `Some(value)` when supplied. An optional `Option[T]`
+supplied with `None` therefore returns `Some(None)`.
+
+Use `Name?: expression` in a node instantiation to pass an `Option[T]` to an
+optional or defaulted parameter of type `T`. `Some(value)` supplies the value;
+`None` omits the argument and uses the destination's default, if any:
+
+```wrl
+node type Forward {
+  optional parameter Label: String;
+  node child: Child { Label?: parameter_option(Label) }
+}
+```
+
+Ordinary `Name: expression` bindings require `T`, and reading an omitted
+parameter fails compilation. The intrinsic is available in compile-time
+expressions, including constants, assertions, parameter defaults and
+arguments, and native `uses` bindings. Procedure bodies can read constants
+computed with it. Its name is reserved for the intrinsic.
+
 Declare a constant in a node type or at the program root with
 `constant Name: Type = expression;`. Constants use the same types as
 parameters, including `ValueType`, and cannot be overridden. Each instance

@@ -56,8 +56,9 @@ register_configuration(PreparedData, prepare_prepared_data)
 class ParameterProbe:
     @staticmethod
     def run(*, context):
-        assert {key: value for key, value in context.values.items()
-                if value is not wirely.MISSING_PARAMETER} == prepared_names[context.name]
+        assert {key: (value.value if key in ('Absent', 'Missing') else value)
+                for key, value in context.values.items()
+                if key not in ('Absent', 'Missing') or value is not None} == prepared_names[context.name]
         callback(context)
         seen.append(context.values)
 
@@ -74,8 +75,9 @@ class StateParameterProbe(wirely.NativeState):
         assert self.values == context.values
         assert self.values is not context.values
         assert context.name == self.context.name
-        assert {key: value for key, value in context.values.items()
-                if value is not wirely.MISSING_PARAMETER} == prepared_names[context.name]
+        assert {key: (value.value if key in ('Absent', 'Missing') else value)
+                for key, value in context.values.items()
+                if key not in ('Absent', 'Missing') or value is not None} == prepared_names[context.name]
         callback(context)
         seen.append(context.values)
 
@@ -121,15 +123,15 @@ def check_parameters(context):
         'Text': 'hello',
         'Unit': wirely.Unit(),
         'Present': wirely.Some(wirely.Unit()),
-        'Absent': None,
+        'Absent': wirely.Some(None),
         'Items': (wirely.Some(7), None),
         'At': datetime.time(0, 30),
         'Duration': wirely.Duration.parse('PT1S'),
         'ModeType': context.values['ModeType'],
         'Mode': context.values['ModeType'].parse('Cool'),
-        'Missing': wirely.MISSING_PARAMETER,
+        'Missing': None,
     }
-    assert context.values['Missing'] is wirely.MISSING_PARAMETER
+    assert context.values['Missing'] is None
     with checks.assertRaises(KeyError):
         context.values['Undeclared']
     with checks.assertRaises(TypeError):
@@ -150,8 +152,8 @@ parameter At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
 parameter Duration: Duration = "PT1S";
 parameter ModeType: ValueType = ThermostatSystemModeEnum;
 parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;
-native procedure run uses Type, Number, Flag, Text, Unit, Present, Absent,
-  Missing, Items, At, Duration, ModeType, Mode;
+native procedure run uses Type, Number, Flag, Text, Unit, Present, parameter_option(Absent) as Absent,
+  parameter_option(Missing) as Missing, Items, At, Duration, ModeType, Mode;
 '''
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,

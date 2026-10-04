@@ -210,9 +210,17 @@ class Transformer(lark.Transformer):
         if cls_name in ast_classes_byname:
             cls = ast_classes_byname[cls_name]
             if len(parts) == 1:
-                return cls(*children, source_position=source_position)
+                result = cls(*children, source_position=source_position)
             else:
-                return getattr(cls, parts[1])(*children, source_position=source_position)
+                result = getattr(cls, parts[1])(*children, source_position=source_position)
+            if isinstance(result, (blocks.Declaration, blocks.BlockType,
+                                   blocks.DeclarationLibrary, LocalBinding,
+                                   blocks.StructField, blocks.EnumMember,
+                                   blocks.FunctionArgument)):
+                name = getattr(result, 'name', None)
+                if isinstance(name, blocks.Identifier) and name.id_str == 'parameter_option':
+                    raise blocks.ProgramError(name, 'parameter_option is reserved for the intrinsic')
+            return result
 
         raise Exception(f'No handler for {data}')
 

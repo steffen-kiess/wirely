@@ -230,6 +230,12 @@ class ExpressionCompiler:
 
     def _compile(self, expression, expected):
         boolean = blocks.types.boolean
+        if isinstance(expression, blocks.ParameterOption):
+            if self.runtime:
+                raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
+            parameter = expression.declaration(self.scope, self.names)
+            value = blocks.value.ParameterOptionValue(parameter, ast_element=expression)
+            return TypedExpression(value.value_type, 'constant', payload=value)
         if isinstance(expression, UnaryExpression):
             operand = self.compile(expression.operand, boolean)
             return TypedExpression(boolean, 'not', (operand,))
@@ -321,6 +327,8 @@ class ExpressionCompiler:
         return TypedExpression(value_type, 'constant', payload=value)
 
     def check_runtime_syntax(self, expression):
+        if isinstance(expression, blocks.ParameterOption):
+            raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
         if isinstance(expression, (blocks.FunctionCall, blocks.BracketOperator)):
             raise ProgramError(expression, 'Runtime calls and indexing are not supported in procedures')
         if isinstance(expression, blocks.StructLiteral):
@@ -352,6 +360,9 @@ class ExpressionCompiler:
         return self.known_type(expression)
 
     def known_type(self, expression):
+        if isinstance(expression, blocks.ParameterOption):
+            parameter = expression.declaration(self.scope, self.names)
+            return blocks.types.TypeOption(parameter.type_resolved)
         if isinstance(expression, blocks.Reference):
             if expression.length == 1:
                 name = expression.identifiers[0].id_str

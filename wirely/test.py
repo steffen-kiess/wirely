@@ -31,6 +31,7 @@ test_names = [
     'unit/native_procedures',
     'unit/procedures',
     'unit/native_parameters',
+    'unit/optional_forwarding',
     'unit/native_values',
     'unit/native_functions',
     'unit/constants',
@@ -83,6 +84,7 @@ to_compile = [
 negative_tests = [
     'test/negative/runtime_types.wrl',
     'test/negative/parameters.wrl',
+    'test/negative/optional_forwarding.wrl',
     'test/negative/constants.wrl',
     'test/negative/assertions.wrl',
     'test/negative/native_procedures.wrl',
@@ -546,11 +548,13 @@ async def run_test(test_name):
         instances = dict(prog.instances)
         parameter_overrides = {}
 
-        def override_instance(node_id, parameters, **configuration):
-            parameter_overrides.setdefault(node_id, {}).update(parameters)
+        def override_instance(node_id, parameters, *, optional_parameters=(), **configuration):
+            bindings = {key: blocks.Some(value) if key in optional_parameters else value
+                        for key, value in parameters.items()}
+            parameter_overrides.setdefault(node_id, {}).update(bindings)
             instance = instances[node_id]
             initializer_values = dict(instance.initializer_values)
-            initializer_values.update({key: value for key, value in parameters.items()
+            initializer_values.update({key: value for key, value in bindings.items()
                                        if key in initializer_values})
             values = dict(instance.parameters)
             values.update(parameters)
@@ -566,7 +570,8 @@ async def run_test(test_name):
             filename = testdir + '/' + os.path.basename(prog.instances[node_id].configuration.filename)
             override_instance(node_id, {'Filename': filename}, filename=filename)
         for node_id in knx_connection_paths:
-            override_instance(node_id, {'UnixPath': knxd_socket_path})
+            override_instance(node_id, {'UnixPath': knxd_socket_path},
+                              optional_parameters=('UnixPath',))
         for node_id in mqtt_server_paths:
             override_instance(node_id, {'URI': 'mqtt+unix://' + mqtt_socket_path})
         for node_id in twon_device_paths:

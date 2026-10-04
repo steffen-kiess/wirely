@@ -1,0 +1,121 @@
+// TEST: no_arguments
+optional parameter Foo: boolean;
+constant Value: Option[boolean] = parameter_option(); // E: parameter_option expects exactly one argument
+
+// TEST: two_arguments
+optional parameter Foo: boolean;
+constant Value: Option[boolean] = parameter_option(Foo, Foo); // E: parameter_option expects exactly one argument
+
+// TEST: expression
+constant Value: Option[boolean] = parameter_option(true); // E: parameter_option requires an optional parameter without a default
+
+// TEST: literal
+constant Value: Option[boolean] = parameter_option(1); // E: parameter_option requires an unqualified optional parameter reference
+
+// TEST: qualified
+optional parameter Foo: boolean;
+constant Value: Option[boolean] = parameter_option(Self.Foo); // E: parameter_option requires an unqualified optional parameter reference
+
+// TEST: required_source
+parameter Foo: boolean;
+constant Value: Option[boolean] = parameter_option(Foo); // E: parameter_option requires an optional parameter without a default
+
+// TEST: defaulted_source
+parameter Foo: boolean = true;
+constant Value: Option[boolean] = parameter_option(Foo); // E: parameter_option requires an optional parameter without a default
+
+// TEST: constant_source
+constant Foo: boolean = true;
+constant Value: Option[boolean] = parameter_option(Foo); // E: parameter_option requires an optional parameter without a default
+
+// TEST: local_shadow
+optional parameter Foo: boolean;
+constant Value: Option[boolean] = { let Foo = true; parameter_option(Foo) }; // E: parameter_option requires an optional parameter without a default
+
+// TEST: local_source
+constant Value: Option[boolean] = { let Foo = true; parameter_option(Foo) }; // E: parameter_option requires an optional parameter without a default
+
+// TEST: intrinsic_name
+constant parameter_option: boolean = true; // E: parameter_option is reserved for the intrinsic
+
+// TEST: intrinsic_raw_name
+node type r#parameter_option {} // E: parameter_option is reserved for the intrinsic
+
+// TEST: required_destination
+node type Destination { parameter Foo: boolean; }
+node child: Destination { Foo?: Some(true) } // E: Optional binding requires an optional or defaulted parameter
+
+// TEST: incorrect_option
+node type Destination { optional parameter Foo: boolean; }
+node child: Destination { Foo?: true } // E: Invalid Option value true
+
+// TEST: incorrect_inner
+node type Destination { optional parameter Foo: boolean; }
+node child: Destination { Foo?: Some(1) } // E: Invalid boolean value
+
+// TEST: incorrect_intrinsic_type
+optional parameter Foo: int16;
+constant Value: Option[boolean] = parameter_option(Foo); // E: Expected value of type TypeOption(boolean), got TypeOption(int16)
+
+// TEST: ordinary_binding_does_not_unwrap
+node type Destination { optional parameter Foo: boolean; }
+optional parameter Foo: boolean;
+node child: Destination { Foo: parameter_option(Foo) } // E: Expected value of type boolean, got TypeOption(boolean)
+
+// TEST: duplicate_bindings
+node type Destination { optional parameter Foo: boolean; }
+node child: Destination { Foo: true, Foo?: None } // E: Duplicate parameter binding 'Foo'
+
+// TEST: duplicate_optional_bindings
+node type Destination { optional parameter Foo: boolean; }
+node child: Destination { Foo?: None, Foo?: Some(true) } // E: Duplicate parameter binding 'Foo'
+
+// TEST: omitted_ordinary_read
+node type Destination { optional parameter Foo: boolean; } // H: Available parameter
+node type Forward {
+  optional parameter Foo: boolean;
+  node child: Destination { Foo: Foo } // E: Unable to resolve value parameter
+}
+node parent: Forward {}
+
+// TEST: omitted_constant_read
+node type Forward {
+  optional parameter Foo: boolean;
+  constant Value: boolean = Foo; // E: Unable to resolve value parameter
+}
+node parent: Forward {}
+
+// TEST: runtime_invocation
+node type Forward {
+  optional parameter Foo: boolean;
+  output Value: value Option[boolean];
+  procedure run produces Value { Value = parameter_option(Foo); } // E: parameter_option is only available in compile-time expressions
+}
+node parent: Forward {}
+
+// TEST: presence_type_cycle
+node type Forward {
+  optional parameter Foo: Type;
+  parameter Type: ValueType = { let ignored = parameter_option(Foo); boolean }; // E: Cyclic parameter resolution
+}
+node parent: Forward {}
+
+// TEST: default_invalid_reference_without_instances
+node type Forward {
+  parameter Foo: boolean;
+  parameter Default: Option[boolean] = parameter_option(Foo); // E: parameter_option requires an optional parameter without a default
+}
+
+// TEST: runtime_intrinsic_in_struct
+struct type Pair { Value: Option[boolean], }
+node type Forward {
+  optional parameter Foo: boolean;
+  default output: value Pair;
+  procedure run produces default output as output {
+    output = Pair { Value: parameter_option(Foo) }; // E: parameter_option is only available in compile-time expressions
+  }
+}
+node parent: Forward {}
+
+// TEST: intrinsic_nested_namespace_name
+namespace Example.parameter_option {} // E: parameter_option is reserved for the intrinsic

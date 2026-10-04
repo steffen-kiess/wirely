@@ -4,6 +4,11 @@
 
 ### Breaking changes and migration
 
+#### Optional parameter forwarding
+
+Replace implicit forwarding with `Foo?: parameter_option(Foo)` in node
+arguments.
+
 #### Node instance syntax
 
 Replace parameter parentheses with braces, parameter `=` with `:`, and

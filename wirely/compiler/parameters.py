@@ -10,21 +10,42 @@ class ParameterValues(dict):
     def __init__(self, values):
         super().__init__(values)
         self._resolved = {}
+        self._bindings = {}
         self._resolving = []
 
     def __contains__(self, parameter):
-        return (super().__contains__(parameter)
-                or parameter.default_value is not None)
+        if parameter.default_value is not None:
+            return True
+        if not super().__contains__(parameter):
+            return False
+        if isinstance(super().__getitem__(parameter), blocks.value.OptionalBinding):
+            self._check_cycle(parameter)
+            self._resolving.append(parameter)
+            try:
+                return self._binding(parameter) is not None
+            finally:
+                self._resolving.pop()
+        return True
 
-    def __getitem__(self, parameter):
-        if parameter in self._resolved:
-            return self._resolved[parameter]
+    def _binding(self, parameter):
+        if parameter not in self._bindings:
+            binding = super().__getitem__(parameter)
+            value = binding.resolve_self(self).evaluate()
+            self._bindings[parameter] = value
+        return self._bindings[parameter]
+
+    def _check_cycle(self, parameter):
         if parameter in self._resolving:
             names = [item.name.id_str for item in self._resolving] + [parameter.name.id_str]
             kind = ('static value' if any(isinstance(item, blocks.DeclarationConstant)
                                          for item in self._resolving + [parameter])
                     else 'parameter')
             raise blocks.ProgramError(parameter, f'Cyclic {kind} resolution: {" -> ".join(names)}')
+
+    def __getitem__(self, parameter):
+        if parameter in self._resolved:
+            return self._resolved[parameter]
+        self._check_cycle(parameter)
         self._resolving.append(parameter)
         try:
             return self._resolve(parameter)
@@ -36,12 +57,21 @@ class ParameterValues(dict):
         with source.context:
             if super().__contains__(parameter):
                 value = super().__getitem__(parameter)
-            elif parameter.default_value is not None:
+                if isinstance(value, blocks.value.OptionalBinding):
+                    option = self._binding(parameter)
+                    if option is None:
+                        value = None
+                    else:
+                        value_type = resolve_type(parameter.type_resolved, self)
+                        value = blocks.ConstantValue(value_type, option.value, ast_element=value.ast_element)
+            else:
+                value = None
+            if value is None and parameter.default_value is not None:
                 value_type = resolve_type(parameter.type_resolved, self)
                 value = parameter.interface.get_const_value(
                     parameter.default_value, value_type, par_values=self,
                 )
-            else:
+            if value is None:
                 raise blocks.ProgramError(parameter, f'Unable to resolve parameter {parameter.name.id_str}')
             value = (resolve_type(value, self) if isinstance(value, blocks.Type)
                      else value.resolve_self(par_values=self))

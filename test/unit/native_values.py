@@ -1,8 +1,6 @@
 import contextlib
-import copy
 from dataclasses import FrozenInstanceError, replace
 import io
-import pickle
 from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
@@ -23,13 +21,6 @@ engine.assert_value_is('constant', 7)
 engine.assert_value_is('unwrap', 9)
 engine.assert_is_idle()
 assert not engine.program.instances['constant'].initializer_values
-
-marker = wirely.MISSING_PARAMETER
-assert repr(marker) == 'MISSING_PARAMETER'
-assert copy.copy(marker) is copy.deepcopy(marker) is marker
-assert pickle.loads(pickle.dumps(marker)) is marker
-with checks.assertRaises(AttributeError):
-    marker.value = None
 
 calls = []
 registry = {}
@@ -54,7 +45,6 @@ def prepare(*, context):
     assert calls[-4:] == [context.parameters['Number'], 10, True, 20]
     assert 'Missing' not in context.parameters
     assert context.parameters['Absent'] is None
-    assert marker not in context.parameters.values()
     calls.append(30)
     return Prepared()
 
@@ -69,8 +59,8 @@ class ValuesProbe(wirely.NativeState):
         assert self.values is context.values
         assert isinstance(context.values, MappingProxyType)
         assert list(self.values) == ['Number', 'seed', 'retained', 'missing', 'Absent']
-        assert self.values['missing'] is marker
-        assert self.values['Absent'] is None
+        assert self.values['missing'] is None
+        assert self.values['Absent'] == wirely.Some(None)
         assert self.values['Number'] == self.values['seed']
         assert self.values['retained'] == 20
         assert context.inputs['Number'] is self.inputs['Number']
@@ -89,8 +79,8 @@ class ValuesProbe(wirely.NativeState):
             'number', 'call', 'block', 'items', 'pair', 'unit', 'option',
         ]
         assert context.values['seed'] == self.values['seed']
-        assert context.values['Missing'] is context.values['alias'] is marker
-        assert context.values['Absent'] is None
+        assert context.values['Missing'] is context.values['alias'] is None
+        assert context.values['Absent'] == wirely.Some(None)
         assert context.values['Default'] is True
         assert context.values['type'] == wirely.value_types.uint16
         assert context.values['mode'].name == 'On'
@@ -139,9 +129,10 @@ source = '''namespace TestLibrary {
     assert Example.Count(true), "checked";
     native initializer depends on Number,
       uses Number, Seed as seed, Example.Count(20) as "retained",
-        (Missing) as missing, Absent,;
+        parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
     native procedure run depends on Number, produces Result as Number,
-      uses Seed as "seed", Missing, (Missing) as alias, Absent, Default,
+      uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
+        parameter_option(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
         Example.Count(40) as call,
         { let text: String = "hello"; text } as block,
@@ -251,7 +242,8 @@ assert {item.name.id_str for item in procedure.static_usage} == {'Type', 'Flag'}
 
 # Direct optional bindings also handle type values and forwarded omissions.
 for arguments, expected in [
-    ('', marker), ('Maybe: None', None), ('Maybe: Some(true)', wirely.Some(True)),
+    ('', None), ('Maybe: None', wirely.Some(None)),
+    ('Maybe: Some(true)', wirely.Some(wirely.Some(True))),
 ]:
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
@@ -259,12 +251,13 @@ for arguments, expected in [
     optional parameter Maybe: Option[boolean];
     optional parameter Type: ValueType;
     parameter Default: Option[boolean] = None;
-    native initializer uses Maybe, (Maybe) as "", Type, Default;
+    native initializer uses parameter_option(Maybe) as Maybe,
+      parameter_option(Maybe) as "", parameter_option(Type) as Type, Default;
   }}
 }}
 node type Forward {{
   optional parameter Maybe: Option[boolean];
-  node child: TestLibrary.Provider {{ Maybe: Maybe }}
+  node child: TestLibrary.Provider {{ Maybe?: parameter_option(Maybe) }}
 }}
 node forward: Forward {{ {arguments} }}
 ''')])
@@ -273,9 +266,9 @@ node forward: Forward {{ {arguments} }}
         values = program.instances['forward.child'].initializer_values
         assert values['Maybe'] == expected
         assert values[''] == expected
-        assert values['Type'] is marker
+        assert values['Type'] is None
         assert values['Default'] is None
-        assert marker not in program.instances['forward.child'].parameters.values()
+        assert 'Type' not in program.instances['forward.child'].parameters
         runtime = wirely.Engine(program)
         assert runtime.get_native_state('forward.child').values == values
 

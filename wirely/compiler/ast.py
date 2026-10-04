@@ -421,6 +421,31 @@ class FunctionCall(Value):
         self.fun = fun
         self.parameters = parameters
 
+    @staticmethod
+    def create(fun, parameters, *, source_position):
+        if (isinstance(fun, Reference) and fun.length == 1
+                and fun.identifiers[0].id_str == 'parameter_option'):
+            return ParameterOption(parameters, source_position=source_position)
+        return FunctionCall(fun, parameters, source_position=source_position)
+
+
+class ParameterOption(Value):
+    def __init__(self, parameters, *, source_position):
+        super().__init__(source_position=source_position)
+        self.parameters = parameters
+
+    def declaration(self, scope, local_names=()):
+        if len(self.parameters) != 1:
+            raise ProgramError(self, 'parameter_option expects exactly one argument')
+        reference = self.parameters[0]
+        if not isinstance(reference, Reference) or reference.length != 1:
+            raise ProgramError(reference, 'parameter_option requires an unqualified optional parameter reference')
+        name = reference.identifiers[0].id_str
+        parameter = scope.parsed_parameters.get(name)
+        if name in local_names or parameter is None or parameter.optional_specifier is None:
+            raise ProgramError(reference, 'parameter_option requires an optional parameter without a default')
+        return parameter
+
 
 class BracketOperator(Value):
     @check_parameters
@@ -590,10 +615,10 @@ class Scope(Declaration):
                     if (is_type or declared_type == blocks.types.ValueType
                             or (declared_type is not None and declared_type.contains_parameters)):
                         if par not in par_values:
-                            return blocks.TypeParameter(par)
+                            return blocks.TypeParameter(par, ast_element=ty)
                         result = par_values[par]
                         if isinstance(result, blocks.Value):
-                            return blocks.TypeParameter(par)
+                            return blocks.TypeParameter(par, ast_element=ty)
                         if not isinstance(result, blocks.Type):
                             raise ProgramError(ty, f'Expected ValueType for {name!r}')
                         return result
@@ -651,6 +676,11 @@ class Scope(Declaration):
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
             from .expressions import Expression, compile_constant
+            if isinstance(value, ParameterOption):
+                parameter = value.declaration(self)
+                result = blocks.value.ParameterOptionValue(parameter, ast_element=value)
+                blocks.value.check_value_type(result.value_type, value_type, value)
+                return result
             if value_type.contains_parameters:
                 if (isinstance(value, Reference) and value.length == 1
                         and value.identifiers[0].id_str not in self.static_declarations
@@ -1119,7 +1149,9 @@ class DeclarationParameter(Declaration):
         pass
 
     def compile_pass2(self, graph):
-        pass
+        if self.default_value is not None:
+            from .expressions import compile_constant
+            compile_constant(graph, self.default_value, self.type_resolved, {})
 
 
 class DeclarationConstant(DeclarationParameter):
@@ -1165,7 +1197,7 @@ class DeclarationAssertion(Declaration):
                 condition = compile_constant(instance.block_type, self.condition,
                                              blocks.types.boolean, instance.static_values)
                 try:
-                    result = condition.evaluate()
+                    result = condition.resolve_self(instance.static_values).evaluate()
                 except (ValueError, ArithmeticError) as error:
                     raise ProgramError(self.condition, str(error)) from error
                 if not result:
@@ -1185,10 +1217,15 @@ class DeclarationAssertion(Declaration):
 
 class BlockParameter(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition, is_optional=False):
         super().__init__(source_position=source_position)
         self.name = name
         self.value = value
+        self.is_optional = is_optional
+
+    @staticmethod
+    def optional(name, value, *, source_position):
+        return BlockParameter(name, value, source_position=source_position, is_optional=True)
 
     def __repr__(self):
         return f'Parameter <{self.name}> = <{self.value}>'
@@ -1230,6 +1267,7 @@ class DeclarationBlockInstantiation(Declaration):
         # self.block_type.compile_pass1_5_if_needed()
 
         self.par_values = {}
+        seen = set()
         for parameter in block_arg:
             key = parameter.name
             value = parameter.value
@@ -1239,6 +1277,21 @@ class DeclarationBlockInstantiation(Declaration):
             if key.id_str not in self.block_type.parameters_by_name:
                 raise ProgramError(key, f'Unknown parameter for {self.block_type.name.id_str}: {key}')
             par = self.block_type.parameters_by_name[key.id_str]
+            if par in seen:
+                raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
+            seen.add(par)
+            if parameter.is_optional:
+                if not par.is_optional:
+                    raise ProgramError(parameter, 'Optional binding requires an optional or defaulted parameter')
+                from .expressions import compile_constant
+                compile_constant(graph, value, blocks.types.TypeOption(par.type_resolved), {})
+                self.par_values[par] = blocks.value.OptionalBinding(graph, value, par)
+
+        for parameter in block_arg:
+            if parameter.is_optional:
+                continue
+            value = parameter.value
+            par = self.block_type.parameters_by_name[parameter.name.id_str]
             par_type = resolve_type(par.type_resolved, self.par_values)
             # TODO: Is passing par_values=self.par_values here the correct thing to do?
             if par_type == blocks.types.ValueType:
@@ -1708,6 +1761,8 @@ class DeclarationLibrary(Scope):
         names = args[:-1]
         declarations = args[-1]
         for name in reversed(names):
+            if name.id_str == 'parameter_option':
+                raise ProgramError(name, 'parameter_option is reserved for the intrinsic')
             declarations = [DeclarationLibrary(
                 name, declarations, source_position=source_position)]
         return declarations[0]

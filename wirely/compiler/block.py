@@ -493,15 +493,6 @@ class BlockInstance(blocks.NodeInstance):
                 all_par_values.setdefault(key, value)
             next_parent = next_parent.parent_instance
 
-        # An omitted optional parameter can be forwarded to another optional
-        # parameter without introducing a value.
-        for key, value in list(self.parameter_values.items()):
-            if isinstance(value, (blocks.TypeParameter, blocks.ValueParameter)):
-                source = value.parameter
-                if (source is not key and source not in all_par_values
-                        and source.default_value is None and key.is_optional):
-                    del self.parameter_values[key]
-
         all_par_values.update(self.parameter_values)
         all_par_values = ParameterValues(all_par_values)
         parameter_values_resolved = {}
@@ -511,13 +502,18 @@ class BlockInstance(blocks.NodeInstance):
             if parameter not in self.parameter_values and parameter.default_value is not None
         )
         for key in parameter_keys:
-            parameter_values_resolved[key] = all_par_values[key]
+            if key in all_par_values:
+                parameter_values_resolved[key] = all_par_values[key]
         self.parameter_values = parameter_values_resolved
         self.constant_values = {
             declaration: all_par_values[declaration]
             for declaration in self.block_type.parsed_constants.values()
         }
-        self.static_values = {**all_par_values, **self.parameter_values, **self.constant_values}
+        self.static_values = {
+            key: all_par_values[key] for key in all_par_values if key in all_par_values
+        }
+        self.static_values.update(self.parameter_values)
+        self.static_values.update(self.constant_values)
 
         for assertion in self.block_type.assertions:
             assertion.evaluate(self)

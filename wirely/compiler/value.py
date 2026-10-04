@@ -84,7 +84,7 @@ class ValueParameter(Value):
                 hints += [
                     blocks.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
                 ]
-            raise blocks.ProgramError(self.parameter, f'Unable to resolve value parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
+            raise blocks.ProgramError(self.ast_element, f'Unable to resolve value parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
     def evaluate(self):
         raise Exception('Attempt to call ValueParameter.evaluate()')
@@ -226,3 +226,51 @@ class ValueStruct(ComputedValue):
 
     def evaluate(self):
         return self.value_type.make_value({name: value.evaluate() for name, value in self.fields.items()})
+
+
+class ParameterOptionValue(Value):
+    """Inspect presence without reading an omitted parameter."""
+
+    def __init__(self, parameter, *, ast_element):
+        super().__init__(ast_element=ast_element)
+        self.parameter = parameter
+        self.value_type = blocks.types.TypeOption(parameter.type_resolved)
+
+    @property
+    def contains_parameters(self):
+        return True
+
+    def resolve_self(self, par_values):
+        value_type = resolve_type(self.value_type, par_values)
+        if self.parameter not in par_values:
+            return ConstantValue(value_type, None, ast_element=self.ast_element)
+        from .parameters import resolve_parameter
+        value = resolve_parameter(self.parameter, par_values)
+        concrete = value if isinstance(value, blocks.Type) else value.evaluate()
+        return ConstantValue(value_type, blocks.Some(concrete), ast_element=self.ast_element)
+
+    def evaluate(self):
+        raise Exception('Attempt to evaluate unresolved parameter presence')
+
+
+class OptionalBinding(Value):
+    """An option expression in the enclosing node's scope."""
+
+    def __init__(self, scope, expression, parameter):
+        super().__init__(ast_element=expression)
+        self.scope = scope
+        self.parameter = parameter
+        self.value_type = blocks.types.TypeOption(parameter.type_resolved)
+
+    @property
+    def contains_parameters(self):
+        return True
+
+    def resolve_self(self, par_values):
+        from .expressions import compile_constant
+        value_type = resolve_type(self.value_type, par_values)
+        value = compile_constant(self.scope, self.ast_element, value_type, par_values)
+        return value.resolve_self(par_values)
+
+    def evaluate(self):
+        raise Exception('Attempt to evaluate unresolved optional binding')

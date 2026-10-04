@@ -20,11 +20,12 @@ class ResourceType:
 
 
 class TypeParameter(Type):
-    def __init__(self, parameter):
+    def __init__(self, parameter, *, ast_element=None):
         if not isinstance(parameter, blocks.DeclarationParameter):
             raise Exception("not isinstance(parameter, blocks.DeclarationParameter)")
 
         self.parameter = parameter
+        self.ast_element = ast_element or parameter
 
     @property
     def contains_parameters(self):
@@ -55,7 +56,7 @@ class TypeParameter(Type):
                 hints += [
                     blocks.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
                 ]
-            raise blocks.ProgramError(self.parameter, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
+            raise blocks.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
     def __repr__(self):
         # return f'TypeParameter({self.parameter})'

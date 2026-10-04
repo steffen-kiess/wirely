@@ -12,7 +12,12 @@ namespace KNX {
     default output: resource Bus;
 
     native initializer
-      uses Host, Protocol, Port, UnixPath, SSHTarget, IndividualAddress;
+      uses parameter_option(Host) as Host,
+        parameter_option(Protocol) as Protocol,
+        parameter_option(Port) as Port,
+        parameter_option(UnixPath) as UnixPath,
+        parameter_option(SSHTarget) as SSHTarget,
+        parameter_option(IndividualAddress) as IndividualAddress;
   }
 
   native node type ValueReceiver {

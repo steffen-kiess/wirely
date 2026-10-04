@@ -39,7 +39,7 @@ class Connection(blocks.NativeState):
 
         def parameter(name):
             value = context.values[name]
-            return None if value is blocks.MISSING_PARAMETER else value
+            return None if value is None else value.value
 
         self.connection_config = create_connection_config(
             host=parameter('Host'),

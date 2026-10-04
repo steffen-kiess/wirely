@@ -1,0 +1,142 @@
+struct type Pair {
+  Value: boolean,
+}
+
+node type Destination {
+  parameter Type: ValueType = int16;
+  parameter Number: Type = 9;
+  parameter Flag: boolean = false;
+  parameter Text: String = "default";
+  optional parameter Nested: Option[boolean];
+  optional parameter Items: List[String];
+  optional parameter PairValue: Pair;
+
+  constant MaybeNested: Option[Option[boolean]] = parameter_option(Nested);
+  constant MaybeItems: Option[List[String]] = parameter_option(Items);
+  constant MaybePair: Option[Pair] = parameter_option(PairValue);
+  node number: Std.Constant { Type: Type, Value: Number }
+}
+
+node type Forward {
+  optional parameter Type: ValueType;
+  optional parameter Number: int16;
+  optional parameter Flag: boolean;
+  optional parameter Text: String;
+  optional parameter Nested: Option[boolean];
+  optional parameter Items: List[String];
+  optional parameter PairValue: Pair;
+
+  constant MaybeNumber: Option[int16] = parameter_option(Number);
+  constant MaybeType: Option[ValueType] = parameter_option(Type);
+  node child: Destination {
+    Type?: parameter_option(Type),
+    Number?: MaybeNumber,
+    Flag?: { let value = parameter_option(Flag); value },
+    Text?: if true { parameter_option(Text) } else { Some("unused") },
+    Nested?: parameter_option(Nested),
+    Items?: parameter_option(Items),
+    PairValue?: parameter_option(PairValue),
+  }
+  node forced: Destination { Number?: Some(12), Flag?: None }
+}
+
+node omitted: Forward {}
+node supplied: Forward {
+  Type: int16,
+  Number: -5,
+  Flag: true,
+  Text: "hello",
+  Nested: None,
+  Items: ["one", "two"],
+  PairValue: Pair { Value: true },
+}
+node nested_some: Forward { Nested: Some(false) }
+
+node type NestedForward {
+  optional parameter Number: int16;
+  node child: Forward { Number?: parameter_option(Number) }
+}
+node outer_omitted: NestedForward {}
+node outer_supplied: NestedForward { Number: 4 }
+
+node type GenericSnapshot {
+  parameter Type: ValueType;
+  parameter Value: Option[Type];
+}
+node type Generic {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  constant Maybe: Option[Type] = parameter_option(Value);
+  node snapshot: GenericSnapshot { Type: Type, Value: Maybe }
+}
+node generic_omitted: Generic { Type: String }
+node generic_supplied: Generic { Type: List[boolean], Value: [true, false] }
+
+node type TypeForward {
+  optional parameter Type: ValueType;
+  node child: Destination { Type?: parameter_option(Type) }
+}
+node default_type: TypeForward {}
+node supplied_type: TypeForward { Type: uint8 }
+
+node type Raw {
+  optional parameter r#type: boolean;
+  constant Maybe: Option[boolean] = parameter_option(r#type,);
+}
+node raw: Raw { r#type?: Some(true), }
+
+node type DefaultExpression {
+  optional parameter Flag: boolean;
+  parameter Fallback: Option[boolean] = parameter_option(Flag);
+}
+node default_expression: DefaultExpression {}
+node supplied_expression: DefaultExpression { Flag: true }
+
+node type Snapshot {
+  parameter Number: Option[int16];
+  parameter Type: Option[ValueType];
+  parameter Nested: Option[Option[boolean]];
+  parameter Items: Option[List[String]];
+  parameter PairValue: Option[Pair];
+}
+
+node type Capture {
+  optional parameter Number: int16;
+  optional parameter Type: ValueType;
+  optional parameter Nested: Option[boolean];
+  optional parameter Items: List[String];
+  optional parameter PairValue: Pair;
+  node snapshot: Snapshot {
+    Number: parameter_option(Number),
+    Type: parameter_option(Type),
+    Nested: parameter_option(Nested),
+    Items: parameter_option(Items),
+    PairValue: parameter_option(PairValue),
+  }
+}
+node capture_omitted: Capture {}
+node capture_supplied: Capture {
+  Number: 7,
+  Type: List[boolean],
+  Nested: None,
+  Items: ["value"],
+  PairValue: Pair { Value: false },
+}
+
+node type RuntimeConstant {
+  optional parameter Flag: boolean;
+  constant Maybe: Option[boolean] = parameter_option(Flag);
+  default output: value Option[boolean];
+  procedure run produces default output as output {
+    output = Maybe;
+  }
+}
+node runtime_omitted: RuntimeConstant {}
+node runtime_supplied: RuntimeConstant { Flag: true }
+
+node type Dependent {
+  parameter Type: ValueType = boolean;
+  parameter Value: Type;
+}
+node dependent_before_type: Dependent { Value: -3, Type?: Some(int8) }
+node dependent_default_type: Dependent { Value: true, Type?: None }
