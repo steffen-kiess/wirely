@@ -15,7 +15,7 @@ from wirely.native.knx import KnxData
 from wirely.native.memory import ToggleFlipFlopTriggerData
 from wirely.native.mqtt import MqttData
 from wirely.native.std import EdgeData
-from wirely.native.time import IsBetweenData, TriggerAtData
+from wirely.native.time import IsInDailyIntervalData, TriggerAtData
 from wirely.native.two_n import TwoNCodeData, TwoNDeviceData
 from wirely.compiler.native_preparation.csv import prepare_csv_writer_parameters
 from wirely.compiler.native_preparation.gpio import prepare_gpio_data
@@ -23,7 +23,7 @@ from wirely.compiler.native_preparation.knx import prepare_knx_data
 from wirely.compiler.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
 from wirely.compiler.native_preparation.mqtt import prepare_mqtt_data
 from wirely.compiler.native_preparation.std import prepare_edge_data
-from wirely.compiler.native_preparation.time import prepare_is_between_data, prepare_trigger_at_data
+from wirely.compiler.native_preparation.time import prepare_is_in_daily_interval_data, prepare_trigger_at_data
 from wirely.compiler.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
 from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
@@ -213,7 +213,7 @@ factories = {
     KnxData: prepare_knx_data,
     MqttData: prepare_mqtt_data,
     GPIOData: prepare_gpio_data,
-    IsBetweenData: prepare_is_between_data,
+    IsInDailyIntervalData: prepare_is_in_daily_interval_data,
     TriggerAtData: prepare_trigger_at_data,
     ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
 }
@@ -236,7 +236,7 @@ invalid_configurations = [
      'parameter ActiveState: String = "invalid";'
      'parameter Drive: String = "PushPull";'
      'parameter Bias: String = "AsIs";', 'ActiveState'),
-    (IsBetweenData, 'parameter Start: TimeOfDay = "12:00";'
+    (IsInDailyIntervalData, 'parameter Start: TimeOfDay = "12:00";'
      'parameter End: TimeOfDay = "12:00";', 'End'),
     (TriggerAtData, 'parameter OutputType: ValueType = boolean;'
      'optional parameter OutputValue: OutputType;', 'OutputValue'),

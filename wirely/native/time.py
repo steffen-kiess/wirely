@@ -186,7 +186,7 @@ class TimeOfDayMinute(blocks.NativeState):
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class IsBetweenData:
+class IsInDailyIntervalData:
     start: datetime.time
     end: datetime.time
 
@@ -203,15 +203,15 @@ class IsBetweenData:
             raise Exception('self.start == self.end')
 
 
-@native_block_type(native_block_types, has_native_state=False, data_type=IsBetweenData)
-class IsBetween:
+@native_block_type(native_block_types, has_native_state=False, data_type=IsInDailyIntervalData)
+class IsInDailyInterval:
     @staticmethod
     def run(*, context):
         data = context.configuration
 
         time = context.inputs['current_time']
 
-        # print('IsBetween', data.start, data.end, time)
+        # print('IsInDailyInterval', data.start, data.end, time)
         if data.start == data.end:
             # Note: This was checked in create_block_instance()
             raise Exception('data.start == data.end')

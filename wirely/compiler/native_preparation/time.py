@@ -2,7 +2,7 @@
 
 import wirely as blocks
 
-from wirely.native.time import DebounceStableData, IsBetweenData, TriggerAtData
+from wirely.native.time import DebounceStableData, IsInDailyIntervalData, TriggerAtData
 from wirely.compiler.native_configuration import register_configuration
 
 
@@ -13,14 +13,14 @@ def prepare_debounce_stable_data(*, context):
     return DebounceStableData(time=time)
 
 
-def prepare_is_between_data(*, context):
+def prepare_is_in_daily_interval_data(*, context):
     parameters = context.parameters
     par_start = parameters['Start']
     par_end = parameters['End']
 
     if par_start == par_end:
         raise context.error('Start and end must differ', parameter='End')
-    return IsBetweenData(start=par_start, end=par_end)
+    return IsInDailyIntervalData(start=par_start, end=par_end)
 
 
 def prepare_trigger_at_data(*, context):
@@ -43,5 +43,5 @@ def prepare_trigger_at_data(*, context):
 
 
 register_configuration(DebounceStableData, prepare_debounce_stable_data)
-register_configuration(IsBetweenData, prepare_is_between_data)
+register_configuration(IsInDailyIntervalData, prepare_is_in_daily_interval_data)
 register_configuration(TriggerAtData, prepare_trigger_at_data)
