@@ -36,4 +36,4 @@ node type Invalid {
 // TEST: resource_type_argument
 // LIBRARIES: std
 resource type Handle;
-node source: Std.Constant(Type = Handle, Value = ()); // E: Cannot find type Handle
+node source: Std.Constant { Type: Handle, Value: () } // E: Cannot find type Handle

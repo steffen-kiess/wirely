@@ -1,90 +1,90 @@
 // TODO: Don't depend on the ordering of server / provider
-node server: MQTT.Connection(URI = "mqtt://localhost");
+node server: MQTT.Connection { URI: "mqtt://localhost" }
 
-node provider_input: Std.DebugValueSource(Type = boolean);
+node provider_input: Std.DebugValueSource { Type: boolean }
 
-node provider: MQTT.ValueProvider(Topic = "test/t1", Type = boolean);
+node provider: MQTT.ValueProvider { Topic: "test/t1", Type: boolean }
 connect provider_input -> provider;
 
 // TODO: Allow this line to be above the declaration for server and provider and
 // add tests for that
 connect server -> provider.Broker;
 
-node template_provider_input: Std.DebugValueSource(Type = boolean);
+node template_provider_input: Std.DebugValueSource { Type: boolean }
 
-node template_provider: MQTT.ValueProvider(
-  Topic = r"test/t1t",
-  Type = boolean,
-  Template = r#"{"value": %s, "other": "%s"}"#
-);
+node template_provider: MQTT.ValueProvider {
+  Topic: r"test/t1t",
+  Type: boolean,
+  Template: r#"{"value": %s, "other": "%s"}"#,
+}
 connect template_provider_input -> template_provider;
 
 connect server -> template_provider.Broker;
 
-node option_provider_input: Std.DebugValueSource(Type = Option[boolean]);
+node option_provider_input: Std.DebugValueSource { Type: Option[boolean] }
 
-node option_provider: MQTT.ValueOptionProvider(
-  Topic = "test/t2",
-  Type = boolean
-);
+node option_provider: MQTT.ValueOptionProvider {
+  Topic: "test/t2",
+  Type: boolean,
+}
 connect option_provider_input -> option_provider;
 
 connect server -> option_provider.Broker;
 
-node event_source: Std.DebugEventSource(Type = boolean);
+node event_source: Std.DebugEventSource { Type: boolean }
 
-node event_emitter: MQTT.EventEmitter(Topic = "test/t3", Type = boolean);
+node event_emitter: MQTT.EventEmitter { Topic: "test/t3", Type: boolean }
 connect event_source -> event_emitter;
 
 connect server -> event_emitter.Broker;
 
-node number_event_source: Std.DebugEventSource(Type = uint8);
+node number_event_source: Std.DebugEventSource { Type: uint8 }
 
-node number_event_emitter: MQTT.EventEmitter(
-  Topic = "test/t4",
-  Type = uint8
-);
+node number_event_emitter: MQTT.EventEmitter {
+  Topic: "test/t4",
+  Type: uint8,
+}
 connect number_event_source -> number_event_emitter;
 
 connect server -> number_event_emitter.Broker;
 
-node enum_event_source: Std.DebugEventSource(Type = ThermostatSystemModeEnum);
+node enum_event_source: Std.DebugEventSource { Type: ThermostatSystemModeEnum }
 
-node enum_event_emitter: MQTT.EventEmitter(
-  Topic = "test/t5",
-  Type = ThermostatSystemModeEnum,
-  Format = "SnakeCase"
-);
+node enum_event_emitter: MQTT.EventEmitter {
+  Topic: "test/t5",
+  Type: ThermostatSystemModeEnum,
+  Format: "SnakeCase",
+}
 connect enum_event_source -> enum_event_emitter;
 
 connect server -> enum_event_emitter.Broker;
 
-node template_event_source: Std.DebugEventSource(
-  Type = ThermostatSystemModeEnum
-);
+node template_event_source: Std.DebugEventSource {
+  Type: ThermostatSystemModeEnum,
+}
 
-node template_event_emitter: MQTT.EventEmitter(
-  Topic = "test/t5",
-  Type = ThermostatSystemModeEnum,
-  Format = "SnakeCase",
-  Template = "{\"value\": %s, \"other\": \"%s\"}"
-);
+node template_event_emitter: MQTT.EventEmitter {
+  Topic: "test/t5",
+  Type: ThermostatSystemModeEnum,
+  Format: "SnakeCase",
+  Template: "{\"value\": %s, \"other\": \"%s\"}",
+}
 connect template_event_source -> template_event_emitter;
 
 connect server -> template_event_emitter.Broker;
 
-node event_receiver: MQTT.EventReceiver(Topic = "test/t6", Type = boolean);
+node event_receiver: MQTT.EventReceiver { Topic: "test/t6", Type: boolean }
 connect server -> event_receiver.Broker;
 
-node event_receiver_prnt: Std.DebugEventPrinter(Type = boolean);
+node event_receiver_prnt: Std.DebugEventPrinter { Type: boolean }
 connect event_receiver -> event_receiver_prnt;
 
 // TODO: Actually use template here
-node template_event_receiver: MQTT.EventReceiver(
-  Topic = "test/t7",
-  Type = boolean
-);
+node template_event_receiver: MQTT.EventReceiver {
+  Topic: "test/t7",
+  Type: boolean,
+}
 connect server -> template_event_receiver.Broker;
 
-node template_event_receiver_prnt: Std.DebugEventPrinter(Type = boolean);
+node template_event_receiver_prnt: Std.DebugEventPrinter { Type: boolean }
 connect template_event_receiver -> template_event_receiver_prnt;

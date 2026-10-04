@@ -1,39 +1,39 @@
 // LIBRARIES: std
 
 // TEST: some_missing_argument
-node source: Std.Constant(Type = Option[boolean], Value = Some()); // E: Some expects exactly one argument
+node source: Std.Constant { Type: Option[boolean], Value: Some() } // E: Some expects exactly one argument
 
 // TEST: some_extra_argument
-node source: Std.Constant(Type = Option[boolean], Value = Some(true, false)); // E: Some expects exactly one argument
+node source: Std.Constant { Type: Option[boolean], Value: Some(true, false) } // E: Some expects exactly one argument
 
 // TEST: some_non_option
-node source: Std.Constant(Type = boolean, Value = Some(true)); // E: Some requires an Option type
+node source: Std.Constant { Type: boolean, Value: Some(true) } // E: Some requires an Option type
 
 // TEST: some_wrong_inner_type
-node source: Std.Constant(Type = Option[boolean], Value = Some(42)); // E: Invalid boolean value
+node source: Std.Constant { Type: Option[boolean], Value: Some(42) } // E: Invalid boolean value
 
 // TEST: some_wrong_function_type
-node source: Std.Constant(
-  Type = Option[boolean],
-  Value = Some(TimeOfDay_AddWrap("23:30", "01:00"))
-); // ^E: Expected value of type boolean, got TimeOfDay
+node source: Std.Constant {
+  Type: Option[boolean],
+  Value: Some(TimeOfDay_AddWrap("23:30", "01:00")),
+} // ^E: Expected value of type boolean, got TimeOfDay
 
 // TEST: missing_unit_argument
-node constant: Std.Constant(
-  Type = Option[unit],
-  Value = Some() // E: Some expects exactly one argument
-);
+node constant: Std.Constant {
+  Type: Option[unit],
+  Value: Some(), // E: Some expects exactly one argument
+}
 
 // TEST: extra_unit_argument
-node constant: Std.Constant(
-  Type = Option[unit],
-  Value = Some((), ()) // E: Some expects exactly one argument
-);
+node constant: Std.Constant {
+  Type: Option[unit],
+  Value: Some((), ()), // E: Some expects exactly one argument
+}
 
 // TEST: wrong_parameter_inner_type
 node type Settings {
   parameter Number: int8;
 
-  node constant: Std.Constant(Type = Option[boolean], Value = Some(Number)); // E: Expected value of type boolean, got int8
+  node constant: Std.Constant { Type: Option[boolean], Value: Some(Number) } // E: Expected value of type boolean, got int8
 }
-node settings: Settings(Number = 1);
+node settings: Settings { Number: 1 }

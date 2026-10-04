@@ -185,7 +185,7 @@ namespace TestLibrary {
 
   node type Factory {
     implicit output: resource Service;
-    node source: Provider;
+    node source: Provider {}
     connect source -> implicit output;
   }
 
@@ -196,7 +196,7 @@ namespace TestLibrary {
     implicit input: resource Service;
     output Count: value uint8;
 
-    node forwarded: Forward;
+    node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
     native initializer
@@ -215,7 +215,7 @@ namespace TestLibrary {
     input Value: value uint8;
     output Count: value uint8;
 
-    node forwarded: Forward;
+    node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
     native procedure read
@@ -224,13 +224,13 @@ namespace TestLibrary {
   }
 }
 
-node consumer: TestLibrary.Consumer;
-node procedure_consumer: TestLibrary.ProcedureConsumer;
-node factory: TestLibrary.Factory;
-node shared: TestLibrary.Shared;
-node other_shared: TestLibrary.Shared;
-node forward: TestLibrary.Forward;
-node value_source: Std.DebugValueSource(Type = uint8);
+node consumer: TestLibrary.Consumer {}
+node procedure_consumer: TestLibrary.ProcedureConsumer {}
+node factory: TestLibrary.Factory {}
+node shared: TestLibrary.Shared {}
+node other_shared: TestLibrary.Shared {}
+node forward: TestLibrary.Forward {}
+node value_source: Std.DebugValueSource { Type: uint8 }
 connect factory -> forward.Service;
 connect forward -> consumer.Service;
 connect factory, shared, forward -> consumer.Services;
@@ -275,13 +275,13 @@ namespace TestLibrary {
   }
   native node type Dependent {
     input Service: resource Service;
-    node provider: Provider;
+    node provider: Provider {}
     native initializer
       depends on Service as "service", provider.Named as "child";
   }
 }
-node sink: TestLibrary.Dependent;
-node source: TestLibrary.Provider;
+node sink: TestLibrary.Dependent {}
+node source: TestLibrary.Provider {}
 connect source -> sink.Service;
 ''')
 with patch.dict(wirely.native.test_library.native_block_types, registry):
@@ -292,10 +292,10 @@ assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
 
 
 for nodes, connection in [
-    ('node a: TestLibrary.Dependent;', 'connect a -> a.Service;'),
+    ('node a: TestLibrary.Dependent {}', 'connect a -> a.Service;'),
     ('''
-node a: TestLibrary.Dependent;
-node b: TestLibrary.Dependent;
+node a: TestLibrary.Dependent {}
+node b: TestLibrary.Dependent {}
 ''', 'connect a -> b.Service;\nconnect b -> a.Service;'),
 ]:
     graph = compile_resources(f'''
@@ -327,9 +327,9 @@ namespace TestLibrary {
     native initializer depends on Service;
   }
 }
-node a: TestLibrary.Forward;
-node b: TestLibrary.Forward;
-node sink: TestLibrary.Dependent;
+node a: TestLibrary.Forward {}
+node b: TestLibrary.Forward {}
+node sink: TestLibrary.Dependent {}
 connect a -> b.Service;
 connect b -> a.Service;
 connect a -> sink.Service;
@@ -354,8 +354,8 @@ namespace TestLibrary {{
     {declaration}
   }}
 }}
-node source: TestLibrary.Missing;
-node sink: TestLibrary.{'Dependent' if binding == 'initializer' else 'ProcedureConsumer'};
+node source: TestLibrary.Missing {{}}
+node sink: TestLibrary.{'Dependent' if binding == 'initializer' else 'ProcedureConsumer'} {{}}
 connect source -> sink.Service;
 ''')
     with checks.assertRaisesRegex(blocks.ProgramError, 'Resource binding has no native provider') as error:

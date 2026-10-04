@@ -2,6 +2,19 @@
 
 ## 0.1.2 (Unreleased)
 
+### Breaking changes and migration
+
+#### Node instance syntax
+
+Replace parameter parentheses with braces, parameter `=` with `:`, and
+remove the final semicolon. Every node instance needs braces:
+
+| Before | After |
+| --- | --- |
+| `node n: T(P = value);` | `node n: T { P: value }` |
+| `node n: T;` | `node n: T {}` |
+| `node n: T();` | `node n: T {}` |
+
 ## 0.1.1 - 2026-10-04
 
 ### Breaking changes and migration

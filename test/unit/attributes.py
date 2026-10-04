@@ -16,6 +16,9 @@ engine.step()
 engine.assert_value_is('sink', True)
 graph = engine.program.graph
 assert graph.blocks['source'].position == (120, -40.5)
+assert not graph.blocks['source'].outer_attributes
+assert graph.blocks['source'].inner_attributes[0].name == 'position'
+assert graph.blocks['source'].attributes[0].style == 'inner'
 assert graph.blocks['sink'].position is None
 assert graph.connections[0].source is graph.blocks['source'].block_outputs_byname['']
 assert graph.connections[0].target is graph.blocks['sink'].block_inputs_byname[''].members[0]
@@ -58,7 +61,7 @@ parsed = parse('''
     #[tag] temporary tmp: boolean;
     #[tag] native procedure run depends on saved.old produces saved;
     #[tag] native initializer;
-    #[tag] node child: T;
+    #[tag] node child: T { #![inner] }
     #[tag] connect #[source] child -> Out;
   }
   #[outer] struct type S {
@@ -85,7 +88,10 @@ for owner in (node_type, struct_type, enum_type):
     assert owner.inner_attributes[0].name == 'inner'
 for declaration in node_type.declarations:
     assert declaration.outer_attributes[0].name == 'tag'
-    assert not declaration.inner_attributes
+    if isinstance(declaration, ast.DeclarationBlockInstantiation):
+        assert declaration.inner_attributes[0].name == 'inner'
+    else:
+        assert not declaration.inner_attributes
 assert struct_type.fields[0].outer_attributes[0].name == 'field'
 assert enum_type.members[0].outer_attributes[0].name == 'member'
 assert not struct_type.fields[0].inner_attributes
@@ -98,7 +104,7 @@ assert two.outer_attributes[0].source_position.filename == '<attributes>'
 
 attribute = parse('''// comment
 #[tool.label(flag, key = "value", nested(path.flag, -2, +3.5, true,),)]
-node n: T;
+node n: T {}
 ''')[0].outer_attributes[0]
 assert attribute.name == 'tool.label'
 assert attribute.source_position.start_line == 2
@@ -112,7 +118,7 @@ assert isinstance(nested.value[1], MetadataLiteral)
 assert isinstance(nested, Metadata)
 assert parse('#![only]').inner_attributes[0].name == 'only'
 # An attribute-only preamble must become its own negative test case.
-cases = list(negative_test_cases('#![only]\n// TEST\n#[unknown] node n:T; // E: Unknown\n'))
+cases = list(negative_test_cases('#![only]\n// TEST\n#[unknown] node n:T {} // E: Unknown\n'))
 assert len(cases) == 2 and '#![only]' in cases[0].source
 
 all_targets = frozenset({
@@ -144,8 +150,8 @@ with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool.mark': marker, 'uniqu
   }
 }
 #[tool.mark] namespace A.B { #![mark] #[mark] node type Other {} }
-#[mark] node n: A.B.Other;
-node plain: A.B.Other;
+#[mark] node n: A.B.Other { #![mark] }
+node plain: A.B.Other {}
 ''')
     scope = compiled.libraries['A'].libraries['B']
     assert len(scope.attributes) == 4
@@ -165,6 +171,10 @@ node plain: A.B.Other;
     assert len(scope.struct_types['S'].fields[0].attributes) == 1
     assert len(scope.enum_types['E'].declaration.attributes) == 2
     assert compiled.blocks['n'].attributes[0].name == 'mark'
+    assert [attribute.style for attribute in compiled.blocks['n'].attributes] == [
+        'outer', 'inner',
+    ]
+    assert compiled.blocks['n'].inner_attributes[0].name == 'mark'
     assert compiled.blocks['n'].position is None
     assert not compiled.blocks['plain'].attributes
     assert scope.block_type_interfaces['Other'].attributes
@@ -176,9 +186,9 @@ node plain: A.B.Other;
     assert not files.attributes and not files.block_type_interfaces['T'].attributes
 
     edges = compile_source('''
-node a: Std.Constant(Type = boolean, Value = true);
-node b: Std.Constant(Type = boolean, Value = false);
-node sink: Std.And;
+node a: Std.Constant { Type: boolean, Value: true }
+node b: Std.Constant { Type: boolean, Value: false }
+node sink: Std.And {}
 #[mark(shared)] connect #[mark(first)] a, #[mark(second)] b -> sink;
 node type Stateful {
   state saved: boolean = false;
@@ -194,9 +204,9 @@ node type Fresh {
 resource type Handle;
 node type Provider { implicit output: resource Handle; }
 node type Consumer { implicit input: list resource Handle; }
-node p: Provider;
-node q: Provider;
-node consumer: Consumer;
+node p: Provider {}
+node q: Provider {}
+node consumer: Consumer {}
 #[mark(r#resource)] connect #[mark(p)] p, #[mark(q)] q -> consumer;
 ''', add_std=True)
     assert [edge.kind for edge in edges.connections] == ['data', 'data', 'resource', 'resource']
@@ -218,7 +228,7 @@ node consumer: Consumer;
     for source in [
         '#[unique] namespace A {} namespace A { #![unique] }',
         'namespace A.B { #![unique] } namespace A { #[unique] namespace B {} }',
-        'node a:Std.And; #[unique] connect #[unique] a -> a;',
+        'node a:Std.And {} #[unique] connect #[unique] a -> a;',
         '#[unique] node type T { #![unique] }',
     ]:
         output = io.StringIO()
@@ -230,9 +240,9 @@ node consumer: Consumer;
 # A shared non-repeatable attribute can be used by multiple distinct edges.
 with patch.dict(ATTRIBUTE_REGISTRY, {'unique': unique}):
     compiled = compile_source('''
-node a: Std.Constant(Type = boolean, Value = true);
-node b: Std.Constant(Type = boolean, Value = false);
-node sink: Std.And;
+node a: Std.Constant { Type: boolean, Value: true }
+node b: Std.Constant { Type: boolean, Value: false }
+node sink: Std.And {}
 #[unique] connect a, b -> sink;
 ''', add_std=True)
     assert all(len(edge.attributes) == 1 for edge in compiled.connections)
@@ -240,22 +250,22 @@ node sink: Std.And;
 # Position is validated before resolving an otherwise unknown node type.
 output = io.StringIO()
 with contextlib.redirect_stdout(output):
-    assert compile_strs([('early', '#[position(x = true, y = 0)] node n: Missing;')]) is None
+    assert compile_strs([('early', '#[position(x = true, y = 0)] node n: Missing {}')]) is None
 assert 'finite numeric literal' in output.getvalue()
 for literal, expected in [
     ('-0x2a', -42), ('+0o52', 42), ('- 1.5', -1.5), ('+ 2.5', 2.5),
     ('1e2', 100.0), ('010', 10), ('080', 80), ('0009', 9),
     ('-080', -80), ('+010', 10),
 ]:
-    compiled = compile_source(f'node type T {{}} #[position(x = {literal}, y = 0)] node n: T;')
+    compiled = compile_source(f'node type T {{}} #[position(x = {literal}, y = 0)] node n: T {{}}')
     assert compiled.blocks['n'].position == (expected, 0)
 
 # List slots retain order across statements, and source-only attributes do not
 # conflict with the same non-repeatable attribute on a different edge.
 with patch.dict(ATTRIBUTE_REGISTRY, {'unique': unique}):
     compiled = compile_source('''
-node a: Std.Constant(Type = boolean, Value = true);
-node sink: Std.And;
+node a: Std.Constant { Type: boolean, Value: true }
+node sink: Std.And {}
 connect #[unique] a, #[unique] a -> sink;
 connect a -> sink;
 ''', add_std=True)
@@ -273,12 +283,12 @@ with patch.dict(ATTRIBUTE_REGISTRY, {
 }):
     compiled = compile_source('''
 #[position(x = 1, y = 2)] node type T {}
-node n: T;
+node n: T {}
 ''')
     assert compiled.block_type_interfaces['T'].attributes[0].value == (1, 2)
     assert compiled.blocks['n'].position is None
 
-boolean_source = '#[mark(key =\n true)] node n:T;'
+boolean_source = '#[mark(key =\n true)] node n:T {}'
 boolean = parse(boolean_source)[0].outer_attributes[0].metadata.value[0].value
 assert boolean.source_position.start_line == 2
 assert boolean.source_position.start_pos == boolean_source.index('true')

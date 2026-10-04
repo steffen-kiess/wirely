@@ -62,7 +62,7 @@ for literal in ['1l', '1L', '0x10l', '0x10L', '0o10l', '0o10L',
                 '-1L', '+0x10L', '-0o10L', '123abc', '123_abc']:
     for source in [
         f'parameter Value: int64 = {literal};',
-        f'#[position(x = {literal}, y = 0)] node n: T;',
+        f'#[position(x = {literal}, y = 0)] node n: T {{}}',
     ]:
         try:
             list(wirely.compiler.parser.parser.lex(source))

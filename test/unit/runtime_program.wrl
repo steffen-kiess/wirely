@@ -2,19 +2,19 @@ node type Envelope {
   implicit input: value boolean;
   implicit output: value boolean;
 
-  node delay: Std.Delay(Type = boolean, InitialValue = false);
+  node delay: Std.Delay { Type: boolean, InitialValue: false }
   connect implicit input -> delay;
   connect delay -> implicit output;
 }
 
 singleton node type Shared {
   implicit output: value boolean;
-  node constant: Std.Constant(Type = boolean, Value = true);
+  node constant: Std.Constant { Type: boolean, Value: true }
   connect constant -> implicit output;
 }
 
-node source: Std.DebugValueSource(Type = boolean);
-node envelope: Envelope;
+node source: Std.DebugValueSource { Type: boolean }
+node envelope: Envelope {}
 connect source -> envelope;
-node shared: Shared;
-node shared_again: Shared;
+node shared: Shared {}
+node shared_again: Shared {}

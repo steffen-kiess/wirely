@@ -144,10 +144,10 @@ enum type Bad: int8 {
 enum type Bad: int8 {
   One = 1,
 }
-node n: Std.Constant(
-  Type = Bad,
-  Value = Bad.Two // E: Unknown member 'Two' of Bad
-);
+node n: Std.Constant {
+  Type: Bad,
+  Value: Bad.Two, // E: Unknown member 'Two' of Bad
+}
 
 // TEST: wrong_qualified_enum
 // LIBRARIES: std
@@ -161,10 +161,10 @@ namespace B {
     One = 1,
   }
 }
-node n: Std.Constant(
-  Type = A.Mode,
-  Value = B.Mode.One // E: Expected enum type A.Mode, got B.Mode
-);
+node n: Std.Constant {
+  Type: A.Mode,
+  Value: B.Mode.One, // E: Expected enum type A.Mode, got B.Mode
+}
 
 // TEST: wrong_relative_enum
 // LIBRARIES: std
@@ -179,13 +179,13 @@ namespace B {
   }
   node type Bad {
     parameter Value: A.Mode = Mode.One; // E: Expected enum type A.Mode, got Mode
-    node value: Std.Constant(
-      Type = A.Mode,
-      Value = Value
-    );
+    node value: Std.Constant {
+      Type: A.Mode,
+      Value: Value,
+    }
   }
 }
-node n: B.Bad;
+node n: B.Bad {}
 
 // TEST: wrong_nested_enum
 namespace A {
@@ -202,10 +202,10 @@ node type LiteralParameter {
   parameter Type: ValueType;
   parameter Value: Type;
 }
-node n: LiteralParameter(
-  Type = List[Option[A.Mode]],
-  Value = [Some(B.Mode.One)] // E: Expected enum type A.Mode, got B.Mode
-);
+node n: LiteralParameter {
+  Type: List[Option[A.Mode]],
+  Value: [Some(B.Mode.One)], // E: Expected enum type A.Mode, got B.Mode
+}
 
 // TEST: duplicate_value_locations
 enum type Duplicate: int8 {

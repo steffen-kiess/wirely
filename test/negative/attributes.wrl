@@ -40,64 +40,64 @@ struct type S {
 // ^E: Attribute position is not permitted on connection
 
 // TEST: missing arguments
-#[position] node n: Missing; // E: position requires x and y arguments
+node n: Missing { #![position] } // E: position requires x and y arguments
 
 // TEST: empty arguments
-#[position()] node n: Missing; // E: position requires x and y arguments
+#[position()] node n: Missing {} // E: position requires x and y arguments
 
 // TEST: missing y
-#[position(x = 1)] node n: Missing; // E: position requires x and y arguments
+#[position(x = 1)] node n: Missing {} // E: position requires x and y arguments
 
 // TEST: missing x
-#[position(y = 1)] node n: Missing; // E: position requires x and y arguments
+#[position(y = 1)] node n: Missing {} // E: position requires x and y arguments
 
 // TEST: duplicate argument
-#[position(x = 1, x = 2, y = 0)] node n: Missing;
+#[position(x = 1, x = 2, y = 0)] node n: Missing {}
 // ^E: Duplicate position argument x
 
 // TEST: unknown argument
-#[position(x = 1, y = 2, z = 3)] node n: Missing;
+#[position(x = 1, y = 2, z = 3)] node n: Missing {}
 // ^E: Unknown position argument
 
 // TEST: qualified argument
-#[position(point.x = 1, y = 2)] node n: Missing;
+#[position(point.x = 1, y = 2)] node n: Missing {}
 // ^E: Unknown position argument
 
 // TEST: boolean argument
-#[position(x = true, y = 2)] node n: Missing;
+#[position(x = true, y = 2)] node n: Missing {}
 // ^E: position x requires a finite numeric literal
 
 // TEST: string argument
-#[position(x = "1", y = 2)] node n: Missing;
+#[position(x = "1", y = 2)] node n: Missing {}
 // ^E: position x requires a finite numeric literal
 
 // TEST: flag argument
-#[position(x, y = 2)] node n: Missing;
+#[position(x, y = 2)] node n: Missing {}
 // ^E: position x requires a finite numeric literal
 
 // TEST: nested argument
-#[position(x(1), y = 2)] node n: Missing;
+#[position(x(1), y = 2)] node n: Missing {}
 // ^E: position x requires a finite numeric literal
 
 // TEST: literal argument
-#[position(1, y = 2)] node n: Missing;
+#[position(1, y = 2)] node n: Missing {}
 // ^E: Unknown position argument
 
 // TEST: nonfinite argument
-#[position(x = 1e999, y = 2)] node n: Missing;
+#[position(x = 1e999, y = 2)] node n: Missing {}
 // ^E: position x requires a finite numeric literal
 
 // TEST: name value attribute
-#[position = 1] node n: Missing;
+#[position = 1] node n: Missing {}
 // ^E: position requires x and y arguments
 
 // TEST: reference value
-#[position(x = Something, y = 2)] node n: Missing;
+#[position(x = Something, y = 2)] node n: Missing {}
 // ^E: Attribute values must be literals
 
 // TEST: duplicate attribute
 #[position(x = 1, y = 2)]
-#[position(x = 3, y = 4)] node n: Missing; // E: Duplicate attribute position
+node n: Missing { #![position(x = 3, y = 4)] } // E: Duplicate attribute position
 
 // TEST: dangling outer file
 #[position(x = 1, y = 2)] // E: Unexpected token
@@ -151,10 +151,10 @@ enum type E: uint8 {
 node type T {}
 
 // TEST: expression attributes deferred
-node n: T(Value = #[unknown] 1); // E: Unexpected token
+node n: T { Value: #[unknown] 1 } // E: Unexpected token
 
 // TEST: node argument attributes deferred
-node n: T(#[unknown] Value = 1); // E: Unexpected token
+node n: T { #[unknown] Value: 1 } // E: Unexpected token
 
 // TEST: literal field attributes deferred
 parameter V: S = S { #[unknown] f: 1 }; // E: Unexpected token

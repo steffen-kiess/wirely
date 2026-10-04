@@ -71,8 +71,8 @@ namespace TestLibrary {{
     native procedure run;
   }}
 }}
-node probe: TestLibrary.ConfigurationProbe{arguments};
-node again: TestLibrary.ConfigurationProbe{arguments};
+node probe: TestLibrary.ConfigurationProbe {{ {arguments} }}
+node again: TestLibrary.ConfigurationProbe {{ {arguments} }}
 '''))
 
 
@@ -128,14 +128,14 @@ namespace TestLibrary {
 }
 node type Inner {
   parameter Path: String;
-  node leaf: TestLibrary.ConfigurationProbe(Path = Path);
+  node leaf: TestLibrary.ConfigurationProbe { Path: Path }
 }
 node type Outer {
   parameter Path: String;
-  node child: Inner(Path = Path);
+  node child: Inner { Path: Path }
 }
 '''),
-        ('/tmp/settings/main.wrl', 'node outer: Outer(Path = "relative.json");'),
+        ('/tmp/settings/main.wrl', 'node outer: Outer { Path: "relative.json" }'),
     )
 error = caught.exception
 assert error.source_element.source_position.filename == '/tmp/settings/main.wrl'
@@ -153,10 +153,10 @@ namespace TestLibrary {
 }
 node type Outer {
   parameter Path: String;
-  node child: TestLibrary.ConfigurationProbe(Path = Path);
+  node child: TestLibrary.ConfigurationProbe { Path: Path }
 }
 '''),
-    ('/tmp/settings/main.wrl', 'node outer: Outer(Path = "relative.json");'),
+    ('/tmp/settings/main.wrl', 'node outer: Outer { Path: "relative.json" }'),
 )
 assert contexts[-1].resolve_path('relative.json', parameter='Path') == Path('/tmp/settings/relative.json')
 
@@ -255,5 +255,5 @@ for data_type, declarations, parameter in invalid_configurations:
 prepare = lambda context: prepare_edge_data(context=context)
 with checks.assertRaises(compiler_model.ProgramError) as caught:
     probe('parameter EdgeType: String = "Both";',
-          arguments='(EdgeType = "invalid")')
+          arguments='EdgeType: "invalid"')
 assert caught.exception.source_element.source_position.start_line == 8

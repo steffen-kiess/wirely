@@ -40,11 +40,11 @@ node type Invalid {
 
 // TEST: runtime_generic_string
 // LIBRARIES: std
-node source: Std.Constant(Type = String, Value = "text"); // E: parameter-only
+node source: Std.Constant { Type: String, Value: "text" } // E: parameter-only
 
 // TEST: runtime_generic_list
 // LIBRARIES: std
-node source: Std.DebugValueSource(Type = List[uint8]); // E: parameter-only
+node source: Std.DebugValueSource { Type: List[uint8] } // E: parameter-only
 
 // TEST: runtime_generic_state
 node type Invalid {
@@ -52,11 +52,11 @@ node type Invalid {
   parameter Initial: Type;
   state saved: Type = Initial;
 }
-node invalid: Invalid(Type = List[uint8], Initial = []); // E: parameter-only
+node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 
 // TEST: runtime_generic_temporary
 node type Invalid {
   parameter Type: ValueType;
   temporary saved: Type;
 }
-node invalid: Invalid(Type = Option[String]); // E: parameter-only
+node invalid: Invalid { Type: Option[String] } // E: parameter-only

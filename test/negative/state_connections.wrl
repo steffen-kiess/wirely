@@ -15,10 +15,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved -> implicit output; // E: explicitly reference .old or .new
 }
 
@@ -37,10 +37,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved.new -> implicit output; // E: requires a producing procedure
 }
 
@@ -59,10 +59,10 @@ node type Invalid {
   state saved: boolean = false; // H: Source was declared here
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved.old -> sink; // E: source has type
 }
 
@@ -81,10 +81,10 @@ node type Invalid {
   state saved: boolean = false; // H: Source was declared here
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved.old -> event_sink; // E: source has kind
 }
 
@@ -103,10 +103,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect temporary_value.old -> sink; // E: Unable to find source block
 }
 
@@ -125,10 +125,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect missing.old -> sink; // E: Unable to find source block
 }
 
@@ -147,10 +147,10 @@ node type Invalid {
   state saved: boolean = false; // H: Source was declared here
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved.old -> resource_sink; // E: Cannot connect resource and data
 }
 
@@ -169,10 +169,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect source -> saved.old; // E: Unable to find target block
 }
 
@@ -191,10 +191,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect child.saved.old -> sink; // E: unexpected number of identifiers
 }
 
@@ -213,10 +213,10 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect source -> saved.new; // E: Unable to find target block
 }
 
@@ -235,9 +235,9 @@ node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
   implicit output: value boolean;
-  node sink: Sink;
-  node event_sink: EventSink;
-  node resource_sink: ResourceSink;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node sink: Sink {}
+  node event_sink: EventSink {}
+  node resource_sink: ResourceSink {}
+  node source: Std.Constant { Type: boolean, Value: true }
   connect saved.other -> implicit output; // E: explicitly reference .old or .new
 }

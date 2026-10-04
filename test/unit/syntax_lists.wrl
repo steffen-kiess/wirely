@@ -3,10 +3,10 @@ node type Settings {
   parameter Empty: List[uint8] = [];
 }
 
-node settings: Settings(
-  Values = [Some(1,), None, Some(2,),],
-);
-node first: Std.Constant(Type = boolean, Value = false,);
-node second: Std.Constant(Type = boolean, Value = true,);
-node sink: Std.And();
+node settings: Settings {
+  Values: [Some(1,), None, Some(2,),],
+}
+node first: Std.Constant { Type: boolean, Value: false, }
+node second: Std.Constant { Type: boolean, Value: true, }
+node sink: Std.And {}
 connect first, second, -> sink;

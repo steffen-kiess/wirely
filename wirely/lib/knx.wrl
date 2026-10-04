@@ -51,10 +51,10 @@ namespace KNX {
     input Bus: resource Bus;
     implicit input: value Type;
 
-    node create_option: Std.OptionSome(InnerType = Type);
+    node create_option: Std.OptionSome { InnerType: Type }
     connect implicit input -> create_option;
 
-    node impl: ValueOptionProvider(Type = Type, GroupAddress = GroupAddress);
+    node impl: ValueOptionProvider { Type: Type, GroupAddress: GroupAddress }
     connect Bus -> impl.Bus;
     connect create_option -> impl;
   }

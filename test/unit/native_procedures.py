@@ -104,11 +104,11 @@ program = compile_program('''namespace TestLibrary {
     native procedure class_method;
   }
 }
-node instance: TestLibrary.InstanceProbe;
-node overridden: TestLibrary.OverrideProbe;
-node class_only: TestLibrary.ClassProbe;
-node shared: TestLibrary.SharedProbe;
-node shared_again: TestLibrary.SharedProbe;
+node instance: TestLibrary.InstanceProbe {}
+node overridden: TestLibrary.OverrideProbe {}
+node class_only: TestLibrary.ClassProbe {}
+node shared: TestLibrary.SharedProbe {}
+node shared_again: TestLibrary.SharedProbe {}
 ''', registry)
 with patch.dict(wirely.native.test_library.native_block_types, registry):
     probe_engine = wirely.Engine(program)
@@ -211,7 +211,7 @@ for has_native_state, method, message in invalid_methods:
       as "selected";
   }}
 }}
-node probe: TestLibrary.InvalidProbe;
+node probe: TestLibrary.InvalidProbe {{}}
 '''
     check_invalid(source, implementations, message, 4)
 assert not descriptor_accesses
@@ -226,5 +226,5 @@ check_invalid('''namespace TestLibrary {
     native procedure shared;
   }
 }
-node probe: TestLibrary.HiddenProbe;
+node probe: TestLibrary.HiddenProbe {}
 ''', implementations, 'Unsupported native procedure method', 3)

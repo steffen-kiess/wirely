@@ -87,8 +87,8 @@ namespace TestLibrary {
     state saved: Type = InitialValue;
     connect saved.old -> implicit output;
 
-    node relay: Relay(Type = Type);
-    node reader: Forward(Type = Type);
+    node relay: Relay { Type: Type }
+    node reader: Forward { Type: Type }
     connect saved.old -> relay;
     connect relay -> reader;
     native procedure write stage output
@@ -99,7 +99,7 @@ namespace TestLibrary {
   node type Feedback {
     implicit output: value uint8;
     state saved: uint8 = 0;
-    node reader: Forward(Type = uint8);
+    node reader: Forward { Type: uint8 }
     connect saved.old -> reader;
     connect reader -> implicit output;
     native procedure advance
@@ -110,8 +110,8 @@ namespace TestLibrary {
   singleton node type Shared {
     implicit output: value uint8;
     state saved: uint8 = 0;
-    node relay: Relay(Type = uint8);
-    node reader: Forward(Type = uint8);
+    node relay: Relay { Type: uint8 }
+    node reader: Forward { Type: uint8 }
     connect saved.old -> relay;
     connect relay -> reader;
     connect saved.old -> implicit output;
@@ -150,11 +150,11 @@ def make_engine(source, *, declarations=definitions):
 
 
 probe = make_engine('''
-node source: Std.DebugValueSource(Type = boolean);
-node other: Std.Constant(Type = boolean, Value = false);
-node owner: TestLibrary.Owner(Type = boolean, InitialValue = false);
-node second: TestLibrary.Owner(Type = boolean, InitialValue = true);
-node collector: TestLibrary.Collect;
+node source: Std.DebugValueSource { Type: boolean }
+node other: Std.Constant { Type: boolean, Value: false }
+node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
+node second: TestLibrary.Owner { Type: boolean, InitialValue: true }
+node collector: TestLibrary.Collect {}
 connect source -> owner;
 connect other -> second;
 connect owner, source, second -> collector;
@@ -195,7 +195,7 @@ assert list_inputs[-1] == (False, False, False)
 probe.step()
 probe.assert_is_idle()
 
-feedback = make_engine('node feedback: TestLibrary.Feedback;')
+feedback = make_engine('node feedback: TestLibrary.Feedback {}')
 assert len(feedback.program.temporaries.variable_set) == 2
 for value in (0, 1, 2):
     feedback.step()
@@ -204,9 +204,9 @@ feedback.step()
 feedback.assert_is_idle()
 
 shared = make_engine('''
-node first: TestLibrary.Shared;
-node second: TestLibrary.Shared;
-node observer: TestLibrary.Forward(Type = uint8);
+node first: TestLibrary.Shared {}
+node second: TestLibrary.Shared {}
+node observer: TestLibrary.Forward { Type: uint8 }
 connect second -> observer;
 ''')
 assert len(shared.program.state_variables.variable_set) == 1
@@ -219,8 +219,8 @@ shared.step()
 shared.assert_is_idle()
 
 minimal = make_engine('''
-node source: Std.Constant(Type = boolean, Value = true);
-node owner: TestLibrary.Owner(Type = boolean, InitialValue = false);
+node source: Std.Constant { Type: boolean, Value: true }
+node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
 connect source -> owner;
 ''')
 assert all('saved' not in var.name or var.name.endswith('.new')
@@ -228,8 +228,8 @@ assert all('saved' not in var.name or var.name.endswith('.new')
 
 # A later-stage reader still sees the snapshot from before the state writer.
 later = make_engine('''
-node source: Std.Constant(Type = boolean, Value = true);
-node owner: TestLibrary.Owner(Type = boolean, InitialValue = false);
+node source: Std.Constant { Type: boolean, Value: true }
+node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
 connect source -> owner;
 ''', declarations=definitions.replace(
     'native procedure write stage output', 'native procedure write',
@@ -243,14 +243,14 @@ nested = make_engine('''
 node type Envelope {
   implicit input: value uint8;
   implicit output: value uint8;
-  node owner: TestLibrary.Owner(Type = uint8, InitialValue = 7);
+  node owner: TestLibrary.Owner { Type: uint8, InitialValue: 7 }
   connect implicit input -> owner;
   connect owner -> implicit output;
 }
-node source: Std.Constant(Type = uint8, Value = 8);
-node other: Std.Constant(Type = uint8, Value = 9);
-node first: Envelope;
-node second: Envelope;
+node source: Std.Constant { Type: uint8, Value: 8 }
+node other: Std.Constant { Type: uint8, Value: 9 }
+node first: Envelope {}
+node second: Envelope {}
 connect source -> first;
 connect other -> second;
 ''')
@@ -304,10 +304,10 @@ namespace TestLibrary {
     connect saved.old -> Old;
     connect saved.new -> New;
 
-    node old_reader: Forward(Type = Type);
-    node relay: Relay(Type = Type);
-    node new_reader: Forward(Type = Type);
-    node mixed: Mixed(Type = Type);
+    node old_reader: Forward { Type: Type }
+    node relay: Relay { Type: Type }
+    node new_reader: Forward { Type: Type }
+    node mixed: Mixed { Type: Type }
     connect saved.old -> old_reader;
     connect saved.new -> relay;
     connect relay -> new_reader;
@@ -325,9 +325,9 @@ namespace TestLibrary {
 '''
 
 current_source = '''
-node source: Std.DebugValueSource(Type = uint8);
-node owner: TestLibrary.Current(Type = uint8, InitialValue = 0);
-node observer: TestLibrary.Forward(Type = uint8);
+node source: Std.DebugValueSource { Type: uint8 }
+node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
+node observer: TestLibrary.Forward { Type: uint8 }
 connect source -> owner;
 connect owner.New -> observer;
 '''
@@ -389,9 +389,9 @@ new_shared_definitions = definitions.replace(
     'connect saved.old -> relay;', 'connect saved.new -> relay;',
 ).replace('connect saved.old -> implicit output;', 'connect saved.new -> implicit output;')
 new_shared = make_engine('''
-node first: TestLibrary.Shared;
-node second: TestLibrary.Shared;
-node observer: TestLibrary.Forward(Type = uint8);
+node first: TestLibrary.Shared {}
+node second: TestLibrary.Shared {}
+node observer: TestLibrary.Forward { Type: uint8 }
 connect second -> observer;
 ''', declarations=new_shared_definitions)
 assert len(new_shared.program.state_variables.variable_set) == 1
@@ -407,14 +407,14 @@ new_nested = make_engine('''
 node type Envelope {
   implicit input: value uint8;
   implicit output: value uint8;
-  node owner: TestLibrary.Current(Type = uint8, InitialValue = 0);
+  node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
   connect implicit input -> owner;
   connect owner.New -> implicit output;
 }
-node source: Std.Constant(Type = uint8, Value = 8);
-node other: Std.Constant(Type = uint8, Value = 9);
-node first: Envelope;
-node second: Envelope;
+node source: Std.Constant { Type: uint8, Value: 8 }
+node other: Std.Constant { Type: uint8, Value: 9 }
+node first: Envelope {}
+node second: Envelope {}
 connect source -> first;
 connect other -> second;
 ''', declarations=current_definitions)
@@ -446,11 +446,11 @@ for connector, message in [
 invalid_programs = [
     ('native procedure advance depends on saved.new as "input" produces saved;',
      'Circular procedure dependency'),
-    ('''node reader: TestLibrary.Forward(Type = uint8);
+    ('''node reader: TestLibrary.Forward { Type: uint8 }
         connect saved.new -> reader;
         native procedure advance depends on reader as "input" produces saved;''',
      'Circular procedure dependency'),
-    ('''node reader: TestLibrary.Forward(Type = uint8);
+    ('''node reader: TestLibrary.Forward { Type: uint8 }
         connect saved.new -> reader;
         native procedure advance stage output
           depends on saved.old as "input" produces saved;''',
@@ -460,13 +460,13 @@ for body, message in invalid_programs:
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
         invalid_graph = compile_graph(definitions.replace(
-            '''node reader: Forward(Type = uint8);
+            '''node reader: Forward { Type: uint8 }
     connect saved.old -> reader;
     connect reader -> implicit output;
     native procedure advance
       depends on reader as "input"
       produces saved;''', body + '\nconnect saved.old -> implicit output;',
-        ) + 'node feedback: TestLibrary.Feedback;')
+        ) + 'node feedback: TestLibrary.Feedback {}')
         assert invalid_graph is not None, output.getvalue()
         assert program_compiler.compile(invalid_graph) is None
     assert message in output.getvalue(), output.getvalue()

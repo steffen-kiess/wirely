@@ -76,28 +76,28 @@ struct type Bad {
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = { x: 1 }); // E: Syntax error
+node n: Std.Constant { Type: Record, Value: { x: 1 } } // E: Syntax error
 
 // TEST: missing_field
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Record {}); // E: Missing fields
+node n: Std.Constant { Type: Record, Value: Record {} } // E: Missing fields
 
 // TEST: unknown_field
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Record { y: 1 }); // E: Unknown field
+node n: Std.Constant { Type: Record, Value: Record { y: 1 } } // E: Unknown field
 
 // TEST: duplicate_literal_field
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Record { x: 1, x: 2 }); // E: Duplicate struct field x // H: Previous field was here
+node n: Std.Constant { Type: Record, Value: Record { x: 1, x: 2 } } // E: Duplicate struct field x // H: Previous field was here
 
 // TEST: wrong_literal_type
 // LIBRARIES: std
@@ -107,49 +107,49 @@ struct type First {
 struct type Second {
   x: uint8,
 }
-node n: Std.Constant(Type = First, Value = Second { x: 1 }); // E: Expected struct type First
+node n: Std.Constant { Type: First, Value: Second { x: 1 } } // E: Expected struct type First
 
 // TEST: unknown_literal_type
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Missing { x: 1 }); // E: Cannot find type Missing
+node n: Std.Constant { Type: Record, Value: Missing { x: 1 } } // E: Cannot find type Missing
 
 // TEST: nonstruct_literal_type
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = uint8 { x: 1 }); // E: Expected struct type Record
+node n: Std.Constant { Type: Record, Value: uint8 { x: 1 } } // E: Expected struct type Record
 
 // TEST: literal_in_scalar
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = uint8, Value = Record { x: 1 }); // E: got struct literal
+node n: Std.Constant { Type: uint8, Value: Record { x: 1 } } // E: got struct literal
 
 // TEST: scalar_in_struct
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = 1); // E: Expected struct literal
+node n: Std.Constant { Type: Record, Value: 1 } // E: Expected struct literal
 
 // TEST: overflow
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Record { x: 256 }); // E: out of range
+node n: Std.Constant { Type: Record, Value: Record { x: 256 } } // E: out of range
 
 // TEST: wrong_field_value
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant(Type = Record, Value = Record { x: "text" }); // E: Invalid int value
+node n: Std.Constant { Type: Record, Value: Record { x: "text" } } // E: Invalid int value
 
 // TEST: wrong_nested_value
 // LIBRARIES: std
@@ -159,7 +159,7 @@ struct type Inner {
 struct type Outer {
   inner: Inner,
 }
-node n: Std.Constant(Type = Outer, Value = Outer { inner: 1 }); // E: Expected struct literal
+node n: Std.Constant { Type: Outer, Value: Outer { inner: 1 } } // E: Expected struct literal
 
 // TEST: wrong_parameter_type
 // LIBRARIES: std
@@ -168,9 +168,9 @@ struct type Record {
 }
 node type Settings {
   parameter Value: boolean = true;
-  node n: Std.Constant(Type = Record, Value = Record { x: Value }); // E: Expected value of type uint8
+  node n: Std.Constant { Type: Record, Value: Record { x: Value } } // E: Expected value of type uint8
 }
-node n: Settings;
+node n: Settings {}
 
 // TEST: wrong_namespaced_type
 // LIBRARIES: std
@@ -180,7 +180,7 @@ namespace A { struct type Record {
 namespace B { struct type Record {
   x: uint8,
 } }
-node n: Std.Constant(Type = A.Record, Value = B.Record { x: 1 }); // E: Expected struct type A.Record
+node n: Std.Constant { Type: A.Record, Value: B.Record { x: 1 } } // E: Expected struct type A.Record
 
 // TEST: struct_after_enum
 enum type Bad: uint8 {} // H: Previous declaration was here
@@ -219,81 +219,81 @@ struct type Record {
   x: String,
 }
 node type Bad { implicit output: value Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_string_event
 struct type Record {
   x: String,
 }
 node type Bad { implicit output: event Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_string_state
 struct type Record {
   x: String,
 }
 node type Bad { state saved: Record = Record { x: "text" }; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_string_temporary
 struct type Record {
   x: String,
 }
 node type Bad { temporary saved: Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_list_uint8_value
 struct type Record {
   x: List[uint8],
 }
 node type Bad { implicit output: value Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_list_uint8_event
 struct type Record {
   x: List[uint8],
 }
 node type Bad { implicit output: event Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_list_uint8_state
 struct type Record {
   x: List[uint8],
 }
 node type Bad { state saved: Record = Record { x: "text" }; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_list_uint8_temporary
 struct type Record {
   x: List[uint8],
 }
 node type Bad { temporary saved: Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_option_string_value
 struct type Record {
   x: Option[String],
 }
 node type Bad { implicit output: value Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_option_string_event
 struct type Record {
   x: Option[String],
 }
 node type Bad { implicit output: event Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_option_string_state
 struct type Record {
   x: Option[String],
 }
 node type Bad { state saved: Record = Record { x: "text" }; } // E: parameter-only
-node n: Bad;
+node n: Bad {}
 
 // TEST: parameter_only_option_string_temporary
 struct type Record {
   x: Option[String],
 }
 node type Bad { temporary saved: Record; } // E: parameter-only
-node n: Bad;
+node n: Bad {}

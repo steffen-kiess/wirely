@@ -1,2 +1,2 @@
 // Additional native fixtures are compiled by the Python assertions.
-node empty: Std.And;
+node empty: Std.And {}

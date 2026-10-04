@@ -1,16 +1,16 @@
-node signed: Std.Constant(Type = Signed, Value = Signed.Min);
-node root: Std.Constant(Type = Example.Mode, Value = Example.Mode.On);
-node forwarded: Example.Settings;
-node nested: Example.Inner.Settings;
-node other: Std.Constant(Type = Other.Mode, Value = Other.Mode.On);
+node signed: Std.Constant { Type: Signed, Value: Signed.Min }
+node root: Std.Constant { Type: Example.Mode, Value: Example.Mode.On }
+node forwarded: Example.Settings {}
+node nested: Example.Inner.Settings {}
+node other: Std.Constant { Type: Other.Mode, Value: Other.Mode.On }
 node type LiteralParameter {
   parameter Type: ValueType;
   parameter Value: Type;
 }
-node wrapped_modes: LiteralParameter(
-  Type = List[Option[Example.Mode]],
-  Value = [Some(Example.Mode.On), None]
-);
+node wrapped_modes: LiteralParameter {
+  Type: List[Option[Example.Mode]],
+  Value: [Some(Example.Mode.On), None],
+}
 
 // Signed numbers, bases, escaped identifiers, and a trailing comma.
 enum type Signed: int8 {
@@ -28,7 +28,7 @@ namespace Example {
     parameter ModeType: ValueType = Mode;
     parameter Initial: ModeType = Mode.On;
     implicit output: value ModeType;
-    node value: Std.Constant(Type = ModeType, Value = Initial);
+    node value: Std.Constant { Type: ModeType, Value: Initial }
     connect value -> implicit output;
   }
 }
@@ -40,7 +40,7 @@ namespace Example {
 namespace Example.Inner {
   node type Settings {
     implicit output: value Mode;
-    node value: Std.Constant(Type = Mode, Value = Mode.On);
+    node value: Std.Constant { Type: Mode, Value: Mode.On }
     connect value -> implicit output;
   }
 }
@@ -52,4 +52,4 @@ namespace Other {
 enum type r#enum: uint8 {
   r#node = 1,
 }
-node escaped: Std.Constant(Type = r#enum, Value = r#enum.r#node);
+node escaped: Std.Constant { Type: r#enum, Value: r#enum.r#node }

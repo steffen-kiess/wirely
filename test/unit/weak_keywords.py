@@ -54,7 +54,7 @@ def parse(source):
 for keyword in weak_keywords:
     for name in [keyword, f'r#{keyword}']:
         for source in [
-            f'node {name}: T;',
+            f'node {name}: T {{}}',
             f'input {name}: value boolean;',
             f'output {name}: event unit;',
             f'parameter {name}: boolean;',
@@ -63,7 +63,7 @@ for keyword in weak_keywords:
             f'native procedure {name};',
         ]:
             assert parse(source).name.id_str == keyword
-        argument = parse(f'node n: T({name} = true);').instantiation.parameters[0]
+        argument = parse(f'node n: T {{ {name}: true }}').instantiation.parameters[0]
         assert argument.name.id_str == keyword
         connection = parse(f'connect source.{name} -> {name};')
         assert str(connection.sources[0]) == f'source.{keyword}'
@@ -73,7 +73,7 @@ for keyword in weak_keywords:
         )
         assert procedure.depends.dependencies[0].key == keyword
         assert procedure.produces.outputs[0].key == keyword
-        attribute = parse(f'#[{name}] node n: T;').outer_attributes[0]
+        attribute = parse(f'#[{name}] node n: T {{}}').outer_attributes[0]
         assert attribute.name == keyword
         struct = parse(f'struct type S {{ {name}: boolean, }}')
         assert struct.fields[0].name.id_str == keyword
@@ -83,15 +83,15 @@ for keyword in weak_keywords:
         parse(f'namespace {name} {{}}')
 
     for name in [f'{keyword}_name', f'{keyword}name', f'name_{keyword}']:
-        assert parse(f'node {name}: T;').name.id_str == name
+        assert parse(f'node {name}: T {{}}').name.id_str == name
 
     for name in [keyword, f'r#{keyword}']:
         compiled = compile_strs([('<weak-parameter>', f'''
 node type Forward {{
   parameter {name}: boolean;
-  node constant: Std.Constant(Type = boolean, Value = {name});
+  node constant: Std.Constant {{ Type: boolean, Value: {name} }}
 }}
-node forwarded: Forward({name} = true);
+node forwarded: Forward {{ {name}: true }}
 ''')], add_std=True)
         assert compiled is not None
         runtime = wirely.Engine(program_compiler.compile(compiled))
@@ -112,10 +112,10 @@ parse('native initializer depends on resource, on;')
 
 for keyword in reserved_keywords:
     try:
-        parse(f'node {keyword}: T;')
+        parse(f'node {keyword}: T {{}}')
     except UnexpectedInput:
         pass
     else:
         raise AssertionError(f'Reserved keyword accepted as a name: {keyword}')
-    assert parse(f'node r#{keyword}: T;').name.id_str == keyword
-    assert parse(f'node {keyword}name: T;').name.id_str == f'{keyword}name'
+    assert parse(f'node r#{keyword}: T {{}}').name.id_str == keyword
+    assert parse(f'node {keyword}name: T {{}}').name.id_str == f'{keyword}name'

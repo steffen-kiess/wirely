@@ -33,12 +33,12 @@ node type Invalid {
 // LIBRARIES: std
 node type Child {
   output Value: value boolean;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node source: Std.Constant { Type: boolean, Value: true }
   connect source -> Value;
 }
 
 node type Invalid {
-  node child: Child;
+  node child: Child {}
 
   native procedure run depends on child.Value;
   // ^E: Implicit connectors and complex references require an explicit alias
@@ -78,12 +78,12 @@ node type Invalid {
 // LIBRARIES: std
 node type Child {
   output Value: value boolean;
-  node source: Std.Constant(Type = boolean, Value = true);
+  node source: Std.Constant { Type: boolean, Value: true }
   connect source -> Value;
 }
 
 node type Invalid {
-  node child: Child;
+  node child: Child {}
 
   native procedure run depends on child.Missing as "value";
   // ^E: Cannot resolve procedure dependency child.Missing

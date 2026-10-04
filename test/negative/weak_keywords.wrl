@@ -1,8 +1,8 @@
 // TEST: depends_name
-node depends: T; // E: Syntax error
+node depends: T {} // E: Syntax error
 
 // TEST: produces_name
-node produces: T; // E: Syntax error
+node produces: T {} // E: Syntax error
 
 // TEST: depends_parameter
 node type T {
@@ -18,4 +18,4 @@ struct type S {
 native procedure run depends on produces.Value; // E: Syntax error
 
 // TEST: depends_attribute
-#[depends] node n: T; // E: Syntax error
+#[depends] node n: T {} // E: Syntax error

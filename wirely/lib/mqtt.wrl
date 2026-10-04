@@ -31,16 +31,16 @@ namespace MQTT {
     input Broker: resource Broker;
     implicit input: value Type;
 
-    node create_option: Std.OptionSome(InnerType = Type);
+    node create_option: Std.OptionSome { InnerType: Type }
     connect implicit input -> create_option;
 
     // Note: Format and Template will only be forwarded if they are set.
-    node impl: ValueOptionProvider(
-      Type = Type,
-      Topic = Topic,
-      Format = Format,
-      Template = Template
-    );
+    node impl: ValueOptionProvider {
+      Type: Type,
+      Topic: Topic,
+      Format: Format,
+      Template: Template,
+    }
     connect Broker -> impl.Broker;
     connect create_option -> impl;
   }

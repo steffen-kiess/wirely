@@ -29,7 +29,7 @@ namespace Time {
     // changes
     state update_time: MonotonicTime = MonotonicTime.Invalid;
 
-    node reached: MonotonicTimeReached;
+    node reached: MonotonicTimeReached {}
     connect update_time.old -> reached;
 
     native procedure run
@@ -56,7 +56,7 @@ namespace Time {
 
     implicit output: value boolean;
 
-    node current_time: TimeOfDayMinute;
+    node current_time: TimeOfDayMinute {}
 
     native procedure run
       depends on current_time
@@ -91,14 +91,14 @@ namespace Time {
 
     // Note: This relies on both blocks using the same time source, so that
     // there is no cycle/step at the Time where both or neither are true.
-    node before: IsBetween(
-      Start = TimeOfDay_AddWrap(Time, "-08:00"),
-      End = Time
-    );
-    node after: IsBetween(
-      Start = Time,
-      End = TimeOfDay_AddWrap(Time, "02:00")
-    );
+    node before: IsBetween {
+      Start: TimeOfDay_AddWrap(Time, "-08:00"),
+      End: Time,
+    }
+    node after: IsBetween {
+      Start: Time,
+      End: TimeOfDay_AddWrap(Time, "02:00"),
+    }
 
     native procedure run
       depends on trigger_state.old as "state_old", before, after

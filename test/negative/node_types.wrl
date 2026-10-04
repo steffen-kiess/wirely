@@ -1,6 +1,6 @@
 // TEST: unknown_node_type
 // LIBRARIES: std
-node node2: Std.NonExisting(Type = Option[boolean]); // E: Cannot find block type Std.NonExisting
+node node2: Std.NonExisting { Type: Option[boolean] } // E: Cannot find block type Std.NonExisting
 
 // TEST: singleton_input
 singleton node type QWE {
@@ -24,7 +24,7 @@ namespace Fixture {
 }
 
 // TEST: unknown_abb_jra
-node status: ABB_JRA.InterpretStatusInformation;
+node status: ABB_JRA.InterpretStatusInformation {}
 // ^E: Cannot find block type ABB_JRA.InterpretStatusInformation
 
 // TEST: library_inside_node_type

@@ -88,7 +88,7 @@ namespace TestLibrary {{
 {indent(declaration.strip(), "    ")}
   }}
 }}
-node probe: TestLibrary.{class_name}{arguments};
+node probe: TestLibrary.{class_name} {{ {arguments} }}
 {extra}
 '''
     with patch.dict(wirely.native.test_library.native_block_types, registry):
@@ -147,7 +147,7 @@ native procedure run;
 '''
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,
-                       native=native, arguments='(Absent = None)')
+                       native=native, arguments='Absent: None')
     assert prepared[-1]['Number'] == 7
     assert prepared[-1]['Type'] == types.uint16
     probe.step()
@@ -212,16 +212,16 @@ nested = make_probe('native procedure run;',
                     lambda context: checks.assertEqual(dict(context.parameters), {}),
                     native=True, extra='''
 node type Outer {
-  node child: TestLibrary.StateParameterProbe;
+  node child: TestLibrary.StateParameterProbe {}
 }
-node outer: Outer;
+node outer: Outer {}
 namespace TestLibrary {
   singleton node type SharedContainer {
-    node child: StateParameterProbe;
+    node child: StateParameterProbe {}
   }
 }
-node shared_container: TestLibrary.SharedContainer;
-node shared_again: TestLibrary.SharedContainer;
+node shared_container: TestLibrary.SharedContainer {}
+node shared_again: TestLibrary.SharedContainer {}
 ''')
 assert nested.get_native_state('outer.child').context.name == 'outer.child'
 assert nested.get_native_state('probe').context.name == 'probe'

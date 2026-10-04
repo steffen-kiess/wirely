@@ -1,34 +1,34 @@
 // LIBRARIES: std, matter
 
 // TEST: unknown member
-node mode: Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = ThermostatSystemModeEnum.NotCool
-); // ^E: Unknown member 'NotCool' of ThermostatSystemModeEnum
+node mode: Std.Constant {
+  Type: ThermostatSystemModeEnum,
+  Value: ThermostatSystemModeEnum.NotCool,
+} // ^E: Unknown member 'NotCool' of ThermostatSystemModeEnum
 
 // TEST: wrong case
-node mode: Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = ThermostatSystemModeEnum.heat
-); // ^E: Unknown member 'heat' of ThermostatSystemModeEnum
+node mode: Std.Constant {
+  Type: ThermostatSystemModeEnum,
+  Value: ThermostatSystemModeEnum.heat,
+} // ^E: Unknown member 'heat' of ThermostatSystemModeEnum
 
 // TEST: wrong type
-node mode: Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = OtherMode.Heat
-); // ^E: Cannot find type OtherMode
+node mode: Std.Constant {
+  Type: ThermostatSystemModeEnum,
+  Value: OtherMode.Heat,
+} // ^E: Cannot find type OtherMode
 
 // TEST: bare member
-node mode: Std.Constant(Type = ThermostatSystemModeEnum, Value = Heat); // E: Expected enum literal ThermostatSystemModeEnum.Member
+node mode: Std.Constant { Type: ThermostatSystemModeEnum, Value: Heat } // E: Expected enum literal ThermostatSystemModeEnum.Member
 
 // TEST: extra qualifier
-node mode: Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = Matter.ThermostatSystemModeEnum.Heat
-); // ^E: Cannot find type Matter.ThermostatSystemModeEnum
+node mode: Std.Constant {
+  Type: ThermostatSystemModeEnum,
+  Value: Matter.ThermostatSystemModeEnum.Heat,
+} // ^E: Cannot find type Matter.ThermostatSystemModeEnum
 
 // TEST: numeric literal
-node mode: Std.Constant(Type = ThermostatSystemModeEnum, Value = 4); // E: Expected enum literal ThermostatSystemModeEnum.Member
+node mode: Std.Constant { Type: ThermostatSystemModeEnum, Value: 4 } // E: Expected enum literal ThermostatSystemModeEnum.Member
 
 // TEST: string literal
-node mode: Std.Constant(Type = ThermostatSystemModeEnum, Value = "Heat"); // E: Expected enum literal ThermostatSystemModeEnum.Member
+node mode: Std.Constant { Type: ThermostatSystemModeEnum, Value: "Heat" } // E: Expected enum literal ThermostatSystemModeEnum.Member

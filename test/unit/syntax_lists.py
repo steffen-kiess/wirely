@@ -23,11 +23,11 @@ def parse(source):
 
 
 for arguments, expected in [
-    ('', []), ('A = 1', [('A', 1)]), ('A = 1,', [('A', 1)]),
-    ('A = 1, B = 2', [('A', 1), ('B', 2)]),
-    ('A = 1, B = 2, /* final argument */', [('A', 1), ('B', 2)]),
+    ('', []), ('A: 1', [('A', 1)]), ('A: 1,', [('A', 1)]),
+    ('A: 1, B: 2', [('A', 1), ('B', 2)]),
+    ('A: 1, B: 2, /* final argument */', [('A', 1), ('B', 2)]),
 ]:
-    declaration = parse(f'node n: T({arguments});')
+    declaration = parse(f'node n: T {{ {arguments} }}')
     assert [(argument.name.id_str, argument.value.value)
             for argument in declaration.instantiation.parameters] == expected
 
@@ -85,7 +85,7 @@ for clause in ['', 'depends on']:
     assert parse(f'native initializer {clause};').depends.dependencies == ()
 
 for comma in ['', ',']:
-    metadata = parse(f'#[tag(nested(first, second{comma}){comma})] node n: T;')
+    metadata = parse(f'#[tag(nested(first, second{comma}){comma})] node n: T {{}}')
     nested = metadata.outer_attributes[0].metadata.value[0]
     assert nested.name == 'nested'
     assert [argument.name for argument in nested.value] == ['first', 'second']

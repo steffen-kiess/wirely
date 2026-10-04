@@ -1100,10 +1100,12 @@ class BlockParameter(SourceElement):
 
 class BlockInstantiation(SourceElement):
     @check_parameters
-    def __init__(self, block_class_name: Reference, parameters: typing.List[BlockParameter]=[], *, source_position: SourcePosition):
+    def __init__(self, block_class_name: Reference, parameters: list,
+                 *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.block_class_name = block_class_name
         self.parameters = parameters
+        self.inner_attributes = getattr(parameters, 'inner_attributes', ())
 
 
 class DeclarationBlockInstantiation(Declaration):
@@ -1112,6 +1114,7 @@ class DeclarationBlockInstantiation(Declaration):
         super().__init__(source_position=source_position)
         self.name = name
         self.instantiation = instantiation
+        self.inner_attributes = instantiation.inner_attributes
 
     def compile_pass1(self, graph):
         pass

@@ -205,9 +205,9 @@ namespace TestLibrary {
       produces implicit output as "output";
   }
 }
-node consumer: TestLibrary.Consumer(Label = "prepared");
-node provider: TestLibrary.Provider;
-node provider_alias: TestLibrary.Provider;
+node consumer: TestLibrary.Consumer { Label: "prepared" }
+node provider: TestLibrary.Provider {}
+node provider_alias: TestLibrary.Provider {}
 connect provider -> consumer.Service;
 connect provider, provider_alias -> consumer.Services;
 ''')])

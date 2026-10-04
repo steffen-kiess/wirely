@@ -40,7 +40,7 @@ namespace TwoN {
     // True if the key is pressed, false otherwise.
     implicit output: value boolean;
 
-    node key_event: KeyEvent(Key = Key);
+    node key_event: KeyEvent { Key: Key }
     connect Device -> key_event.Device;
 
     // The current value which is kept if there is no new event
@@ -51,7 +51,7 @@ namespace TwoN {
     // False.
     state timeout_time: MonotonicTime = MonotonicTime.Invalid;
 
-    node timeout_reached: Time.MonotonicTimeReached;
+    node timeout_reached: Time.MonotonicTimeReached {}
     // TODO: Allow this?
     // connect timeout_time.old -> timeout_reached;
     temporary timeout_time_old: MonotonicTime;

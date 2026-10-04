@@ -5,7 +5,7 @@ declaration: outer_attribute* bare_declaration -> attributed
 bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
            | "resource" "type" identifier ";" -> declaration_resource_type
            | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type
-           | "node" identifier ":" block_instantiation ";" -> declaration_block_instantiation
+           | "node" identifier ":" block_instantiation -> declaration_block_instantiation
            | "connect" connection_source_list "->" reference ";" -> declaration_connection
            // TODO: Can this be done in a nicer way?
            | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
@@ -32,8 +32,7 @@ enum_member_list: inner_attribute* (enum_member ("," enum_member)* ","?)? -> fil
 enum_member: outer_attribute* bare_enum_member -> attributed
 bare_enum_member: identifier "=" value -> enum_member
 
-block_instantiation: reference                              -> block_instantiation
-                   | reference "(" block_parameter_list ")" -> block_instantiation
+block_instantiation: reference "{" block_parameter_list "}" -> block_instantiation
 
 stage_declaration: -> stage_declaration__create_default
                  | "stage" "input" -> stage_declaration__create_input
@@ -48,9 +47,9 @@ produces_declaration: -> produces_declaration
 procedure_binding: reference -> procedure_binding
                  | reference "as" string_constant -> procedure_binding
 
-block_parameter_list: _separated_empty{block_parameter, ","} -> copy_list
+block_parameter_list: inner_attribute* _separated_empty{block_parameter, ","} -> file_input
 
-block_parameter: identifier "=" value
+block_parameter: identifier ":" value
 
 native_specifier: "native" -> native_specifier
 

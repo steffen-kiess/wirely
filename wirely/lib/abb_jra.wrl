@@ -51,19 +51,19 @@ namespace ABB.JRA {
         DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
 
     // TODO: Make this work?
-    // node have_value : Std.OptionIsSome(InnerType = uint16);
+    // node have_value : Std.OptionIsSome { InnerType: uint16 }
     // connect implicit input -> have_value;
 
-    // node input_value : Std.OptionUnwrapOrDefault(
-    //   InnerType = uint16,
-    //   Default = 0
-    // );
+    // node input_value: Std.OptionUnwrapOrDefault {
+    //   InnerType: uint16,
+    //   Default: 0,
+    // }
     // connect implicit input -> input_value;
 
-    // node status : InterpretStatusInformation;
+    // node status : InterpretStatusInformation {}
     // connect input_value -> status;
 
-    // node manual_operation_value : Std.OptionCreate(InnerType = boolean);
+    // node manual_operation_value : Std.OptionCreate { InnerType: boolean }
     // connect have_value -> manual_operation_value.HasValue;
     // connect status.ManualOperation -> manual_operation_value.Value;
     // connect manual_operation_value -> ManualOperation;

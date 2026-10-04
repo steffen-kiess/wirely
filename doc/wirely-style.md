@@ -59,17 +59,17 @@ native procedure run stage output
   produces current_value, implicit output as "output";
 ```
 
-For multiline argument lists, break after `(` and put arguments on separate
-lines with trailing commas. Align the closing parenthesis with the
-declaration. Use similar layouts for other long lists; avoid elaborate
-column alignment.
+For multiline node configurations, put parameters on separate lines with
+trailing commas. For multiline argument lists, break after `(` and align
+the closing parenthesis with the declaration. Use trailing commas and
+similar layouts for other long lists; avoid elaborate column alignment.
 
 ```wrl
-node source: Std.Constant(
-  Type = boolean,
-  Value = true,
-);
-node printer: Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant {
+  Type: boolean,
+  Value: true,
+}
+node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
 ```
 
@@ -85,8 +85,8 @@ Explain purpose or non-obvious behavior rather than restating the code.
 
 ```wrl
 // Keep the lights off until an occupancy value has been received.
-node occupied: Std.OptionUnwrapOrDefault(
-  InnerType = boolean,
-  Default = false,
-);
+node occupied: Std.OptionUnwrapOrDefault {
+  InnerType: boolean,
+  Default: false,
+}
 ```

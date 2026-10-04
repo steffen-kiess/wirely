@@ -1,11 +1,11 @@
-node bus: KNX.Connection(UnixPath = "/run/knxnet");
+node bus: KNX.Connection { UnixPath: "/run/knxnet" }
 
-node trigger: Time.TriggerAt(
-  Time = "08:00",
-  OutputType = boolean,
-  OutputValue = true
-);
+node trigger: Time.TriggerAt {
+  Time: "08:00",
+  OutputType: boolean,
+  OutputValue: true,
+}
 
-node event_emitter: KNX.EventEmitter(GroupAddress = "0/7/1", Type = boolean);
+node event_emitter: KNX.EventEmitter { GroupAddress: "0/7/1", Type: boolean }
 connect bus -> event_emitter.Bus;
 connect trigger -> event_emitter;

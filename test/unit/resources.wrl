@@ -12,13 +12,13 @@ namespace ResourceFixture.Deep {
     implicit output: resource Handle;
     connect Service -> implicit output;
 
-    node client: Sink;
+    node client: Sink {}
     connect Service -> client.Service;
   }
 
   node type Factory {
     implicit output: resource Handle;
-    node source: Source;
+    node source: Source {}
     connect source -> implicit output;
   }
 
@@ -54,27 +54,27 @@ node type RootSource {
 node type RootSink {
   implicit input: resource RootHandle;
 }
-node root_source: RootSource;
-node root_sink: RootSink;
+node root_source: RootSource {}
+node root_sink: RootSink {}
 connect root_source -> root_sink;
 
-node source: ResourceFixture.Deep.Source;
-node relay: ResourceFixture.Deep.Relay;
-node sink: ResourceFixture.Deep.Sink;
+node source: ResourceFixture.Deep.Source {}
+node relay: ResourceFixture.Deep.Relay {}
+node sink: ResourceFixture.Deep.Sink {}
 connect source -> relay.Service;
 connect relay -> sink.Service;
 
-node factory: ResourceFixture.Deep.Factory;
-node second_relay: ResourceFixture.Deep.Relay;
-node second_sink: ResourceFixture.Deep.Sink;
+node factory: ResourceFixture.Deep.Factory {}
+node second_relay: ResourceFixture.Deep.Relay {}
+node second_sink: ResourceFixture.Deep.Sink {}
 connect factory -> second_relay.Service;
 connect second_relay -> second_sink.Service;
 
-node many: ResourceFixture.Deep.Many;
+node many: ResourceFixture.Deep.Many {}
 connect source, factory, relay -> many.Services;
-node outer: ResourceFixture.OuterSink;
+node outer: ResourceFixture.OuterSink {}
 connect relay -> outer.Service;
 
-node shared: ResourceFixture.Deep.Shared;
-node shared_sink: ResourceFixture.Deep.Sink;
+node shared: ResourceFixture.Deep.Shared {}
+node shared_sink: ResourceFixture.Deep.Sink {}
 connect shared -> shared_sink.Service;

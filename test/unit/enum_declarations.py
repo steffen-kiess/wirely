@@ -51,7 +51,7 @@ for prefix in ['int', 'uint']:
     for bits in [8, 16, 32, 64]:
         underlying = getattr(wirely.types, f'{prefix}{bits}')
         source = f'''
-node value: Std.Constant(Type = Boundary, Value = Boundary.Maximum);
+node value: Std.Constant {{ Type: Boundary, Value: Boundary.Maximum }}
 enum type Boundary: {underlying} {{
   Minimum = {underlying.min_value},
   Maximum = {underlying.max_value},
@@ -73,7 +73,7 @@ enum type Boundary: {underlying} {{
         runtime.assert_value_is('value', enum_type.parse('Maximum'))
 
 # Definitions in later files resolve, and compilations own their enum classes.
-source = 'node value: Std.Constant(Type = Fresh, Value = Fresh.One);'
+source = 'node value: Std.Constant { Type: Fresh, Value: Fresh.One }'
 extra = (('<later-file>', 'enum type Fresh: int8 { One = 1, }'),)
 first = compile_source(source, extra=extra)
 second = compile_source(source, extra=extra)

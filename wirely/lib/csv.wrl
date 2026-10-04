@@ -22,7 +22,7 @@ namespace CSV {
     // time, the value will be written out again.
     state repeat_time: MonotonicTime = MonotonicTime.Invalid;
 
-    node repeat_time_reached: Time.MonotonicTimeReached;
+    node repeat_time_reached: Time.MonotonicTimeReached {}
     connect repeat_time.old -> repeat_time_reached;
 
     native procedure run stage output

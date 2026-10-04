@@ -28,7 +28,7 @@ namespace TestLibrary {
     native procedure Poll as "missing"; // E: Cannot find native procedure 'missing'
   }
 }
-node test: TestLibrary.TestBlock;
+node test: TestLibrary.TestBlock {}
 
 // TEST: procedure_missing_method
 namespace TestLibrary {
@@ -36,4 +36,4 @@ namespace TestLibrary {
     native procedure missing; // E: Cannot find native procedure 'missing'
   }
 }
-node test: TestLibrary.TestBlock;
+node test: TestLibrary.TestBlock {}

@@ -44,7 +44,7 @@ node type Source {
   output Handle: resource Handle;
 }
 native node type Invalid {
-  node source: Source;
+  node source: Source {}
   native initializer depends on source.Handle; // E: Implicit connectors and complex references require an explicit alias
 }
 

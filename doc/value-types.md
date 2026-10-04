@@ -45,13 +45,13 @@ value of type `T`; `event T` carries occurrences with payloads of type `T`.
 ### Unit and boolean
 
 `unit` is useful for events that only signal an occurrence. For example,
-`Time.TriggerAt(Time = "08:00")` emits a unit event each day at the specified
+`Time.TriggerAt { Time: "08:00" }` emits a unit event each day at the specified
 time. The default event type is `unit`, so no payload parameter is needed.
 
 The unit literal is `()`:
 
 ```wrl
-node source: Std.Constant(Type = unit, Value = ());
+node source: Std.Constant { Type: unit, Value: () }
 ```
 
 `()` is a value of type `unit`; `None` is an absent `Option[T]` value.
@@ -59,8 +59,8 @@ node source: Std.Constant(Type = unit, Value = ());
 Boolean literals are `true` and `false`:
 
 ```wrl
-node source: Std.Constant(Type = boolean, Value = true);
-node printer: Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant { Type: boolean, Value: true }
+node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
 ```
 
@@ -72,9 +72,9 @@ A parameter's declared type determines the integer width and
 signedness. For example:
 
 ```wrl
-node small: Std.Constant(Type = uint8, Value = 42);
-node large: Std.Constant(Type = int32, Value = 100000);
-node negative: Std.Constant(Type = int8, Value = -128);
+node small: Std.Constant { Type: uint8, Value: 42 }
+node large: Std.Constant { Type: int32, Value: 100000 }
+node negative: Std.Constant { Type: int8, Value: -128 }
 ```
 
 Write negative integers with a leading minus sign, such as `-42`, `-0x2a`,
@@ -114,8 +114,8 @@ Days are fixed periods of 24 hours. Duration components use days, hours,
 minutes, and seconds rather than calendar months or years.
 
 ```wrl
-node source: Std.Constant(Type = boolean, Value = true);
-node delay: Time.DelayChange(Type = boolean, Duration = "PT1.5S");
+node source: Std.Constant { Type: boolean, Value: true }
+node delay: Time.DelayChange { Type: boolean, Duration: "PT1.5S" }
 connect source -> delay;
 ```
 
@@ -131,7 +131,7 @@ written as an hours-and-minutes string, with an optional `+` or `-` sign,
 and wraps at midnight:
 
 ```wrl
-node morning: Time.TriggerAt(Time = "08:00");
+node morning: Time.TriggerAt { Time: "08:00" }
 
 node type Schedule {
   parameter Late: TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
@@ -151,10 +151,10 @@ monotonic time is distinct from a wall-clock time or a time of day.
 Use `MonotonicTime.Invalid` as an initial value when there is no deadline:
 
 ```wrl
-node deadline: Std.Constant(
-  Type = MonotonicTime,
-  Value = MonotonicTime.Invalid
-);
+node deadline: Std.Constant {
+  Type: MonotonicTime,
+  Value: MonotonicTime.Invalid,
+}
 ```
 
 Time library nodes produce and work with monotonic times, including
@@ -171,7 +171,7 @@ node type ConstantValue {
   parameter Type: ValueType;
   parameter Initial: Type;
   implicit output: value Type;
-  node constant: Std.Constant(Type = Type, Value = Initial);
+  node constant: Std.Constant { Type: Type, Value: Initial }
   connect constant -> implicit output;
 }
 ```
@@ -183,10 +183,10 @@ for absence and `Some(x)` for presence, where `x` has type `T`.
 `Some` takes exactly one argument and requires an `Option[T]` context:
 
 ```wrl
-node absent: Std.Constant(Type = Option[boolean], Value = None);
-node literal: Std.Constant(Type = Option[boolean], Value = Some(true));
-node source: Std.Constant(Type = boolean, Value = true);
-node present: Std.OptionSome(InnerType = boolean);
+node absent: Std.Constant { Type: Option[boolean], Value: None }
+node literal: Std.Constant { Type: Option[boolean], Value: Some(true) }
+node source: Std.Constant { Type: boolean, Value: true }
+node present: Std.OptionSome { InnerType: boolean }
 connect source -> present;
 ```
 

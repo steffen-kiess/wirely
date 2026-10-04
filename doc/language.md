@@ -8,8 +8,8 @@ service. Several `.wrl` files passed to the compiler form one program.
 ## A first program
 
 ```wrl
-node source: Std.Constant(Type = boolean, Value = true);
-node printer: Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant { Type: boolean, Value: true }
+node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
 ```
 
@@ -29,7 +29,7 @@ are described in [the library reference](libraries.md).
 
 Outer attributes `#[...]` attach to the following declaration, struct field,
 or enum member. Inner attributes `#![...]` at the beginning of a file,
-namespace, node type, struct, or enum body attach to that enclosing item.
+namespace, node instance, node type, struct, or enum body attach to that item.
 They do not inherit onto its contents. Repeated namespace declarations
 combine their attributes.
 
@@ -39,8 +39,11 @@ The compiler defines the available attributes and their permitted targets.
 Currently, `position` supplies node-instance coordinates:
 
 ```wrl
-#[position(x = 120, y = -40.5)]
-node source: Std.Constant(Type = boolean, Value = true);
+node source: Std.Constant {
+  #![position(x = 120, y = -40.5)]
+  Type: boolean,
+  Value: true,
+}
 ```
 
 `position` requires one finite numeric literal for each of `x` and `y`, and
@@ -54,11 +57,11 @@ to the attribute's repeatability rules.
 ## Declarations and names
 
 Declarations may appear at the top level or inside a node type. Node
-instantiation uses `node name: Type;` or named parameters in parentheses:
+instantiation uses a brace body with named parameters, or `{}` when empty:
 
 ```wrl
-node source: Std.Constant(Type = boolean, Value = true);
-node sink: Std.DebugValuePrinter(Type = boolean);
+node source: Std.Constant { Type: boolean, Value: true }
+node sink: Std.DebugValuePrinter { Type: boolean }
 connect source -> sink;
 ```
 
@@ -84,12 +87,12 @@ nodes:
 ```wrl
 node type PrintBoolean {
   implicit input: value boolean;
-  node printer: Std.DebugValuePrinter(Type = boolean);
+  node printer: Std.DebugValuePrinter { Type: boolean }
   connect implicit input -> printer;
 }
 
-node source: Std.Constant(Type = boolean, Value = true);
-node sink: PrintBoolean;
+node source: Std.Constant { Type: boolean, Value: true }
+node sink: PrintBoolean {}
 connect source -> sink;
 ```
 
@@ -115,9 +118,9 @@ Python state or resources. Both forms require native support when instantiated.
 Identifiers are case-sensitive. Weak keywords `event`, `input`, `list`, `on`,
 `output`, `resource`, `stage`, `state`, `type`, and `value` can also be used
 as identifiers. Other keywords require the `r#` prefix when used as names,
-for example `node r#node: Std.And;`. Declarations end with
-`;`, except type and namespace bodies, which use braces. `//` starts a line
-comment, and `/* ... */` block comments may be nested.
+for example `node r#node: Std.And {}`. Declarations end with
+`;`, except node instances and type and namespace bodies, which end at `}`.
+`//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
 list literals, connection sources, and procedure bindings.
@@ -126,7 +129,7 @@ list literals, connection sources, and procedure bindings.
 
 A node type declares parameters with `parameter Name: Type;`. A parameter
 may have a default (`= value`) or be marked `optional`. Instantiation passes
-named arguments, for example `Time.TriggerAt(Time = "08:00")`. Type parameters
+named parameters, for example `Time.TriggerAt { Time: "08:00" }`. Type parameters
 use `ValueType`; a later parameter or connector can refer to one:
 
 ```wrl
@@ -134,7 +137,7 @@ node type Example {
   parameter Type: ValueType;
   parameter Initial: Type;
   implicit output: value Type;
-  node constant: Std.Constant(Type = Type, Value = Initial);
+  node constant: Std.Constant { Type: Type, Value: Initial }
   connect constant -> implicit output;
 }
 ```
@@ -153,10 +156,10 @@ struct type Reading {
   temperature: int16,
   valid: boolean,
 }
-node reading: Std.Constant(
-  Type = Reading,
-  Value = Reading { valid: true, temperature: 215 }
-);
+node reading: Std.Constant {
+  Type: Reading,
+  Value: Reading { valid: true, temperature: 215 },
+}
 ```
 
 Fields and literal entries are comma-separated, with an optional trailing
@@ -202,8 +205,8 @@ An `input` or `output` declares a named connector. `implicit input` and
 the node. For example:
 
 ```wrl
-node bus: KNX.Connection(UnixPath = "/run/knxnet");
-node receiver: KNX.ValueReceiver(Type = boolean, GroupAddress = "0/4/5");
+node bus: KNX.Connection { UnixPath: "/run/knxnet" }
+node receiver: KNX.ValueReceiver { Type: boolean, GroupAddress: "0/4/5" }
 connect bus -> receiver.Bus;
 ```
 

@@ -1,4 +1,4 @@
-node thermostat: Std.Constant(
-  Type = ThermostatSystemModeEnum,
-  Value = ThermostatSystemModeEnum.Heat
-);
+node thermostat: Std.Constant {
+  Type: ThermostatSystemModeEnum,
+  Value: ThermostatSystemModeEnum.Heat,
+}

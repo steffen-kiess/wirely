@@ -32,7 +32,7 @@ namespace Memory {
     // TODO: Should this forget the new value if the monotonic time is lost?
     state pending_event: Option[boolean] = None;
 
-    node next_event_allowed_at_reached: Time.MonotonicTimeReached;
+    node next_event_allowed_at_reached: Time.MonotonicTimeReached {}
     // TODO: Allow this?
     // connect next_event_allowed_at.old -> next_event_allowed_at_reached;
     temporary next_event_allowed_at_snapshot: MonotonicTime;
