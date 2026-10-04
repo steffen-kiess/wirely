@@ -67,7 +67,8 @@ connect source -> printer;
 ### Integers
 
 Integer literals can use decimal, hexadecimal (`0x`), or octal (`0o`)
-notation. A parameter's declared type determines the integer width and
+notation. Leading zeros do not change the base: `010` is 10 and `080` is 80.
+A parameter's declared type determines the integer width and
 signedness. For example:
 
 ```wrl

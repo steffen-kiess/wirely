@@ -242,7 +242,11 @@ output = io.StringIO()
 with contextlib.redirect_stdout(output):
     assert compile_strs([('early', '#[position(x = true, y = 0)] node n: Missing;')]) is None
 assert 'finite numeric literal' in output.getvalue()
-for literal, expected in [('-0x2a', -42), ('+0o52', 42), ('- 1.5', -1.5), ('+ 2.5', 2.5), ('1e2', 100.0)]:
+for literal, expected in [
+    ('-0x2a', -42), ('+0o52', 42), ('- 1.5', -1.5), ('+ 2.5', 2.5),
+    ('1e2', 100.0), ('010', 10), ('080', 80), ('0009', 9),
+    ('-080', -80), ('+010', 10),
+]:
     compiled = compile_source(f'node type T {{}} #[position(x = {literal}, y = 0)] node n: T;')
     assert compiled.blocks['n'].position == (expected, 0)
 

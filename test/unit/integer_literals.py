@@ -1,3 +1,5 @@
+from lark.exceptions import UnexpectedCharacters
+
 import wirely.compiler.parser
 
 
@@ -15,6 +17,8 @@ for name, expected in {
     'zero_plus': 0,
     'hex_plain': 42,
     'octal_plain': 42,
+    'decimal_leading_zero': 10,
+    'decimal_leading_zero_eight': 80,
 }.items():
     engine.assert_value_is(name, expected)
 
@@ -43,10 +47,29 @@ for literal, expected in [
     ('0', 0),
     ('042', 42),
     ('-042', -42),
+    ('010', 10),
+    ('080', 80),
+    ('0009', 9),
+    ('+010', 10),
+    ('-080', -80),
+    ('-0009', -9),
     ('-0x8000000000000000', -(2 ** 63)),
     ('+0xFFFFFFFFFFFFFFFF', 2 ** 64 - 1),
 ]:
     assert parse_literal(literal) == expected, literal
+
+for literal in ['1l', '1L', '0x10l', '0x10L', '0o10l', '0o10L',
+                '-1L', '+0x10L', '-0o10L', '123abc', '123_abc']:
+    for source in [
+        f'parameter Value: int64 = {literal};',
+        f'#[position(x = {literal}, y = 0)] node n: T;',
+    ]:
+        try:
+            list(wirely.compiler.parser.parser.lex(source))
+        except UnexpectedCharacters:
+            pass
+        else:
+            raise AssertionError(f'Lexer accepted integer suffix: {source}')
 
 # Floats retain their existing parser behavior.
 assert parse_literal('1.5') == 1.5

@@ -10,6 +10,8 @@ node zero_minus: Std.Constant(Type = uint8, Value = -0);
 node zero_plus: Std.Constant(Type = uint8, Value = +0);
 node hex_plain: Std.Constant(Type = uint8, Value = 0x2a);
 node octal_plain: Std.Constant(Type = uint8, Value = 0o52);
+node decimal_leading_zero: Std.Constant(Type = uint8, Value = 010);
+node decimal_leading_zero_eight: Std.Constant(Type = uint8, Value = 080);
 node int8_min: Std.Constant(Type = int8, Value = -128);
 node int8_max: Std.Constant(Type = int8, Value = +127);
 node uint8_min: Std.Constant(Type = uint8, Value = +0);

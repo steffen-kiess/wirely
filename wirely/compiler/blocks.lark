@@ -127,9 +127,9 @@ STRING: /\"(\\*[^\"\\]|(\\\\)*\\\")*(\\\\)*\"/s
 // TODO: Support raw strings with more than one #?
 RAW_STRING.2: /r\"[^\"]*\"|r#\"(\"*[^\"#]|#)*\"*\"#/s
 
-DEC_NUMBER: /[1-9]\d*l?/i
-HEX_NUMBER: /0x[\da-f]*l?/i
-OCT_NUMBER: /0o?[0-7]*l?/i
+DEC_NUMBER: /[0-9]+(?!\w)/
+HEX_NUMBER: /0x[\da-f]*(?!\w)/i
+OCT_NUMBER: /0o[0-7]*(?!\w)/i
 %import common.FLOAT -> FLOAT
 
 %import common.CNAME

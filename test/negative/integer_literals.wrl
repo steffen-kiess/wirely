@@ -58,6 +58,45 @@ node type Settings {
 }
 node settings: Settings(Value = 0x); // E: Invalid integer literal
 
+// TEST: decimal_lowercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 1l); // E: Syntax error
+
+// TEST: decimal_uppercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 1L); // E: Syntax error
+
+// TEST: hex_lowercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 0x10l); // E: Syntax error
+
+// TEST: hex_uppercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 0x10L); // E: Syntax error
+
+// TEST: octal_lowercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 0o10l); // E: Syntax error
+
+// TEST: octal_uppercase_suffix
+node type Settings {
+  parameter Value: int8;
+}
+node settings: Settings(Value = 0o10L); // E: Syntax error
+
+// TEST: attribute_integer_suffix
+#[position(x = 1L, y = 0)] node n: Missing; // E: Syntax error
+
 // TEST: empty_negative_hex
 node type Settings {
   parameter Value: int8;
