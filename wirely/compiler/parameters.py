@@ -38,12 +38,9 @@ class ParameterValues(dict):
                 value = super().__getitem__(parameter)
             elif parameter.default_value is not None:
                 value_type = resolve_type(parameter.type_resolved, self)
-                if value_type == blocks.types.ValueType:
-                    value = parameter.interface.resolve_type(parameter.default_value, par_values=self)
-                else:
-                    value = parameter.interface.get_const_value(
-                        parameter.default_value, value_type, par_values=self,
-                    )
+                value = parameter.interface.get_const_value(
+                    parameter.default_value, value_type, par_values=self,
+                )
             else:
                 raise blocks.ProgramError(parameter, f'Unable to resolve parameter {parameter.name.id_str}')
             value = (resolve_type(value, self) if isinstance(value, blocks.Type)

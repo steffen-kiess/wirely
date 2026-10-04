@@ -146,6 +146,7 @@ def validate_files(files):
         ast.DeclarationAssertion: 'assertion',
         ast.DeclarationProcedure: 'procedure',
         ast.DeclarationInitializer: 'initializer',
+        ast.DeclarationNativeFunction: 'function',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',
     }
     namespaces = {}

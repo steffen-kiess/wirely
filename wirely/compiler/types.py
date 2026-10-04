@@ -34,11 +34,15 @@ class TypeParameter(Type):
         from .parameters import ParameterValues, resolve_parameter
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
-            return par_values[self.parameter]
+            value = par_values[self.parameter]
+            return self if isinstance(value, blocks.Value) else value
         if (not isinstance(par_values, ParameterValues)
                 and isinstance(self.parameter, blocks.DeclarationConstant)):
             return self
         if not isinstance(par_values, ParameterValues) and self.parameter.default_value is not None:
+            from .expressions import Expression
+            if isinstance(self.parameter.default_value, (blocks.FunctionCall, Expression)):
+                return self
             return self.parameter.interface.resolve_type(self.parameter.default_value, par_values)
         if self.parameter in par_values or self.parameter.default_value is not None:
             return resolve_parameter(self.parameter, par_values)

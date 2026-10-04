@@ -79,6 +79,8 @@ _exports = {
     'Scope': 'compiler.ast',
     'BlockTypeSpecifier': 'compiler.ast',
     'ListLiteral': 'compiler.ast',
+    'DeclarationNativeFunction': 'compiler.ast',
+    'FunctionArgument': 'compiler.ast',
     'FunctionCall': 'compiler.ast',
     'BracketOperator': 'compiler.ast',
     'ConnectionKind': 'compiler.ast',

@@ -30,6 +30,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
             parsed_files.append((filename, parsed))
             decls += parsed
         file_metadata = validate_files(parsed_files)
+        from .native_functions import validate_collisions
+        validate_collisions(decls)
         filename = None
         global_source_position = blocks.SourcePosition(filename='<global>', meta=None, input_data='')
         global_block_type = blocks.BlockType([], None, decls, source_position=global_source_position)

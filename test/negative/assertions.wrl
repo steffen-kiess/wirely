@@ -88,6 +88,7 @@ constant assert: boolean = true; // E: Syntax error
 #[position(x = 1, y = 2)] assert true; // E: Attribute position is not permitted on assertion
 
 // TEST: evaluation error
+// LIBRARIES: std
 assert {
   let time: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad");
   // ^E: Cannot parse time delta 'bad'

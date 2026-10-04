@@ -123,7 +123,7 @@ constants = compile_program('''node type Constants {
   procedure run produces default output as output { output = Time; }
 }
 node constants: Constants {}
-''')
+''', add_std=True)
 constant_engine = wirely.Engine(constants)
 constant_engine.step()
 constant_engine.assert_value_is('constants', datetime.time(8))
@@ -165,7 +165,7 @@ node type Constants {
   procedure run produces default output as output { output = SettingsValue; }
 }
 node constants: Constants {}
-''')
+''', add_std=True)
 aggregate_engine = wirely.Engine(aggregate)
 aggregate_engine.step()
 settings = aggregate_engine.get_value('constants')

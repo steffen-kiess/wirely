@@ -4,9 +4,8 @@ from unittest.mock import patch
 import wirely
 from wirely.compiler import compile_strs, model as blocks
 from wirely.compiler import program as program_compiler
-from wirely.compiler import value
+from wirely.compiler.native_functions import native_function_impls
 from wirely.compiler.native_configuration import register_configuration
-from wirely.compiler.types import types
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -20,7 +19,7 @@ assert all(not procedures for procedures in engine.program.procs.values())
 
 
 def compile_program(source):
-    graph = compile_strs([('<assertions>', source)])
+    graph = compile_strs([('<functions>', declarations), ('<assertions>', source)])
     assert graph is not None
     return program_compiler.compile_nocatch(graph)
 
@@ -28,36 +27,38 @@ def compile_program(source):
 calls = []
 
 
-def record(argument):
-    calls.append(argument.evaluate())
+def record(*, context):
+    calls.append(context.arguments['argument'])
     return True
 
 
-def fail():
+def fail(*, context):
     raise ValueError('condition failed')
 
 
-def arithmetic_fail():
+def arithmetic_fail(*, context):
     raise ZeroDivisionError('division failed')
 
 
-def unexpected_fail():
+def unexpected_fail(*, context):
     raise RuntimeError('unexpected failure')
 
 
-def positioned_fail(argument):
-    raise blocks.ProgramError(argument.ast_element, 'argument failed')
+def positioned_fail(*, context):
+    raise context.error('argument failed', argument='argument')
 
 
+declarations = """native function Record(argument: int16): boolean;
+native function Fail(): boolean;
+native function ArithmeticFail(): boolean;
+native function UnexpectedFail(): boolean;
+native function PositionedFail(argument: boolean): boolean;
+"""
 functions = {
-    'Record': value.Function('Record', [types.int16], types.boolean, record),
-    'Fail': value.Function('Fail', [], types.boolean, fail),
-    'ArithmeticFail': value.Function('ArithmeticFail', [], types.boolean, arithmetic_fail),
-    'UnexpectedFail': value.Function('UnexpectedFail', [], types.boolean, unexpected_fail),
-    'PositionedFail': value.Function('PositionedFail', [types.boolean], types.boolean,
-                                    positioned_fail),
+    ('Record',): record, ('Fail',): fail, ('ArithmeticFail',): arithmetic_fail,
+    ('UnexpectedFail',): unexpected_fail, ('PositionedFail',): positioned_fail,
 }
-with patch.dict(value.functions, functions):
+with patch.dict(native_function_impls, functions):
     program = compile_program('''assert Record(1);
 constant Root: boolean = Record(0);
 node type Checked {
@@ -159,7 +160,7 @@ class NativeAssertionSingleton(wirely.NativeState):
 
 
 calls.clear()
-with patch.dict(value.functions, functions), patch.dict(
+with patch.dict(native_function_impls, functions), patch.dict(
         wirely.native.test_library.native_block_types, registry):
     program = compile_program('''namespace TestLibrary {
   native node type NativeAssertionProbe {

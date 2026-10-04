@@ -545,6 +545,7 @@ class Scope(Declaration):
         self.enum_types = {}
         self.struct_types = {}
         self.connections = []
+        self.native_functions = {}
 
     # TODO: Move to Declaration?
     @property
@@ -591,6 +592,8 @@ class Scope(Declaration):
                         if par not in par_values:
                             return blocks.TypeParameter(par)
                         result = par_values[par]
+                        if isinstance(result, blocks.Value):
+                            return blocks.TypeParameter(par)
                         if not isinstance(result, blocks.Type):
                             raise ProgramError(ty, f'Expected ValueType for {name!r}')
                         return result
@@ -612,6 +615,22 @@ class Scope(Declaration):
                         return enum_type
                 scope = scope.parent_graph
             raise blocks.ProgramError(ty, f'Cannot find type {ty}')
+
+    def resolve_function(self, reference, *, required=True):
+        scope = self
+        names = tuple(identifier.id_str for identifier in reference.identifiers)
+        while scope is not None:
+            candidate = scope
+            for name in names[:-1]:
+                candidate = candidate.libraries.get(name)
+                if candidate is None:
+                    break
+            if candidate is not None and names[-1] in candidate.native_functions:
+                return candidate.native_functions[names[-1]].resolve_signature()
+            scope = scope.parent_graph
+        if required:
+            raise ProgramError(reference, f'Cannot find function {".".join(names)!r}')
+        return None
 
     def resolve_resource_type(self, name):
         scope = self
@@ -643,7 +662,7 @@ class Scope(Declaration):
                 return blocks.value.DeferredValue(self, value, value_type)
             if isinstance(value, Expression):
                 return compile_constant(self, value, value_type, par_values)
-            if value_type == blocks.types.ValueType:
+            if value_type == blocks.types.ValueType and not isinstance(value, blocks.FunctionCall):
                 return blocks.ConstantValue(value_type, self.resolve_type(value, par_values=par_values),
                                             ast_element=value)
             if isinstance(value, StructLiteral):
@@ -668,9 +687,7 @@ class Scope(Declaration):
                         raise blocks.ProgramError(value, 'Some requires an Option type')
                     inner = self.get_const_value(value.parameters[0], value_type.inner_type, par_values=par_values)
                     return blocks.value.ValueOptionSome(value_type, inner, ast_element=value)
-                if function_name not in blocks.value.functions:
-                    raise blocks.ProgramError(value.fun, f'Cannot find function {function_name!r}')
-                function = blocks.value.functions[function_name]
+                function = self.resolve_function(value.fun)
                 blocks.value.check_value_type(function.return_type, value_type, value)
                 if len(value.parameters) != len(function.parameter_types):
                     raise blocks.ProgramError(value, f'Function {function_name!r} expected {len(function.parameter_types)} parameters, but got {len(value.parameters)}')
@@ -1113,7 +1130,7 @@ class DeclarationConstant(DeclarationParameter):
     def compile_pass2(self, graph):
         # Check concrete types and expression syntax without running initializers.
         if self.type_resolved == blocks.types.ValueType:
-            graph.resolve_type(self.default_value)
+            graph.get_const_value(self.default_value, self.type_resolved)
         else:
             from .expressions import compile_constant
             compile_constant(graph, self.default_value, self.type_resolved, {})
@@ -1225,8 +1242,8 @@ class DeclarationBlockInstantiation(Declaration):
             par_type = resolve_type(par.type_resolved, self.par_values)
             # TODO: Is passing par_values=self.par_values here the correct thing to do?
             if par_type == blocks.types.ValueType:
-                ty = graph.resolve_type(parameter.value, par_values=self.par_values)
-                self.par_values[par] = ty
+                val = graph.get_const_value(value, par_type, par_values=self.par_values)
+                self.par_values[par] = (val.value if isinstance(val, blocks.ConstantValue) else val)
             else:
                 val = graph.get_const_value(value, par_type, par_values=self.par_values)
                 self.par_values[par] = val
@@ -1685,7 +1702,7 @@ class DeclarationLibrary(Scope):
         for decl in self.declarations:
             with decl.context:
                 # TODO: What is allowed here?
-                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType)):
+                if not isinstance(decl, (blocks.BlockType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType, DeclarationNativeFunction)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]
@@ -1714,3 +1731,57 @@ class DeclarationLibrary(Scope):
 
     def __repr__(self):
         return self.fullname
+
+
+class FunctionArgument(SourceElement):
+    def __init__(self, name, ty, *, source_position):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.ty = ty
+
+
+class DeclarationNativeFunction(Declaration):
+    def __init__(self, name, arguments, return_type, *, source_position):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.arguments = arguments
+        self.return_type_ast = return_type
+
+    def compile_pass1(self, graph):
+        from .native_functions import validate_entry
+        if not isinstance(graph, DeclarationLibrary) and graph.name is not None:
+            raise ProgramError(self, 'Native functions are only allowed at root or in namespaces')
+        self.scope = graph
+        self.function_name = getattr(graph, 'fullname_tuple', ()) + (self.name.id_str,)
+        if self.function_name == ('Some',):
+            raise ProgramError(self.name, 'Some is reserved for the Option constructor')
+        names = [argument.name.id_str for argument in self.arguments]
+        if len(set(names)) != len(names):
+            raise ProgramError(self, 'Duplicate function argument name')
+        self.argument_names = tuple(names)
+        validate_entry(self.function_name, self)
+        graph.native_functions[self.name.id_str] = self
+
+    def resolve_signature(self):
+        if not hasattr(self, 'parameter_types'):
+            self.parameter_types = [self.scope.resolve_type(argument.ty) for argument in self.arguments]
+            self.return_type = self.scope.resolve_type(self.return_type_ast)
+            if any(ty.contains_parameters for ty in self.parameter_types + [self.return_type]):
+                raise ProgramError(self, 'Native functions require fixed value types')
+        return self
+
+    def invoke(self, values, sources, call):
+        from .native_functions import invoke
+        return invoke(self, values, sources, call)
+
+    def compile_pass1_5(self, graph):
+        self.resolve_signature()
+
+    def compile_pass1_btd(self, interface):
+        pass
+
+    def create_io(self, graph):
+        pass
+
+    def compile_pass2(self, graph):
+        pass

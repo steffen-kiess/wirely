@@ -2,7 +2,8 @@ file_input: inner_attribute* declaration*
 
 declaration: outer_attribute* bare_declaration -> attributed
 
-bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
+bare_declaration: "native" "function" identifier "(" function_argument_list ")" ":" value ";" -> declaration_native_function
+           | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
            | "resource" "type" identifier ";" -> declaration_resource_type
            | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type
            | "node" identifier ":" block_instantiation -> declaration_block_instantiation
@@ -216,3 +217,6 @@ metadata_literal: int_number -> metadata_literal
                 | string_constant -> metadata_literal
 connection_source_list: _separated_nonempty{connection_source, ","} -> copy_list
 connection_source: outer_attribute* reference -> attributed
+
+function_argument_list: _separated_empty{function_argument, ","} -> copy_list
+function_argument: identifier ":" value

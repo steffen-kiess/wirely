@@ -6,8 +6,7 @@ from unittest.mock import patch
 import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler import value
-from wirely.compiler.types import types
+from wirely.compiler.native_functions import native_function_impls
 from wirely.compiler.native_configuration import register_configuration
 import wirely.native.test_library
 from wirely.native import native_block_type
@@ -43,7 +42,7 @@ assert not engine.program.instances['Shared'].parameters
 
 
 def compile_program(source):
-    graph = compile_strs([('<constants>', source)])
+    graph = compile_strs([('<functions>', declarations), ('<constants>', source)])
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
@@ -53,21 +52,21 @@ def compile_program(source):
 calls = []
 
 
-def count(argument):
-    result = argument.evaluate()
+def count(*, context):
+    result = context.arguments['argument']
     calls.append(result)
     return result
 
 
-def fail():
+def fail(*, context):
     raise ValueError('initializer failed')
 
 
-functions = {
-    'Count': value.Function('Count', [types.boolean], types.boolean, count),
-    'Fail': value.Function('Fail', [], types.boolean, fail),
-}
-with patch.dict(value.functions, functions):
+declarations = """native function Count(argument: boolean): boolean;
+native function Fail(): boolean;
+"""
+functions = {('Count',): count, ('Fail',): fail}
+with patch.dict(native_function_impls, functions):
     program = compile_program('''constant Root: boolean = Count(true);
 node type Probe {
   parameter Enabled: boolean;
@@ -105,7 +104,8 @@ constant Or: boolean = true || Fail();
     # Even an unused constant in a program with no runtime members evaluates.
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
-        graph = compile_strs([('<constants>', 'constant Bad: boolean = Fail();')])
+        graph = compile_strs([('<functions>', declarations),
+                              ('<constants>', 'constant Bad: boolean = Fail();')])
         assert graph is not None
         assert program_compiler.compile(graph) is None
     assert 'initializer failed' in output.getvalue()
@@ -148,7 +148,7 @@ class NativeConstantSingleton(wirely.NativeState):
 
 
 calls.clear()
-with patch.dict(value.functions, functions), patch.dict(
+with patch.dict(native_function_impls, functions), patch.dict(
         wirely.native.test_library.native_block_types, registry):
     native = compile_program('''namespace TestLibrary {
   native node type NativeConstantProbe {

@@ -65,6 +65,8 @@ ast_classes = [
     blocks.BlockTypeSpecifier,
     blocks.ListLiteral,
     blocks.FunctionCall,
+    blocks.DeclarationNativeFunction,
+    blocks.FunctionArgument,
     blocks.BracketOperator,
 ]
 

@@ -126,7 +126,8 @@ from 0 to 23, minutes and seconds from 0 to 59, and fractional seconds have
 microsecond resolution. String examples include `"08:00"`, `"08:00:30"`,
 and `"08:00:30.125"`.
 
-The compile-time function `TimeOfDay.AddWrap(time, offset)` adds an offset
+The `std` library declares the compile-time function
+`TimeOfDay.AddWrap(time, offset)`, which adds an offset
 written as an hours-and-minutes string, with an optional `+` or `-` sign,
 and wraps at midnight:
 

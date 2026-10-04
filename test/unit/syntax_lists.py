@@ -89,3 +89,9 @@ for comma in ['', ',']:
     nested = metadata.outer_attributes[0].metadata.value[0]
     assert nested.name == 'nested'
     assert [argument.name for argument in nested.value] == ['first', 'second']
+
+
+for arguments in ['', 'value: uint8', 'value: uint8,']:
+    declaration = parse(f'native function r#function({arguments}): uint8;')
+    assert declaration.name.id_str == 'function'
+    assert len(declaration.arguments) == (0 if not arguments else 1)

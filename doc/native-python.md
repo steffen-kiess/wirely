@@ -241,3 +241,42 @@ leaving it unset cancels any previous deadline. An incomparable clock
 generation also causes a rerun; handle that case as
 `Time.MonotonicTimeReached` does in
 [`time.py`](../wirely/native/time.py).
+
+## Compile-time functions
+
+Declare the function's signature with `native function` in a `.wrl` library
+included in the compilation. Before compiling, add its Python implementation
+to `native_function_impls` in `wirely.compiler.native_functions`. The key is
+a tuple of namespace components followed by the function name, such as
+`('Example', 'Parse')` for `Example.Parse`. The value is a callable or a pair
+of an absolute Python module name and the name of a callable in that module:
+
+```python
+from wirely.compiler.native_functions import native_function_impls
+
+native_function_impls[('Example', 'Parse')] = (
+    'my_integration.functions', 'parse',
+)
+
+
+def parse(*, context):
+    value = context.arguments['value']
+    try:
+        return int(value)
+    except ValueError:
+        raise context.error('Expected an integer', argument='value')
+```
+
+The compiler imports module entries when a call is evaluated. Unused
+functions and skipped conditional branches do not need their modules.
+Implementations must be synchronous, accept `context=context`, and return
+one value matching the declared return type.
+
+`NativeFunctionContext` has read-only `function_name` (the qualified name
+tuple), `arguments` (native values by declared argument name),
+`arguments_ast` (call-site expression nodes by name), and `call` (the call
+node). Treat values and AST nodes as read-only. Native value conversions
+apply, including `wirely.ValueType` for type values and `wirely.Unit()` for
+unit. Use `raise context.error(message)` for a call-site diagnostic, or
+supply `argument='name'` to point at that argument. `ValueError`,
+`ArithmeticError`, and `OSError` also produce call-site compilation errors.

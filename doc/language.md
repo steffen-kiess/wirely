@@ -233,8 +233,29 @@ offset and wraps at midnight.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean
-operators, and the named time function above. General arithmetic
+operators, and declared native functions. General arithmetic
 expressions are not currently implemented.
+
+## Compile-time functions
+
+Declare native functions at the root or inside a namespace. The library
+supplies a fixed signature; a registered Python implementation supplies
+its result.
+
+```wrl
+namespace Example {
+  native function Parse(value: String): uint16;
+}
+
+constant Address: uint16 = Example.Parse("1/2/3");
+```
+
+Calls take positional arguments and may appear in constants, parameter
+values and defaults, and assertions. Within a namespace, an unqualified
+name searches enclosing scopes. Declarations may follow their calls.
+A `ValueType` result can initialize a type-valued constant or parameter.
+See [native Python implementations](native-python.md#compile-time-functions)
+to supply an implementation.
 
 ## Connectors and connections
 

@@ -1,6 +1,4 @@
 import abc
-import datetime
-import re
 
 from wirely.compiler import model as blocks
 from wirely.compiler.types import resolve_type
@@ -112,46 +110,6 @@ class DeferredValue(Value):
         raise Exception('Attempt to evaluate an unresolved initializer')
 
 
-def impl_time_of_day_add_wrap(time, offset):
-    # TODO: Probably the caller should call evaluate() for time and offset
-
-    time_value = time.evaluate()
-    # TODO: Add time delta type?
-    offset_value = offset.evaluate()
-    parsed = re.fullmatch(r'(\+|-|)([0-9]+):([0-9]+)', offset_value)
-    if not parsed:
-        raise blocks.ProgramError(offset.ast_element, f'Cannot parse time delta {offset_value!r}')
-    if parsed[1] == '' or parsed[1] == '+':
-        sign = 1
-    elif parsed[1] == '-':
-        sign = -1
-    hours = int(parsed[2])
-    minutes = int(parsed[3])
-    delta = datetime.timedelta(hours=hours, minutes=minutes) * sign
-    time_value_delta = datetime.datetime.combine(datetime.date.min, time_value) - datetime.datetime.min
-    new_time_delta = time_value_delta + delta
-    new_time_delta %= datetime.timedelta(days=1)
-    new_time = (datetime.datetime.min + new_time_delta).time()
-    return new_time
-
-
-class Function:
-    def __init__(self, name, parameter_types, return_type, implementation):
-        self.name = name
-        self.parameter_types = parameter_types
-        self.return_type = return_type
-        self.implementation = implementation
-
-functions_list = [
-    Function('TimeOfDay.AddWrap', [blocks.types.TimeOfDay, blocks.types.String], blocks.types.TimeOfDay, impl_time_of_day_add_wrap)
-]
-functions = {}
-for function in functions_list:
-    if function.name in functions:
-        raise Exception(f'Duplicate function name: {function.name!r}')
-    functions[function.name] = function
-
-
 def check_value_type(actual_type, expected_type, ast_element):
     if (not actual_type.contains_parameters and not expected_type.contains_parameters
             and actual_type != expected_type):
@@ -243,7 +201,10 @@ class ValueFunctionCall(ComputedValue):
         if self.contains_parameters:
             raise Exception('Attempt to call evaluate() for non-concrete function call')
 
-        return self.function.implementation(*self.parameters)
+        return self.function.invoke(
+            [parameter.evaluate() for parameter in self.parameters],
+            self.ast_element.parameters, self.ast_element,
+        )
 
 
 class ValueStruct(ComputedValue):

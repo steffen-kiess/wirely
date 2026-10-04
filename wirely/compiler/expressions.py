@@ -131,11 +131,9 @@ class TypedExpression:
         if self.operation == 'constant':
             return self.payload.evaluate()
         if self.operation == 'call':
-            function, sources = self.payload
-            arguments = [blocks.ConstantValue(argument.value_type, argument.evaluate(inputs, locals),
-                                               ast_element=source)
-                         for argument, source in zip(self.arguments, sources)]
-            return function.implementation(*arguments)
+            function, sources, call = self.payload
+            return function.invoke([argument.evaluate(inputs, locals) for argument in self.arguments],
+                                   sources, call)
         if self.operation == 'struct':
             return self.value_type.make_value({name: argument.evaluate(inputs, locals)
                                                for name, argument in zip(self.payload, self.arguments)})
@@ -282,7 +280,7 @@ class ExpressionCompiler:
                     raise ProgramError(expression, 'Some expects exactly one argument')
                 argument = self.compile(expression.parameters[0], inner_type)
                 return TypedExpression(expected, 'some', (argument,))
-            function = blocks.value.functions.get(name)
+            function = self.scope.resolve_function(expression.fun, required=False)
             if function is None:
                 raise ProgramError(expression.fun, f'Cannot find function {name!r}')
             if len(expression.parameters) != len(function.parameter_types):
@@ -290,7 +288,7 @@ class ExpressionCompiler:
             arguments = tuple(self.compile(argument, value_type)
                               for argument, value_type in zip(expression.parameters, function.parameter_types))
             return TypedExpression(function.return_type, 'call', arguments,
-                                     (function, tuple(expression.parameters)))
+                                     (function, tuple(expression.parameters), expression))
         value_type = expected or self.known_type(expression)
         if value_type is None:
             raise ProgramError(expression, 'Cannot infer expression type; add a type annotation')
@@ -366,8 +364,7 @@ class ExpressionCompiler:
             return self.scope.resolve_type(expression.struct_type, par_values=self.parameters)
         if (isinstance(expression, blocks.FunctionCall) and not self.runtime
                 and isinstance(expression.fun, blocks.Reference)):
-            name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
-            function = blocks.value.functions.get(name)
+            function = self.scope.resolve_function(expression.fun, required=False)
             if function is not None:
                 return function.return_type
         return None

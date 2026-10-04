@@ -155,3 +155,7 @@ namespace Std {
       produces default output as "output", last_value;
   }
 }
+
+namespace TimeOfDay {
+  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+}
