@@ -26,6 +26,14 @@ def compile(global_block_type):
 def compile_nocatch(global_block_type):
     # TODO: More checks, e.g. that global_block_type has not parameters or inputs / outputs
     graph = global_block_type
+    root = None
+    if graph.variables or graph.procedures:
+        for declaration in graph.procedures.values():
+            if declaration.is_native:
+                raise blocks.ProgramError(declaration, 'Native procedures must belong to a node type')
+            declaration.compile_interface(graph)
+        root = graph.create(name='<global>', graph=graph, par_values={},
+                            instantiation=graph, register=False)
 
     variable_map = {}
     state_map_new = {}
@@ -53,8 +61,9 @@ def compile_nocatch(global_block_type):
         var_type = resolve_type(var.impl_var_type, parameters)
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
-        name = '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path])
-        v = blocks.Variable(name + '.' + var.name, var_type)
+        name = blocks.Block.path_name(path)
+        variable_name = name + '.' + var.name if name else var.name
+        v = blocks.Variable(variable_name, var_type)
         # print(v.name)
         variable_map[path, var.var_identifier] = v
         all_variables.append(v)
@@ -62,7 +71,8 @@ def compile_nocatch(global_block_type):
 
     # TODO: Use get_all_block_paths()?
     singletons = {}
-    for block in graph.blocks.values():
+    top_blocks = (root,) if root is not None else tuple(graph.blocks.values())
+    for block in top_blocks:
         block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
 
     def resolve_binding(path, source):
@@ -149,8 +159,10 @@ def compile_nocatch(global_block_type):
 
     for stage in blocks.RunStage:
         procs[stage] = []
-        for block_name in sorted(graph.blocks):
-            block = graph.blocks[block_name]
+        scheduled_blocks = (root,) if root is not None else tuple(
+            graph.blocks[name] for name in sorted(graph.blocks)
+        )
+        for block in scheduled_blocks:
             # print('EE', block, block.get_block_procedures_paths(()))
             for path, proc in block.get_block_procedures_paths(()):
                 if proc.declaration_procedure.stage.stage != stage:
@@ -316,7 +328,11 @@ def compile_nocatch(global_block_type):
                     variables.setdefault(alias, variable)
             add_aliases(block.block_type, child_path, alias + '.')
 
-    add_aliases(graph)
+    root_path = (root,) if root is not None else ()
+    add_aliases(graph, root_path)
+    if root is not None:
+        for member in root.block_temporaries + root.block_statevars:
+            variables[member.name] = variable_map[root_path, member.var_identifier]
     singleton_aliases = {
         instance.block_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton

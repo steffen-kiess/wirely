@@ -355,3 +355,22 @@ node type Probe {
   procedure run produces default output as output { output = Enabled; }
 }
 node probe: Probe {}
+
+// TEST: top-level result type
+temporary t: int8;
+procedure p1 produces t {
+  t = 128; // E: out of range
+}
+
+// TEST: top-level missing assignment
+temporary t: int8;
+procedure p1 produces t {} // E: did not assign results
+
+// TEST: top-level dependency cycle
+temporary first: boolean;
+temporary second: boolean;
+procedure one depends on second produces first { first = second; } // H: Producer was declared here
+procedure two depends on first produces second { second = first; } // E: Circular procedure dependency
+
+// TEST: top-level native procedure
+native procedure p1; // E: Native procedures must belong to a node type

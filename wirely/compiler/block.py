@@ -10,7 +10,7 @@ from wirely.compiler.types import resolve_type
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
 class Block(blocks.Node):
-    def __init__(self, graph, *, name, block_type, par_values, instantiation):
+    def __init__(self, graph, *, name, block_type, par_values, instantiation, register=True):
         super().__init__(graph=graph, name=name)
 
         self.block_type = block_type
@@ -36,9 +36,30 @@ class Block(blocks.Node):
         self.block_procedures = []
         self.last_proc_id = 0
 
-        if self.name in self.graph.blocks:
-            raise Exception(f'Duplicate block name {self.name!r}')
-        self.graph.blocks[self.name] = self
+        if register:
+            if self.name in self.graph.blocks:
+                raise Exception(f'Duplicate block name {self.name!r}')
+            self.graph.blocks[self.name] = self
+
+    @property
+    def is_root(self):
+        return self.block_type.parent_graph is None
+
+    @property
+    def type_name(self):
+        name = self.block_type.name
+        return name.id_str if name is not None else '<global>'
+
+    @staticmethod
+    def path_name(path, *, qualified=False):
+        names = []
+        for node in path:
+            if isinstance(node, Block):
+                if not node.is_root:
+                    names.append(node.name)
+            else:
+                names.append(node.fullname if qualified else node.name.id_str)
+        return '.'.join(names)
 
     def __repr__(self):
         # return f"{type(self).__name__}{{{self.graph}.{self.name}}}"
@@ -119,13 +140,15 @@ class Block(blocks.Node):
 
         # TODO: Clean up
         # path_prefix = '.'.join([block.name for block in path])
-        path_prefix = '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path])
+        path_prefix = self.path_name(path)
+        if path_prefix:
+            path_prefix += '.'
         for state_var in self.block_statevars:
-            v = blocks.Variable(path_prefix + '.' + state_var.name + '.new', state_var.var_type)
+            v = blocks.Variable(path_prefix + state_var.name + '.new', state_var.var_type)
             state_map_new[path, state_var] = v
             all_variables.append(v)
 
-            v = blocks.Variable(path_prefix + '.' + state_var.name, state_var.var_type)
+            v = blocks.Variable(path_prefix + state_var.name, state_var.var_type)
             state_map[path, state_var] = v
             variable_map[path, state_var.var_identifier] = v
             state_variables.append(v)
@@ -253,7 +276,7 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Input should contains a reference to BlockType, not to Block
         @property
         def var_identifier(self):
-            return 'INP ' + self.block.block_type.name.id_str + '.' + self.name
+            return 'INP ' + self.block.type_name + '.' + self.name
 
     # TODO: Handle var_type == None better
     # TODO: Clean up, move more functionality to BlockOutput
@@ -313,7 +336,7 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Output should contains a reference to BlockType, not to Block
         @property
         def var_identifier(self):
-            return 'OUT ' + self.block.block_type.name.id_str + '.' + self.name
+            return 'OUT ' + self.block.type_name + '.' + self.name
 
     # TODO: Allow both temporaries and output values to be references to other values
     class Temporary(Source, Target):
@@ -340,7 +363,7 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Temporary should contains a reference to BlockType, not to Block
         @property
         def var_identifier(self):
-            return 'TEMP ' + self.block.block_type.name.id_str + '.' + self.name
+            return 'TEMP ' + self.block.type_name + '.' + self.name
 
     class StateVariable(Source, Target):
         def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, initial_value):
@@ -370,7 +393,7 @@ class Block(blocks.Node):
 
         @property
         def var_identifier(self):
-            return 'STATE ' + self.block.block_type.name.id_str + '.' + self.name
+            return 'STATE ' + self.block.type_name + '.' + self.name
 
     class Procedure:
         # TODO: Make name mandatory
@@ -428,7 +451,7 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Procedure should contains a reference to BlockType, not to Block
         @property
         def proc_identifier(self):
-            return 'PROC ' + self.block.block_type.name.id_str + '.' + self.name
+            return 'PROC ' + self.block.type_name + '.' + self.name
 
 class BlockInstance(blocks.NodeInstance):
     @check_parameters
@@ -498,8 +521,7 @@ class BlockInstance(blocks.NodeInstance):
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)
         source = self.block.instantiation if self.block is not None else self.block_type
-        name = '.'.join(node.name if isinstance(node, blocks.Block) else node.fullname
-                        for node in self.path)
+        name = Block.path_name(self.path, qualified=True) or '<global>'
         context = blocks.NativeNodeConfigurationContext(
             name=name, parameters=parameters, _source=source,
             _origins={key.name.id_str: value for key, value in self.parameter_origins.items()},

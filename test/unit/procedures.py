@@ -1,4 +1,6 @@
+import contextlib
 import datetime
+import io
 from dataclasses import fields, is_dataclass, replace
 from unittest.mock import patch
 
@@ -44,8 +46,8 @@ engine.assert_value_is('delayed', False)
 engine.assert_is_idle()
 
 
-def compile_program(source):
-    graph = wirely.compiler.compile_strs([('<procedures>', source)])
+def compile_program(source, *, add_std=False):
+    graph = wirely.compiler.compile_strs([('<procedures>', source)], add_std=add_std)
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
@@ -227,3 +229,124 @@ with patch.object(wirely.native.std.Constant, 'run',
     mixed_engine.assert_is_idle()
     mixed_engine.trigger('mixed', 'run')
     assert mixed_engine.step()[0] == 1
+
+
+# Top-level temporaries and procedures execute in an implicit root instance.
+top_level = compile_program('''temporary t: int8;
+
+procedure p1 produces t {
+  t = 50;
+}
+
+node printer: Std.DebugValuePrinter {Type: int8}
+connect t -> printer;
+''', add_std=True)
+top_engine = wirely.Engine(top_level)
+output = io.StringIO()
+with contextlib.redirect_stdout(output):
+    assert top_engine.step()[0] == 2
+assert output.getvalue() == '[printer]: Got value 50\n'
+top_engine.assert_value_is('t', 50)
+assert top_engine.get_variable('t').name == 't'
+assert top_engine.get_block_path('printer') == 'printer'
+assert top_engine.step()[0] == 0
+
+# The root exists without child nodes and does not require native lookup.
+root_only = compile_program('''temporary t: int8;
+procedure p1 produces t { t = 50; }
+''')
+with patch('wirely.native.get_native_block_type_by_name', side_effect=AssertionError('native lookup')):
+    root_engine = wirely.Engine(root_only)
+    assert root_engine.step()[0] == 1
+    root_engine.assert_value_is('t', 50)
+    assert root_engine.step()[0] == 0
+
+# Root dependencies can order child producers, root procedures, and consumers.
+chained = compile_program('''temporary first: boolean;
+temporary second: boolean;
+procedure one depends on source as input produces first { first = input; }
+procedure two depends on first, shared as enabled produces second {
+  second = first && enabled;
+}
+node type Copy {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run depends on default input as input
+    produces default output as output
+  {
+    output = input;
+  }
+}
+singleton node type Shared {
+  default output: value boolean;
+  procedure run produces default output as output { output = true; }
+}
+node source: Std.DebugValueSource { Type: boolean }
+node copied: Copy {}
+node shared: Shared {}
+node shared_again: Shared {}
+connect second -> copied;
+''', add_std=True)
+chained_engine = wirely.Engine(chained)
+chained_source = chained_engine.get_native_state('source')
+chained_source.set_value(False)
+assert chained_engine.step()[0] == 5
+chained_engine.assert_value_is('first', False)
+chained_engine.assert_value_is('second', False)
+chained_engine.assert_value_is('copied', False)
+assert chained_engine.get_variable('shared') is chained_engine.get_variable('shared_again')
+assert chained_engine.step()[0] == 0
+chained_source.set_value(True)
+assert chained_engine.step()[0] == 4
+chained_engine.assert_value_is('copied', True)
+chained_engine.assert_is_idle()
+
+# Root state keeps old snapshots and exposes new values to same-step readers.
+root_state = compile_program('''state saved: boolean = false;
+temporary previous: boolean;
+temporary current: boolean;
+procedure write depends on source as input produces saved { saved = input; }
+procedure read_old depends on saved.old as old produces previous {
+  previous = old;
+}
+procedure read_new depends on saved.new as new produces current {
+  current = new;
+}
+node type Copy {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run depends on default input as input
+    produces default output as output
+  {
+    output = input;
+  }
+}
+node source: Std.DebugValueSource { Type: boolean }
+node old_copy: Copy {}
+node new_copy: Copy {}
+connect saved.old -> old_copy;
+connect saved.new -> new_copy;
+''', add_std=True)
+state_engine = wirely.Engine(root_state)
+state_source = state_engine.get_native_state('source')
+state_source.set_value(True)
+state_engine.step()
+state_engine.assert_value_is('previous', False)
+state_engine.assert_value_is('current', True)
+state_engine.assert_value_is('old_copy', False)
+state_engine.assert_value_is('new_copy', True)
+assert state_engine.get_variable('saved').name == 'saved'
+state_engine.step()
+state_engine.assert_value_is('previous', True)
+state_engine.assert_value_is('old_copy', True)
+state_engine.assert_is_idle()
+state_source.set_value(False)
+state_engine.step()
+state_engine.assert_value_is('previous', True)
+state_engine.assert_value_is('current', False)
+state_engine.assert_value_is('old_copy', True)
+state_engine.assert_value_is('new_copy', False)
+state_engine.step()
+state_engine.assert_value_is('previous', False)
+state_engine.assert_value_is('old_copy', False)
+state_engine.assert_is_idle()

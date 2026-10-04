@@ -60,7 +60,7 @@ def native_parameters(values):
 
 def parameter_origins(instance):
     arguments = {}
-    if instance.block is not None:
+    if instance.block is not None and not instance.block.is_root:
         arguments = {argument.name.id_str: argument.value
                      for argument in instance.block.instantiation.instantiation.parameters}
     origins = {}

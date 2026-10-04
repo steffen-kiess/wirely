@@ -1530,6 +1530,10 @@ class DeclarationProcedure(Declaration):
         pass
 
     def compile_pass2(self, graph):
+        if graph.parent_graph is not None:
+            self.compile_interface(graph)
+
+    def compile_interface(self, graph):
         self.depends.compile_pass2(graph, self)
         self.produces.compile_pass2(graph, self)
         if self.stage.stage == RunStage.INPUT:

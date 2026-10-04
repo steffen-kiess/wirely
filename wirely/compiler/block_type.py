@@ -153,9 +153,10 @@ class BlockType(blocks.Scope):
 
         # TODO: Validate parameters
 
-    def create(self, *, name, graph, par_values, instantiation):
+    def create(self, *, name, graph, par_values, instantiation, register=True):
         # print('create', name, graph, par_values)
-        block = blocks.Block(name=name, graph=graph, block_type=self, par_values=par_values, instantiation=instantiation)
+        block = blocks.Block(name=name, graph=graph, block_type=self, par_values=par_values,
+                             instantiation=instantiation, register=register)
         # TODO: Remove
         block.parameter_values = dict(par_values)
 
