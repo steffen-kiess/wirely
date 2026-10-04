@@ -158,7 +158,7 @@ _separated_empty{x, sep}: _separated_nonempty{x, sep}?
 
 outer_attribute: "#[" metadata "]"
 inner_attribute: "#![" metadata "]"
-metadata_path: identifier ("::" identifier)*
+metadata_path: identifier ("." identifier)*
 metadata: metadata_path -> metadata_flag
         | metadata_path "=" metadata_value_literal -> metadata_value
         | metadata_path "(" metadata_arguments ")" -> metadata_list

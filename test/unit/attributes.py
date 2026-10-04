@@ -97,10 +97,10 @@ assert two.inner_attributes[0].source_position.start_line == 4
 assert two.outer_attributes[0].source_position.filename == '<attributes>'
 
 attribute = parse('''// comment
-#[tool::label(flag, key = "value", nested(path::flag, -2, +3.5, true,),)]
+#[tool.label(flag, key = "value", nested(path.flag, -2, +3.5, true,),)]
 node n: T;
 ''')[0].outer_attributes[0]
-assert attribute.name == 'tool::label'
+assert attribute.name == 'tool.label'
 assert attribute.source_position.start_line == 2
 assert attribute.source_position.start_pos == len('// comment\n')
 flag, key, nested = attribute.metadata.value
@@ -122,7 +122,7 @@ all_targets = frozenset({
 })
 marker = AttributeDefinition(all_targets, lambda attribute: attribute.metadata, repeatable=True)
 unique = AttributeDefinition(all_targets, lambda attribute: None)
-with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool::mark': marker, 'unique': unique}):
+with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool.mark': marker, 'unique': unique}):
     compiled = compile_source('''
 #![mark]
 #[mark] namespace A.B {
@@ -143,7 +143,7 @@ with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool::mark': marker, 'uniq
     #[mark] native initializer;
   }
 }
-#[tool::mark] namespace A.B { #![mark] #[mark] node type Other {} }
+#[tool.mark] namespace A.B { #![mark] #[mark] node type Other {} }
 #[mark] node n: A.B.Other;
 node plain: A.B.Other;
 ''')

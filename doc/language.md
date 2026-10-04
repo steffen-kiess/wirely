@@ -33,7 +33,7 @@ namespace, node type, struct, or enum body attach to that enclosing item.
 They do not inherit onto its contents. Repeated namespace declarations
 combine their attributes.
 
-Attribute metadata supports `::`-separated names, flags, `name = literal`,
+Attribute metadata supports dot-separated names, flags, `name = literal`,
 and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
 Currently, `position` supplies node-instance coordinates:

@@ -2,8 +2,8 @@
 #[unknown] node type T {} // E: Unknown attribute unknown
 
 // TEST: unknown qualified
-#[tool::position(x = 1, y = 2)] node type T {}
-// ^E: Unknown attribute tool::position
+#[tool.position(x = 1, y = 2)] node type T {}
+// ^E: Unknown attribute tool.position
 
 // TEST: unknown file inner
 #![unknown] // E: Unknown attribute unknown
@@ -60,7 +60,7 @@ struct type S {
 // ^E: Unknown position argument
 
 // TEST: qualified argument
-#[position(point::x = 1, y = 2)] node n: Missing;
+#[position(point.x = 1, y = 2)] node n: Missing;
 // ^E: Unknown position argument
 
 // TEST: boolean argument

@@ -21,7 +21,7 @@ class Metadata:
 
     @property
     def name(self):
-        return '::'.join(self.path)
+        return '.'.join(self.path)
 
 
 @dataclass(frozen=True)
