@@ -65,67 +65,67 @@ definitions = '''
 namespace TestLibrary {
   node type Forward {
     parameter Type: ValueType;
-    implicit input: value Type;
-    implicit output: value Type;
+    default input: value Type;
+    default output: value Type;
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 
   node type Relay {
     parameter Type: ValueType;
-    implicit input: value Type;
-    implicit output: value Type;
-    connect implicit input -> implicit output;
+    default input: value Type;
+    default output: value Type;
+    connect default input -> default output;
   }
 
   node type Owner {
     parameter Type: ValueType;
     parameter InitialValue: Type;
-    implicit input: value Type;
-    implicit output: value Type;
+    default input: value Type;
+    default output: value Type;
     state saved: Type = InitialValue;
-    connect saved.old -> implicit output;
+    connect saved.old -> default output;
 
     node relay: Relay { Type: Type }
     node reader: Forward { Type: Type }
     connect saved.old -> relay;
     connect relay -> reader;
     native procedure write stage output
-      depends on implicit input as "input"
+      depends on default input as "input"
       produces saved;
   }
 
   node type Feedback {
-    implicit output: value uint8;
+    default output: value uint8;
     state saved: uint8 = 0;
     node reader: Forward { Type: uint8 }
     connect saved.old -> reader;
-    connect reader -> implicit output;
+    connect reader -> default output;
     native procedure advance
       depends on reader as "input"
       produces saved;
   }
 
   singleton node type Shared {
-    implicit output: value uint8;
+    default output: value uint8;
     state saved: uint8 = 0;
     node relay: Relay { Type: uint8 }
     node reader: Forward { Type: uint8 }
     connect saved.old -> relay;
     connect relay -> reader;
-    connect saved.old -> implicit output;
+    connect saved.old -> default output;
     native procedure advance
       depends on saved.old as "old"
       produces saved;
   }
 
   node type Collect {
-    implicit input: list value boolean;
-    implicit output: value boolean;
+    default input: list value boolean;
+    default output: value boolean;
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 }
 '''
@@ -241,11 +241,11 @@ later.assert_value_is('owner.reader', True)
 
 nested = make_engine('''
 node type Envelope {
-  implicit input: value uint8;
-  implicit output: value uint8;
+  default input: value uint8;
+  default output: value uint8;
   node owner: TestLibrary.Owner { Type: uint8, InitialValue: 7 }
-  connect implicit input -> owner;
-  connect owner -> implicit output;
+  connect default input -> owner;
+  connect owner -> default output;
 }
 node source: Std.Constant { Type: uint8, Value: 8 }
 node other: Std.Constant { Type: uint8, Value: 9 }
@@ -286,18 +286,18 @@ current_definitions = definitions + '''
 namespace TestLibrary {
   node type Mixed {
     parameter Type: ValueType;
-    implicit input: list value Type;
-    implicit output: value boolean;
+    default input: list value Type;
+    default output: value boolean;
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 
   node type Current {
     parameter Type: ValueType;
     parameter InitialValue: Type;
-    implicit input: value Type;
-    implicit output: value boolean;
+    default input: value Type;
+    default output: value boolean;
     output Old: value Type;
     output New: value Type;
     state saved: Type = InitialValue;
@@ -311,14 +311,14 @@ namespace TestLibrary {
     connect saved.old -> old_reader;
     connect saved.new -> relay;
     connect relay -> new_reader;
-    connect saved.old, implicit input, saved.new -> mixed;
+    connect saved.old, default input, saved.new -> mixed;
 
     // Declare the reader first to exercise dependency ordering.
     native procedure observe
       depends on saved.old as "previous", saved.new as "current"
-      produces implicit output as "output";
+      produces default output as "output";
     native procedure write
-      depends on implicit input as "input"
+      depends on default input as "input"
       produces saved;
   }
 }
@@ -387,7 +387,7 @@ assert observations['owner'] == (0, 11)
 
 new_shared_definitions = definitions.replace(
     'connect saved.old -> relay;', 'connect saved.new -> relay;',
-).replace('connect saved.old -> implicit output;', 'connect saved.new -> implicit output;')
+).replace('connect saved.old -> default output;', 'connect saved.new -> default output;')
 new_shared = make_engine('''
 node first: TestLibrary.Shared {}
 node second: TestLibrary.Shared {}
@@ -405,11 +405,11 @@ new_shared.assert_is_idle()
 
 new_nested = make_engine('''
 node type Envelope {
-  implicit input: value uint8;
-  implicit output: value uint8;
+  default input: value uint8;
+  default output: value uint8;
   node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
-  connect implicit input -> owner;
-  connect owner.New -> implicit output;
+  connect default input -> owner;
+  connect owner.New -> default output;
 }
 node source: Std.Constant { Type: uint8, Value: 8 }
 node other: Std.Constant { Type: uint8, Value: 9 }
@@ -462,10 +462,10 @@ for body, message in invalid_programs:
         invalid_graph = compile_graph(definitions.replace(
             '''node reader: Forward { Type: uint8 }
     connect saved.old -> reader;
-    connect reader -> implicit output;
+    connect reader -> default output;
     native procedure advance
       depends on reader as "input"
-      produces saved;''', body + '\nconnect saved.old -> implicit output;',
+      produces saved;''', body + '\nconnect saved.old -> default output;',
         ) + 'node feedback: TestLibrary.Feedback {}')
         assert invalid_graph is not None, output.getvalue()
         assert program_compiler.compile(invalid_graph) is None

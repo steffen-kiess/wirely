@@ -166,45 +166,45 @@ namespace TestLibrary {
   resource type Service;
 
   native node type Provider {
-    implicit output: resource Service;
+    default output: resource Service;
     output Named: resource Service;
     native initializer;
   }
 
   singleton native node type Shared {
-    implicit output: resource Service;
+    default output: resource Service;
   }
 
   node type Forward {
     input Service: resource Service;
-    implicit output: resource Service;
+    default output: resource Service;
     output Named: resource Service;
-    connect Service -> implicit output;
+    connect Service -> default output;
     connect Service -> Named;
   }
 
   node type Factory {
-    implicit output: resource Service;
+    default output: resource Service;
     node source: Provider {}
-    connect source -> implicit output;
+    connect source -> default output;
   }
 
   native node type Consumer {
     input Service: resource Service;
     input Services: list resource Service;
     input Empty: list resource Service;
-    implicit input: resource Service;
+    default input: resource Service;
     output Count: value uint8;
 
     node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
     native initializer
-      depends on Service, Services, Empty, implicit input as "implicit",
+      depends on Service, Services, Empty, default input as "implicit",
         forwarded as "child";
 
     native procedure read
-      depends on Service, Services, Empty, implicit input as "implicit",
+      depends on Service, Services, Empty, default input as "implicit",
         forwarded as "child"
       produces Count;
     native procedure poll stage input depends on Service;
@@ -270,7 +270,7 @@ alias_graph = compile_resources('''
 namespace TestLibrary {
   resource type Service;
   native node type Provider {
-    implicit output: resource Service;
+    default output: resource Service;
     output Named: resource Service;
   }
   native node type Dependent {
@@ -303,7 +303,7 @@ namespace TestLibrary {{
   resource type Service;
   native node type Dependent {{
     input Service: resource Service;
-    implicit output: resource Service;
+    default output: resource Service;
     native initializer depends on Service;
   }}
 }}
@@ -319,8 +319,8 @@ namespace TestLibrary {
   resource type Service;
   node type Forward {
     input Service: resource Service;
-    implicit output: resource Service;
-    connect Service -> implicit output;
+    default output: resource Service;
+    connect Service -> default output;
   }
   native node type Dependent {
     input Service: resource Service;
@@ -346,7 +346,7 @@ for binding in ['initializer', 'procedure']:
 namespace TestLibrary {{
   resource type Service;
   node type Missing {{
-    implicit output: resource Service;
+    default output: resource Service;
   }}
   {node_type} {{
     input Service: resource Service;

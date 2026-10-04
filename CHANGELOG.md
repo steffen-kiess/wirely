@@ -4,6 +4,12 @@
 
 ### Breaking changes and migration
 
+#### Default connectors
+
+Use `default input` and `default output` in connector declarations and
+references instead of `implicit input` and `implicit output`.
+`default` is a weak keyword and can also be used as an identifier.
+
 #### Library names
 
 Use `Time.DebounceStable` instead of `Time.DelayChange`,

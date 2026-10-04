@@ -96,13 +96,13 @@ def check_inputs(context):
 
 
 probe = make_engine('''
-implicit input: value uint8;
+default input: value uint8;
 input named: value uint8;
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
-  depends on implicit input as "value", named
-  produces implicit output as "result";
+  depends on default input as "value", named
+  produces default output as "result";
 ''', check_inputs, extra='''
 node source: Std.Constant { Type: uint8, Value: 7 }
 connect source -> probe;
@@ -477,12 +477,12 @@ def check_list(context):
 
 
 probe = make_engine('''
-implicit input: list value uint8;
-implicit output: value uint8;
+default input: list value uint8;
+default output: value uint8;
 
 native procedure run
-  depends on implicit input as "values"
-  produces implicit output as "result";
+  depends on default input as "values"
+  produces default output as "result";
 ''', check_list, extra='''
 node first: Std.Constant { Type: uint8, Value: 7 }
 node second: Std.Constant { Type: uint8, Value: 2 }
@@ -498,12 +498,12 @@ def check_empty_list(context):
 
 
 probe = make_engine('''
-implicit input: list value uint8;
-implicit output: value uint8;
+default input: list value uint8;
+default output: value uint8;
 
 native procedure run
-  depends on implicit input as "values"
-  produces implicit output as "result";
+  depends on default input as "values"
+  produces default output as "result";
 ''', check_empty_list)
 probe.step()
 probe.assert_value_is('probe', 0)
@@ -518,10 +518,10 @@ def check_event_connections(context):
 
 
 probe = make_engine('''
-implicit input: list event uint8;
+default input: list event uint8;
 
 native procedure run
-  depends on implicit input as "values";
+  depends on default input as "values";
 ''', check_event_connections, extra='''
 node first: Std.DebugEventSource { Type: uint8 }
 node second: Std.DebugEventSource { Type: uint8 }
@@ -547,11 +547,11 @@ def check_state(context):
 
 probe = make_engine('''
 state count: uint8 = 0;
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
   depends on count.old as "previous"
-  produces count as "next", implicit output as "result";
+  produces count as "next", default output as "result";
 ''', check_state)
 for expected in range(3):
     probe.step()
@@ -567,14 +567,14 @@ def check_state_snapshot(context):
 
 probe = make_engine('''
 state count: uint8 = 0;
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
   depends on count.old as "previous"
   produces count as "next";
 native procedure run2
   depends on count.old as "snapshot"
-  produces implicit output as "result";
+  produces default output as "result";
 ''', check_state_snapshot)
 for expected in range(3):
     probe.step()
@@ -589,11 +589,11 @@ def forward_value(context):
 for singleton in ('', 'singleton '):
     probe = make_engine('''
 node child: Child {}
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
   depends on child.Value as "value"
-  produces implicit output as "result";
+  produces default output as "result";
 ''', forward_value, extra=f'''
 resource type Session;
 
@@ -631,17 +631,17 @@ def check_result_errors(context):
 
 
 probe = make_engine('''
-implicit output: value uint8;
+default output: value uint8;
 
-native procedure run produces implicit output as "result";
+native procedure run produces default output as "result";
 ''', check_result_errors)
 probe.step()
 probe.assert_value_is('probe', 7)
 
 probe = make_engine('''
-implicit output: value uint8;
+default output: value uint8;
 
-native procedure run produces implicit output as "result";
+native procedure run produces default output as "result";
 ''', lambda context: None)
 with checks.assertRaisesRegex(ValueError, 'did not write results'):
     probe.step()
@@ -663,9 +663,9 @@ def check_generic_result(context):
 
 probe = make_engine('''
 parameter Type: ValueType;
-implicit output: value Type;
+default output: value Type;
 
-native procedure run produces implicit output as "result";
+native procedure run produces default output as "result";
 ''', check_generic_result, parameters='Type: Option[boolean]')
 probe.step()
 probe.assert_value_is('probe', blocks.Some(True))
@@ -684,12 +684,12 @@ for payload_type, event, command in [
         context.set_result('result', context.inputs['event'])
 
     probe = make_engine(f'''
-implicit input: event {payload_type};
-implicit output: event {payload_type};
+default input: event {payload_type};
+default output: event {payload_type};
 
 native procedure run
-  depends on implicit input as "event"
-  produces implicit output as "result";
+  depends on default input as "event"
+  produces default output as "result";
 ''', forward_event, extra=f'''
 node source: Std.DebugEventSource {{ Type: {payload_type} }}
 connect source -> probe;
@@ -718,9 +718,9 @@ def check_unit_result(context):
 
 
 probe = make_engine('''
-implicit output: value unit;
+default output: value unit;
 
-native procedure run produces implicit output as "result";
+native procedure run produces default output as "result";
 ''', check_unit_result)
 probe.step()
 probe.assert_value_is('probe', blocks.Unit())
@@ -734,9 +734,9 @@ def check_unit_event_result(context):
 
 
 probe = make_engine('''
-implicit output: event unit;
+default output: event unit;
 
-native procedure run produces implicit output as "result";
+native procedure run produces default output as "result";
 ''', check_unit_event_result)
 probe.step()
 probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
@@ -750,11 +750,11 @@ def check_keys(context):
 
 probe = make_engine(r'''
 node source: Std.Constant { Type: uint8, Value: 7 }
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
   depends on source as "line\nkey", source as r"raw\key"
-  produces implicit output as "";
+  produces default output as "";
 ''', check_keys)
 probe.step()
 probe.assert_value_is('probe', 7)
@@ -763,11 +763,11 @@ probe.assert_value_is('probe', 7)
 # Aliases are checked independently for input and result bindings.
 probe = make_engine('''
 node source: Std.Constant { Type: uint8, Value: 7 }
-implicit output: value uint8;
+default output: value uint8;
 
 native procedure run
   depends on source as "value"
-  produces implicit output as "value";
+  produces default output as "value";
 ''', lambda context: context.set_result('value', context.inputs['value']))
 probe.step()
 probe.assert_value_is('probe', 7)

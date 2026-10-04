@@ -12,11 +12,11 @@ from wirely.compiler.parser import parse_str, parser
 
 
 weak_keywords = [
-    'event', 'input', 'list', 'on', 'output', 'resource', 'stage', 'state',
-    'type', 'value',
+    'default', 'event', 'input', 'list', 'on', 'output', 'resource', 'stage',
+    'state', 'type', 'value',
 ]
 reserved_keywords = [
-    'as', 'connect', 'depends', 'enum', 'implicit', 'initializer', 'namespace',
+    'as', 'connect', 'depends', 'enum', 'initializer', 'namespace',
     'native', 'node', 'optional', 'parameter', 'procedure', 'produces',
     'singleton', 'struct', 'temporary',
 ]
@@ -109,6 +109,19 @@ connector = parse('input input: list event unit;')
 assert connector.name.id_str == 'input'
 parse('output resource: resource Handle;')
 parse('native initializer depends on resource, on;')
+
+for direction in ['input', 'output']:
+    connector = parse(f'default {direction}: value boolean;')
+    assert connector.name is None
+    assert connector.name_str == f'default {direction}'
+    connection = parse(f'connect default {direction} -> default;')
+    assert str(connection.sources[0]) == f'default {direction}'
+    assert str(connection.target) == 'default'
+    connection = parse(f'connect default -> default {direction};')
+    assert str(connection.sources[0]) == 'default'
+    assert str(connection.target) == f'default {direction}'
+
+assert parse('node implicit: T {}').name.id_str == 'implicit'
 
 for keyword in reserved_keywords:
     try:

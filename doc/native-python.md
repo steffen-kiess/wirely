@@ -27,12 +27,12 @@ For example, `Std.OptionSome` declares:
 namespace Std {
   node type OptionSome {
     parameter InnerType: ValueType;
-    implicit input: value InnerType;
-    implicit output: value Option[InnerType];
+    default input: value InnerType;
+    default output: value Option[InnerType];
 
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 }
 ```

@@ -13,7 +13,7 @@ node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
 ```
 
-`source` has an implicit `value boolean` output, and `printer` has an implicit
+`source` has a default `value boolean` output, and `printer` has a default
 `value boolean` input. The connection feeds the output to the input. Save this
 as `hello.wrl` and check it from the repository root with:
 
@@ -70,12 +70,12 @@ The type name may be a local name or a namespace-qualified name such as
 
 ```wrl
 node type Forward {
-  implicit input: value boolean;
-  implicit output: value boolean;
+  default input: value boolean;
+  default output: value boolean;
 
   native procedure run
-    depends on implicit input as "input"
-    produces implicit output as "output";
+    depends on default input as "input"
+    produces default output as "output";
 }
 ```
 
@@ -86,9 +86,9 @@ nodes:
 
 ```wrl
 node type PrintBoolean {
-  implicit input: value boolean;
+  default input: value boolean;
   node printer: Std.DebugValuePrinter { Type: boolean }
-  connect implicit input -> printer;
+  connect default input -> printer;
 }
 
 node source: Std.Constant { Type: boolean, Value: true }
@@ -115,10 +115,10 @@ A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
-Identifiers are case-sensitive. Weak keywords `event`, `input`, `list`, `on`,
-`output`, `resource`, `stage`, `state`, `type`, and `value` can also be used
-as identifiers. Other keywords require the `r#` prefix when used as names,
-for example `node r#node: Std.And {}`. Declarations end with
+Identifiers are case-sensitive. Weak keywords `default`, `event`, `input`,
+`list`, `on`, `output`, `resource`, `stage`, `state`, `type`, and `value` can
+also be used as identifiers. Other keywords require the `r#` prefix when used
+as names, for example `node r#node: Std.And {}`. Declarations end with
 `;`, except node instances and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
@@ -136,9 +136,9 @@ use `ValueType`; a later parameter or connector can refer to one:
 node type Example {
   parameter Type: ValueType;
   parameter Initial: Type;
-  implicit output: value Type;
+  default output: value Type;
   node constant: Std.Constant { Type: Type, Value: Initial }
-  connect constant -> implicit output;
+  connect constant -> default output;
 }
 ```
 
@@ -200,8 +200,8 @@ expressions are not currently implemented.
 
 ## Connectors and connections
 
-An `input` or `output` declares a named connector. `implicit input` and
-`implicit output` declare the connectors used when a connection names just
+An `input` or `output` declares a named connector. `default input` and
+`default output` declare the connectors used when a connection names just
 the node. For example:
 
 ```wrl
@@ -210,9 +210,9 @@ node receiver: KNX.ValueReceiver { Type: boolean, GroupAddress: "0/4/5" }
 connect bus -> receiver.Bus;
 ```
 
-The first connection uses `bus`'s implicit output and the named `Bus` input.
+The first connection uses `bus`'s default output and the named `Bus` input.
 For a named output, write `node_name.OutputName`. Inside a type body,
-`implicit input` and `implicit output` may also be connection endpoints.
+`default input` and `default output` may also be connection endpoints.
 
 Data connectors have a kind and a type: `value boolean` carries the current
 value, while `event boolean` carries an occurrence with a boolean payload.
@@ -232,7 +232,7 @@ namespace Example {
   resource type Session;
 
   native node type Connection {
-    implicit output: resource Session;
+    default output: resource Session;
   }
 
   native node type Client {
@@ -264,15 +264,15 @@ within a step. Native procedures declare which inputs or temporaries they
 run in dependency order; dependencies must be acyclic.
 
 Use `reference as "key"` to name a procedure's Python input or result.
-An unaliased simple identifier uses its own name. Implicit connectors and
+An unaliased simple identifier uses its own name. Default connectors and
 complex references require aliases. Keys must be unique within each clause;
 aliases preserve their exact spelling.
 For example:
 
 ```wrl
 native procedure run
-  depends on implicit input as "value", last_value.old as "previous"
-  produces implicit output as "result", last_value as "next";
+  depends on default input as "value", last_value.old as "previous"
+  produces default output as "result", last_value as "next";
 ```
 
 `last_value.old` reads the previous step's state without depending on this

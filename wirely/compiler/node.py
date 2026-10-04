@@ -82,7 +82,7 @@ class BlockInput(Node):
         self.conn_spec = conn_spec
         self.resource_type = resource_type
         self.is_list = is_list
-        if input_name == 'implicit input':
+        if input_name == 'default input':
             self.input_name = ''
 
         if name in self.graph.block_inputs:
@@ -103,7 +103,7 @@ class BlockOutput(Node):
         self.output_name = output_name
         self.conn_spec = conn_spec
         self.resource_type = resource_type
-        if output_name == 'implicit output':
+        if output_name == 'default output':
             self.output_name = ''
 
         if name in self.graph.block_outputs:

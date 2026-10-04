@@ -4,8 +4,8 @@ namespace ExtProg {
     parameter ShellCommand: String;
     parameter Type: ValueType = unit;
     // Note: The value of the event will be ignored
-    implicit input: event Type;
+    default input: event Type;
 
-    native procedure run stage output depends on implicit input as "input";
+    native procedure run stage output depends on default input as "input";
   }
 }

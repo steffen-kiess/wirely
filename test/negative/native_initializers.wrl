@@ -34,8 +34,8 @@ native node type Invalid {
 // TEST: initializer_implicit_alias
 resource type Handle;
 native node type Invalid {
-  implicit input: resource Handle;
-  native initializer depends on implicit input; // E: Implicit connectors and complex references require an explicit alias
+  default input: resource Handle;
+  native initializer depends on default input; // E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: initializer_complex_alias
@@ -45,7 +45,7 @@ node type Source {
 }
 native node type Invalid {
   node source: Source {}
-  native initializer depends on source.Handle; // E: Implicit connectors and complex references require an explicit alias
+  native initializer depends on source.Handle; // E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: initializer_duplicate_key

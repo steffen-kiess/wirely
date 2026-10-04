@@ -55,13 +55,13 @@ def bindings(values):
 
 for comma in ['', ',']:
     procedure = parse(f'''native procedure run
-  depends on implicit input as "input", previous.old as "old"{comma}
-  produces Result, implicit output as "output"{comma};''')
+  depends on default input as "input", previous.old as "old"{comma}
+  produces Result, default output as "output"{comma};''')
     assert bindings(procedure.depends.dependencies) == [
-        ('implicit input', 'input'), ('previous.old', 'old'),
+        ('default input', 'input'), ('previous.old', 'old'),
     ]
     assert bindings(procedure.produces.outputs) == [
-        ('Result', 'Result'), ('implicit output', 'output'),
+        ('Result', 'Result'), ('default output', 'output'),
     ]
     initializer = parse(f'native initializer depends on First, Second as "service"{comma};')
     assert bindings(initializer.depends.dependencies) == [

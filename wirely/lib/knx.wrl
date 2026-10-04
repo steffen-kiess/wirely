@@ -9,7 +9,7 @@ namespace KNX {
     optional parameter SSHTarget: String;
     optional parameter IndividualAddress: String;
 
-    implicit output: resource Bus;
+    default output: resource Bus;
   }
 
   native node type ValueReceiver {
@@ -21,11 +21,11 @@ namespace KNX {
     // the value stays the same? Should this event contain the value?
 
     input Bus: resource Bus;
-    implicit output: value Option[Type];
+    default output: value Option[Type];
 
     native initializer depends on Bus;
 
-    native procedure get_value stage input produces implicit output as "output";
+    native procedure get_value stage input produces default output as "output";
   }
 
   native node type ValueOptionProvider {
@@ -36,12 +36,12 @@ namespace KNX {
     // TODO: event output for reads? Probably not really useful.
 
     input Bus: resource Bus;
-    implicit input: value Option[Type];
+    default input: value Option[Type];
 
     native initializer depends on Bus;
 
     native procedure set_value stage output
-      depends on implicit input as "input";
+      depends on default input as "input";
   }
 
   node type ValueProvider {
@@ -49,10 +49,10 @@ namespace KNX {
     parameter GroupAddress: String;
 
     input Bus: resource Bus;
-    implicit input: value Type;
+    default input: value Type;
 
     node create_option: Std.OptionSome { InnerType: Type }
-    connect implicit input -> create_option;
+    connect default input -> create_option;
 
     node impl: ValueOptionProvider { Type: Type, GroupAddress: GroupAddress }
     connect Bus -> impl.Bus;
@@ -64,11 +64,11 @@ namespace KNX {
     parameter GroupAddress: String;
 
     input Bus: resource Bus;
-    implicit output: event Type;
+    default output: event Type;
 
     native initializer depends on Bus;
 
-    native procedure get_value stage input produces implicit output as "output";
+    native procedure get_value stage input produces default output as "output";
   }
 
   // TODO: Rename to EventProvider or EventSender?
@@ -77,11 +77,11 @@ namespace KNX {
     parameter GroupAddress: String;
 
     input Bus: resource Bus;
-    implicit input: event Type;
+    default input: event Type;
 
     native initializer depends on Bus;
 
     native procedure send_value stage output
-      depends on implicit input as "input";
+      depends on default input as "input";
   }
 }

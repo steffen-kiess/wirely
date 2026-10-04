@@ -25,23 +25,23 @@ node type MyBlock {
 }
 
 node type SingleDelay {
-  implicit input: value boolean;
-  implicit output: value boolean;
+  default input: value boolean;
+  default output: value boolean;
 
   node d1: Std.DelayOneStep { Type: boolean, InitialValue: false }
-  connect implicit input -> d1;
-  connect d1 -> implicit output;
+  connect default input -> d1;
+  connect d1 -> default output;
 }
 
 node type DoubleDelay {
-  implicit input: value boolean;
-  implicit output: value boolean;
+  default input: value boolean;
+  default output: value boolean;
 
   node d1: Std.DelayOneStep { Type: boolean, InitialValue: false }
   node d2: Std.DelayOneStep { Type: boolean, InitialValue: false }
-  connect implicit input -> d1;
+  connect default input -> d1;
   connect d1 -> d2;
-  connect d2 -> implicit output;
+  connect d2 -> default output;
 }
 
 node inp1: Std.DebugValueSource { Type: boolean }

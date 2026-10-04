@@ -55,7 +55,7 @@ parsed = parse('''
     #[tag] parameter P: ValueType;
     #[tag] optional parameter Q: uint8;
     #[tag] parameter R: uint8 = 1;
-    #[tag] implicit input: value boolean;
+    #[tag] default input: value boolean;
     #[tag] output Out: resource Handle;
     #[tag] state saved: uint8 = 0;
     #[tag] temporary tmp: boolean;
@@ -141,11 +141,11 @@ with patch.dict(ATTRIBUTE_REGISTRY, {'mark': marker, 'tool.mark': marker, 'uniqu
     #[mark] parameter P: ValueType;
     #[mark] optional parameter Q: uint8;
     #[mark] parameter V: uint8 = 0;
-    #[mark] implicit input: value boolean;
+    #[mark] default input: value boolean;
     #[mark] output Out: value boolean;
     #[mark] state s: uint8 = 0;
     #[mark] temporary t: boolean;
-    #[mark] native procedure run depends on implicit input as "input" produces Out;
+    #[mark] native procedure run depends on default input as "input" produces Out;
     #[mark] native initializer;
   }
 }
@@ -163,7 +163,7 @@ node plain: A.B.Other {}
     assert len(owner.attributes) == 2
     for declaration in owner.declarations:
         assert len(declaration.attributes) == 1
-    assert owner.block_inputs['implicit input'].attributes == owner.declarations[3].attributes
+    assert owner.block_inputs['default input'].attributes == owner.declarations[3].attributes
     assert owner.block_outputs['Out'].attributes == owner.declarations[4].attributes
     assert owner.block_state_variables['s'].attributes == owner.declarations[5].attributes
     assert owner.block_temporary_variables['t'].attributes == owner.declarations[6].attributes
@@ -192,18 +192,18 @@ node sink: Std.And {}
 #[mark(shared)] connect #[mark(first)] a, #[mark(second)] b -> sink;
 node type Stateful {
   state saved: boolean = false;
-  implicit output: value boolean;
-  #[mark(r#state)] connect #[mark(source)] saved.old -> implicit output;
+  default output: value boolean;
+  #[mark(r#state)] connect #[mark(source)] saved.old -> default output;
 }
 node type Fresh {
   state saved: boolean = false;
-  implicit output: value boolean;
+  default output: value boolean;
   native procedure write produces saved;
-  #[mark(fresh)] connect saved.new -> implicit output;
+  #[mark(fresh)] connect saved.new -> default output;
 }
 resource type Handle;
-node type Provider { implicit output: resource Handle; }
-node type Consumer { implicit input: list resource Handle; }
+node type Provider { default output: resource Handle; }
+node type Consumer { default input: list resource Handle; }
 node p: Provider {}
 node q: Provider {}
 node consumer: Consumer {}
@@ -221,7 +221,7 @@ node consumer: Consumer {}
     for name, phase in [('Stateful', 'old'), ('Fresh', 'new')]:
         state_edge = edges.block_type_interfaces[name].connections[0]
         assert state_edge.kind == 'state' and state_edge.source.phase == phase
-        assert state_edge.target is edges.block_type_interfaces[name].block_outputs['implicit output']
+        assert state_edge.target is edges.block_type_interfaces[name].block_outputs['default output']
         assert state_edge.attributes[0].value.value[0].name == ('state' if phase == 'old' else 'fresh')
     assert len(edges.block_type_interfaces['Stateful'].connections[0].attributes) == 2
 

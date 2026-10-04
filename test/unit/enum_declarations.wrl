@@ -27,9 +27,9 @@ namespace Example {
   node type Settings {
     parameter ModeType: ValueType = Mode;
     parameter Initial: ModeType = Mode.On;
-    implicit output: value ModeType;
+    default output: value ModeType;
     node value: Std.Constant { Type: ModeType, Value: Initial }
-    connect value -> implicit output;
+    connect value -> default output;
   }
 }
 
@@ -39,9 +39,9 @@ namespace Example {
 
 namespace Example.Inner {
   node type Settings {
-    implicit output: value Mode;
+    default output: value Mode;
     node value: Std.Constant { Type: Mode, Value: Mode.On }
-    connect value -> implicit output;
+    connect value -> default output;
   }
 }
 

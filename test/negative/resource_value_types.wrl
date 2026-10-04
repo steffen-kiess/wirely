@@ -2,7 +2,7 @@
 resource type Handle;
 
 node type Invalid {
-  implicit output: value Handle; // E: Cannot find type Handle
+  default output: value Handle; // E: Cannot find type Handle
 }
 
 // TEST: resource_parameter_type
@@ -30,7 +30,7 @@ node type Invalid {
 resource type Handle;
 
 node type Invalid {
-  implicit output: value Option[Handle]; // E: Cannot find type Handle
+  default output: value Option[Handle]; // E: Cannot find type Handle
 }
 
 // TEST: resource_type_argument

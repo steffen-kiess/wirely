@@ -218,14 +218,14 @@ namespace Bad {} // E: conflicts with struct type
 struct type Record {
   x: String,
 }
-node type Bad { implicit output: value Record; } // E: parameter-only
+node type Bad { default output: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_string_event
 struct type Record {
   x: String,
 }
-node type Bad { implicit output: event Record; } // E: parameter-only
+node type Bad { default output: event Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_string_state
@@ -246,14 +246,14 @@ node n: Bad {}
 struct type Record {
   x: List[uint8],
 }
-node type Bad { implicit output: value Record; } // E: parameter-only
+node type Bad { default output: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_list_uint8_event
 struct type Record {
   x: List[uint8],
 }
-node type Bad { implicit output: event Record; } // E: parameter-only
+node type Bad { default output: event Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_list_uint8_state
@@ -274,14 +274,14 @@ node n: Bad {}
 struct type Record {
   x: Option[String],
 }
-node type Bad { implicit output: value Record; } // E: parameter-only
+node type Bad { default output: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_option_string_event
 struct type Record {
   x: Option[String],
 }
-node type Bad { implicit output: event Record; } // E: parameter-only
+node type Bad { default output: event Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_option_string_state

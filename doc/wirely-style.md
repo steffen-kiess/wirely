@@ -22,12 +22,12 @@ a node and its connections. Avoid blank lines immediately inside braces.
 namespace Example {
   node type Forward {
     parameter Type: ValueType;
-    implicit input: value Type;
-    implicit output: value Type;
+    default input: value Type;
+    default output: value Type;
 
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 }
 ```
@@ -56,7 +56,7 @@ continuation. Keep a reference and its `as` alias together where practical.
 native procedure run stage output
   depends on current_value.old as "current_value_old",
     requested_value as "requested_value", Enabled
-  produces current_value, implicit output as "output";
+  produces current_value, default output as "output";
 ```
 
 For multiline node configurations, put parameters on separate lines with

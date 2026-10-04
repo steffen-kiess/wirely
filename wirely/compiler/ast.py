@@ -370,13 +370,13 @@ class Reference(Value):
 
     @staticmethod
     @check_parameters
-    def create_implicit(conn_type_spec: BlockConnectorTypeSpecifier, *, source_position: SourcePosition):
+    def create_default(conn_type_spec: BlockConnectorTypeSpecifier, *, source_position: SourcePosition):
         conn_type = conn_type_spec.conn_type
         # TODO: Clean up
         if conn_type == BlockConnectorType.BlockInput:
-            name = 'implicit input'
+            name = 'default input'
         elif conn_type == BlockConnectorType.BlockOutput:
-            name = 'implicit output'
+            name = 'default output'
         else:
             raise Exception(f'Unknown value for conn_type: {conn_type}')
         identifier = Identifier(name, source_position=source_position)
@@ -451,10 +451,10 @@ class ResolvedReferenceBlockMember(SourceElement):
         if self.member_name is None:
             # TODO: Clean up
             if ref_type == RefType.BlockInput:
-                # self.member_name_str = 'implicit input'
+                # self.member_name_str = 'default input'
                 self.member_name_str = ''
             elif ref_type == RefType.BlockOutput:
-                # self.member_name_str = 'implicit output'
+                # self.member_name_str = 'default output'
                 self.member_name_str = ''
             else:
                 raise Exception(f'Unknown value for ref_type: {ref_type}')
@@ -500,7 +500,7 @@ class ResolvedReferenceBlockMember(SourceElement):
             self.member = member_dict[self.member_name_str]
         else:
             if self.member_name_str == '':
-                raise ProgramError(self.block_name, f'{purpose} block {self.block_name_str} does not have an implicit {member_type}')
+                raise ProgramError(self.block_name, f'{purpose} block {self.block_name_str} does not have a default {member_type}')
             else:
                 raise ProgramError(self.member_name_elem, f'Unable to find {purpose} block {member_type} {self.block_name_str}.{self.member_name_str}')
 
@@ -969,9 +969,9 @@ class DeclarationConnector(Declaration):
 
         if self.name is None:
             if self.conn_type == BlockConnectorType.BlockInput:
-                self.name_str = 'implicit input'
+                self.name_str = 'default input'
             elif self.conn_type == BlockConnectorType.BlockOutput:
-                self.name_str = 'implicit output'
+                self.name_str = 'default output'
             else:
                 raise Exception(f'Unknown value for conn_type: {self.conn_type}')
         else:
@@ -984,7 +984,7 @@ class DeclarationConnector(Declaration):
 
     @staticmethod
     @check_parameters
-    def create_implicit(conn_type_spec: BlockConnectorTypeSpecifier, conn_spec : ConnectorSpecification, *, source_position: SourcePosition):
+    def create_default(conn_type_spec: BlockConnectorTypeSpecifier, conn_spec : ConnectorSpecification, *, source_position: SourcePosition):
         return DeclarationConnector(None, conn_spec=conn_spec, conn_type_spec=conn_type_spec, source_position=source_position)
 
     @check_parameters
@@ -1010,12 +1010,12 @@ class DeclarationConnector(Declaration):
         if self.conn_type == BlockConnectorType.BlockInput:
             name = self.name_str
             if name == '':
-                name = 'implicit input'
+                name = 'default input'
             connector = blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec, resource_type=resource_type)
         elif self.conn_type == BlockConnectorType.BlockOutput:
             name = self.name_str
             if name == '':
-                name = 'implicit output'
+                name = 'default output'
             connector = blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec, resource_type=resource_type)
         else:
             raise Exception(f'Unknown conn_type: {self.conn_type!r}')
@@ -1307,8 +1307,8 @@ class ProcedureBinding(SourceElement):
         if self.alias is not None:
             return self.alias.value
         names = [identifier.id_str for identifier in self.reference.identifiers]
-        if len(names) != 1 or names[0] in ('implicit input', 'implicit output'):
-            raise ProgramError(self, 'Implicit connectors and complex references require an explicit alias')
+        if len(names) != 1 or names[0] in ('default input', 'default output'):
+            raise ProgramError(self, 'Default connectors and complex references require an explicit alias')
         return names[0]
 
 

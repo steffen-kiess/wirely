@@ -15,7 +15,7 @@ namespace CSV {
     parameter Filename: String;
     // TODO: Make repeat interval configurable? Allow disabling repeat?
 
-    implicit input: value Type;
+    default input: value Type;
 
     // The next time at which the current value will be written out again even
     // if it does not change. If this time is not comparable to the current
@@ -27,7 +27,7 @@ namespace CSV {
 
     native procedure run stage output
       depends on repeat_time.old as "repeat_time_old",
-        implicit input as "input", repeat_time_reached
+        default input as "input", repeat_time_reached
       produces repeat_time;
   }
 

@@ -5,12 +5,12 @@ namespace Time {
   // current time is at or after input and None if the current time is not
   // comparable to input.
   node type MonotonicTimeReached {
-    implicit input: value MonotonicTime;
-    implicit output: value Option[boolean];
+    default input: value MonotonicTime;
+    default output: value Option[boolean];
 
     native procedure run
-      depends on implicit input as "input"
-      produces implicit output as "output";
+      depends on default input as "input"
+      produces default output as "output";
   }
 
   // Output the initial value immediately, then accept changes after the input
@@ -19,8 +19,8 @@ namespace Time {
     parameter Type: ValueType;
     parameter Duration: Duration;
 
-    implicit input: value Type;
-    implicit output: value Type;
+    default input: value Type;
+    default output: value Type;
 
     // The value which was last sent as output
     state current_value: Option[Type] = None;
@@ -36,8 +36,8 @@ namespace Time {
     native procedure run
       depends on current_value.old as "current_value_old",
         new_value.old as "new_value_old", update_time.old as "update_time_old",
-        implicit input as "input", reached
-      produces implicit output as "output", current_value, new_value,
+        default input as "input", reached
+      produces default output as "output", current_value, new_value,
         update_time;
   }
 
@@ -48,10 +48,10 @@ namespace Time {
 
   // Note: Should not be used directly if possible
   native singleton node type TimeOfDayMinute {
-    implicit output: value TimeOfDay;
+    default output: value TimeOfDay;
 
     // TODO: Should this be "stage input"? Should this use some global time?
-    native procedure get_value produces implicit output as "output";
+    native procedure get_value produces default output as "output";
   }
 
   // TODO: Implement this in a way which does not cause code to be run every
@@ -60,13 +60,13 @@ namespace Time {
     parameter Start: TimeOfDay;
     parameter End: TimeOfDay;
 
-    implicit output: value boolean;
+    default output: value boolean;
 
     node current_time: TimeOfDayMinute {}
 
     native procedure run
       depends on current_time
-      produces implicit output as "output";
+      produces default output as "output";
   }
 
   // Creates an event whenever the current time changes from the range of 8
@@ -85,7 +85,7 @@ namespace Time {
     // Defaults to ()
     optional parameter OutputValue: OutputType;
 
-    implicit output: event OutputType;
+    default output: event OutputType;
 
     // Keeps track of the last state
     // TODO: Introduce an enum for this?
@@ -108,6 +108,6 @@ namespace Time {
 
     native procedure run
       depends on trigger_state.old as "state_old", before, after
-      produces implicit output as "output", trigger_state;
+      produces default output as "output", trigger_state;
   }
 }

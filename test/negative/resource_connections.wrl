@@ -4,7 +4,7 @@ namespace Fixture {
   resource type Second;
 
   node type Source {
-    implicit output: resource First; // H: Source was declared here
+    default output: resource First; // H: Source was declared here
   }
 
   node type Target {
@@ -25,11 +25,11 @@ namespace Second {
 }
 
 node type Source {
-  implicit output: resource First.Handle; // H: Source was declared here
+  default output: resource First.Handle; // H: Source was declared here
 }
 
 node type Target {
-  implicit input: resource Second.Handle; // H: Target was declared here
+  default input: resource Second.Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
@@ -41,19 +41,19 @@ resource type Second;
 
 node type Invalid {
   input Service: resource First; // H: Source was declared here
-  implicit output: resource Second; // H: Target was declared here
-  connect Service -> implicit output; // E: source has resource type First but target has resource type Second
+  default output: resource Second; // H: Target was declared here
+  connect Service -> default output; // E: source has resource type First but target has resource type Second
 }
 
 // TEST: resource_to_data_value
 resource type Handle;
 
 node type Source {
-  implicit output: resource Handle; // H: Source was declared here
+  default output: resource Handle; // H: Source was declared here
 }
 
 node type Target {
-  implicit input: value boolean; // H: Target was declared here
+  default input: value boolean; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
@@ -63,11 +63,11 @@ connect source -> target; // E: Cannot connect resource and data connectors
 resource type Handle;
 
 node type Source {
-  implicit output: value boolean; // H: Source was declared here
+  default output: value boolean; // H: Source was declared here
 }
 
 node type Target {
-  implicit input: resource Handle; // H: Target was declared here
+  default input: resource Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
@@ -77,11 +77,11 @@ connect source -> target; // E: Cannot connect resource and data connectors
 resource type Handle;
 
 node type Source {
-  implicit output: resource Handle; // H: Source was declared here
+  default output: resource Handle; // H: Source was declared here
 }
 
 node type Target {
-  implicit input: event boolean; // H: Target was declared here
+  default input: event boolean; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
@@ -91,11 +91,11 @@ connect source -> target; // E: Cannot connect resource and data connectors
 resource type Handle;
 
 node type Source {
-  implicit output: event boolean; // H: Source was declared here
+  default output: event boolean; // H: Source was declared here
 }
 
 node type Target {
-  implicit input: resource Handle; // H: Target was declared here
+  default input: resource Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}

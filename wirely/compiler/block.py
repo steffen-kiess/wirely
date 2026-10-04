@@ -303,7 +303,7 @@ class Block(blocks.Node):
         @property
         def name_desc(self):
             if self.name == '':
-                return 'implicit output'
+                return 'default output'
             else:
                 return self.name
 

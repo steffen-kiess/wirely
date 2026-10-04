@@ -7,18 +7,18 @@ node type Invalid {
 
 // TEST: procedure_implicit_input_alias
 node type Invalid {
-  implicit input: value boolean;
+  default input: value boolean;
 
-  native procedure run depends on implicit input;
-  // ^E: Implicit connectors and complex references require an explicit alias
+  native procedure run depends on default input;
+  // ^E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: procedure_implicit_output_alias
 node type Invalid {
-  implicit output: value boolean;
+  default output: value boolean;
 
-  native procedure run produces implicit output;
-  // ^E: Implicit connectors and complex references require an explicit alias
+  native procedure run produces default output;
+  // ^E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: procedure_state_alias
@@ -26,7 +26,7 @@ node type Invalid {
   state value: boolean = false;
 
   native procedure run depends on value.old;
-  // ^E: Implicit connectors and complex references require an explicit alias
+  // ^E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: procedure_child_alias
@@ -41,7 +41,7 @@ node type Invalid {
   node child: Child {}
 
   native procedure run depends on child.Value;
-  // ^E: Implicit connectors and complex references require an explicit alias
+  // ^E: Default connectors and complex references require an explicit alias
 }
 
 // TEST: procedure_duplicate_input_key

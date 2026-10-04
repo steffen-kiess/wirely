@@ -4,7 +4,7 @@ The libraries below are available by default. Instantiate a node
 as `node name: Library.Type { Parameter: value }`. Names and parameter
 capitalization matter. Public library namespaces, node and resource types,
 parameters, and named connectors use PascalCase, preserving acronyms such
-as `KNX` and `URI`. In the signatures below, `in` and `out` mean implicit
+as `KNX` and `URI`. In the signatures below, `in` and `out` mean default
 connectors; named connectors are written explicitly. `value T` carries a
 current value, and `event T` carries an occurrence with a payload. A dash
 means no connector of that kind.
@@ -120,7 +120,7 @@ requires the `aiomqtt` package and a reachable broker.
 ## CSV
 
 `CSV.ValueWriter` takes `Type: ValueType` and `Filename: String`. It appends
-rows from an implicit `value Type` input, recording the timestamp, old value,
+rows from a default `value Type` input, recording the timestamp, old value,
 and new value. An empty field marks an unavailable value at startup or
 shutdown. It writes on changes and repeats a current value hourly. `Type`
 must support CSV conversion, such as `boolean`, an integer type, or an
@@ -129,7 +129,7 @@ must support CSV conversion, such as `boolean`, an integer type, or an
 ## TwoN
 
 TwoN nodes communicate with a 2N device. Create `TwoN.Connection`, then
-connect its implicit `resource TwoN.Device` output to each client's named
+connect its default `resource TwoN.Device` output to each client's named
 `Device` input.
 
 | Node type | Parameters | Connectors and behavior |
@@ -147,7 +147,7 @@ TwoN dependencies, device credentials, and network access to the device.
 
 ## GPIO
 
-`GPIO.Output` sets a GPIO line from an implicit `value boolean` input.
+`GPIO.Output` sets a GPIO line from a default `value boolean` input.
 Parameters are `ChipDeviceFile: String`, `Name: String`,
 `ActiveState: String = "High"`, `Drive: String = "PushPull"`, and
 `Bias: String = "AsIs"`. `ActiveState` accepts `"High"` or `"Low"`;
@@ -161,9 +161,9 @@ bindings) and access to the chip device.
 `Memory.ToggleFlipFlopTrigger` can switch an external impulse relay
 (latching relay) on or off. Each pulse toggles the relay, so the node compares
 the requested state with feedback and emits a pulse only when the state needs
-to change. It takes an implicit `event boolean` command input (`true` for on,
+to change. It takes a default `event boolean` command input (`true` for on,
 `false` for off) and a named `Feedback: value Option[boolean]` input. Its
-implicit `event OutputType` output provides the trigger pulse. If feedback is
+default `event OutputType` output provides the trigger pulse. If feedback is
 `None`, commands are ignored. Its parameters are `OutputType: ValueType = unit`,
 optional `OutputValue: OutputType`, and `MinimumDelay: Duration = "PT1S"`.
 Set `OutputValue` when `OutputType` is not `unit`. The minimum delay limits
@@ -173,7 +173,7 @@ successive output events.
 
 `ExtProg.LaunchOnEvent` launches a shell command when an input event arrives.
 Events received while a launch is pending may be combined into one launch.
-It takes `ShellCommand: String` and `Type: ValueType = unit`, with an implicit
+It takes `ShellCommand: String` and `Type: ValueType = unit`, with a default
 `event Type` input. The event payload is ignored. The command is passed to
 `sh -c` in the output stage and runs with the service process's permissions.
 

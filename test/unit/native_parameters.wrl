@@ -33,10 +33,10 @@ node generic: GenericForward { Type: int8 }
 
 node type OptionalForward {
   optional parameter Default: boolean;
-  implicit input: value Option[boolean];
+  default input: value Option[boolean];
   output Value: value boolean;
   node value: Std.OptionUnwrapOr { InnerType: boolean, Default: Default }
-  connect implicit input -> value;
+  connect default input -> value;
   connect value -> Value;
 }
 node fallback: OptionalForward { Default: true }

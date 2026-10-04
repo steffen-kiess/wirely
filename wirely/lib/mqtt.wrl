@@ -4,7 +4,7 @@ namespace MQTT {
   native node type Connection {
     parameter URI: String;
 
-    implicit output: resource Broker;
+    default output: resource Broker;
   }
 
   native node type ValueOptionProvider {
@@ -14,12 +14,12 @@ namespace MQTT {
     optional parameter Template: String;
 
     input Broker: resource Broker;
-    implicit input: value Option[Type];
+    default input: value Option[Type];
 
     native initializer depends on Broker;
 
     native procedure set_value stage output
-      depends on implicit input as "input";
+      depends on default input as "input";
   }
 
   node type ValueProvider {
@@ -29,10 +29,10 @@ namespace MQTT {
     optional parameter Template: String;
 
     input Broker: resource Broker;
-    implicit input: value Type;
+    default input: value Type;
 
     node create_option: Std.OptionSome { InnerType: Type }
-    connect implicit input -> create_option;
+    connect default input -> create_option;
 
     // Note: Format and Template will only be forwarded if they are set.
     node impl: ValueOptionProvider {
@@ -53,12 +53,12 @@ namespace MQTT {
     optional parameter Template: String;
 
     input Broker: resource Broker;
-    implicit input: event Type;
+    default input: event Type;
 
     native initializer depends on Broker;
 
     native procedure send_value stage output
-      depends on implicit input as "input";
+      depends on default input as "input";
   }
 
   native node type EventReceiver {
@@ -68,10 +68,10 @@ namespace MQTT {
     // TODO optional parameter Template : String;
 
     input Broker: resource Broker;
-    implicit output: event Type;
+    default output: event Type;
 
     native initializer depends on Broker;
 
-    native procedure get_value stage input produces implicit output as "output";
+    native procedure get_value stage input produces default output as "output";
   }
 }

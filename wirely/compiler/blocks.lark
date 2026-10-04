@@ -15,7 +15,7 @@ bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declar
            | native_specifier "procedure" identifier ["as" string_constant] stage_declaration depends_declaration produces_declaration ";" -> declaration_procedure
            | "native" "initializer" depends_declaration ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
-           | "implicit" block_connector_type ":" connector_specification ";" -> declaration_connector__create_implicit
+           | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
            | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
            | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
 declaration_list: inner_attribute* declaration* -> file_input
@@ -84,7 +84,7 @@ value: reference "{" struct_literal_field_list "}" -> struct_literal
 value_list: _separated_empty{value, ","} -> copy_list
 
 reference: identifier ("." identifier)* -> reference__from_list
-         | "implicit" block_connector_type -> reference__create_implicit
+         | "default" block_connector_type -> reference__create_default
 reference_list: _separated_empty{reference, ","} -> copy_list
 
 int_number: _integer_magnitude
@@ -138,6 +138,7 @@ OCT_NUMBER: /0o[0-7]*(?!\w)/i
 !identifier: CNAME
            | RAW_IDENTIFIER
 // Weak keywords are also accepted as identifiers.
+           | "default"
            | "event"
            | "input"
            | "list"

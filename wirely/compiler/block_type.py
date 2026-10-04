@@ -302,7 +302,7 @@ class BlockType(blocks.Scope):
                     # # if out.inp.connected_source is not None:
                     # #     raise Exception('out.inp.connected_source is not None')
                     # # out.inp.connected_source = temp
-                    # # TODO: This is a hack to avoid a "Input graph1.Delay.implicit output. is not connected" exception, this should not be needed because graph1.Delay (without instantiation) should not be used for anything
+                    # # TODO: This is a hack to avoid a "Input graph1.Delay.default output. is not connected" exception, this should not be needed because graph1.Delay (without instantiation) should not be used for anything
                     # out.inp.connected_source = temp
                 else:
                     raise Exception(f'Unknown output: {out}')

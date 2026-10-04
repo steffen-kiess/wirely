@@ -1,6 +1,6 @@
 namespace ABB.JRA {
   node type InterpretStatusInformation {
-    implicit input: value uint16;
+    default input: value uint16;
     output ManualOperation: value boolean;
     output BlockActive: value boolean;
     output ForcedOperation: value boolean;
@@ -19,14 +19,14 @@ namespace ABB.JRA {
     // output Unassigned15 : value boolean;
 
     native procedure run
-      depends on implicit input as "input"
+      depends on default input as "input"
       produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
         DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
   }
 
   node type InterpretStatusInformationOption {
-    implicit input: value Option[uint16];
+    default input: value Option[uint16];
     output ManualOperation: value Option[boolean];
     output BlockActive: value Option[boolean];
     output ForcedOperation: value Option[boolean];
@@ -45,20 +45,20 @@ namespace ABB.JRA {
     // output Unassigned15 : value Option[boolean];
 
     native procedure run
-      depends on implicit input as "input"
+      depends on default input as "input"
       produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
         DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
 
     // TODO: Make this work?
     // node have_value : Std.OptionIsSome { InnerType: uint16 }
-    // connect implicit input -> have_value;
+    // connect default input -> have_value;
 
     // node input_value: Std.OptionUnwrapOr {
     //   InnerType: uint16,
     //   Default: 0,
     // }
-    // connect implicit input -> input_value;
+    // connect default input -> input_value;
 
     // node status : InterpretStatusInformation {}
     // connect input_value -> status;

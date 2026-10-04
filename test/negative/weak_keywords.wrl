@@ -19,3 +19,14 @@ native procedure run depends on produces.Value; // E: Syntax error
 
 // TEST: depends_attribute
 #[depends] node n: T {} // E: Syntax error
+
+// TEST: old_connector_declaration
+node type T {
+  implicit input: value boolean; // E: Syntax error
+}
+
+// TEST: old_connector_reference
+node type T {
+  default output: value boolean;
+  connect source -> implicit output; // E: Syntax error
+}

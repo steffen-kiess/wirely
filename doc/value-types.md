@@ -170,9 +170,9 @@ can refer to that parameter:
 node type ConstantValue {
   parameter Type: ValueType;
   parameter Initial: Type;
-  implicit output: value Type;
+  default output: value Type;
   node constant: Std.Constant { Type: Type, Value: Initial }
-  connect constant -> implicit output;
+  connect constant -> default output;
 }
 ```
 

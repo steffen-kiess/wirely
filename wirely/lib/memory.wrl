@@ -5,7 +5,7 @@ namespace Memory {
   // TODO: Name? This will send a trigger value in order to change an external
   // toggle flip-flop to a certain value.
   node type ToggleFlipFlopTrigger {
-    implicit input: event boolean;
+    default input: event boolean;
 
     // Value which indicates the current value of the toggle flip-flop. While
     // this is None input values will be ignored (because the flip-flop is
@@ -19,7 +19,7 @@ namespace Memory {
     // TODO: Allow specifying the default value here
     optional parameter OutputValue: OutputType;
 
-    implicit output: event OutputType;
+    default output: event OutputType;
 
     // Minimum delay between two output events.
     parameter MinimumDelay: Duration = "PT1S";
@@ -44,9 +44,9 @@ namespace Memory {
 
     native procedure update
       depends on next_event_allowed_at.old as "next_event_allowed_at_old",
-        pending_event.old as "pending_event_old", implicit input as "input",
+        pending_event.old as "pending_event_old", default input as "input",
         Feedback, next_event_allowed_at_snapshot, next_event_allowed_at_reached
-      produces implicit output as "output", next_event_allowed_at,
+      produces default output as "output", next_event_allowed_at,
         pending_event;
   }
 }

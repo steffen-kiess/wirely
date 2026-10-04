@@ -1,11 +1,11 @@
 // TEST: runtime_string_input
 node type Invalid {
-  implicit input: value String; // E: parameter-only
+  default input: value String; // E: parameter-only
 }
 
 // TEST: runtime_list_output
 node type Invalid {
-  implicit output: value List[uint8]; // E: parameter-only
+  default output: value List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_list_state
@@ -20,17 +20,17 @@ node type Invalid {
 
 // TEST: runtime_optional_string
 node type Invalid {
-  implicit output: value Option[String]; // E: parameter-only
+  default output: value Option[String]; // E: parameter-only
 }
 
 // TEST: runtime_list_event
 node type Invalid {
-  implicit input: list event List[uint8]; // E: parameter-only
+  default input: list event List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_nested_list
 node type Invalid {
-  implicit input: value Option[List[Option[uint8]]]; // E: parameter-only
+  default input: value Option[List[Option[uint8]]]; // E: parameter-only
 }
 
 // TEST: runtime_value_type_state

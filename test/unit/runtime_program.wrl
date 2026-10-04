@@ -1,16 +1,16 @@
 node type Envelope {
-  implicit input: value boolean;
-  implicit output: value boolean;
+  default input: value boolean;
+  default output: value boolean;
 
   node delay: Std.DelayOneStep { Type: boolean, InitialValue: false }
-  connect implicit input -> delay;
-  connect delay -> implicit output;
+  connect default input -> delay;
+  connect delay -> default output;
 }
 
 singleton node type Shared {
-  implicit output: value boolean;
+  default output: value boolean;
   node constant: Std.Constant { Type: boolean, Value: true }
-  connect constant -> implicit output;
+  connect constant -> default output;
 }
 
 node source: Std.DebugValueSource { Type: boolean }

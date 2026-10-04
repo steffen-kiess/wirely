@@ -13,10 +13,10 @@ namespace GPIO {
 
     // TODO: Allow specifying active high / active low?
 
-    implicit input: value boolean;
+    default input: value boolean;
 
     native procedure set_value stage output
-      depends on implicit input as "input";
+      depends on default input as "input";
   }
 
   // TODO: Add tri-state output where the value can be None which will cause the
