@@ -42,8 +42,8 @@ for expression, expected in [
     value = parse(f'parameter P: List[Option[uint8]] = {expression};').default_value
     assert parse_value(list_type, value) == expected
 
-for expression in ['TimeOfDay_AddWrap("23:30", "01:00")',
-                   'TimeOfDay_AddWrap("23:30", "01:00",)']:
+for expression in ['TimeOfDay.AddWrap("23:30", "01:00")',
+                   'TimeOfDay.AddWrap("23:30", "01:00",)']:
     value = parse(f'parameter P: TimeOfDay = {expression};').default_value
     assert graph.get_const_value(value, wirely.types.TimeOfDay).evaluate() == datetime.time(0, 30)
 assert parse('parameter P: unit = f();').default_value.parameters == []

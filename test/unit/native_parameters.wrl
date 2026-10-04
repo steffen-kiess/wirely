@@ -3,7 +3,7 @@ node type Defaults {
   parameter Value: Type = 7;
   parameter At: TimeOfDay = "23:30";
   parameter Offset: String = "01:00";
-  parameter Wrapped: TimeOfDay = TimeOfDay_AddWrap(At, Offset);
+  parameter Wrapped: TimeOfDay = TimeOfDay.AddWrap(At, Offset);
   parameter Items: List[Option[Type]] = [Some(Value), None];
 
   node value: Std.Constant { Type: Type, Value: Value }

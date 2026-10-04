@@ -139,7 +139,7 @@ parameter Present: Option[unit] = Some(());
 optional parameter Absent: Option[unit];
 optional parameter Missing: boolean;
 parameter Items: List[Option[Type]] = [Some(Number), None];
-parameter At: TimeOfDay = TimeOfDay_AddWrap("23:30", "01:00");
+parameter At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
 parameter Duration: Duration = "PT1S";
 parameter ModeType: ValueType = ThermostatSystemModeEnum;
 parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Cool;

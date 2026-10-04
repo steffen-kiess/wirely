@@ -92,7 +92,7 @@ class ValueParameter(Value):
         raise Exception('Attempt to call ValueParameter.evaluate()')
 
 
-def impl_TimeOfDay_AddWrap(time, offset):
+def impl_time_of_day_add_wrap(time, offset):
     # TODO: Probably the caller should call evaluate() for time and offset
 
     time_value = time.evaluate()
@@ -123,7 +123,7 @@ class Function:
         self.implementation = implementation
 
 functions_list = [
-    Function('TimeOfDay_AddWrap', [blocks.types.TimeOfDay, blocks.types.String], blocks.types.TimeOfDay, impl_TimeOfDay_AddWrap)
+    Function('TimeOfDay.AddWrap', [blocks.types.TimeOfDay, blocks.types.String], blocks.types.TimeOfDay, impl_time_of_day_add_wrap)
 ]
 functions = {}
 for function in functions_list:

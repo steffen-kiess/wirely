@@ -191,7 +191,7 @@ Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
 value of type `T`.
 `MonotonicTime.Invalid` is the available monotonic-time constant. The
-compile-time function `TimeOfDay_AddWrap(time, offset)` adds an `"HH:MM"`
+compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.
 
 Expressions have limited support: literals, parameter references, lists,

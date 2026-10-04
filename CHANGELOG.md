@@ -9,6 +9,7 @@
 Use `Time.DebounceStable` instead of `Time.DelayChange`,
 `Std.DelayOneStep` instead of `Std.Delay`, and
 `Time.IsInDailyInterval` instead of `Time.IsBetween`.
+Use `TimeOfDay.AddWrap` instead of `TimeOfDay_AddWrap`.
 
 #### Node instance syntax
 

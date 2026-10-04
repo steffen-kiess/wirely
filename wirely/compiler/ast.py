@@ -639,9 +639,9 @@ class Scope(Declaration):
                             for element in value.values]
                 return blocks.value.ValueList(value_type, elements, ast_element=value)
             if isinstance(value, blocks.FunctionCall):
-                if not isinstance(value.fun, blocks.Reference) or len(value.fun.identifiers) != 1:
-                    raise blocks.ProgramError(value.fun, f'Function is not a single identifier')
-                function_name = value.fun.identifiers[0].id_str
+                if not isinstance(value.fun, blocks.Reference):
+                    raise blocks.ProgramError(value.fun, 'Function is not a reference')
+                function_name = '.'.join(identifier.id_str for identifier in value.fun.identifiers)
                 if function_name == 'Some':
                     if len(value.parameters) != 1:
                         raise blocks.ProgramError(value, 'Some expects exactly one argument')

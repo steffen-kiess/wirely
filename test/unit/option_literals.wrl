@@ -22,7 +22,7 @@ node list_options: LiteralParameter {
 }
 node time_some: Std.Constant {
   Type: Option[TimeOfDay],
-  Value: Some(TimeOfDay_AddWrap("23:30", "01:00")),
+  Value: Some(TimeOfDay.AddWrap("23:30", "01:00")),
 }
 node delay: Std.DelayOneStep { Type: Option[boolean], InitialValue: Some(false) }
 connect boolean_some -> delay;
@@ -47,11 +47,11 @@ node type Settings {
   }
   node at: Std.Constant {
     Type: Option[TimeOfDay],
-    Value: Some(TimeOfDay_AddWrap(At, Offset)),
+    Value: Some(TimeOfDay.AddWrap(At, Offset)),
   }
   node times: LiteralParameter {
     Type: List[Option[TimeOfDay]],
-    Value: [Some(TimeOfDay_AddWrap(At, Offset)), None],
+    Value: [Some(TimeOfDay.AddWrap(At, Offset)), None],
   }
 }
 node settings: Settings {
@@ -66,5 +66,5 @@ node type ForwardOption {
   node constant: Std.Constant { Type: Option[TimeOfDay], Value: Initial }
 }
 node forwarded: ForwardOption {
-  Initial: Some(TimeOfDay_AddWrap("23:30", "01:00")),
+  Initial: Some(TimeOfDay.AddWrap("23:30", "01:00")),
 }

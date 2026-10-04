@@ -15,7 +15,7 @@ node source: Std.Constant { Type: Option[boolean], Value: Some(42) } // E: Inval
 // TEST: some_wrong_function_type
 node source: Std.Constant {
   Type: Option[boolean],
-  Value: Some(TimeOfDay_AddWrap("23:30", "01:00")),
+  Value: Some(TimeOfDay.AddWrap("23:30", "01:00")),
 } // ^E: Expected value of type boolean, got TimeOfDay
 
 // TEST: missing_unit_argument

@@ -98,12 +98,12 @@ namespace Time {
     // Note: This relies on both blocks using the same time source, so that
     // there is no cycle/step at the Time where both or neither are true.
     node before: IsInDailyInterval {
-      Start: TimeOfDay_AddWrap(Time, "-08:00"),
+      Start: TimeOfDay.AddWrap(Time, "-08:00"),
       End: Time,
     }
     node after: IsInDailyInterval {
       Start: Time,
-      End: TimeOfDay_AddWrap(Time, "02:00"),
+      End: TimeOfDay.AddWrap(Time, "02:00"),
     }
 
     native procedure run
