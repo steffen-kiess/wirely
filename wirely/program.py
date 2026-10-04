@@ -8,6 +8,7 @@ from pprint import pformat
 from types import MappingProxyType
 
 from .types import Type
+from .runtime.procedures import ProcedureBody
 
 
 class RunStage(enum.Enum):
@@ -117,7 +118,7 @@ class NativeInstance:
 
 @dataclass(frozen=True, slots=True)
 class Procedure:
-    """A scheduled native procedure with its inputs and result destinations."""
+    """A scheduled procedure with its inputs and result destinations."""
 
     node_id: str  # Owning node's key in Program.instances.
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
@@ -125,6 +126,7 @@ class Procedure:
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
+    body: ProcedureBody | None = None  # Checked .wrl body; None selects native dispatch.
 
     def __post_init__(self):
         type_name, proc_name = self.reference
@@ -138,8 +140,9 @@ class Procedure:
 
     @property
     def key(self):
-        """Return the (node ID, method name) key for triggers and wakeups."""
-        return self.node_id, self.reference[1]
+        """Return an identity distinct from native method aliases."""
+        name = self.reference[1]
+        return self.node_id, name if self.body is None else ('procedure', name)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)

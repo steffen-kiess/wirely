@@ -624,6 +624,9 @@ class Scope(Declaration):
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
+            from .expressions import Expression, compile_constant
+            if isinstance(value, Expression):
+                return compile_constant(self, value, value_type, par_values)
             if value_type == blocks.types.ValueType:
                 return blocks.ConstantValue(value_type, self.resolve_type(value, par_values=par_values),
                                             ast_element=value)
@@ -1297,7 +1300,7 @@ class StageDeclaration(SourceElement):
 
 
 class ProcedureBinding(SourceElement):
-    def __init__(self, reference: Reference, alias: typing.Optional[StringConstant] = None, *, source_position: SourcePosition):
+    def __init__(self, reference: Reference, alias: typing.Optional[typing.Union[StringConstant, Identifier]] = None, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.reference = reference
         self.alias = alias
@@ -1305,7 +1308,8 @@ class ProcedureBinding(SourceElement):
     @property
     def key(self):
         if self.alias is not None:
-            return self.alias.value
+            return (self.alias.id_str if isinstance(self.alias, Identifier)
+                    else self.alias.value)
         names = [identifier.id_str for identifier in self.reference.identifiers]
         if len(names) != 1 or names[0] in ('default input', 'default output'):
             raise ProgramError(self, 'Default connectors and complex references require an explicit alias')
@@ -1480,6 +1484,7 @@ class DeclarationProcedure(Declaration):
         self.stage = stage
         self.depends = depends
         self.produces = produces
+        self.body = None
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state variable after writing to a CSV file. The new value for the state variable might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
@@ -1490,6 +1495,16 @@ class DeclarationProcedure(Declaration):
         #     ]
         #     raise ProgramError(self.stage, f'Procedure name {self.name} is declared as output stage but produces an output', hints=hints)
 
+    @staticmethod
+    def create_body(name, stage, depends, produces, body, *, source_position):
+        procedure = DeclarationProcedure(None, name, None, stage, depends, produces,
+                                         source_position=source_position)
+        procedure.body = body
+        for binding in (*depends.dependencies, *produces.outputs):
+            if isinstance(binding.alias, StringConstant):
+                raise ProgramError(binding.alias, 'Procedure aliases must be identifiers')
+        return procedure
+
     def compile_pass1(self, graph):
         name = self.name.id_str
         if name in graph.procedures:
@@ -1498,7 +1513,7 @@ class DeclarationProcedure(Declaration):
             ]
             raise ProgramError(self, f'Duplicate procedure name {name} in {graph}', hints=hints)
         for previous in graph.procedures.values():
-            if previous.python_name == self.python_name:
+            if self.is_native and previous.is_native and previous.python_name == self.python_name:
                 raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name {self.python_name!r}', hints=[
                     CompilerHint(previous.alias or previous.name, 'Previous Python procedure name was here'),
                 ])

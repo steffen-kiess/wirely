@@ -39,7 +39,8 @@ class Engine:
 
         self.fake_monotonic_time_offset = None
 
-        type_names = {proc.reference[0] for schedule in program.procs.values() for proc in schedule}
+        type_names = {proc.reference[0] for schedule in program.procs.values()
+                      for proc in schedule if proc.body is None}
         self.native_classes = {name: get_native_block_type_by_name(name) for name in type_names}
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
@@ -174,9 +175,13 @@ class Engine:
                 context = blocks.ProcedureContext(
                     inputs=inputs, results=results, static=proc, step_info=step_info,
                 )
-                native_state = self.native_states[proc.node_id]
-                target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
-                getattr(target, proc.reference[1])(context=context)
+                if proc.body is None:
+                    native_state = self.native_states[proc.node_id]
+                    target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
+                    getattr(target, proc.reference[1])(context=context)
+                else:
+                    for name, value in proc.body.execute(inputs).items():
+                        context.set_result(name, value)
                 missing = set(proc.results) - context._written_results
                 if missing:
                     raise ValueError(f'Procedure {proc.reference[1]!r} on {context.name} did not write results: {sorted(missing)!r}')

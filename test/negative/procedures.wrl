@@ -1,0 +1,357 @@
+// LIBRARIES: std
+
+// TEST: duplicate result
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = true;
+    output = false; // E: assigned more than once
+  }
+}
+node probe: Probe {  }
+
+// TEST: result read
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = output; // E: Cannot read result
+  }
+}
+node probe: Probe {  }
+
+// TEST: local assignment
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value = true;
+    value = false; // E: expected a declared result
+    output = value;
+  }
+}
+node probe: Probe {  }
+
+// TEST: unknown input
+node type Probe {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = input; // E: Unknown procedure value
+  }
+}
+node probe: Probe {  }
+node source: Std.Constant { Type: boolean, Value: true }
+connect source -> probe;
+
+// TEST: inferred string
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let time = "08:00"; // E: parameter-only
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: out of range
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let number: uint8 = 256; // E: out of range
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: wrong Boolean operand
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = !7; // E: Invalid boolean
+  }
+}
+node probe: Probe {  }
+
+// TEST: different branches
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = if true { true } else { 7 }; // E: Invalid boolean
+  }
+}
+node probe: Probe {  }
+
+// TEST: protected result name
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let output = true; // E: Cannot shadow
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: protected parameter name
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let Enabled = true; // E: Cannot shadow
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: parameter-only value
+node type Probe {
+  parameter Text: String = "text";
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value = Text; // E: unavailable parameter
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: runtime function
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let time: TimeOfDay = TimeOfDay.AddWrap("08:00", "01:00"); // E: Runtime calls
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: branch local scope
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value = if true { let inside = true; inside } else { false };
+    output = inside; // E: Unknown procedure value
+  }
+}
+node probe: Probe {  }
+
+// TEST: unsupported equality
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let time: TimeOfDay = "08:00";
+    output = time == time; // E: Equality requires
+  }
+}
+node probe: Probe {  }
+
+// TEST: different integer types
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let number: uint8 = 7;
+    let other: int32 = 7;
+    output = number == other; // E: Expected value of type uint8
+  }
+}
+node probe: Probe {  }
+
+// TEST: loop
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    while true {} // E: Syntax error
+    output = true;
+  }
+}
+node probe: Probe {  }
+
+// TEST: mutable local
+node type Probe {
+
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value = true; // E: Syntax error
+    output = value;
+  }
+}
+node probe: Probe {  }
+
+// TEST: missing result
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {} // E: did not assign results
+}
+node probe: Probe {}
+
+// TEST: string binding alias
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as "output" { // E: aliases must be identifiers
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: colliding binding names
+node type Probe {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run depends on default input as same produces default output as same { // E: names must be distinct
+    same = true;
+  }
+}
+node source: Std.Constant { Type: boolean, Value: true }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: input assignment
+node type Probe {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run depends on default input as input produces default output as output {
+    input = false; // E: expected a declared result
+    output = input;
+  }
+}
+node source: Std.Constant { Type: boolean, Value: true }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: unsupported multi value
+node type Probe {
+  default input: multi value boolean;
+  default output: value boolean;
+  procedure run depends on default input as input // E: Multi inputs
+    produces default output as output { output = true; }
+}
+node source: Std.DebugEventSource { Type: boolean }
+node probe: Probe {}
+
+// TEST: unsupported event
+node type Probe {
+  default input: event boolean;
+  default output: value boolean;
+  procedure run depends on default input as input // E: Event connectors
+    produces default output as output { output = true; }
+}
+node source: Std.DebugEventSource { Type: boolean }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: event output
+node type Probe {
+  default output: event boolean;
+  procedure run produces default output as output { output = true; } // E: Event connectors
+}
+node probe: Probe {}
+
+// TEST: resource input
+resource type Service;
+node type Probe {
+  input ServiceInput: resource Service;
+  default output: value boolean;
+  procedure run depends on ServiceInput // E: cannot access resources
+    produces default output as output { output = true; }
+}
+node probe: Probe {}
+
+// TEST: old state must be declared
+node type Probe {
+  state saved: boolean = false;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = saved.old; // E: Unknown procedure value
+  }
+}
+node probe: Probe {}
+
+// TEST: input stage restriction
+node type Probe {
+  default input: value boolean;
+  default output: value boolean;
+  procedure run stage input depends on default input as input // E: declared as input stage
+  // ^H: Dependencies declared here
+    produces default output as output { output = input; }
+}
+node probe: Probe {}
+
+// TEST: cycle
+node type Probe {
+  temporary first: boolean;
+  temporary second: boolean;
+  procedure one depends on second produces first { first = second; } // H: Producer was declared here
+  procedure two depends on first produces second { second = first; } // E: Circular procedure dependency
+}
+node probe: Probe {}
+
+// TEST: resource output
+resource type Service;
+node type Probe {
+  output ServiceOutput: resource Service;
+  procedure run produces ServiceOutput {} // E: cannot produce resources
+}
+node probe: Probe {}
+
+// TEST: call hidden in a struct literal
+struct type Settings { time: TimeOfDay }
+node type Probe {
+  default output: value Settings;
+  procedure run produces default output as output {
+    output = Settings {
+      time: TimeOfDay.AddWrap("08:00", "01:00"), // E: Runtime calls
+    };
+  }
+}
+node probe: Probe {}
+
+// TEST: result assignment inside a branch
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value = if true { output = true; } else { false }; // E: Syntax error
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: compile-time generic Boolean operand
+node type Probe {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  parameter Enabled: boolean = !Value; // E: Expected value of type boolean
+  default output: value boolean;
+  procedure run produces default output as output { output = Enabled; }
+}
+node probe: Probe { Type: int32, Value: 7 }
+
+// TEST: compile-time generic local annotation
+node type Probe {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  parameter Enabled: boolean = {
+    let value: boolean = Value; // E: Expected value of type boolean
+    value
+  };
+  default output: value boolean;
+  procedure run produces default output as output { output = Enabled; }
+}
+node probe: Probe { Type: int32, Value: 7 }
+
+// TEST: non-function in a compile-time branch
+node type Probe {
+  parameter Enabled: boolean = if true { 1() } else { false }; // E: Function is not a reference
+  default output: value boolean;
+  procedure run produces default output as output { output = Enabled; }
+}
+node probe: Probe {}

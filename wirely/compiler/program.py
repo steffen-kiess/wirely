@@ -45,10 +45,12 @@ def compile_nocatch(global_block_type):
             if isinstance(path[-1], blocks.Block):  # TODO: Handle singletons here?
                 raise Exception('path[-1] != var.block')
         # TODO: Move this code somewhere else?
-        var_type = var.impl_var_type
-        for block in reversed(path):
-            if isinstance(block, blocks.Block):  # TODO: Handle singletons here?
-                var_type = resolve_type(var_type, block.par_values)
+        parameters = {}
+        instance = instances[path]
+        while instance is not None:
+            parameters.update(instance.parameter_values)
+            instance = instance.parent_instance
+        var_type = resolve_type(var.impl_var_type, parameters)
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = '.'.join([(block.name if isinstance(block, blocks.Block) else block.name.id_str) for block in path])
@@ -227,6 +229,40 @@ def compile_nocatch(global_block_type):
         for state in block.block_statevars:
             initial_state[state_map[path, state]] = state.initial_value
 
+    # Compile .wrl bodies after instance parameters and variable types resolve.
+    from .expressions import compile_procedure
+    bodies = {}
+    for stage_procs in procs.values():
+        for path, proc in stage_procs:
+            if proc.declaration_procedure.is_native:
+                continue
+            source_types = {}
+            for name, source in proc.static_context._sources.items():
+                declaration = proc.declaration_procedure
+                binding = next(binding for binding in declaration.depends.dependencies
+                               if binding.key == name)
+                if blocks.ast.dependency_is_resource(source):
+                    raise blocks.ProgramError(binding, 'Procedures cannot access resources')
+                if getattr(source, 'is_list', False):
+                    raise blocks.ProgramError(binding, 'Multi inputs are not supported in procedures')
+                spec = getattr(source, 'conn_spec', None)
+                if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
+                    raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
+                source_types[name] = resolve_binding(path, source).variable.var_type
+            result_types = {}
+            for name, target in proc.static_context._targets.items():
+                spec = getattr(target, 'conn_spec', None)
+                binding = next(binding for binding in proc.declaration_procedure.produces.outputs
+                               if binding.key == name)
+                if isinstance(spec, blocks.ConnectorSpecificationResource):
+                    raise blocks.ProgramError(binding, 'Procedures cannot produce resources')
+                if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
+                    raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
+                variable = (state_map[path, target] if isinstance(target, blocks.Block.StateVariable)
+                            else variable_map[path, target.var_identifier])
+                result_types[name] = variable.var_type
+            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types)
+
     schedules = {}
     for stage, stage_procs in procs.items():
         schedule = []
@@ -256,7 +292,7 @@ def compile_nocatch(global_block_type):
                 reference=(instances[path].block_type.fullname_tuple, proc.declaration_procedure.python_name),
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
-                results=results,
+                results=results, body=bodies.get((path, proc)),
             ))
         schedules[stage] = tuple(schedule)
     node_aliases = {}

@@ -25,9 +25,12 @@ namespace Example {
     default input: value Type;
     default output: value Type;
 
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      output = input;
+    }
   }
 }
 ```
@@ -48,6 +51,20 @@ Keep short declarations on one line. For longer procedures, break before
 `depends on` and `produces`, indenting both clauses two spaces beyond the
 declaration. Keep `stage input` or `stage output` with the procedure name
 when practical.
+
+For a multiline procedure header with a body, put the opening brace on its
+own line, aligned with `procedure`. Indent the body one level. A short
+header may keep its opening brace on the declaration line.
+
+```wrl
+procedure run
+  depends on default input as input
+  produces default output as output
+{
+  let enabled = !input;
+  output = enabled;
+}
+```
 
 Break long lists after commas, adding another two spaces for their
 continuation. Keep a reference and its `as` alias together where practical.

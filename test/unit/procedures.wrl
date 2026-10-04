@@ -1,0 +1,102 @@
+namespace ProcedureTests {
+  enum type Mode: uint8 { Off = 0, On = 1 }
+  struct type Pair { enabled: boolean, number: uint8 }
+
+  node type Select {
+    parameter Enabled: boolean = true;
+    parameter Fallback: boolean = false;
+
+    default input: value boolean;
+    default output: value boolean;
+
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      let selected = input;
+      let selected = if Enabled {
+        let inverted = !selected;
+        !inverted
+      } else {
+        Fallback
+      };
+      output = selected && !false || false;
+    }
+  }
+
+  node type Delay {
+    default input: value boolean;
+    default output: value boolean;
+    output Current: value boolean;
+    state saved: boolean = false;
+
+    procedure write depends on default input as input produces saved {
+      saved = input;
+    }
+    procedure read
+      depends on saved.old as previous
+      produces default output as output
+    {
+      output = previous;
+    }
+    procedure read_new depends on saved.new as current produces Current {
+      Current = current;
+    }
+  }
+
+  node type Constants {
+    parameter Enabled: boolean = true;
+    parameter Number: uint8 = if Enabled { 7 } else { 0 };
+    parameter Time: TimeOfDay = if Enabled { "08:00" } else { "09:00" };
+    parameter ModeValue: Mode = Mode.On;
+    parameter PairValue: Pair = Pair { enabled: true, number: 7 };
+
+    default output: value boolean;
+    output TimeValue: value TimeOfDay;
+    output ModeEqual: value boolean;
+    output UnitEqual: value boolean;
+    output PairCopy: value Pair;
+
+    procedure run
+      produces default output as output, TimeValue, ModeEqual,
+        UnitEqual, PairCopy
+    {
+      let number: uint8 = 7;
+      let time: TimeOfDay = "08:00";
+      let mode = Mode.On;
+      let unit = ();
+      output = 7 == number && Number != 0;
+      TimeValue = if Enabled { time } else { Time };
+      ModeEqual = mode == ModeValue;
+      UnitEqual = unit == ();
+      PairCopy = PairValue;
+    }
+  }
+
+  node type Forward {
+    parameter Type: ValueType;
+    default input: value Type;
+    default output: value Type;
+    node inner: Std.TwoStageValueForward { Type: Type }
+    connect default input -> inner;
+    connect inner -> default output;
+  }
+
+  singleton node type Shared {
+    default output: value boolean;
+    procedure run produces default output as output { output = true; }
+  }
+}
+
+node source: Std.DebugValueSource { Type: boolean }
+node selected: ProcedureTests.Select {}
+node fallback: ProcedureTests.Select { Enabled: false, Fallback: true }
+node delayed: ProcedureTests.Delay {}
+node constants: ProcedureTests.Constants {}
+node forwarded: ProcedureTests.Forward { Type: boolean }
+node shared: ProcedureTests.Shared {}
+node shared_again: ProcedureTests.Shared {}
+connect source -> selected;
+connect source -> fallback;
+connect source -> delayed;
+connect source -> forwarded;

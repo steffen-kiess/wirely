@@ -13,6 +13,7 @@ bare_declaration: "struct" "type" identifier "{" struct_field_list "}" -> declar
            | "state" identifier ":" value "=" value ";" -> declaration_state_variable
            | "temporary" identifier ":" value ";" -> declaration_temporary_variable
            | native_specifier "procedure" identifier ["as" string_constant] stage_declaration depends_declaration produces_declaration ";" -> declaration_procedure
+           | "procedure" identifier stage_declaration depends_declaration produces_declaration procedure_body -> declaration_procedure__create_body
            | "native" "initializer" depends_declaration ";" -> declaration_initializer
            | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
            | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
@@ -46,6 +47,7 @@ produces_declaration: -> produces_declaration
 
 procedure_binding: reference -> procedure_binding
                  | reference "as" string_constant -> procedure_binding
+                 | reference "as" identifier -> procedure_binding
 
 block_parameter_list: inner_attribute* _separated_empty{block_parameter, ","} -> file_input
 
@@ -71,15 +73,54 @@ block_connector_type: "input" -> block_connector_type_specifier__create_input
 list_specifier: "multi" -> list_specifier__create_list
               | ()     -> list_specifier__create_nolist
 
-value: reference "{" struct_literal_field_list "}" -> struct_literal
-     | reference       -> copy
-     | int_number      -> copy
-     | float_number    -> copy
+?value: or_expression
+?or_expression: and_expression
+              | or_expression "||" and_expression -> binary_expression__logical_or
+?and_expression: equality_expression
+               | and_expression "&&" equality_expression -> binary_expression__logical_and
+?equality_expression: unary_expression
+                    | unary_expression "==" unary_expression -> binary_expression__equal
+                    | unary_expression "!=" unary_expression -> binary_expression__not_equal
+?unary_expression: atom
+                 | "!" unary_expression -> unary_expression
+?atom: reference "{" struct_literal_field_list "}" -> struct_literal
+     | reference -> copy
+     | int_number -> copy
+     | float_number -> copy
      | string_constant -> copy
      | "(" ")" -> unit_literal
-     | value "[" value "]" -> bracket_operator
-     | value "(" value_list ")" -> function_call
+     | "(" value ")" -> copy
+     | atom "[" value "]" -> bracket_operator
+     | atom "(" value_list ")" -> function_call
      | "[" value_list "]" -> list_literal
+     | if_expression
+     | expression_block
+
+if_expression: "if" condition expression_block "else" expression_block
+             | "if" condition expression_block "else" if_expression
+// A bare struct literal cannot be an if condition, as in Rust.
+?condition: condition_or
+?condition_or: condition_and
+             | condition_or "||" condition_and -> binary_expression__logical_or
+?condition_and: condition_equality
+              | condition_and "&&" condition_equality -> binary_expression__logical_and
+?condition_equality: condition_unary
+                  | condition_unary "==" condition_unary -> binary_expression__equal
+                  | condition_unary "!=" condition_unary -> binary_expression__not_equal
+?condition_unary: condition_atom
+                | "!" condition_unary -> unary_expression
+?condition_atom: reference -> copy
+               | int_number -> copy
+               | float_number -> copy
+               | string_constant -> copy
+               | "(" value ")" -> copy
+               | condition_atom "(" value_list ")" -> function_call
+
+expression_block: "{" local_binding* value "}"
+procedure_body: "{" procedure_statement* "}"
+?procedure_statement: local_binding | result_assignment
+local_binding: "let" identifier [":" value] "=" value ";"
+result_assignment: identifier "=" value ";"
 
 value_list: _separated_empty{value, ","} -> copy_list
 

@@ -73,16 +73,16 @@ node type Forward {
   default input: value boolean;
   default output: value boolean;
 
-  native procedure run
-    depends on default input as "input"
-    produces default output as "output";
+  procedure run
+    depends on default input as input
+    produces default output as output
+  {
+    output = input;
+  }
 }
 ```
 
-This illustrates a type declaration, but its `native procedure` needs a
-matching Python implementation before the type can be instantiated. To make
-a composite type entirely in `.wrl`, connect its external input to child
-nodes:
+To make a composite type, connect its external input to child nodes:
 
 ```wrl
 node type PrintBoolean {
@@ -259,25 +259,29 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 Inside a node type, `state name: Type = value;` declares a persistent value
 with an initial value. `temporary name: Type;` holds a value calculated
-within a step. Native procedures declare which inputs or temporaries they
+within a step. Procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. Procedures
 run in dependency order; dependencies must be acyclic.
 
-Use `reference as "key"` to name a procedure's Python input or result.
-An unaliased simple identifier uses its own name. Default connectors and
-complex references require aliases. Keys must be unique within each clause;
-aliases preserve their exact spelling.
+Use `reference as name` to name a procedure input or result. An unaliased
+simple identifier uses its own name. Default connectors and complex
+references require aliases. Names must be unique within each clause.
+Native procedures also accept `as "key"` for Python keys.
 For example:
 
 ```wrl
-native procedure run
-  depends on default input as "value", last_value.old as "previous"
-  produces default output as "result", last_value as "next";
+procedure run
+  depends on default input as current, last_value.old as previous
+  produces default output as result, last_value as next
+{
+  result = previous;
+  next = current;
+}
 ```
 
 `last_value.old` reads the previous step's state without depending on this
 step's writer. Dependencies can also name direct child outputs, such as
-`sensor.Value as "value"`. Result destinations are local output connectors,
+`sensor.Value as value`. Result destinations are local output connectors,
 temporaries, or state variables. Arbitrary expressions and deeper paths
 are not supported.
 
@@ -297,9 +301,80 @@ results to external systems. State updates become visible on the next step.
 `Std.DelayOneStep` outputs the previous step's input and stores the current
 input for the following step. Use it to break dependency cycles.
 
-The `.wrl` declaration specifies a native procedure's interface; its code
-lives in Python under `wirely/native/`; see the
-[native Python implementation guide](native-python.md) for that interface.
-Node types can combine child nodes and connections in `.wrl`, as
+### Procedure bodies
+
+Write a procedure body in `.wrl` to calculate results from declared inputs
+and node parameters:
+
+```wrl
+node type Select {
+  parameter Fallback: boolean = false;
+  input Enabled: value boolean;
+  default input: value boolean;
+  default output: value boolean;
+
+  procedure run
+    depends on Enabled, default input as input
+    produces default output as output
+  {
+    let selected = if Enabled { input } else { Fallback };
+    output = selected;
+  }
+}
+```
+
+Inside the body, use input aliases and runtime-valued parameter names as
+values. Assign each result exactly once; results cannot be read. Input,
+result, and parameter names must be distinct. Alias state reads and writes
+separately when a procedure uses both.
+
+`let` creates an immutable local. A later `let` may reuse a local name;
+locals cannot shadow inputs, results, or parameters. A block's locals are
+visible only inside that block. Results are assigned in the outer body.
+
+Local types are inferred from their initializers, or supplied by an
+annotation. Integer literals default to `int32` without an expected type.
+Annotations also select literal conversions, which happen during
+compilation:
+
+```wrl
+let enabled = true;
+let count: uint8 = 3;
+let time: TimeOfDay = "08:00";
+```
+
+Locals must have runtime types. A string literal needs a runtime destination
+such as `TimeOfDay` or `Duration`; `String` itself is parameter-only.
+
+Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
+`==` and `!=` for matching Boolean, integer, enum, or unit types. `if`
+requires a Boolean condition and an `else`; both branches yield the same
+type. Expression blocks may contain locals followed by a final expression
+without a semicolon. These expressions also work in parameter values and
+other compile-time expressions. Functions available at compile time cannot
+be called in procedure bodies.
+
+Procedures can copy any runtime value, including options and structs.
+Their connector dependencies and results currently use single `value`
+connectors, not events or multi inputs. State reads must be listed in
+`depends on`, using `.old` or `.new`.
+
+Procedure bodies are pure: they read declared values and write declared
+results. They cannot access resources, configuration, clocks, or deadlines.
+The engine runs them initially and when dependencies change, retaining
+results while dependencies are unchanged. Immutable locals and
+single-assignment results keep these transformations easy to reason about.
+
+Bodies have no loops or recursion. This keeps an unrelated computation
+from holding up actions such as switching on a light. The goal is prompt,
+predictable home automation, rather than a hard real-time guarantee;
+execution cost still depends on the body and the size of its values.
+
+Use native procedures for external effects or operations outside this
+expression subset. Their `.wrl` declarations specify the interface and
+stage; Python supplies the implementation. See the
+[native Python implementation guide](native-python.md).
+
+Node types can also combine child nodes and connections in `.wrl`, as
 `KNX.ValueProvider` does. See the
 [library reference](libraries.md) for available nodes and their connectors.

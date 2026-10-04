@@ -51,17 +51,6 @@ class DelayOneStep:
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class TwoStageValueForward:
-    @staticmethod
-    def run1(*, context):
-        context.set_result('temp', context.inputs['input'])
-
-    @staticmethod
-    def run2(*, context):
-        context.set_result('output', context.inputs['temp'])
-
-
-@native_block_type(native_block_types, has_native_state=False)
 class DebugValuePrinter:
     @staticmethod
     def run(*, context):

@@ -42,8 +42,12 @@ namespace Std {
 
     temporary temp: Type;
 
-    native procedure run1 depends on default input as "input" produces temp;
-    native procedure run2 depends on temp produces default output as "output";
+    procedure run1 depends on default input as input produces temp {
+      temp = input;
+    }
+    procedure run2 depends on temp produces default output as output {
+      output = temp;
+    }
   }
 
   node type DebugValuePrinter {

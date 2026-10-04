@@ -7,6 +7,10 @@ from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement
+from .expressions import (
+    BinaryExpression, UnaryExpression, IfExpression, ExpressionBlock,
+    LocalBinding, ResultAssignment, ProcedureBody,
+)
 
 
 with open(os.path.dirname(__file__) + '/blocks.lark', 'r') as file:
@@ -15,6 +19,8 @@ with open(os.path.dirname(__file__) + '/blocks.lark', 'r') as file:
 # TODO: Move somewhere else?
 
 ast_classes = [
+    BinaryExpression, UnaryExpression, IfExpression, ExpressionBlock,
+    LocalBinding, ResultAssignment, ProcedureBody,
     blocks.ConnectionKindSpecifier,
     blocks.ConnectorSpecification,
     blocks.ConnectorSpecificationData,

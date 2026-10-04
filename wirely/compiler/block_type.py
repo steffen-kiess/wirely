@@ -286,6 +286,8 @@ class BlockType(blocks.Scope):
                     outputs.append(output)
                     targets[binding.key] = output
                 elif isinstance(out, blocks.BlockOutput):
+                    if not procedure.is_native and isinstance(out.conn_spec, blocks.ConnectorSpecificationResource):
+                        raise blocks.ProgramError(binding, 'Procedures cannot produce resources')
                     # TODO: Clean up
                     output = block.custom_outputs[out]
                     outputs.append(output)
@@ -310,7 +312,7 @@ class BlockType(blocks.Scope):
             static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
 
             if not procedure.is_native:
-                raise Exception('Got non-native procedure')
+                run = None
             else:
                 compiler_native._validate_native_procedure(
                     native_class, procedure, has_native_state=self.is_native,
