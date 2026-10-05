@@ -1,0 +1,189 @@
+node type Arguments {
+  parameter A: uint8 = 1;
+  parameter B: uint8 = 2;
+  assert A == 1 && B == 2;
+}
+node empty: Arguments {}
+node single: Arguments { A: 1 }
+node trailing: Arguments { A: 1, }
+node multiple: Arguments { A: 1, B: 2, /* final argument */ }
+constant Empty: List[Option[uint8]] = [];
+constant Single: List[Option[uint8]] = [Some(1,),];
+constant Multiple: List[Option[uint8]] = [Some(1 /* value */,), None,];
+assert CompilerTest.Uint8OptionsEqual(Empty, [])
+  && CompilerTest.Uint8OptionsEqual(Single, [Some(1)])
+  && CompilerTest.Uint8OptionsEqual(Multiple, [Some(1), None]);
+constant At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00",);
+constant ExpectedAt: TimeOfDay = "00:30";
+assert CompilerTest.TimeEqual(At, ExpectedAt);
+
+node forward: Later {}
+node type Later {}
+node native_forward: TestLibrary.TestBlock {}
+
+node type WeakNames {
+  parameter constant: boolean;
+  parameter default: boolean;
+  parameter event: boolean;
+  parameter input: boolean;
+  parameter multi: boolean;
+  parameter on: boolean;
+  parameter output: boolean;
+  parameter resource: boolean;
+  parameter stage: boolean;
+  parameter state: boolean;
+  parameter type: boolean;
+  parameter value: boolean;
+  assert constant && default && event && input && multi && on
+    && output && resource && stage && state && type && value;
+}
+
+struct type WeakFields {
+  constant: boolean,
+  default: boolean,
+  event: boolean,
+  input: boolean,
+  multi: boolean,
+  on: boolean,
+  output: boolean,
+  resource: boolean,
+  stage: boolean,
+  state: boolean,
+  type: boolean,
+  value: boolean,
+}
+
+enum type WeakMembers: uint8 {
+  constant = 0,
+  default = 1,
+  event = 2,
+  input = 3,
+  multi = 4,
+  on = 5,
+  output = 6,
+  resource = 7,
+  stage = 8,
+  state = 9,
+  type = 10,
+  value = 11,
+}
+
+node plain: WeakNames {
+  constant: true,
+  default: true,
+  event: true,
+  input: true,
+  multi: true,
+  on: true,
+  output: true,
+  resource: true,
+  stage: true,
+  state: true,
+  type: true,
+  value: true,
+}
+node escaped: WeakNames {
+  r#constant: true,
+  r#default: true,
+  r#event: true,
+  r#input: true,
+  r#multi: true,
+  r#on: true,
+  r#output: true,
+  r#resource: true,
+  r#stage: true,
+  r#state: true,
+  r#type: true,
+  r#value: true,
+}
+constant Fields: WeakFields = WeakFields {
+  constant: true,
+  default: true,
+  event: true,
+  input: true,
+  multi: true,
+  on: true,
+  output: true,
+  resource: true,
+  stage: true,
+  state: true,
+  type: true,
+  value: true,
+};
+assert CompilerTest.SettingsEqual(Fields, WeakFields {
+  r#constant: true,
+  r#default: true,
+  r#event: true,
+  r#input: true,
+  r#multi: true,
+  r#on: true,
+  r#output: true,
+  r#resource: true,
+  r#stage: true,
+  r#state: true,
+  r#type: true,
+  r#value: true,
+});
+assert WeakMembers.constant == WeakMembers.r#constant;
+assert WeakMembers.default == WeakMembers.r#default;
+assert WeakMembers.event == WeakMembers.r#event;
+assert WeakMembers.input == WeakMembers.r#input;
+assert WeakMembers.multi == WeakMembers.r#multi;
+assert WeakMembers.on == WeakMembers.r#on;
+assert WeakMembers.output == WeakMembers.r#output;
+assert WeakMembers.resource == WeakMembers.r#resource;
+assert WeakMembers.stage == WeakMembers.r#stage;
+assert WeakMembers.state == WeakMembers.r#state;
+assert WeakMembers.type == WeakMembers.r#type;
+assert WeakMembers.value == WeakMembers.r#value;
+
+node r#as: Arguments {}
+node r#assert: Arguments {}
+node r#connect: Arguments {}
+node r#depends: Arguments {}
+node r#enum: Arguments {}
+node r#initializer: Arguments {}
+node r#namespace: Arguments {}
+node r#function: Arguments {}
+node r#native: Arguments {}
+node r#node: Arguments {}
+node r#optional: Arguments {}
+node r#parameter: Arguments {}
+node r#procedure: Arguments {}
+node r#produces: Arguments {}
+node r#singleton: Arguments {}
+node r#struct: Arguments {}
+node r#temporary: Arguments {}
+node r#uses: Arguments {}
+
+node source: Std.Constant { Type: boolean, Value: true }
+node sink: Std.And {}
+connect source, -> sink;
+namespace TestLibrary {
+  native node type Probe {
+    native procedure omitted;
+    native procedure empty depends on produces uses;
+    native initializer depends on uses;
+  }
+}
+
+namespace CompilerTest {
+  native function SettingsEqual(
+    actual: WeakFields, expected: WeakFields,
+  ): boolean;
+  native function r#function(actual: uint8, expected: uint8,): boolean;
+  native function Uint8OptionsEqual(
+    actual: List[Option[uint8]],
+    expected: List[Option[uint8]],
+  ): boolean;
+  native function TimeEqual(actual: TimeOfDay, expected: TimeOfDay): boolean;
+}
+
+assert CompilerTest.r#function(7, 7,);
+
+namespace TestLibrary {
+  node type TestBlock {
+    native procedure test_procedure;
+  }
+}
+

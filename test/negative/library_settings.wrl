@@ -1,0 +1,38 @@
+// LIBRARIES: std, gpio, time, csv, two_n
+
+// TEST: invalid edge type
+assert Std.IsValidEdgeType("invalid"), "EdgeType must be Rising, Falling, or Both";
+// ^E: Compile-time assertion failed: EdgeType must be Rising, Falling, or Both
+
+// TEST: invalid GPIO active state
+assert GPIO.IsValidActiveState("invalid"), "ActiveState must be High or Low";
+// ^E: Compile-time assertion failed: ActiveState must be High or Low
+
+// TEST: invalid GPIO drive
+assert GPIO.IsValidDrive("invalid"); // E: Compile-time assertion failed
+
+// TEST: invalid GPIO bias
+assert GPIO.IsValidBias("invalid"); // E: Compile-time assertion failed
+
+// TEST: unsupported CSV type
+assert CSV.SupportsType(unit); // E: Compile-time assertion failed
+
+// TEST: equal daily interval endpoints
+assert Time.IsValidDailyInterval("12:00", "12:00");
+// ^E: Compile-time assertion failed
+
+
+// TEST: invalid code 1234567890123456
+assert TwoN.IsValidCode("1234567890123456"); // E: Compile-time assertion failed
+
+
+// TEST: invalid code 123x
+assert TwoN.IsValidCode("123x"); // E: Compile-time assertion failed
+
+
+// TEST: invalid code １２３
+assert TwoN.IsValidCode("１２３"); // E: Compile-time assertion failed
+
+
+// TEST: invalid code ١٢٣
+assert TwoN.IsValidCode("١٢٣"); // E: Compile-time assertion failed

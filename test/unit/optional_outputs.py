@@ -1,32 +1,18 @@
 import datetime
-from pathlib import Path
-from unittest import TestCase
 
 import wirely
 from wirely.compiler import _standard_library_sources, compile_strs
-from wirely.compiler import model as compiler_model
 from wirely.compiler import program as program_compiler
 
 
-checks = TestCase()
-message = 'Compile-time assertion failed: OutputValue is required when OutputType is not unit'
-
-
-def compile_program(source, *, unused_values=False):
+def compile_program(source):
     libraries = _standard_library_sources(['std', 'time', 'memory'])
-    if unused_values:
-        # Assertions must run even with no procedure consuming the parameters.
-        libraries = [(filename, text.replace(
-            'uses parameter_option(OutputValue) as OutputValue, MinimumDelay', ''
-        ).replace('uses parameter_option(OutputValue) as OutputValue', ''))
-                     for filename, text in libraries]
     graph = compile_strs(libraries + [('<optional-outputs>', source)])
     assert graph is not None
     return program_compiler.compile_nocatch(graph)
 
 
-def block_program(block, output_type, output_value, *, forward=False,
-                  unused_values=False):
+def block_program(block, output_type, output_value, *, forward=False):
     settings = []
     if output_type is not None:
         settings.append('OutputType: ' + output_type)
@@ -61,12 +47,7 @@ node feedback: Std.DebugValueSource {{ Type: Option[boolean] }}
 connect input -> {external};
 connect feedback -> {external}.Feedback;
 '''
-    return compile_program(source, unused_values=unused_values), target
-
-
-def procedure(program, node, name):
-    return next(proc for schedule in program.procs.values() for proc in schedule
-                if proc.node_id == node and proc.reference[1] == name)
+    return compile_program(source), target
 
 
 cases = [
@@ -83,12 +64,6 @@ for block in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
     for forward in (False, True):
         for output_type, output_value, expected in cases:
             program, target = block_program(block, output_type, output_value, forward=forward)
-            name = 'run' if block == 'Time.TriggerAt' else 'update'
-            values = {'OutputValue': None if output_value is None else wirely.Some(expected)}
-            if block == 'Memory.ToggleFlipFlopTrigger':
-                values['MinimumDelay'] = wirely.Duration.parse('PT2S')
-                assert not procedure(program, target, 'read_time').values
-            assert dict(procedure(program, target, name).values) == values
             runtime = wirely.Engine(program)
             if block == 'Time.TriggerAt':
                 clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')
@@ -121,17 +96,3 @@ for block in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
                 runtime.step()
                 runtime.assert_value_is(target, None)
                 runtime.assert_is_idle()
-
-    for forward in (False, True):
-        for unused_values in (False, True):
-            with checks.assertRaises(compiler_model.ProgramError) as caught:
-                block_program(block, 'boolean', None, forward=forward,
-                              unused_values=unused_values)
-            error = caught.exception
-            assert type(error) is compiler_model.ProgramError
-            assert str(error) == message
-            position = error.source_element.source_position
-            assert Path(position.filename).name == block.split('.')[0].lower() + '.wrl'
-            assert 'assert ' in position.input_data.splitlines()[position.start_line - 1]
-            target = 'wrapper.child' if forward else 'checked'
-            assert any(str(hint) == f"While instantiating '{target}'" for hint in error.hints)

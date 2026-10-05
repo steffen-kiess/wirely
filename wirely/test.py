@@ -12,6 +12,7 @@ import re
 import pwd
 import shlex
 import signal
+from unittest.mock import patch
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ import lark
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
+from wirely.compiler.native_functions import native_function_impls
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
 
@@ -35,34 +37,18 @@ test_names = [
     'unit/native_procedures',
     'unit/procedures',
     'unit/native_parameters',
-    'unit/optional_forwarding',
     'unit/native_values',
-    'unit/native_functions',
     'unit/test_resources',
     'unit/twon_server',
-    'unit/path',
-    'unit/constants',
-    'unit/type_comparisons',
-    'unit/assertions',
     'unit/prepared_configuration',
     'unit/library_settings',
     'unit/optional_outputs',
     'unit/state_connections',
     'unit/types',
     'unit/resources',
-    'unit/string_literals',
-    'unit/integer_literals',
-    'unit/unit_literals',
-    'unit/option_literals',
     'unit/option_properties',
-    'unit/enum_literals',
-    'unit/enum_declarations',
     'unit/structs',
-    'unit/bytecode_format',
     'unit/negative_cases',
-    'unit/attributes',
-    'unit/syntax_lists',
-    'unit/weak_keywords',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
@@ -87,12 +73,23 @@ to_compile = [
     'examples/flipflop.wrl',
     'examples/gpio.wrl',
     'test/wrl/simple.wrl',
-    'test/unit/parser.wrl',
-    'test/unit/compiler.wrl',
-    'test/unit/nested_library.wrl',
+    'test/compiler/assertions.wrl',
+    'test/compiler/attributes.wrl',
+    'test/compiler/constants.wrl',
+    'test/compiler/library_settings.wrl',
+    'test/compiler/literals.wrl',
+    'test/compiler/namespaces.wrl',
+    'test/compiler/native_functions.wrl',
+    'test/compiler/parameters.wrl',
+    'test/compiler/path.wrl',
+    'test/compiler/prepared_configuration.wrl',
+    'test/compiler/syntax.wrl',
+    'test/compiler/types.wrl',
 ]
 
 negative_tests = [
+    'test/negative/library_settings.wrl',
+    'test/negative/prepared_configuration.wrl',
     'test/negative/runtime_types.wrl',
     'test/negative/parameters.wrl',
     'test/negative/optional_forwarding.wrl',
@@ -103,7 +100,6 @@ negative_tests = [
     'test/negative/native_procedures.wrl',
     'test/negative/native_values.wrl',
     'test/negative/native_functions.wrl',
-    'test/negative/prepared_configuration.wrl',
     'test/negative/path.wrl',
     'test/negative/procedures.wrl',
     'test/negative/native_initializers.wrl',
@@ -306,22 +302,53 @@ def compile_negative_test(fn):
     print(f'Compiling negative test {fn} done')
 
 
+def compiler_enum_equal(*, context):
+    return context.arguments['actual'].value == context.arguments['expected']
+
+
+def compiler_values_equal(*, context):
+    return context.arguments['actual'] == context.arguments['expected']
+
+
+COMPILER_TEST_FUNCTIONS = {
+    ('CompilerTest', name): compiler_values_equal
+    for name in (
+        'function', 'BooleanItemsEqual', 'BooleanOptionEqual', 'EmptyStructEqual',
+        'EscapedFieldsEqual', 'Int16OptionsEqual', 'Int8NumbersEqual',
+        'Int8OptionsEqual', 'ModesEqual', 'NestedBooleanEqual', 'NestedUnitEqual',
+        'PairOptionEqual', 'SettingsEqual', 'StringEqual', 'StringItemsEqual',
+        'TemplateEqual', 'TimeEqual', 'TimeOptionEqual', 'Uint8NumbersEqual',
+        'Uint8OptionsEqual', 'UnitsEqual',
+    )
+}
+
+COMPILER_TEST_FUNCTIONS.update({
+    ('CompilerTest', f'{prefix}{bits}EnumEqual'): compiler_enum_equal
+    for prefix in ('Int', 'Uint')
+    for bits in (8, 16, 32, 64)
+})
+
+
 def compile_test(fn):
     print(f'Compiling {fn}')
 
     full_fn = os.path.dirname(__file__) + '/../' + fn
-    global_block_type = blocks.compiler.compile_files([full_fn])
-    if global_block_type is None:
-        sys.exit(1)
+    compiler_test = fn.startswith('test/compiler/')
+    functions = COMPILER_TEST_FUNCTIONS if compiler_test else {}
+    with patch.dict(native_function_impls, functions):
+        global_block_type = blocks.compiler.compile_files([full_fn])
+        if global_block_type is None:
+            sys.exit(1)
 
-    prog = program_compiler.compile(global_block_type)
-    if prog is None:
-        sys.exit(1)
+        prog = program_compiler.compile(global_block_type)
+        if prog is None:
+            sys.exit(1)
 
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    eng = blocks.Engine(prog)
+    if not compiler_test:
+        blocks.Engine(prog)
 
     print(f'Compiling {fn} done')
 

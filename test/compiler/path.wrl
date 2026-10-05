@@ -1,0 +1,25 @@
+assert CompilerTest.StringEqual(Path.Join("base", "child"), "base/child");
+assert CompilerTest.StringEqual(Path.Join("base", "../child"), "base/../child");
+assert CompilerTest.StringEqual(Path.Join("", "child"), "child");
+assert CompilerTest.StringEqual(Path.Join("base", ""), "base/");
+assert CompilerTest.StringEqual(Path.Join("", ""), "");
+assert CompilerTest.StringEqual(Path.Join("relative", "/missing/child"), "/missing/child");
+assert CompilerTest.StringEqual(Path.Parent("file.txt"), ".");
+assert CompilerTest.StringEqual(Path.Parent("base/../child"), "base/..");
+assert CompilerTest.StringEqual(Path.Parent(""), ".");
+assert CompilerTest.StringEqual(Path.Parent("base/child/"), "base");
+assert CompilerTest.StringEqual(Path.Parent("nonexistent/directory/file"), "nonexistent/directory");
+assert CompilerTest.StringEqual(Path.Parent("/"), "/");
+constant Source: String = Path.SourceFile();
+assert CompilerTest.StringEqual(Source, Path.Join(Path.Parent(Source), "path.wrl"));
+node type Defaults {
+  parameter Location: String = Path.SourceFile();
+  parameter Expected: String;
+  assert CompilerTest.StringEqual(Location, Expected);
+}
+node defaults: Defaults { Expected: Path.SourceFile() }
+node explicit: Defaults { Location: Path.SourceFile(), Expected: Source }
+
+namespace CompilerTest {
+  native function StringEqual(actual: String, expected: String): boolean;
+}

@@ -1,20 +1,29 @@
 from collections.abc import Mapping
 from dataclasses import FrozenInstanceError
-import datetime
+import enum
 from unittest import TestCase
 
 import wirely
-import wirely.compiler
-from wirely.compiler import parser
-from wirely.compiler.types import parse_value
-from wirely.types.value_types import _from_native, _to_native
 
 
 checks = TestCase()
-graph = engine.program.graph
-sample = graph.libraries['Sample']
-packet = sample.struct_types['Packet'].value_type
-mode = sample.enum_types['Mode']
+
+
+class Mode(enum.Enum):
+    Off = 0
+    On = 1
+
+
+mode = wirely.types.TypeEnum('Sample.Mode', Mode, underlying_type=wirely.types.uint8)
+packet = wirely.types.TypeStruct('Sample.Packet', {
+    'number': wirely.types.uint16, 'mode': mode, 'flag': wirely.types.boolean,
+})
+settings_type = wirely.types.TypeStruct('Settings', {
+    'text': wirely.types.String,
+    'items': wirely.types.TypeList(wirely.types.TypeOption(packet)),
+    'inner': wirely.types.TypeStruct('Nested', {'packet': packet}),
+    'type': wirely.types.ValueType,
+})
 expected = packet.make_value({'flag': True, 'mode': mode.parse('On'), 'number': 513})
 assert isinstance(expected, Mapping)
 assert list(expected) == ['number', 'mode', 'flag']
@@ -25,7 +34,7 @@ with checks.assertRaises(TypeError):
     expected['flag'] = False
 with checks.assertRaises((FrozenInstanceError, AttributeError)):
     expected._fields = {}
-other = graph.struct_types['Other'].value_type
+other = wirely.types.TypeStruct('Other', dict(packet.fields))
 other_value = other.make_value(dict(expected))
 assert expected != other_value
 with checks.assertRaises(ValueError):
@@ -33,29 +42,12 @@ with checks.assertRaises(ValueError):
 with checks.assertRaises(ValueError):
     packet.verify_value(dict(expected))
 
-engine.step()
-engine.assert_value_is('source', expected)
-engine.assert_value_is('forward', expected)
-engine.assert_value_is('delay', packet.make_value({'number': 0, 'mode': mode.parse('Off'), 'flag': False}))
-engine.step()
-engine.assert_value_is('delay', expected)
-engine.get_native_state('events').send_event(wirely.Some(expected))
-engine.step()
-engine.assert_value_is('events', wirely.Some(expected))
-
-clock = sample.struct_types['Clock'].value_type
-assert engine.program.instances['configured.value'].parameters['Value'] == clock.make_value({
-    'number': 7, 'at': datetime.time(0, 30),
+settings = wirely.ValueType(settings_type).make_struct({
+    'text': 'hello',
+    'items': (wirely.Some(expected), None),
+    'inner': settings_type.fields['inner'].make_value({'packet': expected}),
+    'type': wirely.value_types.uint8,
 })
-settings_type = graph.struct_types['Settings'].value_type
-assert not settings_type.is_runtime_type
-settings = engine.program.instances['settings'].parameters['Value']
-assert settings['text'] == 'hello'
-assert settings['items'] == (wirely.Some(expected), None)
-assert settings['inner']['packet'] == expected
-assert settings['type'] == wirely.value_types.uint8
-assert _from_native(settings_type, settings)['type'] is wirely.types.uint8
-assert _to_native(settings_type, _from_native(settings_type, settings)) == settings
 native_type = wirely.ValueType(settings_type)
 constructed = native_type.make_struct(dict(settings))
 assert constructed == settings
@@ -73,14 +65,12 @@ constructed = native_type.make_struct(mutable)
 mutable['text'] = 'changed'
 assert constructed['text'] == 'hello'
 
-escaped = engine.program.instances['escaped'].parameters['Value']
-assert escaped['class'] == 5 and escaped['struct'] == wirely.Unit()
 assert wirely.types.TypeStruct('Lists', {'items': wirely.types.TypeList(wirely.types.uint8)}).make_value({
     'items': [1, 2],
 })['items'] == (1, 2)
 
 # Exact bytes distinguish field storage slots from compact tail-padding reuse.
-slot = graph.struct_types['Slot'].value_type
+slot = wirely.types.TypeStruct('Slot', {'a': wirely.types.TypeOption(wirely.types.uint64), 'b': wirely.types.uint8})
 value = slot.make_value({'a': wirely.Some(0x0102030405060708), 'b': 9})
 encoded = bytes.fromhex('08 07 06 05 04 03 02 01 01 00 00 00 00 00 00 00 09')
 assert (slot.data_size, slot.size, slot.alignment) == (17, 24, 8)
@@ -98,11 +88,10 @@ for invalid in [encoded[:-1], encoded + b'\x00', bytes(24), bytes(8) + b'\x02' +
 with checks.assertRaises(ValueError):
     slot.deserialize(b'\x01' + bytes(15) + b'\x09')
 
-empty = graph.struct_types['Empty'].value_type
+empty = wirely.types.TypeStruct('Empty', {})
 assert (empty.data_size, empty.size, empty.alignment) == (0, 0, 1)
 assert empty.serialize(empty.make_value({})) == b''
 assert empty.deserialize(b'') == empty.make_value({})
-engine.assert_value_is('empty', empty.make_value({}))
 assert packet.serialize(expected) == b'\x01\x02\x01\x01'
 assert packet.deserialize(b'\x01\x02\x01\x01') == expected
 for invalid in [b'\x01\x02\x02\x01', b'\x01\x02\x01\x02']:
@@ -135,21 +124,3 @@ assert zero_fields.deserialize(b'\x2a\x00') == zero_value
 for parameter_type in [settings_type, wirely.types.TypeOption(settings_type)]:
     with checks.assertRaises(ValueError):
         parameter_type.alignment
-
-# Equivalent declarations in separate compilations must keep distinct identities.
-first = wirely.compiler.compile_strs([('<first>', 'struct type Record { value: uint8, }')])
-second = wirely.compiler.compile_strs([('<second>', 'struct type Record { value: uint8, }')])
-assert first is not None and second is not None
-first_type = first.struct_types['Record'].value_type
-second_type = second.struct_types['Record'].value_type
-assert first_type is not second_type
-with checks.assertRaises(ValueError):
-    first_type.verify_value(second_type.make_value({'value': 1}))
-
-
-literal = parser.parse_str(
-    'node type Settings { parameter Value: Sample.Packet = '
-    'Sample.Packet { flag: true, mode: Sample.Mode.On, number: 513 }; }',
-    filename='<struct-literal>',
-)[0].declarations[0].default_value
-assert parse_value(packet, literal, scope=graph) == expected

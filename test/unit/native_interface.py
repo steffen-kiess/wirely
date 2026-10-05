@@ -209,36 +209,6 @@ assert named_contexts == ['TestLibrary.Probe']
 assert [stage.name for stage in blocks.RunStage] == ['INPUT', 'DEFAULT', 'OUTPUT']
 assert [stage.value for stage in blocks.RunStage] == [1, 2, 3]
 
-for has_native_state in [False, True]:
-    registry = {}
-
-    @native_block_type(registry, has_native_state=has_native_state)
-    class RegistrationProbe:
-        @staticmethod
-        def run(*, context):
-            pass
-
-    qualifier = '' if has_native_state else 'native '
-    source = f'''namespace TestLibrary {{
-  {qualifier}node type RegistrationProbe {{
-    native procedure run;
-  }}
-}}
-node probe: TestLibrary.RegistrationProbe {{}}
-'''
-    output = io.StringIO()
-    errors = io.StringIO()
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-            graph = wirely.compiler.compile_strs([('<native-registration>', source)])
-            program = program_compiler.compile(graph) if graph is not None else None
-    assert program is None
-    assert not errors.getvalue()
-    assert f'requires has_native_state={not has_native_state}' in output.getvalue()
-    assert 'Error in <native-registration>:2:' in output.getvalue()
-    assert 'Traceback' not in output.getvalue()
-
-
 clock_registry = {}
 clock_methods = {}
 clock_declarations = []

@@ -1,4 +1,1 @@
-node thermostat: Std.Constant {
-  Type: ThermostatSystemModeEnum,
-  Value: ThermostatSystemModeEnum.Heat,
-}
+// Value API tests construct their types directly in types.py.

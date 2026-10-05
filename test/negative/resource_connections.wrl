@@ -100,3 +100,58 @@ node type Target {
 node source: Source {}
 node target: Target {}
 connect source -> target; // E: Cannot connect resource and data connectors
+
+// TEST: circular native initialization
+// LIBRARIES:
+namespace Std {
+  resource type Service;
+  native node type DebugValueSource {
+    input Service: resource Service;
+    default output: resource Service;
+    native initializer depends on Service;
+    // ^E: Circular native initializer dependency
+  }
+}
+node first: Std.DebugValueSource {}
+node second: Std.DebugValueSource {}
+connect first -> second.Service;
+connect second -> first.Service;
+
+// TEST: circular resource forwarding
+// LIBRARIES:
+resource type Service;
+node type Forward {
+  input Service: resource Service;
+  default output: resource Service;
+  connect Service -> default output;
+}
+namespace Std {
+  native node type DebugValueSource {
+    input Service: resource Service;
+    native initializer depends on Service;
+    // ^E: Circular resource connection
+  }
+}
+node first: Forward {}
+node second: Forward {}
+node sink: Std.DebugValueSource {}
+connect first -> second.Service;
+connect second -> first.Service;
+connect first -> sink.Service;
+
+// TEST: missing native resource provider
+// LIBRARIES:
+resource type Service;
+node type Missing {
+  default output: resource Service; // H: Resource output was declared here
+}
+namespace Std {
+  native node type DebugValueSource {
+    input Service: resource Service;
+    native initializer depends on Service;
+    // ^E: Resource binding has no native provider
+  }
+}
+node source: Missing {}
+node sink: Std.DebugValueSource {}
+connect source -> sink.Service;

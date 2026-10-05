@@ -1,4 +1,6 @@
 import datetime
+import enum
+from dataclasses import FrozenInstanceError
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -150,7 +152,22 @@ assert_is(ty.json_decode('ewq', None), 'ewq')
 
 # ThermostatSystemMode
 
-thermostat_type = engine.program.instances['thermostat'].parameters['Type']._type
+class ThermostatSystemModeEnum(enum.Enum):
+    Off = 0
+    Auto = 1
+    Cool = 3
+    Heat = 4
+    EmergencyHeat = 5
+    Precooling = 6
+    FanOnly = 7
+    Dry = 8
+    Sleep = 9
+
+
+thermostat_type = wirely.types.TypeEnum(
+    'ThermostatSystemModeEnum', ThermostatSystemModeEnum,
+    underlying_type=wirely.types.uint8,
+)
 thermostat_modes = thermostat_type.python_type
 ty = thermostat_type
 check_type(ty)
@@ -385,3 +402,53 @@ for ty in (wirely.types.String, wirely.types.ValueType,
                       lambda: ty.serialize(None), lambda: ty.deserialize(b'')):
         with checks.assertRaises(ValueError):
             operation()
+
+
+# Unit values are immutable, hashable, and distinct from absent options.
+unit = wirely.Unit()
+assert unit == wirely.Unit()
+checks.assertNotEqual(unit, None)
+assert repr(unit) == 'Unit()'
+assert len({unit, wirely.Unit()}) == 1
+assert not hasattr(unit, '__dict__')
+with checks.assertRaises((FrozenInstanceError, TypeError)):
+    unit.value = True
+with checks.assertRaises(TypeError):
+    wirely.Unit(True)
+for invalid in [None, (), False, True, wirely.Some(unit)]:
+    with checks.assertRaises(Exception):
+        wirely.types.unit.verify_value(invalid)
+    with checks.assertRaises(Exception):
+        wirely.types.unit.equals(unit, invalid)
+optional_unit = wirely.types.TypeOption(wirely.types.unit)
+assert optional_unit.verify_value(None) is None
+assert optional_unit.verify_value(wirely.Some(unit)) == wirely.Some(wirely.Unit())
+with checks.assertRaises(Exception):
+    optional_unit.verify_value(wirely.Some(None))
+
+
+# Enum codecs support every integer width and validate their member ranges.
+for signed in (False, True):
+    for bits in (8, 16, 32, 64):
+        underlying = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
+        members = enum.Enum('Boundary', {
+            'Minimum': underlying.min_value, 'Maximum': underlying.max_value,
+        })
+        descriptor = wirely.types.TypeEnum('Boundary', members, underlying_type=underlying)
+        assert descriptor.json_encode(members.Maximum, None) == 'Maximum'
+        assert descriptor.json_decode('Minimum', None) is members.Minimum
+        for member in members:
+            encoded = member.value.to_bytes(bits // 8, 'little', signed=signed)
+            assert descriptor.serialize(member) == encoded
+            assert descriptor.deserialize(encoded) is member
+
+
+class SignedMode(enum.Enum):
+    Negative = -2
+    Positive = 300
+
+
+signed_type = wirely.types.TypeEnum('SignedMode', SignedMode, underlying_type=wirely.types.int16)
+assert (signed_type.size, signed_type.data_size, signed_type.alignment) == (2, 2, 2)
+with checks.assertRaises(ValueError):
+    wirely.types.TypeEnum('TooSmall', SignedMode, underlying_type=wirely.types.uint8)

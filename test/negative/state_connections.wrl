@@ -241,3 +241,19 @@ node type Invalid {
   node source: Std.Constant { Type: boolean, Value: true }
   connect saved.other -> default output; // E: explicitly reference .old or .new
 }
+
+// TEST: same-step state cycle
+state saved: boolean = false;
+procedure advance depends on saved.new as current produces saved {
+  // ^H: Producer was declared here
+  saved = current;
+} // ^^^E: Circular procedure dependency
+
+// TEST: later-stage state producer
+state saved: boolean = false;
+temporary current: boolean;
+procedure write stage output produces saved { saved = true; }
+// ^H: Producer was declared here
+procedure read depends on saved.new as value produces current {
+  current = value;
+} // ^^E: later execution stage

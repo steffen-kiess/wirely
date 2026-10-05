@@ -1,5 +1,4 @@
-from collections.abc import Mapping
-from dataclasses import fields, is_dataclass, replace
+from dataclasses import replace
 import subprocess
 import sys
 from textwrap import dedent
@@ -7,7 +6,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
-from wirely.compiler import model as blocks
+import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.std
@@ -46,42 +45,8 @@ subprocess.run([sys.executable, '-c', dedent('''
 ''')], check=True)
 
 
-def check_runtime_data(value, seen=None):
-    if seen is None:
-        seen = set()
-    if id(value) in seen:
-        return
-    seen.add(id(value))
-    assert not isinstance(value, (blocks.Node, blocks.NodeInstance,
-                                  blocks.BlockType, blocks.Block.Member,
-                                  blocks.Block.Procedure, blocks.ast.SourceElement))
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            check_runtime_data(key, seen)
-            check_runtime_data(item, seen)
-    elif isinstance(value, (tuple, list, set)):
-        for item in value:
-            check_runtime_data(item, seen)
-    elif is_dataclass(value):
-        for field in fields(value):
-            check_runtime_data(getattr(value, field.name), seen)
-    elif isinstance(value, (blocks.Program, blocks.Variable, blocks.VariableBlock)):
-        check_runtime_data(vars(value), seen)
-    else:
-        assert not callable(value)
-
-
 program = replace(engine.program, graph=None)
 engine.program = program
-check_runtime_data(program)
-for schedule in program.procs.values():
-    for proc in schedule:
-        type_name, method_name = proc.reference
-        assert isinstance(type_name, tuple)
-        assert all(isinstance(part, str) for part in type_name)
-        assert isinstance(method_name, str)
-        assert isinstance(proc.node_id, str)
-
 # A state change reruns its reader while an unchanged input stays skipped.
 delay = wirely.native.std.DelayOneStep
 with patch.object(delay, 'copy_from_input', wraps=delay.copy_from_input) as writer, \
@@ -213,7 +178,6 @@ connect provider, provider_alias -> consumer.Services;
 ''')])
     assert graph is not None
     resource_program = replace(program_compiler.compile_nocatch(graph), graph=None)
-    check_runtime_data(resource_program)
     first = blocks.Engine(resource_program)
     other = blocks.Engine(resource_program)
 

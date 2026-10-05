@@ -1,0 +1,164 @@
+struct type Pair { flag: boolean, }
+node type Destination {
+  parameter Type: ValueType = int16;
+  parameter Number: Type = 9;
+  parameter Expected: Type;
+  parameter ExpectedType: ValueType = int16;
+  assert Type == ExpectedType;
+  parameter Flag: boolean = false;
+  parameter ExpectedFlag: boolean = false;
+  parameter Text: String = "default";
+  parameter ExpectedText: String = "default";
+  optional parameter Nested: Option[boolean];
+  parameter ExpectedNested: Option[Option[boolean]] = None;
+  optional parameter Items: List[String];
+  parameter ExpectedItems: Option[List[String]] = None;
+  optional parameter PairValue: Pair;
+  parameter ExpectedPair: Option[Pair] = None;
+  assert Number == Expected && Flag == ExpectedFlag;
+  assert CompilerTest.StringEqual(Text, ExpectedText);
+  assert CompilerTest.NestedBooleanEqual(parameter_option(Nested), ExpectedNested);
+  assert CompilerTest.StringItemsEqual(parameter_option(Items), ExpectedItems);
+  assert CompilerTest.PairOptionEqual(parameter_option(PairValue), ExpectedPair);
+}
+node type Forward {
+  optional parameter Number: int16;
+  optional parameter Flag: boolean;
+  optional parameter Text: String;
+  optional parameter Nested: Option[boolean];
+  optional parameter Items: List[String];
+  optional parameter PairValue: Pair;
+  parameter Expected: int16;
+  parameter ExpectedFlag: boolean = false;
+  parameter ExpectedText: String = "default";
+  node child: Destination {
+    Number?: parameter_option(Number),
+    Flag?: { let value = parameter_option(Flag); value },
+    Text?: if true { parameter_option(Text) } else { Some("unused") },
+    Nested?: parameter_option(Nested),
+    Items?: parameter_option(Items),
+    PairValue?: parameter_option(PairValue),
+    Expected: Expected,
+    ExpectedFlag: ExpectedFlag,
+    ExpectedText: ExpectedText,
+    ExpectedNested: parameter_option(Nested),
+    ExpectedItems: parameter_option(Items),
+    ExpectedPair: parameter_option(PairValue),
+  }
+  node forced: Destination { Number?: Some(12), Flag?: None, Expected: 12 }
+}
+node omitted: Forward { Expected: 9 }
+node supplied: Forward {
+  Number: -5, Expected: -5,
+  Flag: true, ExpectedFlag: true,
+  Text: "hello", ExpectedText: "hello",
+  Nested: None, Items: ["one", "two"], PairValue: Pair { flag: true },
+}
+node nested_some: Forward { Nested: Some(false), Expected: 9 }
+node type NestedForward {
+  optional parameter Number: int16;
+  parameter Expected: int16;
+  node child: Forward { Number?: parameter_option(Number), Expected: Expected }
+}
+node outer_omitted: NestedForward { Expected: 9 }
+node outer_supplied: NestedForward { Number: 4, Expected: 4 }
+node type TypeForward {
+  optional parameter Type: ValueType;
+  parameter ExpectedType: ValueType;
+  node child: Destination {
+    Type?: parameter_option(Type), Expected: 9, ExpectedType: ExpectedType,
+  }
+}
+node default_type: TypeForward { ExpectedType: int16 }
+node supplied_type: TypeForward { Type: uint8, ExpectedType: uint8 }
+node type Generic {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  parameter Expected: Option[Type];
+  constant Maybe: Option[Type] = parameter_option(Value);
+  assert Maybe.IsSome == Expected.IsSome;
+}
+node generic_omitted: Generic { Type: String, Expected: None }
+node generic_supplied: Generic {
+  Type: List[boolean], Value: [true, false], Expected: Some([true, false]),
+}
+node type DefaultExpression {
+  optional parameter Flag: boolean;
+  parameter Fallback: Option[boolean] = parameter_option(Flag);
+  parameter Expected: Option[boolean];
+  assert CompilerTest.BooleanOptionEqual(Fallback, Expected);
+}
+node default_expression: DefaultExpression { Expected: None }
+node supplied_expression: DefaultExpression { Flag: true, Expected: Some(true) }
+node type Dependent {
+  parameter Type: ValueType = boolean;
+  parameter Value: Type;
+  parameter Expected: Type;
+  assert Value == Expected;
+}
+node dependent_before_type: Dependent { Value: -3, Type?: Some(int8), Expected: -3 }
+node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
+node type Raw {
+  optional parameter r#type: boolean;
+  constant Maybe: Option[boolean] = parameter_option(r#type,);
+  assert CompilerTest.BooleanOptionEqual(Maybe, Some(true));
+}
+node raw: Raw { r#type?: Some(true), }
+
+node type Presence {
+  parameter Type: ValueType;
+  parameter Value: Option[Type];
+  optional parameter Optional: Option[Type];
+  parameter Expected: boolean;
+  parameter ExpectedOptional: boolean;
+  assert Value.IsSome == Expected && Value.IsNone == !Expected;
+  assert parameter_option(Optional).IsSome == ExpectedOptional;
+  assert { let value: Option[Option[Type]] = Some(None); value }.IsSome;
+  assert { let value: Option[Type] = None; value.IsNone };
+  assert (if Value.IsSome { true } else { false }) == Expected;
+}
+node present: Presence {
+  Type: boolean, Value: Some(false), Optional: None,
+  Expected: true, ExpectedOptional: true,
+}
+node absent: Presence {
+  Type: boolean, Value: None, Expected: false, ExpectedOptional: false,
+}
+node nested: Presence {
+  Type: Option[boolean], Value: Some(None),
+  Expected: true, ExpectedOptional: false,
+}
+
+node type ListSnapshot {
+  parameter Value: Option[List[boolean]];
+  assert CompilerTest.BooleanItemsEqual(Value, Some([true, false]));
+}
+node type Capture {
+  optional parameter Value: List[boolean];
+  node snapshot: ListSnapshot { Value: parameter_option(Value) }
+}
+node capture: Capture { Value: [true, false] }
+
+namespace CompilerTest {
+  native function StringEqual(actual: String, expected: String): boolean;
+  native function NestedBooleanEqual(
+    actual: Option[Option[boolean]],
+    expected: Option[Option[boolean]],
+  ): boolean;
+  native function StringItemsEqual(
+    actual: Option[List[String]],
+    expected: Option[List[String]],
+  ): boolean;
+  native function PairOptionEqual(
+    actual: Option[Pair],
+    expected: Option[Pair],
+  ): boolean;
+  native function BooleanOptionEqual(
+    actual: Option[boolean],
+    expected: Option[boolean],
+  ): boolean;
+  native function BooleanItemsEqual(
+    actual: Option[List[boolean]],
+    expected: Option[List[boolean]],
+  ): boolean;
+}

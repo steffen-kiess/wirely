@@ -5,7 +5,7 @@
 `wirely/` contains the Python CLI tools and services, `.wrl` parser,
 compiler, engine, standard libraries in `lib/`, and Python native blocks in
 `native/`. From a checkout, use `tools/wirely` for the main CLI.
-`test/` contains paired `.wrl` programs and Python assertions, with
+`test/` contains compiler fixtures and runtime/component tests, with
 `wirely/test.py` as their test runner. `examples/` contains sample block
 programs and device configuration.
 
@@ -56,18 +56,26 @@ test command for most work.
 Run one named test with `venv/bin/python -m wirely.test unit/types`. Replace
 `unit/types` with a name in `test_names` in `wirely/test.py`. The runner also
 accepts paths from its `to_compile` and `negative_tests` lists, for example
-`venv/bin/python -m wirely.test test/unit/parser.wrl`.
+`venv/bin/python -m wirely.test test/compiler/syntax.wrl`.
 
-Add end-to-end feature tests to `test/wrl/` and unit/component tests to
-`test/unit/`. Additions or substantive changes to `test/wrl/` require
-careful review to preserve coverage; routine import or path adjustments
-are exceptions. Tests in `test/unit/` can be edited more freely. Add
-compiler rejection cases to `test/negative/`.
+Add end-to-end feature tests to `test/wrl/` and runtime, Python API, or
+infrastructure unit/component tests to `test/unit/`. Additions or substantive
+changes to `test/wrl/` require careful review to preserve coverage; routine
+import or path adjustments are exceptions.
 
-A runnable test normally has paired `.wrl` and `.py` files in its group.
-The runner compiles the block program, creates an engine, then loads the
-Python file for assertions. Add new runnable tests to `test_names` in
-`wirely/test.py` using names such as `wrl/knx` or `unit/types`.
+Test compiler behavior in `test/compiler/` with `.wrl` fixtures and Wirely
+`assert` statements. Register these fixtures in `to_compile` in
+`wirely/test.py`; they compile without creating an engine. Keep this group
+free of Python files. Add compiler rejection cases to `test/negative/`.
+Do not test compiler representations such as ASTs, graphs, or inferred usage,
+or compiler evaluation mechanics through Python callbacks. Consolidate
+cases that check the same behavior while preserving distinct boundaries.
+
+Runtime/component tests normally pair `.wrl` and `.py` files. The runner
+compiles the program, creates an engine, then loads the Python assertions.
+Register them in `test_names` using names such as `wrl/knx` or `unit/types`.
+Use compilation as setup when needed to test runtime or native Python APIs;
+keep language checks in compiler fixtures.
 
 Negative fixtures in `test/negative/` use `// E: message`, `// H: message`,
 and `// W: message` to match diagnostics on that line; each `^` before the

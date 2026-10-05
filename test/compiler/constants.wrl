@@ -1,0 +1,95 @@
+constant RootType: ValueType = int16;
+constant RootValue: RootType = RootLater;
+constant RootLater: RootType = 12;
+assert RootValue == 12;
+
+struct type Settings {
+  enabled: boolean,
+  number: int16,
+  at: TimeOfDay,
+}
+node type Capture {
+  parameter Value: int16;
+  parameter Expected: int16;
+  assert Value == Expected;
+}
+node type Select {
+  parameter Enabled: boolean;
+  parameter Expected: int16;
+  parameter Default: SelectedType = Selected;
+  constant SelectedType: ValueType = int16;
+  constant Selected: SelectedType = {
+    let fallback: int16 = 0;
+    if Enabled { Later } else { fallback }
+  };
+  constant Later: int16 = 12;
+  constant Items: List[Option[int16]] = [Some(Selected), None];
+  constant Pair: Settings = {
+    let at: TimeOfDay = "23:30";
+    Settings {
+      enabled: Enabled,
+      number: Selected,
+      at: TimeOfDay.AddWrap(at, "01:00"),
+    }
+  };
+  constant ExpectedAt: TimeOfDay = "00:30";
+  assert Selected == Expected && Default == Expected;
+  assert CompilerTest.Int16OptionsEqual(Items, [Some(Expected), None]);
+  assert CompilerTest.SettingsEqual(Pair, Settings { enabled: Enabled, number: Expected, at: ExpectedAt });
+  node child: Capture { Value: Default, Expected: Expected }
+}
+node type Forward {
+  constant Flag: boolean = false;
+  node child: Select { Enabled: Flag, Expected: 0 }
+}
+node enabled: Select { Enabled: true, Expected: 12 }
+node disabled: Select { Enabled: false, Expected: 0 }
+node nested: Forward {}
+
+singleton node type Shared {
+  constant Type: ValueType = boolean;
+  constant Flag: Type = true;
+  assert Flag;
+}
+node shared: Shared {}
+node shared_again: Shared {}
+
+node type Generic {
+  parameter Type: ValueType;
+  parameter Expected: Type;
+  constant Value: Type = { let number: uint8 = 7; Some([number, 8]) };
+  assert CompilerTest.Uint8NumbersEqual(Value, Expected);
+}
+node generic: Generic { Type: Option[List[uint8]], Expected: Some([7, 8]) }
+node type TypedList {
+  constant Type: ValueType = List[Option[int16]];
+  constant Items: Type = { let number: int16 = 12; [Some(number), None] };
+  assert CompilerTest.Int16OptionsEqual(Items, [Some(12), None]);
+}
+node typed_list: TypedList {}
+node type TypeValue {
+  parameter Type: ValueType;
+  constant Value: Type = uint8;
+  assert Value == uint8;
+}
+node type_value: TypeValue { Type: ValueType }
+node type BooleanExpression {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  parameter Enabled: boolean = !Value;
+  parameter Matches: boolean = Value == Value;
+  assert Enabled && Matches;
+}
+node expression: BooleanExpression { Type: boolean, Value: false }
+
+namespace CompilerTest {
+  native function Int16OptionsEqual(
+    actual: List[Option[int16]],
+    expected: List[Option[int16]],
+  ): boolean;
+  native function SettingsEqual(actual: Settings, expected: Settings): boolean;
+  native function Uint8NumbersEqual(
+    actual: Option[List[uint8]],
+    expected: Option[List[uint8]],
+  ): boolean;
+}

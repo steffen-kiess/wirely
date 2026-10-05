@@ -1,7 +1,0 @@
-node source: Std.Constant {
-  #![position(x = 120, y = -40.5)]
-  Type: boolean,
-  Value: true,
-}
-node sink: Std.And {}
-connect source -> sink;

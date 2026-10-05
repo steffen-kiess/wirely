@@ -1,4 +1,0 @@
-node r#node: Std.And {}
-
-node r#my_output: Std.DebugValuePrinter { Type: boolean }
-connect r#node -> r#my_output;

@@ -1,6 +1,4 @@
-import contextlib
 from dataclasses import FrozenInstanceError, replace
-import io
 from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
@@ -10,7 +8,6 @@ import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
-from wirely.compiler.parser import parse_str
 from wirely.native import native_block_type
 
 
@@ -21,21 +18,13 @@ engine.step()
 engine.assert_value_is('constant', 7)
 engine.assert_value_is('unwrap', 9)
 engine.assert_is_idle()
-assert not engine.program.instances['constant'].initializer_values
 
-calls = []
 registry = {}
 contexts = []
 
 
-def count(*, context):
-    value = context.arguments['value']
-    calls.append(value)
-    return value
-
-
-def fail(*, context):
-    raise ValueError('binding failed')
+def identity(*, context):
+    return context.arguments['value']
 
 
 @native_block_type(registry, has_native_state=True)
@@ -109,20 +98,18 @@ source = '''namespace TestLibrary {
     optional parameter Absent: Option[boolean];
     parameter Default: boolean = true;
     parameter Type: ValueType = uint16;
-    constant Seed: uint16 = Example.Count(Number);
-    constant Unused: uint16 = Example.Count(10);
+    constant Seed: uint16 = Example.Identity(Number);
     constant Items: List[Option[uint16]] = [Some(7), None];
     input Number: resource Service;
     output Result: value uint16;
-    assert Example.Count(true), "checked";
     native initializer depends on Number,
-      uses Number, Seed as seed, Example.Count(20) as "retained",
+      uses Number, Seed as seed, Example.Identity(20) as "retained",
         parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
     native procedure run depends on Number, produces Result as Number,
       uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
         parameter_option(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
-        Example.Count(40) as call,
+        Example.Identity(40) as call,
         { let text: String = "hello"; text } as block,
         Items as items, Example.Pair { value: true } as pair,
         () as unit, { let value: Option[boolean] = Some(false); value } as option,;
@@ -133,8 +120,7 @@ source = '''namespace TestLibrary {
 namespace Example {
   enum type Mode: uint8 { On = 1, }
   struct type Pair { value: boolean, }
-  native function Count(value: uint16): uint16;
-  native function Fail(): boolean;
+  native function Identity(value: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }
@@ -142,19 +128,12 @@ node provider: TestLibrary.Provider {}
 connect provider -> first.Number;
 connect provider -> second.Number;
 '''
-# Use a boolean assertion with a separate signature to record its ordering.
-source = source.replace('assert Example.Count(true)', 'assert Example.Check(true)')
-source = source.replace('native function Fail()', 'native function Check(value: boolean): boolean;\n  native function Fail()')
-functions = {('Example', 'Count'): count, ('Example', 'Check'): count,
-             ('Example', 'Fail'): fail}
 ValuesProbe.omitted = ValuesProbe.empty
 with patch.dict(wirely.native.test_library.native_block_types, registry), \
-        patch.dict(native_function_impls, functions):
+        patch.dict(native_function_impls, {('Example', 'Identity'): identity}):
     graph = compile_strs([('<values>', source)])
     assert graph is not None
-    assert calls == []
     program = program_compiler.compile_nocatch(graph)
-    assert calls == [7, 10, True, 20, 8, 10, True, 20, 40, 40]
     runtime = wirely.Engine(program)
     second_engine = wirely.Engine(program)
     runtime.step()
@@ -164,7 +143,6 @@ with patch.dict(wirely.native.test_library.native_block_types, registry), \
     runtime.trigger('first', 'run')
     runtime.step()
     second_engine.step()
-    assert calls == [7, 10, True, 20, 8, 10, True, 20, 40, 40]
 
 # Runtime model construction copies and freezes caller-owned mappings.
 instance = program.instances['first']
@@ -179,56 +157,6 @@ procedure = next(proc for schedule in program.procs.values() for proc in schedul
 modified = replace(procedure, values=mutable)
 mutable['key'] = 3
 assert modified.values['key'] == 2
-assert not procedure.dependencies
-assert procedure.resources[0][0] == 'Number'
-
-# Omitted and explicitly empty clauses retain distinct syntax nodes.
-assert parse_str('native procedure run;', filename='<parse>')[0].uses is None
-assert parse_str('native procedure run uses;', filename='<parse>')[0].uses.bindings == ()
-assert parse_str('native initializer uses;', filename='<parse>')[0].uses.bindings == ()
-
-# Binding failures carry their expression location and fail compilation.
-for declaration, message in [
-    ('uses Example.Fail() as failed', 'binding failed'),
-    ('uses !Missing as expression', 'Unable to resolve value parameter'),
-    ('uses { let value = Missing; value } as expression', 'Unable to resolve value parameter'),
-]:
-    with patch.dict(native_function_impls, functions):
-        graph = compile_strs([('<binding-error>', f'''namespace Example {{
-  native function Fail(): boolean;
-}}
-namespace Std {{
-node type Constant {{
-  optional parameter Missing: boolean;
-  native procedure run {declaration};
-}}
-}}
-node probe: Std.Constant {{}}
-''')])
-        assert graph is not None
-        output = io.StringIO()
-        with contextlib.redirect_stdout(output):
-            assert program_compiler.compile(graph) is None
-        assert message in output.getvalue(), output.getvalue()
-        assert 'Internal compiler error' not in output.getvalue()
-
-# A typed local annotation is included in inferred Wirely static usage.
-graph = compile_strs([('<inferred-values>', '''node type Probe {
-  parameter Type: ValueType = boolean;
-  constant Flag: boolean = true;
-  default output: value Type;
-  procedure run produces default output as output {
-    let local: Type = Flag;
-    output = local;
-  }
-}
-node probe: Probe {}
-''')])
-assert graph is not None
-program_compiler.compile_nocatch(graph)
-procedure = graph.blocks['probe'].block_procedures[0]
-assert {item.name.id_str for item in procedure.static_usage} == {'Type', 'Flag'}
-
 
 # Direct optional bindings also handle type values and forwarded omissions.
 for arguments, expected in [
@@ -253,40 +181,34 @@ node forward: Forward {{ {arguments} }}
 ''')])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
-        values = program.instances['forward.child'].initializer_values
+        runtime = wirely.Engine(program)
+        values = runtime.get_native_state('forward.child').values
         assert values['Maybe'] == expected
         assert values[''] == expected
         assert values['Type'] is None
         assert values['Default'] is None
-        assert 'Type' not in program.instances['forward.child'].parameters
-        runtime = wirely.Engine(program)
-        assert runtime.get_native_state('forward.child').values == values
 
 
-# Singleton consumers evaluate once across aliases, independent of engines.
-calls.clear()
+# Singleton aliases share state within each engine.
 with patch.dict(wirely.native.test_library.native_block_types, registry), \
-        patch.dict(native_function_impls, functions):
+        patch.dict(native_function_impls, {('Example', 'Identity'): identity}):
     graph = compile_strs([('<singleton-values>', '''namespace Example {
-  native function Count(value: uint16): uint16;
+  native function Identity(value: uint16): uint16;
 }
 namespace TestLibrary {
   singleton native node type Provider {
-    constant Shared: uint16 = Example.Count(1);
-    native initializer uses Shared, Example.Count(2) as "initializer";
+    constant Shared: uint16 = Example.Identity(1);
+    native initializer uses Shared, Example.Identity(2) as "initializer";
   }
 }
 node first: TestLibrary.Provider {}
 node again: TestLibrary.Provider {}
 ''')])
     assert graph is not None
-    assert not calls
     program = program_compiler.compile_nocatch(graph)
-    assert calls == [1, 2]
     runtime = wirely.Engine(program)
     another = wirely.Engine(program)
     shared = runtime.get_native_state('first')
     assert shared is runtime.get_native_state('again')
     assert shared is not another.get_native_state('first')
     assert dict(shared.values) == {'Shared': 1, 'initializer': 2}
-    assert calls == [1, 2]

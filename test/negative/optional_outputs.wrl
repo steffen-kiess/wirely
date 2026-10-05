@@ -48,3 +48,12 @@ node type Forward {
   }
 }
 node forward: Forward { Value: false }
+
+// TEST: missing payload invariant
+node type Output {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  assert Type == unit || parameter_option(Value).IsSome;
+  // ^E: Compile-time assertion failed
+}
+node output: Output { Type: boolean } // H: While instantiating 'output'

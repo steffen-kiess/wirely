@@ -1,0 +1,138 @@
+constant decimal_minus: int8 = -42;
+assert decimal_minus == -42;
+constant decimal_plus: int8 = +42;
+assert decimal_plus == 42;
+constant hex_minus: int8 = -0x2a;
+assert hex_minus == -42;
+constant hex_plus: uint8 = +0x2a;
+assert hex_plus == 42;
+constant octal_minus: int8 = -0o52;
+assert octal_minus == -42;
+constant octal_plus: uint8 = +0o52;
+assert octal_plus == 42;
+constant spaced_minus: int8 = - 42;
+assert spaced_minus == -42;
+constant spaced_plus: uint8 = + 42;
+assert spaced_plus == 42;
+constant zero_minus: uint8 = -0;
+assert zero_minus == 0;
+constant zero_plus: uint8 = +0;
+assert zero_plus == 0;
+constant hex_plain: uint8 = 0x2a;
+assert hex_plain == 42;
+constant octal_plain: uint8 = 0o52;
+assert octal_plain == 42;
+constant decimal_leading_zero: uint8 = 010;
+assert decimal_leading_zero == 10;
+constant decimal_leading_zero_eight: uint8 = 080;
+assert decimal_leading_zero_eight == 80;
+constant int8_min: int8 = -128;
+assert int8_min == -128;
+constant int8_max: int8 = +127;
+assert int8_max == 127;
+constant uint8_min: uint8 = +0;
+assert uint8_min == 0;
+constant uint8_max: uint8 = +255;
+assert uint8_max == 255;
+constant int16_min: int16 = -32768;
+assert int16_min == -32768;
+constant int16_max: int16 = +32767;
+assert int16_max == 32767;
+constant uint16_min: uint16 = +0;
+assert uint16_min == 0;
+constant uint16_max: uint16 = +65535;
+assert uint16_max == 65535;
+constant int32_min: int32 = -2147483648;
+assert int32_min == -2147483648;
+constant int32_max: int32 = +2147483647;
+assert int32_max == 2147483647;
+constant uint32_min: uint32 = +0;
+assert uint32_min == 0;
+constant uint32_max: uint32 = +4294967295;
+assert uint32_max == 4294967295;
+constant int64_min: int64 = -9223372036854775808;
+assert int64_min == -9223372036854775808;
+constant int64_max: int64 = +9223372036854775807;
+assert int64_max == 9223372036854775807;
+constant uint64_min: uint64 = +0;
+assert uint64_min == 0;
+constant uint64_max: uint64 = +18446744073709551615;
+assert uint64_max == 18446744073709551615;
+assert - /* sign */ 42 == -42;
+assert -0X2A == -42;
+assert +0O52 == 42;
+assert 0009 == 9;
+assert -080 == -80;
+assert -0009 == -9;
+assert -
+  42 == -42;
+assert CompilerTest.StringEqual("\0\t\n\r\"\'\\", "\x00\x09\x0a\x0d\x22\x27\x5c");
+assert CompilerTest.StringEqual("\012", "\u{0}12");
+assert CompilerTest.StringEqual("\x00\x7F\x80\xFF", "\u{0}\u{7f}\u{80}\u{ff}");
+assert CompilerTest.StringEqual("\x123", "\u{12}3");
+assert CompilerTest.StringEqual("\u{1F_600}\u{000041}\u{4__1_}", "😀AA");
+assert CompilerTest.StringEqual("\u{D7FF}\u{E000}\u{10FFFF}", "퟿􏿿");
+assert CompilerTest.StringEqual("Café 😀", "Café \u{1f600}");
+assert CompilerTest.StringEqual(r"\n\u{41}\xFF", "\\n\\u{41}\\xFF");
+assert CompilerTest.StringEqual(r#"Say "hello"\n"#, "Say \"hello\"\\n");
+assert CompilerTest.StringEqual("first
+second", "first\nsecond");
+assert CompilerTest.StringEqual("first\
+  
+  second", "firstsecond");
+assert CompilerTest.StringEqual("first\
+ second", "first second");
+assert CompilerTest.StringEqual("", r"") && CompilerTest.StringEqual(r"", r#""#);
+assert () == ( ) && (/* outer /* inner */ */) == ();
+assert (
+  // Unit with a line comment.
+) == ();
+constant Units: List[unit] = [(), ( )];
+assert CompilerTest.UnitsEqual(Units, [(), ()]);
+constant NestedUnit: Option[Option[unit]] = Some(Some(()));
+assert CompilerTest.NestedUnitEqual(NestedUnit, Some(Some(())));
+constant NestedNone: Option[Option[unit]] = Some(None);
+assert NestedNone.IsSome && !NestedNone.IsNone;
+constant Absent: Option[unit] = None;
+assert Absent.IsNone;
+constant Items: List[Option[int8]] = [Some(1), None, Some(-42)];
+assert CompilerTest.Int8OptionsEqual(Items, [Some(1), None, Some(-42)]);
+constant Numbers: Option[List[int8]] = Some([1, 2]);
+assert CompilerTest.Int8NumbersEqual(Numbers, Some([1, 2]));
+constant At: Option[TimeOfDay] = Some(TimeOfDay.AddWrap("23:30", "01:00"));
+constant ExpectedAt: Option[TimeOfDay] = Some("00:30");
+assert CompilerTest.TimeOptionEqual(At, ExpectedAt);
+constant Modes: List[ThermostatSystemModeEnum] = [
+  ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool,
+];
+assert CompilerTest.ModesEqual(Modes, [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]);
+
+namespace CompilerTest {
+  native function StringEqual(actual: String, expected: String): boolean;
+  native function UnitsEqual(actual: List[unit], expected: List[unit]): boolean;
+  native function NestedUnitEqual(
+    actual: Option[Option[unit]],
+    expected: Option[Option[unit]],
+  ): boolean;
+  native function Int8OptionsEqual(
+    actual: List[Option[int8]],
+    expected: List[Option[int8]],
+  ): boolean;
+  native function Int8NumbersEqual(
+    actual: Option[List[int8]],
+    expected: Option[List[int8]],
+  ): boolean;
+  native function TimeOptionEqual(
+    actual: Option[TimeOfDay],
+    expected: Option[TimeOfDay],
+  ): boolean;
+  native function ModesEqual(
+    actual: List[ThermostatSystemModeEnum],
+    expected: List[ThermostatSystemModeEnum],
+  ): boolean;
+}
+
+assert !CompilerTest.StringEqual("hello", "different");
+assert !CompilerTest.NestedUnitEqual(Some(None), Some(Some(())));
+assert !CompilerTest.Int8OptionsEqual([Some(1), None], [None, Some(1)]);
+assert !CompilerTest.TimeOptionEqual(None, Some("00:30"));

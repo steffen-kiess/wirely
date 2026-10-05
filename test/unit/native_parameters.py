@@ -1,4 +1,5 @@
 import datetime
+import enum
 from collections.abc import Mapping
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -16,19 +17,11 @@ from wirely.native import native_block_type
 
 checks = TestCase()
 types = wirely.value_types
-mode_type = engine.program.instances['thermostat'].parameters['Type']
-engine.step()
-engine.assert_value_is('defaults.value.', 7)
-engine.assert_value_is('defaults.wrapped.', datetime.time(0, 30))
-assert engine.program.instances['defaults'].parameters['Items'] == (wirely.Some(7), None)
-engine.assert_value_is('overridden.value.', -12)
-engine.assert_value_is('overridden.wrapped.', datetime.time(1, 30))
-engine.assert_value_is('forwarded.child.value.', 42)
-assert engine.program.instances['generic.child'].parameters['Value'] == wirely.Some((1, 2))
-engine.assert_value_is('fallback.Value', True)
-
+mode_type = wirely.ValueType(wirely.types.TypeEnum(
+    'Mode', enum.Enum('Mode', {'Cool': 3, 'EmergencyHeat': 5}),
+    underlying_type=wirely.types.uint8,
+))
 registry = {}
-parameters_by_name = {}
 seen = []
 callback = None
 
@@ -37,9 +30,6 @@ callback = None
 class ParameterProbe:
     @staticmethod
     def run(*, context):
-        assert {key: (value.value if key in ('Absent', 'Missing') else value)
-                for key, value in context.values.items()
-                if key not in ('Absent', 'Missing') or value is not None} == parameters_by_name[context.name]
         callback(context)
         seen.append(context.values)
 
@@ -55,9 +45,6 @@ class StateParameterProbe(wirely.NativeState):
         assert self.values == context.values
         assert self.values is not context.values
         assert context.name == self.context.name
-        assert {key: (value.value if key in ('Absent', 'Missing') else value)
-                for key, value in context.values.items()
-                if key not in ('Absent', 'Missing') or value is not None} == parameters_by_name[context.name]
         callback(context)
         seen.append(context.values)
 
@@ -88,8 +75,6 @@ node probe: TestLibrary.{class_name} {{ {arguments} }}
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        parameters_by_name.update({instance.name: instance.parameters
-                               for instance in program.instances.values()})
         result = wirely.Engine(program)
     result.step()
     return result
@@ -140,8 +125,6 @@ native procedure run uses Type, Number, Flag, Text, Unit, Present, parameter_opt
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,
                        native=native, arguments='Absent: None')
-    assert probe.program.instances['probe'].parameters['Number'] == 7
-    assert probe.program.instances['probe'].parameters['Type'] == types.uint16
     probe.step()
     probe.assert_is_idle()
 

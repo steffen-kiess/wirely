@@ -1,0 +1,40 @@
+node input: Std.DebugValueSource { Type: boolean }
+node rising: Std.DetectEdge { EdgeType: "Rising" }
+node falling: Std.DetectEdge { EdgeType: "Falling" }
+node both: Std.DetectEdge { EdgeType: "Both" }
+connect input -> rising;
+connect input -> falling;
+connect input -> both;
+node type GPIOSettings {
+  default input: value boolean;
+  parameter Active: String;
+  parameter Drive: String;
+  parameter Bias: String;
+  node output: GPIO.Output {
+    ChipDeviceFile: "/dev/unused", Name: "LED",
+    ActiveState: Active, Drive: Drive, Bias: Bias,
+  }
+  connect default input -> output;
+}
+node gpio_default: GPIO.Output { ChipDeviceFile: "/dev/unused", Name: "LED" }
+connect input -> gpio_default;
+node gpio_high: GPIOSettings { Active: "High", Drive: "PushPull", Bias: "AsIs" }
+node gpio_low: GPIOSettings { Active: "Low", Drive: "OpenDrain", Bias: "Disable" }
+node gpio_source: GPIOSettings { Active: "High", Drive: "OpenSource", Bias: "PullDown" }
+node gpio_pullup: GPIOSettings { Active: "High", Drive: "PushPull", Bias: "PullUp" }
+assert CSV.SupportsType(boolean) && CSV.SupportsType(uint16);
+assert CSV.SupportsType(Option[boolean]);
+assert !CSV.SupportsType(List[uint8]) && !CSV.SupportsType(String);
+node interval: Time.IsInDailyInterval { Start: "08:00", End: "12:00" }
+node overnight: Time.IsInDailyInterval { Start: "22:00", End: "06:00" }
+node trigger_default: Time.TriggerAt { Time: "12:00" }
+node trigger_unit: Time.TriggerAt { Time: "12:00", OutputType: unit, OutputValue: () }
+node trigger_number: Time.TriggerAt { Time: "12:00", OutputType: uint16, OutputValue: 42 }
+node trigger_option: Time.TriggerAt {
+  Time: "12:00", OutputType: Option[boolean], OutputValue: None,
+}
+
+connect input -> gpio_high;
+connect input -> gpio_low;
+connect input -> gpio_source;
+connect input -> gpio_pullup;

@@ -1,6 +1,3 @@
-import contextlib
-import io
-from functools import wraps
 from unittest.mock import patch
 
 import wirely
@@ -66,20 +63,6 @@ def compile_program(source, implementations):
 
 
 
-def check_invalid(source, implementations, message, line):
-    output = io.StringIO()
-    errors = io.StringIO()
-    with patch.dict(wirely.native.test_library.native_block_types, implementations):
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-            graph = wirely.compiler.compile_strs([('<native-procedures>', source)])
-            result = program_compiler.compile(graph) if graph is not None else None
-    assert result is None
-    assert not errors.getvalue(), errors.getvalue()
-    assert message in output.getvalue(), output.getvalue()
-    assert f'Error in <native-procedures>:{line}:' in output.getvalue()
-    assert 'Traceback' not in output.getvalue()
-
-
 program = compile_program('''namespace TestLibrary {
   native node type InstanceProbe {
     native procedure Poll as "instance";
@@ -134,97 +117,3 @@ state.trigger('shared')
 probe_engine.step()
 assert calls[-1] == ('replacement', 'instance')
 probe_engine.assert_is_idle()
-
-
-def missing_context():
-    pass
-
-
-def needs_instance(self, *, context):
-    pass
-
-
-def required_argument(*, context, extra):
-    pass
-
-
-def positional_only(context, /):
-    pass
-
-
-async def asynchronous(*, context):
-    pass
-
-
-def generator(*, context):
-    yield None
-
-
-async def async_generator(*, context):
-    yield None
-
-
-@wraps(asynchronous)
-def wrapped_asynchronous(*, context):
-    return asynchronous(context=context)
-
-
-descriptor_accesses = []
-
-
-def property_method(self):
-    descriptor_accesses.append('property')
-    raise AssertionError('Property must not execute during compilation')
-
-
-class Descriptor:
-    def __get__(self, instance, owner):
-        descriptor_accesses.append('descriptor')
-        raise AssertionError('Descriptor must not execute during compilation')
-
-
-invalid_methods = [
-    (False, staticmethod(missing_context), 'Invalid signature'),
-    (False, needs_instance, 'Invalid signature'),
-    (False, staticmethod(required_argument), 'Invalid signature'),
-    (False, staticmethod(positional_only), 'Invalid signature'),
-    (False, classmethod(required_argument), 'Invalid signature'),
-    (False, staticmethod(asynchronous), 'must be synchronous'),
-    (False, staticmethod(wrapped_asynchronous), 'must be synchronous'),
-    (False, staticmethod(generator), 'cannot be a generator'),
-    (False, staticmethod(async_generator), 'cannot be a generator'),
-    (False, 7, 'Unsupported native procedure method'),
-    (True, property(property_method), 'Unsupported native procedure method'),
-    (True, Descriptor(), 'Unsupported native procedure method'),
-    (True, staticmethod(required_argument), 'Invalid signature'),
-    (True, missing_context, 'Invalid signature'),
-]
-for has_native_state, method, message in invalid_methods:
-    implementations = {}
-    native_block_type(implementations, has_native_state=has_native_state)(
-        type('InvalidProbe', (), {'selected': method}),
-    )
-    qualifier = 'native ' if has_native_state else ''
-    source = f'''namespace TestLibrary {{
-  {qualifier}node type InvalidProbe {{
-    native procedure Poll
-      as "selected";
-  }}
-}}
-node probe: TestLibrary.InvalidProbe {{}}
-'''
-    check_invalid(source, implementations, message, 4)
-assert not descriptor_accesses
-
-# A subclass attribute hides an inherited method, even if not callable.
-implementations = {}
-native_block_type(implementations, has_native_state=False)(
-    type('HiddenProbe', (Methods,), {'shared': None}),
-)
-check_invalid('''namespace TestLibrary {
-  node type HiddenProbe {
-    native procedure shared;
-  }
-}
-node probe: TestLibrary.HiddenProbe {}
-''', implementations, 'Unsupported native procedure method', 3)

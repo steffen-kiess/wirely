@@ -1,0 +1,18 @@
+constant Wrapped: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
+constant Expected: TimeOfDay = "00:30";
+assert CompilerTest.TimeEqual(Wrapped, Expected);
+constant Selected: TimeOfDay = if true { Wrapped } else {
+  TimeOfDay.AddWrap("12:00", "bad")
+};
+assert CompilerTest.TimeEqual(Selected, Expected);
+assert true || { let unused: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad"); false };
+assert !(false && {
+  let unused: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad"); true
+});
+node type Unused {
+  constant At: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad");
+}
+
+namespace CompilerTest {
+  native function TimeEqual(actual: TimeOfDay, expected: TimeOfDay): boolean;
+}

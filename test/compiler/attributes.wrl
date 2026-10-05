@@ -1,0 +1,17 @@
+node source: Std.Constant {
+  #![position(x = 120, y = -40.5)]
+  Type: boolean,
+  Value: true,
+}
+node sink: Std.And {}
+connect source -> sink;
+
+node type Metadata {
+  parameter Value: boolean = true;
+  assert Value;
+}
+#[position(x = -0x2a, y = +0o52)]
+node positioned: Metadata {}
+node inner: Metadata {
+  #![position(x = 1.5, y = -2)]
+}

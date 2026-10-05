@@ -39,3 +39,23 @@ constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%x"));
 // TEST: relative credential path
 constant Credentials: TwoN.Credentials = TwoN.ReadCredentials("relative");
 // ^E: UsernamePasswordFile must be absolute
+
+// TEST: invalid group address 1/2/3/4
+constant Address: uint16 = KNX.ParseGroupAddress("1/2/3/4");
+// ^E: CouldNotParseAddress
+
+// TEST: invalid group address 1/2/256
+constant Address: uint16 = KNX.ParseGroupAddress("1/2/256");
+// ^E: CouldNotParseAddress
+
+// TEST: invalid group address 32/0/0
+constant Address: uint16 = KNX.ParseGroupAddress("32/0/0");
+// ^E: CouldNotParseAddress
+
+// TEST: invalid group address 1/2048
+constant Address: uint16 = KNX.ParseGroupAddress("1/2048");
+// ^E: CouldNotParseAddress
+
+// TEST: invalid group address 65536
+constant Address: uint16 = KNX.ParseGroupAddress("65536");
+// ^E: CouldNotParseAddress

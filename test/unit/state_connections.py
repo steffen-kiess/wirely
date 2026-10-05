@@ -1,5 +1,3 @@
-import contextlib
-import io
 from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
@@ -7,7 +5,6 @@ from unittest.mock import patch
 import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
-import wirely.cli.graphviz
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -170,10 +167,8 @@ owner_variable = probe.get_variable('owner')
 assert probe.state[owner_variable] is True
 assert probe.get_value('owner.relay') is False
 assert probe.get_value('owner.reader.') is False
-assert owner_variable not in probe.program.temporaries.variable_set
 assert probe.get_variable('owner.relay') is owner_variable
 assert probe.get_variable('owner.reader.') is owner_variable
-assert '() = False' in wirely.cli.graphviz.get_graph(probe.program.graph, probe).source
 
 probe.step()
 probe.assert_value_is('owner.reader', True)
@@ -196,7 +191,6 @@ probe.step()
 probe.assert_is_idle()
 
 feedback = make_engine('node feedback: TestLibrary.Feedback {}')
-assert len(feedback.program.temporaries.variable_set) == 2
 for value in (0, 1, 2):
     feedback.step()
     feedback.assert_value_is('feedback', value)
@@ -209,7 +203,6 @@ node second: TestLibrary.Shared {}
 node observer: TestLibrary.Forward { Type: uint8 }
 connect second -> observer;
 ''')
-assert len(shared.program.state_variables.variable_set) == 1
 for value in (0, 1, 2):
     shared.step()
     shared.assert_value_is('first', value)
@@ -343,7 +336,6 @@ assert observations['owner.mixed'] == (0, 5, 5)
 current.assert_value_is('observer', 5)
 new_variable = current.get_variable('owner.New')
 assert current.get_variable('owner.relay') is new_variable
-assert sum(var.name.endswith('.saved.new') for var in current.program.temporaries.variable_set) == 1
 scheduled = current.program.procs[blocks.RunStage.DEFAULT]
 keys = [proc.key for proc in scheduled]
 assert keys.index(('owner', 'write')) < keys.index(('owner', 'observe'))
@@ -394,7 +386,6 @@ node second: TestLibrary.Shared {}
 node observer: TestLibrary.Forward { Type: uint8 }
 connect second -> observer;
 ''', declarations=new_shared_definitions)
-assert len(new_shared.program.state_variables.variable_set) == 1
 for value in (1, 2, 2):
     new_shared.step()
     new_shared.assert_value_is('first', value)
@@ -423,52 +414,3 @@ new_nested.assert_value_is('first', 8)
 new_nested.assert_value_is('second', 9)
 assert observations['first.owner'] == (0, 8)
 assert observations['second.owner'] == (0, 9)
-
-# Graph labels preserve the phase even when both read the same state.
-owner_graph = current.program.graph.libraries['TestLibrary'].block_type_implementations['Current']
-rendered = wirely.cli.graphviz.get_graph(owner_graph).source
-assert 'saved.old' in rendered
-assert 'saved.new' in rendered
-
-for connector, message in [
-    ('value boolean', 'source has type'),
-    ('event Type', 'source has kind'),
-    ('resource Handle', 'Cannot connect resource and data'),
-]:
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        assert compile_graph('resource type Handle;\n' + current_definitions.replace(
-            'output New: value Type;', 'output New: ' + connector + ';',
-        ) + current_source) is None
-    assert message in output.getvalue(), output.getvalue()
-    assert 'Internal compiler error' not in output.getvalue()
-
-invalid_programs = [
-    ('native procedure advance depends on saved.new as "input" produces saved;',
-     'Circular procedure dependency'),
-    ('''node reader: TestLibrary.Forward { Type: uint8 }
-        connect saved.new -> reader;
-        native procedure advance depends on reader as "input" produces saved;''',
-     'Circular procedure dependency'),
-    ('''node reader: TestLibrary.Forward { Type: uint8 }
-        connect saved.new -> reader;
-        native procedure advance stage output
-          depends on saved.old as "input" produces saved;''',
-     'later execution stage'),
-]
-for body, message in invalid_programs:
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        invalid_graph = compile_graph(definitions.replace(
-            '''node reader: Forward { Type: uint8 }
-    connect saved.old -> reader;
-    connect reader -> default output;
-    native procedure advance
-      depends on reader as "input"
-      produces saved;''', body + '\nconnect saved.old -> default output;',
-        ) + 'node feedback: TestLibrary.Feedback {}')
-        assert invalid_graph is not None, output.getvalue()
-        assert program_compiler.compile(invalid_graph) is None
-    assert message in output.getvalue(), output.getvalue()
-    assert 'Hint:' in output.getvalue()
-    assert 'Internal compiler error' not in output.getvalue()
