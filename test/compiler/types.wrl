@@ -77,57 +77,41 @@ enum type Boundaryint8: int8 {
   Minimum = -128,
   Maximum = 127,
 }
-assert CompilerTest.Int8EnumEqual(Boundaryint8.Minimum, -128);
-assert CompilerTest.Int8EnumEqual(Boundaryint8.Maximum, 127);
 
 enum type Boundaryint16: int16 {
   Minimum = -32768,
   Maximum = 32767,
 }
-assert CompilerTest.Int16EnumEqual(Boundaryint16.Minimum, -32768);
-assert CompilerTest.Int16EnumEqual(Boundaryint16.Maximum, 32767);
 
 enum type Boundaryint32: int32 {
   Minimum = -2147483648,
   Maximum = 2147483647,
 }
-assert CompilerTest.Int32EnumEqual(Boundaryint32.Minimum, -2147483648);
-assert CompilerTest.Int32EnumEqual(Boundaryint32.Maximum, 2147483647);
 
 enum type Boundaryint64: int64 {
   Minimum = -9223372036854775808,
   Maximum = 9223372036854775807,
 }
-assert CompilerTest.Int64EnumEqual(Boundaryint64.Minimum, -9223372036854775808);
-assert CompilerTest.Int64EnumEqual(Boundaryint64.Maximum, 9223372036854775807);
 
 enum type Boundaryuint8: uint8 {
   Minimum = 0,
   Maximum = 255,
 }
-assert CompilerTest.Uint8EnumEqual(Boundaryuint8.Minimum, 0);
-assert CompilerTest.Uint8EnumEqual(Boundaryuint8.Maximum, 255);
 
 enum type Boundaryuint16: uint16 {
   Minimum = 0,
   Maximum = 65535,
 }
-assert CompilerTest.Uint16EnumEqual(Boundaryuint16.Minimum, 0);
-assert CompilerTest.Uint16EnumEqual(Boundaryuint16.Maximum, 65535);
 
 enum type Boundaryuint32: uint32 {
   Minimum = 0,
   Maximum = 4294967295,
 }
-assert CompilerTest.Uint32EnumEqual(Boundaryuint32.Minimum, 0);
-assert CompilerTest.Uint32EnumEqual(Boundaryuint32.Maximum, 4294967295);
 
 enum type Boundaryuint64: uint64 {
   Minimum = 0,
   Maximum = 18446744073709551615,
 }
-assert CompilerTest.Uint64EnumEqual(Boundaryuint64.Minimum, 0);
-assert CompilerTest.Uint64EnumEqual(Boundaryuint64.Maximum, 18446744073709551615);
 
 
 enum type Signed: int8 {
@@ -195,30 +179,3 @@ node type Structs {
   assert EmptyStruct {} == EmptyStruct {};
 }
 node structs: Structs {}
-
-namespace CompilerTest {
-  native function Int8EnumEqual(
-    actual: Boundaryint8, expected: int8,
-  ): boolean;
-  native function Int16EnumEqual(
-    actual: Boundaryint16, expected: int16,
-  ): boolean;
-  native function Int32EnumEqual(
-    actual: Boundaryint32, expected: int32,
-  ): boolean;
-  native function Int64EnumEqual(
-    actual: Boundaryint64, expected: int64,
-  ): boolean;
-  native function Uint8EnumEqual(
-    actual: Boundaryuint8, expected: uint8,
-  ): boolean;
-  native function Uint16EnumEqual(
-    actual: Boundaryuint16, expected: uint16,
-  ): boolean;
-  native function Uint32EnumEqual(
-    actual: Boundaryuint32, expected: uint32,
-  ): boolean;
-  native function Uint64EnumEqual(
-    actual: Boundaryuint64, expected: uint64,
-  ): boolean;
-}

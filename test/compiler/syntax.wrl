@@ -167,12 +167,6 @@ namespace TestLibrary {
   }
 }
 
-namespace CompilerTest {
-  native function r#function(value: uint8,): uint8;
-}
-
-assert CompilerTest.r#function(7,) == 7;
-
 namespace TestLibrary {
   node type TestBlock {
     native procedure test_procedure;

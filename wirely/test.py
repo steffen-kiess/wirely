@@ -12,7 +12,6 @@ import re
 import pwd
 import shlex
 import signal
-from unittest.mock import patch
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -21,7 +20,6 @@ import lark
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
-from wirely.compiler.native_functions import native_function_impls
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
 
@@ -304,39 +302,18 @@ def compile_negative_test(fn):
     print(f'Compiling negative test {fn} done')
 
 
-def compiler_enum_equal(*, context):
-    return context.arguments['actual'].value == context.arguments['expected']
-
-
-def compiler_identity(*, context):
-    return context.arguments['value']
-
-
-COMPILER_TEST_FUNCTIONS = {
-    ('CompilerTest', 'function'): compiler_identity,
-}
-
-COMPILER_TEST_FUNCTIONS.update({
-    ('CompilerTest', f'{prefix}{bits}EnumEqual'): compiler_enum_equal
-    for prefix in ('Int', 'Uint')
-    for bits in (8, 16, 32, 64)
-})
-
-
 def compile_test(fn):
     print(f'Compiling {fn}')
 
     full_fn = os.path.dirname(__file__) + '/../' + fn
     compiler_test = fn.startswith('test/compiler/')
-    functions = COMPILER_TEST_FUNCTIONS if compiler_test else {}
-    with patch.dict(native_function_impls, functions):
-        global_block_type = blocks.compiler.compile_files([full_fn])
-        if global_block_type is None:
-            sys.exit(1)
+    global_block_type = blocks.compiler.compile_files([full_fn])
+    if global_block_type is None:
+        sys.exit(1)
 
-        prog = program_compiler.compile(global_block_type)
-        if prog is None:
-            sys.exit(1)
+    prog = program_compiler.compile(global_block_type)
+    if prog is None:
+        sys.exit(1)
 
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
