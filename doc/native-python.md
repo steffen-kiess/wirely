@@ -275,7 +275,13 @@ one value matching the declared return type.
 `NativeFunctionContext` has read-only `function_name` (the qualified name
 tuple), `arguments` (native values by declared argument name),
 `arguments_ast` (call-site expression nodes by name), and `call` (the call
-node). Treat values and AST nodes as read-only. Native value conversions
+node). `services` is a read-only mapping of Python objects supplied through
+the optional `services` argument to `compile_files()` or `compile_strs()`.
+The compiler copies the mapping, preserving its objects by reference, and
+makes it available through program generation. It defaults to empty.
+Services belong to compiler structures, including optional debug graphs,
+rather than runtime execution data. Service objects may manage mutable
+state. Treat values and AST nodes as read-only. Native value conversions
 apply, including `wirely.ValueType` for type values and `wirely.Unit()` for
 unit. Use `raise context.error(message)` for a call-site diagnostic, or
 supply `argument='name'` to point at that argument. `ValueError`,

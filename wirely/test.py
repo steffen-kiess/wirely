@@ -20,6 +20,7 @@ import lark
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
+from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
@@ -34,6 +35,7 @@ test_names = [
     'unit/optional_forwarding',
     'unit/native_values',
     'unit/native_functions',
+    'unit/test_resources',
     'unit/path',
     'unit/constants',
     'unit/type_comparisons',
@@ -342,18 +344,16 @@ async def with_maybe_testdir(require_testdir):
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_knxd(require_knx):
-    if not require_knx:
+async def with_maybe_knxd(socket_path):
+    if socket_path is None:
         yield None
         return
 
     knxd_path = os.environ.get('KNXD_PATH', 'knxd')
 
-    with tempfile.TemporaryDirectory(prefix='test_knxd.') as tmp:
-        config_path = tmp + '/knxd.ini'
-        socket_path = tmp + '/knxnet'
+    config_path = os.path.join(os.path.dirname(socket_path), 'knxd.ini')
 
-        config_data = f'''
+    config_data = f'''
 [main]
 addr = 1.1.5
 client-addrs = 1.1.100:100
@@ -371,58 +371,61 @@ tunnel = tunnel
 path = {socket_path}
 '''
 
-        with open(config_path, 'w', encoding='utf-8') as file:
-            file.write(config_data)
+    with open(config_path, 'w', encoding='utf-8') as file:
+        file.write(config_data)
 
-        print('Starting knxd...', flush=True)
-        # TODO: Avoid non-async waiting?
-        process = subprocess.Popen([knxd_path, config_path])
-        try:
-            print('Waiting for knxd to start up...', flush=True)
-            for i in range(100):
-                try:
-                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                        client.connect(socket_path)
-                        break
-                except (ConnectionRefusedError, FileNotFoundError) as e:
-                    exit_code = process.poll()
-                    if exit_code is not None:
-                        raise Exception(f'knxd has exited with exit code {exit_code}')
+    print('Starting knxd...', flush=True)
+    # TODO: Avoid non-async waiting?
+    process = subprocess.Popen([knxd_path, config_path])
+    try:
+        print('Waiting for knxd to start up...', flush=True)
+        for i in range(100):
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.connect(socket_path)
+                    break
+            except (ConnectionRefusedError, FileNotFoundError) as e:
+                exit_code = process.poll()
+                if exit_code is not None:
+                    raise Exception(f'knxd has exited with exit code {exit_code}')
 
-                    print('Waiting', flush=True)
-                    await asyncio.sleep(0.05)
-            print('knxd is running.', flush=True)
+                print('Waiting', flush=True)
+                await asyncio.sleep(0.05)
+        else:
+            raise TimeoutError('Timed out waiting for knxd to start')
+        print('knxd is running.', flush=True)
 
-            monitor_command = os.environ.get('WIRELY_TEST_KNX_MONITOR')
-            if not monitor_command:
+        monitor_command = os.environ.get('WIRELY_TEST_KNX_MONITOR')
+        if not monitor_command:
+            yield socket_path
+        else:
+            print('Starting monitor...', flush=True)
+            command = monitor_command.replace('%s', shlex.quote(socket_path))
+            monitor_process = subprocess.Popen(
+                ['sh', '-c', command], start_new_session=True
+            )
+            try:
+                print('Waiting for monitor...', flush=True)
+                # TODO: Find out whether it is running somehow?
+                # await asyncio.sleep(0.1)
+                # TODO: This is just a guess, with new xknx version (3.x.x) 0.1s seems to be too short
+                await asyncio.sleep(0.3)
+                # print('monitor is running.', flush=True)
+
                 yield socket_path
-            else:
-                print('Starting monitor...', flush=True)
-                command = monitor_command.replace('%s', shlex.quote(socket_path))
-                monitor_process = subprocess.Popen(
-                    ['sh', '-c', command], start_new_session=True
-                )
+            finally:
+                print('Stopping monitor...', flush=True)
                 try:
-                    print('Waiting for monitor...', flush=True)
-                    # TODO: Find out whether it is running somehow?
-                    # await asyncio.sleep(0.1)
-                    # TODO: This is just a guess, with new xknx version (3.x.x) 0.1s seems to be too short
-                    await asyncio.sleep(0.3)
-                    # print('monitor is running.', flush=True)
-
-                    yield socket_path
-                finally:
-                    print('Stopping monitor...', flush=True)
-                    try:
-                        os.killpg(monitor_process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    monitor_process.wait()
-                    print('Done stopping monitor.', flush=True)
-        finally:
-            print('Stopping knxd...', flush=True)
-            process.kill()
-            print('Done stopping knxd.', flush=True)
+                    os.killpg(monitor_process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                monitor_process.wait()
+                print('Done stopping monitor.', flush=True)
+    finally:
+        print('Stopping knxd...', flush=True)
+        process.kill()
+        process.wait()
+        print('Done stopping knxd.', flush=True)
 
 
 @contextlib.asynccontextmanager
@@ -512,110 +515,121 @@ async def with_maybe_twon(require_twon):
         yield info
 
 
+class TestResourceProvider:
+    """Allocate fixtures for one compilation and test execution."""
+
+    def __init__(self, exit_stack):
+        self.exit_stack = exit_stack
+        self.knx_path = None
+
+    def get_knx_path(self) -> str:
+        if self.knx_path is None:
+            directory = self.exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix='test_knxd.'),
+            )
+            self.knx_path = os.path.join(directory, 'knxnet')
+        return self.knx_path
+
+
 async def run_test(test_name):
     print(f'Running test {test_name}')
 
-    fn = os.path.dirname(__file__) + f'/../test/{test_name}.wrl'
-    py_fn = os.path.dirname(__file__) + f'/../test/{test_name}.py'
-    global_block_type = blocks.compiler.compile_files([fn])
-    if global_block_type is None:
-        sys.exit(1)
+    with contextlib.ExitStack() as resource_stack:
+        resources = TestResourceProvider(resource_stack)
+        fn = os.path.dirname(__file__) + f'/../test/{test_name}.wrl'
+        py_fn = os.path.dirname(__file__) + f'/../test/{test_name}.py'
+        global_block_type = blocks.compiler.compile_files(
+            [fn], services={TEST_RESOURCES_SERVICE: resources},
+        )
+        if global_block_type is None:
+            sys.exit(1)
 
-    prog = program_compiler.compile(global_block_type)
-    if prog is None:
-        sys.exit(1)
+        prog = program_compiler.compile(global_block_type)
+        if prog is None:
+            sys.exit(1)
 
-    with open(os.devnull, 'w') as file:
-        prog.dump(file=file)
+        with open(os.devnull, 'w') as file:
+            prog.dump(file=file)
 
-    # TODO: Clean up
-    require_testdir = False
-    require_knx = False
-    require_mqtt = False
-    require_twon = False
-    csv_writer_paths = []
-    knx_connection_paths = []
-    mqtt_server_paths = []
-    twon_device_paths = []
-    for node_id, instance in prog.instances.items():
-        if instance.type_name == ('CSV', 'ValueWriter'):
-            require_testdir = True
-            csv_writer_paths.append(node_id)
-        if instance.type_name == ('KNX', 'Connection'):
-            require_knx = True
-            knx_connection_paths.append(node_id)
-        if instance.type_name == ('MQTT', 'Connection'):
-            require_mqtt = True
-            mqtt_server_paths.append(node_id)
-        if instance.type_name == ('TwoN', 'Connection'):
-            require_twon = True
-            twon_device_paths.append(node_id)
+        # TODO: Clean up
+        require_testdir = False
+        require_mqtt = False
+        require_twon = False
+        csv_writer_paths = []
+        mqtt_server_paths = []
+        twon_device_paths = []
+        for node_id, instance in prog.instances.items():
+            if instance.type_name == ('CSV', 'ValueWriter'):
+                require_testdir = True
+                csv_writer_paths.append(node_id)
+            if instance.type_name == ('MQTT', 'Connection'):
+                require_mqtt = True
+                mqtt_server_paths.append(node_id)
+            if instance.type_name == ('TwoN', 'Connection'):
+                require_twon = True
+                twon_device_paths.append(node_id)
 
-    if require_knx:
-        print('Test requires KNX')
+        if resources.knx_path is not None:
+            print('Test requires KNX')
 
-    async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(require_knx) as knxd_socket_path, with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
-        instances = dict(prog.instances)
-        parameter_overrides = {}
+        async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(resources.knx_path), with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
+            instances = dict(prog.instances)
+            parameter_overrides = {}
 
-        def override_instance(node_id, parameters, *, optional_parameters=()):
-            bindings = {key: blocks.Some(value) if key in optional_parameters else value
-                        for key, value in parameters.items()}
-            parameter_overrides.setdefault(node_id, {}).update(bindings)
-            instance = instances[node_id]
-            initializer_values = dict(instance.initializer_values)
-            initializer_values.update({key: value for key, value in bindings.items()
-                                       if key in initializer_values})
-            values = dict(instance.parameters)
-            values.update(parameters)
-            instances[node_id] = replace(
-                instance, parameters=MappingProxyType(values),
-                initializer_values=initializer_values,
-            )
+            def override_instance(node_id, parameters):
+                bindings = parameters
+                parameter_overrides.setdefault(node_id, {}).update(bindings)
+                instance = instances[node_id]
+                initializer_values = dict(instance.initializer_values)
+                initializer_values.update({key: value for key, value in bindings.items()
+                                           if key in initializer_values})
+                values = dict(instance.parameters)
+                values.update(parameters)
+                instances[node_id] = replace(
+                    instance, parameters=MappingProxyType(values),
+                    initializer_values=initializer_values,
+                )
 
-        for node_id in csv_writer_paths:
-            filename = testdir + '/' + os.path.basename(prog.instances[node_id].initializer_values['Filename'])
-            override_instance(node_id, {'Filename': filename})
-        for node_id in knx_connection_paths:
-            override_instance(node_id, {'UnixPath': knxd_socket_path},
-                              optional_parameters=('UnixPath',))
-        for node_id in mqtt_server_paths:
-            override_instance(node_id, {'URI': 'mqtt+unix://' + mqtt_socket_path})
-        for node_id in twon_device_paths:
-            override_instance(
-                node_id, {'Host': twon_info.host, 'Port': twon_info.port,
-                          'TLSA': (twon_info.server.tlsa,)},
-            )
-        schedules = {
-            stage: tuple(replace(
-                proc, node_context=instances[proc.node_id],
-                values={key: parameter_overrides.get(proc.node_id, {}).get(key, value)
-                        for key, value in proc.values.items()},
-            ) for proc in schedule)
-            for stage, schedule in prog.procs.items()
-        }
-        prog = replace(prog, instances=instances, procs=schedules)
+            for node_id in csv_writer_paths:
+                filename = testdir + '/' + os.path.basename(prog.instances[node_id].initializer_values['Filename'])
+                override_instance(node_id, {'Filename': filename})
+            for node_id in mqtt_server_paths:
+                override_instance(node_id, {'URI': 'mqtt+unix://' + mqtt_socket_path})
+            for node_id in twon_device_paths:
+                override_instance(
+                    node_id, {'Host': twon_info.host, 'Port': twon_info.port,
+                              'TLSA': (twon_info.server.tlsa,)},
+                )
+            schedules = {
+                stage: tuple(replace(
+                    proc, node_context=instances[proc.node_id],
+                    values={key: parameter_overrides.get(proc.node_id, {}).get(key, value)
+                            for key, value in proc.values.items()},
+                ) for proc in schedule)
+                for stage, schedule in prog.procs.items()
+            }
+            prog = replace(prog, instances=instances, procs=schedules)
 
-        eng = blocks.Engine(prog)
+            eng = blocks.Engine(prog)
 
-        # TODO: Pass this information differently?
-        eng.test_twon_fake_server_info = twon_info
+            # TODO: Pass this information differently?
+            eng.test_twon_fake_server_info = twon_info
 
-        # eng.debug = True
+            # eng.debug = True
 
-        # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-        spec = importlib.util.spec_from_file_location('test', py_fn)
-        if spec is None:
-            raise Exception('Unable to load python file ' + repr(py_fn))
-        module = importlib.util.module_from_spec(spec)
+            # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
+            spec = importlib.util.spec_from_file_location('test', py_fn)
+            if spec is None:
+                raise Exception('Unable to load python file ' + repr(py_fn))
+            module = importlib.util.module_from_spec(spec)
 
-        module.engine = eng
+            module.engine = eng
 
-        # sys.modules['__main__'] = module
-        spec.loader.exec_module(module)
-        # TODO: Always require a run_test coroutine?
-        if 'run_test' in module.__dict__:
-            await module.run_test()
+            # sys.modules['__main__'] = module
+            spec.loader.exec_module(module)
+            # TODO: Always require a run_test coroutine?
+            if 'run_test' in module.__dict__:
+                await module.run_test()
 
     print(f'Done running test {test_name}')
 

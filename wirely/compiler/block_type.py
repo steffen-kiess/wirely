@@ -53,6 +53,8 @@ class BlockType(blocks.Scope):
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
+        if graph is not None:
+            self.services = graph.services
 
         if self.parent_graph is not None:
             if self.name.id_str in graph.struct_types:

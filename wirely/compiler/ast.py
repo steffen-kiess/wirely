@@ -1799,6 +1799,7 @@ class DeclarationLibrary(Scope):
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
+        self.services = graph.services
         # TODO: What should be allowed here?
         if not isinstance(graph, DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Attempt to put namespace into invalid context')

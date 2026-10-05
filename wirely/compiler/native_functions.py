@@ -54,6 +54,9 @@ native_function_impls = {
     ('Path', 'Join'): ('wirely.compiler.function_implementations.path', 'join'),
     ('Path', 'Parent'): ('wirely.compiler.function_implementations.path', 'parent'),
     ('Path', 'SourceFile'): ('wirely.compiler.function_implementations.path', 'source_file'),
+    ('Test', 'ReplaceKNXPath'): (
+        'wirely.compiler.function_implementations.test', 'replace_knx_path',
+    ),
     ('TimeOfDay', 'AddWrap'): (
         'wirely.compiler.function_implementations.time', 'add_wrap',
     ),
@@ -66,6 +69,7 @@ class NativeFunctionContext:
     arguments: Mapping[str, object]
     arguments_ast: Mapping[str, object]
     call: object
+    services: Mapping[str, object]
 
     def error(self, message, *, argument=None):
         if argument is not None and argument not in self.arguments_ast:
@@ -140,6 +144,7 @@ def invoke(function, values, sources, call):
     context = NativeFunctionContext(
         function.function_name, MappingProxyType(arguments),
         MappingProxyType(dict(zip(function.argument_names, sources))), call,
+        function.scope.services,
     )
     try:
         result = implementation(context=context)

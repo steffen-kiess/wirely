@@ -1,4 +1,6 @@
-node bus: KNX.Connection { UnixPath: "/run/knxnet" }
+node bus: KNX.Connection {
+  UnixPath: Test.ReplaceKNXPath("/run/knxnet"),
+}
 
 node trigger: Time.TriggerAt {
   Time: "08:00",

@@ -29,6 +29,15 @@ using the compiler host's path conventions:
 These functions do not check existence or resolve symlinks and cannot be
 called in runtime procedure bodies.
 
+## Test
+
+`Test.ReplaceKNXPath(default: String): String` returns `default` during
+ordinary compilation. When the compiler's `services` mapping contains
+`"wirely.test_resources"`, it calls that object's `get_knx_path() -> str`
+method to request a KNX fixture and return its stable absolute socket path.
+The test runner starts the requested daemon before creating the engine.
+Compiled test paths are valid only for the fixture's lifetime.
+
 ## Std
 
 General data flow, optional values, edge detection, and debug nodes.

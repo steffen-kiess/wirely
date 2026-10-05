@@ -1,5 +1,7 @@
 // TODO: Don't depend on the ordering of bus / Light
-node bus: KNX.Connection { UnixPath: "/run/knxnet" }
+node bus: KNX.Connection {
+  UnixPath: Test.ReplaceKNXPath("/run/knxnet"),
+}
 
 node receiver: KNX.ValueReceiver { GroupAddress: "0/4/5", Type: boolean }
 

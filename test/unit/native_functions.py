@@ -32,7 +32,8 @@ calls = []
 def identity(*, context):
     calls.append(context.function_name)
     assert tuple(context.arguments) == tuple(context.arguments_ast)
-    for mapping in (context.arguments, context.arguments_ast):
+    assert not context.services
+    for mapping in (context.arguments, context.arguments_ast, context.services):
         try:
             mapping['value'] = None
         except TypeError:
