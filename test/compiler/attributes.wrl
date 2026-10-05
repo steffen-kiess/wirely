@@ -15,3 +15,83 @@ node positioned: Metadata {}
 node inner: Metadata {
   #![position(x = 1.5, y = -2)]
 }
+
+#[internal]
+namespace Implementation {
+  #[internal]
+  resource type Handle;
+
+  #[internal]
+  struct type Record {
+    #[internal]
+    enabled: boolean,
+  }
+
+  enum type Mode: uint8 {
+    #![internal]
+    #[internal]
+    On = 1,
+  }
+}
+
+#[internal]
+constant Enabled: Implementation.Record =
+  Implementation.Record { enabled: true };
+namespace InnerImplementation {
+  #![internal]
+  node type Empty {}
+}
+node inner_namespace: InnerImplementation.Empty {}
+assert Enabled == Implementation.Record { enabled: true };
+assert Implementation.Mode.On == Implementation.Mode.On;
+assert KNX.ParseGroupAddress("1/2/3") == 2563;
+assert MQTT.SupportsType(boolean);
+
+#[internal]
+node type InternalForward {
+  #[internal]
+  parameter Initial: boolean = true;
+  #[internal]
+  default input: value boolean;
+  #[internal]
+  default output: value boolean;
+  #[internal]
+  state previous: boolean = Initial;
+  #[internal]
+  temporary forwarded: boolean;
+
+  procedure forward
+    depends on default input as input
+    produces forwarded as output
+  {
+    output = input;
+  }
+  procedure remember
+    depends on forwarded as input
+    produces previous, default output as output
+  {
+    previous = input;
+    output = input;
+  }
+}
+node type InnerType {
+  #![internal]
+  node impl: InternalForward {}
+  node input: Std.Constant { Type: boolean, Value: true }
+  connect input -> impl;
+}
+#[internal]
+node internal_forward: InternalForward {}
+connect source -> internal_forward;
+node inner_internal: InnerType { #![internal] }
+
+struct type InnerRecord {
+  #![internal]
+  enabled: boolean,
+}
+#[internal]
+enum type OuterMode: uint8 {
+  On = 1,
+}
+assert InnerRecord { enabled: true } == InnerRecord { enabled: true };
+assert OuterMode.On == OuterMode.On;

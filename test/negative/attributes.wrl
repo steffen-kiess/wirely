@@ -167,3 +167,45 @@ node type T {
 
 // TEST: target attributes deferred
 connect a -> #[unknown] b; // E: Unexpected token
+
+// TEST: internal empty arguments
+#[internal()] node type T {}
+// ^E: internal must be a flag without arguments or a value
+
+// TEST: internal arguments
+#[internal(reason = "implementation")] node type T {}
+// ^E: internal must be a flag without arguments or a value
+
+// TEST: internal assigned value
+#[internal = true] node type T {}
+// ^E: internal must be a flag without arguments or a value
+
+// TEST: duplicate internal outer
+#[internal] #[internal] node type T {} // E: Duplicate attribute internal
+
+// TEST: duplicate internal outer and inner
+#[internal]
+node type T {
+  #![internal] // E: Duplicate attribute internal
+}
+
+// TEST: internal file
+#![internal] // E: Attribute internal is not permitted on file
+
+// TEST: internal connection
+#[internal] connect a -> b; // E: Attribute internal is not permitted on connection
+
+// TEST: internal assertion
+#[internal] assert true; // E: Attribute internal is not permitted on assertion
+
+// TEST: internal procedure
+node type T {
+  #[internal] native procedure run;
+  // ^E: Attribute internal is not permitted on procedure
+}
+
+// TEST: internal initializer
+native node type T {
+  #[internal] native initializer;
+  // ^E: Attribute internal is not permitted on initializer
+}

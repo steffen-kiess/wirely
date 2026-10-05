@@ -36,7 +36,7 @@ combine their attributes.
 Attribute metadata supports dot-separated names, flags, `name = literal`,
 and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
-Currently, `position` supplies node-instance coordinates:
+`position` supplies node-instance coordinates:
 
 ```wrl
 node source: Std.Constant {
@@ -48,6 +48,14 @@ node source: Std.Constant {
 
 `position` requires one finite numeric literal for each of `x` and `y`, and
 can appear once per node instance. Coordinates are compiler metadata.
+
+`#[internal]` marks an implementation detail. It takes no arguments and can
+appear once on a node, node type, function, namespace, value or resource
+type, constant, parameter, connector, state or temporary variable, struct
+field, or enum member. Eligible bodies also accept `#![internal]`. References
+to internal declarations remain unrestricted. Internal declarations and
+contents of internal namespaces or types are omitted from the library
+reference.
 
 Attributes before `connect` apply to every edge in that statement;
 attributes before an individual source apply to that source's edge. Each

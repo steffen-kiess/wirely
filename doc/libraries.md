@@ -85,7 +85,6 @@ Time-based values and triggers. `TimeOfDay` parameters use strings such as
 | --- | --- | --- |
 | `MonotonicTimeReached` | None | In: `value MonotonicTime`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the times cannot be compared. |
 | `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. |
-| `TimeOfDayMinute` | None | Out: `value TimeOfDay`. Shared singleton that updates at minute boundaries; normally used through other Time nodes. |
 | `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight. |
 | `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
 
@@ -106,11 +105,6 @@ KNX nodes use a `KNX.Connection` node and a named
 
 Value receivers and providers support `boolean` and `uint16`. KNX use
 requires the `xknx` package and a reachable KNX service.
-
-`KNX.ParseGroupAddress(address: String): uint16` parses a group address.
-`KNX.ValueTypeName(type: ValueType): String` returns the KNX name for
-`boolean`, `int16`, `uint16`, `int32`, or `uint32`.
-`KNX.SupportsValueType(type: ValueType): boolean` checks value-block support.
 
 Choose one connection mode:
 
@@ -160,7 +154,6 @@ string controlling JSON output. A template embeds the encoded value at one
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
-`MQTT.SupportsType(type: ValueType): boolean` checks JSON support.
 
 ## CSV
 

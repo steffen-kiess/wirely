@@ -6,8 +6,11 @@ namespace KNX {
     Auto = 4,
   }
 
+  #[internal]
   native function ParseGroupAddress(address: String): uint16;
+  #[internal]
   native function ValueTypeName(type: ValueType): String;
+  #[internal]
   native function SupportsValueType(type: ValueType): boolean;
 
   resource type Bus;

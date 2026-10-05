@@ -92,9 +92,20 @@ def _position(attribute):
     return coordinates['x'], coordinates['y']
 
 
+def _internal(attribute):
+    if attribute.metadata.kind != 'flag':
+        _error(attribute, 'internal must be a flag without arguments or a value')
+    return True
+
+
 # Extensions must explicitly define qualified names as well as unqualified ones.
 ATTRIBUTE_REGISTRY = {
     'position': AttributeDefinition(frozenset({'node'}), _position),
+    'internal': AttributeDefinition(frozenset({
+        'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
+        'resource_type', 'constant', 'parameter', 'connector', 'state',
+        'temporary', 'struct_field', 'enum_member',
+    }), _internal),
 }
 
 

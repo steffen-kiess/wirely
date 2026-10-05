@@ -4,14 +4,15 @@ namespace MQTT {
     SnakeCase = 2,
   }
 
+  #[internal]
   native function SupportsType(type: ValueType): boolean;
 
-  // Internal template representation.
+  #[internal]
   struct type TemplateParts {
     prefix: String,
     suffix: String,
   }
-  // Internal template parser.
+  #[internal]
   native function ParseTemplate(template: Option[String]): TemplateParts;
 
   resource type Broker;

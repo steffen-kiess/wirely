@@ -1,6 +1,7 @@
 // TODO: Should this only contain real-time-related blocks or also
 // monotonic-time-related blocks?
 namespace Time {
+  #[internal]
   native function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 
   // Block which return false if the current time is before input, true if the
@@ -48,7 +49,7 @@ namespace Time {
   // through, then wait for stability before allowing the next change to pass)?
   // See also: <https://github.com/thomasfredericks/Bounce2/blob/master/README.md#alternate-algorithms>
 
-  // Note: Should not be used directly if possible
+  #[internal]
   native singleton node type TimeOfDayMinute {
     default output: value TimeOfDay;
 
