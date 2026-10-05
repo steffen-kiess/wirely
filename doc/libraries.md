@@ -69,7 +69,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `OptionUnwrapOr` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
 | `OptionIsSome` | `InnerType: ValueType` | In: `value Option[InnerType]`; out: `value boolean`. True when a value is present. |
 | `OptionCreate` | `InnerType: ValueType` | Named in: `HasValue: value boolean`, `Value: value InnerType`; out: `value Option[InnerType]`. Wraps `Value` when `HasValue` is true; otherwise produces `None`. |
-| `DetectEdge` | `EdgeType: String` | In: `value boolean`; out: `event boolean`. Only `"Falling"` works; `"Rising"` and `"Both"` raise an error when run. |
+| `DetectEdge` | `EdgeType: Std.EdgeType` | In: `value boolean`; out: `event boolean`. Only `Std.EdgeType.Falling` works; `Rising` and `Both` raise an error when run. |
 
 The debug sources are intended for testing and interactive control. Their
 input is supplied through the engine's debug interface, not a `.wrl`
@@ -97,7 +97,7 @@ KNX nodes use a `KNX.Connection` node and a named
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `Connection` | Optional `Host: String`, `Protocol: String`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
+| `Connection` | Optional `Host: String`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
 | `ValueReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
 | `ValueOptionProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
 | `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
@@ -114,13 +114,14 @@ requires the `xknx` package and a reachable KNX service.
 
 Choose one connection mode:
 
-- `Host` with `Protocol = "TCP"` or `"UDP"` opens a direct tunnel. `Port`
-  defaults to `3671`.
-- `Protocol = "Unix"` opens a local Unix socket. `UnixPath` defaults to
-  `/run/knxnet`; supplying `UnixPath` implies `Protocol = "Unix"`.
+- `Host` with `Protocol = KNX.Protocol.TCP` or `KNX.Protocol.UDP` opens a
+  direct tunnel. `Port` defaults to `3671`.
+- `Protocol = KNX.Protocol.Unix` opens a local Unix socket. `UnixPath`
+  defaults to `/run/knxnet`; supplying `UnixPath` implies
+  `Protocol = KNX.Protocol.Unix`.
 - `SSHTarget` opens a Unix socket on a remote host over SSH. It requires
-  `Protocol = "Unix"` unless `UnixPath` is also supplied.
-- `Protocol = "Auto"` uses automatic discovery.
+  `Protocol = KNX.Protocol.Unix` unless `UnixPath` is also supplied.
+- `Protocol = KNX.Protocol.Auto` uses automatic discovery.
 
 `IndividualAddress` is supported for TCP and Unix socket connections.
 Choose parameters for one connection mode. For example,
@@ -143,18 +144,19 @@ Both expose the same named outputs: `ManualOperation`, `BlockActive`,
 
 MQTT nodes use a `MQTT.Connection` and a named
 `Broker: resource MQTT.Broker` input.
-`Topic` is a topic string. `Format` and `Template`, where offered, are
-optional strings controlling JSON output. A template embeds the
-encoded value at one `%s` placeholder; `%%` represents a literal percent
-sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
+`Topic` is a topic string. Optional `Format: MQTT.Format` selects
+default JSON formatting or `MQTT.Format.SnakeCase` enum encoding. Omitting
+`Format` is equivalent to `MQTT.Format.Default`. `Template` is an optional
+string controlling JSON output. A template embeds the encoded value at one
+`%s` placeholder; `%%` represents a literal percent sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
 | `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
-| `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
+| `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
-| `EventSender` | `Type: ValueType`, `Topic: String`, optional `Format: String`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
-| `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: String` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
+| `EventSender` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
+| `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
@@ -202,10 +204,13 @@ username and password.
 
 `GPIO.Output` sets a GPIO line from a default `value boolean` input.
 Parameters are `ChipDeviceFile: String`, `Name: String`,
-`ActiveState: String = "High"`, `Drive: String = "PushPull"`, and
-`Bias: String = "AsIs"`. `ActiveState` accepts `"High"` or `"Low"`;
-`Drive` accepts `"PushPull"`, `"OpenDrain"`, or `"OpenSource"`; and
-`Bias` accepts `"PullDown"`, `"PullUp"`, `"Disable"`, or `"AsIs"`.
+`ActiveState: GPIO.ActiveState = GPIO.ActiveState.High`,
+`Drive: GPIO.Drive = GPIO.Drive.PushPull`, and
+`Bias: GPIO.Bias = GPIO.Bias.AsIs`. Active states are `High` and `Low`;
+drives are `PushPull`, `OpenDrain`, and `OpenSource`; biases are `AsIs`,
+`Disable`, `PullDown`, and `PullUp`. Use qualified enum literals, such as
+`GPIO.Drive.OpenDrain`.
+
 GPIO use requires the `gpio` extra (or the official `gpiod` 2.x Python
 bindings) and access to the chip device.
 

@@ -21,9 +21,10 @@ class Connection(blocks.NativeState):
             value = context.values[name]
             return None if value is None else value.value
 
+        protocol = parameter('Protocol')
         self.connection_config = create_connection_config(
             host=parameter('Host'),
-            protocol=parameter('Protocol'),
+            protocol=None if protocol is None else protocol.name,
             port=parameter('Port'),
             unix_path=parameter('UnixPath'),
             ssh_target=parameter('SSHTarget'),

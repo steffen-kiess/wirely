@@ -5,7 +5,11 @@ node server: MQTT.Connection {
 
 node provider_input: Std.DebugValueSource { Type: boolean }
 
-node provider: MQTT.ValueProvider { Topic: "test/t1", Type: boolean }
+node provider: MQTT.ValueProvider {
+  Topic: "test/t1",
+  Type: boolean,
+  Format: MQTT.Format.Default,
+}
 connect provider_input -> provider;
 
 // TODO: Allow this line to be above the declaration for server and provider and
@@ -35,7 +39,11 @@ connect server -> option_provider.Broker;
 
 node event_source: Std.DebugEventSource { Type: boolean }
 
-node event_sender: MQTT.EventSender { Topic: "test/t3", Type: boolean }
+node event_sender: MQTT.EventSender {
+  Topic: "test/t3",
+  Type: boolean,
+  Format: MQTT.Format.Default,
+}
 connect event_source -> event_sender;
 
 connect server -> event_sender.Broker;
@@ -55,7 +63,7 @@ node enum_event_source: Std.DebugEventSource { Type: ThermostatSystemModeEnum }
 node enum_event_sender: MQTT.EventSender {
   Topic: "test/t5",
   Type: ThermostatSystemModeEnum,
-  Format: "SnakeCase",
+  Format: MQTT.Format.SnakeCase,
 }
 connect enum_event_source -> enum_event_sender;
 
@@ -68,14 +76,18 @@ node template_event_source: Std.DebugEventSource {
 node template_event_sender: MQTT.EventSender {
   Topic: "test/t5",
   Type: ThermostatSystemModeEnum,
-  Format: "SnakeCase",
+  Format: MQTT.Format.SnakeCase,
   Template: "{\"value\": %s, \"other\": \"%s\"}",
 }
 connect template_event_source -> template_event_sender;
 
 connect server -> template_event_sender.Broker;
 
-node event_receiver: MQTT.EventReceiver { Topic: "test/t6", Type: boolean }
+node event_receiver: MQTT.EventReceiver {
+  Topic: "test/t6",
+  Type: boolean,
+  Format: MQTT.Format.Default,
+}
 connect server -> event_receiver.Broker;
 
 node event_receiver_prnt: Std.DebugEventPrinter { Type: boolean }

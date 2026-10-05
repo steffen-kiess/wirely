@@ -1,4 +1,11 @@
 namespace KNX {
+  enum type Protocol: uint8 {
+    TCP = 1,
+    UDP = 2,
+    Unix = 3,
+    Auto = 4,
+  }
+
   native function ParseGroupAddress(address: String): uint16;
   native function ValueTypeName(type: ValueType): String;
   native function SupportsValueType(type: ValueType): boolean;
@@ -7,7 +14,7 @@ namespace KNX {
 
   native node type Connection {
     optional parameter Host: String;
-    optional parameter Protocol: String;
+    optional parameter Protocol: KNX.Protocol;
     optional parameter Port: uint16;
     optional parameter UnixPath: String;
     optional parameter SSHTarget: String;

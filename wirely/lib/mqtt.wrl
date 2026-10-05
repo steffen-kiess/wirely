@@ -1,4 +1,9 @@
 namespace MQTT {
+  enum type Format: uint8 {
+    Default = 1,
+    SnakeCase = 2,
+  }
+
   native function SupportsType(type: ValueType): boolean;
 
   // Internal template representation.
@@ -22,7 +27,7 @@ namespace MQTT {
   native node type ValueOptionProvider {
     parameter Type: ValueType;
     parameter Topic: String;
-    optional parameter Format: String;
+    optional parameter Format: MQTT.Format;
     optional parameter Template: String;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
@@ -43,7 +48,7 @@ namespace MQTT {
   node type ValueProvider {
     parameter Type: ValueType;
     parameter Topic: String;
-    optional parameter Format: String;
+    optional parameter Format: MQTT.Format;
     optional parameter Template: String;
 
     input Broker: resource Broker;
@@ -65,7 +70,7 @@ namespace MQTT {
   native node type EventSender {
     parameter Type: ValueType;
     parameter Topic: String;
-    optional parameter Format: String;
+    optional parameter Format: MQTT.Format;
     optional parameter Template: String;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
@@ -86,7 +91,7 @@ namespace MQTT {
   native node type EventReceiver {
     parameter Type: ValueType;
     parameter Topic: String;
-    optional parameter Format: String;
+    optional parameter Format: MQTT.Format;
     // TODO optional parameter Template : String;
 
     assert SupportsType(Type), "Unsupported type for MQTT";

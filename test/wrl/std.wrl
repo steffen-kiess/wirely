@@ -6,5 +6,5 @@ node c1: Std.Constant { Type: int16, Value: 1000 }
 
 node in: Std.DebugValueSource { Type: boolean }
 
-node edge: Std.DetectEdge { EdgeType: "Falling" }
+node edge: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 connect in -> edge;

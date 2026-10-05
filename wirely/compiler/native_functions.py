@@ -30,18 +30,6 @@ native_function_impls = {
     ('TwoN', 'ReadCredentials'): (
         'wirely.compiler.function_implementations.two_n', 'read_credentials',
     ),
-    ('Std', 'IsValidEdgeType'): (
-        'wirely.compiler.function_implementations.std', 'is_valid_edge_type',
-    ),
-    ('GPIO', 'IsValidActiveState'): (
-        'wirely.compiler.function_implementations.gpio', 'is_valid_active_state',
-    ),
-    ('GPIO', 'IsValidDrive'): (
-        'wirely.compiler.function_implementations.gpio', 'is_valid_drive',
-    ),
-    ('GPIO', 'IsValidBias'): (
-        'wirely.compiler.function_implementations.gpio', 'is_valid_bias',
-    ),
     ('CSV', 'SupportsType'): (
         'wirely.compiler.function_implementations.csv', 'supports_type',
     ),

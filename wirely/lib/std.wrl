@@ -1,5 +1,9 @@
 namespace Std {
-  native function IsValidEdgeType(value: String): boolean;
+  enum type EdgeType: uint8 {
+    Rising = 1,
+    Falling = 2,
+    Both = 3,
+  }
 
   node type Constant {
     parameter Type: ValueType;
@@ -146,12 +150,8 @@ namespace Std {
 
   // TODO: Allow ignoring edges when the time is lost
   node type DetectEdge {
-    // Can be "Rising", "Falling" or "Both" Currently only "Falling" is
-    // implemented
-    parameter EdgeType: String;
-
-    assert IsValidEdgeType(EdgeType),
-      "EdgeType must be Rising, Falling, or Both";
+    // Currently only Falling is implemented.
+    parameter EdgeType: Std.EdgeType;
 
     default input: value boolean;
     // Contains the new value

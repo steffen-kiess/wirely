@@ -1,5 +1,6 @@
 // TODO: Don't depend on the ordering of bus / Light
 node bus: KNX.Connection {
+  Protocol: KNX.Protocol.Unix,
   UnixPath: Test.ReplaceKNXPath("/run/knxnet"),
 }
 

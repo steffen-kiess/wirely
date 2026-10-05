@@ -203,7 +203,7 @@ class DetectEdge:
     @staticmethod
     def run(*, context):
         last_value = context.inputs['last_value_old']
-        edge_type = context.values['EdgeType']
+        edge_type = context.values['EdgeType'].name
 
         value = context.inputs['input']
 

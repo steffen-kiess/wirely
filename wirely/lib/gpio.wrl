@@ -1,24 +1,30 @@
 namespace GPIO {
-  native function IsValidActiveState(value: String): boolean;
-  native function IsValidDrive(value: String): boolean;
-  native function IsValidBias(value: String): boolean;
+  enum type ActiveState: uint8 {
+    High = 1,
+    Low = 2,
+  }
+
+  enum type Drive: uint8 {
+    PushPull = 1,
+    OpenDrain = 2,
+    OpenSource = 3,
+  }
+
+  enum type Bias: uint8 {
+    AsIs = 1,
+    Disable = 2,
+    PullDown = 3,
+    PullUp = 4,
+  }
 
   // Set a GPIO based on a boolean value
   native node type Output {
     parameter ChipDeviceFile: String;
     parameter Name: String;
 
-    // TODO: Use enums? Can be "High" or "Low"
-    parameter ActiveState: String = "High";
-    // Can be "PushPull", "OpenDrain" or "OpenSource"
-    parameter Drive: String = "PushPull";
-    // Can be "PullDown", "PullUp", "Disable" or "AsIs"
-    parameter Bias: String = "AsIs";
-
-    assert IsValidActiveState(ActiveState), "ActiveState must be High or Low";
-    assert IsValidDrive(Drive),
-      "Drive must be PushPull, OpenDrain, or OpenSource";
-    assert IsValidBias(Bias), "Bias must be AsIs, Disable, PullDown, or PullUp";
+    parameter ActiveState: GPIO.ActiveState = GPIO.ActiveState.High;
+    parameter Drive: GPIO.Drive = GPIO.Drive.PushPull;
+    parameter Bias: GPIO.Bias = GPIO.Bias.AsIs;
 
     native initializer uses ChipDeviceFile, Name, ActiveState, Drive, Bias;
 

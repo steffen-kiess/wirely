@@ -36,7 +36,7 @@ class Output(blocks.NativeState):
             ) from exc
         self.gpio_request = async_exit_stack.enter_context(chip.request_lines(
             config={self.gpio_offset: gpiod.LineSettings(
-                direction=Direction.INPUT, bias=bias[self.values['Bias']])},
+                direction=Direction.INPUT, bias=bias[self.values['Bias'].name])},
             consumer='Wirely',
         ))
         self.direction_set = False
@@ -64,9 +64,9 @@ class Output(blocks.NativeState):
                 self.gpio_offset: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
                     output_value=logical_value,
-                    active_low=self.values['ActiveState'] == 'Low',
-                    drive=drive[self.values['Drive']],
-                    bias=bias[self.values['Bias']],
+                    active_low=self.values['ActiveState'].name == 'Low',
+                    drive=drive[self.values['Drive'].name],
+                    bias=bias[self.values['Bias'].name],
                 ),
             })
             self.direction_set = True

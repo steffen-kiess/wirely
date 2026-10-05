@@ -1,15 +1,15 @@
 node input: Std.DebugValueSource { Type: boolean }
-node rising: Std.DetectEdge { EdgeType: "Rising" }
-node falling: Std.DetectEdge { EdgeType: "Falling" }
-node both: Std.DetectEdge { EdgeType: "Both" }
+node rising: Std.DetectEdge { EdgeType: Std.EdgeType.Rising }
+node falling: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
+node both: Std.DetectEdge { EdgeType: Std.EdgeType.Both }
 connect input -> rising;
 connect input -> falling;
 connect input -> both;
 node type GPIOSettings {
   default input: value boolean;
-  parameter Active: String;
-  parameter Drive: String;
-  parameter Bias: String;
+  parameter Active: GPIO.ActiveState;
+  parameter Drive: GPIO.Drive;
+  parameter Bias: GPIO.Bias;
   node output: GPIO.Output {
     ChipDeviceFile: "/dev/unused", Name: "LED",
     ActiveState: Active, Drive: Drive, Bias: Bias,
@@ -18,10 +18,20 @@ node type GPIOSettings {
 }
 node gpio_default: GPIO.Output { ChipDeviceFile: "/dev/unused", Name: "LED" }
 connect input -> gpio_default;
-node gpio_high: GPIOSettings { Active: "High", Drive: "PushPull", Bias: "AsIs" }
-node gpio_low: GPIOSettings { Active: "Low", Drive: "OpenDrain", Bias: "Disable" }
-node gpio_source: GPIOSettings { Active: "High", Drive: "OpenSource", Bias: "PullDown" }
-node gpio_pullup: GPIOSettings { Active: "High", Drive: "PushPull", Bias: "PullUp" }
+node gpio_high: GPIOSettings {
+  Active: GPIO.ActiveState.High, Drive: GPIO.Drive.PushPull, Bias: GPIO.Bias.AsIs,
+}
+node gpio_low: GPIOSettings {
+  Active: GPIO.ActiveState.Low, Drive: GPIO.Drive.OpenDrain, Bias: GPIO.Bias.Disable,
+}
+node gpio_source: GPIOSettings {
+  Active: GPIO.ActiveState.High,
+  Drive: GPIO.Drive.OpenSource,
+  Bias: GPIO.Bias.PullDown,
+}
+node gpio_pullup: GPIOSettings {
+  Active: GPIO.ActiveState.High, Drive: GPIO.Drive.PushPull, Bias: GPIO.Bias.PullUp,
+}
 assert CSV.SupportsType(boolean) && CSV.SupportsType(uint16);
 assert CSV.SupportsType(Option[boolean]);
 assert !CSV.SupportsType(List[uint8]) && !CSV.SupportsType(String);
@@ -38,3 +48,44 @@ connect input -> gpio_high;
 connect input -> gpio_low;
 connect input -> gpio_source;
 connect input -> gpio_pullup;
+
+node type KNXSettings {
+  optional parameter Protocol: KNX.Protocol;
+  optional parameter Host: String;
+  optional parameter UnixPath: String;
+  node connection: KNX.Connection {
+    Protocol?: parameter_option(Protocol),
+    Host?: parameter_option(Host),
+    UnixPath?: parameter_option(UnixPath),
+  }
+}
+node knx_tcp: KNXSettings { Protocol: KNX.Protocol.TCP, Host: "127.0.0.1" }
+node knx_udp: KNXSettings { Protocol: KNX.Protocol.UDP, Host: "127.0.0.1" }
+node knx_unix: KNXSettings { Protocol: KNX.Protocol.Unix }
+node knx_auto: KNXSettings { Protocol: KNX.Protocol.Auto }
+node knx_inferred: KNXSettings { UnixPath: "/unused" }
+
+node type MQTTSettings {
+  optional parameter Format: MQTT.Format;
+  optional parameter Template: String;
+  input Broker: resource MQTT.Broker;
+  default input: value Std.EdgeType;
+  node output: MQTT.ValueProvider {
+    Topic: "unused", Type: Std.EdgeType,
+    Format?: parameter_option(Format),
+    Template?: parameter_option(Template),
+  }
+  connect Broker -> output.Broker;
+  connect default input -> output;
+}
+node enum_input: Std.Constant { Type: Std.EdgeType, Value: Std.EdgeType.Falling }
+node broker: MQTT.Connection { URI: "mqtt://localhost" }
+node mqtt_omitted: MQTTSettings {}
+node mqtt_default: MQTTSettings { Format: MQTT.Format.Default }
+node mqtt_snake: MQTTSettings { Format: MQTT.Format.SnakeCase, Template: "%s" }
+connect broker -> mqtt_omitted.Broker;
+connect broker -> mqtt_default.Broker;
+connect broker -> mqtt_snake.Broker;
+connect enum_input -> mqtt_omitted;
+connect enum_input -> mqtt_default;
+connect enum_input -> mqtt_snake;

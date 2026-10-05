@@ -10,6 +10,12 @@ from wirely.native import native_block_type
 native_block_types = {}
 
 
+def _json_format(option):
+    if option is None:
+        return None
+    return {'Default': None, 'SnakeCase': 'SnakeCase'}[option.value.name]
+
+
 aiomqtt_module = None
 def get_aiomqtt():
     global aiomqtt_module
@@ -248,8 +254,7 @@ class ValueOptionProvider(blocks.NativeState):
 
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
-        format_option = context.values['Format']
-        self.format = None if format_option is None else format_option.value
+        self.format = _json_format(context.values['Format'])
         parts = context.values['template_parts']
         self.template_prefix = parts['prefix']
         self.template_suffix = parts['suffix']
@@ -325,8 +330,7 @@ class EventSender(blocks.NativeState):
 
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
-        format_option = context.values['Format']
-        self.format = None if format_option is None else format_option.value
+        self.format = _json_format(context.values['Format'])
         parts = context.values['template_parts']
         self.template_prefix = parts['prefix']
         self.template_suffix = parts['suffix']
@@ -400,8 +404,7 @@ class EventReceiver(blocks.NativeState):
 
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
-        format_option = context.values['Format']
-        self.format = None if format_option is None else format_option.value
+        self.format = _json_format(context.values['Format'])
         self.template_prefix = ''
         self.template_suffix = ''
 
