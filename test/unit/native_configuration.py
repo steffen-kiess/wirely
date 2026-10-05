@@ -8,10 +8,6 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.native.memory import ToggleFlipFlopTriggerData
-from wirely.native.time import TriggerAtData
-from wirely.compiler.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
-from wirely.compiler.native_preparation.time import prepare_trigger_at_data
 from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
 
@@ -172,21 +168,3 @@ def unexpected_error(context):
 prepare = unexpected_error
 with checks.assertRaises(compiler_model.InternalCompilerError):
     probe('')
-
-factories = {
-    TriggerAtData: prepare_trigger_at_data,
-    ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
-}
-invalid_configurations = [
-    (TriggerAtData, 'parameter OutputType: ValueType = boolean;'
-     'optional parameter OutputValue: OutputType;', 'OutputValue'),
-    (ToggleFlipFlopTriggerData, 'parameter OutputType: ValueType = boolean;'
-     'optional parameter OutputValue: OutputType;', 'OutputValue'),
-]
-for data_type, declarations, parameter in invalid_configurations:
-    prepare = lambda context: factories[data_type](context=context)
-    with checks.assertRaises(compiler_model.ProgramError) as caught:
-        probe(declarations)
-    error = caught.exception
-    assert type(error) is compiler_model.ProgramError, data_type
-    assert error.source_element is contexts[-1]._origins[parameter][0], data_type

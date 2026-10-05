@@ -15,9 +15,11 @@ namespace Memory {
     input Feedback: value Option[boolean];
 
     parameter OutputType: ValueType = unit;
-    // Defaults to ()
-    // TODO: Allow specifying the default value here
+    // Defaults to () when OutputType is unit
     optional parameter OutputValue: OutputType;
+
+    assert OutputType == unit || parameter_option(OutputValue).IsSome,
+      "OutputValue is required when OutputType is not unit";
 
     default output: event OutputType;
 
@@ -47,6 +49,7 @@ namespace Memory {
         pending_event.old as "pending_event_old", default input as "input",
         Feedback, next_event_allowed_at_snapshot, next_event_allowed_at_reached
       produces default output as "output", next_event_allowed_at,
-        pending_event;
+        pending_event
+      uses parameter_option(OutputValue) as OutputValue, MinimumDelay;
   }
 }

@@ -1,6 +1,5 @@
 import datetime
 import asyncio
-import dataclasses
 import contextlib
 import typing
 
@@ -193,17 +192,12 @@ class IsInDailyInterval:
         context.set_result('output', res)
 
 
-# TODO: Use slots=True here / for other dataclasses?
-@dataclasses.dataclass(frozen=True)
-class TriggerAtData:
-    value: object
-
-
-@native_block_type(native_block_types, has_native_state=False, data_type=TriggerAtData)
+@native_block_type(native_block_types, has_native_state=False)
 class TriggerAt:
     @staticmethod
     def run(*, context):
-        data = context.configuration
+        output_value = context.values['OutputValue']
+        value = blocks.Unit() if output_value is None else output_value.value
 
         old_state = context.inputs['state_old']
         before = context.inputs['before']
@@ -251,5 +245,5 @@ class TriggerAt:
                 
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
-        context.set_result('output', blocks.Some(data.value) if do_trigger else None)
+        context.set_result('output', blocks.Some(value) if do_trigger else None)
         context.set_result('trigger_state', new_state)

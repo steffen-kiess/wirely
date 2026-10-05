@@ -1,0 +1,50 @@
+// LIBRARIES: std, time, memory
+
+// TEST: time boolean output value
+node trigger: Time.TriggerAt {
+  Time: "12:00",
+  OutputType: boolean,
+  OutputValue: 0, // E: Invalid boolean value
+}
+
+// TEST: memory integer output value
+node trigger: Memory.ToggleFlipFlopTrigger {
+  OutputType: uint16,
+  OutputValue: false, // E: Invalid int value
+}
+
+// TEST: time option output value
+node trigger: Time.TriggerAt {
+  Time: "12:00",
+  OutputType: Option[boolean],
+  OutputValue: Some(1), // E: Invalid boolean value
+}
+
+// TEST: memory option output value
+node trigger: Memory.ToggleFlipFlopTrigger {
+  OutputType: Option[boolean],
+  OutputValue: Some(1), // E: Invalid boolean value
+}
+
+// TEST: time forwarded output value type
+node type Forward {
+  optional parameter Value: uint16;
+  node child: Time.TriggerAt {
+    Time: "12:00",
+    OutputType: boolean,
+    OutputValue?: parameter_option(Value),
+    // ^E: Expected value of type TypeOption(boolean), got TypeOption(uint16)
+  }
+}
+node forward: Forward { Value: 0 }
+
+// TEST: memory forwarded output value type
+node type Forward {
+  optional parameter Value: boolean;
+  node child: Memory.ToggleFlipFlopTrigger {
+    OutputType: uint16,
+    OutputValue?: parameter_option(Value),
+    // ^E: Expected value of type TypeOption(uint16), got TypeOption(boolean)
+  }
+}
+node forward: Forward { Value: false }

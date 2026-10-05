@@ -1,18 +1,10 @@
-import dataclasses
-
 import wirely as blocks
 from wirely.native import native_block_type
 
 native_block_types = {}
 
 
-@dataclasses.dataclass(frozen=True)
-class ToggleFlipFlopTriggerData:
-    output_value: object
-    minimum_delay: blocks.Duration
-
-
-@native_block_type(native_block_types, has_native_state=False, data_type=ToggleFlipFlopTriggerData)
+@native_block_type(native_block_types, has_native_state=False)
 class ToggleFlipFlopTrigger:
     @staticmethod
     def read_time(*, context):
@@ -28,7 +20,9 @@ class ToggleFlipFlopTrigger:
 
     @staticmethod
     def update(*, context):
-        data = context.configuration
+        output_value = context.values['OutputValue']
+        value = blocks.Unit() if output_value is None else output_value.value
+        minimum_delay = context.values['MinimumDelay']
         now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
 
         inp = context.inputs['input']
@@ -66,9 +60,9 @@ class ToggleFlipFlopTrigger:
                 next = None
             else:
                 # Trigger change
-                output = blocks.Some(data.output_value)
+                output = blocks.Some(value)
                 pending = None
-                next = blocks.Some(now + data.minimum_delay)
+                next = blocks.Some(now + minimum_delay)
 
         context.set_result('output', output)
         context.set_result('next_event_allowed_at', next)
