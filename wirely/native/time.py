@@ -34,18 +34,10 @@ class MonotonicTimeReached(blocks.NativeState):
         context.set_result('output', result)
 
 
-# TODO: Use slots=True here / for other dataclasses?
-@dataclasses.dataclass(frozen=True)
-class DebounceStableData:
-    time: blocks.Duration
-
-
-@native_block_type(native_block_types, has_native_state=False, data_type=DebounceStableData)
+@native_block_type(native_block_types, has_native_state=False)
 class DebounceStable(blocks.NativeState):
     @staticmethod
     def run(*, context):
-        data = context.configuration
-
         inp = context.inputs['input']
         reached = context.inputs['reached']
         cur = context.inputs['current_value_old']
@@ -65,7 +57,7 @@ class DebounceStable(blocks.NativeState):
             now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
             n_cur = cur
             n_new = blocks.Some(inp)
-            n_update_time = now + data.time
+            n_update_time = now + context.values['Duration']
             # Note: cur cannot be None because if the first if
             out = cur.value
         elif not reached.value:
@@ -185,44 +177,23 @@ class TimeOfDayMinute(blocks.NativeState):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
-class IsInDailyIntervalData:
-    start: datetime.time
-    end: datetime.time
-
-    # TODO: verify types? (Might also be useful for other dataclass types)
-
-    # TODO: Allow "24:00" for start or end
-
-    # TODO: Add static properties for "always" and "never"?
-
-    # TODO: Add a method to check whether a certain datetime.time is in this range?
-
-    def __post_init__(self):
-        if self.start == self.end:
-            raise Exception('self.start == self.end')
-
-
-@native_block_type(native_block_types, has_native_state=False, data_type=IsInDailyIntervalData)
+@native_block_type(native_block_types, has_native_state=False)
 class IsInDailyInterval:
     @staticmethod
     def run(*, context):
-        data = context.configuration
-
+        start = context.values['Start']
+        end = context.values['End']
         time = context.inputs['current_time']
 
-        # print('IsInDailyInterval', data.start, data.end, time)
-        if data.start == data.end:
-            # Note: This was checked in create_block_instance()
-            raise Exception('data.start == data.end')
-        elif data.start < data.end:
-            res = (time >= data.start) and (time < data.end)
-        else: # data.end > data.start
-            res = (time >= data.start) or (time < data.end)
+        if start < end:
+            res = (time >= start) and (time < end)
+        else:
+            res = (time >= start) or (time < end)
 
         context.set_result('output', res)
 
 
+# TODO: Use slots=True here / for other dataclasses?
 @dataclasses.dataclass(frozen=True)
 class TriggerAtData:
     value: object

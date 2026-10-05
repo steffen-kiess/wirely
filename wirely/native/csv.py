@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import dataclasses
 import os
 import sys
 
@@ -46,13 +45,7 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
-@dataclasses.dataclass(frozen=True)
-class CsvWriterParameters:
-    type: blocks.ValueType
-    filename: str
-
-
-@native_block_type(native_block_types, has_native_state=True, data_type=CsvWriterParameters)
+@native_block_type(native_block_types, has_native_state=True)
 class ValueWriter(blocks.NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
@@ -60,8 +53,6 @@ class ValueWriter(blocks.NativeState):
         super().__init__(context=context)
 
         self.file = None
-
-        self.data = context.configuration
 
         self.last_value_csv = ('', False)
 
@@ -75,8 +66,8 @@ class ValueWriter(blocks.NativeState):
         if self.file is not None:
             raise Exception('File already open')
 
-        print(f'Opening CSV file {self.data.filename!r}', flush=True)
-        with open(self.data.filename, 'a+b', buffering=0) as file:
+        print(f"Opening CSV file {self.values['Filename']!r}", flush=True)
+        with open(self.values['Filename'], 'a+b', buffering=0) as file:
             size = file.seek(0, 2)
             if size != 0:
                 last_byte = os.pread(file.fileno(), 1, size - 1)
@@ -130,8 +121,6 @@ class ValueWriter(blocks.NativeState):
         return True
 
     def run(self, *, context):
-        data = context.configuration
-
         new_value = context.inputs['input']
         reached = context.inputs['repeat_time_reached']
         repeat_time = context.inputs['repeat_time_old']

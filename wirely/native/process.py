@@ -1,4 +1,3 @@
-import dataclasses
 import contextlib
 import asyncio
 
@@ -8,17 +7,10 @@ from wirely.native import native_block_type
 native_block_types = {}
 
 
-@dataclasses.dataclass(frozen=True)
-class LaunchOnEventData:
-    shell_command: str
-
-
-@native_block_type(native_block_types, has_native_state=True, data_type=LaunchOnEventData)
+@native_block_type(native_block_types, has_native_state=True)
 class LaunchOnEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-
-        self.data = context.configuration
 
         self.task = None
         self.pending = False
@@ -54,7 +46,7 @@ class LaunchOnEvent(blocks.NativeState):
                 await self.event.wait()
             self.pending = False
 
-            print(f'Launching command {self.data.shell_command!r}', flush=True)
-            proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.data.shell_command)
+            print(f"Launching command {self.values['ShellCommand']!r}", flush=True)
+            proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.values['ShellCommand'])
             code = await proc.wait()
-            print(f'Command {self.data.shell_command!r} finished with exit code {code}', flush=True)
+            print(f"Command {self.values['ShellCommand']!r} finished with exit code {code}", flush=True)

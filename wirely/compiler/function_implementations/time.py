@@ -12,3 +12,7 @@ def add_wrap(*, context):
     delta = datetime.timedelta(hours=int(parsed[2]), minutes=int(parsed[3])) * sign
     time_delta = datetime.datetime.combine(datetime.date.min, time) - datetime.datetime.min
     return (datetime.datetime.min + (time_delta + delta) % datetime.timedelta(days=1)).time()
+
+
+def is_valid_daily_interval(*, context):
+    return context.arguments['start'] != context.arguments['end']

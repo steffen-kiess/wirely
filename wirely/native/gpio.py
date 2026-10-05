@@ -1,30 +1,13 @@
-import dataclasses
-
 import wirely as blocks
 from wirely.native import native_block_type
 
 native_block_types = {}
 
 
-@dataclasses.dataclass(frozen=True)
-class GPIOData:
-    chip_device_file: str
-    name: str
-    active_state: str
-    drive: str
-    bias: str
-
-
-    def dump(self):
-        print(f'  Chip device file: {self.chip_device_file!r}', flush=True)
-        print(f'  GPIO name: {self.name!r}', flush=True)
-
-
-@native_block_type(native_block_types, has_native_state=True, data_type=GPIOData)
+@native_block_type(native_block_types, has_native_state=True)
 class Output(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-        self.data = context.configuration
         self.gpio_request = None
         self.direction_set = False
 
@@ -32,7 +15,7 @@ class Output(blocks.NativeState):
         super().start_tasks(task_group, async_exit_stack)
 
         import gpiod
-        from gpiod.line import Bias, Direction, Drive
+        from gpiod.line import Bias, Direction
 
         bias = {
             'AsIs': Bias.AS_IS,
@@ -40,32 +23,20 @@ class Output(blocks.NativeState):
             'PullDown': Bias.PULL_DOWN,
             'PullUp': Bias.PULL_UP,
         }
-        drive = {
-            'PushPull': Drive.PUSH_PULL,
-            'OpenDrain': Drive.OPEN_DRAIN,
-            'OpenSource': Drive.OPEN_SOURCE,
-        }
-        if self.data.active_state not in ('High', 'Low'):
-            raise ValueError(f'Unknown active state: {self.data.active_state!r}')
-        if self.data.drive not in drive:
-            raise ValueError(f'Unknown drive: {self.data.drive!r}')
-        if self.data.bias not in bias:
-            raise ValueError(f'Unknown bias: {self.data.bias!r}')
-
-        chip = async_exit_stack.enter_context(gpiod.Chip(self.data.chip_device_file))
+        chip = async_exit_stack.enter_context(gpiod.Chip(self.values['ChipDeviceFile']))
         try:
-            line_info = chip.get_line_info(self.data.name)
-            if line_info.name != self.data.name:
+            line_info = chip.get_line_info(self.values['Name'])
+            if line_info.name != self.values['Name']:
                 raise ValueError('Line name does not match')
             self.gpio_offset = line_info.offset
         except (OSError, ValueError) as exc:
             raise ValueError(
-                f'Cannot find GPIO {self.data.name!r} on chip '
-                f'{self.data.chip_device_file!r}'
+                f"Cannot find GPIO {self.values['Name']!r} on chip "
+                f"{self.values['ChipDeviceFile']!r}"
             ) from exc
         self.gpio_request = async_exit_stack.enter_context(chip.request_lines(
             config={self.gpio_offset: gpiod.LineSettings(
-                direction=Direction.INPUT, bias=bias[self.data.bias])},
+                direction=Direction.INPUT, bias=bias[self.values['Bias']])},
             consumer='Wirely',
         ))
         self.direction_set = False
@@ -93,9 +64,9 @@ class Output(blocks.NativeState):
                 self.gpio_offset: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
                     output_value=logical_value,
-                    active_low=self.data.active_state == 'Low',
-                    drive=drive[self.data.drive],
-                    bias=bias[self.data.bias],
+                    active_low=self.values['ActiveState'] == 'Low',
+                    drive=drive[self.values['Drive']],
+                    bias=bias[self.values['Bias']],
                 ),
             })
             self.direction_set = True

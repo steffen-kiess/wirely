@@ -1,5 +1,3 @@
-import dataclasses
-
 import wirely as blocks
 from wirely.native import native_block_type
 
@@ -200,25 +198,20 @@ class OptionCreate:
         context.set_result('output', result)
 
 
-@dataclasses.dataclass(frozen=True)
-class EdgeData:
-    edge_type: str
-
-
-@native_block_type(native_block_types, has_native_state=False, data_type=EdgeData)
+@native_block_type(native_block_types, has_native_state=False)
 class DetectEdge:
     @staticmethod
     def run(*, context):
         last_value = context.inputs['last_value_old']
-        data = context.configuration
+        edge_type = context.values['EdgeType']
 
         value = context.inputs['input']
 
         # print(f'Last={last_value} Now={value}')
-        if data.edge_type == 'Falling':
+        if edge_type == 'Falling':
             do_trigger = (last_value == blocks.Some(True)) and (value == False)
         else:
-            raise Exception(f'TODO: Implement edge type {data.edge_type}')
+            raise Exception(f'TODO: Implement edge type {edge_type}')
 
         context.set_result('last_value', blocks.Some(value))
         if do_trigger:

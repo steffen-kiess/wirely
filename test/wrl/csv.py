@@ -15,8 +15,8 @@ def assert_content_is(fn, value):
         raise Exception(f'Test failed: Expected content {value!r}, got {actual!r}')
 
 async def run_test():
-    fn = engine.get_native_state('test_value_writer').data.filename
-    fn2 = engine.get_native_state('test_option_value_writer').data.filename
+    fn = engine.get_native_state('test_value_writer').values['Filename']
+    fn2 = engine.get_native_state('test_option_value_writer').values['Filename']
 
     # TODO: Move some of this code to test infrastructure
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:

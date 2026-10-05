@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import tempfile
+from dataclasses import replace
 
 import wirely
 
@@ -20,7 +21,7 @@ async def run_test():
                 raise Exception(f'Expected file content {expected!r}, got {actual!r}')
 
         prog1 = engine.get_native_state('prog1')
-        prog1.data = type(prog1.data)(cmd)
+        prog1._context = replace(prog1.context, values={'ShellCommand': cmd})
 
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
             await engine.start_tasks_async(tg, async_exit_stack)

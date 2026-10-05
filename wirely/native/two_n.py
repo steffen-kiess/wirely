@@ -65,65 +65,17 @@ class Connection(blocks.NativeState):
         print('Starting TwoN client done', flush=True)
 
 
-@dataclasses.dataclass(frozen=True)
-class TwoNTimeoutData:
-    timeout: blocks.Duration
-
-
-    def dump(self):
-        print(f'  Timeout: {self.timeout!r}', flush=True)
-
-
-@dataclasses.dataclass(frozen=True)
-class TwoNKeyData:
-    key: str
-
-
-    def dump(self):
-        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
-            print(f'  Key: {self.key!r}', flush=True)
-
-
-@dataclasses.dataclass(frozen=True)
-class TwoNIOData:
-    port: str
-
-
-    def dump(self):
-        print(f'  Port: {self.port!r}', flush=True)
-
-
-@dataclasses.dataclass(frozen=True)
-class TwoNSwitchData:
-    switch_number: int
-
-
-    def dump(self):
-        print(f'  SwitchNumber: {self.switch_number!r}', flush=True)
-
-
-@dataclasses.dataclass(frozen=True)
-class TwoNCodeData:
-    code: str
-
-
-    def dump(self):
-        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
-            print(f'  Code: {self.code!r}', flush=True)
-
-
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNKeyData)
+@native_block_type(native_block_types, has_native_state=True)
 class KeyEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
         self.received_value = None
 
-        self.data = context.configuration
-
         print('Create TwoN KeyEvent', flush=True)
 
-        self.data.dump()
+        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
+            print(f"  Key: {self.values['Key']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
@@ -145,7 +97,7 @@ class KeyEvent(blocks.NativeState):
             print('Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['key'] != self.data.key:
+        if event['params']['key'] != self.values['Key']:
             return
 
         # Note: This will override older events which generally should not be a problem.
@@ -168,18 +120,17 @@ class KeyEvent(blocks.NativeState):
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNCodeData)
+@native_block_type(native_block_types, has_native_state=True)
 class CodeEnteredEvent(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
         self.pending = False
 
-        self.data = context.configuration
-
         print('Create TwoN CodeEnteredEvent', flush=True)
 
-        self.data.dump()
+        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
+            print(f"  Code: {self.values['Code']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
@@ -197,7 +148,7 @@ class CodeEnteredEvent(blocks.NativeState):
             print('Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['code'] != self.data.code:
+        if event['params']['code'] != self.values['Code']:
             return
 
         # Note: This will override older events which generally should not be a problem.
@@ -220,7 +171,7 @@ class CodeEnteredEvent(blocks.NativeState):
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_native_state=False, data_type=TwoNTimeoutData)
+@native_block_type(native_block_types, has_native_state=False)
 class KeyState(blocks.NativeState):
     @staticmethod
     def read_timeout_time(*, context):
@@ -229,8 +180,6 @@ class KeyState(blocks.NativeState):
 
     @staticmethod
     def get_value(*, context):
-        data = context.configuration
-
         value = context.inputs['current_value_old']
         timeout_time = context.inputs['timeout_time_old']
         timeout_reached = context.inputs['timeout_reached']
@@ -240,7 +189,7 @@ class KeyState(blocks.NativeState):
             # KeyPressed
             now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
             new_value = True
-            new_timeout_time = now + data.timeout
+            new_timeout_time = now + context.values['Timeout']
         elif event == blocks.Some(False):
             # KeyReleased
             new_value = False
@@ -266,7 +215,7 @@ class KeyState(blocks.NativeState):
         context.set_result('current_value', new_value)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNIOData)
+@native_block_type(native_block_types, has_native_state=True)
 class IOState(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -276,11 +225,9 @@ class IOState(blocks.NativeState):
 
         # TODO: Read current value on start-up in a race-free way
 
-        self.data = context.configuration
-
         print('Create TwoN IOState', flush=True)
 
-        self.data.dump()
+        print(f"  Port: {self.values['Port']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
@@ -295,15 +242,15 @@ class IOState(blocks.NativeState):
             raise Exception('Attempting to start up IOState without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/io/status", params={
-            'port': self.data.port,
+            'port': self.values['Port'],
         })
         # print('RESPONSE', response)
         ports = response['ports']
         if len(ports) != 1:
             raise Exception('TwoN.IOState: len(ports) != 1')
         port = ports[0]
-        if port['port'] != self.data.port:
-            raise Exception("TwoN.IOState: port['port'] != self.data.port")
+        if port['port'] != self.values['Port']:
+            raise Exception("TwoN.IOState: port['port'] != self.values['Port']")
         state = port['state']
         if type(state) != int:
             raise Exception('TwoN.IOState: type(state) != int')
@@ -321,7 +268,7 @@ class IOState(blocks.NativeState):
             print('Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['port'] != self.data.port:
+        if event['params']['port'] != self.values['Port']:
             return
 
         new_value = event['params']['state']
@@ -341,7 +288,7 @@ class IOState(blocks.NativeState):
         context.set_result('output', value)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNSwitchData)
+@native_block_type(native_block_types, has_native_state=True)
 class SwitchState(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -351,11 +298,9 @@ class SwitchState(blocks.NativeState):
 
         # TODO: Read current value on start-up in a race-free way
 
-        self.data = context.configuration
-
         print('Create TwoN SwitchState', flush=True)
 
-        self.data.dump()
+        print(f"  SwitchNumber: {self.values['SwitchNumber']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
@@ -370,15 +315,15 @@ class SwitchState(blocks.NativeState):
             raise Exception('Attempting to start up SwitchState without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
-            'switch': self.data.switch_number,
+            'switch': self.values['SwitchNumber'],
         })
         # print('RESPONSE', response)
         switches = response['switches']
         if len(switches) != 1:
             raise Exception('TwoN.SwitchState: len(switches) != 1')
         switch = switches[0]
-        if switch['switch'] != self.data.switch_number:
-            raise Exception("TwoN.SwitchState: switch['switch'] != self.data.switch_number")
+        if switch['switch'] != self.values['SwitchNumber']:
+            raise Exception("TwoN.SwitchState: switch['switch'] != self.values['SwitchNumber']")
         active = switch['active']
         if type(active) != bool:
             raise Exception('TwoN.SwitchState: type(active) != bool')
@@ -394,7 +339,7 @@ class SwitchState(blocks.NativeState):
             print('Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['switch'] != self.data.switch_number:
+        if event['params']['switch'] != self.values['SwitchNumber']:
             return
 
         new_value = event['params']['state']
@@ -414,7 +359,7 @@ class SwitchState(blocks.NativeState):
         context.set_result('output', value)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNIOData)
+@native_block_type(native_block_types, has_native_state=True)
 class OutputControl(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -426,11 +371,9 @@ class OutputControl(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = context.configuration
-
         print('Create TwoN OutputControl', flush=True)
 
-        self.data.dump()
+        print(f"  Port: {self.values['Port']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
         print(f'  Using native device object: {self.native_device}', flush=True)
@@ -445,8 +388,6 @@ class OutputControl(blocks.NativeState):
 
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
-
-        data = context.configuration
 
         value_opt = context.inputs['input']
         if value_opt is None:
@@ -478,11 +419,11 @@ class OutputControl(blocks.NativeState):
                 print('Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
                 continue
 
-            print(f'Sending {value} to port {self.data.port}', flush=True)
+            print(f"Sending {value} to port {self.values['Port']}", flush=True)
             # response = await self.native_device.client.json_request("GET", "/api/io/ctrl", params={
             # response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={}, params={
             response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={
-                'port': self.data.port,
+                'port': self.values['Port'],
                 'action': action,
             })
-            print(f'Sending {value} to port {self.data.port} done with result {response}', flush=True)
+            print(f"Sending {value} to port {self.values['Port']} done with result {response}", flush=True)

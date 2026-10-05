@@ -6,6 +6,8 @@ namespace Process {
     // Note: The value of the event will be ignored
     default input: event Type;
 
+    native initializer uses ShellCommand;
+
     native procedure run stage output depends on default input as "input";
   }
 }

@@ -10,22 +10,16 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.native.csv import CsvWriterParameters
-from wirely.native.gpio import GPIOData
 from wirely.native.knx import KnxData
 from wirely.native.memory import ToggleFlipFlopTriggerData
 from wirely.native.mqtt import MqttData
-from wirely.native.std import EdgeData
-from wirely.native.time import IsInDailyIntervalData, TriggerAtData
-from wirely.native.two_n import TwoNCodeData, TwoNDeviceData
-from wirely.compiler.native_preparation.csv import prepare_csv_writer_parameters
-from wirely.compiler.native_preparation.gpio import prepare_gpio_data
+from wirely.native.time import TriggerAtData
+from wirely.native.two_n import TwoNDeviceData
 from wirely.compiler.native_preparation.knx import prepare_knx_data
 from wirely.compiler.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
 from wirely.compiler.native_preparation.mqtt import prepare_mqtt_data
-from wirely.compiler.native_preparation.std import prepare_edge_data
-from wirely.compiler.native_preparation.time import prepare_is_in_daily_interval_data, prepare_trigger_at_data
-from wirely.compiler.native_preparation.two_n import prepare_two_n_code_data, prepare_two_n_device_data
+from wirely.compiler.native_preparation.time import prepare_trigger_at_data
+from wirely.compiler.native_preparation.two_n import prepare_two_n_device_data
 from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
 
@@ -277,21 +271,12 @@ node wrapper: Wrapper {
 
 
 factories = {
-    EdgeData: prepare_edge_data,
-    TwoNCodeData: prepare_two_n_code_data,
-    CsvWriterParameters: prepare_csv_writer_parameters,
     KnxData: prepare_knx_data,
     MqttData: prepare_mqtt_data,
-    GPIOData: prepare_gpio_data,
-    IsInDailyIntervalData: prepare_is_in_daily_interval_data,
     TriggerAtData: prepare_trigger_at_data,
     ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
 }
 invalid_configurations = [
-    (EdgeData, 'parameter EdgeType: String = "invalid";', 'EdgeType'),
-    (TwoNCodeData, 'parameter Code: String = "123x";', 'Code'),
-    (TwoNCodeData, 'parameter Code: String = "1234567890123456";', 'Code'),
-    (CsvWriterParameters, 'parameter Type: ValueType = List[uint8];', 'Type'),
     (KnxData, 'parameter GroupAddress: String = "invalid";'
      'parameter Type: ValueType = boolean;', 'GroupAddress'),
     (KnxData, 'parameter GroupAddress: String = "1/2/3";'
@@ -301,13 +286,6 @@ invalid_configurations = [
     (MqttData, 'parameter Type: ValueType = String;'
      'parameter Topic: String = "topic";'
      'parameter Template: String = "%x";', 'Template'),
-    (GPIOData, 'parameter ChipDeviceFile: String = "/dev/gpiochip0";'
-     'parameter Name: String = "test";'
-     'parameter ActiveState: String = "invalid";'
-     'parameter Drive: String = "PushPull";'
-     'parameter Bias: String = "AsIs";', 'ActiveState'),
-    (IsInDailyIntervalData, 'parameter Start: TimeOfDay = "12:00";'
-     'parameter End: TimeOfDay = "12:00";', 'End'),
     (TriggerAtData, 'parameter OutputType: ValueType = boolean;'
      'optional parameter OutputValue: OutputType;', 'OutputValue'),
     (ToggleFlipFlopTriggerData, 'parameter OutputType: ValueType = boolean;'
@@ -322,8 +300,9 @@ for data_type, declarations, parameter in invalid_configurations:
     assert error.source_element is contexts[-1]._origins[parameter][0], data_type
 
 # Explicit arguments take precedence over the default's source location.
-prepare = lambda context: prepare_edge_data(context=context)
+prepare = lambda context: prepare_knx_data(context=context)
 with checks.assertRaises(compiler_model.ProgramError) as caught:
-    probe('parameter EdgeType: String = "Both";',
-          arguments='EdgeType: "invalid"')
+    probe('parameter GroupAddress: String = "1/2/3";'
+          'parameter Type: ValueType = boolean;',
+          arguments='GroupAddress: "invalid"')
 assert caught.exception.source_element.source_position.start_line == 8

@@ -1,4 +1,6 @@
 namespace TwoN {
+  native function IsValidCode(code: String): boolean;
+
   resource type Device;
 
   native node type Connection {
@@ -18,7 +20,7 @@ namespace TwoN {
     // True if the key is pressed, false if it released.
     default output: event boolean;
 
-    native initializer depends on Device;
+    native initializer depends on Device uses Key;
 
     native procedure get_value stage input produces default output as "output";
   }
@@ -64,7 +66,8 @@ namespace TwoN {
     native procedure get_value
       depends on current_value.old as "current_value_old",
         timeout_time.old as "timeout_time_old", key_event, timeout_reached
-      produces default output as "output", timeout_time, current_value;
+      produces default output as "output", timeout_time, current_value
+      uses Timeout;
   }
 
   // Get the current state of an input or output
@@ -74,7 +77,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device;
+    native initializer depends on Device uses Port;
 
     // True if the input/output is on, false otherwise.
     default output: value boolean;
@@ -89,7 +92,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device;
+    native initializer depends on Device uses SwitchNumber;
 
     // True if the switch is active, false otherwise.
     default output: value boolean;
@@ -102,10 +105,12 @@ namespace TwoN {
   native node type CodeEnteredEvent {
     parameter Code: String;
 
+    assert IsValidCode(Code), "Code must contain at most 15 ASCII digits";
+
     input Device: resource Device;
     default output: event unit;
 
-    native initializer depends on Device;
+    native initializer depends on Device uses Code;
 
     native procedure get_value stage input produces default output as "output";
   }
@@ -115,7 +120,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device;
+    native initializer depends on Device uses Port;
 
     // True to turn the output is on, false to turn it off.
     default input: event boolean;

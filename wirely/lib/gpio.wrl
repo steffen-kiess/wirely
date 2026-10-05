@@ -1,4 +1,8 @@
 namespace GPIO {
+  native function IsValidActiveState(value: String): boolean;
+  native function IsValidDrive(value: String): boolean;
+  native function IsValidBias(value: String): boolean;
+
   // Set a GPIO based on a boolean value
   native node type Output {
     parameter ChipDeviceFile: String;
@@ -11,7 +15,12 @@ namespace GPIO {
     // Can be "PullDown", "PullUp", "Disable" or "AsIs"
     parameter Bias: String = "AsIs";
 
-    // TODO: Allow specifying active high / active low?
+    assert IsValidActiveState(ActiveState), "ActiveState must be High or Low";
+    assert IsValidDrive(Drive),
+      "Drive must be PushPull, OpenDrain, or OpenSource";
+    assert IsValidBias(Bias), "Bias must be AsIs, Disable, PullDown, or PullUp";
+
+    native initializer uses ChipDeviceFile, Name, ActiveState, Drive, Bias;
 
     default input: value boolean;
 

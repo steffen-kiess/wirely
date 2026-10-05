@@ -1,6 +1,8 @@
 // TODO: Should this only contain real-time-related blocks or also
 // monotonic-time-related blocks?
 namespace Time {
+  native function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
+
   // Block which return false if the current time is before input, true if the
   // current time is at or after input and None if the current time is not
   // comparable to input.
@@ -38,7 +40,7 @@ namespace Time {
         new_value.old as "new_value_old", update_time.old as "update_time_old",
         default input as "input", reached
       produces default output as "output", current_value, new_value,
-        update_time;
+        update_time uses Duration;
   }
 
   // TODO: Add DebounceLockout (first change is passed though, fixed lock-out
@@ -60,13 +62,15 @@ namespace Time {
     parameter Start: TimeOfDay;
     parameter End: TimeOfDay;
 
+    assert IsValidDailyInterval(Start, End), "Start and End must differ";
+
     default output: value boolean;
 
     node current_time: TimeOfDayMinute {}
 
     native procedure run
       depends on current_time
-      produces default output as "output";
+      produces default output as "output" uses Start, End;
   }
 
   // Creates an event whenever the current time changes from the range of 8

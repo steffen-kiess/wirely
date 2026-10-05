@@ -1,4 +1,6 @@
 namespace CSV {
+  native function SupportsType(type: ValueType): boolean;
+
   // Writes lines with:
   // - Current date / time
   // - Old value (or null (unquoted empty string) on startup / when value was
@@ -13,6 +15,10 @@ namespace CSV {
   native node type ValueWriter {
     parameter Type: ValueType;
     parameter Filename: String;
+
+    assert SupportsType(Type), "Type must support CSV conversion";
+
+    native initializer uses Filename;
     // TODO: Make repeat interval configurable? Allow disabling repeat?
 
     default input: value Type;

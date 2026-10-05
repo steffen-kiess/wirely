@@ -1,4 +1,6 @@
 namespace Std {
+  native function IsValidEdgeType(value: String): boolean;
+
   node type Constant {
     parameter Type: ValueType;
     parameter Value: Type;
@@ -148,6 +150,9 @@ namespace Std {
     // implemented
     parameter EdgeType: String;
 
+    assert IsValidEdgeType(EdgeType),
+      "EdgeType must be Rising, Falling, or Both";
+
     default input: value boolean;
     // Contains the new value
     default output: event boolean;
@@ -156,7 +161,7 @@ namespace Std {
 
     native procedure run
       depends on last_value.old as "last_value_old", default input as "input"
-      produces default output as "output", last_value;
+      produces default output as "output", last_value uses EdgeType;
   }
 }
 

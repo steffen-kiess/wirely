@@ -38,6 +38,7 @@ test_names = [
     'unit/constants',
     'unit/assertions',
     'unit/native_configuration',
+    'unit/library_settings',
     'unit/state_connections',
     'unit/types',
     'unit/resources',
@@ -569,8 +570,8 @@ async def run_test(test_name):
             )
 
         for node_id in csv_writer_paths:
-            filename = testdir + '/' + os.path.basename(prog.instances[node_id].configuration.filename)
-            override_instance(node_id, {'Filename': filename}, filename=filename)
+            filename = testdir + '/' + os.path.basename(prog.instances[node_id].initializer_values['Filename'])
+            override_instance(node_id, {'Filename': filename})
         for node_id in knx_connection_paths:
             override_instance(node_id, {'UnixPath': knxd_socket_path},
                               optional_parameters=('UnixPath',))

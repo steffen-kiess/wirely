@@ -10,6 +10,27 @@ from . import model as blocks
 
 
 native_function_impls = {
+    ('Std', 'IsValidEdgeType'): (
+        'wirely.compiler.function_implementations.std', 'is_valid_edge_type',
+    ),
+    ('GPIO', 'IsValidActiveState'): (
+        'wirely.compiler.function_implementations.gpio', 'is_valid_active_state',
+    ),
+    ('GPIO', 'IsValidDrive'): (
+        'wirely.compiler.function_implementations.gpio', 'is_valid_drive',
+    ),
+    ('GPIO', 'IsValidBias'): (
+        'wirely.compiler.function_implementations.gpio', 'is_valid_bias',
+    ),
+    ('CSV', 'SupportsType'): (
+        'wirely.compiler.function_implementations.csv', 'supports_type',
+    ),
+    ('Time', 'IsValidDailyInterval'): (
+        'wirely.compiler.function_implementations.time', 'is_valid_daily_interval',
+    ),
+    ('TwoN', 'IsValidCode'): (
+        'wirely.compiler.function_implementations.two_n', 'is_valid_code',
+    ),
     ('Path', 'Join'): ('wirely.compiler.function_implementations.path', 'join'),
     ('Path', 'Parent'): ('wirely.compiler.function_implementations.path', 'parent'),
     ('Path', 'SourceFile'): ('wirely.compiler.function_implementations.path', 'source_file'),
