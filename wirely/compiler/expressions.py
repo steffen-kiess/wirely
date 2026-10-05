@@ -162,9 +162,9 @@ class TypedExpression:
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
             if not (left.value_type.contains_parameters
-                    or left.value_type in (boolean, blocks.types.unit)
+                    or left.value_type in (boolean, blocks.types.unit, blocks.types.ValueType)
                     or isinstance(left.value_type, (blocks.types.TypeInt, blocks.types.TypeEnum))):
-                raise ProgramError(self.source, 'Equality requires boolean, integer, enum, or unit values')
+                raise ProgramError(self.source, 'Equality requires boolean, integer, enum, unit, or ValueType values')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
@@ -384,6 +384,10 @@ class ExpressionCompiler:
             raise ProgramError(expression, 'Cannot infer expression type; add a type annotation')
         if self.runtime:
             check_runtime_type(value_type, expression)
+        if value_type == blocks.types.ValueType:
+            actual_type = self.known_type(expression)
+            if actual_type is not None:
+                check_value_type(actual_type, value_type, expression)
         value = self.scope.get_const_value(expression, value_type, par_values=self.parameters)
         return TypedExpression(value_type, 'constant', payload=value)
 
@@ -446,9 +450,16 @@ class ExpressionCompiler:
                 try:
                     value_type = self.scope.resolve_type(reference, par_values=self.parameters)
                 except ProgramError:
-                    return None
+                    value_type = None
                 if isinstance(value_type, blocks.types.TypeEnum):
                     return value_type
+        if isinstance(expression, (blocks.Reference, blocks.BracketOperator)):
+            try:
+                self.scope.resolve_type(expression, par_values=self.parameters)
+            except ProgramError:
+                pass
+            else:
+                return blocks.types.ValueType
         if isinstance(expression, blocks.IntNumber):
             return blocks.types.int32
         if isinstance(expression, blocks.StringConstant):

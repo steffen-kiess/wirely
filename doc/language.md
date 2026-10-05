@@ -437,8 +437,12 @@ Locals must have runtime types. A string literal needs a runtime destination
 such as `TimeOfDay` or `Duration`; `String` itself is parameter-only.
 
 Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
-`==` and `!=` for matching Boolean, integer, enum, or unit types. `if`
-requires a Boolean condition and an `else`; both branches yield the same
+`==` and `!=` for matching Boolean, integer, enum, or unit types.
+At compile time, they also compare `ValueType` values: built-in types
+compare by type, `Option` and `List` compare their inner types, and structs
+and enums compare by declaration. For example, `OutputType == unit` or
+`Option[int16] == Option[int16]`.
+`if` requires a Boolean condition and an `else`; both branches yield the same
 type. Expression blocks may contain locals followed by a final expression
 without a semicolon. These expressions also work in parameter values and
 other compile-time expressions. Functions available at compile time cannot

@@ -1,0 +1,63 @@
+// TEST: type and boolean
+assert int16 == true; // E: Expected value of type ValueType, got boolean
+
+// TEST: boolean and type
+assert true != int16; // E: Invalid boolean value
+
+// TEST: type and unit value
+assert unit == (); // E: Expected value of type ValueType, got unit
+
+// TEST: type and integer
+assert int16 == 1; // E: Expected value of type ValueType, got int32
+
+// TEST: integer and type
+assert 1 != int16; // E: Expected value of type ValueType, got int32
+
+// TEST: a value name takes precedence over a built-in type name
+constant int16: boolean = true;
+assert unit == int16; // E: Expected value of type ValueType, got boolean
+
+// TEST: mixed type and enum value
+enum type Mode: uint8 {
+  On = 1,
+}
+assert Mode == Mode.On; // E: Expected value of type ValueType, got Mode
+
+// TEST: runtime direct types
+temporary result: boolean;
+procedure run produces result {
+  result = int16 == int16; // E: Unknown procedure value int16
+}
+
+// TEST: runtime generic types
+temporary result: boolean;
+procedure run produces result {
+  result = Option[int16] == Option[int16]; // E: Runtime calls and indexing
+}
+
+// TEST: runtime type parameter
+node type Compare {
+  parameter Type: ValueType;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Type == Type; // E: unavailable parameter 'Type'
+  }
+}
+node compare: Compare { Type: int16 }
+
+// TEST: runtime type constant
+constant Type: ValueType = unit;
+temporary result: boolean;
+procedure run produces result {
+  result = Type != Type; // E: unavailable parameter 'Type'
+}
+
+// TEST: optional output required
+node type OptionalOutput {
+  parameter OutputType: ValueType = unit;
+  optional parameter OutputValue: OutputType;
+  assert OutputType == unit || parameter_option(OutputValue).IsSome,
+    "OutputValue is required when OutputType is not unit";
+  // ^^E: OutputValue is required when OutputType is not unit
+}
+node missing: OptionalOutput { OutputType: int16 } // H: While instantiating 'missing'
