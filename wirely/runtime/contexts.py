@@ -18,7 +18,6 @@ class NativeNodeContext:
     name: str
     values: Mapping[str, object]
     inputs: Mapping[str, object]
-    configuration: object
     _engine: object = field(repr=False)
     _node_id: str = field(repr=False)
 
@@ -157,10 +156,6 @@ class ProcedureContext:
     @property
     def values(self) -> Mapping[str, object]:
         return self._static.values
-
-    @property
-    def configuration(self):
-        return self._static.node_context.configuration
 
     def start_time_for_stage(self, stage: 'RunStage') -> TimeSnapshot:
         if not isinstance(stage, RunStage):

@@ -101,7 +101,6 @@ class NativeInstance:
     type_name: tuple[str, ...]  # Qualified node type name, split into components.
     has_native_state: bool  # Whether the engine creates a native state object.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
-    configuration: object  # Prepared configuration passed to native code.
     initializer_bindings: tuple  # (input name, provider node IDs, is_list) entries.
     initializer_values: Mapping[str, object] = field(default_factory=dict)  # Lifetime static bindings.
 
@@ -109,8 +108,6 @@ class NativeInstance:
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
         object.__setattr__(self, 'type_name', tuple(self.type_name))
         parameters = MappingProxyType(dict(self.parameters))
-        if self.configuration is self.parameters:
-            object.__setattr__(self, 'configuration', parameters)
         object.__setattr__(self, 'parameters', parameters)
         object.__setattr__(self, 'initializer_bindings', tuple(
             (name, tuple(node_ids), is_list)
@@ -124,7 +121,7 @@ class Procedure:
 
     node_id: str  # Owning node's key in Program.instances.
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
-    node_context: NativeInstance  # Parameters and configuration for this node.
+    node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
@@ -222,7 +219,6 @@ class Program:
             line(f'has native state: {instance.has_native_state}', 4)
             value('parameters', dict(instance.parameters), 4)
             value('initializer values', dict(instance.initializer_values), 4)
-            value('configuration', instance.configuration, 4)
             line('initializer resources:', 4)
             resources(instance.initializer_bindings, 6)
 

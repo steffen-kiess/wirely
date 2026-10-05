@@ -110,7 +110,6 @@ for block in ('ValueReceiver', 'ValueOptionProvider', 'EventReceiver', 'EventSen
         values = program.instances['checked'].initializer_values
         assert values['group_address'] == 2563
         assert values['Type'] == getattr(wirely.value_types, ty)
-        assert program.instances['checked'].configuration is None
         with contextlib.redirect_stdout(io.StringIO()):
             runtime = wirely.Engine(program)
         state = runtime.get_native_state('checked')
@@ -152,7 +151,6 @@ for block in ('ValueOptionProvider', 'EventSender', 'EventReceiver'):
         program = compile_program(mqtt_source(block, template=template, format=format))
         values = program.instances['checked'].initializer_values
         assert values['Format'] == (None if format is None else wirely.Some(format))
-        assert program.instances['checked'].configuration is None
         with contextlib.redirect_stdout(io.StringIO()):
             runtime = wirely.Engine(program)
         state = runtime.get_native_state('checked')
@@ -203,7 +201,6 @@ with tempfile.TemporaryDirectory() as directory:
         program = compile_program(credentials_source(expression), filename=source_filename)
         values = program.instances['checked'].initializer_values
         assert dict(values['credentials']) == {'username': 'username', 'password': 'password'}
-        assert program.instances['checked'].configuration is None
         filename.unlink()
         output = io.StringIO()
         with patch('wirely.two_n.client.Client') as client, contextlib.redirect_stdout(output):

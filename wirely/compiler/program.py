@@ -234,7 +234,6 @@ def compile_nocatch(global_block_type):
             name=node_ids[path], type_name=instance.block_type.fullname_tuple,
             has_native_state=instance.block_type.is_native,
             parameters=instance.static_context.parameters,
-            configuration=instance.static_context.configuration,
             initializer_bindings=initializer_bindings[path],
             initializer_values=instance.initializer_values,
         )

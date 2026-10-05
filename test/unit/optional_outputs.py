@@ -89,7 +89,6 @@ for block in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
                 values['MinimumDelay'] = wirely.Duration.parse('PT2S')
                 assert not procedure(program, target, 'read_time').values
             assert dict(procedure(program, target, name).values) == values
-            assert program.instances[target].configuration is None
             runtime = wirely.Engine(program)
             if block == 'Time.TriggerAt':
                 clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')

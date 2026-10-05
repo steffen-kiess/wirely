@@ -1,5 +1,4 @@
 import contextlib
-from dataclasses import dataclass
 import io
 from unittest.mock import patch
 
@@ -7,7 +6,6 @@ import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
-from wirely.compiler.native_configuration import register_configuration
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -112,32 +110,26 @@ constant Or: boolean = true || Fail();
     assert 'Internal compiler error' not in output.getvalue()
 
 
-# Constants resolve before native configuration but only parameters reach Python.
-@dataclass(frozen=True)
-class PreparedConstants:
-    enabled: bool
-
-
+# Constants resolve before initializer bindings.
 registry = {}
 prepared = []
 
 
 def prepare(*, context):
     assert len(calls) == len(prepared) + 1
-    assert dict(context.parameters) == {'Enabled': True}
-    prepared.append(context.name)
-    return PreparedConstants(context.parameters['Enabled'])
+    assert dict(context.arguments) == {'enabled': True}
+    prepared.append(context.arguments['enabled'])
+    return context.arguments['enabled']
 
 
-register_configuration(PreparedConstants, prepare)
+functions[('Prepare',)] = prepare
 
 
-@native_block_type(registry, has_native_state=True, data_type=PreparedConstants)
+@native_block_type(registry, has_native_state=True)
 class NativeConstantProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
-        assert dict(context.values) == {'Enabled': True}
-        assert context.configuration.enabled is True
+        assert dict(context.values) == {'Enabled': True, 'prepared': True}
 
 
 @native_block_type(registry, has_native_state=True)
@@ -150,11 +142,12 @@ class NativeConstantSingleton(wirely.NativeState):
 calls.clear()
 with patch.dict(native_function_impls, functions), patch.dict(
         wirely.native.test_library.native_block_types, registry):
-    native = compile_program('''namespace TestLibrary {
+    native = compile_program('''native function Prepare(enabled: boolean): boolean;
+namespace TestLibrary {
   native node type NativeConstantProbe {
     parameter Enabled: boolean;
     constant Unused: boolean = Count(Enabled);
-    native initializer uses Enabled;
+    native initializer uses Enabled, Prepare(Enabled) as prepared;
   }
   singleton native node type NativeConstantSingleton {
     constant Unused: boolean = Count(false);
@@ -172,4 +165,4 @@ node repeated: TestLibrary.NativeConstantSingleton {}
     assert calls == [True, True, False]
     native_engine = wirely.Engine(native)
     assert calls == [True, True, False]
-    assert prepared == ['first.child', 'second.child']
+    assert prepared == [True, True]

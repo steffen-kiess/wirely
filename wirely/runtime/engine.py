@@ -53,7 +53,7 @@ class Engine:
                 context = blocks.NativeNodeContext(
                     name=instance.name, values=instance.initializer_values,
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
-                    configuration=instance.configuration, _engine=self, _node_id=node_id,
+                    _engine=self, _node_id=node_id,
                 )
                 native_state = native_class(context=context)
             self.native_states[node_id] = native_state

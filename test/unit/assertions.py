@@ -1,11 +1,9 @@
-from dataclasses import dataclass
 from unittest.mock import patch
 
 import wirely
 from wirely.compiler import compile_strs, model as blocks
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
-from wirely.compiler.native_configuration import register_configuration
 import wirely.native.test_library
 from wirely.native import native_block_type
 
@@ -130,26 +128,21 @@ assert !(false && Fail());
         raise AssertionError('Expected internal error')
 
 
-# Native preparation follows all constants and assertions for that instance.
-@dataclass(frozen=True)
-class AssertionConfiguration:
-    pass
-
-
+# Initializer bindings follow constants and assertions for each instance.
 registry = {}
 prepared = []
 
 
 def prepare(*, context):
     assert calls == [10, 11] * (len(prepared) + 1)
-    prepared.append(context.name)
-    return AssertionConfiguration()
+    prepared.append(context.arguments['label'])
+    return True
 
 
-register_configuration(AssertionConfiguration, prepare)
+functions[('Prepare',)] = prepare
 
 
-@native_block_type(registry, has_native_state=True, data_type=AssertionConfiguration)
+@native_block_type(registry, has_native_state=True)
 class NativeAssertionProbe(wirely.NativeState):
     pass
 
@@ -162,18 +155,21 @@ class NativeAssertionSingleton(wirely.NativeState):
 calls.clear()
 with patch.dict(native_function_impls, functions), patch.dict(
         wirely.native.test_library.native_block_types, registry):
-    program = compile_program('''namespace TestLibrary {
+    program = compile_program('''native function Prepare(label: String): boolean;
+namespace TestLibrary {
   native node type NativeAssertionProbe {
+    parameter Label: String;
     constant Cached: boolean = Record(10);
     assert Cached;
     assert Record(11);
+    native initializer uses Prepare(Label) as prepared;
   }
   singleton native node type NativeAssertionSingleton {
     assert Record(12);
   }
 }
-node first: TestLibrary.NativeAssertionProbe {}
-node second: TestLibrary.NativeAssertionProbe {}
+node first: TestLibrary.NativeAssertionProbe { Label: "first" }
+node second: TestLibrary.NativeAssertionProbe { Label: "second" }
 node shared: TestLibrary.NativeAssertionSingleton {}
 node repeated: TestLibrary.NativeAssertionSingleton {}
 ''')
@@ -189,13 +185,14 @@ node repeated: TestLibrary.NativeAssertionSingleton {}
   native node type NativeAssertionProbe {
     constant Cached: boolean = Record(10);
     assert Fail();
+    native initializer uses Record(13) as prepared;
   }
 }
 node failed: TestLibrary.NativeAssertionProbe {}
 ''')
     except blocks.ProgramError as error:
         assert str(error) == 'condition failed'
-        assert error.hints[0].source_element.source_position.start_line == 7
+        assert error.hints[0].source_element.source_position.start_line == 8
         assert str(error.hints[0]) == "While instantiating 'failed'"
     else:
         raise AssertionError('Expected failure before preparation')

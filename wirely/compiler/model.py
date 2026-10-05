@@ -17,7 +17,6 @@ _exports = {
     'ConstantValue': 'compiler.value',
     'ValueParameter': 'compiler.value',
     'ParameterValues': 'compiler.parameters',
-    'NativeNodeConfigurationContext': 'compiler.native_configuration',
     'Node': 'compiler.node',
     'NodeInstance': 'compiler.node',
     'BlockInput': 'compiler.node',

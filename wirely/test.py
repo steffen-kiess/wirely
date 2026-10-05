@@ -38,7 +38,6 @@ test_names = [
     'unit/constants',
     'unit/type_comparisons',
     'unit/assertions',
-    'unit/native_configuration',
     'unit/prepared_configuration',
     'unit/library_settings',
     'unit/optional_outputs',

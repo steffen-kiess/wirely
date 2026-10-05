@@ -12,8 +12,6 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.compiler.native_configuration import register_configuration
-from wirely.compiler import model as compiler_model
 
 
 checks = TestCase()
@@ -30,45 +28,27 @@ assert engine.program.instances['generic.child'].parameters['Value'] == wirely.S
 engine.assert_value_is('fallback.Value', True)
 
 registry = {}
-prepared = []
-prepared_names = {}
+parameters_by_name = {}
 seen = []
 callback = None
 
 
-class PreparedData:
-    pass
-
-
-def prepare_prepared_data(*, context):
-    assert isinstance(context, compiler_model.NativeNodeConfigurationContext)
-    assert isinstance(context.parameters, MappingProxyType)
-    assert '' not in context.parameters
-    prepared_names[context.name] = context.parameters
-    prepared.append(context.parameters)
-    return context.parameters
-
-
-register_configuration(PreparedData, prepare_prepared_data)
-
-
-@native_block_type(registry, has_native_state=False, data_type=PreparedData)
+@native_block_type(registry, has_native_state=False)
 class ParameterProbe:
     @staticmethod
     def run(*, context):
         assert {key: (value.value if key in ('Absent', 'Missing') else value)
                 for key, value in context.values.items()
-                if key not in ('Absent', 'Missing') or value is not None} == prepared_names[context.name]
+                if key not in ('Absent', 'Missing') or value is not None} == parameters_by_name[context.name]
         callback(context)
         seen.append(context.values)
 
 
-@native_block_type(registry, has_native_state=True, data_type=PreparedData)
+@native_block_type(registry, has_native_state=True)
 class StateParameterProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         assert self.values is context.values
-        assert any(self.context.configuration == data for data in prepared)
         assert '' not in self.values
 
     def run(self, *, context):
@@ -77,7 +57,7 @@ class StateParameterProbe(wirely.NativeState):
         assert context.name == self.context.name
         assert {key: (value.value if key in ('Absent', 'Missing') else value)
                 for key, value in context.values.items()
-                if key not in ('Absent', 'Missing') or value is not None} == prepared_names[context.name]
+                if key not in ('Absent', 'Missing') or value is not None} == parameters_by_name[context.name]
         callback(context)
         seen.append(context.values)
 
@@ -108,6 +88,8 @@ node probe: TestLibrary.{class_name} {{ {arguments} }}
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
+        parameters_by_name.update({instance.name: instance.parameters
+                               for instance in program.instances.values()})
         result = wirely.Engine(program)
     result.step()
     return result
@@ -158,8 +140,8 @@ native procedure run uses Type, Number, Flag, Text, Unit, Present, parameter_opt
 for native in [False, True]:
     probe = make_probe(parameter_declarations, check_parameters,
                        native=native, arguments='Absent: None')
-    assert prepared[-1]['Number'] == 7
-    assert prepared[-1]['Type'] == types.uint16
+    assert probe.program.instances['probe'].parameters['Number'] == 7
+    assert probe.program.instances['probe'].parameters['Type'] == types.uint16
     probe.step()
     probe.assert_is_idle()
 

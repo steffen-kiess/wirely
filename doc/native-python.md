@@ -19,7 +19,7 @@ both the Python method name and its trigger key.
 Native registries must be available when constructing an `Engine`: it resolves
 classes using the fully qualified type names stored in `Program` as tuples,
 for example `("ABB", "JRA", "Blind")`. Each engine creates its own native
-states from the program's prepared configuration objects.
+states from the program's initializer values and resource bindings.
 
 For example, `Std.OptionSome` declares:
 
@@ -117,31 +117,6 @@ a supplied `None` becomes `wirely.Some(None)`. Ordinary bindings and resolved
 defaults contain their ordinary values. `ValueType` bindings provide
 `wirely.ValueType` descriptors, including inside options.
 
-Pass `data_type=SomeClass` to `@native_block_type` and register its factory
-in a separate compiler support module:
-
-```python
-from wirely.compiler.native_configuration import register_configuration
-
-register_configuration(SomeClass, prepare_configuration)
-```
-
-Import this support module before compiling custom nodes. Wirely calls
-`prepare_configuration(context=context)` once per instance during compilation.
-Its `wirely.compiler.native_configuration.NativeNodeConfigurationContext`
-provides `parameters` and `name`. The returned object is available as
-`context.configuration` in procedures and `self.context.configuration` in
-native nodes.
-
-Raise `context.error(message, parameter='Name')` to report invalid
-configuration at the parameter's source. Omit `parameter` for a node error.
-
-`context.resolve_path(value, parameter='Name')` returns a normalized absolute
-`pathlib.Path`, using the parameter's source directory for relative paths.
-Without `parameter`, it uses the node's source directory. Relative paths
-require a source filename. Preparation can read configuration files, but
-execution services need not be available.
-
 ## Python representations for native externs
 
 | Wirely type | Python representation |
@@ -213,7 +188,6 @@ calls `Class(context=context)` with a `wirely.NativeNodeContext`; define
 | --- | --- |
 | `values` | Initializer static bindings |
 | `inputs` | Initializer resource mapping |
-| `configuration` | Prepared configuration object, or `None` |
 | `name` | Dotted instance name, or qualified type name for a singleton |
 
 `self.values` and `self.inputs` give the same mappings. Native

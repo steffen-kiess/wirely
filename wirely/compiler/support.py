@@ -239,10 +239,9 @@ def resolve_variable(path, var):
 
 
 class StaticBlockContext:
-    def __init__(self, *, name, parameters, configuration):
+    def __init__(self, *, name, parameters):
         self.parameters: Mapping[str, object] = parameters
         self.name = name
-        self.configuration = configuration
 
     def __repr__(self):
         return f'StaticBlockContext({self.__dict__!r})'

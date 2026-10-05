@@ -9,13 +9,14 @@ import wirely
 import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler.native_functions import native_function_impls
 from wirely.compiler.parser import parse_str
 from wirely.native import native_block_type
 
 
 checks = TestCase()
+with checks.assertRaisesRegex(TypeError, "unexpected keyword argument 'data_type'"):
+    native_block_type({}, has_native_state=False, data_type=object)
 engine.step()
 engine.assert_value_is('constant', 7)
 engine.assert_value_is('unwrap', 9)
@@ -37,22 +38,7 @@ def fail(*, context):
     raise ValueError('binding failed')
 
 
-class Prepared:
-    pass
-
-
-def prepare(*, context):
-    assert calls[-4:] == [context.parameters['Number'], 10, True, 20]
-    assert 'Missing' not in context.parameters
-    assert context.parameters['Absent'] is None
-    calls.append(30)
-    return Prepared()
-
-
-register_configuration(Prepared, prepare)
-
-
-@native_block_type(registry, has_native_state=True, data_type=Prepared)
+@native_block_type(registry, has_native_state=True)
 class ValuesProbe(wirely.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -65,6 +51,7 @@ class ValuesProbe(wirely.NativeState):
         assert self.values['retained'] == 20
         assert context.inputs['Number'] is self.inputs['Number']
         assert not hasattr(self, 'parameters')
+        assert not hasattr(context, 'configuration')
         assert not hasattr(context, 'parameters')
         with checks.assertRaises(TypeError):
             context.values['Number'] = 1
@@ -73,6 +60,7 @@ class ValuesProbe(wirely.NativeState):
 
     def run(self, *, context):
         contexts.append(context)
+        assert not hasattr(context, 'configuration')
         assert not hasattr(context, 'parameters')
         assert list(context.values) == [
             'seed', 'Missing', 'alias', 'Absent', 'Default', 'type', 'mode',
@@ -166,7 +154,7 @@ with patch.dict(wirely.native.test_library.native_block_types, registry), \
     assert graph is not None
     assert calls == []
     program = program_compiler.compile_nocatch(graph)
-    assert calls == [7, 10, True, 20, 30, 8, 10, True, 20, 30, 40, 40]
+    assert calls == [7, 10, True, 20, 8, 10, True, 20, 40, 40]
     runtime = wirely.Engine(program)
     second_engine = wirely.Engine(program)
     runtime.step()
@@ -176,10 +164,12 @@ with patch.dict(wirely.native.test_library.native_block_types, registry), \
     runtime.trigger('first', 'run')
     runtime.step()
     second_engine.step()
-    assert calls == [7, 10, True, 20, 30, 8, 10, True, 20, 30, 40, 40]
+    assert calls == [7, 10, True, 20, 8, 10, True, 20, 40, 40]
 
 # Runtime model construction copies and freezes caller-owned mappings.
 instance = program.instances['first']
+assert not hasattr(instance, 'configuration')
+assert not hasattr(ValuesProbe, 'native_block_data_type')
 mutable = {'key': 1}
 modified = replace(instance, initializer_values=mutable)
 mutable['key'] = 2

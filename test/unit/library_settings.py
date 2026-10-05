@@ -121,7 +121,6 @@ for edge in ('Rising', 'Falling', 'Both'):
     program, node = block_program('Std.DetectEdge', {'EdgeType': json.dumps(edge)},
                                   forward=('EdgeType', 'String'))
     assert dict(procedure(program, node, 'run').values) == {'EdgeType': edge}
-    assert program.instances[node].configuration is None
 reject('Std.DetectEdge', {'EdgeType': '"invalid"'},
        'EdgeType must be Rising, Falling, or Both', 'std', forward=('EdgeType', 'String'))
 

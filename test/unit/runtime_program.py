@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from dataclasses import dataclass, fields, is_dataclass, replace
+from dataclasses import fields, is_dataclass, replace
 import subprocess
 import sys
 from textwrap import dedent
@@ -12,8 +12,8 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.std
 import wirely.native.test_library
+from wirely.compiler.native_functions import native_function_impls
 from wirely.native import native_block_type
-from wirely.compiler.native_configuration import register_configuration
 
 
 checks = TestCase()
@@ -34,12 +34,12 @@ subprocess.run([sys.executable, '-c', dedent('''
     compiler_modules = {
         'wirely.compiler.ast', 'wirely.compiler.parser', 'wirely.compiler.block', 'wirely.compiler.block_type',
         'wirely.compiler.node', 'wirely.compiler.parameters', 'wirely.compiler.value',
-        'wirely.compiler.program', 'wirely.compiler.native_configuration',
+        'wirely.compiler.program',
     }
     unexpected = {
         name for name in sys.modules
         if name in compiler_modules or name == 'lark' or name.startswith((
-            'lark.', 'wirely.compiler', 'wirely.compiler.native_preparation',
+            'lark.', 'wirely.compiler',
         ))
     }
     assert not unexpected, unexpected
@@ -130,16 +130,8 @@ with checks.assertRaisesRegex(ValueError, 'Unknown procedure'):
 registry = {}
 
 
-@dataclass(frozen=True)
-class Prepared:
-    label: str
-
-
 def prepare_prepared(*, context):
-    return Prepared(context.parameters['Label'])
-
-
-register_configuration(Prepared, prepare_prepared)
+    return context.arguments['type'].make_struct({'label': context.arguments['label']})
 
 
 @native_block_type(registry, has_native_state=True)
@@ -147,7 +139,7 @@ class Provider(blocks.NativeState):
     pass
 
 
-@native_block_type(registry, has_native_state=True, data_type=Prepared)
+@native_block_type(registry, has_native_state=True)
 class Consumer(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -160,7 +152,7 @@ class Consumer(blocks.NativeState):
         self.trigger('refresh')
 
     def refresh(self, *, context):
-        assert context.configuration.label == 'prepared'
+        assert context.values['prepared']['label'] == 'prepared'
         assert context.inputs['service'] is self.inputs['service']
         assert context.inputs['services'] == self.inputs['services']
         self.calls += 1
@@ -178,15 +170,21 @@ class Consumer(blocks.NativeState):
         context.set_result('output', context.inputs['value'])
 
 
-with patch.dict(wirely.native.test_library.native_block_types, registry):
+with patch.dict(wirely.native.test_library.native_block_types, registry), \
+        patch.dict(native_function_impls, {('TestLibrary', 'Prepare'): prepare_prepared}):
     graph = wirely.compiler.compile_strs([('<runtime-resources>', '''
 namespace TestLibrary {
   resource type Service;
+  struct type Prepared {
+    label: String,
+  }
+  native function Prepare(type: ValueType, label: String): Prepared;
   singleton native node type Provider {
     default output: resource Service;
   }
   native node type Consumer {
     parameter Label: String;
+    constant PreparedValue: Prepared = Prepare(Prepared, Label);
     input Service: resource Service;
     input Services: multi resource Service;
     state saved: boolean = false;
@@ -195,11 +193,13 @@ namespace TestLibrary {
     connect saved.old -> Old;
     connect saved.new -> New;
     default output: value boolean;
-    native initializer depends on Service as "service", Services as "services";
+    native initializer depends on Service as "service", Services as "services"
+      uses PreparedValue as prepared;
     native procedure Poll as "refresh"
       depends on Service as "service", Services as "services",
         saved.old as "value"
-      produces saved;
+      produces saved
+      uses PreparedValue as prepared;
     native procedure read
       depends on saved.new as "value"
       produces default output as "output";
@@ -219,7 +219,7 @@ connect provider, provider_alias -> consumer.Services;
 
 consumer = first.get_native_state('consumer')
 other_consumer = other.get_native_state('consumer')
-assert consumer.context.configuration is resource_program.instances['consumer'].configuration
+assert consumer.values['prepared'] is resource_program.instances['consumer'].initializer_values['prepared']
 assert consumer is not other_consumer
 assert consumer.inputs['service'] is not other_consumer.inputs['service']
 assert consumer.inputs['service'] is first.get_native_state_singleton('TestLibrary.Provider')

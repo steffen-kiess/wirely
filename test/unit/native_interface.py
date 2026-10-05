@@ -357,14 +357,14 @@ class TriggerProbe(blocks.NativeState):
         assert self.values is context.values
         assert self.inputs is context.inputs
         assert not context.values and not context.inputs
-        assert context.configuration is None
+        assert not hasattr(context, 'configuration')
         assert not hasattr(context, 'trigger')
         assert not hasattr(context, 'shutdown_time')
         for target in [self, context]:
             for name in ['engine', 'block_path', 'block', 'block_type',
                          'block_or_singleton', 'static_block_context']:
                 assert not hasattr(target, name)
-        for name in ['name', 'values', 'inputs', 'configuration']:
+        for name in ['name', 'values', 'inputs']:
             with checks.assertRaises(AttributeError):
                 setattr(context, name, None)
         with checks.assertRaises(AttributeError):
@@ -375,6 +375,7 @@ class TriggerProbe(blocks.NativeState):
         assert not self.calls
 
     def refresh(self, *, context):
+        assert not hasattr(context, 'configuration')
         assert not hasattr(context, 'trigger')
         assert context.name == self.context.name
         self.calls.append('refresh')

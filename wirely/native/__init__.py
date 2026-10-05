@@ -1,16 +1,14 @@
 import importlib
-import typing
 
 from wirely.util import check_parameters
 
 
 @check_parameters
-def native_block_type(namespace_dict, *, has_native_state: bool, data_type: typing.Optional[type] = None):
+def native_block_type(namespace_dict, *, has_native_state: bool):
     def native_block_type_impl(cls):
         cls_name = cls.__name__
 
         cls.native_block_has_native_state = has_native_state
-        cls.native_block_data_type = data_type
 
         if cls_name in namespace_dict:
             raise Exception(f'Duplicate native block name {cls_name!r}')

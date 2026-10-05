@@ -196,11 +196,11 @@ node type Checked {
 }
 ```
 
-Assertions run in declaration order after constants resolve, before native
-configuration preparation, once per instance (once for the root and each
-instantiated singleton). A false condition stops compilation. Unused node types have their
-assertions checked but do not evaluate them. Assertions generate no runtime
-code. Messages may also use raw string literals.
+Assertions run in declaration order after constants resolve, before initializer
+bindings, once per instance (once for the root and each instantiated singleton).
+A false condition stops compilation. Unused node types have their assertions
+checked but do not evaluate them. Assertions generate no runtime code. Messages
+may also use raw string literals.
 
 Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
 unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
@@ -457,7 +457,7 @@ connectors, not events or multi inputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
-results. They cannot access resources, configuration, clocks, or deadlines.
+results. They cannot access resources, clocks, or deadlines.
 The engine runs them initially and when dependencies change, retaining
 results while dependencies are unchanged. Immutable locals and
 single-assignment results keep these transformations easy to reason about.

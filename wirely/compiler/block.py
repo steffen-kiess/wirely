@@ -3,8 +3,7 @@ import abc
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
 from .attributes import copy_attributes
-from wirely.compiler.native_configuration import configuration_factory
-from wirely.compiler.parameters import ParameterValues, native_parameters, parameter_origins
+from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
@@ -533,32 +532,10 @@ class BlockInstance(blocks.NodeInstance):
             initializer.uses if initializer is not None else None, self,
         )
 
-        self.parameter_origins = parameter_origins(self)
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)
-        source = self.block.instantiation if self.block is not None else self.block_type
         name = Block.path_name(self.path, qualified=True) or '<global>'
-        context = blocks.NativeNodeConfigurationContext(
-            name=name, parameters=parameters, _source=source,
-            _origins={key.name.id_str: value for key, value in self.parameter_origins.items()},
-        )
-        native_class = self.block_type.native_class
-        configuration = None
-        if native_class is not None:
-            data_type = native_class.native_block_data_type
-            if data_type is not None:
-                try:
-                    factory = configuration_factory(data_type, self.block_type.fullname_tuple)
-                    configuration = factory(context=context)
-                except blocks.ProgramError:
-                    raise
-                except ValueError as error:
-                    raise context.error(str(error)) from error
-                except Exception as error:
-                    raise blocks.InternalCompilerError(source, error, msg=f'Error while preparing configuration: {error}') from error
-        self.static_context = blocks.StaticBlockContext(
-            name=name, parameters=parameters, configuration=configuration,
-        )
+        self.static_context = blocks.StaticBlockContext(name=name, parameters=parameters)
 
     @property
     def path(self):
