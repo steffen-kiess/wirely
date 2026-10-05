@@ -43,6 +43,50 @@ class UnaryExpression(Expression):
         self.operand = operand
 
 
+class PropertyAccess(Expression):
+    def __init__(self, receiver, name, *, source_position):
+        super().__init__(source_position=source_position)
+        self.receiver = receiver
+        self.name = name
+
+
+def property_reference(scope, expression, local_names=()):
+    """Split value suffixes while preserving qualified declaration references."""
+    if not isinstance(expression, blocks.Reference) or expression.length < 2:
+        return expression
+    identifiers = expression.identifiers
+    enum_reference = blocks.Reference.from_list(*identifiers[:-1],
+                                                source_position=expression.source_position)
+    try:
+        value_type = scope.resolve_type(enum_reference)
+    except ProgramError:
+        value_type = None
+    if isinstance(value_type, blocks.types.TypeEnum):
+        return expression
+    root = identifiers[0].id_str
+    if (root in local_names or root in scope.static_declarations
+            or root in ('true', 'false', 'None')):
+        split = 1
+    else:
+        # An enum member is a value, but the enum's namespace path is not.
+        for split in range(2, expression.length):
+            enum_reference = blocks.Reference.from_list(
+                *identifiers[:split - 1], source_position=expression.source_position)
+            try:
+                value_type = scope.resolve_type(enum_reference)
+            except ProgramError:
+                continue
+            if isinstance(value_type, blocks.types.TypeEnum):
+                break
+        else:
+            return expression
+    receiver = blocks.Reference.from_list(*identifiers[:split],
+                                         source_position=expression.source_position)
+    for name in identifiers[split:]:
+        receiver = PropertyAccess(receiver, name, source_position=expression.source_position)
+    return receiver
+
+
 class IfExpression(Expression):
     def __init__(self, condition, then, otherwise, *, source_position):
         super().__init__(source_position=source_position)
@@ -126,6 +170,11 @@ class TypedExpression:
             check_value_type(condition.value_type, boolean, condition.source)
             check_value_type(otherwise.value_type, then.value_type, otherwise.source)
             check_value_type(then.value_type, self.value_type, then.source)
+        elif self.operation in ('is_some', 'is_none'):
+            receiver = self.arguments[0]
+            if (not receiver.value_type.contains_parameters
+                    and not isinstance(receiver.value_type, blocks.types.TypeOption)):
+                raise ProgramError(self.source, 'Option presence properties require an Option value')
 
     def evaluate(self, inputs, locals):
         if self.operation == 'constant':
@@ -187,6 +236,7 @@ class ExpressionCompiler:
         self.static_usage = set()
 
     def record_static_usage(self, expression):
+        expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, blocks.Reference):
             if expression.length == 1:
                 declaration = self.scope.static_declarations.get(expression.identifiers[0].id_str)
@@ -219,6 +269,7 @@ class ExpressionCompiler:
         return slot, expression
 
     def compile(self, expression, expected=None):
+        expression = property_reference(self.scope, expression, self.names)
         if self.runtime:
             self.record_static_usage(expression)
         result = replace(self._compile(expression, expected), source=expression,
@@ -230,6 +281,16 @@ class ExpressionCompiler:
 
     def _compile(self, expression, expected):
         boolean = blocks.types.boolean
+        if isinstance(expression, PropertyAccess):
+            name = expression.name.id_str
+            if name not in ('IsSome', 'IsNone'):
+                raise ProgramError(expression.name, f'Unknown option property {name!r}')
+            receiver = self.compile(expression.receiver)
+            return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
+                                   (receiver,))
+        if (isinstance(expression, blocks.FunctionCall)
+                and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
+            raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
         if isinstance(expression, blocks.ParameterOption):
             if self.runtime:
                 raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
@@ -342,6 +403,8 @@ class ExpressionCompiler:
             self.check_runtime_syntax(expression.right)
         elif isinstance(expression, UnaryExpression):
             self.check_runtime_syntax(expression.operand)
+        elif isinstance(expression, PropertyAccess):
+            self.check_runtime_syntax(expression.receiver)
         elif isinstance(expression, IfExpression):
             self.check_runtime_syntax(expression.condition)
             self.check_runtime_syntax(expression.then)
@@ -360,6 +423,9 @@ class ExpressionCompiler:
         return self.known_type(expression)
 
     def known_type(self, expression):
+        expression = property_reference(self.scope, expression, self.names)
+        if isinstance(expression, PropertyAccess):
+            return blocks.types.boolean
         if isinstance(expression, blocks.ParameterOption):
             parameter = expression.declaration(self.scope, self.names)
             return blocks.types.TypeOption(parameter.type_resolved)

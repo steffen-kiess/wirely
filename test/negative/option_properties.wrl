@@ -1,0 +1,143 @@
+// LIBRARIES: std
+
+// TEST: Boolean receiver
+constant Bad: boolean = true.IsSome; // E: require an Option value
+
+// TEST: integer receiver
+constant Bad: boolean = (7).IsNone; // E: require an Option value
+
+// TEST: enum receiver
+namespace Names {
+  enum type Mode: uint8 { IsSome = 1, IsNone = 2, }
+}
+constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: require an Option value
+
+// TEST: type descriptor receiver
+constant Type: ValueType = boolean;
+constant Bad: boolean = Type.IsSome; // E: require an Option value
+
+// TEST: unresolved None
+constant Bad: boolean = None.IsNone; // E: Cannot infer expression type
+
+// TEST: parenthesized unresolved None
+constant Bad: boolean = (None).IsSome; // E: Cannot infer expression type
+
+// TEST: unresolved Some
+constant Bad: boolean = Some(true).IsSome; // E: Some requires an Option type
+
+// TEST: unresolved nested Some
+constant Bad: boolean = Some(None).IsSome; // E: Some requires an Option type
+
+// TEST: unresolved block result
+constant Bad: boolean = { None }.IsNone; // E: Cannot infer expression type
+
+// TEST: unknown reference property
+constant Value: Option[boolean] = None;
+constant Bad: boolean = Value.Unknown; // E: Unknown option property 'Unknown'
+
+// TEST: unknown postfix property
+constant Bad: boolean = { let value: Option[boolean] = None; value }.Unknown; // E: Unknown option property 'Unknown'
+
+// TEST: property call
+constant Value: Option[boolean] = None;
+constant Bad: boolean = Value.IsSome(); // E: properties cannot be called
+
+// TEST: parenthesized property call
+constant Value: Option[boolean] = None;
+constant Bad: boolean = (Value).IsNone(); // E: properties cannot be called
+
+// TEST: call result property call
+constant Bad: boolean = TimeOfDay.AddWrap("08:00", "01:00").IsSome(); // E: properties cannot be called
+
+// TEST: chained properties
+constant Value: Option[boolean] = None;
+constant Bad: boolean = Value.IsSome.IsNone; // E: require an Option value
+
+// TEST: parameter-dependent receiver rejected after resolution
+node type Probe {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  constant Bad: boolean = Value.IsSome; // E: require an Option value
+}
+node probe: Probe { Type: boolean, Value: true } // H: While instantiating
+
+// TEST: runtime non-option receiver
+node type Probe {
+  parameter Value: boolean = false;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Value.IsNone; // E: require an Option value
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime unresolved None
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = None.IsSome; // E: Cannot infer expression type
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime unknown property
+node type Probe {
+  parameter Value: Option[boolean] = None;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Value.Unknown; // E: Unknown option property 'Unknown'
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime property call
+node type Probe {
+  parameter Value: Option[boolean] = None;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Value.IsSome(); // E: properties cannot be called
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime generic non-option receiver
+node type Probe {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = Value.IsSome; // E: require an Option value
+  }
+}
+node probe: Probe { Type: int8, Value: 7 }
+
+// TEST: property does not narrow or unwrap
+node type Probe {
+  parameter Value: Option[boolean] = Some(true);
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = if Value.IsSome { Value } else { false }; // E: Expected value of type boolean
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime calls remain unsupported
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = TimeOfDay.AddWrap("08:00", "01:00").IsSome; // E: Runtime calls
+  }
+}
+node probe: Probe {}
+
+// TEST: runtime call hidden in property receiver
+struct type Settings { flag: boolean }
+node type Probe {
+  default output: value Settings;
+  procedure run produces default output as output {
+    output = Settings {
+      flag: TimeOfDay.AddWrap("08:00", "01:00").IsSome, // E: Runtime calls
+    };
+  }
+}
+node probe: Probe {}

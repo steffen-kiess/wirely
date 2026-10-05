@@ -25,6 +25,10 @@ class Expression:
         left = self.arguments[0].evaluate(inputs, locals)
         if operation == 'not':
             return not left
+        if operation == 'is_some':
+            return left is not None
+        if operation == 'is_none':
+            return left is None
         if operation == 'and':
             return left and self.arguments[1].evaluate(inputs, locals)
         if operation == 'or':

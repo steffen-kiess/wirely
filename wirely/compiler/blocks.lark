@@ -90,8 +90,9 @@ list_specifier: "multi" -> list_specifier__create_list
                     | unary_expression "!=" unary_expression -> binary_expression__not_equal
 ?unary_expression: atom
                  | "!" unary_expression -> unary_expression
-?atom: reference "{" struct_literal_field_list "}" -> struct_literal
-     | reference -> copy
+?atom: reference -> copy
+     | postfix_atom
+?postfix_atom: reference "{" struct_literal_field_list "}" -> struct_literal
      | int_number -> copy
      | float_number -> copy
      | string_constant -> copy
@@ -99,6 +100,7 @@ list_specifier: "multi" -> list_specifier__create_list
      | "(" value ")" -> copy
      | atom "[" value "]" -> bracket_operator
      | atom "(" value_list ")" -> function_call__create
+     | postfix_atom "." identifier -> property_access
      | "[" value_list "]" -> list_literal
      | if_expression
      | expression_block
@@ -117,11 +119,14 @@ if_expression: "if" condition expression_block "else" expression_block
 ?condition_unary: condition_atom
                 | "!" condition_unary -> unary_expression
 ?condition_atom: reference -> copy
-               | int_number -> copy
+               | condition_postfix
+?condition_postfix: int_number -> copy
                | float_number -> copy
                | string_constant -> copy
                | "(" value ")" -> copy
                | condition_atom "(" value_list ")" -> function_call__create
+               | condition_postfix "." identifier -> property_access
+               | expression_block
 
 expression_block: "{" local_binding* value "}"
 procedure_body: "{" procedure_statement* "}"

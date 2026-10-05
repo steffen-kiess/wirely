@@ -444,6 +444,9 @@ without a semicolon. These expressions also work in parameter values and
 other compile-time expressions. Functions available at compile time cannot
 be called in procedure bodies.
 
+For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
+when absent.
+
 Procedures can copy any runtime value, including options and structs.
 Their connector dependencies and results currently use single `value`
 connectors, not events or multi inputs. State reads must be listed in

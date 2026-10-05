@@ -687,7 +687,11 @@ class Scope(Declaration):
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
-            from .expressions import Expression, compile_constant
+            from .expressions import Expression, PropertyAccess, compile_constant, property_reference
+            value = property_reference(self, value)
+            if (isinstance(value, FunctionCall)
+                    and isinstance(property_reference(self, value.fun), PropertyAccess)):
+                raise ProgramError(value, 'Option properties cannot be called; omit parentheses')
             if isinstance(value, ParameterOption):
                 parameter = value.declaration(self)
                 result = blocks.value.ParameterOptionValue(parameter, ast_element=value)
