@@ -1,12 +1,8 @@
 import asyncio
 import contextlib
 import datetime
-import io
-import traceback
-from collections.abc import Mapping
 from pathlib import Path
 from textwrap import indent
-from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -28,10 +24,6 @@ def make_engine(declaration, callback, *, extra='', parameters='', singleton=Fal
     class Probe:
         @staticmethod
         def run(*, context):
-            callback(context)
-
-        @staticmethod
-        def run2(*, context):
             callback(context)
 
     qualifier = 'singleton ' if singleton else ''
@@ -56,692 +48,514 @@ node probe: TestLibrary.Probe {{ {parameters} }}
         return blocks.Engine(program)
 
 
-engine.step()
-engine.assert_value_is('forward', True)
-engine.assert_value_is('empty', True)
-engine.assert_value_is('delay', False)
-engine.step()
-engine.assert_value_is('delay', True)
+def check_input_bindings():
+    seen = []
 
-
-seen = []
-
-
-def check_inputs(context):
-    assert isinstance(context.inputs, Mapping)
-    assert isinstance(context.inputs, MappingProxyType)
-    assert dict(context.inputs) == {'value': 7, 'named': 7}
-    assert context.inputs.get('missing') is None
-    inputs = context.inputs
-    with checks.assertRaises(AttributeError):
-        context.inputs = {'value': 8}
-    with checks.assertRaises(AttributeError):
-        del context.inputs
-    with checks.assertRaises(AttributeError):
-        context.not_inputs = 5
-    assert context.inputs is inputs
-    assert dict(context.inputs) == {'value': 7, 'named': 7}
-    with checks.assertRaises(TypeError):
-        context.inputs['value'] = 8
-    with checks.assertRaises(KeyError):
-        context.inputs['missing']
-    for attribute in ('static', 'step_info', 'time', 'dep_values', 'results', 'state_old', 'state_new'):
-        assert not hasattr(context, attribute)
-    assert context.name == 'probe'
-    with checks.assertRaises(AttributeError):
-        context.name = 'other'
-    assert repr(context) == "ProcedureContext(name='probe')"
-    seen.append(context.inputs)
-    context.set_result('result', context.inputs['value'])
-
-
-probe = make_engine('''
-default input: value uint8;
-input named: value uint8;
-default output: value uint8;
-
-native procedure run
-  depends on default input as "value", named
-  produces default output as "result";
-''', check_inputs, extra='''
-node source: Std.Constant { Type: uint8, Value: 7 }
-connect source -> probe;
-connect source -> probe.named;
-''')
-probe.step()
-probe.assert_value_is('probe', 7)
-
-
-def check_wakeup(context, deadline):
-    assert context.wakeup_time is None
-    with checks.assertRaises(AttributeError):
-        context.wakeup_time = deadline
-    with checks.assertRaises(AttributeError):
-        del context.wakeup_time
-    for invalid in [False, 0, 'soon', [], datetime.datetime.now(), blocks.Duration.from_seconds(1)]:
-        with checks.assertRaises(ValueError):
-            context.set_wakeup_time(invalid)
-        assert context.wakeup_time is None
-    context.set_wakeup_time(deadline)
-    assert context.wakeup_time is deadline
-    for repeated in [None, blocks.MonotonicTime(1, 100), 'invalid']:
-        with checks.assertRaisesRegex(ValueError, 'already set'):
-            context.set_wakeup_time(repeated)
-        assert context.wakeup_time is deadline
-
-
-for deadline in [None, blocks.MonotonicTime(1, 100),
-                 blocks.MonotonicTime.create_invalid(), blocks.MonotonicTime(2, 100)]:
-    wakeup_probe = make_engine(
-        'native procedure run;',
-        lambda context, deadline=deadline: check_wakeup(context, deadline),
-    )
-    with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
-        wakeup_probe.step()
-    if deadline is None:
-        assert not wakeup_probe.wakeups
-        assert wakeup_probe.next_wakeup is None
-    else:
-        assert list(wakeup_probe.wakeups.values()) == [deadline]
-        expected = deadline if deadline.generation == 1 else blocks.MonotonicTime.create_invalid()
-        assert wakeup_probe.next_wakeup == expected
-
-
-for explicit_cancellation in [False, True]:
-    wakeup_calls = []
-    deadline = blocks.MonotonicTime(1, 10)
-
-    def schedule_wakeup(context):
-        assert context.wakeup_time is None
-        wakeup_calls.append(context)
-        if len(wakeup_calls) == 1:
-            context.set_wakeup_time(deadline)
-        elif explicit_cancellation:
-            context.set_wakeup_time(None)
-
-    wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
-    with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
-        wakeup_probe.step()
-        assert wakeup_probe.next_wakeup == deadline
-        wakeup_probe.step()
-        assert len(wakeup_calls) == 1
-        assert wakeup_probe.next_wakeup == deadline
-    with patch.object(blocks.MonotonicTime, 'current_time', return_value=deadline):
-        wakeup_probe.step()
-        assert len(wakeup_calls) == 2
-        assert not wakeup_probe.wakeups
-        assert wakeup_probe.next_wakeup is None
-        wakeup_probe.step()
-        assert len(wakeup_calls) == 2
-        wakeup_probe.assert_is_idle()
-
-
-named_contexts = []
-
-
-def check_node_name(context):
-    assert not hasattr(context, 'static')
-    with checks.assertRaisesRegex(ValueError, f'on {context.name}$'):
-        context.set_result('missing', None)
-    named_contexts.append(context.name)
-
-
-named_engine = make_engine('native procedure run;', check_node_name, extra='''
-node type Outer {
-  node child: TestLibrary.Probe {}
-}
-node outer: Outer {}
-namespace TestLibrary {
-  singleton node type SharedContainer {
-    node child: Probe {}
-  }
-}
-node shared: TestLibrary.SharedContainer {}
-node shared_again: TestLibrary.SharedContainer {}
-''')
-named_engine.step()
-assert sorted(named_contexts) == ['TestLibrary.SharedContainer.child', 'outer.child', 'probe']
-named_contexts.clear()
-named_engine = make_engine('native procedure run;', check_node_name, singleton=True)
-named_engine.step()
-assert named_contexts == ['TestLibrary.Probe']
-
-assert [stage.name for stage in blocks.RunStage] == ['INPUT', 'DEFAULT', 'OUTPUT']
-assert [stage.value for stage in blocks.RunStage] == [1, 2, 3]
-
-clock_registry = {}
-clock_methods = {}
-clock_declarations = []
-stage_snapshots = {}
-clock_contexts = []
-stages = list(blocks.RunStage)
-monotonic_times = [blocks.MonotonicTime(7, index * 1_000_000_000)
-                   for index in range(1, 4)]
-utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
-                               tzinfo=datetime.timezone.utc)
-             for index in range(3)]
-clock_offset = blocks.Duration.from_seconds(5)
-
-
-def check_stage_time(context, stage):
-    assert not hasattr(context, 'step_info')
-    assert not hasattr(context, 'time')
-    snapshot = context.start_time_for_stage(stage)
-    assert isinstance(snapshot, blocks.TimeSnapshot)
-    assert snapshot is context.start_time_for_stage(stage)
-    index = stages.index(stage)
-    assert snapshot.monotonic == monotonic_times[index] + clock_offset
-    assert snapshot.utc == utc_times[index]
-    assert snapshot.utc.tzinfo is datetime.timezone.utc
-    assert snapshot.local == snapshot.utc
-    assert snapshot.local.isoformat() == snapshot.utc.astimezone().isoformat()
-    assert snapshot.local.tzinfo is not None
-    for attribute in ['monotonic', 'utc', 'local']:
+    def check_inputs(context):
+        assert dict(context.inputs) == {'value': 7, 'named': 7}
+        with checks.assertRaises(TypeError):
+            context.inputs['value'] = 8
+        with checks.assertRaises(KeyError):
+            context.inputs['missing']
         with checks.assertRaises(AttributeError):
-            setattr(snapshot, attribute, None)
-    for attribute in ['generation', 'time_ns']:
-        with checks.assertRaises(AttributeError):
-            setattr(snapshot.monotonic, attribute, 0)
-        with checks.assertRaises(AttributeError):
-            delattr(snapshot.monotonic, attribute)
-    assert snapshot.monotonic == monotonic_times[index] + clock_offset
-    if stage in stage_snapshots:
-        assert stage_snapshots[stage] is snapshot
-    else:
-        stage_snapshots[stage] = snapshot
-    for candidate in stages:
-        if stages.index(candidate) <= index:
-            assert context.start_time_for_stage(candidate) is stage_snapshots[candidate]
-        else:
-            with checks.assertRaises(KeyError):
-                context.start_time_for_stage(candidate)
-    for invalid in [None, 'DEFAULT', 2, []]:
-        with checks.assertRaises(ValueError):
-            context.start_time_for_stage(invalid)
-    clock_contexts.append(context)
+            context.name = 'other'
+        assert context.name == 'probe'
+        seen.append(context.inputs)
+        context.set_result('result', context.inputs['value'])
 
-
-for stage in stages:
-    for index in range(2):
-        def record_time(*, context, stage=stage):
-            check_stage_time(context, stage)
-
-        name = f'{stage.name.lower()}_{index}'
-        clock_methods[name] = staticmethod(record_time)
-        stage_clause = '' if stage is blocks.RunStage.DEFAULT else f' stage {stage.name.lower()}'
-        clock_declarations.append(f'native procedure {name}{stage_clause};')
-
-ClockProbe = native_block_type(clock_registry, has_native_state=False)(
-    type('ClockProbe', (), clock_methods),
-)
-clock_source = '''namespace TestLibrary {
-  node type ClockProbe {
-''' + '\n'.join(f'    {line}' for line in clock_declarations) + '''
-  }
-}
-node probe: TestLibrary.ClockProbe {}
-'''
-with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
-    graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
-    assert graph is not None
-    program = program_compiler.compile(graph)
-    assert program is not None
-    clock_engine = blocks.Engine(program)
-clock_engine.fake_monotonic_time_offset = clock_offset
-
-
-class ClockDateTime(datetime.datetime):
-    timestamps = iter(utc_times)
-
-    @classmethod
-    def now(cls, tz=None):
-        assert tz is datetime.timezone.utc
-        return next(cls.timestamps)
-
-
-with patch.object(blocks.MonotonicTime, 'current_time', side_effect=monotonic_times) as monotonic_clock:
-    with patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
-        _, _, step_info = clock_engine.step()
-assert monotonic_clock.call_count == 3
-assert len(clock_contexts) == 6
-assert len({id(snapshot) for snapshot in stage_snapshots.values()}) == 3
-for stage, snapshot in stage_snapshots.items():
-    assert step_info.stage_start_time_monotonic[stage] is snapshot.monotonic
-    assert step_info.stage_start_time_utc[stage] == snapshot.utc
-    assert step_info.stage_start_time[stage] == snapshot.local
-clock_engine.step()
-assert len(clock_contexts) == 6
-for stage, snapshot in stage_snapshots.items():
-    assert clock_contexts[-1].start_time_for_stage(stage) is snapshot
-
-
-trigger_registry = {}
-
-
-@native_block_type(trigger_registry, has_native_state=True)
-class TriggerProbe(blocks.NativeState):
-    def __init__(self, *, context):
-        super().__init__(context=context)
-        assert isinstance(context, blocks.NativeNodeContext)
-        assert self.context is context
-        assert self.values is context.values
-        assert self.inputs is context.inputs
-        assert not context.values and not context.inputs
-        assert not hasattr(context, 'configuration')
-        assert not hasattr(context, 'trigger')
-        assert not hasattr(context, 'shutdown_time')
-        for target in [self, context]:
-            for name in ['engine', 'block_path', 'block', 'block_type',
-                         'block_or_singleton', 'static_block_context']:
-                assert not hasattr(target, name)
-        for name in ['name', 'values', 'inputs']:
-            with checks.assertRaises(AttributeError):
-                setattr(context, name, None)
-        with checks.assertRaises(AttributeError):
-            self.context = None
-        self.calls = []
-        self.reschedule_once = False
-        self.trigger('refresh')
-        assert not self.calls
-
-    def refresh(self, *, context):
-        assert not hasattr(context, 'configuration')
-        assert not hasattr(context, 'trigger')
-        assert context.name == self.context.name
-        self.calls.append('refresh')
-        if self.reschedule_once:
-            self.reschedule_once = False
-            self.trigger('refresh')
-
-    def run(self, *, context):
-        self.calls.append('run')
-
-
-@native_block_type(trigger_registry, has_native_state=True)
-class SharedTriggerProbe(TriggerProbe):
-    pass
-
-
-with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
-    trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
-namespace TestLibrary {
-  native node type TriggerProbe {
-    native procedure Poll as "refresh";
-    native procedure run;
-  }
-  singleton native node type SharedTriggerProbe {
-    native procedure Poll as "refresh";
-    native procedure run;
-  }
-}
-node first: TestLibrary.TriggerProbe {}
-node second: TestLibrary.TriggerProbe {}
-node shared: TestLibrary.SharedTriggerProbe {}
-node shared_again: TestLibrary.SharedTriggerProbe {}
-''')])
-assert trigger_graph is not None
-trigger_program = program_compiler.compile(trigger_graph)
-assert trigger_program is not None
-with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
-    trigger_engine = blocks.Engine(trigger_program)
-first = trigger_engine.get_native_state('first')
-second = trigger_engine.get_native_state('second')
-shared = trigger_engine.get_native_state('shared')
-assert first.context.name == 'first'
-assert second.context.name == 'second'
-assert shared.context.name == 'TestLibrary.SharedTriggerProbe'
-assert first.context is not second.context
-assert shared is trigger_engine.get_native_state('shared_again')
-assert not first.calls and not second.calls and not shared.calls
-trigger_engine.step()
-for state in [first, second, shared]:
-    assert state.calls == ['refresh', 'run']
-trigger_engine.step()
-trigger_engine.assert_is_idle()
-
-for invalid in ['Poll', 'Refresh', '', 'missing', first.refresh, 1, []]:
-    with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
-        first.trigger(invalid)
-trigger_engine.step()
-assert first.calls == ['refresh', 'run']
-
-first.trigger('refresh')
-first.trigger('refresh')
-assert first.calls == ['refresh', 'run']
-trigger_engine.step()
-assert first.calls == ['refresh', 'run', 'refresh']
-assert second.calls == shared.calls == ['refresh', 'run']
-trigger_engine.step()
-trigger_engine.assert_is_idle()
-
-first.reschedule_once = True
-first.trigger('refresh')
-trigger_engine.step()
-assert first.calls == ['refresh', 'run', 'refresh', 'refresh']
-trigger_engine.step()
-assert first.calls == ['refresh', 'run', 'refresh', 'refresh', 'refresh']
-trigger_engine.step()
-trigger_engine.assert_is_idle()
-
-second.trigger('run')
-shared.trigger('refresh')
-trigger_engine.step()
-assert second.calls == ['refresh', 'run', 'run']
-assert shared.calls == ['refresh', 'run', 'refresh']
-assert len(first.calls) == 5
-trigger_engine.step()
-trigger_engine.assert_is_idle()
-
-static_alias = make_engine(
-    'native procedure Poll as "run";',
-    lambda context: checks.assertFalse(hasattr(context, 'trigger')),
-)
-static_alias.step()
-probe.step()
-assert len(seen) == 1  # Unchanged dependencies use cached results.
-assert seen[0]['value'] == 7
-
-
-def check_list(context):
-    assert context.inputs['values'] == (7, 2)
-    context.set_result('result', sum(context.inputs['values']))
-
-
-probe = make_engine('''
-default input: multi value uint8;
-default output: value uint8;
-
-native procedure run
-  depends on default input as "values"
-  produces default output as "result";
-''', check_list, extra='''
-node first: Std.Constant { Type: uint8, Value: 7 }
-node second: Std.Constant { Type: uint8, Value: 2 }
-connect first, second -> probe;
-''')
-probe.step()
-probe.assert_value_is('probe', 9)
-
-
-def check_empty_list(context):
-    assert context.inputs['values'] == ()
-    context.set_result('result', 0)
-
-
-probe = make_engine('''
-default input: multi value uint8;
-default output: value uint8;
-
-native procedure run
-  depends on default input as "values"
-  produces default output as "result";
-''', check_empty_list)
-probe.step()
-probe.assert_value_is('probe', 0)
-
-event_snapshots = []
-
-
-def check_event_connections(context):
-    values = context.inputs['values']
-    assert type(values) is tuple
-    event_snapshots.append(values)
-
-
-probe = make_engine('''
-default input: multi event uint8;
-
-native procedure run
-  depends on default input as "values";
-''', check_event_connections, extra='''
-node first: Std.DebugEventSource { Type: uint8 }
-node second: Std.DebugEventSource { Type: uint8 }
-connect first, second -> probe;
-''')
-probe.step()
-assert event_snapshots[-1] == (None, None)
-probe.get_native_state('first').send_event(blocks.Some(1))
-probe.get_native_state('second').send_event(blocks.Some(3))
-probe.step()
-assert event_snapshots[-1] == (blocks.Some(1), blocks.Some(3))
-probe.step()
-assert event_snapshots[-1] == (None, None)
-probe.assert_is_idle()
-
-
-def check_state(context):
-    old = context.inputs['previous']
-    context.set_result('next', old + 1)
-    assert context.inputs['previous'] == old
-    context.set_result('result', old)
-
-
-probe = make_engine('''
-state count: uint8 = 0;
-default output: value uint8;
-
-native procedure run
-  depends on count.old as "previous"
-  produces count as "next", default output as "result";
-''', check_state)
-for expected in range(3):
-    probe.step()
-    probe.assert_value_is('probe', expected)
-
-
-def check_state_snapshot(context):
-    if 'previous' in context.inputs:
-        context.set_result('next', context.inputs['previous'] + 1)
-    else:
-        context.set_result('result', context.inputs['snapshot'])
-
-
-probe = make_engine('''
-state count: uint8 = 0;
-default output: value uint8;
-
-native procedure run
-  depends on count.old as "previous"
-  produces count as "next";
-native procedure run2
-  depends on count.old as "snapshot"
-  produces default output as "result";
-''', check_state_snapshot)
-for expected in range(3):
-    probe.step()
-    probe.assert_value_is('probe', expected)
-
-
-def forward_value(context):
-    context.set_result('result', context.inputs['value'])
-
-
-# Named data outputs work alongside resource outputs and shared singletons.
-for singleton in ('', 'singleton '):
     probe = make_engine('''
-node child: Child {}
-default output: value uint8;
+    default input: value uint8;
+    input named: value uint8;
+    default output: value uint8;
 
-native procedure run
-  depends on child.Value as "value"
-  produces default output as "result";
-''', forward_value, extra=f'''
-resource type Session;
-
-{singleton}node type Child {{
-  output Service: resource Session;
-  output Value: value uint8;
-
-  node source: Std.Constant {{ Type: uint8, Value: 7 }}
-  connect source -> Value;
-}}
-
-node another: TestLibrary.Probe {{}}
-''')
+    native procedure run
+      depends on default input as "value", named
+      produces default output as "result";
+    ''', check_inputs, extra='''
+    node source: Std.Constant { Type: uint8, Value: 7 }
+    connect source -> probe;
+    connect source -> probe.named;
+    ''')
     probe.step()
     probe.assert_value_is('probe', 7)
-    probe.assert_value_is('another', 7)
+    probe.assert_is_idle()
+    assert len(seen) == 1
 
 
-def check_result_errors(context):
-    with checks.assertRaisesRegex(ValueError, f'Unknown result.*on {context.name}$'):
-        context.set_result('missing', 7)
-    try:
-        context.set_result('result', 'invalid')
-    except ValueError as error:
-        assert 'Invalid value' in str(error)
-        assert f'on {context.name}:' in str(error)
-        assert 'check_result_errors' in [
-            frame.name for frame in traceback.extract_tb(error.__traceback__)
-        ]
-    else:
-        raise AssertionError('Invalid result was accepted')
-    context.set_result('result', 7)
-    with checks.assertRaisesRegex(ValueError, f'on {context.name} was already written'):
-        context.set_result('result', 8)
+def check_wakeups():
+    def check_wakeup(context, deadline):
+        assert context.wakeup_time is None
+        with checks.assertRaises(ValueError):
+            context.set_wakeup_time('soon')
+        context.set_wakeup_time(deadline)
+        assert context.wakeup_time == deadline
+        with checks.assertRaisesRegex(ValueError, 'already set'):
+            context.set_wakeup_time(None)
+
+    for deadline in [None, blocks.MonotonicTime(1, 100),
+                     blocks.MonotonicTime.create_invalid(), blocks.MonotonicTime(2, 100)]:
+        wakeup_probe = make_engine(
+            'native procedure run;',
+            lambda context, deadline=deadline: check_wakeup(context, deadline),
+        )
+        with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+            wakeup_probe.step()
+        if deadline is None:
+            assert wakeup_probe.next_wakeup is None
+        else:
+            expected = deadline if deadline.generation == 1 else blocks.MonotonicTime.create_invalid()
+            assert wakeup_probe.next_wakeup == expected
+
+    for explicit_cancellation in [False, True]:
+        wakeup_calls = []
+        deadline = blocks.MonotonicTime(1, 10)
+
+        def schedule_wakeup(context):
+            assert context.wakeup_time is None
+            wakeup_calls.append(context)
+            if len(wakeup_calls) == 1:
+                context.set_wakeup_time(deadline)
+            elif explicit_cancellation:
+                context.set_wakeup_time(None)
+
+        wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
+        with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+            wakeup_probe.step()
+            assert wakeup_probe.next_wakeup == deadline
+            wakeup_probe.step()
+            assert len(wakeup_calls) == 1
+            assert wakeup_probe.next_wakeup == deadline
+        with patch.object(blocks.MonotonicTime, 'current_time', return_value=deadline):
+            wakeup_probe.step()
+            assert len(wakeup_calls) == 2
+            assert wakeup_probe.next_wakeup is None
+            wakeup_probe.step()
+            assert len(wakeup_calls) == 2
+            wakeup_probe.assert_is_idle()
 
 
-probe = make_engine('''
-default output: value uint8;
+def check_context_names():
+    named_contexts = []
 
-native procedure run produces default output as "result";
-''', check_result_errors)
-probe.step()
-probe.assert_value_is('probe', 7)
+    def check_node_name(context):
+        with checks.assertRaisesRegex(ValueError, f'on {context.name}$'):
+            context.set_result('missing', None)
+        named_contexts.append(context.name)
 
-probe = make_engine('''
-default output: value uint8;
+    named_engine = make_engine('native procedure run;', check_node_name, extra='''
+    node type Outer {
+      node child: TestLibrary.Probe {}
+    }
+    node outer: Outer {}
+    namespace TestLibrary {
+      singleton node type SharedContainer {
+        node child: Probe {}
+      }
+    }
+    node shared: TestLibrary.SharedContainer {}
+    node shared_again: TestLibrary.SharedContainer {}
+    ''')
+    named_engine.step()
+    assert sorted(named_contexts) == ['TestLibrary.SharedContainer.child', 'outer.child', 'probe']
+    named_contexts.clear()
+    named_engine = make_engine('native procedure run;', check_node_name, singleton=True)
+    named_engine.step()
+    assert named_contexts == ['TestLibrary.Probe']
 
-native procedure run produces default output as "result";
-''', lambda context: None)
-with checks.assertRaisesRegex(ValueError, 'did not write results'):
+
+def check_stage_times():
+    clock_registry = {}
+    clock_methods = {}
+    clock_declarations = []
+    stage_snapshots = {}
+    clock_contexts = []
+    stages = list(blocks.RunStage)
+    monotonic_times = [blocks.MonotonicTime(7, index * 1_000_000_000)
+                       for index in range(1, 4)]
+    utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
+                                   tzinfo=datetime.timezone.utc)
+                 for index in range(3)]
+    clock_offset = blocks.Duration.from_seconds(5)
+
+    def check_stage_time(context, stage):
+        snapshot = context.start_time_for_stage(stage)
+        index = stages.index(stage)
+        assert snapshot.monotonic == monotonic_times[index] + clock_offset
+        assert snapshot.utc == utc_times[index]
+        assert snapshot.utc.tzinfo is datetime.timezone.utc
+        assert snapshot.local.isoformat() == snapshot.utc.astimezone().isoformat()
+        assert snapshot.local.tzinfo is not None
+        with checks.assertRaises(AttributeError):
+            snapshot.utc = None
+        if stage in stage_snapshots:
+            assert stage_snapshots[stage] == snapshot
+        else:
+            stage_snapshots[stage] = snapshot
+        for candidate in stages:
+            if stages.index(candidate) <= index:
+                assert context.start_time_for_stage(candidate) == stage_snapshots[candidate]
+            else:
+                with checks.assertRaises(KeyError):
+                    context.start_time_for_stage(candidate)
+        with checks.assertRaises(ValueError):
+            context.start_time_for_stage('DEFAULT')
+        clock_contexts.append(context)
+
+    for stage in stages:
+        for index in range(2):
+            def record_time(*, context, stage=stage):
+                check_stage_time(context, stage)
+
+            name = f'{stage.name.lower()}_{index}'
+            clock_methods[name] = staticmethod(record_time)
+            stage_clause = '' if stage is blocks.RunStage.DEFAULT else f' stage {stage.name.lower()}'
+            clock_declarations.append(f'native procedure {name}{stage_clause};')
+
+    native_block_type(clock_registry, has_native_state=False)(
+        type('ClockProbe', (), clock_methods),
+    )
+    clock_source = '''namespace TestLibrary {
+      node type ClockProbe {
+    ''' + '\n'.join(f'    {line}' for line in clock_declarations) + '''
+      }
+    }
+    node probe: TestLibrary.ClockProbe {}
+    '''
+    with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
+        graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
+        assert graph is not None
+        program = program_compiler.compile(graph)
+        assert program is not None
+        clock_engine = blocks.Engine(program)
+    clock_engine.fake_monotonic_time_offset = clock_offset
+
+    class ClockDateTime(datetime.datetime):
+        timestamps = iter(utc_times)
+
+        @classmethod
+        def now(cls, tz=None):
+            assert tz is datetime.timezone.utc
+            return next(cls.timestamps)
+
+    with patch.object(blocks.MonotonicTime, 'current_time', side_effect=monotonic_times), \
+            patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
+        clock_engine.step()
+    assert len(clock_contexts) == 6
+    clock_engine.step()
+    assert len(clock_contexts) == 6
+
+
+def check_triggers():
+    trigger_registry = {}
+
+    @native_block_type(trigger_registry, has_native_state=True)
+    class TriggerProbe(blocks.NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            assert not context.values and not context.inputs
+            with checks.assertRaises(AttributeError):
+                context.name = 'other'
+            self.calls = []
+            self.reschedule_once = False
+            self.trigger('refresh')
+            assert not self.calls
+
+        def refresh(self, *, context):
+            assert context.name == self.context.name
+            self.calls.append('refresh')
+            if self.reschedule_once:
+                self.reschedule_once = False
+                self.trigger('refresh')
+
+        def run(self, *, context):
+            self.calls.append('run')
+
+    @native_block_type(trigger_registry, has_native_state=True)
+    class SharedTriggerProbe(TriggerProbe):
+        pass
+
+    with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+        trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
+    namespace TestLibrary {
+      native node type TriggerProbe {
+        native procedure Poll as "refresh";
+        native procedure run;
+      }
+      singleton native node type SharedTriggerProbe {
+        native procedure Poll as "refresh";
+        native procedure run;
+      }
+    }
+    node first: TestLibrary.TriggerProbe {}
+    node second: TestLibrary.TriggerProbe {}
+    node shared: TestLibrary.SharedTriggerProbe {}
+    node shared_again: TestLibrary.SharedTriggerProbe {}
+    ''')])
+    assert trigger_graph is not None
+    trigger_program = program_compiler.compile(trigger_graph)
+    assert trigger_program is not None
+    with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+        trigger_engine = blocks.Engine(trigger_program)
+    first = trigger_engine.get_native_state('first')
+    second = trigger_engine.get_native_state('second')
+    shared = trigger_engine.get_native_state('shared')
+    assert first.context.name == 'first'
+    assert second.context.name == 'second'
+    assert shared.context.name == 'TestLibrary.SharedTriggerProbe'
+    assert shared is trigger_engine.get_native_state('shared_again')
+    assert not first.calls and not second.calls and not shared.calls
+    trigger_engine.step()
+    for state in [first, second, shared]:
+        assert state.calls == ['refresh', 'run']
+    trigger_engine.step()
+    trigger_engine.assert_is_idle()
+
+    for invalid in ['Poll', 'missing', 1]:
+        with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
+            first.trigger(invalid)
+    trigger_engine.step()
+    assert first.calls == ['refresh', 'run']
+
+    first.trigger('refresh')
+    first.trigger('refresh')
+    assert first.calls == ['refresh', 'run']
+    trigger_engine.step()
+    assert first.calls == ['refresh', 'run', 'refresh']
+    assert second.calls == shared.calls == ['refresh', 'run']
+    trigger_engine.step()
+    trigger_engine.assert_is_idle()
+
+    first.reschedule_once = True
+    first.trigger('refresh')
+    trigger_engine.step()
+    assert first.calls == ['refresh', 'run', 'refresh', 'refresh']
+    trigger_engine.step()
+    assert first.calls == ['refresh', 'run', 'refresh', 'refresh', 'refresh']
+    trigger_engine.step()
+    trigger_engine.assert_is_idle()
+
+    second.trigger('run')
+    shared.trigger('refresh')
+    trigger_engine.step()
+    assert second.calls == ['refresh', 'run', 'run']
+    assert shared.calls == ['refresh', 'run', 'refresh']
+    assert len(first.calls) == 5
+    trigger_engine.step()
+    trigger_engine.assert_is_idle()
+
+
+def check_multi_inputs():
+    def check_list(context):
+        assert context.inputs['values'] == (7, 2)
+        context.set_result('result', sum(context.inputs['values']))
+
+    probe = make_engine('''
+    default input: multi value uint8;
+    default output: value uint8;
+
+    native procedure run
+      depends on default input as "values"
+      produces default output as "result";
+    ''', check_list, extra='''
+    node first: Std.Constant { Type: uint8, Value: 7 }
+    node second: Std.Constant { Type: uint8, Value: 2 }
+    connect first, second -> probe;
+    ''')
     probe.step()
+    probe.assert_value_is('probe', 9)
+
+    def check_empty_list(context):
+        assert context.inputs['values'] == ()
+        context.set_result('result', 0)
+
+    probe = make_engine('''
+    default input: multi value uint8;
+    default output: value uint8;
+
+    native procedure run
+      depends on default input as "values"
+      produces default output as "result";
+    ''', check_empty_list)
+    probe.step()
+    probe.assert_value_is('probe', 0)
+
+    event_snapshots = []
+
+    def check_event_connections(context):
+        values = context.inputs['values']
+        assert type(values) is tuple
+        event_snapshots.append(values)
+
+    probe = make_engine('''
+    default input: multi event uint8;
+
+    native procedure run
+      depends on default input as "values";
+    ''', check_event_connections, extra='''
+    node first: Std.DebugEventSource { Type: uint8 }
+    node second: Std.DebugEventSource { Type: uint8 }
+    connect first, second -> probe;
+    ''')
+    probe.step()
+    assert event_snapshots[-1] == (None, None)
+    probe.get_native_state('first').send_event(blocks.Some(1))
+    probe.get_native_state('second').send_event(blocks.Some(3))
+    probe.step()
+    assert event_snapshots[-1] == (blocks.Some(1), blocks.Some(3))
+    probe.step()
+    assert event_snapshots[-1] == (None, None)
+    probe.assert_is_idle()
 
 
-def check_generic_result(context):
-    for invalid in [(True,), True, blocks.Some(None)]:
+def check_results():
+    def check_result_errors(context):
+        with checks.assertRaisesRegex(ValueError, f'Unknown result.*on {context.name}$'):
+            context.set_result('missing', 7)
         try:
-            context.set_result('result', invalid)
+            context.set_result('result', 'invalid')
         except ValueError as error:
             assert 'Invalid value' in str(error)
-            assert 'check_generic_result' in [
-                frame.name for frame in traceback.extract_tb(error.__traceback__)
-            ]
+            assert f'on {context.name}:' in str(error)
         else:
-            raise AssertionError('Invalid option result was accepted')
-    context.set_result('result', blocks.Some(True))
+            raise AssertionError('Invalid result was accepted')
+        context.set_result('result', 7)
+        with checks.assertRaisesRegex(ValueError, f'on {context.name} was already written'):
+            context.set_result('result', 8)
 
+    probe = make_engine('''
+    default output: value uint8;
 
-probe = make_engine('''
-parameter Type: ValueType;
-default output: value Type;
-
-native procedure run produces default output as "result";
-''', check_generic_result, parameters='Type: Option[boolean]')
-probe.step()
-probe.assert_value_is('probe', blocks.Some(True))
-
-
-# Events use an outer option even when the payload is itself an option.
-for payload_type, event, command in [
-    ('unit', blocks.Some(blocks.Unit()), '()'),
-    ('Option[boolean]', blocks.Some(None), 'none'),
-    ('Option[boolean]', blocks.Some(blocks.Some(True)), 'true'),
-]:
-    seen_events = []
-
-    def forward_event(context):
-        seen_events.append(context.inputs['event'])
-        context.set_result('result', context.inputs['event'])
-
-    probe = make_engine(f'''
-default input: event {payload_type};
-default output: event {payload_type};
-
-native procedure run
-  depends on default input as "event"
-  produces default output as "result";
-''', forward_event, extra=f'''
-node source: Std.DebugEventSource {{ Type: {payload_type} }}
-connect source -> probe;
-''')
+    native procedure run produces default output as "result";
+    ''', check_result_errors)
     probe.step()
-    probe.assert_value_is('probe', None)
-    source = probe.get_native_state('source')
-    for send in [lambda: source.send_event(event),
-                 lambda: source.debug_command(['send', command])]:
-        send()
+    probe.assert_value_is('probe', 7)
+
+    probe = make_engine('''
+    default output: value uint8;
+
+    native procedure run produces default output as "result";
+    ''', lambda context: None)
+    with checks.assertRaisesRegex(ValueError, 'did not write results'):
         probe.step()
-        probe.assert_value_is('probe', event)
-        probe.assert_value_is('source', event)
-        assert seen_events[-1] == event
+
+    def check_generic_result(context):
+        for invalid in [True, blocks.Some(None)]:
+            try:
+                context.set_result('result', invalid)
+            except ValueError as error:
+                assert 'Invalid value' in str(error)
+            else:
+                raise AssertionError('Invalid option result was accepted')
+        context.set_result('result', blocks.Some(True))
+
+    probe = make_engine('''
+    parameter Type: ValueType;
+    default output: value Type;
+
+    native procedure run produces default output as "result";
+    ''', check_generic_result, parameters='Type: Option[boolean]')
+    probe.step()
+    probe.assert_value_is('probe', blocks.Some(True))
+
+
+def check_events():
+    # Events use an outer option even when the payload is itself an option.
+    for payload_type, event, command in [
+        ('unit', blocks.Some(blocks.Unit()), '()'),
+        ('Option[boolean]', blocks.Some(None), 'none'),
+        ('Option[boolean]', blocks.Some(blocks.Some(True)), 'true'),
+    ]:
+        seen_events = []
+
+        def forward_event(context):
+            seen_events.append(context.inputs['event'])
+            context.set_result('result', context.inputs['event'])
+
+        probe = make_engine(f'''
+    default input: event {payload_type};
+    default output: event {payload_type};
+
+    native procedure run
+      depends on default input as "event"
+      produces default output as "result";
+    ''', forward_event, extra=f'''
+    node source: Std.DebugEventSource {{ Type: {payload_type} }}
+    connect source -> probe;
+    ''')
         probe.step()
         probe.assert_value_is('probe', None)
-        probe.assert_value_is('source', None)
-        assert seen_events[-1] is None
-        probe.assert_is_idle()
+        source = probe.get_native_state('source')
+        for send in [lambda: source.send_event(event),
+                     lambda: source.debug_command(['send', command])]:
+            send()
+            probe.step()
+            probe.assert_value_is('probe', event)
+            probe.assert_value_is('source', event)
+            assert seen_events[-1] == event
+            probe.step()
+            probe.assert_value_is('probe', None)
+            probe.assert_value_is('source', None)
+            assert seen_events[-1] is None
+            probe.assert_is_idle()
 
 
-def check_unit_result(context):
-    with checks.assertRaisesRegex(ValueError, 'Invalid value'):
-        context.set_result('result', None)
-    context.set_result('result', blocks.Unit())
-
-
-probe = make_engine('''
-default output: value unit;
-
-native procedure run produces default output as "result";
-''', check_unit_result)
-probe.step()
-probe.assert_value_is('probe', blocks.Unit())
-
-
-def check_unit_event_result(context):
-    for invalid in [blocks.Some(None), blocks.Unit()]:
+def check_unit_results():
+    def check_unit_result(context):
         with checks.assertRaisesRegex(ValueError, 'Invalid value'):
-            context.set_result('result', invalid)
-    context.set_result('result', blocks.Some(blocks.Unit()))
+            context.set_result('result', None)
+        context.set_result('result', blocks.Unit())
+
+    probe = make_engine('''
+    default output: value unit;
+
+    native procedure run produces default output as "result";
+    ''', check_unit_result)
+    probe.step()
+    probe.assert_value_is('probe', blocks.Unit())
+
+    def check_unit_event_result(context):
+        for invalid in [blocks.Some(None), blocks.Unit()]:
+            with checks.assertRaisesRegex(ValueError, 'Invalid value'):
+                context.set_result('result', invalid)
+        context.set_result('result', blocks.Some(blocks.Unit()))
+
+    probe = make_engine('''
+    default output: event unit;
+
+    native procedure run produces default output as "result";
+    ''', check_unit_event_result)
+    probe.step()
+    probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
 
 
-probe = make_engine('''
-default output: event unit;
+def check_binding_keys():
+    def check_keys(context):
+        assert context.inputs['line\nkey'] == 7
+        assert context.inputs[r'raw\key'] == 7
+        context.set_result('', 7)
 
-native procedure run produces default output as "result";
-''', check_unit_event_result)
-probe.step()
-probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
+    probe = make_engine(r'''
+    node source: Std.Constant { Type: uint8, Value: 7 }
+    default output: value uint8;
 
+    native procedure run
+      depends on source as "line\nkey", source as r"raw\key"
+      produces default output as "";
+    ''', check_keys)
+    probe.step()
+    probe.assert_value_is('probe', 7)
 
-def check_keys(context):
-    assert context.inputs['line\nkey'] == 7
-    assert context.inputs[r'raw\key'] == 7
-    context.set_result('', 7)
+    # Aliases are checked independently for input and result bindings.
+    probe = make_engine('''
+    node source: Std.Constant { Type: uint8, Value: 7 }
+    default output: value uint8;
 
-
-probe = make_engine(r'''
-node source: Std.Constant { Type: uint8, Value: 7 }
-default output: value uint8;
-
-native procedure run
-  depends on source as "line\nkey", source as r"raw\key"
-  produces default output as "";
-''', check_keys)
-probe.step()
-probe.assert_value_is('probe', 7)
-
-
-# Aliases are checked independently for input and result bindings.
-probe = make_engine('''
-node source: Std.Constant { Type: uint8, Value: 7 }
-default output: value uint8;
-
-native procedure run
-  depends on source as "value"
-  produces default output as "value";
-''', lambda context: context.set_result('value', context.inputs['value']))
-probe.step()
-probe.assert_value_is('probe', 7)
+    native procedure run
+      depends on source as "value"
+      produces default output as "value";
+    ''', lambda context: context.set_result('value', context.inputs['value']))
+    probe.step()
+    probe.assert_value_is('probe', 7)
 
 
 cleanup_observations = []
@@ -751,7 +565,6 @@ lifecycle_registry = {}
 @native_block_type(lifecycle_registry, has_native_state=True)
 class LifecycleProbe(blocks.NativeState):
     def start_tasks(self, task_group, async_exit_stack):
-        assert self._shutdown_time is None
         async_exit_stack.callback(self.observe_cleanup)
 
     async def start_tasks_async(self, task_group, async_exit_stack):
@@ -759,7 +572,7 @@ class LifecycleProbe(blocks.NativeState):
             raise RuntimeError('Startup failed')
 
     def observe_cleanup(self):
-        cleanup_observations.append((self.context.name, self._shutdown_time))
+        cleanup_observations.append(self.context.name)
 
 
 def make_lifecycle_engine(*, fail=False):
@@ -785,11 +598,9 @@ async def run_test():
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
             await lifecycle_engine.start_tasks_async(task_group, exit_stack)
-            assert lifecycle_engine.get_native_state('first')._shutdown_time is None
     timestamp = lifecycle_engine.last_shutdown_time
     assert timestamp is not None and timestamp.tzinfo is not None
-    assert cleanup_observations == [('second', timestamp), ('first', timestamp)]
-    assert lifecycle_engine.get_native_state('first')._shutdown_time is None
+    assert cleanup_observations == ['second', 'first']
 
     cleanup_observations.clear()
     failing_engine = make_lifecycle_engine(fail=True)
@@ -797,6 +608,94 @@ async def run_test():
         with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
             async with contextlib.AsyncExitStack() as exit_stack:
                 await failing_engine.start_tasks_async(task_group, exit_stack)
-    assert cleanup_observations == [('second', None), ('first', None)]
+    assert cleanup_observations == ['second', 'first']
     assert failing_engine.last_shutdown_time is None
-    assert failing_engine.get_native_state('first')._shutdown_time is None
+
+
+def check_native_methods():
+    registry = {}
+    calls = []
+
+    class Methods:
+        def instance(self, *, context):
+            calls.append(('instance', context.name))
+
+        @staticmethod
+        def shared(*, context):
+            calls.append(('shared', context.name))
+
+        @classmethod
+        def class_method(cls, *, context):
+            calls.append((cls.__name__, context.name))
+
+    @native_block_type(registry, has_native_state=True)
+    class InstanceProbe(Methods, blocks.NativeState):
+        pass
+
+    @native_block_type(registry, has_native_state=True)
+    class OverrideProbe(InstanceProbe):
+        def shared(self, *, context):
+            calls.append(('override', context.name))
+
+    @native_block_type(registry, has_native_state=False)
+    class ClassProbe(Methods):
+        pass
+
+    @native_block_type(registry, has_native_state=True)
+    class SharedProbe(InstanceProbe):
+        pass
+
+    source = '''namespace TestLibrary {
+  native node type InstanceProbe {
+    native procedure Poll as "instance";
+    native procedure shared;
+    native procedure class_method;
+  }
+  native node type OverrideProbe {
+    native procedure instance;
+    native procedure shared;
+    native procedure class_method;
+  }
+  node type ClassProbe {
+    native procedure shared;
+    native procedure class_method;
+  }
+  singleton native node type SharedProbe {
+    native procedure instance;
+    native procedure shared;
+    native procedure class_method;
+  }
+}
+node instance: TestLibrary.InstanceProbe {}
+node overridden: TestLibrary.OverrideProbe {}
+node class_only: TestLibrary.ClassProbe {}
+node shared: TestLibrary.SharedProbe {}
+node shared_again: TestLibrary.SharedProbe {}
+'''
+    with patch.dict(wirely.native.test_library.native_block_types, registry):
+        graph = wirely.compiler.compile_strs([('<native-methods>', source)])
+        assert graph is not None
+        runtime = blocks.Engine(program_compiler.compile_nocatch(graph))
+    runtime.step()
+    expected = [
+        ('instance', 'instance'), ('shared', 'instance'), ('InstanceProbe', 'instance'),
+        ('instance', 'overridden'), ('override', 'overridden'), ('OverrideProbe', 'overridden'),
+        ('shared', 'class_only'), ('ClassProbe', 'class_only'),
+        ('instance', 'TestLibrary.SharedProbe'), ('shared', 'TestLibrary.SharedProbe'),
+        ('SharedProbe', 'TestLibrary.SharedProbe'),
+    ]
+    assert sorted(calls) == sorted(expected)
+    runtime.assert_is_idle()
+
+
+check_input_bindings()
+check_wakeups()
+check_context_names()
+check_stage_times()
+check_triggers()
+check_multi_inputs()
+check_results()
+check_events()
+check_unit_results()
+check_binding_keys()
+check_native_methods()

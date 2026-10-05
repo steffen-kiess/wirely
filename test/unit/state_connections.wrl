@@ -1,2 +1,1 @@
-// Additional native fixtures are compiled by the Python assertions.
-node empty: Std.And {}
+// State snapshots and scheduling scenarios are constructed in Python.

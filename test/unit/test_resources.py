@@ -1,11 +1,16 @@
+import asyncio
 import contextlib
 import io
 import os
+from pathlib import Path
 import shutil
+import socket
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest import TestCase
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from wirely.compiler import compile_strs
+import aiohttp
+
 from wirely.compiler.function_implementations.test import (
     TEST_RESOURCES_SERVICE, replace_twon_host, replace_twon_port, replace_twon_tlsa,
 )
@@ -13,233 +18,208 @@ from wirely.test import (
     TestResourceProvider, run_test as runner_run_test,
     with_maybe_knxd, with_maybe_mqtt,
 )
+from wirely.two_n.fake_server import Server
 
 
-def graph(source, *, services=None):
-    result = compile_strs([('<resources>', source)], add_std=True, services=services)
-    assert result is not None
-    return result
+checks = TestCase()
 
 
-# Whichever setting is evaluated first requests the same provider-owned server.
-functions = (replace_twon_host, replace_twon_port, replace_twon_tlsa)
-for first_function in functions:
-    server = MagicMock()
-    server.info = SimpleNamespace(host='127.0.0.1', port=1234, server=server)
-    server.tlsa = 'fixture-tlsa'
-    with contextlib.ExitStack() as stack, \
-            patch('wirely.two_n.fake_server.Server', return_value=server) as construct:
-        resources = TestResourceProvider(stack)
-        context = SimpleNamespace(services={TEST_RESOURCES_SERVICE: resources}, arguments={})
-        first_function(context=context)
-        assert replace_twon_host(context=context) == '127.0.0.1'
-        assert replace_twon_port(context=context) == 1234
-        assert replace_twon_tlsa(context=context) == ('fixture-tlsa',)
-        construct.assert_called_once()
-    server.close.assert_called_once()
+class LifecycleFailure(Exception):
+    pass
 
 
-# Provider-owned socket directories are allocated once and cleaned up.
-with contextlib.ExitStack() as stack:
-    resources = TestResourceProvider(stack)
-    assert resources.knx_path is None
-    socket_path = resources.get_knx_path()
-    assert os.path.isabs(socket_path)
-    assert socket_path == resources.get_knx_path()
-    directory = os.path.dirname(socket_path)
-    assert os.path.isdir(directory)
-assert not os.path.exists(directory)
+def assert_closed(server):
+    assert server.socket.fileno() == -1
+    server.close()
 
 
-# Allocate output and MQTT resources lazily, sharing only within a provider.
-with patch.dict(os.environ, {'WIRELY_TEST_KEEP_TESTDIR': '0'}), \
-        contextlib.ExitStack() as stack:
-    resources = TestResourceProvider(stack)
-    assert resources.output_directory is None
-    assert resources.mqtt_socket_path is None
-    output = resources.get_output_path('/some/path/report.csv')
-    assert output == resources.get_output_path('report.csv')
-    assert output == resources.get_output_path('elsewhere/report.csv')
-    other_output = resources.get_output_path('other.csv')
-    assert other_output != output
-    output_directory = resources.output_directory
-    assert os.path.dirname(other_output) == output_directory
-    assert os.path.isdir(output_directory)
-    assert not os.path.exists(output)
-    uri = resources.get_mqtt_uri()
-    assert uri == resources.get_mqtt_uri()
-    assert uri == 'mqtt+unix://' + resources.mqtt_socket_path
-    mqtt_directory = os.path.dirname(resources.mqtt_socket_path)
-    assert os.path.isdir(mqtt_directory)
-    assert not os.path.exists(resources.mqtt_socket_path)
-    other = TestResourceProvider(stack)
-    assert other.get_mqtt_uri() != uri
-    assert other.get_output_path('report.csv') != output
-    other_output_directory = other.output_directory
-    other_mqtt_directory = os.path.dirname(other.mqtt_socket_path)
-assert all(not os.path.exists(path) for path in (
-    output_directory, mqtt_directory, other_output_directory, other_mqtt_directory,
-))
+def check_provider_resources():
+    with contextlib.ExitStack() as stack:
+        first = TestResourceProvider(stack)
+        second = TestResourceProvider(stack)
+        paths = [first.get_knx_path(), first.get_output_path('/some/path/report.csv'),
+                 first.get_mqtt_uri().removeprefix('mqtt+unix://')]
+        assert first.get_knx_path() == paths[0]
+        assert first.get_output_path('elsewhere/report.csv') == paths[1]
+        assert first.get_output_path('other.csv') != paths[1]
+        assert first.get_mqtt_uri() == 'mqtt+unix://' + paths[2]
+        other_paths = [second.get_knx_path(), second.get_output_path('report.csv'),
+                       second.get_mqtt_uri().removeprefix('mqtt+unix://')]
+        assert all(left != right for left, right in zip(paths, other_paths))
+        assert all(Path(path).parent.is_dir() for path in paths + other_paths)
+        info = first.get_twon_info()
+        assert first.get_twon_info() is info
+        other_info = second.get_twon_info()
+        assert info.port != other_info.port
+        context = SimpleNamespace(services={TEST_RESOURCES_SERVICE: first}, arguments={})
+        assert replace_twon_host(context=context) == info.host
+        assert replace_twon_port(context=context) == info.port
+        assert replace_twon_tlsa(context=context) == (info.server.tlsa,)
+    assert all(not Path(path).parent.exists() for path in paths + other_paths)
+    assert_closed(info.server)
+    assert_closed(other_info.server)
 
-
-with patch.dict(os.environ, {'WIRELY_TEST_KEEP_TESTDIR': '1'}):
-    try:
-        with contextlib.ExitStack() as stack:
-            resources = TestResourceProvider(stack)
-            resources.get_output_path('kept.csv')
-            kept_directory = resources.output_directory
-        assert os.path.isdir(kept_directory)
-    finally:
-        shutil.rmtree(kept_directory)
+    with patch.dict(os.environ, {'WIRELY_TEST_KEEP_TESTDIR': '1'}):
+        try:
+            with contextlib.ExitStack() as stack:
+                path = TestResourceProvider(stack).get_output_path('kept.csv')
+            assert Path(path).parent.is_dir()
+        finally:
+            shutil.rmtree(Path(path).parent)
 
 
 async def check_daemon_lifecycle():
-    for helper, daemon, get_path in (
+    for helper, name, get_path in (
         (with_maybe_knxd, 'knxd', lambda resources: resources.get_knx_path()),
         (with_maybe_mqtt, 'mosquitto',
          lambda resources: resources.get_mqtt_uri().removeprefix('mqtt+unix://')),
     ):
         with contextlib.ExitStack() as stack:
-            resources = TestResourceProvider(stack)
-            socket_path = get_path(resources)
-            directory = os.path.dirname(socket_path)
-            process = MagicMock()
-            with patch('wirely.test.subprocess.Popen', return_value=process) as start:
+            path = get_path(TestResourceProvider(stack))
+            with patch('wirely.test.subprocess.Popen') as start:
                 async with helper(None):
                     pass
                 start.assert_not_called()
-
-            # Successful startup and an assertion failure both reap the daemon.
+            process = MagicMock()
             with patch('wirely.test.subprocess.Popen', return_value=process), \
-                    patch('wirely.test.socket.socket') as socket:
-                try:
-                    async with helper(socket_path):
-                        assert os.path.isdir(directory)
-                        socket.return_value.__enter__.return_value.connect.assert_called_with(socket_path)
-                        raise AssertionError('Test failed')
-                except AssertionError as error:
-                    assert str(error) == 'Test failed'
+                    patch('wirely.test.socket.socket'):
+                with checks.assertRaises(LifecycleFailure):
+                    async with helper(path):
+                        raise LifecycleFailure
             process.kill.assert_called_once()
             process.wait.assert_called_once()
-
-            # No ready socket: distinguish a daemon exit from a readiness timeout.
-            for exit_code, exception, message in (
-                (3, Exception, f'{daemon} has exited with exit code 3'),
-                (None, TimeoutError, f'Timed out waiting for {daemon} to start'),
-            ):
+            for exit_code, exception in [(3, Exception), (None, TimeoutError)]:
                 process = MagicMock()
                 process.poll.return_value = exit_code
                 with patch('wirely.test.subprocess.Popen', return_value=process), \
-                        patch('wirely.test.socket.socket') as socket, \
+                        patch('wirely.test.socket.socket') as connection, \
                         patch('wirely.test.asyncio.sleep'):
-                    socket.return_value.__enter__.return_value.connect.side_effect = FileNotFoundError
-                    try:
-                        async with helper(socket_path):
+                    connection.return_value.__enter__.return_value.connect.side_effect = FileNotFoundError
+                    with checks.assertRaisesRegex(exception, name):
+                        async with helper(path):
                             raise AssertionError('Unready daemon accepted')
-                    except exception as error:
-                        assert str(error) == message
                 process.kill.assert_called_once()
                 process.wait.assert_called_once()
-
-            with patch('wirely.test.subprocess.Popen', side_effect=FileNotFoundError(f'Missing {daemon}')):
-                try:
-                    async with helper(socket_path):
+            with patch('wirely.test.subprocess.Popen', side_effect=FileNotFoundError):
+                with checks.assertRaises(FileNotFoundError):
+                    async with helper(path):
                         raise AssertionError('Missing executable accepted')
-                except FileNotFoundError:
-                    pass
-
-            if daemon == 'mosquitto':
-                broker = MagicMock()
-                monitor = MagicMock()
+            if name == 'mosquitto':
+                broker, monitor = MagicMock(), MagicMock()
                 with patch.dict(os.environ, {'WIRELY_TEST_RUN_MQTT_SUB': '1'}), \
                         patch('wirely.test.subprocess.Popen', side_effect=(broker, monitor)), \
-                        patch('wirely.test.socket.socket'), \
-                        patch('wirely.test.asyncio.sleep'):
-                    try:
-                        async with helper(socket_path):
-                            raise AssertionError('Monitored test failed')
-                    except AssertionError as error:
-                        assert str(error) == 'Monitored test failed'
+                        patch('wirely.test.socket.socket'):
+                    async with helper(path):
+                        pass
                 for process in (broker, monitor):
                     process.kill.assert_called_once()
                     process.wait.assert_called_once()
-        assert not os.path.exists(directory)
+        assert not Path(path).parent.exists()
+
+
+async def check_server_lifecycle():
+    server = Server()
+    info = server.info
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as competitor:
+            with checks.assertRaises(OSError):
+                competitor.bind(info.sockname)
+        async with server.run():
+            async with aiohttp.ClientSession() as client:
+                async with client.get(f'https://{info.host}:{info.port}/', ssl=False) as response:
+                    assert response.status == 200
+                    assert await response.text() == 'Hello, world'
+    finally:
+        server.close()
+    assert_closed(server)
+
+    # A reserved socket is released even if serving never begins.
+    server = Server()
+    server.close()
+    assert_closed(server)
+    for failure in (LifecycleFailure, asyncio.CancelledError):
+        server = Server()
+        with patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=failure)):
+            with checks.assertRaises(failure):
+                async with server.run():
+                    raise AssertionError('Startup failure accepted')
+        assert_closed(server)
+
+    server = Server()
+    started = asyncio.Event()
+
+    async def serving():
+        async with server.run():
+            started.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(serving())
+    await started.wait()
+    task.cancel()
+    with checks.assertRaises(asyncio.CancelledError):
+        await task
+    assert_closed(server)
 
 
 async def check_runner_cleanup():
-    allocated = []
+    for mode in ('compilation', 'program', 'assertions', 'startup'):
+        paths = []
+        servers = []
+        started = []
+        stopped = []
 
-    def failed_compilation(filenames, *, services):
-        resources = services[TEST_RESOURCES_SERVICE]
-        allocated.extend((resources.get_knx_path(), resources.get_output_path('failed.csv'),
+        def compile_fixture(filenames, *, services):
+            resources = services[TEST_RESOURCES_SERVICE]
+            paths.extend((resources.get_knx_path(), resources.get_output_path('failed.csv'),
                           resources.get_mqtt_uri().removeprefix('mqtt+unix://')))
-        return None
+            servers.append(resources.get_twon_info().server)
+            return None if mode == 'compilation' else object()
 
-    with patch('wirely.test.blocks.compiler.compile_files', side_effect=failed_compilation), \
-            patch('wirely.test.subprocess.Popen') as start:
-        try:
-            await runner_run_test('unit/test_resources')
-        except SystemExit as error:
-            assert error.code == 1
+        @contextlib.asynccontextmanager
+        async def daemon(path):
+            started.append(path)
+            try:
+                yield
+            finally:
+                stopped.append(path)
+
+        async def fail_assertions():
+            assert all(Path(path).parent.is_dir() for path in paths)
+            assert servers[0].socket.fileno() >= 0
+            raise LifecycleFailure
+
+        spec = SimpleNamespace(loader=SimpleNamespace(
+            exec_module=lambda module: setattr(module, 'run_test', fail_assertions),
+        ))
+        with contextlib.ExitStack() as mocks:
+            mocks.enter_context(patch('wirely.test.blocks.compiler.compile_files', side_effect=compile_fixture))
+            mocks.enter_context(patch('wirely.test.program_compiler.compile',
+                                      return_value=None if mode == 'program' else MagicMock()))
+            construct = mocks.enter_context(patch('wirely.test.blocks.Engine', return_value=SimpleNamespace()))
+            mocks.enter_context(patch('wirely.test.with_maybe_knxd', daemon))
+            mocks.enter_context(patch('wirely.test.with_maybe_mqtt', daemon))
+            mocks.enter_context(patch('wirely.test.importlib.util.spec_from_file_location', return_value=spec))
+            mocks.enter_context(patch('wirely.test.importlib.util.module_from_spec', return_value=SimpleNamespace()))
+            if mode == 'startup':
+                mocks.enter_context(patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=LifecycleFailure)))
+            expected = SystemExit if mode in ('compilation', 'program') else LifecycleFailure
+            with checks.assertRaises(expected):
+                await runner_run_test('unit/test_resources')
+            if mode != 'assertions':
+                construct.assert_not_called()
+        assert sorted(started) == sorted(stopped)
+        if mode in ('compilation', 'program'):
+            assert not started
         else:
-            raise AssertionError('Compilation failure accepted')
-        start.assert_not_called()
-    assert all(not os.path.exists(os.path.dirname(path)) for path in allocated)
-
-    def fixture_compilation(filenames, *, services):
-        resources = services[TEST_RESOURCES_SERVICE]
-        allocated.extend((resources.get_knx_path(), resources.get_output_path('failed.csv'),
-                          resources.get_mqtt_uri().removeprefix('mqtt+unix://')))
-        return graph('''node bus: KNX.Connection {
-  UnixPath: Test.ReplaceKNXPath("/default"),
-}
-node broker: MQTT.Connection { URI: Test.ReplaceMQTTURI("mqtt://default") }
-node input: Std.Constant { Type: boolean, Value: false }
-node writer: CSV.ValueWriter {
-  Type: boolean, Filename: Test.ReplaceOutputPath("output.csv"),
-}
-connect input -> writer;
-''', services=services)
-
-    with patch('wirely.test.blocks.compiler.compile_files', side_effect=fixture_compilation), \
-            patch('wirely.test.program_compiler.compile', return_value=None), \
-            patch('wirely.test.subprocess.Popen') as start:
-        try:
-            await runner_run_test('unit/test_resources')
-        except SystemExit as error:
-            assert error.code == 1
-        else:
-            raise AssertionError('Program generation failure accepted')
-        start.assert_not_called()
-    assert all(not os.path.exists(os.path.dirname(path)) for path in allocated)
-
-    async def fail_assertions():
-        assert all(os.path.isdir(os.path.dirname(path)) for path in allocated[-3:])
-        raise AssertionError('Assertions failed')
-
-    def load_assertions(module):
-        module.run_test = fail_assertions
-
-    spec = SimpleNamespace(loader=SimpleNamespace(exec_module=load_assertions))
-    process = MagicMock()
-    with patch('wirely.test.blocks.compiler.compile_files', side_effect=fixture_compilation), \
-            patch('wirely.test.subprocess.Popen', return_value=process), \
-            patch('wirely.test.socket.socket'), \
-            patch('wirely.test.blocks.Engine'), \
-            patch('wirely.test.importlib.util.spec_from_file_location', return_value=spec), \
-            patch('wirely.test.importlib.util.module_from_spec', return_value=SimpleNamespace()):
-        try:
-            await runner_run_test('unit/test_resources')
-        except AssertionError as error:
-            assert str(error) == 'Assertions failed'
-        else:
-            raise AssertionError('Assertion failure swallowed')
-    assert process.kill.call_count == process.wait.call_count == 2
-    assert all(not os.path.exists(os.path.dirname(path)) for path in allocated)
+            assert len(started) == 2
+        assert all(not Path(path).parent.exists() for path in paths)
+        assert_closed(servers[0])
 
 
 async def run_test():
     with contextlib.redirect_stdout(io.StringIO()), \
             patch.dict(os.environ, {'WIRELY_TEST_KEEP_TESTDIR': '0', 'WIRELY_TEST_RUN_MQTT_SUB': '0'}):
+        check_provider_resources()
         await check_daemon_lifecycle()
+        await check_server_lifecycle()
         await check_runner_cleanup()

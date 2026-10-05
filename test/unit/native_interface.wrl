@@ -1,6 +1,1 @@
-node source: Std.Constant { Type: boolean, Value: true }
-node forward: Std.TwoStageValueForward { Type: boolean }
-node delay: Std.DelayOneStep { Type: boolean, InitialValue: false }
-node empty: Std.And {}
-connect source -> forward;
-connect forward -> delay;
+// Native API and lifecycle scenarios are constructed in Python.

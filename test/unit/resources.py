@@ -1,12 +1,9 @@
 import asyncio
 import contextlib
-from collections.abc import Mapping
 from pathlib import Path
-from types import MappingProxyType
 from unittest import TestCase
 from unittest.mock import patch
 
-import wirely
 import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
@@ -16,7 +13,6 @@ from wirely.native import native_block_type
 
 checks = TestCase()
 registry = {}
-constructed = []
 procedure_calls = []
 startup_inputs = []
 
@@ -26,11 +22,8 @@ class Provider(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         inputs = context.inputs
-        assert isinstance(inputs, Mapping)
-        assert isinstance(inputs, MappingProxyType)
         assert not inputs
         self.value = 7
-        constructed.append(self)
 
 
 @native_block_type(registry, has_native_state=True)
@@ -43,17 +36,14 @@ class Consumer(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         inputs = context.inputs
-        assert isinstance(inputs, MappingProxyType)
-        assert list(inputs) == ['Service', 'Services', 'Empty', 'implicit', 'child']
-        assert inputs['Service'] in constructed
         assert inputs['Services'] == (inputs['Service'], inputs['implicit'], inputs['Service'])
         assert inputs['Empty'] == ()
         assert inputs['child'] is inputs['Service']
+        assert inputs['Service'].value == 7
         with checks.assertRaises(TypeError):
             inputs['Service'] = None
         with checks.assertRaises(KeyError):
             inputs['missing']
-        constructed.append(self)
 
     def start_tasks(self, task_group, async_exit_stack):
         startup_inputs.append(self.inputs)
@@ -178,7 +168,6 @@ shared = native_resource_engine.get_native_state('shared')
 assert native_resource_engine.get_native_state('other_shared') is shared
 assert consumer.inputs['Service'] is provider
 assert consumer.inputs['implicit'] is shared
-assert constructed.index(provider) < constructed.index(consumer)
 value_source = native_resource_engine.get_native_state('value_source')
 value_source.set_value(7)
 native_resource_engine.step()

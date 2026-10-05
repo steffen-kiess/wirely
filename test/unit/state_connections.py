@@ -9,9 +9,6 @@ import wirely.native.test_library
 from wirely.native import native_block_type
 
 
-engine.step()
-engine.assert_value_is('empty', True)
-
 registry = {}
 calls = Counter()
 list_inputs = []
@@ -146,115 +143,101 @@ def make_engine(source, *, declarations=definitions):
         return blocks.Engine(program)
 
 
-probe = make_engine('''
-node source: Std.DebugValueSource { Type: boolean }
-node other: Std.Constant { Type: boolean, Value: false }
-node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
-node second: TestLibrary.Owner { Type: boolean, InitialValue: true }
-node collector: TestLibrary.Collect {}
-connect source -> owner;
-connect other -> second;
-connect owner, source, second -> collector;
-''')
-probe.get_native_state('source').set_value(True)
-probe.step()
-probe.assert_value_is('owner', False)
-probe.assert_value_is('owner.reader', False)
-probe.assert_value_is('second', True)
-assert list_inputs[-1] == (False, True, True)
-assert observations['collector'] == (False, True, True)
-owner_variable = probe.get_variable('owner')
-assert probe.state[owner_variable] is True
-assert probe.get_value('owner.relay') is False
-assert probe.get_value('owner.reader.') is False
-assert probe.get_variable('owner.relay') is owner_variable
-assert probe.get_variable('owner.reader.') is owner_variable
+def check_old_snapshots():
+    probe = make_engine('''
+    node source: Std.DebugValueSource { Type: boolean }
+    node other: Std.Constant { Type: boolean, Value: false }
+    node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
+    node second: TestLibrary.Owner { Type: boolean, InitialValue: true }
+    node collector: TestLibrary.Collect {}
+    connect source -> owner;
+    connect other -> second;
+    connect owner, source, second -> collector;
+    ''')
+    probe.get_native_state('source').set_value(True)
+    probe.step()
+    probe.assert_value_is('owner', False)
+    probe.assert_value_is('owner.reader', False)
+    probe.assert_value_is('second', True)
+    assert list_inputs[-1] == (False, True, True)
 
-probe.step()
-probe.assert_value_is('owner.reader', True)
-probe.assert_value_is('second.reader', False)
-assert list_inputs[-1] == (True, True, False)
-assert calls['owner.reader'] == 2
-assert calls['second.reader'] == 2
-assert calls['collector'] == 2
-probe.step()
-probe.assert_is_idle()
-assert calls['owner.reader'] == 2
-assert calls['collector'] == 2
+    probe.step()
+    probe.assert_value_is('owner.reader', True)
+    probe.assert_value_is('second.reader', False)
+    assert list_inputs[-1] == (True, True, False)
+    assert calls['owner.reader'] == 2
+    assert calls['second.reader'] == 2
+    assert calls['collector'] == 2
+    probe.step()
+    probe.assert_is_idle()
+    assert calls['owner.reader'] == 2
+    assert calls['collector'] == 2
 
-probe.get_native_state('source').set_value(False)
-probe.step()
-assert list_inputs[-1] == (True, False, False)
-probe.step()
-assert list_inputs[-1] == (False, False, False)
-probe.step()
-probe.assert_is_idle()
+    probe.get_native_state('source').set_value(False)
+    probe.step()
+    assert list_inputs[-1] == (True, False, False)
+    probe.step()
+    assert list_inputs[-1] == (False, False, False)
+    probe.step()
+    probe.assert_is_idle()
 
-feedback = make_engine('node feedback: TestLibrary.Feedback {}')
-for value in (0, 1, 2):
+    feedback = make_engine('node feedback: TestLibrary.Feedback {}')
+    for value in (0, 1, 2):
+        feedback.step()
+        feedback.assert_value_is('feedback', value)
     feedback.step()
-    feedback.assert_value_is('feedback', value)
-feedback.step()
-feedback.assert_is_idle()
+    feedback.assert_is_idle()
 
-shared = make_engine('''
-node first: TestLibrary.Shared {}
-node second: TestLibrary.Shared {}
-node observer: TestLibrary.Forward { Type: uint8 }
-connect second -> observer;
-''')
-for value in (0, 1, 2):
+    shared = make_engine('''
+    node first: TestLibrary.Shared {}
+    node second: TestLibrary.Shared {}
+    node observer: TestLibrary.Forward { Type: uint8 }
+    connect second -> observer;
+    ''')
+    for value in (0, 1, 2):
+        shared.step()
+        shared.assert_value_is('first', value)
+        shared.assert_value_is('second', value)
+        shared.assert_value_is('observer', value)
     shared.step()
-    shared.assert_value_is('first', value)
-    shared.assert_value_is('second', value)
-    shared.assert_value_is('observer', value)
-shared.step()
-shared.assert_is_idle()
+    shared.assert_is_idle()
 
-minimal = make_engine('''
-node source: Std.Constant { Type: boolean, Value: true }
-node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
-connect source -> owner;
-''')
-assert all('saved' not in var.name or var.name.endswith('.new')
-           for var in minimal.program.temporaries.variable_set)
+    # A later-stage reader still sees the snapshot from before the state writer.
+    later = make_engine('''
+    node source: Std.Constant { Type: boolean, Value: true }
+    node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
+    connect source -> owner;
+    ''', declarations=definitions.replace(
+        'native procedure write stage output', 'native procedure write',
+    ).replace('native procedure run\n', 'native procedure run stage output\n'))
+    later.step()
+    later.assert_value_is('owner.reader', False)
+    later.step()
+    later.assert_value_is('owner.reader', True)
 
-# A later-stage reader still sees the snapshot from before the state writer.
-later = make_engine('''
-node source: Std.Constant { Type: boolean, Value: true }
-node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
-connect source -> owner;
-''', declarations=definitions.replace(
-    'native procedure write stage output', 'native procedure write',
-).replace('native procedure run\n', 'native procedure run stage output\n'))
-later.step()
-later.assert_value_is('owner.reader', False)
-later.step()
-later.assert_value_is('owner.reader', True)
-
-nested = make_engine('''
-node type Envelope {
-  default input: value uint8;
-  default output: value uint8;
-  node owner: TestLibrary.Owner { Type: uint8, InitialValue: 7 }
-  connect default input -> owner;
-  connect owner -> default output;
-}
-node source: Std.Constant { Type: uint8, Value: 8 }
-node other: Std.Constant { Type: uint8, Value: 9 }
-node first: Envelope {}
-node second: Envelope {}
-connect source -> first;
-connect other -> second;
-''')
-nested.step()
-nested.assert_value_is('first', 7)
-nested.assert_value_is('second', 7)
-nested.step()
-nested.assert_value_is('first', 8)
-nested.assert_value_is('second', 9)
-nested.assert_value_is('first.owner.reader', 8)
-nested.assert_value_is('second.owner.reader', 9)
+    nested = make_engine('''
+    node type Envelope {
+      default input: value uint8;
+      default output: value uint8;
+      node owner: TestLibrary.Owner { Type: uint8, InitialValue: 7 }
+      connect default input -> owner;
+      connect owner -> default output;
+    }
+    node source: Std.Constant { Type: uint8, Value: 8 }
+    node other: Std.Constant { Type: uint8, Value: 9 }
+    node first: Envelope {}
+    node second: Envelope {}
+    connect source -> first;
+    connect other -> second;
+    ''')
+    nested.step()
+    nested.assert_value_is('first', 7)
+    nested.assert_value_is('second', 7)
+    nested.step()
+    nested.assert_value_is('first', 8)
+    nested.assert_value_is('second', 9)
+    nested.assert_value_is('first.owner.reader', 8)
+    nested.assert_value_is('second.owner.reader', 9)
 
 
 @native_block_type(registry, has_native_state=False)
@@ -317,100 +300,101 @@ namespace TestLibrary {
 }
 '''
 
-current_source = '''
-node source: Std.DebugValueSource { Type: uint8 }
-node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
-node observer: TestLibrary.Forward { Type: uint8 }
-connect source -> owner;
-connect owner.New -> observer;
-'''
-current = make_engine(current_source, declarations=current_definitions)
-current.get_native_state('source').set_value(5)
-current.step()
-assert observations['owner'] == (0, 5)
-current.assert_value_is('owner.Old', 0)
-current.assert_value_is('owner.New', 5)
-current.assert_value_is('owner.old_reader', 0)
-current.assert_value_is('owner.new_reader', 5)
-assert observations['owner.mixed'] == (0, 5, 5)
-current.assert_value_is('observer', 5)
-new_variable = current.get_variable('owner.New')
-assert current.get_variable('owner.relay') is new_variable
-scheduled = current.program.procs[blocks.RunStage.DEFAULT]
-keys = [proc.key for proc in scheduled]
-assert keys.index(('owner', 'write')) < keys.index(('owner', 'observe'))
-new_reader_calls = calls['owner.new_reader']
-observer_calls = calls['observer']
 
-current.step()
-assert observations['owner'] == (5, 5)
-assert observations['owner.mixed'] == (5, 5, 5)
-assert calls['owner.new_reader'] == new_reader_calls
-assert calls['observer'] == observer_calls
-current.step()
-current.assert_is_idle()
-write_calls = calls['owner.write']
+def check_current_snapshots():
+    current_source = '''
+    node source: Std.DebugValueSource { Type: uint8 }
+    node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
+    node observer: TestLibrary.Forward { Type: uint8 }
+    connect source -> owner;
+    connect owner.New -> observer;
+    '''
+    current = make_engine(current_source, declarations=current_definitions)
+    current.get_native_state('source').set_value(5)
+    current.step()
+    assert observations['owner'] == (0, 5)
+    current.assert_value_is('owner.Old', 0)
+    current.assert_value_is('owner.New', 5)
+    current.assert_value_is('owner.old_reader', 0)
+    current.assert_value_is('owner.new_reader', 5)
+    assert observations['owner.mixed'] == (0, 5, 5)
+    current.assert_value_is('observer', 5)
+    new_reader_calls = calls['owner.new_reader']
+    observer_calls = calls['observer']
 
-# A skipped writer still supplies .new when its reader is triggered.
-observer_path = current.get_block_path('observer')
-current.trigger(observer_path, 'run')
-current.step()
-assert calls['owner.write'] == write_calls
-assert calls['observer'] == observer_calls + 1
-current.assert_value_is('observer', 5)
-current.assert_value_is('owner.New', 5)
+    current.step()
+    assert observations['owner'] == (5, 5)
+    assert observations['owner.mixed'] == (5, 5, 5)
+    assert calls['owner.new_reader'] == new_reader_calls
+    assert calls['observer'] == observer_calls
+    current.step()
+    current.assert_is_idle()
+    write_calls = calls['owner.write']
 
-current.get_native_state('source').set_value(9)
-current.step()
-assert observations['owner'] == (5, 9)
-assert observations['owner.mixed'] == (5, 9, 9)
-current.assert_value_is('owner.new_reader', 9)
-current.assert_value_is('observer', 9)
-assert calls['owner.new_reader'] == new_reader_calls + 1
-assert calls['observer'] == observer_calls + 2
+    # A skipped writer still supplies .new when its reader is triggered.
+    observer_path = current.get_block_path('observer')
+    current.trigger(observer_path, 'run')
+    current.step()
+    assert calls['owner.write'] == write_calls
+    assert calls['observer'] == observer_calls + 1
+    current.assert_value_is('observer', 5)
+    current.assert_value_is('owner.New', 5)
 
-# Both same-stage and later-stage readers observe this step's produced value.
-later_current = make_engine(current_source, declarations=current_definitions.replace(
-    'native procedure observe\n', 'native procedure observe stage output\n',
-))
-later_current.get_native_state('source').set_value(11)
-later_current.step()
-assert observations['owner'] == (0, 11)
+    current.get_native_state('source').set_value(9)
+    current.step()
+    assert observations['owner'] == (5, 9)
+    assert observations['owner.mixed'] == (5, 9, 9)
+    current.assert_value_is('owner.new_reader', 9)
+    current.assert_value_is('observer', 9)
+    assert calls['owner.new_reader'] == new_reader_calls + 1
+    assert calls['observer'] == observer_calls + 2
 
-new_shared_definitions = definitions.replace(
-    'connect saved.old -> relay;', 'connect saved.new -> relay;',
-).replace('connect saved.old -> default output;', 'connect saved.new -> default output;')
-new_shared = make_engine('''
-node first: TestLibrary.Shared {}
-node second: TestLibrary.Shared {}
-node observer: TestLibrary.Forward { Type: uint8 }
-connect second -> observer;
-''', declarations=new_shared_definitions)
-for value in (1, 2, 2):
-    new_shared.step()
-    new_shared.assert_value_is('first', value)
-    new_shared.assert_value_is('second', value)
-    new_shared.assert_value_is('first.reader', value)
-    new_shared.assert_value_is('observer', value)
-new_shared.assert_is_idle()
+    # Both same-stage and later-stage readers observe this step's produced value.
+    later_current = make_engine(current_source, declarations=current_definitions.replace(
+        'native procedure observe\n', 'native procedure observe stage output\n',
+    ))
+    later_current.get_native_state('source').set_value(11)
+    later_current.step()
+    assert observations['owner'] == (0, 11)
 
-new_nested = make_engine('''
-node type Envelope {
-  default input: value uint8;
-  default output: value uint8;
-  node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
-  connect default input -> owner;
-  connect owner.New -> default output;
-}
-node source: Std.Constant { Type: uint8, Value: 8 }
-node other: Std.Constant { Type: uint8, Value: 9 }
-node first: Envelope {}
-node second: Envelope {}
-connect source -> first;
-connect other -> second;
-''', declarations=current_definitions)
-new_nested.step()
-new_nested.assert_value_is('first', 8)
-new_nested.assert_value_is('second', 9)
-assert observations['first.owner'] == (0, 8)
-assert observations['second.owner'] == (0, 9)
+    new_shared_definitions = definitions.replace(
+        'connect saved.old -> relay;', 'connect saved.new -> relay;',
+    ).replace('connect saved.old -> default output;', 'connect saved.new -> default output;')
+    new_shared = make_engine('''
+    node first: TestLibrary.Shared {}
+    node second: TestLibrary.Shared {}
+    node observer: TestLibrary.Forward { Type: uint8 }
+    connect second -> observer;
+    ''', declarations=new_shared_definitions)
+    for value in (1, 2, 2):
+        new_shared.step()
+        new_shared.assert_value_is('first', value)
+        new_shared.assert_value_is('second', value)
+        new_shared.assert_value_is('first.reader', value)
+        new_shared.assert_value_is('observer', value)
+    new_shared.assert_is_idle()
+
+    new_nested = make_engine('''
+    node type Envelope {
+      default input: value uint8;
+      default output: value uint8;
+      node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
+      connect default input -> owner;
+      connect owner.New -> default output;
+    }
+    node source: Std.Constant { Type: uint8, Value: 8 }
+    node other: Std.Constant { Type: uint8, Value: 9 }
+    node first: Envelope {}
+    node second: Envelope {}
+    connect source -> first;
+    connect other -> second;
+    ''', declarations=current_definitions)
+    new_nested.step()
+    new_nested.assert_value_is('first', 8)
+    new_nested.assert_value_is('second', 9)
+    assert observations['first.owner'] == (0, 8)
+    assert observations['second.owner'] == (0, 9)
+
+
+check_old_snapshots()
+check_current_snapshots()

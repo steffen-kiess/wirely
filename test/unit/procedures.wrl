@@ -100,3 +100,28 @@ connect source -> selected;
 connect source -> fallback;
 connect source -> delayed;
 connect source -> forwarded;
+
+node type Presence {
+  parameter Type: ValueType;
+  default input: value Option[Type];
+  output Present: value boolean;
+  output Absent: value boolean;
+  output Copy: value Option[Type];
+
+  procedure run depends on default input as input
+    produces Present, Absent, Copy
+  {
+    let value = input;
+    let absent: Option[Type] = None;
+    Present = { let copy = value; copy }.IsSome;
+    Absent = (value).IsNone;
+    Copy = if input.IsSome { value } else { absent };
+  }
+}
+
+node option_source: Std.DebugValueSource { Type: Option[boolean] }
+node nested_source: Std.DebugValueSource { Type: Option[Option[boolean]] }
+node presence: Presence { Type: boolean }
+node nested_presence: Presence { Type: Option[boolean] }
+connect option_source -> presence;
+connect nested_source -> nested_presence;

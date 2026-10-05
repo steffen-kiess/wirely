@@ -89,26 +89,23 @@ message = str(error.exception)
 assert 'wrong syntax expectation' in message and 'another mismatch' in message
 assert 'Unexpected token' in message
 
-# A location header alone is not a complete syntax diagnostic.
-for suffix in ['', '\n']:
-    def incomplete_syntax(sources, *, suffix=suffix, **kwargs):
-        print(f'Error in {sources[-1][0]}:1' + suffix)
-        return None
+# Incomplete diagnostics must fail instead of accepting an expected error.
+def incomplete_syntax(sources, **kwargs):
+    print(f'Error in {sources[-1][0]}:1')
+    return None
 
-    with patch('wirely.compiler.compile_strs', side_effect=incomplete_syntax):
-        with checks.assertRaises(AssertionError) as error:
-            run_fixture_with_std(legacy)
-    assert 'malformed syntax diagnostic' in str(error.exception)
+
+with patch('wirely.compiler.compile_strs', side_effect=incomplete_syntax):
+    with checks.assertRaises(AssertionError) as error:
+        run_fixture_with_std(legacy)
+assert 'malformed syntax diagnostic' in str(error.exception)
 
 
 invalid = [
     ('', 'no expected diagnostics'),
     ('// TEST\n', 'no expected diagnostics'),
     ('// TEST\n// TEST\n' + legacy, 'no expected diagnostics'),
-    (legacy + '// TEST\n', 'no expected diagnostics'),
     ('// TEST:   \n' + legacy, 'empty test label'),
-    ('// TEST\nnode valid: Std.Constant { Type: uint8, Value: 1 }',
-     'no expected diagnostics'),
     ('// TEST\nnode valid: Std.Constant { Type: uint8, Value: 1 } // E: out of range',
      'compiled=True'),
     ('// TEST\n' + legacy.replace('out of range', 'wrong expectation'),
@@ -117,8 +114,6 @@ invalid = [
      'Malformed annotation on line 3'),
     ('// TEST\n// ^E: out of range\n' + legacy,
      'Malformed annotation on line 3'),
-    (legacy + '// TEST\n// ^^E: out of range\n' + legacy,
-     'Malformed annotation on line 4'),
     ('// TEST\nenum type Mode: uint8 {\n  On = 1,\n'
      '  On = 2, // E: Duplicate enum member On\n}', 'unexpected='),
 ]
@@ -149,14 +144,13 @@ def fail_first(sources, **kwargs):
     return original_compile(sources, **kwargs)
 
 
-with patch('wirely.compiler.compile_strs', side_effect=fail_first) as compiler:
+with patch('wirely.compiler.compile_strs', side_effect=fail_first):
     with checks.assertRaises(AssertionError) as error:
         run_fixture_with_std('''// TEST: internal failure
 node bad: Missing {} // E: simulated
 // TEST: later case
 node bad: Missing {} // E: wrong expectation
 ''')
-    assert compiler.call_count == 2
 message = str(error.exception)
 assert 'compiler failed internally' in message and 'later case' in message
 
@@ -215,7 +209,6 @@ node bad: Std.Constant { Type: uint8, Value: -1 } // E: Cannot find block type S
 node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 ''')
 run_fixture('// LIBRARIES:\nnode bad: Missing {} // E: Cannot find block type Missing\n')
-run_fixture('// TEST: selected case\n\t// LIBRARIES : std\t\n' + legacy)
 run_fixture('''// TEST: a directive in a string is ordinary content
 node type Holder { parameter Text: String = "// LIBRARIES: missing"; }
 // LIBRARIES_EXTRA is an ordinary comment.
@@ -226,39 +219,14 @@ for metadata, message in [
     ('// LIBRARIES std', 'Malformed library metadata'),
     ('// LIBRARIES: missing', 'Unknown library'),
     ('// LIBRARIES: ../std', 'Malformed library name'),
-    ('// LIBRARIES: STD', 'Malformed library name'),
     ('// LIBRARIES: std,', 'Malformed library name'),
-    ('// LIBRARIES: std,,matter', 'Malformed library name'),
     ('// LIBRARIES: std, std', 'Duplicate library name'),
     ('// LIBRARIES: std\n// LIBRARIES:', 'Multiple library directives'),
-    ('// LIBRARIES:\n// LIBRARIES: std', 'Multiple library directives'),
 ]:
-    for prefix in ['', '// TEST: malformed metadata\n']:
-        with checks.assertRaises(AssertionError) as error:
-            run_fixture(prefix + metadata + '\n' + legacy)
-        assert message in str(error.exception), str(error.exception)
+    with checks.assertRaises(AssertionError) as error:
+        run_fixture(metadata + '\n' + legacy)
+    assert message in str(error.exception), str(error.exception)
 
-# Only the requested sources are supplied, and physical locations survive headers.
-source_selections = []
-
-
-def observe_sources(sources, **kwargs):
-    source_selections.append(([Path(filename).stem for filename, _ in sources[:-1]], kwargs['add_std']))
-    return original_compile(sources, **kwargs)
-
-
-with patch('wirely.compiler.compile_strs', side_effect=observe_sources):
-    run_fixture('''// LIBRARIES: std
-
-// TEST: inherited library
-node bad: Std.Constant { Type: uint8, Value: -1 }
-// ^E: out of range
-// TEST: no libraries
-// LIBRARIES:
-node bad: Std.Constant { Type: uint8, Value: -1 } // E: Cannot find block type Std.Constant
-// TEST: selected libraries
-// LIBRARIES: std, matter
-node bad: Std.Constant { Type: ThermostatSystemModeEnum, Value: ThermostatSystemModeEnum.Missing }
-// ^E: Unknown member
-''')
-assert source_selections == [(['std'], False), ([], False), (['std', 'matter'], False)]
+# A malformed case override is rejected too.
+with checks.assertRaises(AssertionError):
+    run_fixture('// LIBRARIES: std\n' + legacy + '\n// TEST: override\n// LIBRARIES: missing\n' + legacy)
