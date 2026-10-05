@@ -2,10 +2,13 @@ import asyncio
 import contextlib
 import io
 import socket
+import warnings
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
+from cryptography import x509
+from cryptography.utils import CryptographyDeprecationWarning
 
 from wirely.test import TestResourceProvider, run_test as runner_run_test
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
@@ -23,9 +26,15 @@ def assert_closed(server):
 
 
 async def check_server():
-    server = Server()
+    with warnings.catch_warnings():
+        warnings.simplefilter('error', CryptographyDeprecationWarning)
+        server = Server()
     info = server.info
     try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error', CryptographyDeprecationWarning)
+            certificate = x509.load_der_x509_certificate(server.tls_cert_asn1)
+        assert certificate.serial_number > 0
         assert info.server is server
         assert info.host == '127.0.0.1'
         assert info.port > 0

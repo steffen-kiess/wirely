@@ -14,6 +14,7 @@ from . import cert
 import wirely.misc.service
 
 import OpenSSL
+import cryptography.x509
 
 import aiohttp
 import aiohttp.web
@@ -41,7 +42,7 @@ class Server:
         # Create self-signed cert
         certificate = OpenSSL.crypto.X509()
         # certificate.get_subject().CN = 'cn'
-        # certificate.set_serial_number(1000)
+        certificate.set_serial_number(cryptography.x509.random_serial_number())
         certificate.gmtime_adj_notBefore(0)
         certificate.gmtime_adj_notAfter(10*365*24*60*60)
         certificate.set_issuer(certificate.get_subject())
