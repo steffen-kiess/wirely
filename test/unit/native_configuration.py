@@ -1,5 +1,3 @@
-import json
-import tempfile
 from pathlib import Path
 from types import MappingProxyType
 from unittest import TestCase
@@ -10,16 +8,10 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
-from wirely.native.knx import KnxData
 from wirely.native.memory import ToggleFlipFlopTriggerData
-from wirely.native.mqtt import MqttData
 from wirely.native.time import TriggerAtData
-from wirely.native.two_n import TwoNDeviceData
-from wirely.compiler.native_preparation.knx import prepare_knx_data
 from wirely.compiler.native_preparation.memory import prepare_toggle_flip_flop_trigger_data
-from wirely.compiler.native_preparation.mqtt import prepare_mqtt_data
 from wirely.compiler.native_preparation.time import prepare_trigger_at_data
-from wirely.compiler.native_preparation.two_n import prepare_two_n_device_data
 from wirely.compiler.native_configuration import register_configuration
 from wirely.compiler import model as compiler_model
 
@@ -181,111 +173,11 @@ prepare = unexpected_error
 with checks.assertRaises(compiler_model.InternalCompilerError):
     probe('')
 
-# Credentials are prepared for execution on a host without the source file.
-with tempfile.TemporaryDirectory() as directory:
-    filename = Path(directory) / 'credentials.txt'
-    filename.write_text('username\npassword\n')
-    prepare = lambda context: prepare_two_n_device_data(context=context)
-    program = probe('''parameter Host: String = "localhost";
-    parameter Port: uint16 = 443;
-    parameter TLSA: List[String] = [];
-    parameter UsernamePasswordFile: String =
-      Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt");''',
-                    filename=str(Path(directory) / 'main.wrl'))
-    filename.unlink()
-    data = next(instance.configuration
-                for instance in program.instances.values()
-                if isinstance(instance.configuration, TwoNDeviceData))
-    assert data.username == 'username'
-    assert data.password == 'password'
-    assert not hasattr(data, 'filename')
-    # The engine can run after the credentials have been removed.
-    executed = []
-
-    def run_prepared(*, context):
-        assert context.configuration.username == 'username'
-        assert context.configuration.password == 'password'
-        executed.append(context.name)
-
-    with patch.dict(wirely.native.test_library.native_block_types, registry), \
-            patch.object(ConfigurationProbe, 'run', run_prepared):
-        wirely.Engine(program).step()
-    assert sorted(executed) == ['again', 'probe']
-    with checks.assertRaises(compiler_model.ProgramError) as caught:
-        probe('''parameter Host: String = "localhost";
-        parameter Port: uint16 = 443;
-        parameter TLSA: List[String] = [];
-        parameter UsernamePasswordFile: String =
-          Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt");''',
-              filename=str(Path(directory) / 'main.wrl'))
-    assert caught.exception.source_element.source_position.start_line == 8
-    assert caught.exception.source_element.source_position.filename == str(Path(directory) / 'main.wrl')
-    assert 'No such file' in str(caught.exception)
-
-    declarations = '''parameter Host: String = "localhost";
-    parameter Port: uint16 = 443;
-    parameter TLSA: List[String] = [];
-    parameter UsernamePasswordFile: String;'''
-    # Absolute filenames work even when the source has no filesystem location.
-    filename.write_text('absolute_user\nabsolute_password\n')
-    arguments = 'UsernamePasswordFile: ' + json.dumps(str(filename))
-    program = probe(declarations, arguments=arguments, filename='<test>')
-    assert program.instances['probe'].configuration.username == 'absolute_user'
-    for contents in ('', 'username\n', '\npassword\n'):
-        filename.write_text(contents)
-        with checks.assertRaises(compiler_model.ProgramError) as caught:
-            probe(declarations, arguments=arguments)
-        assert 'Failed to read username and password' in str(caught.exception)
-        assert caught.exception.source_element is contexts[-1]._origins['UsernamePasswordFile'][0]
-    for relative in ('credentials.txt', '../credentials.txt', ''):
-        with checks.assertRaises(compiler_model.ProgramError) as caught:
-            probe(declarations, arguments='UsernamePasswordFile: ' + json.dumps(relative))
-        assert 'must be absolute' in str(caught.exception)
-        assert 'Path.Join' in str(caught.exception)
-        assert caught.exception.source_element is contexts[-1]._origins['UsernamePasswordFile'][0]
-
-    filename.write_text('forwarded_user\nforwarded_password\n')
-    program = compile_sources(
-        (str(Path(directory) / 'types/main.wrl'), '''
-namespace TestLibrary {
-  node type ConfigurationProbe {
-    parameter Host: String = "localhost";
-    parameter Port: uint16 = 443;
-    parameter TLSA: List[String] = [];
-    parameter UsernamePasswordFile: String;
-    native procedure run;
-  }
-}
-node type Wrapper {
-  parameter File: String;
-  node child: TestLibrary.ConfigurationProbe { UsernamePasswordFile: File }
-}
-'''),
-        (str(Path(directory) / 'main.wrl'), '''
-node wrapper: Wrapper {
-  File: Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt"),
-}
-'''),
-    )
-    assert program.instances['wrapper.child'].configuration.username == 'forwarded_user'
-
-
 factories = {
-    KnxData: prepare_knx_data,
-    MqttData: prepare_mqtt_data,
     TriggerAtData: prepare_trigger_at_data,
     ToggleFlipFlopTriggerData: prepare_toggle_flip_flop_trigger_data,
 }
 invalid_configurations = [
-    (KnxData, 'parameter GroupAddress: String = "invalid";'
-     'parameter Type: ValueType = boolean;', 'GroupAddress'),
-    (KnxData, 'parameter GroupAddress: String = "1/2/3";'
-     'parameter Type: ValueType = String;', 'Type'),
-    (MqttData, 'parameter Type: ValueType = MonotonicTime;'
-     'parameter Topic: String = "topic";', 'Type'),
-    (MqttData, 'parameter Type: ValueType = String;'
-     'parameter Topic: String = "topic";'
-     'parameter Template: String = "%x";', 'Template'),
     (TriggerAtData, 'parameter OutputType: ValueType = boolean;'
      'optional parameter OutputValue: OutputType;', 'OutputValue'),
     (ToggleFlipFlopTriggerData, 'parameter OutputType: ValueType = boolean;'
@@ -298,11 +190,3 @@ for data_type, declarations, parameter in invalid_configurations:
     error = caught.exception
     assert type(error) is compiler_model.ProgramError, data_type
     assert error.source_element is contexts[-1]._origins[parameter][0], data_type
-
-# Explicit arguments take precedence over the default's source location.
-prepare = lambda context: prepare_knx_data(context=context)
-with checks.assertRaises(compiler_model.ProgramError) as caught:
-    probe('parameter GroupAddress: String = "1/2/3";'
-          'parameter Type: ValueType = boolean;',
-          arguments='GroupAddress: "invalid"')
-assert caught.exception.source_element.source_position.start_line == 8

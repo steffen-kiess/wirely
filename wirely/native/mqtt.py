@@ -2,7 +2,6 @@ import asyncio
 import json
 import dataclasses
 import urllib
-import typing
 import contextlib
 
 import wirely as blocks
@@ -124,91 +123,6 @@ def parse_mqtt_uri(uri):
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
-@dataclasses.dataclass(frozen=True)
-class MqttData:
-    value_type: blocks.ValueType
-    topic: str
-    format: typing.Optional[str]
-    template_prefix: str
-    template_suffix: str
-
-    @staticmethod
-    def parse_json_str_simple(s):
-        in_str = False
-        backslash_count = 0
-        res = []
-        cur_str = ''
-        for c in s:
-            if c == '\\':
-                backslash_count += 1
-                cur_str += c
-            elif c == '"' and backslash_count % 2 == 0:
-                if in_str:
-                    cur_str += c
-                if cur_str != '':
-                    res.append((in_str, cur_str))
-                in_str = not in_str
-                cur_str = ''
-                if in_str:
-                    cur_str += c
-            else:
-                backslash_count = 0
-                cur_str += c
-        if cur_str != '':
-            res.append((in_str, cur_str))
-        return res
-
-    @staticmethod
-    def parse_template(st):
-        prefix = ''
-        suffix = ''
-        found_ref = False
-        for in_str, cur_str in MqttData.parse_json_str_simple(st):
-            if in_str:
-                if not found_ref:
-                    prefix += cur_str
-                else:
-                    suffix += cur_str
-                continue
-
-            pos = 0
-            while pos < len(cur_str):
-                c = cur_str[pos]
-                pos += 1
-
-                if c == '%':
-                    if pos == len(cur_str):
-                        raise ValueError('Found lone % at end of string')
-                    c = cur_str[pos]
-                    pos += 1
-
-                    if c == '%':
-                        pass
-                    elif c == 's':
-                        if found_ref:
-                            raise ValueError('Found multiple %s in template string')
-                        found_ref = True
-                        continue
-                    else:
-                        raise ValueError('Unexpected sequence in template string: ' + repr('%' + c))
-
-                if not found_ref:
-                    prefix += c
-                else:
-                    suffix += c
-
-        if not found_ref:
-            raise ValueError('Got template string without %s')
-
-        return prefix, suffix
-
-
-    def dump(self):
-        print(f'  Using topic: {self.topic!r}', flush=True)
-        print(f'  Using type: {self.value_type!r}', flush=True)
-        print(f'  Using format: {self.format!r}', flush=True)
-
-
 @native_block_type(native_block_types, has_native_state=True)
 class Connection(blocks.NativeState):
     def __init__(self, *, context):
@@ -320,7 +234,7 @@ class Connection(blocks.NativeState):
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
-@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True)
 class ValueOptionProvider(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -332,18 +246,26 @@ class ValueOptionProvider(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = context.configuration
+        self.value_type = context.values['Type']
+        self.topic = context.values['Topic']
+        format_option = context.values['Format']
+        self.format = None if format_option is None else format_option.value
+        parts = context.values['template_parts']
+        self.template_prefix = parts['prefix']
+        self.template_suffix = parts['suffix']
 
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT ValueOptionProvider', flush=True)
 
-        self.data.dump()
+        print(f'  Using topic: {self.topic!r}', flush=True)
+        print(f'  Using type: {self.value_type!r}', flush=True)
+        print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
-        self.json_encode = self.data.value_type.json_encode
+        self.json_encode = self.value_type.json_encode
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         super().start_tasks(task_group, async_exit_stack)
@@ -363,12 +285,12 @@ class ValueOptionProvider(blocks.NativeState):
             value_bytes = b''
         else:
             value = value_opt.value
-            value = self.json_encode(value, self.data.format)
+            value = self.json_encode(value, self.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = self.data.template_prefix + value + self.data.template_suffix
+            value = self.template_prefix + value + self.template_suffix
             value_bytes = bytes(value, 'utf-8')
 
-        print(f'Setting output {self.data.topic} to {value_bytes}, old value_to_send is {self.value_to_send}', flush=True)
+        print(f'Setting output {self.topic} to {value_bytes}, old value_to_send is {self.value_to_send}', flush=True)
 
         # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
         # TODO: Provide some notification if this is happening?
@@ -384,12 +306,12 @@ class ValueOptionProvider(blocks.NativeState):
             value = self.value_to_send
             self.value_to_send = None
 
-            print(f'Sending {value} to {self.data.topic}', flush=True)
-            await self.native_server.client.publish(self.data.topic, payload=value)
-            print(f'Sending {value} to {self.data.topic} done', flush=True)
+            print(f'Sending {value} to {self.topic}', flush=True)
+            await self.native_server.client.publish(self.topic, payload=value)
+            print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True)
 class EventSender(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -401,18 +323,26 @@ class EventSender(blocks.NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.data = context.configuration
+        self.value_type = context.values['Type']
+        self.topic = context.values['Topic']
+        format_option = context.values['Format']
+        self.format = None if format_option is None else format_option.value
+        parts = context.values['template_parts']
+        self.template_prefix = parts['prefix']
+        self.template_suffix = parts['suffix']
 
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT EventSender', flush=True)
 
-        self.data.dump()
+        print(f'  Using topic: {self.topic!r}', flush=True)
+        print(f'  Using type: {self.value_type!r}', flush=True)
+        print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
 
-        self.json_encode = self.data.value_type.json_encode
+        self.json_encode = self.value_type.json_encode
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         super().start_tasks(task_group, async_exit_stack)
@@ -425,8 +355,6 @@ class EventSender(blocks.NativeState):
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        data = context.configuration
-
         value_opt = context.inputs['input']
 
         # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
@@ -434,12 +362,12 @@ class EventSender(blocks.NativeState):
             return
         else:
             value = value_opt.value
-            value = self.json_encode(value, data.format)
+            value = self.json_encode(value, self.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = data.template_prefix + value + data.template_suffix
+            value = self.template_prefix + value + self.template_suffix
             value_bytes = bytes(value, 'utf-8')
 
-        print(f'Sending event {data.topic} to {value_bytes}, old values_to_send is {self.values_to_send}', flush=True)
+        print(f'Sending event {self.topic} to {value_bytes}, old values_to_send is {self.values_to_send}', flush=True)
 
         # Note: If sending is too slow, there might be multiple events queued up.
         # TODO: Provide a notification in this case?
@@ -457,12 +385,12 @@ class EventSender(blocks.NativeState):
                 await self.event.wait()
             value = self.values_to_send.pop(0)
 
-            print(f'Sending {value} to {self.data.topic}', flush=True)
-            await self.native_server.client.publish(self.data.topic, payload=value)
-            print(f'Sending {value} to {self.data.topic} done', flush=True)
+            print(f'Sending {value} to {self.topic}', flush=True)
+            await self.native_server.client.publish(self.topic, payload=value)
+            print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=MqttData)
+@native_block_type(native_block_types, has_native_state=True)
 class EventReceiver(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -470,13 +398,20 @@ class EventReceiver(blocks.NativeState):
         self.task = None
         self.received_values = []
 
-        self.data = context.configuration
+        self.value_type = context.values['Type']
+        self.topic = context.values['Topic']
+        format_option = context.values['Format']
+        self.format = None if format_option is None else format_option.value
+        self.template_prefix = ''
+        self.template_suffix = ''
 
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT EventReceiver', flush=True)
 
-        self.data.dump()
+        print(f'  Using topic: {self.topic!r}', flush=True)
+        print(f'  Using type: {self.value_type!r}', flush=True)
+        print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = context.inputs['Broker']
         print(f'  Using native server object: {self.native_server}', flush=True)
@@ -506,27 +441,27 @@ class EventReceiver(blocks.NativeState):
 
     async def run_task(self):
         # TODO: Should subscribing be done here or in start_tasks()?
-        async with self.native_server.subscription(self.data.topic):
-            async with self.native_server.register_topic_queue(self.data.topic) as queue:
+        async with self.native_server.subscription(self.topic):
+            async with self.native_server.register_topic_queue(self.topic) as queue:
                 async for message in queue:
                     try:
                         print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
 
-                        if message.topic.value == self.data.topic:
+                        if message.topic.value == self.topic:
                             value_bytes = message.payload
                             value = str(value_bytes, 'utf-8')
 
                             # TODO: Do JSON parsing here?
-                            if not value.startswith(self.data.template_prefix):
-                                raise Exception(f'Message {value!r} does not start with prefix {self.data.template_prefix!r}')
-                            value = value[len(self.data.template_prefix):]
-                            if not value.endswith(self.data.template_suffix):
-                                raise Exception(f'Message {value!r} does not end with suffix {self.data.template_suffix!r}')
-                            if len(self.data.template_suffix):
-                                value = value[:-len(self.data.template_suffix)]
+                            if not value.startswith(self.template_prefix):
+                                raise Exception(f'Message {value!r} does not start with prefix {self.template_prefix!r}')
+                            value = value[len(self.template_prefix):]
+                            if not value.endswith(self.template_suffix):
+                                raise Exception(f'Message {value!r} does not end with suffix {self.template_suffix!r}')
+                            if len(self.template_suffix):
+                                value = value[:-len(self.template_suffix)]
 
                             value = json.loads(value)
-                            value = self.values['Type'].json_decode(value, self.data.format)
+                            value = self.values['Type'].json_decode(value, self.format)
 
                             self.received_values.append(value)
                             self.trigger('get_value')

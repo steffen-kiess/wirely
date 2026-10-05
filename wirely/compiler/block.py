@@ -505,10 +505,19 @@ class BlockInstance(blocks.NodeInstance):
             if key in all_par_values:
                 parameter_values_resolved[key] = all_par_values[key]
         self.parameter_values = parameter_values_resolved
-        self.constant_values = {
-            declaration: all_par_values[declaration]
-            for declaration in self.block_type.parsed_constants.values()
-        }
+        try:
+            self.constant_values = {
+                declaration: all_par_values[declaration]
+                for declaration in self.block_type.parsed_constants.values()
+            }
+        except blocks.ProgramError as error:
+            owner = self.block or self.block_type.singleton_instance
+            if not owner.is_root:
+                name = Block.path_name(self.path, qualified=True)
+                error.hints = [*error.hints, blocks.CompilerHint(
+                    owner.instantiation, f'While instantiating {name!r}',
+                )]
+            raise
         self.static_values = {
             key: all_par_values[key] for key in all_par_values if key in all_par_values
         }

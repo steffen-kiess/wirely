@@ -264,3 +264,43 @@ with patch.dict(native_function_impls, {('Qualified', 'Some'): identity}):
 }
 constant Value: unit = Qualified.Some(());
 """)
+
+
+# Functions can construct declared structs from native field mappings.
+with patch.dict(native_function_impls, {
+    ('MakePair',): lambda *, context: {'kind': wirely.value_types.uint16, 'number': 7},
+}):
+    source = '''struct type Pair { kind: ValueType, number: uint8, }
+native function MakePair(): Pair;
+namespace TestLibrary {
+  native node type FunctionPairProbe {
+    parameter PairValue: Pair = MakePair();
+  }
+}
+node probe: TestLibrary.FunctionPairProbe {}
+'''
+    # Inspect parameters without needing a runtime implementation.
+    from wirely.native import native_block_type
+    import wirely.native.test_library
+
+    registry = {}
+
+    @native_block_type(registry, has_native_state=True)
+    class FunctionPairProbe(wirely.NativeState):
+        pass
+
+    with patch.dict(wirely.native.test_library.native_block_types, registry):
+        result = program(source)
+    assert result.instances['probe'].parameters['PairValue']['kind'] == wirely.value_types.uint16
+    assert result.instances['probe'].parameters['PairValue']['number'] == 7
+    for fields in ({'kind': wirely.value_types.uint16},
+                   {'kind': wirely.value_types.uint16, 'number': 'invalid'},
+                   {'kind': wirely.value_types.uint16, 'number': 7, 'extra': 1}):
+        with patch.dict(native_function_impls, {('MakePair',): lambda *, context: fields}), \
+                patch.dict(wirely.native.test_library.native_block_types, registry):
+            try:
+                program(source)
+            except blocks.ProgramError as error:
+                assert 'expected result of type Pair' in str(error)
+            else:
+                raise AssertionError('Invalid struct mapping accepted')

@@ -6,10 +6,30 @@ import inspect
 from dataclasses import dataclass
 from types import MappingProxyType
 
+from wirely.types import TypeStruct, StructValue
+
 from . import model as blocks
 
 
 native_function_impls = {
+    ('KNX', 'ParseGroupAddress'): (
+        'wirely.compiler.function_implementations.knx', 'parse_group_address',
+    ),
+    ('KNX', 'ValueTypeName'): (
+        'wirely.compiler.function_implementations.knx', 'value_type_name',
+    ),
+    ('KNX', 'SupportsValueType'): (
+        'wirely.compiler.function_implementations.knx', 'supports_value_type',
+    ),
+    ('MQTT', 'SupportsType'): (
+        'wirely.compiler.function_implementations.mqtt', 'supports_type',
+    ),
+    ('MQTT', 'ParseTemplate'): (
+        'wirely.compiler.function_implementations.mqtt', 'parse_template',
+    ),
+    ('TwoN', 'ReadCredentials'): (
+        'wirely.compiler.function_implementations.two_n', 'read_credentials',
+    ),
     ('Std', 'IsValidEdgeType'): (
         'wirely.compiler.function_implementations.std', 'is_valid_edge_type',
     ),
@@ -128,6 +148,10 @@ def invoke(function, values, sources, call):
     except (ValueError, ArithmeticError, OSError) as error:
         raise blocks.ProgramError(call, str(error)) from error
     try:
+        if (isinstance(function.return_type, TypeStruct)
+                and isinstance(result, Mapping)
+                and not isinstance(result, StructValue)):
+            result = blocks.value_types.ValueType(function.return_type).make_struct(result)
         result = blocks.value_types._from_native(function.return_type, result)
         return function.return_type.verify_value(result)
     except Exception as error:

@@ -1,4 +1,14 @@
 namespace MQTT {
+  native function SupportsType(type: ValueType): boolean;
+
+  // Internal template representation.
+  struct type TemplateParts {
+    prefix: String,
+    suffix: String,
+  }
+  // Internal template parser.
+  native function ParseTemplate(template: Option[String]): TemplateParts;
+
   resource type Broker;
 
   native node type Connection {
@@ -15,10 +25,16 @@ namespace MQTT {
     optional parameter Format: String;
     optional parameter Template: String;
 
+    assert SupportsType(Type), "Unsupported type for MQTT";
+
+    constant template_parts: TemplateParts =
+      ParseTemplate(parameter_option(Template));
+
     input Broker: resource Broker;
     default input: value Option[Type];
 
-    native initializer depends on Broker;
+    native initializer depends on Broker
+      uses Type, Topic, parameter_option(Format) as Format, template_parts;
 
     native procedure set_value stage output
       depends on default input as "input";
@@ -52,10 +68,16 @@ namespace MQTT {
     optional parameter Format: String;
     optional parameter Template: String;
 
+    assert SupportsType(Type), "Unsupported type for MQTT";
+
+    constant template_parts: TemplateParts =
+      ParseTemplate(parameter_option(Template));
+
     input Broker: resource Broker;
     default input: event Type;
 
-    native initializer depends on Broker;
+    native initializer depends on Broker
+      uses Type, Topic, parameter_option(Format) as Format, template_parts;
 
     native procedure send_value stage output
       depends on default input as "input";
@@ -67,10 +89,13 @@ namespace MQTT {
     optional parameter Format: String;
     // TODO optional parameter Template : String;
 
+    assert SupportsType(Type), "Unsupported type for MQTT";
+
     input Broker: resource Broker;
     default output: event Type;
 
-    native initializer depends on Broker uses Type;
+    native initializer depends on Broker
+      uses Type, Topic, parameter_option(Format) as Format;
 
     native procedure get_value stage input produces default output as "output";
   }

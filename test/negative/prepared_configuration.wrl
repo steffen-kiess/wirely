@@ -1,0 +1,41 @@
+// LIBRARIES: std, knx, mqtt, path, time, two_n
+
+// TEST: invalid KNX address
+constant Address: uint16 = KNX.ParseGroupAddress("invalid");
+// ^E: CouldNotParseAddress
+
+// TEST: unsupported KNX mapping
+constant Name: String = KNX.ValueTypeName(String);
+// ^E: Unsupported type for KNX
+
+// TEST: unsupported KNX value type
+assert KNX.SupportsValueType(int16), "Unsupported value type for KNX";
+// ^E: Compile-time assertion failed: Unsupported value type for KNX
+
+// TEST: unsupported MQTT JSON type
+assert MQTT.SupportsType(MonotonicTime), "Unsupported type for MQTT";
+// ^E: Compile-time assertion failed: Unsupported type for MQTT
+
+// TEST: missing MQTT placeholder
+constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("text"));
+// ^E: Got template string without %s
+
+// TEST: quoted MQTT placeholder
+constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("\"%s\""));
+// ^E: Got template string without %s
+
+// TEST: repeated MQTT placeholder
+constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%s%s"));
+// ^E: Found multiple %s in template string
+
+// TEST: trailing percent
+constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%s%"));
+// ^E: Found lone % at end of string
+
+// TEST: invalid MQTT escape
+constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%x"));
+// ^E: Unexpected sequence in template string
+
+// TEST: relative credential path
+constant Credentials: TwoN.Credentials = TwoN.ReadCredentials("relative");
+// ^E: UsernamePasswordFile must be absolute

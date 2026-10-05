@@ -1,30 +1,10 @@
 import asyncio
 import contextlib
-import dataclasses
-import typing
 
 import wirely as blocks
 from wirely.native import native_block_type
 
 native_block_types = {}
-
-
-@dataclasses.dataclass(frozen=True)
-class KnxData:
-    group_address_raw: int
-    value_type: blocks.ValueType
-    # TODO: Should this be here or should this be created later?
-    value_type_knx: str
-
-
-    @property
-    def group_address(self):
-        import xknx
-        return xknx.telegram.GroupAddress(self.group_address_raw)
-
-    def dump(self):
-        print(f'  Using group address: {self.group_address!r}', flush=True)
-        print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
 
 @native_block_type(native_block_types, has_native_state=True)
@@ -70,7 +50,7 @@ class ValueReceiver(blocks.NativeState):
 
         print('Create KNX ValueReceiver', flush=True)
 
-        group_address = context.values['GroupAddress']
+        group_address = context.values['group_address']
         ty = context.values['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
@@ -81,12 +61,7 @@ class ValueReceiver(blocks.NativeState):
         self.address = xknx.telegram.GroupAddress(group_address)
 
         self.value_type = ty
-        if ty == blocks.value_types.boolean:
-            self.value_type_knx = "binary"
-        elif ty == blocks.value_types.uint16:
-            self.value_type_knx = "2byte_unsigned"
-        else:
-            raise Exception(f'TODO: Unsupported type for KNX.ValueReceiver: {ty}')
+        self.value_type_knx = context.values['value_type_name']
 
         # TODO: Where does this get cleaned up?
         if self.value_type_knx == "binary":
@@ -142,7 +117,7 @@ class ValueOptionProvider(blocks.NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        group_address = context.values['GroupAddress']
+        group_address = context.values['group_address']
         ty = context.values['Type']
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
@@ -153,12 +128,7 @@ class ValueOptionProvider(blocks.NativeState):
         self.address = xknx.telegram.GroupAddress(group_address)
 
         self.value_type = ty
-        if ty == blocks.value_types.boolean:
-            self.value_type_knx = "binary"
-        elif ty == blocks.value_types.uint16:
-            self.value_type_knx = "2byte_unsigned"
-        else:
-            raise Exception(f'TODO: Unsupported type for KNX.ValueOptionProvider: {ty}')
+        self.value_type_knx = context.values['value_type_name']
 
         # TODO: Where does this get cleaned up?
         self.expose = xknx.devices.ExposeSensor(self.native_bus.knx, name="Expose", group_address=self.address, value_type=self.value_type_knx)
@@ -208,7 +178,7 @@ class ValueOptionProvider(blocks.NativeState):
             print(f'Sending {value} to {self.address} done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=KnxData)
+@native_block_type(native_block_types, has_native_state=True)
 class EventReceiver(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -216,32 +186,34 @@ class EventReceiver(blocks.NativeState):
         self.task = None
         self.received_values = []
 
-        self.data = context.configuration
+        self.value_type = context.values['Type']
+        self.value_type_knx = context.values['value_type_name']
 
         print('Create KNX EventReceiver', flush=True)
 
         import xknx
 
-        self.data.dump()
+        print(f"  Using group address: {context.values['group_address']!r}", flush=True)
+        print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
         self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(self.data.group_address)
+        self.address = xknx.telegram.GroupAddress(context.values['group_address'])
 
         # TODO: Where does this get cleaned up?
         # TODO: Use RemoteValue directly?
         # TODO: Try to make sure that GroupValueResponses are ignored and only GroupValueWrites are used?
-        if self.data.value_type_knx == "binary":
+        if self.value_type_knx == "binary":
             self.sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.event_callback, sync_state=False, ignore_internal_state=True)
         else:
-            self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.data.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
+            self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
         self.native_bus.knx.devices.async_add(self.sensor)
 
     # TODO: Make sure exceptions here are handled somehow?
     def event_callback(self, device):
         # print('update_callback()', flush=True)
-        if self.data.value_type_knx == "binary":
+        if self.value_type_knx == "binary":
             val = device.state
         else:
             val = device.sensor_value.value
@@ -267,7 +239,7 @@ class EventReceiver(blocks.NativeState):
         self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_native_state=True, data_type=KnxData)
+@native_block_type(native_block_types, has_native_state=True)
 class EventSender(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -283,16 +255,17 @@ class EventSender(blocks.NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        self.data = context.configuration
+        self.value_type = context.values['Type']
+        self.value_type_knx = context.values['value_type_name']
 
         self.native_bus = context.inputs['Bus']
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(self.data.group_address)
+        self.address = xknx.telegram.GroupAddress(context.values['group_address'])
 
         # TODO: Where does this get cleaned up?
         # Use ExposeSensor instead of Sensor because Sensor does not support binary and BinarySensor does not support writing values
-        self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.data.value_type_knx)
+        self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.sensor)  # TODO: Is this needed?
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
@@ -306,8 +279,6 @@ class EventSender(blocks.NativeState):
     def send_value(self, *, context):
         # TODO: Add checks whether everything is running?
 
-        data = context.configuration
-
         value_opt = context.inputs['input']
 
         # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
@@ -317,7 +288,7 @@ class EventSender(blocks.NativeState):
             value = value_opt.value
             # TODO: Any checks needed here?
 
-        print(f'Sending event {value} to {data.group_address}, old values_to_send is {self.values_to_send}', flush=True)
+        print(f'Sending event {value} to {self.address}, old values_to_send is {self.values_to_send}', flush=True)
 
         # Note: If sending is too slow, there might be multiple events queued up.
         # TODO: Provide a notification in this case?

@@ -86,6 +86,11 @@ KNX nodes use a `KNX.Connection` node and a named
 Value receivers and providers support `boolean` and `uint16`. KNX use
 requires the `xknx` package and a reachable KNX service.
 
+`KNX.ParseGroupAddress(address: String): uint16` parses a group address.
+`KNX.ValueTypeName(type: ValueType): String` returns the KNX name for
+`boolean`, `int16`, `uint16`, `int32`, or `uint32`.
+`KNX.SupportsValueType(type: ValueType): boolean` checks value-block support.
+
 Choose one connection mode:
 
 - `Host` with `Protocol = "TCP"` or `"UDP"` opens a direct tunnel. `Port`
@@ -132,6 +137,7 @@ sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
+`MQTT.SupportsType(type: ValueType): boolean` checks JSON support.
 
 ## CSV
 

@@ -38,6 +38,7 @@ test_names = [
     'unit/constants',
     'unit/assertions',
     'unit/native_configuration',
+    'unit/prepared_configuration',
     'unit/library_settings',
     'unit/state_connections',
     'unit/types',
@@ -92,6 +93,7 @@ negative_tests = [
     'test/negative/native_procedures.wrl',
     'test/negative/native_values.wrl',
     'test/negative/native_functions.wrl',
+    'test/negative/prepared_configuration.wrl',
     'test/negative/path.wrl',
     'test/negative/procedures.wrl',
     'test/negative/native_initializers.wrl',
@@ -551,7 +553,7 @@ async def run_test(test_name):
         instances = dict(prog.instances)
         parameter_overrides = {}
 
-        def override_instance(node_id, parameters, *, optional_parameters=(), **configuration):
+        def override_instance(node_id, parameters, *, optional_parameters=()):
             bindings = {key: blocks.Some(value) if key in optional_parameters else value
                         for key, value in parameters.items()}
             parameter_overrides.setdefault(node_id, {}).update(bindings)
@@ -561,11 +563,8 @@ async def run_test(test_name):
                                        if key in initializer_values})
             values = dict(instance.parameters)
             values.update(parameters)
-            data = instance.configuration
-            if configuration:
-                data = replace(data, **configuration)
             instances[node_id] = replace(
-                instance, parameters=MappingProxyType(values), configuration=data,
+                instance, parameters=MappingProxyType(values),
                 initializer_values=initializer_values,
             )
 
@@ -581,7 +580,6 @@ async def run_test(test_name):
             override_instance(
                 node_id, {'Host': twon_info.host, 'Port': twon_info.port,
                           'TLSA': (twon_info.server.tlsa,)},
-                hostname=twon_info.host, port=twon_info.port, tlsa=(twon_info.server.tlsa,),
             )
         schedules = {
             stage: tuple(replace(

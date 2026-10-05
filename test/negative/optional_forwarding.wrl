@@ -83,7 +83,7 @@ node type Forward {
   optional parameter Foo: boolean;
   constant Value: boolean = Foo; // E: Unable to resolve value parameter
 }
-node parent: Forward {}
+node parent: Forward {} // H: While instantiating 'parent'
 
 // TEST: runtime_invocation
 node type Forward {

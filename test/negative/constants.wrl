@@ -52,7 +52,7 @@ node type Probe {
   constant First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
   constant Second: int16 = First;
 }
-node probe: Probe {}
+node probe: Probe {} // H: While instantiating 'probe'
 
 // TEST: mixed cycle
 node type Probe {
@@ -66,14 +66,14 @@ node type Probe {
   constant First: ValueType = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
   constant Second: ValueType = First;
 }
-node probe: Probe {}
+node probe: Probe {} // H: While instantiating 'probe'
 
 // TEST: type and initializer cycle
 node type Probe {
   constant First: Second = 0;
   constant Second: ValueType = Second; // E: Cyclic static value resolution: First -> Second -> Second
 }
-node probe: Probe {}
+node probe: Probe {} // H: While instantiating 'probe'
 
 // TEST: parameter only constant in runtime body
 node type Probe {
@@ -156,14 +156,14 @@ node type Probe {
   parameter Type: ValueType;
   constant Value: Type = true; // E: Invalid int value
 }
-node probe: Probe { Type: int16 }
+node probe: Probe { Type: int16 } // H: While instantiating 'probe'
 
 // TEST: parameter dependent range
 node type Probe {
   parameter Type: ValueType;
   constant Value: Type = 256; // E: out of range
 }
-node probe: Probe { Type: uint8 }
+node probe: Probe { Type: uint8 } // H: While instantiating 'probe'
 
 // TEST: enclosing constants are not child procedure names
 constant Flag: boolean = true;

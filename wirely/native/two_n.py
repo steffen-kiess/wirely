@@ -1,8 +1,6 @@
 import asyncio
 import sys
 import json
-import dataclasses
-import typing
 import contextlib
 
 import wirely as blocks
@@ -11,34 +9,7 @@ from wirely.native import native_block_type
 native_block_types = {}
 
 
-# TODO: Move somewhere else?
-def get_username_password(fn):
-    with open(fn, 'r') as file:
-        username = file.readline().strip()
-        password = file.readline().strip()
-
-    if username == '' or password == '':
-        raise ValueError('Failed to read username and password from {!r}'.format(fn))
-
-    return username, password
-
-
-@dataclasses.dataclass(frozen=True)
-class TwoNDeviceData:
-    hostname: str
-    port: int
-    # TODO: Parse into (int,int,int,bytes)?
-    tlsa: tuple[str, ...]
-    username: str
-    password: str
-
-
-    def dump(self):
-        print(f'  Connecting to: {self.hostname!r}:{self.port}', flush=True)
-        print(f'  Using TLSA: {self.tlsa!r}', flush=True)
-
-
-@native_block_type(native_block_types, has_native_state=True, data_type=TwoNDeviceData)
+@native_block_type(native_block_types, has_native_state=True)
 class Connection(blocks.NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -47,11 +18,14 @@ class Connection(blocks.NativeState):
 
         print('Create TwoN Connection', flush=True)
 
-        self.data = context.configuration
+        hostname = context.values['Host']
+        port = context.values['Port']
+        tlsa = context.values['TLSA']
+        credentials = context.values['credentials']
+        print(f'  Connecting to: {hostname!r}:{port}', flush=True)
+        print(f'  Using TLSA: {tlsa!r}', flush=True)
 
-        self.data.dump()
-
-        self.client = wirely.two_n.client.Client(hostname=self.data.hostname, port=self.data.port, tlsa=self.data.tlsa, http_api_username_password=(self.data.username, self.data.password))
+        self.client = wirely.two_n.client.Client(hostname=hostname, port=port, tlsa=tlsa, http_api_username_password=(credentials['username'], credentials['password']))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

@@ -1,6 +1,14 @@
 namespace TwoN {
   native function IsValidCode(code: String): boolean;
 
+  // Internal credential representation.
+  struct type Credentials {
+    username: String,
+    password: String,
+  }
+  // Internal credential reader.
+  native function ReadCredentials(filename: String): Credentials;
+
   resource type Device;
 
   native node type Connection {
@@ -9,7 +17,11 @@ namespace TwoN {
     parameter TLSA: List[String];
     parameter UsernamePasswordFile: String;
 
+    constant credentials: Credentials = ReadCredentials(UsernamePasswordFile);
+
     default output: resource Device;
+
+    native initializer uses Host, Port, TLSA, credentials;
   }
 
   // Get an event whenever a key is pressed or released
