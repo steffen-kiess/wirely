@@ -161,10 +161,6 @@ class TypedExpression:
         elif self.operation in ('eq', 'ne'):
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
-            if not (left.value_type.contains_parameters
-                    or left.value_type in (boolean, blocks.types.unit, blocks.types.ValueType)
-                    or isinstance(left.value_type, (blocks.types.TypeInt, blocks.types.TypeEnum))):
-                raise ProgramError(self.source, 'Equality requires boolean, integer, enum, unit, or ValueType values')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)

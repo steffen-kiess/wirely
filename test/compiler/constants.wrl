@@ -34,8 +34,8 @@ node type Select {
   };
   constant ExpectedAt: TimeOfDay = "00:30";
   assert Selected == Expected && Default == Expected;
-  assert CompilerTest.Int16OptionsEqual(Items, [Some(Expected), None]);
-  assert CompilerTest.SettingsEqual(Pair, Settings { enabled: Enabled, number: Expected, at: ExpectedAt });
+  assert Items == [Some(Expected), None];
+  assert Pair == Settings { enabled: Enabled, number: Expected, at: ExpectedAt };
   node child: Capture { Value: Default, Expected: Expected }
 }
 node type Forward {
@@ -58,13 +58,13 @@ node type Generic {
   parameter Type: ValueType;
   parameter Expected: Type;
   constant Value: Type = { let number: uint8 = 7; Some([number, 8]) };
-  assert CompilerTest.Uint8NumbersEqual(Value, Expected);
+  assert Value == Expected;
 }
 node generic: Generic { Type: Option[List[uint8]], Expected: Some([7, 8]) }
 node type TypedList {
   constant Type: ValueType = List[Option[int16]];
   constant Items: Type = { let number: int16 = 12; [Some(number), None] };
-  assert CompilerTest.Int16OptionsEqual(Items, [Some(12), None]);
+  assert Items == [Some(12), None];
 }
 node typed_list: TypedList {}
 node type TypeValue {
@@ -81,15 +81,3 @@ node type BooleanExpression {
   assert Enabled && Matches;
 }
 node expression: BooleanExpression { Type: boolean, Value: false }
-
-namespace CompilerTest {
-  native function Int16OptionsEqual(
-    actual: List[Option[int16]],
-    expected: List[Option[int16]],
-  ): boolean;
-  native function SettingsEqual(actual: Settings, expected: Settings): boolean;
-  native function Uint8NumbersEqual(
-    actual: Option[List[uint8]],
-    expected: Option[List[uint8]],
-  ): boolean;
-}

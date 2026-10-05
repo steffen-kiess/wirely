@@ -142,17 +142,6 @@ node type Probe {
 }
 node probe: Probe {  }
 
-// TEST: unsupported equality
-node type Probe {
-
-  default output: value boolean;
-  procedure run produces default output as output {
-    let time: TimeOfDay = "08:00";
-    output = time == time; // E: Equality requires
-  }
-}
-node probe: Probe {  }
-
 // TEST: different integer types
 node type Probe {
 

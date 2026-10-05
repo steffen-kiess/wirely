@@ -186,15 +186,13 @@ node type Structs {
     items: [Some(Packet { number: 513, mode: Example.Mode.On, flag: true }), None],
     type: uint8,
   };
-  assert CompilerTest.SettingsEqual(Value, Settings {
+  assert Value == Settings {
     type: uint8,
     items: [Some(Packet { flag: true, mode: Example.Mode.On, number: 513 }), None],
     text: "hello",
-  });
-  assert CompilerTest.EscapedFieldsEqual(
-    EscapedFields { r#class: 5, r#struct: () },
-    EscapedFields { r#struct: (), r#class: 5 });
-  assert CompilerTest.EmptyStructEqual(EmptyStruct {}, EmptyStruct {});
+  };
+  assert EscapedFields { r#class: 5, r#struct: () } == EscapedFields { r#struct: (), r#class: 5 };
+  assert EmptyStruct {} == EmptyStruct {};
 }
 node structs: Structs {}
 
@@ -222,14 +220,5 @@ namespace CompilerTest {
   ): boolean;
   native function Uint64EnumEqual(
     actual: Boundaryuint64, expected: uint64,
-  ): boolean;
-  native function SettingsEqual(actual: Settings, expected: Settings): boolean;
-  native function EscapedFieldsEqual(
-    actual: EscapedFields,
-    expected: EscapedFields,
-  ): boolean;
-  native function EmptyStructEqual(
-    actual: EmptyStruct,
-    expected: EmptyStruct,
   ): boolean;
 }

@@ -48,6 +48,7 @@ test_names = [
     'unit/resources',
     'unit/option_properties',
     'unit/structs',
+    'unit/equality',
     'unit/negative_cases',
     'wrl/delay',
     'wrl/std',
@@ -76,6 +77,7 @@ to_compile = [
     'test/compiler/assertions.wrl',
     'test/compiler/attributes.wrl',
     'test/compiler/constants.wrl',
+    'test/compiler/equality.wrl',
     'test/compiler/library_settings.wrl',
     'test/compiler/literals.wrl',
     'test/compiler/namespaces.wrl',
@@ -306,20 +308,12 @@ def compiler_enum_equal(*, context):
     return context.arguments['actual'].value == context.arguments['expected']
 
 
-def compiler_values_equal(*, context):
-    return context.arguments['actual'] == context.arguments['expected']
+def compiler_identity(*, context):
+    return context.arguments['value']
 
 
 COMPILER_TEST_FUNCTIONS = {
-    ('CompilerTest', name): compiler_values_equal
-    for name in (
-        'function', 'BooleanItemsEqual', 'BooleanOptionEqual', 'EmptyStructEqual',
-        'EscapedFieldsEqual', 'Int16OptionsEqual', 'Int8NumbersEqual',
-        'Int8OptionsEqual', 'ModesEqual', 'NestedBooleanEqual', 'NestedUnitEqual',
-        'PairOptionEqual', 'SettingsEqual', 'StringEqual', 'StringItemsEqual',
-        'TemplateEqual', 'TimeEqual', 'TimeOptionEqual', 'Uint8NumbersEqual',
-        'Uint8OptionsEqual', 'UnitsEqual',
-    )
+    ('CompilerTest', 'function'): compiler_identity,
 }
 
 COMPILER_TEST_FUNCTIONS.update({

@@ -1,0 +1,84 @@
+struct type Packet {
+  flag: boolean,
+  at: TimeOfDay,
+  span: Duration,
+  instant: MonotonicTime,
+}
+struct type Nested {
+  packet: Option[Packet],
+  maybe: Option[Option[unit]],
+}
+struct type Empty {}
+node type Compare {
+  parameter Type: ValueType;
+  input Left: value Type;
+  input Right: value Type;
+  output Equal: value boolean;
+  output Unequal: value boolean;
+  procedure run depends on Left as left, Right as right
+    produces Equal, Unequal
+  {
+    Equal = left == right;
+    Unequal = left != right;
+  }
+}
+
+node time_left: Std.DebugValueSource { Type: TimeOfDay }
+node time_right: Std.DebugValueSource { Type: TimeOfDay }
+node time: Compare { Type: TimeOfDay }
+connect time_left -> time.Left;
+connect time_right -> time.Right;
+
+node duration_left: Std.DebugValueSource { Type: Duration }
+node duration_right: Std.DebugValueSource { Type: Duration }
+node duration: Compare { Type: Duration }
+connect duration_left -> duration.Left;
+connect duration_right -> duration.Right;
+
+node monotonic_left: Std.DebugValueSource { Type: MonotonicTime }
+node monotonic_right: Std.DebugValueSource { Type: MonotonicTime }
+node monotonic: Compare { Type: MonotonicTime }
+connect monotonic_left -> monotonic.Left;
+connect monotonic_right -> monotonic.Right;
+
+node option_left: Std.DebugValueSource { Type: Option[TimeOfDay] }
+node option_right: Std.DebugValueSource { Type: Option[TimeOfDay] }
+node option: Compare { Type: Option[TimeOfDay] }
+connect option_left -> option.Left;
+connect option_right -> option.Right;
+
+node nested_option_left: Std.DebugValueSource { Type: Option[Option[unit]] }
+node nested_option_right: Std.DebugValueSource { Type: Option[Option[unit]] }
+node nested_option: Compare { Type: Option[Option[unit]] }
+connect nested_option_left -> nested_option.Left;
+connect nested_option_right -> nested_option.Right;
+
+node packet_left: Std.DebugValueSource { Type: Packet }
+node packet_right: Std.DebugValueSource { Type: Packet }
+node packet: Compare { Type: Packet }
+connect packet_left -> packet.Left;
+connect packet_right -> packet.Right;
+
+node nested_left: Std.DebugValueSource { Type: Option[Nested] }
+node nested_right: Std.DebugValueSource { Type: Option[Nested] }
+node nested: Compare { Type: Option[Nested] }
+connect nested_left -> nested.Left;
+connect nested_right -> nested.Right;
+
+node empty_left: Std.DebugValueSource { Type: Empty }
+node empty_right: Std.DebugValueSource { Type: Empty }
+node empty: Compare { Type: Empty }
+connect empty_left -> empty.Left;
+connect empty_right -> empty.Right;
+
+temporary LiteralEqual: boolean;
+temporary LiteralUnequal: boolean;
+procedure literals produces LiteralEqual, LiteralUnequal {
+  let at: TimeOfDay = "08:00";
+  let span: Duration = "PT60S";
+  let invalid: MonotonicTime = MonotonicTime.Invalid;
+  LiteralEqual = at == "08:00" && "PT1M" == span
+    && invalid == MonotonicTime.Invalid;
+  LiteralUnequal = "08:01" != at && span != "PT61S"
+    && !(MonotonicTime.Invalid != invalid);
+}

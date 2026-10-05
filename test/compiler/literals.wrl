@@ -66,73 +66,49 @@ assert -080 == -80;
 assert -0009 == -9;
 assert -
   42 == -42;
-assert CompilerTest.StringEqual("\0\t\n\r\"\'\\", "\x00\x09\x0a\x0d\x22\x27\x5c");
-assert CompilerTest.StringEqual("\012", "\u{0}12");
-assert CompilerTest.StringEqual("\x00\x7F\x80\xFF", "\u{0}\u{7f}\u{80}\u{ff}");
-assert CompilerTest.StringEqual("\x123", "\u{12}3");
-assert CompilerTest.StringEqual("\u{1F_600}\u{000041}\u{4__1_}", "😀AA");
-assert CompilerTest.StringEqual("\u{D7FF}\u{E000}\u{10FFFF}", "퟿􏿿");
-assert CompilerTest.StringEqual("Café 😀", "Café \u{1f600}");
-assert CompilerTest.StringEqual(r"\n\u{41}\xFF", "\\n\\u{41}\\xFF");
-assert CompilerTest.StringEqual(r#"Say "hello"\n"#, "Say \"hello\"\\n");
-assert CompilerTest.StringEqual("first
-second", "first\nsecond");
-assert CompilerTest.StringEqual("first\
+assert "\0\t\n\r\"\'\\" == "\x00\x09\x0a\x0d\x22\x27\x5c";
+assert "\012" == "\u{0}12";
+assert "\x00\x7F\x80\xFF" == "\u{0}\u{7f}\u{80}\u{ff}";
+assert "\x123" == "\u{12}3";
+assert "\u{1F_600}\u{000041}\u{4__1_}" == "😀AA";
+assert "\u{D7FF}\u{E000}\u{10FFFF}" == "퟿􏿿";
+assert "Café 😀" == "Café \u{1f600}";
+assert r"\n\u{41}\xFF" == "\\n\\u{41}\\xFF";
+assert r#"Say "hello"\n"# == "Say \"hello\"\\n";
+assert "first
+second" == "first\nsecond";
+assert "first\
   
-  second", "firstsecond");
-assert CompilerTest.StringEqual("first\
- second", "first second");
-assert CompilerTest.StringEqual("", r"") && CompilerTest.StringEqual(r"", r#""#);
+  second" == "firstsecond";
+assert "first\
+ second" == "first second";
+assert ("" == r"") && (r"" == r#""#);
 assert () == ( ) && (/* outer /* inner */ */) == ();
 assert (
   // Unit with a line comment.
 ) == ();
 constant Units: List[unit] = [(), ( )];
-assert CompilerTest.UnitsEqual(Units, [(), ()]);
+assert Units == [(), ()];
 constant NestedUnit: Option[Option[unit]] = Some(Some(()));
-assert CompilerTest.NestedUnitEqual(NestedUnit, Some(Some(())));
+assert NestedUnit == Some(Some(()));
 constant NestedNone: Option[Option[unit]] = Some(None);
 assert NestedNone.IsSome && !NestedNone.IsNone;
 constant Absent: Option[unit] = None;
 assert Absent.IsNone;
 constant Items: List[Option[int8]] = [Some(1), None, Some(-42)];
-assert CompilerTest.Int8OptionsEqual(Items, [Some(1), None, Some(-42)]);
+assert Items == [Some(1), None, Some(-42)];
 constant Numbers: Option[List[int8]] = Some([1, 2]);
-assert CompilerTest.Int8NumbersEqual(Numbers, Some([1, 2]));
+assert Numbers == Some([1, 2]);
 constant At: Option[TimeOfDay] = Some(TimeOfDay.AddWrap("23:30", "01:00"));
 constant ExpectedAt: Option[TimeOfDay] = Some("00:30");
-assert CompilerTest.TimeOptionEqual(At, ExpectedAt);
+assert At == ExpectedAt;
 constant Modes: List[ThermostatSystemModeEnum] = [
   ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool,
 ];
-assert CompilerTest.ModesEqual(Modes, [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool]);
+assert Modes == [ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool];
 
-namespace CompilerTest {
-  native function StringEqual(actual: String, expected: String): boolean;
-  native function UnitsEqual(actual: List[unit], expected: List[unit]): boolean;
-  native function NestedUnitEqual(
-    actual: Option[Option[unit]],
-    expected: Option[Option[unit]],
-  ): boolean;
-  native function Int8OptionsEqual(
-    actual: List[Option[int8]],
-    expected: List[Option[int8]],
-  ): boolean;
-  native function Int8NumbersEqual(
-    actual: Option[List[int8]],
-    expected: Option[List[int8]],
-  ): boolean;
-  native function TimeOptionEqual(
-    actual: Option[TimeOfDay],
-    expected: Option[TimeOfDay],
-  ): boolean;
-  native function ModesEqual(
-    actual: List[ThermostatSystemModeEnum],
-    expected: List[ThermostatSystemModeEnum],
-  ): boolean;
-}
-
-assert !CompilerTest.StringEqual("hello", "different");
-assert !CompilerTest.NestedUnitEqual(Some(None), Some(Some(())));
-assert !CompilerTest.Int8OptionsEqual([Some(1), None], [None, Some(1)]);
-assert !CompilerTest.TimeOptionEqual(None, Some("00:30"));
+assert "hello" != "different";
+assert NestedNone != NestedUnit;
+assert { let value: List[Option[int8]] = [Some(1), None]; value }
+  != [None, Some(1)];
+assert None != ExpectedAt;

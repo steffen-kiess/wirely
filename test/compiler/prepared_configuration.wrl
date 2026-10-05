@@ -1,8 +1,8 @@
-assert CompilerTest.StringEqual(KNX.ValueTypeName(boolean), "binary");
-assert CompilerTest.StringEqual(KNX.ValueTypeName(int16), "2byte_signed");
-assert CompilerTest.StringEqual(KNX.ValueTypeName(uint16), "2byte_unsigned");
-assert CompilerTest.StringEqual(KNX.ValueTypeName(int32), "4byte_signed");
-assert CompilerTest.StringEqual(KNX.ValueTypeName(uint32), "4byte_unsigned");
+assert KNX.ValueTypeName(boolean) == "binary";
+assert KNX.ValueTypeName(int16) == "2byte_signed";
+assert KNX.ValueTypeName(uint16) == "2byte_unsigned";
+assert KNX.ValueTypeName(int32) == "4byte_signed";
+assert KNX.ValueTypeName(uint32) == "4byte_unsigned";
 assert KNX.SupportsValueType(boolean) && KNX.SupportsValueType(uint16);
 assert !KNX.SupportsValueType(int16);
 assert KNX.ParseGroupAddress("1/2/3") == 2563;
@@ -12,28 +12,17 @@ assert KNX.ParseGroupAddress("0/0/0") == 0;
 assert KNX.ParseGroupAddress("31/7/255") == 65535;
 assert MQTT.SupportsType(boolean);
 assert !MQTT.SupportsType(Option[uint16]) && !MQTT.SupportsType(MonotonicTime);
-assert CompilerTest.TemplateEqual(MQTT.ParseTemplate(None), MQTT.TemplateParts { prefix: "", suffix: "" });
-assert CompilerTest.TemplateEqual(
-  MQTT.ParseTemplate(Some("%s")),
-  MQTT.TemplateParts { prefix: "", suffix: "" },
-);
-assert CompilerTest.TemplateEqual(
-  MQTT.ParseTemplate(Some("[%% %s %%]")),
-  MQTT.TemplateParts { prefix: "[% ", suffix: " %]" },
-);
-assert CompilerTest.TemplateEqual(
-  MQTT.ParseTemplate(Some(r#"{"quoted":"%s", "value":%s}"#)),
-  MQTT.TemplateParts { prefix: r#"{"quoted":"%s", "value":"#, suffix: "}" },
-);
+assert MQTT.ParseTemplate(None)
+  == MQTT.TemplateParts { prefix: "", suffix: "" };
+assert MQTT.ParseTemplate(Some("%s"))
+  == MQTT.TemplateParts { prefix: "", suffix: "" };
+assert MQTT.ParseTemplate(Some("[%% %s %%]"))
+  == MQTT.TemplateParts { prefix: "[% ", suffix: " %]" };
+assert MQTT.ParseTemplate(Some(r#"{"quoted":"%s", "value":%s}"#))
+  == MQTT.TemplateParts {
+    prefix: r#"{"quoted":"%s", "value":"#,
+    suffix: "}",
+  };
 
-namespace CompilerTest {
-  native function StringEqual(actual: String, expected: String): boolean;
-  native function TemplateEqual(
-    actual: MQTT.TemplateParts,
-    expected: MQTT.TemplateParts,
-  ): boolean;
-}
-
-assert !CompilerTest.TemplateEqual(
-  MQTT.TemplateParts { prefix: "a", suffix: "b" },
-  MQTT.TemplateParts { prefix: "a", suffix: "c" });
+assert MQTT.TemplateParts { prefix: "a", suffix: "b" }
+  != MQTT.TemplateParts { prefix: "a", suffix: "c" };

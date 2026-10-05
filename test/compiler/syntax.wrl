@@ -10,12 +10,12 @@ node multiple: Arguments { A: 1, B: 2, /* final argument */ }
 constant Empty: List[Option[uint8]] = [];
 constant Single: List[Option[uint8]] = [Some(1,),];
 constant Multiple: List[Option[uint8]] = [Some(1 /* value */,), None,];
-assert CompilerTest.Uint8OptionsEqual(Empty, [])
-  && CompilerTest.Uint8OptionsEqual(Single, [Some(1)])
-  && CompilerTest.Uint8OptionsEqual(Multiple, [Some(1), None]);
+assert (Empty == [])
+  && (Single == [Some(1)])
+  && (Multiple == [Some(1), None]);
 constant At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00",);
 constant ExpectedAt: TimeOfDay = "00:30";
-assert CompilerTest.TimeEqual(At, ExpectedAt);
+assert At == ExpectedAt;
 
 node forward: Later {}
 node type Later {}
@@ -110,7 +110,7 @@ constant Fields: WeakFields = WeakFields {
   type: true,
   value: true,
 };
-assert CompilerTest.SettingsEqual(Fields, WeakFields {
+assert Fields == WeakFields {
   r#constant: true,
   r#default: true,
   r#event: true,
@@ -123,7 +123,7 @@ assert CompilerTest.SettingsEqual(Fields, WeakFields {
   r#state: true,
   r#type: true,
   r#value: true,
-});
+};
 assert WeakMembers.constant == WeakMembers.r#constant;
 assert WeakMembers.default == WeakMembers.r#default;
 assert WeakMembers.event == WeakMembers.r#event;
@@ -168,18 +168,10 @@ namespace TestLibrary {
 }
 
 namespace CompilerTest {
-  native function SettingsEqual(
-    actual: WeakFields, expected: WeakFields,
-  ): boolean;
-  native function r#function(actual: uint8, expected: uint8,): boolean;
-  native function Uint8OptionsEqual(
-    actual: List[Option[uint8]],
-    expected: List[Option[uint8]],
-  ): boolean;
-  native function TimeEqual(actual: TimeOfDay, expected: TimeOfDay): boolean;
+  native function r#function(value: uint8,): uint8;
 }
 
-assert CompilerTest.r#function(7, 7,);
+assert CompilerTest.r#function(7,) == 7;
 
 namespace TestLibrary {
   node type TestBlock {

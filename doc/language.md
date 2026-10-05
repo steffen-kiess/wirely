@@ -437,11 +437,18 @@ Locals must have runtime types. A string literal needs a runtime destination
 such as `TimeOfDay` or `Duration`; `String` itself is parameter-only.
 
 Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
-`==` and `!=` for matching Boolean, integer, enum, or unit types.
-At compile time, they also compare `ValueType` values: built-in types
-compare by type, `Option` and `List` compare their inner types, and structs
-and enums compare by declaration. For example, `OutputType == unit` or
-`Option[int16] == Option[int16]`.
+`==` and `!=` for matching value types. Options compare presence and payload;
+lists compare ordered contents and length; structs compare fields and must
+have the same declared type. Durations compare nanoseconds; monotonic times
+compare generation and timestamp, with two invalid values equal. `!=` is
+the complement of `==`.
+
+All concrete value types support equality at compile time. Procedures can
+compare runtime types, including times, options, and structs; strings,
+lists, and aggregates containing parameter-only types are compile-time-only.
+For `ValueType` values, built-in types compare by type, `Option` and `List`
+compare their inner types, and structs and enums compare by declaration.
+For example, `OutputType == unit` or `Option[int16] == Option[int16]`.
 `if` requires a Boolean condition and an `else`; both branches yield the same
 type. Expression blocks may contain locals followed by a final expression
 without a semicolon. These expressions also work in parameter values and

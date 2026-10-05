@@ -16,10 +16,10 @@ node type Destination {
   optional parameter PairValue: Pair;
   parameter ExpectedPair: Option[Pair] = None;
   assert Number == Expected && Flag == ExpectedFlag;
-  assert CompilerTest.StringEqual(Text, ExpectedText);
-  assert CompilerTest.NestedBooleanEqual(parameter_option(Nested), ExpectedNested);
-  assert CompilerTest.StringItemsEqual(parameter_option(Items), ExpectedItems);
-  assert CompilerTest.PairOptionEqual(parameter_option(PairValue), ExpectedPair);
+  assert Text == ExpectedText;
+  assert parameter_option(Nested) == ExpectedNested;
+  assert parameter_option(Items) == ExpectedItems;
+  assert parameter_option(PairValue) == ExpectedPair;
 }
 node type Forward {
   optional parameter Number: int16;
@@ -86,7 +86,7 @@ node type DefaultExpression {
   optional parameter Flag: boolean;
   parameter Fallback: Option[boolean] = parameter_option(Flag);
   parameter Expected: Option[boolean];
-  assert CompilerTest.BooleanOptionEqual(Fallback, Expected);
+  assert Fallback == Expected;
 }
 node default_expression: DefaultExpression { Expected: None }
 node supplied_expression: DefaultExpression { Flag: true, Expected: Some(true) }
@@ -101,7 +101,7 @@ node dependent_default_type: Dependent { Value: true, Type?: None, Expected: tru
 node type Raw {
   optional parameter r#type: boolean;
   constant Maybe: Option[boolean] = parameter_option(r#type,);
-  assert CompilerTest.BooleanOptionEqual(Maybe, Some(true));
+  assert Maybe == Some(true);
 }
 node raw: Raw { r#type?: Some(true), }
 
@@ -131,34 +131,10 @@ node nested: Presence {
 
 node type ListSnapshot {
   parameter Value: Option[List[boolean]];
-  assert CompilerTest.BooleanItemsEqual(Value, Some([true, false]));
+  assert Value == Some([true, false]);
 }
 node type Capture {
   optional parameter Value: List[boolean];
   node snapshot: ListSnapshot { Value: parameter_option(Value) }
 }
 node capture: Capture { Value: [true, false] }
-
-namespace CompilerTest {
-  native function StringEqual(actual: String, expected: String): boolean;
-  native function NestedBooleanEqual(
-    actual: Option[Option[boolean]],
-    expected: Option[Option[boolean]],
-  ): boolean;
-  native function StringItemsEqual(
-    actual: Option[List[String]],
-    expected: Option[List[String]],
-  ): boolean;
-  native function PairOptionEqual(
-    actual: Option[Pair],
-    expected: Option[Pair],
-  ): boolean;
-  native function BooleanOptionEqual(
-    actual: Option[boolean],
-    expected: Option[boolean],
-  ): boolean;
-  native function BooleanItemsEqual(
-    actual: Option[List[boolean]],
-    expected: Option[List[boolean]],
-  ): boolean;
-}

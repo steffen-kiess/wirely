@@ -1,0 +1,62 @@
+constant Empty: List[int16] = [];
+constant Items: List[int16] = [1, 2];
+assert Empty == [] && [] == Empty;
+assert Items == [1, 2] && [1, 2] == Items;
+assert Items != [2, 1] && Items != [1] && Items != [];
+assert "" != "text" && "same" == "same";
+
+constant Nested: Option[Option[unit]] = Some(None);
+assert Nested == Some(None) && Some(None) == Nested;
+assert Nested != None && None != Nested;
+assert Nested != Some(Some(()));
+constant Absent: Option[Option[unit]] = None;
+assert Absent == None && None == Absent;
+
+constant At: TimeOfDay = "08:00";
+assert At == "08:00" && "08:00" == At && At != "08:01";
+constant Span: Duration = "PT60S";
+assert Span == "PT1M" && "PT1M" == Span && Span != "PT61S";
+constant Invalid: MonotonicTime = MonotonicTime.Invalid;
+assert Invalid == MonotonicTime.Invalid;
+assert !(MonotonicTime.Invalid != Invalid);
+
+struct type Settings {
+  text: String,
+  items: List[Option[int16]],
+  type: ValueType,
+}
+constant SettingsValue: Settings = Settings {
+  text: "hello", items: [Some(1), None], type: uint8,
+};
+assert SettingsValue == Settings {
+  items: [Some(1), None], type: uint8, text: "hello",
+};
+assert SettingsValue != Settings {
+  text: "changed", items: [Some(1), None], type: uint8,
+};
+assert SettingsValue != Settings {
+  text: "hello", items: [None, Some(1)], type: uint8,
+};
+assert SettingsValue != Settings {
+  text: "hello", items: [Some(1), None], type: int8,
+};
+struct type EmptyStruct {}
+assert EmptyStruct {} == EmptyStruct {};
+
+node type Compare {
+  parameter Type: ValueType;
+  parameter Left: Type;
+  parameter Right: Type;
+  parameter Equal: boolean;
+  assert (Left == Right) == Equal && (Left != Right) == !Equal;
+}
+node lists: Compare { Type: List[int8], Left: [], Right: [], Equal: true }
+node options: Compare {
+  Type: Option[Option[unit]], Left: None, Right: Some(None), Equal: false,
+}
+node structs: Compare {
+  Type: Settings, Left: SettingsValue, Right: SettingsValue, Equal: true,
+}
+node times: Compare {
+  Type: Duration, Left: "PT60S", Right: "PT1M", Equal: true,
+}

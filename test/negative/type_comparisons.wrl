@@ -61,3 +61,68 @@ node type OptionalOutput {
   // ^^E: OutputValue is required when OutputType is not unit
 }
 node missing: OptionalOutput { OutputType: int16 } // H: While instantiating 'missing'
+
+// TEST: mismatched lists
+constant Left: List[int8] = [];
+constant Right: List[uint8] = [];
+assert Left == Right; // E: Expected value of type TypeList(int8), got TypeList(uint8)
+
+// TEST: mismatched options
+constant Left: Option[int8] = None;
+constant Right: Option[uint8] = None;
+assert Left != Right; // E: Expected value of type TypeOption(int8), got TypeOption(uint8)
+
+// TEST: nominal structs
+struct type Left { flag: boolean, }
+struct type Right { flag: boolean, }
+constant A: Left = Left { flag: true };
+constant B: Right = Right { flag: true };
+assert A == B; // E: Expected value of type Left, got Right
+
+// TEST: enum and integer
+enum type Mode: uint8 { On = 1, }
+constant Number: uint8 = 1;
+assert Mode.On == Number; // E: Expected value of type Mode, got uint8
+
+// TEST: integer and enum
+enum type Mode: uint8 { On = 1, }
+constant Number: uint8 = 1;
+assert Number != Mode.On; // E: Invalid int value Mode.On
+
+// TEST: generic mismatched aggregate
+node type Compare {
+  parameter Type: ValueType;
+  parameter Left: Type;
+  parameter Right: List[uint8];
+  assert Left == Right; // E: Expected value of type TypeList(int8), got TypeList(uint8)
+}
+node compare: Compare { Type: List[int8], Left: [], Right: [] }
+// ^H: While instantiating 'compare'
+
+// TEST: procedure string operand
+temporary result: boolean;
+procedure run produces result {
+  result = "text" == "text"; // E: Type String is parameter-only
+}
+
+// TEST: procedure list operand
+temporary result: boolean;
+procedure run produces result {
+  let items: List[uint8] = []; // E: Type TypeList(uint8) is parameter-only
+  result = items == items;
+}
+
+// TEST: procedure parameter-only struct operand
+struct type Settings { text: String, }
+temporary result: boolean;
+procedure run produces result {
+  result = Settings { text: "a" } != Settings { text: "b" };
+  // ^E: Type Settings is parameter-only
+}
+
+// TEST: procedure parameter-only option operand
+temporary result: boolean;
+procedure run produces result {
+  let value: Option[String] = None; // E: Type TypeOption(String) is parameter-only
+  result = value == value;
+}
