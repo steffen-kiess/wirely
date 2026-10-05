@@ -65,6 +65,13 @@ use the current Python interpreter. `tools/wirely` accepts the same arguments
 as `wirely` and runs the source in this checkout from any working directory.
 The test suite also requires `knxd` and `mosquitto`.
 
+Pass test names to run a selection, and add `--timings` to list durations
+slowest first:
+
+```
+tools/run-tests --timings unit/types unit/equality
+```
+
 Test dependency and Python versions in temporary environments:
 
 ```

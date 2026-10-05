@@ -12,6 +12,7 @@ import re
 import pwd
 import shlex
 import signal
+import argparse
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -587,7 +588,13 @@ async def run_test(test_name):
 
 
 def main():
-    names = sys.argv[1:]
+    parser = argparse.ArgumentParser(description='Run Wirely tests')
+    parser.add_argument('--timings', action='store_true',
+                        help='List test durations, slowest first, at the end')
+    parser.add_argument('names', nargs='*', metavar='TEST',
+                        help='Test names or fixture paths (default: all tests)')
+    args = parser.parse_intermixed_args()
+    names = args.names
     for name in names:
         if name not in to_compile and name not in negative_tests and name not in test_names:
             raise Exception(f'Unknown test name {name!r}')
@@ -596,15 +603,27 @@ def main():
     else:
         names = set(names)
 
-    for name in to_compile:
-        if names is None or name in names:
-            compile_test(name)
-    for name in negative_tests:
-        if names is None or name in names:
-            compile_negative_test(name)
-    for name in test_names:
-        if names is None or name in names:
-            asyncio.run(run_test(name))
+    durations = []
+    groups = [(to_compile, compile_test), (negative_tests, compile_negative_test),
+              (test_names, lambda name: asyncio.run(run_test(name)))]
+    try:
+        for group, run in groups:
+            for name in group:
+                if names is not None and name not in names:
+                    continue
+                if not args.timings:
+                    run(name)
+                    continue
+                start = time.perf_counter()
+                try:
+                    run(name)
+                finally:
+                    durations.append((name, time.perf_counter() - start))
+    finally:
+        if args.timings:
+            print('\nTest durations (slowest first):', flush=True)
+            for name, elapsed in sorted(durations, key=lambda item: (-item[1], item[0])):
+                print(f'  {elapsed:.3f}s  {name}', flush=True)
 
 
 if __name__ == '__main__':

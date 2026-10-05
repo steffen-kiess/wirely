@@ -36,7 +36,11 @@ def find_unlisted_files(test_names, to_compile, negative_tests):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--python', help='Python executable name or path')
-    args = parser.parse_args()
+    parser.add_argument('--timings', action='store_true',
+                        help='List test durations, slowest first, at the end')
+    parser.add_argument('names', nargs='*', metavar='TEST',
+                        help='Test names or fixture paths (default: all tests)')
+    args = parser.parse_intermixed_args()
     python = args.python
     if python and (os.sep in python or (os.altsep and os.altsep in python)):
         python = str(Path(python).absolute())
@@ -51,7 +55,8 @@ def main():
             python = sys.executable
 
     os.chdir(repository_root)
-    result = subprocess.run([python, '-m', 'wirely.test'])
+    runner_args = ['--timings'] if args.timings else []
+    result = subprocess.run([python, '-m', 'wirely.test', *runner_args, *args.names])
 
     lists = subprocess.run(
         [python, '-c',
