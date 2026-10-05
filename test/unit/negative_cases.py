@@ -1,6 +1,3 @@
-import contextlib
-import io
-import sys
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -18,8 +15,7 @@ def run_fixture(source):
     with tempfile.TemporaryDirectory(prefix='wirely-negative-cases-') as directory:
         filename = Path(directory) / 'cases.wrl'
         filename.write_text(source, encoding='utf-8')
-        with contextlib.redirect_stdout(io.StringIO()):
-            compile_negative_test(str(filename))
+        compile_negative_test(str(filename), verbose=False)
 
 
 def run_fixture_with_std(source):
@@ -89,18 +85,6 @@ message = str(error.exception)
 assert 'wrong syntax expectation' in message and 'another mismatch' in message
 assert 'Unexpected token' in message
 
-# Incomplete diagnostics must fail instead of accepting an expected error.
-def incomplete_syntax(sources, **kwargs):
-    print(f'Error in {sources[-1][0]}:1')
-    return None
-
-
-with patch('wirely.compiler.compile_strs', side_effect=incomplete_syntax):
-    with checks.assertRaises(AssertionError) as error:
-        run_fixture_with_std(legacy)
-assert 'malformed syntax diagnostic' in str(error.exception)
-
-
 invalid = [
     ('', 'no expected diagnostics'),
     ('// TEST\n', 'no expected diagnostics'),
@@ -139,7 +123,7 @@ original_compile = wirely.compiler.compile_strs
 
 def fail_first(sources, **kwargs):
     if '// E: simulated' in sources[-1][1]:
-        print('Internal compiler error: simulated failure')
+        kwargs['on_diagnostic'](wirely.compiler.Diagnostic('internal_error', 'simulated failure'))
         return None
     return original_compile(sources, **kwargs)
 
@@ -154,25 +138,15 @@ node bad: Missing {} // E: wrong expectation
 message = str(error.exception)
 assert 'compiler failed internally' in message and 'later case' in message
 
-for stream, text in [('stderr', 'unexpected stderr'),
-                     ('stdout', 'Traceback (most recent call last)'),
-                     ('stdout', 'Error without a location')]:
-    def emit_failure(sources, *, stream=stream, text=text, **kwargs):
-        print(text, file=getattr(sys, stream))
-        return None
-
-    with patch('wirely.compiler.compile_strs', side_effect=emit_failure):
-        with checks.assertRaises(AssertionError) as error:
-            run_fixture_with_std(legacy)
-    assert ('malformed diagnostic' if text.startswith('Error')
-            else 'compiler failed internally') in str(error.exception)
-
 # Default library loading remains opt-in for source compilation.
-with contextlib.redirect_stdout(io.StringIO()) as output:
-    assert wirely.compiler.compile_strs([
-        ('<no-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
-    ]) is None
-assert 'Cannot find block type Std.Constant' in output.getvalue()
+diagnostics = []
+assert wirely.compiler.compile_strs([
+    ('<no-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
+], on_diagnostic=diagnostics.append) is None
+assert len(diagnostics) == 1
+assert diagnostics[0].kind == 'error'
+assert diagnostics[0].filename == '<no-libraries>' and diagnostics[0].line == 1
+assert 'Cannot find block type Std.Constant' in diagnostics[0].message
 compiled = wirely.compiler.compile_strs([
     ('<with-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
 ], add_std=True)

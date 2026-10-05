@@ -1,25 +1,19 @@
 """Translate compiler structures into runtime programs."""
 
-import traceback
-
 from wirely.compiler import model as blocks
+from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.program import NativeInstance, Procedure, Program, ResultBinding
 from wirely.compiler.types import resolve_type, check_runtime_type
 
 
-def compile(global_block_type):
+def compile(global_block_type, *, on_diagnostic=None):
     try:
         return compile_nocatch(global_block_type)
     except blocks.ProgramError as exc:
-        # TODO: Merge with code in compiler.py
-        print(f'Error in {exc.source_element.source_position.filename}:{exc.source_element.source_position.start_line}: {exc}')
-        if exc.source_element is not None:
-            print(exc.get_context())
-        if isinstance(exc, blocks.InternalCompilerError):
-            traceback.print_exception(exc.inner_exception)
-        for hint in exc.hints:
-            print(f'Hint: {hint.source_element.source_position.filename}:{hint.source_element.source_position.start_line}: {hint}')
-            print(hint.get_context())
+        report = print_diagnostic if on_diagnostic is None else on_diagnostic
+        always_print_stacktrace = blocks.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
+        for diagnostic in error_diagnostics(exc, always_print_stacktrace=always_print_stacktrace):
+            report(diagnostic)
         return None
 
 

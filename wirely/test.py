@@ -21,6 +21,7 @@ import lark
 import wirely
 from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
+from wirely.compiler.diagnostics import print_diagnostic
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
 
@@ -117,10 +118,6 @@ negative_tests = [
     'test/negative/weak_keywords.wrl',
 ]
 
-diagnostic_pattern = re.compile(
-    r'^(Error in |Hint: |Warning in |Warning: )(.+):(\d+): (.+)$'
-)
-syntax_diagnostic_pattern = re.compile(r'^Error in (.+):(\d+)$')
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
 library_metadata_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES[ \t]*:[ \t]*(.*?)[ \t]*')
 library_metadata_prefix_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES\b')
@@ -224,36 +221,30 @@ def compile_negative_case(full_fn, case):
     if not expected:
         raise AssertionError('no expected diagnostics')
 
-    output = io.StringIO()
-    errors = io.StringIO()
-    with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
-        sources = blocks.compiler._standard_library_sources(case.libraries)
-        result = blocks.compiler.compile_strs(sources + [(full_fn, case.source)], add_std=False)
-        if result is not None:
-            result = program_compiler.compile(result)
+    diagnostics = []
+    sources = blocks.compiler._standard_library_sources(case.libraries)
+    result = blocks.compiler.compile_strs(
+        sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
+    )
+    if result is not None:
+        result = program_compiler.compile(result, on_diagnostic=diagnostics.append)
 
-    stdout = output.getvalue()
-    stderr = errors.getvalue()
-    if stderr or 'Internal compiler error' in stdout or 'Traceback (most recent call last)' in stdout:
-        raise AssertionError(f'compiler failed internally:\n{stdout}{stderr}')
+    output = io.StringIO()
+    for diagnostic in diagnostics:
+        print_diagnostic(diagnostic, file=output, traceback_file=output)
+    messages = output.getvalue()
+    if any(diagnostic.kind == 'internal_error' for diagnostic in diagnostics):
+        raise AssertionError(f'compiler failed internally:\n{messages}')
 
     actual = []
-    output_lines = stdout.splitlines()
-    for index, line in enumerate(output_lines):
-        match = diagnostic_pattern.fullmatch(line)
-        if match is not None:
-            prefix, filename, line_number, message = match.groups()
-            kind = {'Error in ': 'E', 'Hint: ': 'H',
-                    'Warning in ': 'W', 'Warning: ': 'W'}[prefix]
-            actual.append((kind, os.path.abspath(filename), int(line_number), message))
-        elif (match := syntax_diagnostic_pattern.fullmatch(line)) is not None:
-            if index + 1 == len(output_lines) or not output_lines[index + 1].strip():
-                raise AssertionError(f'malformed syntax diagnostic: {line!r}')
-            filename, line_number = match.groups()
-            message = 'Syntax error: ' + output_lines[index + 1]
-            actual.append(('E', os.path.abspath(filename), int(line_number), message))
-        elif line.startswith(('Error', 'Hint', 'Warning')):
-            raise AssertionError(f'malformed diagnostic: {line!r}')
+    for diagnostic in diagnostics:
+        if diagnostic.kind == 'info':
+            continue
+        kind = {'error': 'E', 'syntax_error': 'E', 'hint': 'H', 'warning': 'W'}[diagnostic.kind]
+        message = diagnostic.message
+        if diagnostic.kind == 'syntax_error':
+            message = 'Syntax error: ' + message.splitlines()[0]
+        actual.append((kind, os.path.abspath(diagnostic.filename), diagnostic.line, message))
 
     matched = {}
 
@@ -276,12 +267,13 @@ def compile_negative_case(full_fn, case):
     if result is not None or missing or unexpected:
         raise AssertionError(
             f'diagnostic mismatch; missing={missing}, unexpected={unexpected}, '
-            f'compiled={result is not None}\n{stdout}'
+            f'compiled={result is not None}\n{messages}'
         )
 
 
-def compile_negative_test(fn):
-    print(f'Compiling negative test {fn}')
+def compile_negative_test(fn, *, verbose=True):
+    if verbose:
+        print(f'Compiling negative test {fn}')
     full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
     with open(full_fn, encoding='utf-8') as file:
         cases = list(negative_test_cases(file.read()))
@@ -294,7 +286,8 @@ def compile_negative_test(fn):
             failures.append(f'{fn}: {name} (line {case.start_line}): {error}')
     if failures:
         raise AssertionError('\n\n'.join(failures))
-    print(f'Compiling negative test {fn} done')
+    if verbose:
+        print(f'Compiling negative test {fn} done')
 
 
 def compile_test(fn):

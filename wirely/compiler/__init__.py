@@ -1,16 +1,30 @@
 import os
-import traceback
 from types import MappingProxyType
 
 import lark
 
 import wirely
 from wirely.compiler import model as blocks
+from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
 
 
+class _DiagnosticCallbackError(Exception):
+    def __init__(self, error):
+        self.error = error
+
+
 def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, always_print_stacktrace=None,
-                 services=None):
+                 services=None, on_diagnostic=None):
+    report = print_diagnostic if on_diagnostic is None else on_diagnostic
+
+    def report_progress(message):
+        try:
+            report(Diagnostic('info', message))
+        except Exception as error:
+            # Callback failures must escape the compiler's exception handling.
+            raise _DiagnosticCallbackError(error) from error
+
     compilation_services = MappingProxyType(dict(services if services is not None else {}))
     # TODO: Where should this import be done?
     import wirely.compiler.parser
@@ -41,16 +55,16 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         global_block_type.services = compilation_services
         global_block_type.file_metadata = file_metadata
         if verbose_passes:
-            print('Starting pass 1', flush=True)
+            report_progress('Starting pass 1')
         global_block_type.compile_pass1(None)
         if verbose_passes:
-            print('Starting pass 1.5', flush=True)
+            report_progress('Starting pass 1.5')
         global_block_type.compile_pass1_5(None)
         if verbose_passes:
-            print('Starting pass 2', flush=True)
+            report_progress('Starting pass 2')
         global_block_type.compile_pass2(None)
         if verbose_passes:
-            print('Finished all passes', flush=True)
+            report_progress('Finished all passes')
         # TODO: Clean up
         # for decl in decls:
         #     with decl.context:
@@ -62,11 +76,12 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         #     with decl.context:
         #         decl.compile_pass2(graph)
     except lark.UnexpectedInput as e:
-        print(f'Error in {filename}:{e.line}')
-        print(e)
         # TODO: Using input_data here is kind of a hack
-        print(e.get_context(input_data))
+        report(Diagnostic('syntax_error', str(e), filename=filename, line=e.line,
+                          context=e.get_context(input_data)))
         return None
+    except _DiagnosticCallbackError as e:
+        raise e.error from None
     except lark.exceptions.VisitError as e:
         exc = e.orig_exc
     except blocks.ProgramError as e:
@@ -80,22 +95,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     if not isinstance(exc, blocks.ProgramError):
         exc = blocks.InternalCompilerError(None, exc)
 
-    if isinstance(exc, blocks.InternalCompilerError):
-        if exc.source_element is not None:
-            print(f'Internal compiler error while compiling line {exc.source_element.source_position.start_line}: {exc.inner_exception}')
-        else:
-            print(f'Internal compiler error: {exc.inner_exception}')
-    else:
-        print(f'Error in {exc.source_element.source_position.filename}:{exc.source_element.source_position.start_line}: {exc}')
-    if exc.source_element is not None:
-        print(exc.get_context())
-    if isinstance(exc, blocks.InternalCompilerError):
-        traceback.print_exception(exc.inner_exception)
-    elif always_print_stacktrace:
-        traceback.print_exception(exc)
-    for hint in exc.hints:
-        print(f'Hint: {hint.source_element.source_position.filename}:{hint.source_element.source_position.start_line}: {hint}')
-        print(hint.get_context())
+    for diagnostic in error_diagnostics(exc, always_print_stacktrace=always_print_stacktrace):
+        report(diagnostic)
     return None
 
 
@@ -119,9 +120,10 @@ def _standard_library_sources(names=None):
     return sources
 
 
-def compile_files(input_filenames, *, add_std=True, services=None):
+def compile_files(input_filenames, *, add_std=True, services=None, on_diagnostic=None):
     filename_inpudatas = []
     for input_filename in input_filenames:
         with open(input_filename, encoding='utf-8') as file:
             filename_inpudatas.append((input_filename, file.read()))
-    return compile_strs(filename_inpudatas, add_std=add_std, services=services)
+    return compile_strs(filename_inpudatas, add_std=add_std, services=services,
+                        on_diagnostic=on_diagnostic)
