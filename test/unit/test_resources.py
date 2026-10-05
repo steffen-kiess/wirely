@@ -10,7 +10,7 @@ from wirely.compiler.function_implementations.test import (
     TEST_RESOURCES_SERVICE, replace_twon_host, replace_twon_port, replace_twon_tlsa,
 )
 from wirely.test import (
-    TestResourceProvider, compile_test, run_test as runner_run_test,
+    TestResourceProvider, run_test as runner_run_test,
     with_maybe_knxd, with_maybe_mqtt,
 )
 
@@ -19,11 +19,6 @@ def graph(source, *, services=None):
     result = compile_strs([('<resources>', source)], add_std=True, services=services)
     assert result is not None
     return result
-
-# Compiler fixtures run their assertions without initializing an engine.
-with contextlib.redirect_stdout(io.StringIO()), patch('wirely.test.blocks.Engine') as construct:
-    compile_test('test/compiler/literals.wrl')
-    construct.assert_not_called()
 
 
 # Whichever setting is evaluated first requests the same provider-owned server.

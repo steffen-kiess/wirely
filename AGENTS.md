@@ -65,8 +65,8 @@ import or path adjustments are exceptions.
 
 Test compiler behavior in `test/compiler/` with `.wrl` fixtures and Wirely
 `assert` statements. Register these fixtures in `to_compile` in
-`wirely/test.py`; they compile without creating an engine. Keep this group
-free of Python files. Add compiler rejection cases to `test/negative/`.
+`wirely/test.py`. Keep this group free of Python files. Add compiler
+rejection cases to `test/negative/`.
 Do not test compiler representations such as ASTs, graphs, or inferred usage,
 or compiler evaluation mechanics through Python callbacks. Consolidate
 cases that check the same behavior while preserving distinct boundaries.

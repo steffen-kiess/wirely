@@ -306,7 +306,6 @@ def compile_test(fn):
     print(f'Compiling {fn}')
 
     full_fn = os.path.dirname(__file__) + '/../' + fn
-    compiler_test = fn.startswith('test/compiler/')
     global_block_type = blocks.compiler.compile_files([full_fn])
     if global_block_type is None:
         sys.exit(1)
@@ -318,8 +317,7 @@ def compile_test(fn):
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    if not compiler_test:
-        blocks.Engine(prog)
+    eng = blocks.Engine(prog)
 
     print(f'Compiling {fn} done')
 
