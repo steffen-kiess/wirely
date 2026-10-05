@@ -31,12 +31,20 @@ called in runtime procedure bodies.
 
 ## Test
 
-`Test.ReplaceKNXPath(default: String): String` returns `default` during
-ordinary compilation. When the compiler's `services` mapping contains
-`"wirely.test_resources"`, it calls that object's `get_knx_path() -> str`
-method to request a KNX fixture and return its stable absolute socket path.
-The test runner starts the requested daemon before creating the engine.
-Compiled test paths are valid only for the fixture's lifetime.
+These compile-time functions return their argument during ordinary
+compilation. With a `"wirely.test_resources"` provider in the compiler's
+`services` mapping, they select test resources:
+
+| Function | Provider method | Test resource |
+| --- | --- | --- |
+| `ReplaceKNXPath(default: String): String` | `get_knx_path() -> str` | Shared KNX socket path. |
+| `ReplaceMQTTURI(default: String): String` | `get_mqtt_uri() -> str` | Shared MQTT broker URI. |
+| `ReplaceOutputPath(default: String): String` | `get_output_path(default: str) -> str` | The default's basename in the shared test output directory. |
+
+The runner starts requested daemons before creating the engine. Equal
+output basenames select the same file. Set `WIRELY_TEST_KEEP_TESTDIR=1` to
+retain output files after the test. Compiled test paths are valid only for
+the fixture's lifetime.
 
 ## Std
 

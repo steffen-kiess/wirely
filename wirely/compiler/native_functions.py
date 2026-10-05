@@ -57,6 +57,12 @@ native_function_impls = {
     ('Test', 'ReplaceKNXPath'): (
         'wirely.compiler.function_implementations.test', 'replace_knx_path',
     ),
+    ('Test', 'ReplaceMQTTURI'): (
+        'wirely.compiler.function_implementations.test', 'replace_mqtt_uri',
+    ),
+    ('Test', 'ReplaceOutputPath'): (
+        'wirely.compiler.function_implementations.test', 'replace_output_path',
+    ),
     ('TimeOfDay', 'AddWrap'): (
         'wirely.compiler.function_implementations.time', 'add_wrap',
     ),

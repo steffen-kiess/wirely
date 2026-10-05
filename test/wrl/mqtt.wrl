@@ -1,5 +1,7 @@
 // TODO: Don't depend on the ordering of server / provider
-node server: MQTT.Connection { URI: "mqtt://localhost" }
+node server: MQTT.Connection {
+  URI: Test.ReplaceMQTTURI("mqtt://localhost"),
+}
 
 node provider_input: Std.DebugValueSource { Type: boolean }
 

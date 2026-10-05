@@ -323,27 +323,6 @@ def compile_test(fn):
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_testdir(require_testdir):
-    if not require_testdir:
-        yield None
-        return
-
-    keep_testdir = blocks.util.getEnvironmentBool('WIRELY_TEST_KEEP_TESTDIR', False)
-
-    if keep_testdir:
-        tmp = tempfile.mkdtemp(prefix='test_dir.')
-        print(f"Created test dir in {tmp} (won't be deleted)", flush=True)
-        yield tmp
-    else:
-        with tempfile.TemporaryDirectory(prefix='test_dir.') as tmp:
-            print(f'Created test dir in {tmp}', flush=True)
-            try:
-                yield tmp
-            finally:
-                print('Cleaning up test dir', flush=True)
-
-
-@contextlib.asynccontextmanager
 async def with_maybe_knxd(socket_path):
     if socket_path is None:
         yield None
@@ -429,77 +408,80 @@ path = {socket_path}
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_mqtt(require_mqtt):
-    if not require_mqtt:
+async def with_maybe_mqtt(socket_path):
+    if socket_path is None:
         yield None
         return
 
     mosquitto_path = 'mosquitto'
 
-    with tempfile.TemporaryDirectory(prefix='test_mosquitto.') as tmp:
-        config_path = tmp + '/mosquitto.conf'
-        socket_path = tmp + '/socket'
+    tmp = os.path.dirname(socket_path)
+    config_path = os.path.join(tmp, 'mosquitto.conf')
 
-        config_data = f'''
+    config_data = f'''
 pid_file {tmp}/mosquitto.pid
 persistence false
 log_dest file {tmp}/mosquitto.log
-listener 0 {tmp}/socket
+listener 0 {socket_path}
 allow_anonymous true
 '''
 
-        with open(config_path, 'w', encoding='utf-8') as file:
-            file.write(config_data)
+    with open(config_path, 'w', encoding='utf-8') as file:
+        file.write(config_data)
 
-        if os.geteuid() == 0:
-            # Mosquitto drops root privileges before writing in this directory.
-            try:
-                broker_user = pwd.getpwnam('mosquitto')
-            except KeyError:
-                broker_user = pwd.getpwnam('nobody')
-            os.chown(tmp, broker_user.pw_uid, broker_user.pw_gid)
-            os.chown(config_path, broker_user.pw_uid, broker_user.pw_gid)
-
-        print('Starting mosquitto...', flush=True)
-        # TODO: Avoid non-async waiting?
-        process = subprocess.Popen([mosquitto_path, '-c', config_path])
+    if os.geteuid() == 0:
+        # Mosquitto drops root privileges before writing in this directory.
         try:
-            print('Waiting for mosquitto to start up...', flush=True)
-            for i in range(100):
-                try:
-                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
-                        client.connect(socket_path)
-                        break
-                except (ConnectionRefusedError, FileNotFoundError) as e:
-                    exit_code = process.poll()
-                    if exit_code is not None:
-                        raise Exception(f'mosquitto has exited with exit code {exit_code}')
+            broker_user = pwd.getpwnam('mosquitto')
+        except KeyError:
+            broker_user = pwd.getpwnam('nobody')
+        os.chown(tmp, broker_user.pw_uid, broker_user.pw_gid)
+        os.chown(config_path, broker_user.pw_uid, broker_user.pw_gid)
 
-                    print('Waiting', flush=True)
-                    await asyncio.sleep(0.05)
-            print('mosquitto is running.', flush=True)
+    print('Starting mosquitto...', flush=True)
+    # TODO: Avoid non-async waiting?
+    process = subprocess.Popen([mosquitto_path, '-c', config_path])
+    try:
+        print('Waiting for mosquitto to start up...', flush=True)
+        for i in range(100):
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.connect(socket_path)
+                    break
+            except (ConnectionRefusedError, FileNotFoundError) as e:
+                exit_code = process.poll()
+                if exit_code is not None:
+                    raise Exception(f'mosquitto has exited with exit code {exit_code}')
 
-            run_mqtt_sub = blocks.util.getEnvironmentBool('WIRELY_TEST_RUN_MQTT_SUB', False)
-            if not run_mqtt_sub:
+                print('Waiting', flush=True)
+                await asyncio.sleep(0.05)
+        else:
+            raise TimeoutError('Timed out waiting for mosquitto to start')
+        print('mosquitto is running.', flush=True)
+
+        run_mqtt_sub = blocks.util.getEnvironmentBool('WIRELY_TEST_RUN_MQTT_SUB', False)
+        if not run_mqtt_sub:
+            yield socket_path
+        else:
+            print('Starting monitor...', flush=True)
+            monitor_process = subprocess.Popen(['mosquitto_sub', '--unix', socket_path, '-v', '-t', '#'])
+            try:
+                print('Waiting for monitor...', flush=True)
+                # TODO: Find out whether it is running somehow?
+                await asyncio.sleep(0.3)
+                # print('monitor is running.', flush=True)
+
                 yield socket_path
-            else:
-                print('Starting monitor...', flush=True)
-                monitor_process = subprocess.Popen(['mosquitto_sub', '--unix', socket_path, '-v', '-t', '#'])
-                try:
-                    print('Waiting for monitor...', flush=True)
-                    # TODO: Find out whether it is running somehow?
-                    await asyncio.sleep(0.3)
-                    # print('monitor is running.', flush=True)
-
-                    yield socket_path
-                finally:
-                    print('Stopping monitor...', flush=True)
-                    monitor_process.kill()
-                    print('Done stopping monitor.', flush=True)
-        finally:
-            print('Stopping mosquitto...', flush=True)
-            process.kill()
-            print('Done stopping mosquitto.', flush=True)
+            finally:
+                print('Stopping monitor...', flush=True)
+                monitor_process.kill()
+                monitor_process.wait()
+                print('Done stopping monitor.', flush=True)
+    finally:
+        print('Stopping mosquitto...', flush=True)
+        process.kill()
+        process.wait()
+        print('Done stopping mosquitto.', flush=True)
 
 
 @contextlib.asynccontextmanager
@@ -521,6 +503,8 @@ class TestResourceProvider:
     def __init__(self, exit_stack):
         self.exit_stack = exit_stack
         self.knx_path = None
+        self.mqtt_socket_path = None
+        self.output_directory = None
 
     def get_knx_path(self) -> str:
         if self.knx_path is None:
@@ -529,6 +513,28 @@ class TestResourceProvider:
             )
             self.knx_path = os.path.join(directory, 'knxnet')
         return self.knx_path
+
+    def get_mqtt_uri(self) -> str:
+        if self.mqtt_socket_path is None:
+            directory = self.exit_stack.enter_context(
+                tempfile.TemporaryDirectory(prefix='test_mosquitto.'),
+            )
+            self.mqtt_socket_path = os.path.join(directory, 'socket')
+        return 'mqtt+unix://' + self.mqtt_socket_path
+
+    def get_output_path(self, default: str) -> str:
+        if self.output_directory is None:
+            keep_directory = blocks.util.getEnvironmentBool('WIRELY_TEST_KEEP_TESTDIR', False)
+            if keep_directory:
+                self.output_directory = tempfile.mkdtemp(prefix='test_dir.')
+                print(f"Created test dir in {self.output_directory} (won't be deleted)", flush=True)
+            else:
+                self.output_directory = self.exit_stack.enter_context(
+                    tempfile.TemporaryDirectory(prefix='test_dir.'),
+                )
+                self.exit_stack.callback(print, 'Cleaning up test dir', flush=True)
+                print(f'Created test dir in {self.output_directory}', flush=True)
+        return os.path.join(self.output_directory, os.path.basename(default))
 
 
 async def run_test(test_name):
@@ -552,19 +558,9 @@ async def run_test(test_name):
             prog.dump(file=file)
 
         # TODO: Clean up
-        require_testdir = False
-        require_mqtt = False
         require_twon = False
-        csv_writer_paths = []
-        mqtt_server_paths = []
         twon_device_paths = []
         for node_id, instance in prog.instances.items():
-            if instance.type_name == ('CSV', 'ValueWriter'):
-                require_testdir = True
-                csv_writer_paths.append(node_id)
-            if instance.type_name == ('MQTT', 'Connection'):
-                require_mqtt = True
-                mqtt_server_paths.append(node_id)
             if instance.type_name == ('TwoN', 'Connection'):
                 require_twon = True
                 twon_device_paths.append(node_id)
@@ -572,7 +568,7 @@ async def run_test(test_name):
         if resources.knx_path is not None:
             print('Test requires KNX')
 
-        async with with_maybe_testdir(require_testdir) as testdir, with_maybe_knxd(resources.knx_path), with_maybe_mqtt(require_mqtt) as mqtt_socket_path, with_maybe_twon(require_twon) as twon_info:
+        async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(require_twon) as twon_info:
             instances = dict(prog.instances)
             parameter_overrides = {}
 
@@ -590,11 +586,6 @@ async def run_test(test_name):
                     initializer_values=initializer_values,
                 )
 
-            for node_id in csv_writer_paths:
-                filename = testdir + '/' + os.path.basename(prog.instances[node_id].initializer_values['Filename'])
-                override_instance(node_id, {'Filename': filename})
-            for node_id in mqtt_server_paths:
-                override_instance(node_id, {'URI': 'mqtt+unix://' + mqtt_socket_path})
             for node_id in twon_device_paths:
                 override_instance(
                     node_id, {'Host': twon_info.host, 'Port': twon_info.port,

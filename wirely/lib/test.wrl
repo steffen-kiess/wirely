@@ -1,3 +1,5 @@
 namespace Test {
   native function ReplaceKNXPath(default: String): String;
+  native function ReplaceMQTTURI(default: String): String;
+  native function ReplaceOutputPath(default: String): String;
 }
