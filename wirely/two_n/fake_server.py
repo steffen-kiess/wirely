@@ -7,6 +7,7 @@ import time
 import tempfile
 import datetime
 import math
+import socket
 
 from . import cert
 
@@ -105,47 +106,52 @@ class Server:
             },
         }
 
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.socket.bind(('127.0.0.1', 0))
+            self.info = ServerInfo(self, self.socket.getsockname())
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        """Release the reserved socket before startup or after shutdown."""
+        self.socket.close()
+
     @contextlib.asynccontextmanager
     async def run(self):
-        # aiohttp.web.run_app(self.app)
+        try:
+            with tempfile.TemporaryDirectory(prefix='test_https.') as tmp:
+                crt_fn = tmp + '/crt.crt'
+                key_fn = tmp + '/key.key'
+                with open(crt_fn, 'wb') as file:
+                    file.write(self.tls_cert)
+                with open(key_fn, 'wb') as file:
+                    file.write(self.tls_key)
 
-        with tempfile.TemporaryDirectory(prefix='test_https.') as tmp:
-            crt_fn = tmp + '/crt.crt'
-            key_fn = tmp + '/key.key'
-            with open(crt_fn, "wb") as file:
-                file.write(self.tls_cert)
-            with open(key_fn, "wb") as file:
-                file.write(self.tls_key)
-
-            runner = aiohttp.web.AppRunner(self.app, handler_cancellation=True)
-            await runner.setup()
-            try:
-                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-                # openssl req -x509 -newkey rsa:4096 -keyout server.key -out server.crt -sha256 -days 3650 -nodes -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=CommonNameOrHostname"
-                # ssl_context.load_cert_chain(certfile='/tmp/server.crt', keyfile='/tmp/server.key')
-                ssl_context.load_cert_chain(certfile=crt_fn, keyfile=key_fn)
-
-                site = aiohttp.web.TCPSite(runner, '127.0.0.1', 0, ssl_context=ssl_context)
-                await site.start()
-                sockets = site._server.sockets
-                if len(sockets) != 1:
-                    raise Exception('len(sockets) != 1')
-                sockname = sockets[0].getsockname()
-                info = ServerInfo(self, sockname)
-                yield info
-            finally:
-                await runner.cleanup()
+                runner = aiohttp.web.AppRunner(self.app, handler_cancellation=True)
+                try:
+                    await runner.setup()
+                    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                    ssl_context.load_cert_chain(certfile=crt_fn, keyfile=key_fn)
+                    site = aiohttp.web.SockSite(runner, self.socket, ssl_context=ssl_context)
+                    await site.start()
+                    yield self.info
+                finally:
+                    await runner.cleanup()
+        finally:
+            self.close()
 
     async def run_and_wait(self):
         try:
             async with self.run() as info:
-                # print(info.host)
                 print(f'https://{info.host}:{info.port}/')
                 await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
         except* wirely.misc.service.TerminateProgram:
-            # Print a newline to avoid leftover '^C' at beginning of line (because
-            # python will return with exit code 0)
+            # Print a newline to avoid leftover '^C' at beginning of line.
             print(flush=True)
+        finally:
+            self.close()
 
     async def hello(self, request):
         return aiohttp.web.Response(text="Hello, world")
@@ -407,8 +413,11 @@ class Server:
 
 def main():
     server = Server()
-    print(server.tlsa)
-    asyncio.run(server.run_and_wait())
+    try:
+        print(server.tlsa)
+        asyncio.run(server.run_and_wait())
+    finally:
+        server.close()
 
 
 if __name__ == '__main__':

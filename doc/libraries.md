@@ -40,9 +40,13 @@ compilation. With a `"wirely.test_resources"` provider in the compiler's
 | `ReplaceKNXPath(default: String): String` | `get_knx_path() -> str` | Shared KNX socket path. |
 | `ReplaceMQTTURI(default: String): String` | `get_mqtt_uri() -> str` | Shared MQTT broker URI. |
 | `ReplaceOutputPath(default: String): String` | `get_output_path(default: str) -> str` | The default's basename in the shared test output directory. |
+| `ReplaceTwoNHost(default: String): String` | `get_twon_info() -> ServerInfo` | Shared TwoN server host. |
+| `ReplaceTwoNPort(default: uint16): uint16` | `get_twon_info() -> ServerInfo` | Shared TwoN server port. |
+| `ReplaceTwoNTLSA(default: List[String]): List[String]` | `get_twon_info() -> ServerInfo` | Shared TwoN server TLSA record. |
 
-The runner starts requested daemons before creating the engine. Equal
-output basenames select the same file. Set `WIRELY_TEST_KEEP_TESTDIR=1` to
+The runner starts requested services before creating the engine. TwoN
+reserves its port during compilation. Equal output basenames select the
+same file. Set `WIRELY_TEST_KEEP_TESTDIR=1` to
 retain output files after the test. Compiled test paths are valid only for
 the fixture's lifetime.
 

@@ -63,6 +63,15 @@ native_function_impls = {
     ('Test', 'ReplaceOutputPath'): (
         'wirely.compiler.function_implementations.test', 'replace_output_path',
     ),
+    ('Test', 'ReplaceTwoNHost'): (
+        'wirely.compiler.function_implementations.test', 'replace_twon_host',
+    ),
+    ('Test', 'ReplaceTwoNPort'): (
+        'wirely.compiler.function_implementations.test', 'replace_twon_port',
+    ),
+    ('Test', 'ReplaceTwoNTLSA'): (
+        'wirely.compiler.function_implementations.test', 'replace_twon_tlsa',
+    ),
     ('TimeOfDay', 'AddWrap'): (
         'wirely.compiler.function_implementations.time', 'add_wrap',
     ),

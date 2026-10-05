@@ -2,13 +2,17 @@ import contextlib
 import io
 import os
 import shutil
+import subprocess
+import sys
 from types import SimpleNamespace
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
 from wirely.compiler import compile_strs, compile_files, model as blocks
 from wirely.compiler import program as program_compiler
-from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
+from wirely.compiler.function_implementations.test import (
+    TEST_RESOURCES_SERVICE, replace_twon_host, replace_twon_port, replace_twon_tlsa,
+)
 from wirely.compiler.native_functions import native_function_impls
 from wirely.test import (
     TestResourceProvider, run_test as runner_run_test, with_maybe_knxd, with_maybe_mqtt,
@@ -31,6 +35,11 @@ class Resources:
         self.calls = 0
         self.mqtt_calls = 0
         self.output_calls = []
+        self.twon_calls = 0
+        self.twon_info = SimpleNamespace(
+            host='127.0.0.1', port=1000 if path == '/first' else 2000,
+            server=SimpleNamespace(tlsa=path),
+        )
 
     def get_knx_path(self):
         self.calls += 1
@@ -43,6 +52,11 @@ class Resources:
     def get_output_path(self, default):
         self.output_calls.append(default)
         return os.path.join(self.path, os.path.basename(default))
+
+
+    def get_twon_info(self):
+        self.twon_calls += 1
+        return self.twon_info
 
 
 # Defaults, nested scopes, and values derived from the selected path.
@@ -124,6 +138,70 @@ for compiled, provider in ((second_other_graph, second), (first_other_graph, fir
     assert provider.mqtt_calls > 0
 
 
+# All TwoN settings are extracted from the same cached server information.
+credentials_path = os.path.abspath('test/wrl/username_password.txt')
+twon_source = f'''constant Host: String = Test.ReplaceTwoNHost("fallback");
+constant Port: uint16 = Test.ReplaceTwoNPort(443);
+constant TLSA: List[String] = Test.ReplaceTwoNTLSA(["fallback-tlsa"]);
+node device: TwoN.Connection {{
+  Host: Host,
+  Port: Port,
+  TLSA: TLSA,
+  UsernamePasswordFile: "{credentials_path}",
+}}
+'''
+
+
+def device_settings(prog):
+    return next(dict(instance.initializer_values) for instance in prog.instances.values()
+                if instance.type_name == ('TwoN', 'Connection'))
+
+
+fallback_device = device_settings(compile_program(twon_source))
+assert fallback_device['Host'] == 'fallback'
+assert fallback_device['Port'] == 443
+assert fallback_device['TLSA'] == ('fallback-tlsa',)
+first_twon_graph = graph(twon_source, services={TEST_RESOURCES_SERVICE: first})
+second_twon_graph = graph(twon_source, services={TEST_RESOURCES_SERVICE: second})
+for compiled, provider in ((second_twon_graph, second), (first_twon_graph, first)):
+    selected = device_settings(program_compiler.compile_nocatch(compiled))
+    assert selected['Host'] == provider.twon_info.host
+    assert selected['Port'] == provider.twon_info.port
+    assert selected['TLSA'] == (provider.twon_info.server.tlsa,)
+    assert provider.twon_calls > 0
+
+
+# A fresh ordinary compilation must not import the test server dependencies.
+subprocess.run([sys.executable, '-c', '''import sys
+from wirely.compiler import compile_files
+from wirely.compiler.program import compile_nocatch
+compiled = compile_files(['test/wrl/two_n.wrl'])
+assert compiled is not None
+compile_nocatch(compiled)
+assert 'wirely.two_n.fake_server' not in sys.modules
+assert 'aiohttp' not in sys.modules
+assert 'OpenSSL' not in sys.modules
+'''], check=True, capture_output=True, text=True)
+
+
+# Whichever setting is evaluated first requests the same provider-owned server.
+functions = (replace_twon_host, replace_twon_port, replace_twon_tlsa)
+for first_function in functions:
+    server = MagicMock()
+    server.info = SimpleNamespace(host='127.0.0.1', port=1234, server=server)
+    server.tlsa = 'fixture-tlsa'
+    with contextlib.ExitStack() as stack, \
+            patch('wirely.two_n.fake_server.Server', return_value=server) as construct:
+        resources = TestResourceProvider(stack)
+        context = SimpleNamespace(services={TEST_RESOURCES_SERVICE: resources}, arguments={})
+        first_function(context=context)
+        assert replace_twon_host(context=context) == '127.0.0.1'
+        assert replace_twon_port(context=context) == 1234
+        assert replace_twon_tlsa(context=context) == ('fixture-tlsa',)
+        construct.assert_called_once()
+    server.close.assert_called_once()
+
+
 # Snapshot registrations before reading source iterables.
 registrations = {TEST_RESOURCES_SERVICE: first}
 
@@ -172,6 +250,9 @@ compile_program('''node type Unused {
   constant Selected: String = Test.ReplaceKNXPath("/unused");
   constant Broker: String = Test.ReplaceMQTTURI("mqtt://unused");
   constant Output: String = Test.ReplaceOutputPath("unused.csv");
+  constant Host: String = Test.ReplaceTwoNHost("unused");
+  constant Port: uint16 = Test.ReplaceTwoNPort(443);
+  constant TLSA: List[String] = Test.ReplaceTwoNTLSA([]);
 }
 node bus: KNX.Connection {
   UnixPath: if true { "/fallback" } else { Test.ReplaceKNXPath("/unused") },
@@ -179,6 +260,7 @@ node bus: KNX.Connection {
 ''', services={TEST_RESOURCES_SERVICE: unused})
 assert unused.calls == unused.mqtt_calls == 0
 assert unused.output_calls == []
+assert unused.twon_calls == 0
 
 
 class FailingResources:
@@ -190,6 +272,9 @@ class FailingResources:
 
     def get_output_path(self, default):
         raise OSError('Output allocation failed')
+
+    def get_twon_info(self):
+        raise OSError('TwoN allocation failed')
 
 
 failure_graph = graph('node bus: KNX.Connection { UnixPath: Test.ReplaceKNXPath("/default") }',
@@ -216,6 +301,22 @@ for function, message in (
         assert error.source_element.source_position.filename == '<resources>'
     else:
         raise AssertionError('Expected a fixture diagnostic')
+
+
+for function, value_type, fallback in (
+    ('ReplaceTwoNHost', 'String', '"fallback"'),
+    ('ReplaceTwoNPort', 'uint16', '443'),
+    ('ReplaceTwoNTLSA', 'List[String]', '[]'),
+):
+    compiled = graph(f'constant Selected: {value_type} = Test.{function}({fallback});',
+                     services={TEST_RESOURCES_SERVICE: FailingResources()})
+    try:
+        program_compiler.compile_nocatch(compiled)
+    except blocks.ProgramError as error:
+        assert str(error) == 'TwoN allocation failed'
+        assert error.source_element.source_position.filename == '<resources>'
+    else:
+        raise AssertionError('Expected a TwoN fixture diagnostic')
 
 
 # The file API also passes services, without requiring a daemon for compilation.

@@ -12,8 +12,8 @@ import re
 import pwd
 import shlex
 import signal
-from dataclasses import dataclass, replace
-from types import MappingProxyType
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import lark
 
@@ -22,6 +22,9 @@ from wirely.compiler import model as blocks
 from wirely.compiler import program as program_compiler
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
+
+if TYPE_CHECKING:
+    from wirely.two_n.fake_server import ServerInfo
 
 # TODO: Where should this import be done?
 import wirely.compiler
@@ -36,6 +39,7 @@ test_names = [
     'unit/native_values',
     'unit/native_functions',
     'unit/test_resources',
+    'unit/twon_server',
     'unit/path',
     'unit/constants',
     'unit/type_comparisons',
@@ -485,14 +489,11 @@ allow_anonymous true
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_twon(require_twon):
-    if not require_twon:
+async def with_maybe_twon(server):
+    if server is None:
         yield None
         return
 
-    import wirely.two_n.fake_server
-
-    server = wirely.two_n.fake_server.Server()
     async with server.run() as info:
         yield info
 
@@ -505,6 +506,7 @@ class TestResourceProvider:
         self.knx_path = None
         self.mqtt_socket_path = None
         self.output_directory = None
+        self.twon_server = None
 
     def get_knx_path(self) -> str:
         if self.knx_path is None:
@@ -536,6 +538,15 @@ class TestResourceProvider:
                 print(f'Created test dir in {self.output_directory}', flush=True)
         return os.path.join(self.output_directory, os.path.basename(default))
 
+    def get_twon_info(self) -> 'ServerInfo':
+        if self.twon_server is None:
+            from wirely.two_n.fake_server import Server
+
+            server = Server()
+            self.exit_stack.callback(server.close)
+            self.twon_server = server
+        return self.twon_server.info
+
 
 async def run_test(test_name):
     print(f'Running test {test_name}')
@@ -557,50 +568,10 @@ async def run_test(test_name):
         with open(os.devnull, 'w') as file:
             prog.dump(file=file)
 
-        # TODO: Clean up
-        require_twon = False
-        twon_device_paths = []
-        for node_id, instance in prog.instances.items():
-            if instance.type_name == ('TwoN', 'Connection'):
-                require_twon = True
-                twon_device_paths.append(node_id)
-
         if resources.knx_path is not None:
             print('Test requires KNX')
 
-        async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(require_twon) as twon_info:
-            instances = dict(prog.instances)
-            parameter_overrides = {}
-
-            def override_instance(node_id, parameters):
-                bindings = parameters
-                parameter_overrides.setdefault(node_id, {}).update(bindings)
-                instance = instances[node_id]
-                initializer_values = dict(instance.initializer_values)
-                initializer_values.update({key: value for key, value in bindings.items()
-                                           if key in initializer_values})
-                values = dict(instance.parameters)
-                values.update(parameters)
-                instances[node_id] = replace(
-                    instance, parameters=MappingProxyType(values),
-                    initializer_values=initializer_values,
-                )
-
-            for node_id in twon_device_paths:
-                override_instance(
-                    node_id, {'Host': twon_info.host, 'Port': twon_info.port,
-                              'TLSA': (twon_info.server.tlsa,)},
-                )
-            schedules = {
-                stage: tuple(replace(
-                    proc, node_context=instances[proc.node_id],
-                    values={key: parameter_overrides.get(proc.node_id, {}).get(key, value)
-                            for key, value in proc.values.items()},
-                ) for proc in schedule)
-                for stage, schedule in prog.procs.items()
-            }
-            prog = replace(prog, instances=instances, procs=schedules)
-
+        async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(resources.twon_server) as twon_info:
             eng = blocks.Engine(prog)
 
             # TODO: Pass this information differently?

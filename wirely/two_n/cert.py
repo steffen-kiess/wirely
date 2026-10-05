@@ -3,6 +3,7 @@ import base64
 
 import cryptography.x509
 import cryptography.hazmat.backends
+import cryptography.hazmat.primitives.serialization
 import cryptography.hazmat.primitives.hashes
 
 
