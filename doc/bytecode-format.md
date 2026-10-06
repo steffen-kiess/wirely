@@ -621,6 +621,119 @@ zero. Zero-sized units retain their element count.
 Nested list elements contain `ListValue` offset/count pairs into the same
 buffer.
 
+## Procedure instruction byte stream
+
+A procedure executes a byte stream of instructions. Each instruction starts
+with one `uint8` opcode, followed by its operands in the order listed below.
+The opcode determines the operand count and instruction length. Opcode and
+operand-kind numbers remain to be assigned. Multi-byte integers are little
+endian; instructions and operands require no alignment.
+
+### Value operands
+
+The written form uses lowercase operand kinds and zero-based indices, for
+example `COPY local.0, input.1`.
+
+| Operand kind | Index selects | Access |
+| --- | --- | --- |
+| `input` | Entry in the procedure's dependency input list | Read |
+| `result` | Entry in the procedure's result list | Read/write |
+| `local` | Entry in the procedure's typed local table | Read/write |
+| `const` | Entry in the global constant table | Read |
+
+Operands identify whole typed values. There are no references. Whether to
+add an immediate-value operand kind has not yet been decided. Field indices
+and branch displacements are integer parameters, encoded separately from
+value operands.
+
+A value operand starts with a descriptor byte. Bits 7–5 identify the operand
+kind; bits 4–0 select the index encoding:
+
+| Selector | Index encoding | Total bytes |
+| --- | --- | --- |
+| 0–28 | Selector is the index | 1 |
+| 29 | Following `uint8` | 2 |
+| 30 | Following `uint16` | 3 |
+| 31 | Following `uint32` | 5 |
+
+The verifier requires the shortest form: inline for 0–28, `uint8` for
+29–255, `uint16` for 256–65535, and `uint32` for larger indices. Every index
+must also be within the selected table or list.
+
+### Integer parameters
+
+Field indices and branch displacements share this unsigned encoding:
+
+| First byte | Value encoding | Total bytes |
+| --- | --- | --- |
+| 0–253 | First byte is the value | 1 |
+| 254 | Following `uint16` | 3 |
+| 255 | Following `uint32` | 5 |
+
+There is no extended `uint8` form. The verifier requires the shortest form:
+one byte for 0–253, `uint16` for 254–65535, and `uint32` for larger values.
+Field indices select members in declaration order, starting at zero.
+
+### Instructions
+
+Mnemonics are uppercase. Instructions with a destination place it first.
+Each name below denotes a value operand except `field` and `offset`, which
+denote integer parameters.
+
+| Instruction | Behavior |
+| --- | --- |
+| `COPY destination, source` | Copy the whole value, including structs and options. Both operands have the same type. |
+| `SET_DEFAULT destination` | Assign the destination type's default value. |
+| `GET_FIELD destination, source, field` | Copy a struct field into a destination of the field's type. |
+| `SET_FIELD destination, source, field` | Copy the source into a struct destination's field of the same type, preserving other fields. |
+| `MAKE_SOME destination, source` | Copy a value of type `T` into a destination of type `Option[T]` as `Some`. |
+| `GET_OPTION_VALUE destination, source` | Copy the value of `Some`, or assign the contained type's default for `None`. The destination has that contained type. |
+| `IS_SOME destination, source` | Assign a boolean indicating whether the option is `Some`. |
+| `NOT destination, source` | Negate a boolean. |
+| `AND destination, left, right` | Compute boolean conjunction. |
+| `OR destination, left, right` | Compute boolean disjunction. |
+| `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
+| `JUMP offset` | Continue at the branch target. |
+| `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
+| `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
+| `RETURN` | End the procedure with its current result values. |
+
+`NOT`, `AND`, and `OR` require boolean operands and destinations.
+Equality compares struct fields recursively; options are equal when both
+are `None`, or both are `Some` with equal contained values. All unit values
+are equal.
+
+Each invocation initializes every local and result to its type's default.
+For unit this is the unit value, for boolean false, for integers zero, for
+options `None`, for enums the first declared member, and for structs the
+defaults of their fields. Defaults need not have an all-zero representation.
+Values remain valid and canonical, including padding and unused option
+payloads, as specified by the runtime binary representation.
+
+Instructions read all source values before modifying their destination,
+allowing a destination also to be a source. `COPY` preserves its source
+unless it is also the destination. Struct and option copies are whole-value
+operations subject to the runtime type size and nesting limits.
+
+### Control flow and verification
+
+A branch target is the byte offset immediately after the complete branch
+instruction plus its unsigned displacement. A zero displacement targets
+the next instruction; every branch moves forward from its own instruction.
+The target must be an instruction start inside the stream. The position
+immediately after the stream is not a target: for a 120-byte stream, offset
+119 is valid only if an instruction starts there, and offset 120 is invalid.
+
+The stream is nonempty and its final instruction is `RETURN`. Earlier
+returns are allowed. There are no calls or backward branches.
+
+Before execution, the verifier checks the entire stream for known opcodes
+and operand kinds, complete operands, shortest encodings, index bounds,
+operand types, writable destinations, and valid branch targets. Target
+calculation must not overflow. Every byte belongs to a decoded instruction;
+unknown instructions cannot be skipped. Default initialization removes the
+need to track which locals or results have been assigned.
+
 ## Debugging and lazy reads
 
 ```wirely
