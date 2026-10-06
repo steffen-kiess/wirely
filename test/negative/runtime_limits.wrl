@@ -1,0 +1,427 @@
+// TEST: storage_input
+struct type Wide2 {
+  First: uint64,
+  Second: uint64,
+}
+
+struct type Wide4 {
+  First: Wide2,
+  Second: Wide2,
+}
+
+struct type Wide8 {
+  First: Wide4,
+  Second: Wide4,
+}
+
+struct type Wide16 {
+  First: Wide8,
+  Second: Wide8,
+}
+
+
+node type Invalid {
+  default input: value Option[Wide16]; // E: storage size 136 bytes exceeds 128 bytes
+}
+
+// TEST: member_event
+struct type Member1 {
+}
+
+struct type Member3 {
+  First: Member1,
+  Second: Member1,
+}
+
+struct type Member7 {
+  First: Member3,
+  Second: Member3,
+}
+
+struct type Member15 {
+  First: Member7,
+  Second: Member7,
+}
+
+struct type Member31 {
+  First: Member15,
+  Second: Member15,
+}
+
+struct type Member63 {
+  First: Member31,
+  Second: Member31,
+}
+
+struct type Member127 {
+  First: Member63,
+  Second: Member63,
+}
+
+struct type Member128 {
+  Value: Member127,
+}
+
+node type Invalid {
+  default output: event Option[Member128]; // E: total member count 129 exceeds 128
+}
+
+// TEST: member_state
+struct type Member1 {
+}
+
+struct type Member3 {
+  First: Member1,
+  Second: Member1,
+}
+
+struct type Member7 {
+  First: Member3,
+  Second: Member3,
+}
+
+struct type Member15 {
+  First: Member7,
+  Second: Member7,
+}
+
+struct type Member31 {
+  First: Member15,
+  Second: Member15,
+}
+
+struct type Member63 {
+  First: Member31,
+  Second: Member31,
+}
+
+struct type Member127 {
+  First: Member63,
+  Second: Member63,
+}
+
+struct type Member128 {
+  Value: Member127,
+}
+
+state value: Option[Member128] = None; // E: total member count 129 exceeds 128
+
+// TEST: depth_temporary
+struct type Depth1 {
+  Value: unit,
+}
+
+struct type Depth2 {
+  Value: Depth1,
+}
+
+struct type Depth3 {
+  Value: Depth2,
+}
+
+struct type Depth4 {
+  Value: Depth3,
+}
+
+struct type Depth5 {
+  Value: Depth4,
+}
+
+struct type Depth6 {
+  Value: Depth5,
+}
+
+struct type Depth7 {
+  Value: Depth6,
+}
+
+struct type Depth8 {
+  Value: Depth7,
+}
+
+struct type Depth9 {
+  Value: Depth8,
+}
+
+struct type Depth10 {
+  Value: Depth9,
+}
+
+struct type Depth11 {
+  Value: Depth10,
+}
+
+struct type Depth12 {
+  Value: Depth11,
+}
+
+struct type Depth13 {
+  Value: Depth12,
+}
+
+struct type Depth14 {
+  Value: Depth13,
+}
+
+struct type Depth15 {
+  Value: Depth14,
+}
+
+struct type Depth16 {
+  Value: Depth15,
+}
+
+struct type Depth17 {
+  Value: Depth16,
+}
+
+
+temporary value: Depth17; // E: nesting depth 17 exceeds 16
+
+// TEST: depth_option_state
+struct type Depth1 {
+  Value: unit,
+}
+
+struct type Depth2 {
+  Value: Depth1,
+}
+
+struct type Depth3 {
+  Value: Depth2,
+}
+
+struct type Depth4 {
+  Value: Depth3,
+}
+
+struct type Depth5 {
+  Value: Depth4,
+}
+
+struct type Depth6 {
+  Value: Depth5,
+}
+
+struct type Depth7 {
+  Value: Depth6,
+}
+
+struct type Depth8 {
+  Value: Depth7,
+}
+
+struct type Depth9 {
+  Value: Depth8,
+}
+
+struct type Depth10 {
+  Value: Depth9,
+}
+
+struct type Depth11 {
+  Value: Depth10,
+}
+
+struct type Depth12 {
+  Value: Depth11,
+}
+
+struct type Depth13 {
+  Value: Depth12,
+}
+
+struct type Depth14 {
+  Value: Depth13,
+}
+
+struct type Depth15 {
+  Value: Depth14,
+}
+
+struct type Depth16 {
+  Value: Depth15,
+}
+
+struct type Depth17 {
+  Value: Depth16,
+}
+
+
+state value: Option[Depth16] = None; // E: nesting depth 17 exceeds 16
+
+// TEST: generic_storage
+struct type Wide2 {
+  First: uint64,
+  Second: uint64,
+}
+
+struct type Wide4 {
+  First: Wide2,
+  Second: Wide2,
+}
+
+struct type Wide8 {
+  First: Wide4,
+  Second: Wide4,
+}
+
+struct type Wide16 {
+  First: Wide8,
+  Second: Wide8,
+}
+
+
+node type Invalid {
+  parameter Type: ValueType;
+  temporary value: Type;
+}
+node invalid: Invalid { Type: Option[Wide16] } // E: storage size 136 bytes exceeds 128 bytes
+
+// TEST: generic_members
+struct type Member1 {
+}
+
+struct type Member3 {
+  First: Member1,
+  Second: Member1,
+}
+
+struct type Member7 {
+  First: Member3,
+  Second: Member3,
+}
+
+struct type Member15 {
+  First: Member7,
+  Second: Member7,
+}
+
+struct type Member31 {
+  First: Member15,
+  Second: Member15,
+}
+
+struct type Member63 {
+  First: Member31,
+  Second: Member31,
+}
+
+struct type Member127 {
+  First: Member63,
+  Second: Member63,
+}
+
+struct type Member128 {
+  Value: Member127,
+}
+
+node type Invalid {
+  parameter Type: ValueType;
+  temporary value: Type;
+}
+node invalid: Invalid { Type: Option[Member128] } // E: total member count 129 exceeds 128
+
+// TEST: generic_depth
+struct type Depth1 {
+  Value: unit,
+}
+
+struct type Depth2 {
+  Value: Depth1,
+}
+
+struct type Depth3 {
+  Value: Depth2,
+}
+
+struct type Depth4 {
+  Value: Depth3,
+}
+
+struct type Depth5 {
+  Value: Depth4,
+}
+
+struct type Depth6 {
+  Value: Depth5,
+}
+
+struct type Depth7 {
+  Value: Depth6,
+}
+
+struct type Depth8 {
+  Value: Depth7,
+}
+
+struct type Depth9 {
+  Value: Depth8,
+}
+
+struct type Depth10 {
+  Value: Depth9,
+}
+
+struct type Depth11 {
+  Value: Depth10,
+}
+
+struct type Depth12 {
+  Value: Depth11,
+}
+
+struct type Depth13 {
+  Value: Depth12,
+}
+
+struct type Depth14 {
+  Value: Depth13,
+}
+
+struct type Depth15 {
+  Value: Depth14,
+}
+
+struct type Depth16 {
+  Value: Depth15,
+}
+
+struct type Depth17 {
+  Value: Depth16,
+}
+
+
+node type Invalid {
+  parameter Type: ValueType;
+  temporary value: Type;
+}
+node invalid: Invalid { Type: Depth17 } // E: nesting depth 17 exceeds 16
+
+// TEST: procedure_operand
+struct type Wide2 {
+  First: uint64,
+  Second: uint64,
+}
+
+struct type Wide4 {
+  First: Wide2,
+  Second: Wide2,
+}
+
+struct type Wide8 {
+  First: Wide4,
+  Second: Wide4,
+}
+
+struct type Wide16 {
+  First: Wide8,
+  Second: Wide8,
+}
+
+
+constant Large: Option[Wide16] = None;
+temporary result: boolean;
+procedure run produces result {
+  result = Large == Large; // E: storage size 136 bytes exceeds 128 bytes
+}

@@ -496,7 +496,7 @@ def compile_procedure(procedure, instance, source_types, result_types):
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
-        if isinstance(value, Value) and value.value_type.is_runtime_type:
+        if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.block_type, parameters, runtime=True,
                                   names=names, protected=protected | set(source_types))

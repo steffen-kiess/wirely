@@ -80,7 +80,7 @@ node type Probe {
   constant Text: String = "hello";
   default output: value boolean;
   procedure run produces default output as output {
-    output = Text == Text; // E: unavailable parameter 'Text'
+    output = Text == Text; // E: String is parameter-only
   }
 }
 node probe: Probe {}

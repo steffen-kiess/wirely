@@ -13,6 +13,59 @@ from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDura
 
 # A value type supporting runtime validation, equality, and text parsing.
 class Type(abc.ABC):
+    has_runtime_representation = False
+
+    @property
+    def nesting_depth(self):
+        """Maximum composite nesting, with primitives at depth zero."""
+        if self.contains_parameters:
+            raise ValueError('Type parameters require resolution before measuring nesting depth')
+        return 0
+
+    @property
+    def total_member_count(self):
+        """Count this type and every expanded member occurrence."""
+        if self.contains_parameters:
+            raise ValueError('Type parameters require resolution before counting members')
+        return 1
+
+    def _runtime_limit_violation(self):
+        from ..program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT
+        from .serialization import _layout
+
+        depth = self.nesting_depth
+        if depth > MAX_NESTING_DEPTH:
+            return 'nesting depth', depth, MAX_NESTING_DEPTH
+        count = self.total_member_count
+        if count > MAX_TOTAL_MEMBER_COUNT:
+            return 'total member count', count, MAX_TOTAL_MEMBER_COUNT
+        size = _layout(self)[2]
+        if size > MAX_STORAGE_SIZE:
+            return 'storage size', size, MAX_STORAGE_SIZE
+        return None
+
+    @property
+    def is_runtime_type(self):
+        """Whether values have a representation within the runtime limits."""
+        return self.has_runtime_representation and self._runtime_limit_violation() is None
+
+    def _runtime_representation_error(self):
+        if self.contains_parameters:
+            return 'type parameters require resolution'
+        return f'{self} is parameter-only'
+
+    def runtime_type_error(self):
+        """Return the reason for runtime ineligibility, or None."""
+        if not self.has_runtime_representation:
+            return self._runtime_representation_error()
+        violation = self._runtime_limit_violation()
+        if violation is None:
+            return None
+        metric, actual, maximum = violation
+        if metric == 'storage size':
+            return f'{metric} {actual} bytes exceeds {maximum} bytes'
+        return f'{metric} {actual} exceeds {maximum}'
+
     @property
     def alignment(self):
         """Required byte alignment of this runtime type."""
@@ -68,7 +121,7 @@ class TypeConcrete(Type):
         self.name = name
         self.python_type = python_type
 
-        self.is_runtime_type = is_runtime_type
+        self.has_runtime_representation = is_runtime_type
 
         self.is_json_serializable = is_json_serializable
 
@@ -112,8 +165,19 @@ class TypeOption(Type):
         return self.inner_type.contains_parameters
 
     @property
-    def is_runtime_type(self):
-        return self.inner_type.is_runtime_type
+    def has_runtime_representation(self):
+        return self.inner_type.has_runtime_representation
+
+    @property
+    def nesting_depth(self):
+        return 1 + self.inner_type.nesting_depth
+
+    @property
+    def total_member_count(self):
+        return 1 + self.inner_type.total_member_count
+
+    def _runtime_representation_error(self):
+        return f'inner type: {self.inner_type._runtime_representation_error()}'
 
     @property
     def has_to_csv_value(self):
@@ -170,8 +234,21 @@ class TypeStruct(Type):
         return False
 
     @property
-    def is_runtime_type(self):
-        return all(field_type.is_runtime_type for field_type in self.fields.values())
+    def has_runtime_representation(self):
+        return all(field_type.has_runtime_representation for field_type in self.fields.values())
+
+    @property
+    def nesting_depth(self):
+        return 1 + max((field.nesting_depth for field in self.fields.values()), default=0)
+
+    @property
+    def total_member_count(self):
+        return 1 + sum(field.total_member_count for field in self.fields.values())
+
+    def _runtime_representation_error(self):
+        for name, field in self.fields.items():
+            if not field.has_runtime_representation:
+                return f'field {name}: {field._runtime_representation_error()}'
 
     def __str__(self):
         return self.name
@@ -201,8 +278,6 @@ class TypeStruct(Type):
 
 
 class TypeList(Type):
-    is_runtime_type = False
-
     def __init__(self, inner_type):
         self.inner_type = inner_type
 
@@ -217,6 +292,14 @@ class TypeList(Type):
     @property
     def contains_parameters(self):
         return self.inner_type.contains_parameters
+
+    @property
+    def nesting_depth(self):
+        return 1 + self.inner_type.nesting_depth
+
+    @property
+    def total_member_count(self):
+        return 1 + self.inner_type.total_member_count
 
     @property
     def has_to_csv_value(self):

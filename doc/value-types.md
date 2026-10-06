@@ -29,10 +29,19 @@ require runtime types. Runtime types can also be used for parameters.
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
 | Declared enums | A named member | Runtime |
-| Declared structs | Named fields | Runtime when every field is runtime |
+| Declared structs | Named fields | Runtime within the limits below |
 | `ValueType` | A value type | Parameter-only |
-| `Option[T]` | No value, or one value of type `T` | Runtime when `T` is runtime |
+| `Option[T]` | No value, or one value of type `T` | Runtime within the limits below |
 | `List[T]` | An ordered list of values of type `T`, including an empty list | Parameter-only |
+
+Structs and options are runtime types when their members are runtime types
+and they have at most 128 storage bytes, nesting depth 16, and total member
+count 128. Storage size includes alignment padding. Primitives, including
+enums, have depth 0 and member count 1. Struct depth is one more than the
+maximum field depth (1 for an empty struct); its member count is 1 plus the
+sum of its field counts. Options and lists add 1 to their inner type's depth
+and count. Repeated fields count separately; empty structs count as 1.
+Types exceeding these limits remain usable for parameters and constants.
 
 Integer ranges are inclusive. For a signed integer of width `n`, the range
 is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.

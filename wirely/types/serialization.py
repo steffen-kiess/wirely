@@ -15,59 +15,66 @@ _DAY_NS = 86_400_000_000_000
 
 
 def _check_runtime(value_type):
-    """Reject types without a resolved runtime representation."""
-    if value_type.contains_parameters or not value_type.is_runtime_type:
-        raise ValueError(f'Type {value_type} has no runtime encoding')
+    """Reject types without an eligible runtime representation."""
+    if not value_type.is_runtime_type:
+        raise ValueError(f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
+
+
+def _layout(value_type):
+    """Calculate alignment, data size, and storage size without checking limits."""
+    if isinstance(value_type, TypeStruct):
+        alignment = 1
+        end = 0
+        data_size = 0
+        for field in value_type.fields.values():
+            field_alignment, field_data_size, field_size = _layout(field)
+            alignment = max(alignment, field_alignment)
+            offset = (end + field_alignment - 1) & ~(field_alignment - 1)
+            data_size = offset + field_data_size
+            end = offset + field_size
+    elif isinstance(value_type, TypeOption):
+        alignment, inner_data_size, _ = _layout(value_type.inner_type)
+        data_size = inner_data_size + 1
+    elif isinstance(value_type, TypeEnum):
+        return _layout(value_type.underlying_type)
+    elif isinstance(value_type, TypeUnit):
+        alignment, data_size = 1, 0
+    elif isinstance(value_type, TypeBoolean):
+        alignment, data_size = 1, 1
+    elif isinstance(value_type, TypeInt):
+        if value_type.bits not in (8, 16, 32, 64):
+            raise ValueError(f'Unsupported integer width {value_type.bits}')
+        alignment = data_size = value_type.bits // 8
+    elif isinstance(value_type, TypeMonotonicTime):
+        alignment, data_size = 8, 16
+    elif isinstance(value_type, (TypeDuration, TypeTimeOfDay)):
+        alignment = data_size = 8
+    else:
+        raise ValueError(f'Unsupported runtime type {value_type}')
+    size = (data_size + alignment - 1) & ~(alignment - 1)
+    return alignment, data_size, size
 
 
 def _alignment(value_type):
     """Return the required byte alignment of a runtime value."""
     _check_runtime(value_type)
-    if isinstance(value_type, TypeStruct):
-        return max((field.alignment for field in value_type.fields.values()), default=1)
-    if isinstance(value_type, TypeOption):
-        return value_type.inner_type.alignment
-    if isinstance(value_type, TypeEnum):
-        return value_type.underlying_type.alignment
-    if isinstance(value_type, (TypeUnit, TypeBoolean)):
-        return 1
-    if isinstance(value_type, TypeInt):
-        if value_type.bits not in (8, 16, 32, 64):
-            raise ValueError(f'Unsupported integer width {value_type.bits}')
-        return value_type.bits // 8
-    if isinstance(value_type, (TypeDuration, TypeMonotonicTime, TypeTimeOfDay)):
-        return 8
-    raise ValueError(f'Unsupported runtime type {value_type}')
+    return _layout(value_type)[0]
 
 
 def _data_size(value_type):
     """Return the encoded byte length, excluding tail padding."""
     _check_runtime(value_type)
-    if isinstance(value_type, TypeStruct):
-        offsets = _struct_offsets(value_type)
-        if not offsets:
-            return 0
-        name = next(reversed(offsets))
-        return offsets[name] + value_type.fields[name].data_size
-    if isinstance(value_type, TypeOption):
-        return value_type.inner_type.data_size + 1
-    if isinstance(value_type, TypeEnum):
-        return value_type.underlying_type.data_size
-    if isinstance(value_type, TypeUnit):
-        return 0
-    if isinstance(value_type, TypeMonotonicTime):
-        return 16
-    return _alignment(value_type)
+    return _layout(value_type)[1]
 
 
 def _struct_offsets(value_type):
     offsets = {}
     end = 0
     for name, field_type in value_type.fields.items():
-        alignment = field_type.alignment
+        alignment, _, size = _layout(field_type)
         offset = (end + alignment - 1) & ~(alignment - 1)
         offsets[name] = offset
-        end = offset + field_type.size
+        end = offset + size
     return offsets
 
 

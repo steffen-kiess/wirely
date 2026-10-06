@@ -1,0 +1,157 @@
+// Runtime limits accept their exact boundaries.
+
+struct type Wide2 {
+  First: uint64,
+  Second: uint64,
+}
+
+struct type Wide4 {
+  First: Wide2,
+  Second: Wide2,
+}
+
+struct type Wide8 {
+  First: Wide4,
+  Second: Wide4,
+}
+
+struct type Wide16 {
+  First: Wide8,
+  Second: Wide8,
+}
+
+struct type Member1 {
+}
+
+struct type Member3 {
+  First: Member1,
+  Second: Member1,
+}
+
+struct type Member7 {
+  First: Member3,
+  Second: Member3,
+}
+
+struct type Member15 {
+  First: Member7,
+  Second: Member7,
+}
+
+struct type Member31 {
+  First: Member15,
+  Second: Member15,
+}
+
+struct type Member63 {
+  First: Member31,
+  Second: Member31,
+}
+
+struct type Member127 {
+  First: Member63,
+  Second: Member63,
+}
+
+struct type Member128 {
+  Value: Member127,
+}
+
+
+struct type Depth1 {
+  Value: unit,
+}
+
+struct type Depth2 {
+  Value: Depth1,
+}
+
+struct type Depth3 {
+  Value: Depth2,
+}
+
+struct type Depth4 {
+  Value: Depth3,
+}
+
+struct type Depth5 {
+  Value: Depth4,
+}
+
+struct type Depth6 {
+  Value: Depth5,
+}
+
+struct type Depth7 {
+  Value: Depth6,
+}
+
+struct type Depth8 {
+  Value: Depth7,
+}
+
+struct type Depth9 {
+  Value: Depth8,
+}
+
+struct type Depth10 {
+  Value: Depth9,
+}
+
+struct type Depth11 {
+  Value: Depth10,
+}
+
+struct type Depth12 {
+  Value: Depth11,
+}
+
+struct type Depth13 {
+  Value: Depth12,
+}
+
+struct type Depth14 {
+  Value: Depth13,
+}
+
+struct type Depth15 {
+  Value: Depth14,
+}
+
+struct type Depth16 {
+  Value: Depth15,
+}
+
+struct type Depth17 {
+  Value: Depth16,
+}
+
+node type Boundaries {
+  input Storage: value Wide16;
+  input Members: value Member128;
+  input Depth: value Depth16;
+}
+state optional_member_boundary: Option[Member127] = None;
+
+// Compile-time options can exceed every runtime limit.
+constant AboveStorage: Option[Wide16] = None;
+constant AboveMembers: Option[Member128] = None;
+constant AboveDepth: Option[Depth16] = None;
+assert AboveStorage.IsNone && AboveMembers.IsNone && AboveDepth.IsNone;
+
+node type Destination {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  assert parameter_option(Value).IsNone;
+}
+node type Forward {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  node child: Destination {
+    Type: Type,
+    Value?: parameter_option(Value),
+  }
+}
+node storage_forward: Forward { Type: Wide16 }
+node members_forward: Forward { Type: Member128 }
+node depth_forward: Forward { Type: Depth16 }

@@ -83,7 +83,7 @@ class TypeParameter(Type):
 def check_runtime_type(value_type, source):
     """Check runtime eligibility once any type parameters have resolved."""
     if not value_type.contains_parameters and not value_type.is_runtime_type:
-        raise blocks.ProgramError(source, f'Type {value_type} is parameter-only')
+        raise blocks.ProgramError(source, f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
 
 
 def resolve_type(value_type, par_values):

@@ -114,7 +114,7 @@ node type Probe {
   parameter Text: String = "text";
   default output: value boolean;
   procedure run produces default output as output {
-    let value = Text; // E: unavailable parameter
+    let value = Text; // E: String is parameter-only
     output = true;
   }
 }

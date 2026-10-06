@@ -82,12 +82,14 @@ to_compile = [
     'test/compiler/prepared_configuration.wrl',
     'test/compiler/syntax.wrl',
     'test/compiler/types.wrl',
+    'test/compiler/runtime_limits.wrl',
 ]
 
 negative_tests = [
     'test/negative/library_settings.wrl',
     'test/negative/prepared_configuration.wrl',
     'test/negative/runtime_types.wrl',
+    'test/negative/runtime_limits.wrl',
     'test/negative/parameters.wrl',
     'test/negative/optional_forwarding.wrl',
     'test/negative/optional_outputs.wrl',

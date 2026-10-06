@@ -29,10 +29,8 @@ class Variable:
     def __post_init__(self):
         if not isinstance(self.name, str):
             raise Exception('name parameter is not a str')
-        if self.var_type.contains_parameters:
-            raise Exception('var_type parameter is not a concrete type')
         if not self.var_type.is_runtime_type:
-            raise ValueError(f'Type {self.var_type} is parameter-only')
+            raise ValueError(f'Type {self.var_type} is not a runtime type: {self.var_type.runtime_type_error()}')
         object.__setattr__(self, 'name', str(self.name))
 
     def __repr__(self):

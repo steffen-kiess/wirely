@@ -102,13 +102,13 @@ node compare: Compare { Type: List[int8], Left: [], Right: [] }
 // TEST: procedure string operand
 temporary result: boolean;
 procedure run produces result {
-  result = "text" == "text"; // E: Type String is parameter-only
+  result = "text" == "text"; // E: Type String is not a runtime type: String is parameter-only
 }
 
 // TEST: procedure list operand
 temporary result: boolean;
 procedure run produces result {
-  let items: List[uint8] = []; // E: Type TypeList(uint8) is parameter-only
+  let items: List[uint8] = []; // E: Type TypeList(uint8) is not a runtime type: TypeList(uint8) is parameter-only
   result = items == items;
 }
 
@@ -117,12 +117,12 @@ struct type Settings { text: String, }
 temporary result: boolean;
 procedure run produces result {
   result = Settings { text: "a" } != Settings { text: "b" };
-  // ^E: Type Settings is parameter-only
+  // ^E: Type Settings is not a runtime type: field text: String is parameter-only
 }
 
 // TEST: procedure parameter-only option operand
 temporary result: boolean;
 procedure run produces result {
-  let value: Option[String] = None; // E: Type TypeOption(String) is parameter-only
+  let value: Option[String] = None; // E: Type TypeOption(String) is not a runtime type: inner type: String is parameter-only
   result = value == value;
 }
