@@ -5,6 +5,8 @@ import sys
 
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.program import RunStage
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
@@ -46,7 +48,7 @@ class MyCsvWriter:
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class ValueWriter(blocks.NativeState):
+class ValueWriter(NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
     def __init__(self, *, context):
@@ -133,7 +135,7 @@ class ValueWriter(blocks.NativeState):
         # print(f'NewValue={new_value} Reached={reached} force={force}')
 
         # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
-        time = context.start_time_for_stage(blocks.RunStage.DEFAULT).local
+        time = context.start_time_for_stage(RunStage.DEFAULT).local
 
         if force:
             # Make sure that if in the next cycle/step the timeout is reached again, the procedure will be called again.
@@ -143,7 +145,7 @@ class ValueWriter(blocks.NativeState):
         written = self.write_value(new_value_csv, time, force=force)
         if written:
             # TODO: Think what happens if new_value_csv is ('', False)
-            now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
+            now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             # Write value once an hour
             repeat_time = now + blocks.Duration.parse('PT1H')
 

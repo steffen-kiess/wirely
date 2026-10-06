@@ -15,6 +15,7 @@ from wirely.util import check_parameters
 import wirely.compiler
 
 import wirely.misc.service
+from wirely.runtime.engine import Engine
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
 
@@ -55,7 +56,7 @@ async def async_run(args) -> None:
     if prog is None:
         sys.exit(1)
 
-    eng = blocks.Engine(prog)
+    eng = Engine(prog)
 
     if args.debug:
         eng.debug = True

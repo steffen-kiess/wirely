@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 
 # TODO: Where should this import be done?
 import wirely.compiler
+from wirely.runtime.engine import Engine
 
 test_names = [
     'unit/runtime_program',
@@ -305,7 +306,7 @@ def compile_test(fn):
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    eng = blocks.Engine(prog)
+    eng = Engine(prog)
 
     print(f'Compiling {fn} done')
 
@@ -556,7 +557,7 @@ async def run_test(test_name):
             print('Test requires KNX')
 
         async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(resources.twon_server) as twon_info:
-            eng = blocks.Engine(prog)
+            eng = Engine(prog)
 
             # TODO: Pass this information differently?
             eng.test_twon_fake_server_info = twon_info

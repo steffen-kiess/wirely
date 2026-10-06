@@ -2,8 +2,11 @@
 
 from wirely.compiler import model as blocks
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
-from wirely.program import NativeInstance, Procedure, Program, ResultBinding
 from wirely.compiler.types import resolve_type, check_runtime_type
+from wirely.program import (
+    InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
+    RunStage, Variable, VariableBlock,
+)
 
 
 def compile(global_block_type, *, on_diagnostic=None):
@@ -61,7 +64,7 @@ def compile_nocatch(global_block_type):
         # name = '.'.join([block.name for block in path])
         name = blocks.Block.path_name(path)
         variable_name = name + '.' + var.name if name else var.name
-        v = blocks.Variable(variable_name, var_type)
+        v = Variable(variable_name, var_type)
         # print(v.name)
         variable_map[path, var.var_identifier] = v
         all_variables.append(v)
@@ -80,15 +83,15 @@ def compile_nocatch(global_block_type):
             if variable.phase == 'new':
                 if state.producer is None:
                     raise blocks.ProgramError(variable.reference, f'State {state.name}.new requires a producing procedure')
-                return blocks.InputSourceBinding(state_map_new[source_path, state])
-            return blocks.InputSourceBinding(
+                return InputSourceBinding(state_map_new[source_path, state])
+            return InputSourceBinding(
                 state_map[source_path, state],
             )
         if isinstance(variable, blocks.Block.StateVariable):
-            return blocks.InputSourceBinding(
+            return InputSourceBinding(
                 state_map[source_path, variable],
             )
-        return blocks.InputSourceBinding(add_var(source_path, variable))
+        return InputSourceBinding(add_var(source_path, variable))
 
     for path in instances:
         block = path[-1]
@@ -155,7 +158,7 @@ def compile_nocatch(global_block_type):
             raise Exception('(path, proc.proc_identifier) in done')
         done.add((path, proc.proc_identifier))
 
-    for stage in blocks.RunStage:
+    for stage in RunStage:
         procs[stage] = []
         scheduled_blocks = (root,) if root is not None else tuple(
             graph.blocks[name] for name in sorted(graph.blocks)
@@ -347,8 +350,8 @@ def compile_nocatch(global_block_type):
     }
     return Program(
         name=str(graph), graph=graph,
-        temporaries=blocks.VariableBlock(all_variables, f'{graph}.temporaries'),
-        state_variables=blocks.VariableBlock(state_variables, f'{graph}.state_variables'),
+        temporaries=VariableBlock(all_variables, f'{graph}.temporaries'),
+        state_variables=VariableBlock(state_variables, f'{graph}.state_variables'),
         native_construction_order=native_construction_order,
         instances=native_instances, initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,

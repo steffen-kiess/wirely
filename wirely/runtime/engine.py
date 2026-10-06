@@ -4,13 +4,15 @@ import datetime
 from types import MappingProxyType
 
 import wirely as blocks
+from wirely.program import Program
+from wirely.runtime.contexts import NativeNodeContext, VariableBlockInstance, ProcedureContext, StepContext
 
 
 class Engine:
     def __init__(self, program):
-        from wirely.native import get_native_block_type_by_name
+        from .linking import link_native_classes
 
-        if not isinstance(program, blocks.Program):
+        if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
 
         self.program = program
@@ -32,25 +34,20 @@ class Engine:
         self.next_wakeup = None
 
         # The current state, will be .old during the next step.
-        self.state = blocks.VariableBlockInstance(self.program.state_variables)
+        self.state = VariableBlockInstance(self.program.state_variables)
         # The state before the last step. Was .old during the last step.
         self.last_step_state = None
         self.native_states = {}
 
         self.fake_monotonic_time_offset = None
 
-        type_names = {proc.reference[0] for schedule in program.procs.values()
-                      for proc in schedule if proc.body is None}
-        self.native_classes = {name: get_native_block_type_by_name(name) for name in type_names}
+        self.native_classes = link_native_classes(program)
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
             native_state = None
             if instance.has_native_state:
-                native_class = self.native_classes.get(instance.type_name)
-                if native_class is None:
-                    native_class = get_native_block_type_by_name(instance.type_name)
-                    self.native_classes[instance.type_name] = native_class
-                context = blocks.NativeNodeContext(
+                native_class = self.native_classes[instance.type_name]
+                context = NativeNodeContext(
                     name=instance.name, values=instance.initializer_values,
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
                     _engine=self, _node_id=node_id,
@@ -125,11 +122,11 @@ class Engine:
         cache = self.cache
         state_old = self.state  # Snapshot read throughout this step.
         # State produced by this step, published when it completes.
-        state_new = blocks.VariableBlockInstance(self.program.state_variables)
-        variables = blocks.VariableBlockInstance(self.program.temporaries)
+        state_new = VariableBlockInstance(self.program.state_variables)
+        variables = VariableBlockInstance(self.program.temporaries)
         run_count = 0
         state_change_count = 0
-        step_info = blocks.StepContext()
+        step_info = StepContext()
         for stage, stage_procs in self.program.procs.items():
             step_info.start_stage(self, stage)
             now = step_info.stage_start_time_monotonic[stage]
@@ -172,7 +169,7 @@ class Engine:
                 run_count += 1
                 self.triggered_procs.discard(key)
                 results = {}
-                context = blocks.ProcedureContext(
+                context = ProcedureContext(
                     inputs=inputs, results=results, static=proc, step_info=step_info,
                 )
                 if proc.body is None:

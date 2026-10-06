@@ -7,6 +7,7 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
+from wirely.runtime.engine import Engine
 
 
 registry = {}
@@ -140,7 +141,7 @@ def make_engine(source, *, declarations=definitions):
     program = program_compiler.compile(graph)
     assert program is not None
     with patch.dict(wirely.native.test_library.native_block_types, registry):
-        return blocks.Engine(program)
+        return Engine(program)
 
 
 def check_old_snapshots():

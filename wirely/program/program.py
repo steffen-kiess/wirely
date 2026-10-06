@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 from pprint import pformat
 from types import MappingProxyType
 
-from .types import Type
-from .runtime.procedures import ProcedureBody
+from ..types import Type
+from .procedures import ProcedureBody
 
 
 class RunStage(enum.Enum):

@@ -1,11 +1,11 @@
-import wirely as blocks
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class Output(blocks.NativeState):
+class Output(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.gpio_request = None

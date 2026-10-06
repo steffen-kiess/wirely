@@ -19,6 +19,7 @@ from wirely.test import (
     with_maybe_knxd, with_maybe_mqtt,
 )
 from wirely.two_n.fake_server import Server
+from wirely.runtime.engine import Engine
 
 
 checks = TestCase()
@@ -195,7 +196,7 @@ async def check_runner_cleanup():
             mocks.enter_context(patch('wirely.test.blocks.compiler.compile_files', side_effect=compile_fixture))
             mocks.enter_context(patch('wirely.test.program_compiler.compile',
                                       return_value=None if mode == 'program' else MagicMock()))
-            construct = mocks.enter_context(patch('wirely.test.blocks.Engine', return_value=SimpleNamespace()))
+            construct = mocks.enter_context(patch('wirely.test.Engine', return_value=SimpleNamespace()))
             mocks.enter_context(patch('wirely.test.with_maybe_knxd', daemon))
             mocks.enter_context(patch('wirely.test.with_maybe_mqtt', daemon))
             mocks.enter_context(patch('wirely.test.importlib.util.spec_from_file_location', return_value=spec))

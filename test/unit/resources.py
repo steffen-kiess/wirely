@@ -9,6 +9,8 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
+from wirely.runtime.engine import Engine
 
 
 checks = TestCase()
@@ -18,7 +20,7 @@ startup_inputs = []
 
 
 @native_block_type(registry, has_native_state=True)
-class Provider(blocks.NativeState):
+class Provider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         inputs = context.inputs
@@ -32,7 +34,7 @@ class Shared(Provider):
 
 
 @native_block_type(registry, has_native_state=True)
-class Consumer(blocks.NativeState):
+class Consumer(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         inputs = context.inputs
@@ -68,7 +70,7 @@ class ProcedureConsumer:
 
 
 @native_block_type(registry, has_native_state=True)
-class Dependent(blocks.NativeState):
+class Dependent(NativeState):
     pass
 
 
@@ -161,7 +163,7 @@ connect value_source -> procedure_consumer.Value;
 '''
 native_resource_program = program_compiler.compile_nocatch(compile_resources(source))
 with patch.dict(wirely.native.test_library.native_block_types, registry):
-    native_resource_engine = blocks.Engine(native_resource_program)
+    native_resource_engine = Engine(native_resource_program)
 consumer = native_resource_engine.get_native_state('consumer')
 provider = native_resource_engine.get_native_state('factory.source')
 shared = native_resource_engine.get_native_state('shared')
@@ -205,7 +207,7 @@ node source: TestLibrary.Provider {}
 connect source -> sink.Service;
 ''')
 with patch.dict(wirely.native.test_library.native_block_types, registry):
-    alias_engine = blocks.Engine(program_compiler.compile_nocatch(alias_graph))
+    alias_engine = Engine(program_compiler.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')
 assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')

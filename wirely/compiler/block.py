@@ -5,6 +5,7 @@ from wirely.util import check_parameters
 from .attributes import copy_attributes
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
+from wirely.program import Variable
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -147,11 +148,11 @@ class Block(blocks.Node):
             source = (self.block_type.variables[state_var.name]
                       if self.is_root else self.instantiation)
             check_runtime_type(var_type, source)
-            v = blocks.Variable(path_prefix + state_var.name + '.new', var_type)
+            v = Variable(path_prefix + state_var.name + '.new', var_type)
             state_map_new[path, state_var] = v
             all_variables.append(v)
 
-            v = blocks.Variable(path_prefix + state_var.name, var_type)
+            v = Variable(path_prefix + state_var.name, var_type)
             state_map[path, state_var] = v
             variable_map[path, state_var.var_identifier] = v
             state_variables.append(v)
@@ -400,7 +401,7 @@ class Block(blocks.Node):
 
     class Procedure:
         # TODO: Make name mandatory
-        def __init__(self, block: 'Block', dependencies, results, impl, can_trigger=False, name=None, *, static_context, declaration_procedure):
+        def __init__(self, block: 'Block', dependencies, results, can_trigger=False, name=None, *, static_context, declaration_procedure):
             if not isinstance(block, Block):
                 raise Exception('block parameter is not a Block')
 
@@ -440,7 +441,6 @@ class Block(blocks.Node):
                 # print(f'Setting result for {result} / {result.temporary}')
                 result.temporary.producer = self
 
-            self.impl = impl
             self.can_trigger = can_trigger
 
             self.block.block_procedures.append(self)

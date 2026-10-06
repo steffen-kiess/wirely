@@ -1,6 +1,5 @@
 import typing
 
-from . import native as compiler_native
 from .attributes import copy_attributes
 from .types import check_runtime_type, resolve_type
 
@@ -221,19 +220,6 @@ class BlockType(blocks.Scope):
             else:
                 raise Exception(f'Got unexpected variable: {variable}')
 
-        have_native = self.is_native
-        for procedure in self.procedures.values():
-            have_native = have_native or procedure.is_native
-        native_class = None
-        if have_native:
-            # TODO: Should this be done here? This will be called if 'self' is used in another block, even if that block is not instantiated. Probably looking up the native block type should be delayed until then to avoid loading the native module needed for that. Alternatively, the native class should be looked up even if 'self' is not used at all to do proper error checking.
-            native_class = compiler_native.get_native_block_type(self)
-            if self.is_native and not native_class.native_block_has_native_state:
-                raise blocks.ProgramError(self, f'Node type {self.fullname!r} requires has_native_state=True')
-            if not self.is_native and native_class.native_block_has_native_state:
-                raise blocks.ProgramError(self, f'Node type {self.fullname!r} requires has_native_state=False')
-        block.native_class = native_class
-
         block.initializer_sources = {}
         if self.initializer is not None:
             depends = self.initializer.depends
@@ -245,10 +231,6 @@ class BlockType(blocks.Scope):
                 else:
                     source = dep
                 block.initializer_sources[binding.key] = (source, binding)
-
-        # TODO: This is an ugly hack, native class resolution should be done per-type, not per-instance
-        if not hasattr(self, 'native_class'):
-            self.native_class = native_class
 
         # TODO: Probably more stuff should be done at an earlier stage
         for procedure in self.procedures.values():
@@ -318,19 +300,10 @@ class BlockType(blocks.Scope):
 
             static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
 
-            if not procedure.is_native:
-                run = None
-            else:
-                compiler_native._validate_native_procedure(
-                    native_class, procedure, has_native_state=self.is_native,
-                )
-
-                def run(*, context, native_state, native_class=native_class,
-                        name=procedure.python_name, has_native_state=self.is_native):
-                    target = native_state if has_native_state else native_class
-                    getattr(target, name)(context=context)
-            # print('QQ', [type(x) for x in inputs], [type(x) for x in outputs])
-            block_procedure = blocks.Block.Procedure(block, inputs, outputs, run, name=procedure.name.id_str, static_context=static_context, declaration_procedure=procedure)
+            block_procedure = blocks.Block.Procedure(
+                block, inputs, outputs, name=procedure.name.id_str,
+                static_context=static_context, declaration_procedure=procedure,
+            )
             if procedure in procedures:
                 raise Exception('procedure in procedures')
             procedures[procedure] = block_procedure

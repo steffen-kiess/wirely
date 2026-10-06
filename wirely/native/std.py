@@ -1,5 +1,6 @@
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
@@ -67,7 +68,7 @@ class DebugEventPrinter:
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class DebugValueSource(blocks.NativeState):
+class DebugValueSource(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.current_value = None
@@ -102,7 +103,7 @@ class DebugValueSource(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class DebugEventSource(blocks.NativeState):
+class DebugEventSource(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         # TODO: Allow a queue of values?

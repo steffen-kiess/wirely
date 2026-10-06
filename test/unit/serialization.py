@@ -3,6 +3,8 @@ import enum
 from unittest import TestCase
 
 import wirely
+from wirely.program import Variable, VariableBlock
+from wirely.runtime.contexts import VariableBlockInstance
 
 
 checks = TestCase()
@@ -198,15 +200,15 @@ def check_struct_codecs():
 
 
 def check_variable_storage():
-    flag = wirely.Variable('flag', wirely.types.boolean)
-    small = wirely.Variable('small', wirely.types.uint16)
-    first_unit = wirely.Variable('first_unit', wirely.types.unit)
-    second_unit = wirely.Variable('second_unit', wirely.types.unit)
-    nested = wirely.Variable('nested', wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)))
-    clock = wirely.Variable('clock', wirely.types.MonotonicTime)
-    block = wirely.VariableBlock([flag, small, first_unit, nested, clock, second_unit], 'storage')
-    values = wirely.VariableBlockInstance(block)
-    independent = wirely.VariableBlockInstance(block)
+    flag = Variable('flag', wirely.types.boolean)
+    small = Variable('small', wirely.types.uint16)
+    first_unit = Variable('first_unit', wirely.types.unit)
+    second_unit = Variable('second_unit', wirely.types.unit)
+    nested = Variable('nested', wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)))
+    clock = Variable('clock', wirely.types.MonotonicTime)
+    block = VariableBlock([flag, small, first_unit, nested, clock, second_unit], 'storage')
+    values = VariableBlockInstance(block)
+    independent = VariableBlockInstance(block)
     expected = {flag: True, small: 65535, first_unit: wirely.Unit(),
                 nested: wirely.Some(None), clock: wirely.MonotonicTime(7, 123),
                 second_unit: wirely.Unit()}
@@ -221,7 +223,7 @@ def check_variable_storage():
     for variable in (flag, first_unit):
         with checks.assertRaisesRegex(Exception, 'already set'):
             values.add(variable, expected[variable])
-    foreign = wirely.Variable('flag', wirely.types.boolean)
+    foreign = Variable('flag', wirely.types.boolean)
     with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
         values.add(foreign, True)
     with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
@@ -234,8 +236,8 @@ def check_variable_storage():
     independent.add(nested, None)
     assert independent[small] == 7 and independent[nested] is None
     assert values[small] == 65535 and values[nested] == wirely.Some(None)
-    wirely.VariableBlockInstance(wirely.VariableBlock([], 'empty'))
-    units = wirely.VariableBlockInstance(wirely.VariableBlock([first_unit, second_unit], 'units'))
+    VariableBlockInstance(VariableBlock([], 'empty'))
+    units = VariableBlockInstance(VariableBlock([first_unit, second_unit], 'units'))
     units.add(first_unit, wirely.Unit())
     with checks.assertRaisesRegex(Exception, 'not yet set'):
         units[second_unit]

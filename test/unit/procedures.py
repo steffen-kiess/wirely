@@ -5,6 +5,7 @@ import wirely
 import wirely.compiler
 import wirely.native.std
 from wirely.compiler import program as program_compiler
+from wirely.runtime.engine import Engine
 
 
 def check_main_program():
@@ -77,7 +78,7 @@ def check_pure_stages():
     node pure: Pure {}
     ''')
 
-    pure_engine = wirely.Engine(pure)
+    pure_engine = Engine(pure)
     pure_engine.step()
     pure_engine.assert_value_is('pure', True)
     pure_engine.assert_value_is('pure.InputStage', True)
@@ -111,7 +112,7 @@ def check_generic_copies():
     node copy: Copy {{ Type: {value_type} }}
     connect constant -> copy;
     ''')
-        generic_engine = wirely.Engine(generic)
+        generic_engine = Engine(generic)
         generic_engine.step()
         assert generic_engine.get_value('copy') == generic_engine.get_value('constant')
 
@@ -134,7 +135,7 @@ def check_mixed_procedures():
     '''
     with patch.object(wirely.native.std.Constant, 'run',
                       staticmethod(lambda *, context: context.set_result('temp', context.values['Value']))):
-        mixed_engine = wirely.Engine(compile_program(mixed_source))
+        mixed_engine = Engine(compile_program(mixed_source))
         mixed_engine.step()
         mixed_engine.assert_value_is('mixed', True)
         mixed_engine.assert_is_idle()
@@ -145,7 +146,7 @@ def check_root_only():
     root_only = compile_program('''temporary t: int8;
     procedure p1 produces t { t = 50; }
     ''')
-    root_engine = wirely.Engine(root_only)
+    root_engine = Engine(root_only)
     root_engine.step()
     root_engine.assert_value_is('t', 50)
     root_engine.assert_is_idle()
@@ -178,7 +179,7 @@ def check_root_dependencies():
     node shared_again: Shared {}
     connect second -> copied;
     ''', add_std=True)
-    chained_engine = wirely.Engine(chained)
+    chained_engine = Engine(chained)
     chained_source = chained_engine.get_native_state('source')
     chained_source.set_value(False)
     chained_engine.step()
@@ -219,7 +220,7 @@ def check_root_state():
     connect saved.old -> old_copy;
     connect saved.new -> new_copy;
     ''', add_std=True)
-    state_engine = wirely.Engine(root_state)
+    state_engine = Engine(root_state)
     state_source = state_engine.get_native_state('source')
     state_source.set_value(True)
     state_engine.step()

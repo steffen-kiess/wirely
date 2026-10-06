@@ -16,8 +16,9 @@ procedure names match their `.wrl` declarations unless the procedure has
 an alias, such as `native procedure Poll as "poll";`. The alias supplies
 both the Python method name and its trigger key.
 
-Native registries must be available when constructing an `Engine`: it resolves
-classes using the fully qualified type names stored in `Program` as tuples,
+Native registries must be available when constructing an `Engine` from
+`wirely.runtime.engine`. It resolves classes using the fully qualified
+type names stored in `Program` as tuples,
 for example `("ABB", "JRA", "Blind")`. Each engine creates its own native
 states from the program's initializer values and resource bindings.
 
@@ -178,9 +179,10 @@ classes; pass values belonging to that program.
 
 ## Native objects, resources, and tasks
 
-A `native node type` usually subclasses `wirely.NativeState`. The engine
-calls `Class(context=context)` with a `wirely.NativeNodeContext`; define
-`__init__(self, *, context)` and call `super().__init__(context=context)`.
+A `native node type` usually subclasses `NativeState` from
+`wirely.runtime.contexts`. The engine calls `Class(context=context)` with a
+`NativeNodeContext` from the same module. Define `__init__(self, *, context)`
+and call `super().__init__(context=context)`.
 
 `self.context` lasts for the node's lifetime and has read-only attributes:
 
@@ -230,8 +232,9 @@ explicitly triggered, or when due for a wakeup. A procedure without
 dependencies does not automatically run every step.
 
 `context.start_time_for_stage(stage)` returns a read-only
-`wirely.TimeSnapshot` captured at the start of `wirely.RunStage.INPUT`,
-`DEFAULT`, or `OUTPUT`. Its attributes are `monotonic` (`MonotonicTime`),
+`TimeSnapshot` from `wirely.runtime.time_snapshot`, captured at the start
+of `RunStage.INPUT`, `DEFAULT`, or `OUTPUT` (`RunStage` is defined in
+`wirely.program`). Its attributes are `monotonic` (`MonotonicTime`),
 `utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Timestamps
 are available for stages that have started.
 

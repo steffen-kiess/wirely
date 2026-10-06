@@ -1,5 +1,6 @@
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.program import RunStage
 
 native_block_types = {}
 
@@ -23,7 +24,7 @@ class ToggleFlipFlopTrigger:
         output_value = context.values['OutputValue']
         value = blocks.Unit() if output_value is None else output_value.value
         minimum_delay = context.values['MinimumDelay']
-        now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
+        now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
 
         inp = context.inputs['input']
         feedback = context.inputs['Feedback']

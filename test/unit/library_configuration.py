@@ -12,6 +12,8 @@ import wirely.native.test_library
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
+from wirely.runtime.engine import Engine
 
 
 registry = {}
@@ -19,7 +21,7 @@ libraries = _standard_library_sources(['std', 'time', 'memory', 'two_n', 'path']
 
 
 @native_block_type(registry, has_native_state=True)
-class SettingsDevice(wirely.NativeState):
+class SettingsDevice(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.log_receiver = self
@@ -83,7 +85,7 @@ def check_event_payloads():
         scenarios = [(False, case) for case in cases] + [(True, cases[1])]
         for forward, (output_type, output_value, expected) in scenarios:
             program, target = block_program(block, output_type, output_value, forward=forward)
-            runtime = wirely.Engine(program)
+            runtime = Engine(program)
             if block == 'Time.TriggerAt':
                 clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')
                 clock.set_fake_time(datetime.time(11, 59))
@@ -103,7 +105,7 @@ def check_event_payloads():
 
 def check_delayed_event():
     program, target = block_program('Memory.ToggleFlipFlopTrigger', 'boolean', 'false', forward=True)
-    runtime = wirely.Engine(program)
+    runtime = Engine(program)
     runtime.get_native_state('feedback').set_value(wirely.Some(False))
     runtime.step()
     source = runtime.get_native_state('input')
@@ -136,7 +138,7 @@ node input: Std.DebugValueSource { Type: uint16 }
 node wrapper: Wrapper { Span: "PT2S" }
 connect input -> wrapper;
 ''')
-    runtime = wirely.Engine(program)
+    runtime = Engine(program)
     source = runtime.get_native_state('input')
     source.set_value(1)
     runtime.step()
@@ -171,7 +173,7 @@ def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
         with patch.dict(wirely.native.test_library.native_block_types, registry):
-            runtime = wirely.Engine(program)
+            runtime = Engine(program)
         runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
         runtime.assert_value_is('wrapper.child', wirely.Some(wirely.Unit()))
@@ -185,7 +187,7 @@ def check_codes_and_tracing():
             with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), \
                     patch.dict(wirely.native.test_library.native_block_types, registry), \
                     contextlib.redirect_stdout(output):
-                wirely.Engine(program)
+                Engine(program)
             assert (value in output.getvalue()) == (enabled == '1')
 
 
@@ -202,7 +204,7 @@ def check_prepared_credentials():
         filename.unlink()
         output = io.StringIO()
         with patch('wirely.two_n.client.Client') as client, contextlib.redirect_stdout(output):
-            wirely.Engine(program)
+            Engine(program)
         client.assert_called_once_with(hostname='localhost', port=443, tlsa=(),
                                        http_api_username_password=('username', 'password'))
         assert 'username' not in output.getvalue() and 'password' not in output.getvalue()

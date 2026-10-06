@@ -8,6 +8,8 @@ from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
+from wirely.runtime.engine import Engine
 
 
 checks = TestCase()
@@ -28,7 +30,7 @@ def identity(*, context):
 
 
 @native_block_type(registry, has_native_state=True)
-class ValuesProbe(wirely.NativeState):
+class ValuesProbe(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         assert self.values['missing'] is None
@@ -73,7 +75,7 @@ class ValuesProbe(wirely.NativeState):
 
 
 @native_block_type(registry, has_native_state=True)
-class Provider(wirely.NativeState):
+class Provider(NativeState):
     pass
 
 
@@ -129,7 +131,7 @@ connect provider -> second.Number;
         graph = compile_strs([('<values>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
-        runtime = wirely.Engine(program)
+        runtime = Engine(program)
         runtime.step()
         runtime.assert_value_is('first.Result', 7)
         runtime.assert_value_is('second.Result', 8)
@@ -163,7 +165,7 @@ def check_optional_values():
     ''')])
             assert graph is not None
             program = program_compiler.compile_nocatch(graph)
-            runtime = wirely.Engine(program)
+            runtime = Engine(program)
             values = runtime.get_native_state('forward.child').values
             assert values['Maybe'] == expected
             assert values[''] == expected

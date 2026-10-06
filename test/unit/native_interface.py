@@ -11,6 +11,9 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_block_type
+from wirely.program import RunStage
+from wirely.runtime.contexts import NativeState
+from wirely.runtime.engine import Engine
 
 
 checks = TestCase()
@@ -45,7 +48,7 @@ node probe: TestLibrary.Probe {{ {parameters} }}
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        return blocks.Engine(program)
+        return Engine(program)
 
 
 def check_input_bindings():
@@ -169,7 +172,7 @@ def check_stage_times():
     clock_declarations = []
     stage_snapshots = {}
     clock_contexts = []
-    stages = list(blocks.RunStage)
+    stages = list(RunStage)
     monotonic_times = [blocks.MonotonicTime(7, index * 1_000_000_000)
                        for index in range(1, 4)]
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
@@ -208,7 +211,7 @@ def check_stage_times():
 
             name = f'{stage.name.lower()}_{index}'
             clock_methods[name] = staticmethod(record_time)
-            stage_clause = '' if stage is blocks.RunStage.DEFAULT else f' stage {stage.name.lower()}'
+            stage_clause = '' if stage is RunStage.DEFAULT else f' stage {stage.name.lower()}'
             clock_declarations.append(f'native procedure {name}{stage_clause};')
 
     native_block_type(clock_registry, has_native_state=False)(
@@ -226,7 +229,7 @@ def check_stage_times():
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        clock_engine = blocks.Engine(program)
+        clock_engine = Engine(program)
     clock_engine.fake_monotonic_time_offset = clock_offset
 
     class ClockDateTime(datetime.datetime):
@@ -249,7 +252,7 @@ def check_triggers():
     trigger_registry = {}
 
     @native_block_type(trigger_registry, has_native_state=True)
-    class TriggerProbe(blocks.NativeState):
+    class TriggerProbe(NativeState):
         def __init__(self, *, context):
             super().__init__(context=context)
             assert not context.values and not context.inputs
@@ -295,7 +298,7 @@ def check_triggers():
     trigger_program = program_compiler.compile(trigger_graph)
     assert trigger_program is not None
     with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
-        trigger_engine = blocks.Engine(trigger_program)
+        trigger_engine = Engine(trigger_program)
     first = trigger_engine.get_native_state('first')
     second = trigger_engine.get_native_state('second')
     shared = trigger_engine.get_native_state('shared')
@@ -563,7 +566,7 @@ lifecycle_registry = {}
 
 
 @native_block_type(lifecycle_registry, has_native_state=True)
-class LifecycleProbe(blocks.NativeState):
+class LifecycleProbe(NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         async_exit_stack.callback(self.observe_cleanup)
 
@@ -590,7 +593,7 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        return blocks.Engine(program)
+        return Engine(program)
 
 
 async def run_test():
@@ -629,7 +632,7 @@ def check_native_methods():
             calls.append((cls.__name__, context.name))
 
     @native_block_type(registry, has_native_state=True)
-    class InstanceProbe(Methods, blocks.NativeState):
+    class InstanceProbe(Methods, NativeState):
         pass
 
     @native_block_type(registry, has_native_state=True)
@@ -675,7 +678,7 @@ node shared_again: TestLibrary.SharedProbe {}
     with patch.dict(wirely.native.test_library.native_block_types, registry):
         graph = wirely.compiler.compile_strs([('<native-methods>', source)])
         assert graph is not None
-        runtime = blocks.Engine(program_compiler.compile_nocatch(graph))
+        runtime = Engine(program_compiler.compile_nocatch(graph))
     runtime.step()
     expected = [
         ('instance', 'instance'), ('shared', 'instance'), ('InstanceProbe', 'instance'),
@@ -688,6 +691,79 @@ node shared_again: TestLibrary.SharedProbe {}
     runtime.assert_is_idle()
 
 
+def check_native_linking_errors():
+    constructed = []
+
+    @native_block_type({}, has_native_state=True)
+    class ValidProbe(NativeState):
+        def __init__(self, *, context):
+            constructed.append(context.name)
+            super().__init__(context=context)
+
+        def run(self, *, context):
+            pass
+
+    def wrong_signature(*, other):
+        pass
+
+    def instance_method(self, *, context):
+        pass
+
+    async def asynchronous(*, context):
+        pass
+
+    def generator(*, context):
+        yield None
+
+    async def async_generator(*, context):
+        yield None
+
+    cases = (
+        ({}, 'native procedure missing;', False, False, 'Cannot find native procedure'),
+        ({}, 'native procedure Poll as "missing";', False, False, 'Cannot find native procedure'),
+        ({'run': staticmethod(wrong_signature)}, 'native procedure run;', False, False,
+         'Invalid native procedure'),
+        ({'run': instance_method}, 'native procedure run;', False, False,
+         'Invalid native procedure'),
+        ({'run': staticmethod(asynchronous)}, 'native procedure run;', False, False,
+         'must be synchronous'),
+        ({'run': staticmethod(generator)}, 'native procedure run;', False, False,
+         'cannot be a generator'),
+        ({'run': staticmethod(async_generator)}, 'native procedure run;', False, False,
+         'cannot be a generator'),
+        ({'run': property(lambda self: None)}, 'native procedure run;', False, False,
+         'Unsupported native procedure method'),
+        ({}, '', True, False, 'requires has_native_state=True'),
+        ({'run': instance_method}, 'native procedure run;', False, True,
+         'requires has_native_state=False'),
+    )
+    for methods, declaration, declared_state, implemented_state, message in cases:
+        registry = {'ValidProbe': ValidProbe}
+        implementation = type('InvalidProbe', (), methods)
+        native_block_type(registry, has_native_state=implemented_state)(implementation)
+        kind = 'native node' if declared_state else 'node'
+        source = f'''namespace TestLibrary {{
+  native node type ValidProbe {{
+    native procedure run;
+  }}
+  {kind} type InvalidProbe {{
+    {declaration}
+  }}
+}}
+node valid: TestLibrary.ValidProbe {{}}
+node invalid: TestLibrary.InvalidProbe {{}}
+'''
+        graph = wirely.compiler.compile_strs([('<invalid-native-implementation>', source)])
+        assert graph is not None
+        program = program_compiler.compile_nocatch(graph)
+        with patch.dict(wirely.native.test_library.native_block_types, registry, clear=True):
+            with checks.assertRaisesRegex(ValueError, message) as raised:
+                Engine(program)
+            checks.assertIn('InvalidProbe', str(raised.exception))
+        checks.assertEqual(constructed, [])
+
+
+check_native_linking_errors()
 check_input_bindings()
 check_wakeups()
 check_context_names()

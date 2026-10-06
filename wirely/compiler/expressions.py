@@ -6,7 +6,7 @@ from . import model as blocks
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .value import Value, check_value_type
-from ..runtime.procedures import Expression as RuntimeExpression, ProcedureBody as RuntimeBody
+from ..program import Expression as ProgramExpression, ProcedureBody as ProgramBody
 
 
 class Expression(AstValue):
@@ -186,7 +186,7 @@ class TypedExpression:
             return tuple(argument.evaluate(inputs, locals) for argument in self.arguments)
         if self.operation == 'some':
             return blocks.Some(self.arguments[0].evaluate(inputs, locals))
-        return RuntimeExpression.evaluate(self, inputs, locals)
+        return ProgramExpression.evaluate(self, inputs, locals)
 
 
 class ExpressionValue(Value):
@@ -216,7 +216,7 @@ def runtime_expression(expression):
     payload = expression.payload
     if expression.operation == 'constant':
         payload = blocks.value_types._to_native(expression.value_type, payload.evaluate())
-    return RuntimeExpression(expression.operation,
+    return ProgramExpression(expression.operation,
                              tuple(runtime_expression(argument) for argument in expression.arguments),
                              payload)
 
@@ -517,5 +517,5 @@ def compile_procedure(procedure, instance, source_types, result_types):
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign results: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
-    return RuntimeBody(tuple((destination, runtime_expression(expression))
+    return ProgramBody(tuple((destination, runtime_expression(expression))
                              for destination, expression in statements))

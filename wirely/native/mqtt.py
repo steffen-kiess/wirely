@@ -6,6 +6,7 @@ import contextlib
 
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
@@ -130,7 +131,7 @@ def parse_mqtt_uri(uri):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class Connection(blocks.NativeState):
+class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -241,7 +242,7 @@ class Connection(blocks.NativeState):
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 @native_block_type(native_block_types, has_native_state=True)
-class ValueOptionProvider(blocks.NativeState):
+class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.current_value = None
@@ -317,7 +318,7 @@ class ValueOptionProvider(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class EventSender(blocks.NativeState):
+class EventSender(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.current_value = None
@@ -395,7 +396,7 @@ class EventSender(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class EventReceiver(blocks.NativeState):
+class EventReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 

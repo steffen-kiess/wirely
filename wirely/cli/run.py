@@ -12,6 +12,7 @@ import wirely.misc.service
 
 # TODO: Where should this import be done?
 import wirely.compiler
+from wirely.runtime.engine import Engine
 
 
 class CommandException(Exception):
@@ -120,7 +121,7 @@ def main():
     if prog is None:
         sys.exit(1)
 
-    eng = blocks.Engine(prog)
+    eng = Engine(prog)
 
     for node_id, instance in prog.instances.items():
         if instance.type_name == ('Std', 'DebugValueSource'):

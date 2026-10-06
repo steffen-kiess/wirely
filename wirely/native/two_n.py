@@ -5,12 +5,14 @@ import contextlib
 
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.program import RunStage
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class Connection(blocks.NativeState):
+class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -40,7 +42,7 @@ class Connection(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class KeyEvent(blocks.NativeState):
+class KeyEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -95,7 +97,7 @@ class KeyEvent(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class CodeEnteredEvent(blocks.NativeState):
+class CodeEnteredEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -146,7 +148,7 @@ class CodeEnteredEvent(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class KeyState(blocks.NativeState):
+class KeyState(NativeState):
     @staticmethod
     def read_timeout_time(*, context):
         value = context.inputs['timeout_time_old']
@@ -161,7 +163,7 @@ class KeyState(blocks.NativeState):
 
         if event == blocks.Some(True):
             # KeyPressed
-            now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
+            now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             new_value = True
             new_timeout_time = now + context.values['Timeout']
         elif event == blocks.Some(False):
@@ -190,7 +192,7 @@ class KeyState(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class IOState(blocks.NativeState):
+class IOState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -263,7 +265,7 @@ class IOState(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class SwitchState(blocks.NativeState):
+class SwitchState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -334,7 +336,7 @@ class SwitchState(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class OutputControl(blocks.NativeState):
+class OutputControl(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 

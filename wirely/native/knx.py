@@ -3,12 +3,13 @@ import contextlib
 
 import wirely as blocks
 from wirely.native import native_block_type
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class Connection(blocks.NativeState):
+class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -42,7 +43,7 @@ class Connection(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class ValueReceiver(blocks.NativeState):
+class ValueReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.current_value = None
@@ -100,7 +101,7 @@ class ValueReceiver(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class ValueOptionProvider(blocks.NativeState):
+class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -180,7 +181,7 @@ class ValueOptionProvider(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class EventReceiver(blocks.NativeState):
+class EventReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 
@@ -241,7 +242,7 @@ class EventReceiver(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class EventSender(blocks.NativeState):
+class EventSender(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
 

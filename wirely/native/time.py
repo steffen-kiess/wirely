@@ -7,16 +7,18 @@ import wirely.misc.service
 import wirely as blocks
 from wirely.native import native_block_type
 from wirely.util import check_parameters
+from wirely.program import RunStage
+from wirely.runtime.contexts import NativeState
 
 native_block_types = {}
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class MonotonicTimeReached(blocks.NativeState):
+class MonotonicTimeReached(NativeState):
     @staticmethod
     def run(*, context):
         time = context.inputs['input']
-        now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
+        now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
 
         # print('MonotonicTimeReached', time, now)
         if not blocks.MonotonicTime.is_comparable(time, now):
@@ -34,7 +36,7 @@ class MonotonicTimeReached(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=False)
-class DebounceStable(blocks.NativeState):
+class DebounceStable(NativeState):
     @staticmethod
     def run(*, context):
         inp = context.inputs['input']
@@ -53,7 +55,7 @@ class DebounceStable(blocks.NativeState):
             out = inp
         elif new != blocks.Some(inp):
             # Input is neither cur not new. Start a change to inp.
-            now = context.start_time_for_stage(blocks.RunStage.DEFAULT).monotonic
+            now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             n_cur = cur
             n_new = blocks.Some(inp)
             n_update_time = now + context.values['Duration']
@@ -88,7 +90,7 @@ class DebounceStable(blocks.NativeState):
 
 
 @native_block_type(native_block_types, has_native_state=True)
-class TimeOfDayMinute(blocks.NativeState):
+class TimeOfDayMinute(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         self.task = None
