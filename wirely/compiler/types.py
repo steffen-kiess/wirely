@@ -70,6 +70,9 @@ class TypeParameter(Type):
     def __hash__(self):
         return hash(('TypeParameter', self.parameter))
 
+    def default_value(self):
+        raise ValueError('Type parameters require resolution before producing a default value')
+
     def verify_value(self, value):
         raise Exception('Not a concrete type')
 

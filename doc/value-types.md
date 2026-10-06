@@ -45,6 +45,7 @@ Types exceeding these limits remain usable for parameters and constants.
 
 Integer ranges are inclusive. For a signed integer of width `n`, the range
 is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.
+Enums must declare at least one member.
 
 Value types are distinct from connector kinds. `value T` carries a current
 value of type `T`; `event T` carries occurrences with payloads of type `T`.

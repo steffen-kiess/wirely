@@ -944,6 +944,8 @@ class DeclarationEnumType(Declaration):
         underlying = blocks.types.type_by_name.get(underlying.identifiers[0].id_str)
         if not isinstance(underlying, blocks.types.TypeInt):
             raise ProgramError(self.underlying_type, 'Enum underlying type must be a supported integer type')
+        if not self.members:
+            raise ProgramError(self.name, 'Enum must declare at least one member')
         names = {}
         values = {}
         numbers = {}

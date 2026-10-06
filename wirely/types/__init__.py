@@ -100,6 +100,11 @@ class Type(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def default_value(self):
+        """Return a valid canonical value of this resolved type."""
+        ...
+
+    @abc.abstractmethod
     def verify_value(self, value):
         ...
 
@@ -209,6 +214,11 @@ class TypeOption(Type):
         else:
             raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
 
+    def default_value(self):
+        if self.contains_parameters:
+            raise ValueError('Type parameters require resolution before producing a default value')
+        return None
+
     def _parse_impl(self, s):
         if s == 'none':
             return None
@@ -273,6 +283,9 @@ class TypeStruct(Type):
         return all(field_type.equals(value1[name], value2[name])
                    for name, field_type in self.fields.items())
 
+    def default_value(self):
+        return self.make_value({name: field_type.default_value() for name, field_type in self.fields.items()})
+
     def _parse_impl(self, text):
         raise ValueError(f'{self.name} does not support text parsing')
 
@@ -324,6 +337,11 @@ class TypeList(Type):
                 return False
         return True
 
+    def default_value(self):
+        if self.contains_parameters:
+            raise ValueError('Type parameters require resolution before producing a default value')
+        return ()
+
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeList.parse')
 
@@ -332,6 +350,9 @@ class TypeList(Type):
 class TypeUnit(TypeConcrete):
     def __init__(self):
         super().__init__(name='unit', python_type=Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+
+    def default_value(self):
+        return Unit()
 
     def _parse_impl(self, s):
         if s != '()':
@@ -342,6 +363,9 @@ class TypeUnit(TypeConcrete):
 class TypeBoolean(TypeConcrete):
     def __init__(self):
         super().__init__(name='boolean', python_type=bool, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=True)
+
+    def default_value(self):
+        return False
 
     def _parse_impl(self, s):
         if s == '0' or s.lower() == 'false':
@@ -389,6 +413,9 @@ class TypeInt(TypeConcrete):
             self.min_value = 0
             self.max_value = 2**self.bits - 1
 
+    def default_value(self):
+        return 0
+
     def _parse_impl(self, s):
         i = int(s)
         if i < self.min_value or i > self.max_value:
@@ -418,6 +445,9 @@ class TypeValueType(TypeConcrete):
             raise ValueError(f'Expected a value type, got {value!r}')
         return value
 
+    def default_value(self):
+        return unit
+
     def _parse_impl(self, s):
         raise Exception('TODO: TypeValueType.parse()')
 
@@ -425,6 +455,9 @@ class TypeValueType(TypeConcrete):
 class TypeMonotonicTime(TypeConcrete):
     def __init__(self):
         super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+
+    def default_value(self):
+        return RuntimeMonotonicTime.create_invalid()
 
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeMonotonicTime.parse')
@@ -438,6 +471,9 @@ class TypeDuration(TypeConcrete):
     def __init__(self):
         super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
+    def default_value(self):
+        return RuntimeDuration(duration_ns=0)
+
     def _parse_impl(self, s):
         return RuntimeDuration.parse(s)
 
@@ -446,6 +482,9 @@ class TypeDuration(TypeConcrete):
 class TypeTimeOfDay(TypeConcrete):
     def __init__(self):
         super().__init__(name='TimeOfDay', python_type=datetime.time, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+
+    def default_value(self):
+        return datetime.time(0, 0)
 
     # TODO: Look at ISO 8601 for this?
     def _parse_impl(self, s):
@@ -461,6 +500,9 @@ class TypeTimeOfDay(TypeConcrete):
 class TypeString(TypeConcrete):
     def __init__(self):
         super().__init__(name='String', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
+
+    def default_value(self):
+        return ''
 
     def _parse_impl(self, s):
         raise Exception('TypeString.parse()')
@@ -484,11 +526,16 @@ class TypeEnum(TypeConcrete):
         """Define the enum and check that its member numbers fit the integer type."""
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
+        if not python_type.__members__:
+            raise ValueError('Enum must declare at least one member')
         for member in python_type.__members__.values():
             if type(member.value) is not int or not underlying_type.min_value <= member.value <= underlying_type.max_value:
                 raise ValueError(f'Enum member {member.name} does not fit {underlying_type}')
         super().__init__(name=name, python_type=python_type, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
         self.underlying_type = underlying_type  # Wire width and signedness of member numbers.
+
+    def default_value(self):
+        return next(iter(self.python_type.__members__.values()))
 
     def _parse_impl(self, s):
         try:

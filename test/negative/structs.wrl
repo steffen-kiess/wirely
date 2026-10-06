@@ -183,12 +183,12 @@ namespace B { struct type Record {
 node n: Std.Constant { Type: A.Record, Value: B.Record { x: 1 } } // E: Expected struct type A.Record
 
 // TEST: struct_after_enum
-enum type Bad: uint8 {} // H: Previous declaration was here
+enum type Bad: uint8 { One = 1, } // H: Previous declaration was here
 struct type Bad {} // E: conflicts with enum
 
 // TEST: enum_after_struct
 struct type Bad {} // H: Previous declaration was here
-enum type Bad: uint8 {} // E: conflicts with struct type
+enum type Bad: uint8 { One = 1, } // E: conflicts with struct type
 
 // TEST: struct_after_resource
 resource type Bad; // H: Previous declaration was here

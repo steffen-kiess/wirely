@@ -202,6 +202,68 @@ def check_structs():
         settings_descriptor.parse('{}')
 
 
+def check_default_values():
+    from unittest.mock import Mock
+
+    types = wirely.types
+    members = enum.Enum('Defaults', {'First': 99, 'Second': 1})
+    enum_type = types.TypeEnum('Defaults', members, underlying_type=types.uint16)
+    empty = types.TypeStruct('EmptyDefault', {})
+    packet = types.TypeStruct('DefaultPacket', {
+        'flag': types.boolean, 'mode': enum_type, 'optional': types.TypeOption(types.uint32),
+    })
+    nested = types.TypeStruct('NestedDefault', {
+        'packet': packet, 'empty': empty, 'items': types.TypeList(types.String),
+        'type': types.ValueType,
+    })
+    cases = [(getattr(types, prefix + str(bits)), 0)
+             for prefix in ('int', 'uint') for bits in (8, 16, 32, 64)]
+    cases += [
+        (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
+        (types.Duration, wirely.Duration(duration_ns=0)),
+        (types.MonotonicTime, wirely.MonotonicTime.create_invalid()),
+        (types.TimeOfDay, datetime.time(0, 0)), (types.ValueType, types.unit),
+        (enum_type, members.First), (types.TypeList(types.String), ()),
+        (types.TypeList(types.TypeList(types.uint8)), ()),
+        (types.TypeOption(enum_type), None),
+        (types.TypeOption(types.TypeList(types.String)), None),
+        (empty, empty.make_value({})),
+        (packet, packet.make_value({'flag': False, 'mode': members.First, 'optional': None})),
+        (nested, nested.make_value({
+            'packet': packet.default_value(), 'empty': empty.default_value(),
+            'items': (), 'type': types.unit,
+        })),
+    ]
+    for value_type, expected in cases:
+        value = value_type.default_value()
+        assert type(value) is type(expected)
+        assert value_type.equals(value, expected)
+        assert value_type.equals(value_type.verify_value(value), value)
+        if value_type.is_runtime_type:
+            assert value_type.equals(value_type.deserialize(value_type.serialize(value)), value)
+    assert packet.serialize(packet.default_value()) == b'\x00\x00\x63\x00' + bytes(5)
+
+    with checks.assertRaisesRegex(ValueError, 'Enum must declare at least one member'):
+        types.TypeEnum('NoMembers', enum.Enum('NoMembers', {}), underlying_type=types.uint8)
+
+    unresolved = Mock(spec=types.Type)
+    unresolved.contains_parameters = True
+    for value_type in (types.TypeOption(unresolved), types.TypeList(unresolved),
+                       types.TypeOption(types.TypeList(unresolved))):
+        with checks.assertRaisesRegex(ValueError, 'Type parameters require resolution'):
+            value_type.default_value()
+
+    wide = types.TypeStruct('WideDefault', {str(i): types.uint64 for i in range(17)})
+    many = types.TypeStruct('ManyDefaults', {str(i): types.unit for i in range(128)})
+    deep = types.unit
+    for i in range(17):
+        deep = types.TypeStruct('DeepDefault' + str(i), {'value': deep})
+    for value_type in (wide, many, deep, types.TypeOption(wide)):
+        assert not value_type.is_runtime_type
+        value = value_type.default_value()
+        assert value_type.equals(value_type.verify_value(value), value)
+
+
 def check_runtime_limits():
     from unittest.mock import patch
 
@@ -297,5 +359,6 @@ check_descriptors_and_lists()
 check_unit()
 check_times()
 check_structs()
+check_default_values()
 
 check_runtime_limits()

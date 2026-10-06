@@ -122,7 +122,7 @@ enum type Signed: int8 {
   Octal = 0o77,
   r#enum = 127,
 }
-enum type Empty: uint64 {}
+enum type Single: uint64 { Only = 9, }
 enum type r#enum: uint8 { r#node = 1, }
 assert Signed.Hex != Signed.Octal;
 constant Escaped: r#enum = r#enum.r#node;

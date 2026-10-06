@@ -62,36 +62,44 @@ enum type Bad: int8 {
 
 // TEST: duplicate_global_enum
 enum type Bad: int8 { // H: Previous declaration was here
+  One = 1,
 }
 enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
+  One = 1,
 }
 
 // TEST: duplicate_namespaced_enum
 namespace A {
   enum type Bad: int8 { // H: Previous declaration was here
+    One = 1,
   }
 }
 namespace A {
   enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
+    One = 1,
   }
 }
 
 // TEST: builtin_type_collision
 enum type int8: int8 { // E: Enum type int8 conflicts with built-in type
+  One = 1,
 }
 
 // TEST: generic_type_collision
 enum type List: int8 { // E: Enum type List conflicts with built-in type
+  One = 1,
 }
 
 // TEST: enum_after_node
 node type Bad { // H: Previous declaration was here
 }
 enum type Bad: int8 { // E: Enum type Bad conflicts with node type
+  One = 1,
 }
 
 // TEST: node_after_enum
 enum type Bad: int8 { // H: Previous declaration was here
+  One = 1,
 }
 node type Bad { // E: Node type Bad conflicts with enum type
 }
@@ -99,10 +107,12 @@ node type Bad { // E: Node type Bad conflicts with enum type
 // TEST: enum_after_resource
 resource type Bad; // H: Previous declaration was here
 enum type Bad: int8 { // E: Enum type Bad conflicts with resource type
+  One = 1,
 }
 
 // TEST: resource_after_enum
 enum type Bad: int8 { // H: Previous declaration was here
+  One = 1,
 }
 resource type Bad; // E: Resource type Bad conflicts with enum type
 
@@ -110,10 +120,12 @@ resource type Bad; // E: Resource type Bad conflicts with enum type
 namespace Bad { // H: Previous declaration was here
 }
 enum type Bad: int8 { // E: Enum type Bad conflicts with namespace
+  One = 1,
 }
 
 // TEST: namespace_after_enum
 enum type Bad: int8 { // H: Previous declaration was here
+  One = 1,
 }
 namespace Bad { // E: Namespace Bad conflicts with enum type
 }
@@ -121,6 +133,7 @@ namespace Bad { // E: Namespace Bad conflicts with enum type
 // TEST: enum_inside_node
 node type Bad {
   enum type Inner: int8 { // E: Enum type declaration not allowed inside node type
+    One = 1,
   }
 }
 
@@ -211,4 +224,12 @@ node n: LiteralParameter {
 enum type Duplicate: int8 {
   First = 1, // H: Previous member was here
   Second = 1, // E: Duplicate enum value 1
+}
+
+// TEST: empty_enum
+enum type Empty: uint8 {} // E: Enum must declare at least one member
+
+// TEST: empty_namespaced_enum
+namespace Example {
+  enum type Empty: int64 {} // E: Enum must declare at least one member
 }
