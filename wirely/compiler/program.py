@@ -4,7 +4,7 @@ from wirely.compiler import model as blocks
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import (
-    InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
+    Constant, InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
     RunStage, Variable, VariableBlock,
 )
 
@@ -253,6 +253,17 @@ def compile_nocatch(global_block_type):
     # Compile .wrl bodies after instance parameters and variable types resolve.
     from .expressions import compile_procedure
     bodies = {}
+    constants = []
+    constant_indices = {}
+
+    def intern_constant(value_type, value):
+        value = value_type.verify_value(value)
+        key = value_type, value_type.serialize(value)
+        if key not in constant_indices:
+            constant_indices[key] = len(constants)
+            constants.append(Constant(value_type, value))
+        return constant_indices[key]
+
     for stage_procs in procs.values():
         for path, proc in stage_procs:
             if proc.declaration_procedure.is_native:
@@ -282,7 +293,8 @@ def compile_nocatch(global_block_type):
                 variable = (state_map[path, target] if isinstance(target, blocks.Block.StateVariable)
                             else variable_map[path, target.var_identifier])
                 result_types[name] = variable.var_type
-            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types)
+            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types,
+                                                 intern_constant)
 
     from .static_bindings import evaluate_bindings
     schedules = {}
@@ -355,4 +367,5 @@ def compile_nocatch(global_block_type):
         native_construction_order=native_construction_order,
         instances=native_instances, initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
+        constants=tuple(constants),
     )

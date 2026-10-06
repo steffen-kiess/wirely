@@ -36,6 +36,7 @@ test_names = [
     'unit/runtime_program',
     'unit/native_interface',
     'unit/procedures',
+    'unit/instructions',
     'unit/native_values',
     'unit/test_resources',
     'unit/library_configuration',

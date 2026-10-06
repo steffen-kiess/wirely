@@ -6,7 +6,9 @@ from . import model as blocks
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .value import Value, check_value_type
-from ..program import Expression as ProgramExpression, ProcedureBody as ProgramBody
+from ..program import (
+    BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
+)
 
 
 class Expression(AstValue):
@@ -186,7 +188,36 @@ class TypedExpression:
             return tuple(argument.evaluate(inputs, locals) for argument in self.arguments)
         if self.operation == 'some':
             return blocks.Some(self.arguments[0].evaluate(inputs, locals))
-        return ProgramExpression.evaluate(self, inputs, locals)
+        operation = self.operation
+        if operation == 'input':
+            return inputs[self.payload]
+        if operation == 'local':
+            return locals[self.payload]
+        if operation == 'block':
+            locals = dict(locals)
+            for slot, expression in zip(self.payload, self.arguments[:-1]):
+                locals[slot] = expression.evaluate(inputs, locals)
+            return self.arguments[-1].evaluate(inputs, locals)
+        left = self.arguments[0].evaluate(inputs, locals)
+        if operation == 'not':
+            return not left
+        if operation == 'is_some':
+            return left is not None
+        if operation == 'is_none':
+            return left is None
+        if operation == 'and':
+            return left and self.arguments[1].evaluate(inputs, locals)
+        if operation == 'or':
+            return left or self.arguments[1].evaluate(inputs, locals)
+        if operation == 'if':
+            branch = self.arguments[1] if left else self.arguments[2]
+            return branch.evaluate(inputs, locals)
+        right = self.arguments[1].evaluate(inputs, locals)
+        if operation == 'eq':
+            return left == right
+        if operation == 'ne':
+            return left != right
+        raise AssertionError(f'Unknown compiler expression operation {operation!r}')
 
 
 class ExpressionValue(Value):
@@ -212,13 +243,95 @@ class ExpressionValue(Value):
         return self.value_type.verify_value(self.expression.evaluate({}, {}))
 
 
-def runtime_expression(expression):
-    payload = expression.payload
-    if expression.operation == 'constant':
-        payload = blocks.value_types._to_native(expression.value_type, payload.evaluate())
-    return ProgramExpression(expression.operation,
-                             tuple(runtime_expression(argument) for argument in expression.arguments),
-                             payload)
+class InstructionCompiler:
+    """Lower resolved procedure expressions to forward-only instructions."""
+
+    def __init__(self, source_types, result_types, intern_constant):
+        self.inputs = {name: Operand(OperandKind.INPUT, index)
+                       for index, name in enumerate(source_types)}
+        self.results = {name: Operand(OperandKind.RESULT, index)
+                        for index, name in enumerate(result_types)}
+        self.intern_constant = intern_constant
+        self.instructions = []
+        self.local_types = []
+        self.locals = {}
+
+    def allocate(self, value_type):
+        operand = Operand(OperandKind.LOCAL, len(self.local_types))
+        self.local_types.append(value_type)
+        return operand
+
+    def local(self, slot, value_type):
+        if slot not in self.locals:
+            self.locals[slot] = self.allocate(value_type)
+        return self.locals[slot]
+
+    def emit(self, opcode, *operands):
+        index = len(self.instructions)
+        self.instructions.append(Instruction(opcode, operands))
+        return index
+
+    def patch(self, index):
+        instruction = self.instructions[index]
+        self.instructions[index] = Instruction(
+            instruction.opcode, (*instruction.operands[:-1], BranchTarget(len(self.instructions))),
+        )
+
+    def compile(self, expression, destination=None):
+        operation = expression.operation
+        if operation in ('constant', 'input', 'local'):
+            if operation == 'constant':
+                source = Operand(OperandKind.CONST, self.intern_constant(
+                    expression.value_type, expression.payload.evaluate(),
+                ))
+            elif operation == 'input':
+                source = self.inputs[expression.payload]
+            else:
+                source = self.local(expression.payload, expression.value_type)
+            if destination is None:
+                return source
+            self.emit(Opcode.COPY, destination, source)
+            return destination
+        if operation == 'block':
+            for slot, value in zip(expression.payload, expression.arguments[:-1]):
+                self.compile(value, self.local(slot, value.value_type))
+            return self.compile(expression.arguments[-1], destination)
+        if destination is None:
+            destination = self.allocate(expression.value_type)
+        left = self.compile(expression.arguments[0])
+        if operation == 'if':
+            skip_then = self.emit(Opcode.JUMP_IF_FALSE, left, BranchTarget(0))
+            self.compile(expression.arguments[1], destination)
+            skip_else = self.emit(Opcode.JUMP, BranchTarget(0))
+            self.patch(skip_then)
+            self.compile(expression.arguments[2], destination)
+            self.patch(skip_else)
+        elif operation in ('and', 'or'):
+            self.emit(Opcode.COPY, destination, left)
+            skip_right = self.emit(Opcode.JUMP_IF_FALSE if operation == 'and' else Opcode.JUMP_IF_TRUE,
+                                   left, BranchTarget(0))
+            self.compile(expression.arguments[1], destination)
+            self.patch(skip_right)
+        elif operation in ('not', 'is_some', 'is_none'):
+            self.emit(Opcode.NOT if operation == 'not' else Opcode.IS_SOME, destination, left)
+            if operation == 'is_none':
+                self.emit(Opcode.NOT, destination, destination)
+        elif operation in ('eq', 'ne'):
+            right = self.compile(expression.arguments[1])
+            self.emit(Opcode.EQUAL, destination, left, right)
+            if operation == 'ne':
+                self.emit(Opcode.NOT, destination, destination)
+        else:
+            raise AssertionError(f'Unknown procedure operation {operation!r}')
+        return destination
+
+    def body(self, statements):
+        for slot, expression in statements:
+            destination = (self.results[slot] if isinstance(slot, str)
+                           else self.local(slot, expression.value_type))
+            self.compile(expression, destination)
+        self.emit(Opcode.RETURN)
+        return ProgramBody(tuple(self.instructions), tuple(self.local_types))
 
 
 class ExpressionCompiler:
@@ -484,7 +597,7 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
-def compile_procedure(procedure, instance, source_types, result_types):
+def compile_procedure(procedure, instance, source_types, result_types, intern_constant):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     names = {name: TypedExpression(value_type, 'input', payload=name)
@@ -517,5 +630,4 @@ def compile_procedure(procedure, instance, source_types, result_types):
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign results: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
-    return ProgramBody(tuple((destination, runtime_expression(expression))
-                             for destination, expression in statements))
+    return InstructionCompiler(source_types, result_types, intern_constant).body(statements)

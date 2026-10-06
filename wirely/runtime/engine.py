@@ -4,8 +4,9 @@ import datetime
 from types import MappingProxyType
 
 import wirely as blocks
-from wirely.program import Program
+from wirely.program import Program, validate_program
 from wirely.runtime.contexts import NativeNodeContext, VariableBlockInstance, ProcedureContext, StepContext
+from wirely.runtime.procedures import execute_procedure
 
 
 class Engine:
@@ -15,6 +16,7 @@ class Engine:
         if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
 
+        validate_program(program)
         self.program = program
 
         self.cache = None  # Temporary values from the last completed step.
@@ -177,7 +179,7 @@ class Engine:
                     target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
                     getattr(target, proc.reference[1])(context=context)
                 else:
-                    for name, value in proc.body.execute(inputs).items():
+                    for name, value in execute_procedure(self.program, proc, inputs).items():
                         context.set_result(name, value)
                 missing = set(proc.results) - context._written_results
                 if missing:

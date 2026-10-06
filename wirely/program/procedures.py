@@ -1,61 +1,77 @@
-"""Execution of compiled, loop-free .wrl procedure bodies."""
+"""Typed instructions for loop-free Wirely procedure bodies."""
 
+import enum
 from dataclasses import dataclass
+
+from ..types import Type
+
+
+class Opcode(enum.Enum):
+    COPY = enum.auto()
+    SET_DEFAULT = enum.auto()
+    GET_FIELD = enum.auto()
+    SET_FIELD = enum.auto()
+    MAKE_SOME = enum.auto()
+    GET_OPTION_VALUE = enum.auto()
+    IS_SOME = enum.auto()
+    NOT = enum.auto()
+    AND = enum.auto()
+    OR = enum.auto()
+    EQUAL = enum.auto()
+    JUMP = enum.auto()
+    JUMP_IF_TRUE = enum.auto()
+    JUMP_IF_FALSE = enum.auto()
+    RETURN = enum.auto()
+
+
+class OperandKind(enum.Enum):
+    INPUT = enum.auto()
+    RESULT = enum.auto()
+    LOCAL = enum.auto()
+    CONST = enum.auto()
 
 
 @dataclass(frozen=True, slots=True)
-class Expression:
-    operation: str
-    arguments: tuple = ()
-    payload: object = None
+class Operand:
+    kind: OperandKind
+    index: int
 
-    def evaluate(self, inputs, locals):
-        operation = self.operation
-        if operation == 'constant':
-            return self.payload
-        if operation == 'input':
-            return inputs[self.payload]
-        if operation == 'local':
-            return locals[self.payload]
-        if operation == 'block':
-            locals = dict(locals)
-            for slot, expression in zip(self.payload, self.arguments[:-1]):
-                locals[slot] = expression.evaluate(inputs, locals)
-            return self.arguments[-1].evaluate(inputs, locals)
-        left = self.arguments[0].evaluate(inputs, locals)
-        if operation == 'not':
-            return not left
-        if operation == 'is_some':
-            return left is not None
-        if operation == 'is_none':
-            return left is None
-        if operation == 'and':
-            return left and self.arguments[1].evaluate(inputs, locals)
-        if operation == 'or':
-            return left or self.arguments[1].evaluate(inputs, locals)
-        if operation == 'if':
-            branch = self.arguments[1] if left else self.arguments[2]
-            return branch.evaluate(inputs, locals)
-        right = self.arguments[1].evaluate(inputs, locals)
-        if operation == 'eq':
-            return left == right
-        if operation == 'ne':
-            return left != right
-        raise AssertionError(f'Unknown procedure operation {operation!r}')
+    def __str__(self):
+        return f'{self.kind.name.lower()}.{self.index}'
+
+
+@dataclass(frozen=True, slots=True)
+class BranchTarget:
+    index: int
+
+    def __str__(self):
+        return f'idx{self.index}'
+
+
+@dataclass(frozen=True, slots=True)
+class Instruction:
+    opcode: Opcode
+    operands: tuple[Operand | BranchTarget | int, ...] = ()
+
+    def __post_init__(self):
+        object.__setattr__(self, 'operands', tuple(self.operands))
+
+    def __str__(self):
+        operands = ', '.join(str(operand) for operand in self.operands)
+        return self.opcode.name + (' ' + operands if operands else '')
 
 
 @dataclass(frozen=True, slots=True)
 class ProcedureBody:
-    # (local slot or result name, expression); result names are strings.
-    statements: tuple
+    instructions: tuple[Instruction, ...]
+    local_types: tuple[Type, ...] = ()
 
-    def execute(self, inputs):
-        locals = {}
-        results = {}
-        for destination, expression in self.statements:
-            value = expression.evaluate(inputs, locals)
-            if isinstance(destination, str):
-                results[destination] = value
-            else:
-                locals[destination] = value
-        return results
+    def __post_init__(self):
+        object.__setattr__(self, 'instructions', tuple(self.instructions))
+        object.__setattr__(self, 'local_types', tuple(self.local_types))
+
+
+@dataclass(frozen=True, slots=True)
+class Constant:
+    value_type: Type
+    value: object

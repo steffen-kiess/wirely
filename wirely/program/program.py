@@ -8,7 +8,7 @@ from pprint import pformat
 from types import MappingProxyType
 
 from ..types import Type
-from .procedures import ProcedureBody
+from .procedures import Constant, ProcedureBody
 
 
 class RunStage(enum.Enum):
@@ -161,6 +161,7 @@ class Program:
     node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
     variables: Mapping[str, Variable]  # Debug lookup from variable aliases to definitions.
+    constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self):
@@ -170,6 +171,7 @@ class Program:
             stage: tuple(schedule) for stage, schedule in self.procs.items()
         }))
         object.__setattr__(self, 'native_construction_order', tuple(self.native_construction_order))
+        object.__setattr__(self, 'constants', tuple(self.constants))
 
     def dump(self, file=None):
         """Write the runtime program to a text stream (stdout by default)."""
@@ -203,6 +205,12 @@ class Program:
                 line(f'offset: {variable_block.offsets[variable]}', 4)
                 if variable in self.initial_state:
                     value('initial', self.initial_state[variable], 4)
+
+        line()
+        line('Constants:')
+        for index, constant in enumerate(self.constants):
+            line(f'const.{index}: {constant.value_type}', 2)
+            value('value', constant.value, 4)
 
         line()
         line('Native construction order:')
@@ -248,6 +256,13 @@ class Program:
                     line(f'{name}: {binding.variable.name}', 8)
                     if binding.state_new is not None:
                         line(f'new: {binding.state_new.name}', 10)
+                if proc.body is not None:
+                    line('locals:', 6)
+                    for index, value_type in enumerate(proc.body.local_types):
+                        line(f'local.{index}: {value_type}', 8)
+                    line('instructions:', 6)
+                    for index, instruction in enumerate(proc.body.instructions):
+                        line(f'idx{index}: {instruction}', 8)
 
         for label, aliases in [('Node aliases', self.node_aliases),
                                ('Singleton aliases', self.singleton_aliases),
