@@ -19,6 +19,8 @@ def check_main_program():
     engine.get_native_state('int8_source').set_value(0)
     engine.get_native_state('uint8_source').set_value(0)
     engine.get_native_state('pair_source').set_value(pair(False, 0))
+    engine.get_native_state('span_source').set_value(wirely.Duration(duration_ns=0))
+    engine.get_native_state('factor_source').set_value(1)
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -392,6 +394,29 @@ def check_native_functions():
                for diagnostic in diagnostics), diagnostics
 
 
+
+def check_duration_functions():
+    def duration(nanoseconds):
+        return wirely.Duration(duration_ns=nanoseconds)
+
+    second = 1_000_000_000
+    maximum = wirely.Duration.MAX_NS
+    span_source = engine.get_native_state('span_source')
+    factor_source = engine.get_native_state('factor_source')
+    some = wirely.Some
+    for span, factor, total, difference, scaled, divided in [
+            (3 * second, 2, 4 * second, 2 * second, some(duration(6 * second)), some(duration(second + second // 2))),
+            (second // 2, 0, second + second // 2, 0, some(duration(0)), None),
+            (maximum, 2, maximum, maximum - second, None, some(duration(maximum // 2)))]:
+        span_source.set_value(duration(span))
+        factor_source.set_value(factor)
+        engine.step()
+        for output, expected in [('Sum', duration(total)), ('Difference', duration(difference)),
+                                 ('Scaled', scaled), ('Divided', divided)]:
+            engine.assert_value_is(f'duration_math.{output}', expected)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -405,3 +430,4 @@ check_arithmetic()
 check_struct_fields()
 check_conversions()
 check_native_functions()
+check_duration_functions()

@@ -165,6 +165,16 @@ namespace Std {
   }
 }
 
+namespace Duration {
+  native function SaturatingAdd(a: Duration, b: Duration): Duration;
+  native function SaturatingSub(a: Duration, b: Duration): Duration;
+  native function SaturatingMul(duration: Duration, factor: uint32): Duration;
+  native function CheckedAdd(a: Duration, b: Duration): Option[Duration];
+  native function CheckedSub(a: Duration, b: Duration): Option[Duration];
+  native function CheckedMul(duration: Duration, factor: uint32): Option[Duration];
+  native function CheckedDiv(duration: Duration, divisor: uint32): Option[Duration];
+}
+
 namespace TimeOfDay {
   native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
 }

@@ -469,7 +469,9 @@ of the same integer type. Precedence follows Rust: unary operators, then
 `*`, `/`, and `%`, then `+` and `-`, then comparisons. Division truncates
 toward zero, and the remainder has the dividend's sign. These operators
 are compile-time only; each operation must produce a value of its type, so
-`200 + 100 - 150` fails as `uint8`, as does division by zero.
+`200 + 100 - 150` fails as `uint8`, as does division by zero. `+` and `-`
+also combine two durations; see [Duration](value-types.md#duration) for
+the functions to use in procedure bodies.
 
 Procedures, which must not fail, use members of integer types instead.
 Write a type, a dot, and the member name, as in `uint8.WrappingAdd(a, b)`

@@ -1,0 +1,25 @@
+constant Second: Duration = "PT1S";
+constant Max: Duration = "PT18446744073.709551615S";
+
+// Saturating functions clamp to zero and the maximum.
+assert Duration.SaturatingAdd(Second, "PT2S") == "PT3S";
+assert Duration.SaturatingAdd(Max, Second) == Max;
+assert Duration.SaturatingSub("PT3S", Second) == "PT2S";
+assert Duration.SaturatingSub(Second, "PT3S") == "PT0S";
+assert Duration.SaturatingMul(Second, 60) == "PT1M";
+assert Duration.SaturatingMul(Max, 2) == Max && Duration.SaturatingMul(Max, 0) == "PT0S";
+
+// Checked functions give None outside 0 to the maximum, or for divisor 0.
+assert Duration.CheckedAdd(Second, Second) == Some("PT2S");
+assert Duration.CheckedAdd(Max, "PT0.000000001S") == None;
+assert Duration.CheckedSub(Second, Second) == Some("PT0S");
+assert Duration.CheckedSub(Second, "PT1.000000001S") == None;
+assert Duration.CheckedMul("PT1H", 24) == Some("P1D") && Duration.CheckedMul(Max, 2) == None;
+assert Duration.CheckedDiv(Second, 3) == Some("PT0.333333333S");
+assert Duration.CheckedDiv(Second, 0) == None;
+assert Duration.CheckedDiv(Max, 4294967295) == Some("PT4.294967297S");
+
+// Compile-time operators.
+constant Total: Duration = Second + "PT2S" - "PT0.5S";
+assert Total == "PT2.5S" && Max - Max == "PT0S";
+assert Second + Second > Second && "PT1M" - Second == "PT59S";

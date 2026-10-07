@@ -255,3 +255,27 @@ node type Conversions {
 
 node conversions: Conversions {}
 connect int_source -> conversions;
+
+node type DurationMath {
+  default input: value Duration;
+  input Factor: value uint32;
+  output Sum: value Duration;
+  output Difference: value Duration;
+  output Scaled: value Option[Duration];
+  output Divided: value Option[Duration];
+
+  procedure run depends on default input as span, Factor as factor
+    produces Sum, Difference, Scaled, Divided
+  {
+    Sum = Duration.SaturatingAdd(span, "PT1S");
+    Difference = Duration.SaturatingSub(span, "PT1S");
+    Scaled = Duration.CheckedMul(span, factor);
+    Divided = Duration.CheckedDiv(span, factor);
+  }
+}
+
+node span_source: Std.DebugValueSource { Type: Duration }
+node factor_source: Std.DebugValueSource { Type: uint32 }
+node duration_math: DurationMath {}
+connect span_source -> duration_math;
+connect factor_source -> duration_math.Factor;

@@ -32,7 +32,7 @@ constant Value: boolean = true + false; // E: Integer arithmetic requires an int
 
 // TEST: duration operands
 constant Span: Duration = "PT1S";
-constant Value: Duration = Span + Span; // E: got Duration
+constant Value: Duration = Span * Span; // E: got Duration
 
 // TEST: enum operands
 enum type Mode: uint8 { Off = 0, }

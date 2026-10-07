@@ -121,13 +121,29 @@ decimal fraction using a dot. Examples include `"PT0S"`, `"PT1.5S"`,
 `"PT2H30M"`, and `"P1DT4H"`.
 
 Days are fixed periods of 24 hours. Duration components use days, hours,
-minutes, and seconds rather than calendar months or years.
+minutes, and seconds rather than calendar months or years. Durations range
+from zero to 2^64 − 1 nanoseconds (`"PT18446744073.709551615S"`, about 584
+years).
 
 ```wrl
 node source: Std.Constant { Type: boolean, Value: true }
 node delay: Time.DebounceStable { Type: boolean, Duration: "PT1.5S" }
 connect source -> delay;
 ```
+
+The `std` library declares these functions, which work in procedure bodies
+and compile-time expressions:
+
+| Function | Result |
+| --- | --- |
+| `Duration.SaturatingAdd(a, b)`, `Duration.SaturatingSub(a, b)` | The sum or difference, clamped to the range. |
+| `Duration.SaturatingMul(duration, factor)` | The product with a `uint32` factor, at most the maximum. |
+| `Duration.CheckedAdd(a, b)`, `Duration.CheckedSub(a, b)` | `Some` with the sum or difference, or `None` outside the range. |
+| `Duration.CheckedMul(duration, factor)` | `Some` with the product, or `None` above the maximum. |
+| `Duration.CheckedDiv(duration, divisor)` | `Some` with the quotient rounded down to whole nanoseconds, or `None` for divisor 0. |
+
+In compile-time expressions, `a + b` and `a - b` also combine two
+durations; a result outside the range fails compilation.
 
 ### Time of day
 

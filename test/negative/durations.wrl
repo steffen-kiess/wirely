@@ -1,0 +1,35 @@
+// LIBRARIES: std
+
+// TEST: addition overflow
+constant Max: Duration = "PT18446744073.709551615S";
+constant Value: Duration = Max + "PT0.000000001S"; // E: Duration overflow: result exceeds the maximum duration
+
+// TEST: negative subtraction
+constant Value: Duration = "PT1S" - "PT2S"; // E: Negative duration
+
+// TEST: literal above the maximum
+constant Value: Duration = "PT18446744073.709551616S"; // E: Invalid Duration value
+
+// TEST: multiplication operator
+constant Value: Duration = "PT1S" * "PT2S"; // E: Integer arithmetic requires an integer value, got Duration
+
+// TEST: negation
+constant Second: Duration = "PT1S";
+constant Value: Duration = -Second; // E: Integer arithmetic requires an integer value, got Duration
+
+// TEST: operator in a procedure
+temporary result: Duration;
+procedure run produces result {
+  let span: Duration = "PT1S";
+  result = span + span; // E: Arithmetic operators are compile-time only; use Duration.SaturatingAdd or Duration.CheckedAdd
+}
+
+// TEST: factor type
+constant Factor: int16 = 2;
+constant Value: Duration = Duration.SaturatingMul("PT1S", Factor); // E: Expected value of type uint32, got int16
+
+// TEST: argument count
+constant Value: Duration = Duration.SaturatingAdd("PT1S"); // E: Function 'Duration.SaturatingAdd' expected 2 parameters
+
+// TEST: checked result type
+constant Value: Duration = Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Duration, got TypeOption(Duration)

@@ -305,7 +305,11 @@ class TypedExpression:
             for argument in self.arguments[1:]:
                 check_value_type(argument.value_type, self.arguments[0].value_type, argument.source)
             integer_type = self.arguments[0].value_type
-            if not integer_type.contains_parameters and not isinstance(integer_type, blocks.types.TypeInt):
+            # The + and - operators also combine durations.
+            duration_operator = (self.operation == 'arith' and self.payload in (('add', None), ('sub', None))
+                                 and isinstance(integer_type, blocks.types.TypeDuration))
+            if (not integer_type.contains_parameters and not duration_operator
+                    and not isinstance(integer_type, blocks.types.TypeInt)):
                 raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
         elif self.operation == 'convert':
             source_type = self.arguments[0].value_type
@@ -413,6 +417,14 @@ class TypedExpression:
             operation, overflow = self.payload
         if overflow is not None:
             return integer_type.arithmetic(operation, overflow, *operands)
+        if isinstance(integer_type, blocks.types.TypeDuration):
+            left, right = (operand.duration_ns for operand in operands)
+            result = left + right if operation == 'add' else left - right
+            if result < 0:
+                raise ProgramError(self.source, 'Negative duration')
+            if result > blocks.Duration.MAX_NS:
+                raise ProgramError(self.source, 'Duration overflow: result exceeds the maximum duration')
+            return blocks.Duration(duration_ns=result)
         # Operators fail compilation instead of overflowing.
         if operation in ('div', 'rem') and operands[1] == 0:
             raise ProgramError(self.source, 'Division by zero')
@@ -690,8 +702,12 @@ class ExpressionCompiler:
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
             if self.runtime:
                 name = expression.operator.capitalize()
-                alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
-                                else f'T.Wrapping{name}, T.Saturating{name}, or T.Checked{name}')
+                operand_type = self.context_type(expression.left) or self.context_type(expression.right)
+                if isinstance(operand_type, blocks.types.TypeDuration) and name in ('Add', 'Sub'):
+                    alternatives = f'Duration.Saturating{name} or Duration.Checked{name}'
+                else:
+                    alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
+                                    else f'T.Wrapping{name}, T.Saturating{name}, or T.Checked{name}')
                 raise ProgramError(expression, f'Arithmetic operators are compile-time only; use {alternatives}')
             operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
             left = self.compile(expression.left, operand_type)

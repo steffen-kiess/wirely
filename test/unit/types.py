@@ -143,6 +143,15 @@ def check_times():
     with checks.assertRaises(Exception):
         wirely.MonotonicTime.compare(instant, default)
     assert wirely.Duration.parse('P1DT2H3M4.5S').total_seconds == 93784.5
+    # Durations are exact and limited to the uint64 nanosecond range.
+    maximum = wirely.Duration.parse('PT18446744073.709551615S')
+    assert maximum.duration_ns == wirely.Duration.MAX_NS == 2**64 - 1
+    assert wirely.Duration.parse('PT18446744073.7S').duration_ns == 18_446_744_073_700_000_000
+    for invalid in [-1, 2**64]:
+        with checks.assertRaises(Exception):
+            wirely.Duration(duration_ns=invalid)
+    with checks.assertRaises(Exception):
+        wirely.Duration.parse('PT18446744073.709551616S')
     assert wirely.Duration.parse('PT2S') == span
     for text in ('P', 'PT', '-PT1S', 'P1M', 'invalid'):
         with checks.assertRaises(ValueError):

@@ -103,7 +103,6 @@ def check_scalar_codecs():
     ]:
         assert ty.deserialize(ty.serialize(value)) == value
     for ty, invalid in [
-        (wirely.types.Duration, wirely.Duration(duration_ns=maximum + 1)),
         (wirely.types.MonotonicTime, wirely.MonotonicTime(-1, 0)),
         (wirely.types.MonotonicTime, wirely.MonotonicTime(1, -1)),
         (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum + 1, 0)),

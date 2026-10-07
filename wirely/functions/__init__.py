@@ -16,6 +16,7 @@ from ..types import StructValue, TypeStruct, value_types
 
 # Maps namespaces to modules of this package, each with a native_functions registry.
 function_pkgs = {
+    ('Duration',): 'duration',
     ('TestLibrary',): 'test_library',
 }
 

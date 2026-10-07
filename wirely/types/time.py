@@ -1,4 +1,5 @@
 import time
+import fractions
 import functools
 import re
 from dataclasses import dataclass
@@ -85,11 +86,16 @@ class MonotonicTime:
 class Duration:
     duration_ns: int
 
+    # Largest duration, the range of the uint64 storage.
+    MAX_NS = 2**64 - 1
+
     @check_parameters
     def __init__(self, *, duration_ns: int):
         duration_ns = int(duration_ns)
         if duration_ns < 0:
             raise Exception('Negative durations are not allowed')
+        if duration_ns > Duration.MAX_NS:
+            raise Exception(f'Durations above {Duration.MAX_NS} nanoseconds are not allowed')
 
         object.__setattr__(self, 'duration_ns', duration_ns)
 
@@ -156,6 +162,7 @@ class Duration:
         days = int(days_part) if days_part is not None else 0
         hours = int(hours_part) if hours_part is not None else 0
         minutes = int(minutes_part) if minutes_part is not None else 0
-        # TODO: Avoid float here?
-        seconds = float(seconds_parts) if seconds_parts is not None else 0.0
-        return Duration.from_seconds(days * 86400 + hours * 3600 + minutes * 60 + seconds)
+        # Exact decimal seconds, rounded to whole nanoseconds.
+        seconds = fractions.Fraction(seconds_parts) if seconds_parts is not None else 0
+        total_seconds = days * 86400 + hours * 3600 + minutes * 60 + seconds
+        return Duration(duration_ns=round(total_seconds * 1_000_000_000))
