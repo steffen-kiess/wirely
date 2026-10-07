@@ -1419,7 +1419,7 @@ def check_state_read_writer(graph, state, reference):
 
 class DeclarationTemporaryVariable(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, var_type: Reference, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, var_type: Value, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.var_type = var_type

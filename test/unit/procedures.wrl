@@ -190,3 +190,21 @@ node int8_arithmetic: Arithmetic { Type: int8, Step: 1 }
 node uint8_arithmetic: Arithmetic { Type: uint8, Step: 1 }
 connect int8_source -> int8_arithmetic;
 connect uint8_source -> uint8_arithmetic;
+
+node type PendingOption {
+  parameter Type: ValueType;
+  parameter Default: Type;
+  default input: value Option[Type];
+  default output: value Type;
+  temporary pending: Option[Type];
+
+  procedure store depends on default input as input produces pending {
+    pending = input;
+  }
+  procedure read depends on pending produces default output as output {
+    output = pending.UnwrapOr(Default);
+  }
+}
+
+node pending: PendingOption { Type: boolean, Default: true }
+connect option_source -> pending;

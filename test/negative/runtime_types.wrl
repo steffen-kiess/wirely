@@ -18,6 +18,11 @@ node type Invalid {
   temporary text: String; // E: parameter-only
 }
 
+// TEST: runtime_list_temporary
+node type Invalid {
+  temporary items: List[uint8]; // E: parameter-only
+}
+
 // TEST: runtime_optional_string
 node type Invalid {
   default output: value Option[String]; // E: parameter-only

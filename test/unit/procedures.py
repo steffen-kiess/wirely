@@ -149,11 +149,14 @@ def check_mixed_procedures():
 def check_root_only():
     # The root exists without child nodes and does not require native lookup.
     root_only = compile_program('''temporary t: int8;
+    temporary sum: Option[int8];
     procedure p1 produces t { t = 50; }
+    procedure p2 depends on t produces sum { sum = int8.CheckedAdd(t, 100); }
     ''')
     root_engine = Engine(root_only)
     root_engine.step()
     root_engine.assert_value_is('t', 50)
+    root_engine.assert_value_is('sum', None)
     root_engine.assert_is_idle()
 
 
@@ -267,6 +270,7 @@ def check_option_presence():
             engine.assert_value_is(f'{name}.Unwrapped', unwrapped)
             engine.assert_value_is(f'{name}.Matched', unwrapped)
             engine.assert_value_is(f'{name}.Ignored', expected is not None)
+        engine.assert_value_is('pending', True if value is None else value.value)
     engine.assert_is_idle()
 
 
