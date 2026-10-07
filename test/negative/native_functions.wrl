@@ -39,41 +39,41 @@ namespace TimeOfDay {
 
 // TEST: unknown argument type
 namespace TimeOfDay {
-  native constant function AddWrap(time: Unknown, offset: String): TimeOfDay; // E: Cannot find type Unknown
+  native function WrappingAdd(time: Unknown, duration: Duration): TimeOfDay; // E: Cannot find type Unknown
 }
 
 // TEST: unknown return type
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, offset: String): Unknown; // E: Cannot find type Unknown
+  native function WrappingAdd(time: TimeOfDay, duration: Duration): Unknown; // E: Cannot find type Unknown
 }
 
 // TEST: unavailable signature type
 parameter Kind: ValueType;
 namespace TimeOfDay {
-  native constant function AddWrap(time: Kind, offset: String): TimeOfDay; // E: Cannot find type Kind
+  native function WrappingAdd(time: Kind, duration: Duration): TimeOfDay; // E: Cannot find type Kind
 }
 
 // TEST: argument count
 // LIBRARIES: std
-constant Invalid: TimeOfDay = TimeOfDay.AddWrap("12:00"); // E: expected 2 parameters
+constant Invalid: TimeOfDay = TimeOfDay.WrappingAdd("12:00"); // E: expected 2 parameters
 
 // TEST: argument type
 // LIBRARIES: std
-constant Invalid: TimeOfDay = TimeOfDay.AddWrap(true, "01:00"); // E: Invalid TimeOfDay value
+constant Invalid: TimeOfDay = TimeOfDay.WrappingAdd(true, "PT1H"); // E: Invalid TimeOfDay value
 
 // TEST: return type
 // LIBRARIES: std
-constant Invalid: boolean = TimeOfDay.AddWrap("12:00", "01:00"); // E: Expected value of type boolean
+constant Invalid: boolean = TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expected value of type boolean
 
 // TEST: function bodies
 native constant function Missing(): boolean { true } // E: Syntax error
 
 // TEST: constant function in a procedure
-// LIBRARIES: std
+// LIBRARIES: std, path
 node type Invalid {
   default output: value TimeOfDay;
   procedure run produces default output as output {
-    output = TimeOfDay.AddWrap("12:00", "01:00"); // E: TimeOfDay.AddWrap is a compile-time function and cannot be called in procedure bodies
+    output = Path.Parent("file") == ""; // E: Path.Parent is a compile-time function and cannot be called in procedure bodies
   }
 }
 node invalid: Invalid {}

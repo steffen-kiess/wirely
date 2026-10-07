@@ -1,4 +1,3 @@
-import datetime
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -54,7 +53,7 @@ class ValuesProbe(NativeState):
         assert dict(context.values['pair']) == {'value': True}
         assert context.values['unit'] == wirely.Unit()
         assert context.values['option'] == wirely.Some(False)
-        assert context.values['at'] == datetime.time(0, 30)
+        assert context.values['at'] == wirely.TimeOfDay.from_parts(0, 30)
         assert context.values['span'] == wirely.Duration.parse('PT1S')
         assert context.values['instant'] is None
         assert context.values['descriptors'] == (wirely.Some(wirely.value_types.uint16), None)

@@ -18,6 +18,7 @@ from ..types import StructValue, TypeStruct, value_types
 function_pkgs = {
     ('Duration',): 'duration',
     ('TestLibrary',): 'test_library',
+    ('TimeOfDay',): 'time_of_day',
 }
 
 

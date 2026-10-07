@@ -29,7 +29,7 @@ node type Select {
     Settings {
       enabled: Enabled,
       number: Selected,
-      at: TimeOfDay.AddWrap(at, "01:00"),
+      at: TimeOfDay.WrappingAdd(at, "PT1H"),
     }
   };
   constant ExpectedAt: TimeOfDay = "00:30";

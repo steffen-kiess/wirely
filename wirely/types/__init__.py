@@ -1,5 +1,4 @@
 import abc
-import datetime
 import re
 
 from collections.abc import Mapping
@@ -8,7 +7,9 @@ from types import MappingProxyType
 from .struct import StructValue
 from .option import Some
 from .unit import Unit
-from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration
+from .time import (
+    MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay,
+)
 
 
 # A value type supporting runtime validation, equality, and text parsing.
@@ -519,18 +520,13 @@ class TypeTimeOfDay(TypeConcrete):
     is_ordered = True
 
     def __init__(self):
-        super().__init__(name='TimeOfDay', python_type=datetime.time, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self):
-        return datetime.time(0, 0)
+        return RuntimeTimeOfDay(0)
 
-    # TODO: Look at ISO 8601 for this?
     def _parse_impl(self, s):
-        # TODO: Allow "24:00"?
-        time = datetime.time.fromisoformat(s)
-        if time.tzinfo is not None:
-            raise Exception('Got time with timezone info')
-        return time
+        return RuntimeTimeOfDay.parse(s)
 
 
 # TODO: Remove json_encode because strings should not be used at runtime?

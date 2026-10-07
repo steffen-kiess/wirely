@@ -1,17 +1,12 @@
 """Fixed little-endian encodings for resolved runtime types."""
 
-import datetime
-
 from . import (
     TypeBoolean, TypeDuration, TypeEnum, TypeInt, TypeMonotonicTime,
     TypeOption, TypeStruct, TypeTimeOfDay, TypeUnit,
 )
 from .option import Some
-from .time import Duration, MonotonicTime
+from .time import Duration, MonotonicTime, TimeOfDay
 from .unit import Unit
-
-
-_DAY_NS = 86_400_000_000_000
 
 
 def _check_runtime(value_type):
@@ -113,11 +108,7 @@ def _serialize(value_type, value):
     if isinstance(value_type, TypeMonotonicTime):
         return _integer_bytes(value.generation, 8) + _integer_bytes(value.time_ns, 8)
     if isinstance(value_type, TypeTimeOfDay):
-        if value.tzinfo is not None:
-            raise ValueError('TimeOfDay requires a time without timezone information')
-        nanoseconds = ((value.hour * 60 + value.minute) * 60 + value.second) * 1_000_000_000
-        nanoseconds += value.microsecond * 1_000
-        return _integer_bytes(nanoseconds, 8)
+        return _integer_bytes(value.nanoseconds, 8)
     raise ValueError(f'Unsupported runtime type {value_type}')
 
 
@@ -162,12 +153,7 @@ def _deserialize(value_type, data):
         return MonotonicTime(int.from_bytes(data[:8], 'little'), int.from_bytes(data[8:], 'little'))
     if isinstance(value_type, TypeTimeOfDay):
         nanoseconds = int.from_bytes(data, 'little')
-        if nanoseconds >= _DAY_NS:
-            raise ValueError('TimeOfDay requires a time before 24:00')
-        if nanoseconds % 1_000:
-            raise ValueError('TimeOfDay requires microsecond precision')
-        seconds, microsecond = divmod(nanoseconds // 1_000, 1_000_000)
-        hours, seconds = divmod(seconds, 3_600)
-        minutes, seconds = divmod(seconds, 60)
-        return datetime.time(hours, minutes, seconds, microsecond)
+        if nanoseconds > TimeOfDay.END_NS:
+            raise ValueError('TimeOfDay requires a time up to 24:00')
+        return TimeOfDay(nanoseconds)
     raise ValueError(f'Unsupported runtime type {value_type}')

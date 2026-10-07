@@ -1,5 +1,4 @@
 import contextlib
-import datetime
 import io
 import json
 import os
@@ -88,10 +87,10 @@ def check_event_payloads():
             runtime = Engine(program)
             if block == 'Time.TriggerAt':
                 clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')
-                clock.set_fake_time(datetime.time(11, 59))
+                clock.set_fake_time(wirely.TimeOfDay.from_parts(11, 59))
                 runtime.step()
                 runtime.assert_value_is(target, None)
-                clock.set_fake_time(datetime.time(12))
+                clock.set_fake_time(wirely.TimeOfDay.from_parts(12, 0))
             else:
                 runtime.get_native_state('feedback').set_value(wirely.Some(False))
                 runtime.step()

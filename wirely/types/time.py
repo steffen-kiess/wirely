@@ -166,3 +166,67 @@ class Duration:
         seconds = fractions.Fraction(seconds_parts) if seconds_parts is not None else 0
         total_seconds = days * 86400 + hours * 3600 + minutes * 60 + seconds
         return Duration(duration_ns=round(total_seconds * 1_000_000_000))
+
+
+# A time within a day without date or timezone, in nanoseconds since midnight.
+# 24:00 is the end of the day: it is distinct from 00:00 and ordered after all
+# other times. Parsing creates it; wrapping arithmetic only keeps it when
+# adding or subtracting whole days.
+@functools.total_ordering
+@dataclass(frozen=True, slots=True, init=False, eq=False)
+class TimeOfDay:
+    nanoseconds: int
+
+    # 24:00, the end of the day.
+    END_NS = 86_400 * 1_000_000_000
+
+    @check_parameters
+    def __init__(self, nanoseconds: int):
+        if not 0 <= nanoseconds <= TimeOfDay.END_NS:
+            raise ValueError(f'Time of day must be between 00:00 and 24:00, got {nanoseconds} ns')
+        object.__setattr__(self, 'nanoseconds', nanoseconds)
+
+    @staticmethod
+    def from_parts(hour, minute, second=0, nanosecond=0):
+        if not (0 <= minute < 60 and 0 <= second < 60 and 0 <= nanosecond < 1_000_000_000):
+            raise ValueError(f'Invalid time of day {hour}:{minute}:{second}.{nanosecond}')
+        return TimeOfDay(((hour * 60 + minute) * 60 + second) * 1_000_000_000 + nanosecond)
+
+    @staticmethod
+    def parse(s):
+        """Parse HH:MM, HH:MM:SS, or HH:MM:SS.fraction with up to nine fraction digits."""
+        match = re.fullmatch(r'([0-9]{2}):([0-9]{2})(?::([0-9]{2})(?:\.([0-9]{1,9}))?)?', s)
+        if match is None:
+            raise ValueError(f'Invalid time of day {s!r}')
+        hour, minute, second = int(match[1]), int(match[2]), int(match[3] or 0)
+        nanosecond = int((match[4] or '').ljust(9, '0'))
+        if hour > 24 or (hour == 24 and (minute, second, nanosecond) != (0, 0, 0)):
+            raise ValueError(f'Invalid time of day {s!r}')
+        return TimeOfDay.from_parts(hour, minute, second, nanosecond)
+
+    def __str__(self):
+        seconds, nanosecond = divmod(self.nanoseconds, 1_000_000_000)
+        minutes, second = divmod(seconds, 60)
+        hour, minute = divmod(minutes, 60)
+        text = f'{hour:02}:{minute:02}'
+        if second or nanosecond:
+            text += f':{second:02}'
+        if nanosecond:
+            text += '.' + f'{nanosecond:09}'.rstrip('0')
+        return text
+
+    def __repr__(self):
+        return f'TimeOfDay({str(self)!r})'
+
+    def __eq__(self, other):
+        if not isinstance(other, TimeOfDay):
+            return NotImplemented
+        return self.nanoseconds == other.nanoseconds
+
+    def __lt__(self, other):
+        if not isinstance(other, TimeOfDay):
+            return NotImplemented
+        return self.nanoseconds < other.nanoseconds
+
+    def __hash__(self):
+        return hash(('TimeOfDay', self.nanoseconds))

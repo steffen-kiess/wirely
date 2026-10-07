@@ -60,9 +60,6 @@ native_function_impls = {
     ('Test', 'ReplaceTwoNTLSA'): (
         'wirely.compiler.function_implementations.test', 'replace_twon_tlsa',
     ),
-    ('TimeOfDay', 'AddWrap'): (
-        'wirely.compiler.function_implementations.time', 'add_wrap',
-    ),
 }
 
 

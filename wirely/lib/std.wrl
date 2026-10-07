@@ -176,5 +176,7 @@ namespace Duration {
 }
 
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native function WrappingAdd(time: TimeOfDay, duration: Duration): TimeOfDay;
+  native function WrappingSub(time: TimeOfDay, duration: Duration): TimeOfDay;
+  native function DurationUntil(from: TimeOfDay, to: TimeOfDay): Duration;
 }

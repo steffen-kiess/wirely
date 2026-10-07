@@ -279,3 +279,19 @@ node factor_source: Std.DebugValueSource { Type: uint32 }
 node duration_math: DurationMath {}
 connect span_source -> duration_math;
 connect factor_source -> duration_math.Factor;
+
+node type TimeMath {
+  default input: value TimeOfDay;
+  output Later: value TimeOfDay;
+  output Earlier: value TimeOfDay;
+  output UntilEnd: value Duration;
+
+  procedure run depends on default input as time produces Later, Earlier, UntilEnd {
+    Later = TimeOfDay.WrappingAdd(time, "PT2H");
+    Earlier = TimeOfDay.WrappingSub(time, "PT2H");
+    UntilEnd = TimeOfDay.DurationUntil(time, "24:00");
+  }
+}
+
+node time_math: TimeMath {}
+connect time_source -> time_math;

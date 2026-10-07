@@ -1,14 +1,15 @@
-constant Wrapped: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
+constant Wrapped: TimeOfDay = TimeOfDay.WrappingAdd("23:30", "PT1H");
 constant Expected: TimeOfDay = "00:30";
 assert Wrapped == Expected;
-constant Selected: TimeOfDay = if true { Wrapped } else {
-  TimeOfDay.AddWrap("12:00", "bad")
+// Untaken branches and unused types do not evaluate failing calls.
+constant Selected: uint16 = if true { 1 } else {
+  KNX.ParseGroupAddress("bad")
 };
-assert Selected == Expected;
-assert true || { let unused: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad"); false };
+assert Selected == 1;
+assert true || { let unused: uint16 = KNX.ParseGroupAddress("bad"); false };
 assert !(false && {
-  let unused: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad"); true
+  let unused: uint16 = KNX.ParseGroupAddress("bad"); true
 });
 node type Unused {
-  constant At: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad");
+  constant Address: uint16 = KNX.ParseGroupAddress("bad");
 }

@@ -88,10 +88,10 @@ constant assert: boolean = true; // E: Syntax error
 #[position(x = 1, y = 2)] assert true; // E: Attribute position is not permitted on assertion
 
 // TEST: evaluation error
-// LIBRARIES: std
+// LIBRARIES: std, knx
 assert {
-  let time: TimeOfDay = TimeOfDay.AddWrap("12:00", "bad");
-  // ^E: Cannot parse time delta 'bad'
+  let address: uint16 = KNX.ParseGroupAddress("bad");
+  // ^E: Invalid format
   true
 };
 

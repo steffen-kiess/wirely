@@ -1,11 +1,9 @@
-import datetime
-
 import wirely
 
 
 def check_equality():
-    at = datetime.time(8)
-    later = datetime.time(8, 1)
+    at = wirely.TimeOfDay.from_parts(8, 0)
+    later = wirely.TimeOfDay.from_parts(8, 1)
     span = wirely.Duration(duration_ns=1)
     longer = wirely.Duration(duration_ns=2)
     instant = wirely.MonotonicTime(1, 100)
@@ -30,7 +28,7 @@ def check_equality():
     nested_value = nested(wirely.Some(value), wirely.Some(None))
     # Expected results are explicit, including presence, payload, and every field.
     cases = {
-        'time': [(at, datetime.time(8), True), (at, later, False)],
+        'time': [(at, wirely.TimeOfDay.from_parts(8, 0), True), (at, later, False)],
         'duration': [(span, wirely.Duration(duration_ns=1), True),
                      (span, longer, False)],
         'monotonic': [(instant, wirely.MonotonicTime(1, 100), True),

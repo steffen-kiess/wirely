@@ -13,7 +13,7 @@ constant Multiple: List[Option[uint8]] = [Some(1 /* value */,), None,];
 assert (Empty == [])
   && (Single == [Some(1)])
   && (Multiple == [Some(1), None]);
-constant At: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00",);
+constant At: TimeOfDay = TimeOfDay.WrappingAdd("23:30", "PT1H",);
 constant ExpectedAt: TimeOfDay = "00:30";
 assert At == ExpectedAt;
 

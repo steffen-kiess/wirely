@@ -1,4 +1,3 @@
-import datetime
 import enum
 from unittest import TestCase
 
@@ -33,7 +32,7 @@ def check_scalar_codecs():
         (wirely.types.MonotonicTime, wirely.MonotonicTime(7, 123),
          bytes.fromhex('07 00 00 00 00 00 00 00 7b 00 00 00 00 00 00 00'), 8),
         (wirely.types.MonotonicTime, wirely.MonotonicTime(0, 0), bytes(16), 8),
-        (wirely.types.TimeOfDay, datetime.time(0, 0, 1),
+        (wirely.types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0, 1),
          bytes.fromhex('00 ca 9a 3b 00 00 00 00'), 8),
         (thermostat_type, thermostat_modes.Heat, b'\x04', 1),
     ]:
@@ -84,17 +83,15 @@ def check_scalar_codecs():
         (nested_uint64, b'\x01' + bytes(8) + b'\x01'),
         (nested_uint64, bytes(8) + b'\x02\x01'),
         (thermostat_type, b'\x02'),
-        (wirely.types.TimeOfDay, (86_400_000_000_000).to_bytes(8, 'little')),
         (wirely.types.TimeOfDay, (86_400_000_000_001).to_bytes(8, 'little')),
-        (wirely.types.TimeOfDay, (1).to_bytes(8, 'little')),
     ]:
         with checks.assertRaises(ValueError):
             ty.deserialize(malformed)
 
-    for value in (datetime.time(0), datetime.time(23, 59, 59, 999999)):
+    # Nanosecond values up to 24:00 round-trip.
+    for text in ('00:00', '00:00:00.000000001', '23:59:59.999999999', '24:00'):
+        value = wirely.TimeOfDay.parse(text)
         assert wirely.types.TimeOfDay.deserialize(wirely.types.TimeOfDay.serialize(value)) == value
-    with checks.assertRaises(ValueError):
-        wirely.types.TimeOfDay.serialize(datetime.time(12, tzinfo=datetime.timezone.utc))
 
     maximum = 2**64 - 1
     for ty, value in [

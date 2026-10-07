@@ -1,4 +1,3 @@
-import datetime
 from unittest.mock import patch
 
 import wirely
@@ -15,7 +14,7 @@ def check_main_program():
     engine.get_native_state('nested_source').set_value(None)
     engine.get_native_state('int_source').set_value(0)
     engine.get_native_state('duration_source').set_value(wirely.Duration(duration_ns=0))
-    engine.get_native_state('time_source').set_value(datetime.time(0))
+    engine.get_native_state('time_source').set_value(wirely.TimeOfDay.from_parts(0, 0))
     engine.get_native_state('int8_source').set_value(0)
     engine.get_native_state('uint8_source').set_value(0)
     engine.get_native_state('pair_source').set_value(pair(False, 0))
@@ -28,7 +27,7 @@ def check_main_program():
     engine.assert_value_is('delayed', False)
     engine.assert_value_is('delayed.Current', False)
     engine.assert_value_is('constants', True)
-    engine.assert_value_is('constants.TimeValue', datetime.time(8))
+    engine.assert_value_is('constants.TimeValue', wirely.TimeOfDay.from_parts(8, 0))
     engine.assert_value_is('constants.ModeEqual', True)
     engine.assert_value_is('constants.UnitEqual', True)
     engine.assert_value_is('shared', True)
@@ -283,7 +282,7 @@ def check_ordering():
         'int': [-2, -1, 0],
         'duration': [wirely.Duration(duration_ns=999_999_999), wirely.Duration(duration_ns=1_000_000_000),
                      wirely.Duration(duration_ns=1_000_000_001)],
-        'time': [datetime.time(7, 59), datetime.time(8), datetime.time(8, 1)],
+        'time': [wirely.TimeOfDay.from_parts(7, 59), wirely.TimeOfDay.from_parts(8, 0), wirely.TimeOfDay.from_parts(8, 1)],
     }
     for name, (below, equal, above) in cases.items():
         source = engine.get_native_state(f'{name}_source')
@@ -417,6 +416,22 @@ def check_duration_functions():
     engine.assert_is_idle()
 
 
+
+def check_time_of_day_functions():
+    parse = wirely.TimeOfDay.parse
+    source = engine.get_native_state('time_source')
+    for time, later, earlier, until_end in [('08:00', '10:00', '06:00', 'PT16H'),
+                                            ('23:00', '01:00', '21:00', 'PT1H'),
+                                            ('24:00', '02:00', '22:00', 'PT0S'),
+                                            ('00:00', '02:00', '22:00', 'PT24H')]:
+        source.set_value(parse(time))
+        engine.step()
+        engine.assert_value_is('time_math.Later', parse(later))
+        engine.assert_value_is('time_math.Earlier', parse(earlier))
+        engine.assert_value_is('time_math.UntilEnd', wirely.Duration.parse(until_end))
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -431,3 +446,4 @@ check_struct_fields()
 check_conversions()
 check_native_functions()
 check_duration_functions()
+check_time_of_day_functions()

@@ -1,9 +1,9 @@
 import asyncio
 import contextlib
-import datetime
 
 import xknx
 import xknx.tools
+import wirely
 from wirely.knx.connection_adapter import create_xknx
 
 
@@ -56,7 +56,7 @@ async def run_test():
 
             todm = engine.get_native_state_singleton('Time.TimeOfDayMinute')
 
-            todm.set_fake_time(datetime.time.fromisoformat('07:00'))
+            todm.set_fake_time(wirely.TimeOfDay.parse('07:00'))
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/7/1", "binary")
 
@@ -67,7 +67,7 @@ async def run_test():
             engine.assert_is_idle()
             await event_sensor_recv.expect()
 
-            todm.set_fake_time(datetime.time.fromisoformat('09:00'))
+            todm.set_fake_time(wirely.TimeOfDay.parse('09:00'))
             engine.step()
             engine.step()
             engine.assert_is_idle()

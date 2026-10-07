@@ -147,25 +147,43 @@ durations; a result outside the range fails compilation.
 
 ### Time of day
 
-`TimeOfDay` describes a clock time without a date or timezone. Hours range
-from 0 to 23, minutes and seconds from 0 to 59, and fractional seconds have
-microsecond resolution. String examples include `"08:00"`, `"08:00:30"`,
-and `"08:00:30.125"`.
+`TimeOfDay` describes a clock time without a date or timezone, with
+nanosecond resolution. Strings use two-digit hours and minutes, optionally
+followed by seconds and up to nine fraction digits: `"08:00"`,
+`"08:00:30"`, and `"08:00:30.125"`. Hours range from 0 to 23, minutes and
+seconds from 0 to 59.
 
-The `std` library declares the compile-time function
-`TimeOfDay.AddWrap(time, offset)`, which adds an offset
-written as an hours-and-minutes string, with an optional `+` or `-` sign,
-and wraps at midnight:
+`"24:00"` is the end of the day. It differs from `"00:00"` and orders
+after every other time, so a pair of times can describe a whole day:
+`Time.IsInDailyInterval` with `Start: "00:00", End: "24:00"` is always
+true, and with `Start: "24:00", End: "00:00"` never.
+
+The `std` library declares these functions, which work in procedure bodies
+and compile-time expressions:
+
+| Function | Result |
+| --- | --- |
+| `TimeOfDay.WrappingAdd(time, duration)` | The time `duration` later, wrapping at midnight. |
+| `TimeOfDay.WrappingSub(time, duration)` | The time `duration` earlier, wrapping at midnight. |
+| `TimeOfDay.DurationUntil(from, to)` | The `Duration` from `from` forward to `to`. |
+
+Adding or subtracting a whole number of days, including zero, returns the
+time unchanged, so `TimeOfDay.WrappingAdd("24:00", "PT0S")` is 24:00. Other
+results range from 00:00 to just before 24:00; `24:00` counts as 24 hours,
+so `TimeOfDay.WrappingSub("24:00", "PT1H")` is 23:00.
+`DurationUntil` is `to` minus `from`, plus 24 hours when negative: zero for
+equal times, 24 hours from `"00:00"` to `"24:00"`, and zero from `"24:00"`
+to `"00:00"`.
 
 ```wrl
-node morning: Time.TriggerAt { Time: "08:00" }
-
 node type Schedule {
-  parameter Late: TimeOfDay = TimeOfDay.AddWrap("23:30", "01:00");
+  parameter Start: TimeOfDay = "22:00";
+  constant End: TimeOfDay = TimeOfDay.WrappingAdd(Start, "PT8H");
+  node active: Time.IsInDailyInterval { Start: Start, End: End }
 }
 ```
 
-Here, `Late` defaults to 00:30.
+Here, `End` is 06:00 and the interval crosses midnight.
 
 ### Monotonic time
 

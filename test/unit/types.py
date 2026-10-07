@@ -1,4 +1,3 @@
-import datetime
 import enum
 from unittest import TestCase
 
@@ -42,7 +41,7 @@ def check_parsing_and_conversions():
     assert type(wirely.value_types.uint16.validate(True)) is int
     assert wirely.value_types.string.json_decode('hello') == 'hello'
     assert wirely.value_types.string.json_encode('hello') == 'hello'
-    assert wirely.value_types.time_of_day.parse('11:17') == datetime.time(11, 17)
+    assert wirely.value_types.time_of_day.parse('11:17') == wirely.TimeOfDay.from_parts(11, 17)
     assert wirely.value_types.unit.parse('()') == wirely.Unit()
     for descriptor, text in [(wirely.value_types.unit, '0'),
                              (wirely.value_types.time_of_day, '123')]:
@@ -233,7 +232,7 @@ def check_default_values():
         (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
         (types.Duration, wirely.Duration(duration_ns=0)),
         (types.MonotonicTime, wirely.MonotonicTime(0, 0)),
-        (types.TimeOfDay, datetime.time(0, 0)), (types.ValueType, types.unit),
+        (types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0)), (types.ValueType, types.unit),
         (enum_type, members.First), (types.TypeList(types.String), ()),
         (types.TypeList(types.TypeList(types.uint8)), ()),
         (types.TypeOption(enum_type), None),

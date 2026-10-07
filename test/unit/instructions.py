@@ -1,10 +1,9 @@
-import datetime
 import enum
 import io
 from unittest import TestCase
 
 from wirely import types
-from wirely.types.time import Duration as RuntimeDuration
+from wirely.types.time import Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay
 from wirely.program import (
     BranchTarget, Constant, Function, InputSourceBinding, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, ResultBinding,
@@ -219,8 +218,8 @@ def check_ordering():
        constants=(Constant(types.int16, -1), Constant(types.int16, 0),
                   Constant(types.Duration, RuntimeDuration(duration_ns=1)),
                   Constant(types.Duration, RuntimeDuration(duration_ns=2)),
-                  Constant(types.TimeOfDay, datetime.time(23, 59)),
-                  Constant(types.TimeOfDay, datetime.time(0, 0))))
+                  Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(23, 59)),
+                  Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(0, 0))))
     assert output == (True, False, False, True, False)
 
 

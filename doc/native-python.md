@@ -127,7 +127,7 @@ defaults contain their ordinary values. `ValueType` bindings provide
 | All integer types | `int` |
 | `String` | `str` |
 | `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
-| `TimeOfDay` | `datetime.time` |
+| `TimeOfDay` | `wirely.TimeOfDay`, with `nanoseconds` since midnight (up to 24:00) |
 | `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
 | Declared enums | Members of a Python `enum.Enum` class |
 | Declared structs | Immutable `wirely.StructValue` mappings |

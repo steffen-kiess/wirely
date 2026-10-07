@@ -46,7 +46,7 @@ node type Probe {
 // TEST: call requires alias
 // LIBRARIES: std
 node type Probe {
-  native procedure run uses TimeOfDay.AddWrap("00:00", "00:01"); // E: Static binding requires an alias
+  native procedure run uses TimeOfDay.WrappingAdd("00:00", "PT1M"); // E: Static binding requires an alias
 }
 
 // TEST: unknown aliased value
@@ -72,7 +72,7 @@ node type Probe {
 // TEST: bad function argument
 // LIBRARIES: std
 node type Probe {
-  native procedure run uses TimeOfDay.AddWrap(7, "00:01") as value; // E: Invalid TimeOfDay value
+  native procedure run uses TimeOfDay.WrappingAdd(7, "PT1M") as value; // E: Invalid TimeOfDay value
 }
 
 // TEST: unknown call

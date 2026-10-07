@@ -1,7 +1,7 @@
 node t0: Time.IsInDailyInterval { Start: "00:00", End: "12:00" }
-// TODO
-// node t1 : Time.IsInDailyInterval { Start: "12:00", End: "24:00" }
-node t1: Time.IsInDailyInterval { Start: "12:00", End: "23:59" }
+node t1: Time.IsInDailyInterval { Start: "12:00", End: "24:00" }
+node all_day: Time.IsInDailyInterval { Start: "00:00", End: "24:00" }
+node never: Time.IsInDailyInterval { Start: "24:00", End: "00:00" }
 
 node trigger: Time.TriggerAt { Time: "12:34" }
 node trigger_value: Time.TriggerAt {

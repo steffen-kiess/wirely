@@ -48,7 +48,7 @@ constant Value: Option[boolean] = None;
 constant Bad: boolean = (Value).IsNone(); // E: properties cannot be called
 
 // TEST: call result property call
-constant Bad: boolean = TimeOfDay.AddWrap("08:00", "01:00").IsSome(); // E: properties cannot be called
+constant Bad: boolean = TimeOfDay.WrappingAdd("08:00", "PT1H").IsSome(); // E: properties cannot be called
 
 // TEST: chained properties
 constant Value: Option[boolean] = None;
@@ -123,21 +123,23 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: runtime calls remain unsupported
+// LIBRARIES: std, path
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = TimeOfDay.AddWrap("08:00", "01:00").IsSome; // E: is a compile-time function and cannot be called in procedure bodies
+    output = Path.Parent("file").IsSome; // E: is a compile-time function and cannot be called in procedure bodies
   }
 }
 node probe: Probe {}
 
 // TEST: runtime call hidden in property receiver
+// LIBRARIES: std, path
 struct type Settings { flag: boolean }
 node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      flag: TimeOfDay.AddWrap("08:00", "01:00").IsSome, // E: is a compile-time function and cannot be called in procedure bodies
+      flag: Path.Parent("file").IsSome, // E: is a compile-time function and cannot be called in procedure bodies
     };
   }
 }

@@ -114,7 +114,7 @@ class TimeOfDayMinute(NativeState):
 
         now_time = datetime.datetime.now().time()
         # print(now_time, flush=True)
-        now_min = datetime.time(now_time.hour, now_time.minute)
+        now_min = blocks.TimeOfDay.from_parts(now_time.hour, now_time.minute)
         wait_time_s = wait_time_s = 60 - (now_time.second + now_time.microsecond * 1e-6)
 
         self.current_value = now_min
@@ -152,7 +152,7 @@ class TimeOfDayMinute(NativeState):
         self.trigger('get_value')
 
     @check_parameters
-    def set_fake_time(self, fake_time: typing.Optional[datetime.time]):
+    def set_fake_time(self, fake_time: typing.Optional[blocks.TimeOfDay]):
         self._fake_time = fake_time
 
         # TODO: Make sure that seconds/microseconds are 0?

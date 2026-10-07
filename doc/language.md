@@ -262,9 +262,7 @@ Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
 value of type `T`. Without an expected type, `Some(x)` takes `T` from `x`.
 Monotonic times have no literals; use `Option[MonotonicTime]` with `None`
-when a time may be absent. The compile-time function
-`TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"` offset and wraps at
-midnight.
+when a time may be absent.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean

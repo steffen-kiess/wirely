@@ -121,11 +121,12 @@ node type Probe {
 node probe: Probe {  }
 
 // TEST: runtime function
+// LIBRARIES: std, path
 node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    let time: TimeOfDay = TimeOfDay.AddWrap("08:00", "01:00"); // E: is a compile-time function and cannot be called in procedure bodies
+    let path: String = Path.Parent("file"); // E: is a compile-time function and cannot be called in procedure bodies
     output = true;
   }
 }
@@ -298,12 +299,13 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: call hidden in a struct literal
-struct type Settings { time: TimeOfDay }
+// LIBRARIES: std, knx
+struct type Settings { address: uint16 }
 node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      time: TimeOfDay.AddWrap("08:00", "01:00"), // E: is a compile-time function and cannot be called in procedure bodies
+      address: KNX.ParseGroupAddress("1/2/3"), // E: is a compile-time function and cannot be called in procedure bodies
     };
   }
 }
