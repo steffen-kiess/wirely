@@ -49,6 +49,10 @@ node source: Std.Constant {
 `position` requires one finite numeric literal for each of `x` and `y`, and
 can appear once per node instance. Coordinates are compiler metadata.
 
+Tools can add, set, and remove attributes of nodes, node types, and
+connections in source text with `wirely.compiler.attribute_editing`.
+Comments and formatting are preserved, and the file only needs to parse.
+
 `#[internal]` marks an implementation detail. It takes no arguments and can
 appear once on a node, node type, function, namespace, value or resource
 type, constant, parameter, connector, state or temporary variable, struct
