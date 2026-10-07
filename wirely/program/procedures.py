@@ -30,6 +30,9 @@ class Opcode(enum.Enum):
     MUL_CHECKED = enum.auto()
     DIV_CHECKED = enum.auto()
     REM_CHECKED = enum.auto()
+    CONVERT_WRAPPING = enum.auto()
+    CONVERT_SATURATING = enum.auto()
+    CONVERT_CHECKED = enum.auto()
     JUMP = enum.auto()
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
@@ -40,6 +43,11 @@ class Opcode(enum.Enum):
 ARITHMETIC_OPCODES = {
     opcode: tuple(opcode.name.lower().split('_'))
     for opcode in Opcode if opcode.name.split('_')[0] in ('ADD', 'SUB', 'MUL', 'DIV', 'REM')
+}
+
+# Conversion opcodes mapped to their convert() overflow mode.
+CONVERSION_OPCODES = {
+    opcode: opcode.name.split('_')[1].lower() for opcode in Opcode if opcode.name.startswith('CONVERT_')
 }
 
 

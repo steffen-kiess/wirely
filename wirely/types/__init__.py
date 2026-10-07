@@ -447,13 +447,7 @@ class TypeInt(TypeConcrete):
             result = left * right
         else:
             raise ValueError(f'Unknown integer operation {operation!r}')
-        if overflow == 'wrapping':
-            return (result - self.min_value) % 2**self.bits + self.min_value
-        if overflow == 'saturating':
-            return min(max(result, self.min_value), self.max_value)
-        if overflow == 'checked':
-            return Some(result) if self.min_value <= result <= self.max_value else None
-        raise ValueError(f'Unknown overflow mode {overflow!r}')
+        return _fit_integer(result, self.min_value, self.max_value, overflow)
 
     def _parse_impl(self, s):
         i = int(s)
@@ -606,6 +600,47 @@ class TypeEnum(TypeConcrete):
             return self.python_type[expr]
         else:
             raise Exception(f'Invalid JSON format: {format!r}')
+
+
+def _fit_integer(value, min_value, max_value, overflow):
+    """Map an exact integer into min_value..max_value using an overflow mode."""
+    if overflow == 'wrapping':
+        return (value - min_value) % (max_value - min_value + 1) + min_value
+    if overflow == 'saturating':
+        return min(max(value, min_value), max_value)
+    if overflow == 'checked':
+        return Some(value) if min_value <= value <= max_value else None
+    raise ValueError(f'Unknown overflow mode {overflow!r}')
+
+
+def integer_range(value_type):
+    """Return the (min, max) numbers of an integer, enum, or boolean type."""
+    if isinstance(value_type, TypeInt):
+        return value_type.min_value, value_type.max_value
+    if isinstance(value_type, TypeEnum):
+        return integer_range(value_type.underlying_type)
+    if isinstance(value_type, TypeBoolean):
+        return 0, 1
+    raise ValueError(f'{value_type} is not an integer, enum, or boolean type')
+
+
+def convert(source_type, target_type, overflow, value):
+    """Convert an integer, enum, or boolean value to an integer or boolean type.
+
+    Booleans are 1-bit unsigned integers. Checked results are Some(value) or None."""
+    if isinstance(source_type, TypeEnum):
+        number = source_type.verify_value(value).value
+    else:
+        integer_range(source_type)
+        number = int(source_type.verify_value(value))
+    if not isinstance(target_type, (TypeInt, TypeBoolean)):
+        raise ValueError(f'Cannot convert to {target_type}')
+    result = _fit_integer(number, *integer_range(target_type), overflow)
+    if isinstance(target_type, TypeBoolean):
+        if overflow == 'checked':
+            return None if result is None else Some(bool(result.value))
+        return bool(result)
+    return result
 
 
 unit = TypeUnit()

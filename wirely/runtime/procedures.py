@@ -1,7 +1,7 @@
 """Execution of validated, forward-only procedure instructions."""
 
-from ..program import ARITHMETIC_OPCODES, Opcode, OperandKind
-from ..types import Some
+from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind
+from ..types import Some, convert
 from ..types.value_types import _from_native, _to_native
 
 
@@ -78,6 +78,12 @@ def execute_procedure(program, procedure, inputs):
             elif opcode == Opcode.EQUAL:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)
+            elif opcode in CONVERSION_OPCODES:
+                target_type = value_type(destination)
+                if CONVERSION_OPCODES[opcode] == 'checked':
+                    target_type = target_type.inner_type
+                result = convert(value_type(operands[1]), target_type, CONVERSION_OPCODES[opcode],
+                                 read(operands[1]))
             elif opcode in ARITHMETIC_OPCODES:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).arithmetic(*ARITHMETIC_OPCODES[opcode], left, right)

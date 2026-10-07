@@ -1,0 +1,43 @@
+// TEST: lossy From between signed types
+constant Value: int16 = 1;
+constant Result: int8 = int8.From(Value); // E: int8.From cannot convert every int16 value; use CheckedFrom, WrappingFrom, or SaturatingFrom
+
+// TEST: lossy From from signed to unsigned
+constant Value: int8 = 1;
+constant Result: uint8 = uint8.From(Value); // E: uint8.From cannot convert every int8 value
+
+// TEST: lossy From from an enum
+enum type Mode: int8 { Off = 0, On = 1, }
+constant Result: uint8 = uint8.From(Mode.On); // E: uint8.From cannot convert every Mode value
+
+// TEST: From literal outside the target type
+constant Result: int8 = int8.From(128); // E: Int value out of range: 128
+
+// TEST: boolean source
+constant Result: uint8 = uint8.WrappingFrom(true); // E: Conversion requires an integer or enum value, got boolean
+
+// TEST: duration source
+constant Span: Duration = "PT1S";
+constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requires an integer or enum value, got Duration
+
+// TEST: boolean target
+constant Result: boolean = boolean.From(1); // E: Type boolean has no member 'From'
+
+// TEST: enum target
+enum type Mode: uint8 { Off = 0, }
+constant Result: Option[Mode] = Mode.CheckedFrom(0); // E: Type Mode has no member 'CheckedFrom'
+
+// TEST: argument count
+constant Result: int16 = int16.From(1, 2); // E: int16.From expects exactly one argument
+
+// TEST: checked result type
+constant Value: int16 = 1;
+constant Result: int8 = int8.CheckedFrom(Value); // E: Expected value of type int8, got TypeOption(int8)
+
+// TEST: lossy From through a type parameter
+node type Generic {
+  parameter Type: ValueType;
+  constant Value: int16 = 1;
+  constant Result: Type = Type.From(Value); // E: int8.From cannot convert every int16 value
+}
+node generic: Generic { Type: int8 } // H: While instantiating 'generic'

@@ -697,6 +697,9 @@ denote integer parameters.
 | `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
 | `ADD_SATURATING`, `SUB_SATURATING`, `MUL_SATURATING` `destination, left, right` | Compute the integer result clamped to the operand type's range. |
 | `ADD_CHECKED`, `SUB_CHECKED`, `MUL_CHECKED`, `DIV_CHECKED`, `REM_CHECKED` `destination, left, right` | Assign `Some` with the integer result, or `None` when it is outside the operand type's range or the divisor is zero. |
+| `CONVERT_WRAPPING destination, source` | Convert the source number modulo the destination type's range. |
+| `CONVERT_SATURATING destination, source` | Convert the source number clamped to the destination type's range. |
+| `CONVERT_CHECKED destination, source` | Assign `Some` with the source number, or `None` when it is outside the destination type's range. |
 | `JUMP offset` | Continue at the branch target. |
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
@@ -706,6 +709,11 @@ denote integer parameters.
 Arithmetic sources share one integer type `T`. The destination has type
 `T`, or `Option[T]` for `_CHECKED` instructions. Division truncates toward
 zero, and the remainder has the dividend's sign.
+A conversion source is an integer, enum, or boolean; an enum contributes
+its member number. The destination is an integer or boolean type `T`, or
+`Option[T]` for `CONVERT_CHECKED`. Booleans convert as 1-bit unsigned
+integers: `false` is 0 and `true` is 1, so wrapping keeps the low bit and
+saturating maps negative numbers to `false` and numbers above 1 to `true`.
 Equality compares struct fields recursively; options are equal when both
 are `None`, or both are `Some` with equal contained values. All unit values
 are equal.

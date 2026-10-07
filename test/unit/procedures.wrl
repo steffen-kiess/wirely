@@ -232,3 +232,26 @@ node type PairFields {
 node pair_source: Std.DebugValueSource { Type: ProcedureTests.Pair }
 node pair_fields: PairFields {}
 connect pair_source -> pair_fields;
+
+node type Conversions {
+  default input: value int16;
+  output Wrapped: value int8;
+  output Saturated: value int8;
+  output Checked: value Option[int8];
+  output Wide: value int32;
+  output Level: value uint8;
+
+  procedure run depends on default input as input
+    produces Wrapped, Saturated, Checked, Wide, Level
+  {
+    Wrapped = int8.WrappingFrom(input);
+    Saturated = int8.SaturatingFrom(input);
+    Checked = int8.CheckedFrom(input);
+    Wide = int32.From(input);
+    let mode = if input > 0 { ProcedureTests.Mode.On } else { ProcedureTests.Mode.Off };
+    Level = uint8.From(mode);
+  }
+}
+
+node conversions: Conversions {}
+connect int_source -> conversions;

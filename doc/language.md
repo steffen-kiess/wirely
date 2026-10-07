@@ -481,6 +481,21 @@ Negate with subtraction from zero, for example
 `int16.SaturatingSub(0, value)`. Members also work in compile-time
 expressions.
 
+Convert an integer or enum value to an integer type `T` with these members:
+
+| Member | Result |
+| --- | --- |
+| `From` | The same value; every value of the argument's type must fit `T`. |
+| `WrappingFrom` | The value wrapped around `T`'s range. |
+| `SaturatingFrom` | The value clamped to `T`'s minimum or maximum. |
+| `CheckedFrom` | `Some(value)`, or `None` when it does not fit `T`. |
+
+An enum converts through its member number. `From` accepts an enum when
+every value of its underlying integer type fits `T`, for example
+`uint16.From(mode)` for an enum with underlying type `uint8`. A literal
+argument has type `T` for `From`, as in `int8.From(5)`, and `int32`
+otherwise.
+
 All concrete value types support equality at compile time. Procedures can
 compare runtime types, including times, options, and structs; strings,
 lists, and aggregates containing parameter-only types are compile-time-only.

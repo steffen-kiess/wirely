@@ -1,8 +1,8 @@
 """Validation of typed procedure instructions before execution."""
 
-from ..types import Type, TypeInt, TypeOption, TypeStruct, boolean
+from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, boolean
 from .procedures import (
-    ARITHMETIC_OPCODES,
+    ARITHMETIC_OPCODES, CONVERSION_OPCODES,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import Program
@@ -22,6 +22,7 @@ _SIGNATURES = {
     Opcode.EQUAL: (Operand, Operand, Operand),
     Opcode.LESS: (Operand, Operand, Operand),
     **{opcode: (Operand, Operand, Operand) for opcode in ARITHMETIC_OPCODES},
+    **{opcode: (Operand, Operand) for opcode in CONVERSION_OPCODES},
     Opcode.JUMP: (BranchTarget,),
     Opcode.JUMP_IF_TRUE: (Operand, BranchTarget),
     Opcode.JUMP_IF_FALSE: (Operand, BranchTarget),
@@ -114,6 +115,16 @@ def _validate_body(procedure, constant_types):
                 _same_type(operand_types[1], operand_types[2])
                 if opcode == Opcode.LESS and not operand_types[1].is_ordered:
                     raise ValueError(f'Type {operand_types[1]} is not ordered')
+            elif opcode in CONVERSION_OPCODES:
+                if not isinstance(operand_types[1], (TypeInt, TypeEnum, TypeBoolean)):
+                    raise ValueError(f'Conversion source must be an integer, enum, or boolean, got {operand_types[1]}')
+                target_type = operand_types[0]
+                if CONVERSION_OPCODES[opcode] == 'checked':
+                    if not isinstance(target_type, TypeOption):
+                        raise ValueError(f'Checked conversion requires an Option destination, got {target_type}')
+                    target_type = target_type.inner_type
+                if not isinstance(target_type, (TypeInt, TypeBoolean)):
+                    raise ValueError(f'Conversion destination must be an integer or boolean, got {target_type}')
             elif opcode in ARITHMETIC_OPCODES:
                 integer_type = operand_types[1]
                 if not isinstance(integer_type, TypeInt):

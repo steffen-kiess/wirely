@@ -116,6 +116,39 @@ def check_structs_and_options():
                       True, pair.default_value(), False, types.Some(None), True)
 
 
+def check_conversions():
+    class Level(enum.Enum):
+        OFF = 0
+        HIGH = 200
+
+    level = types.TypeEnum('Level', Level, underlying_type=types.uint8)
+    boolean_option = types.TypeOption(types.boolean)
+    int8_option = types.TypeOption(types.int8)
+    cases = [  # opcode, source type, value, destination type, expected
+        (Opcode.CONVERT_WRAPPING, types.int16, 300, types.int8, 44),
+        (Opcode.CONVERT_SATURATING, types.int16, 300, types.int8, 127),
+        (Opcode.CONVERT_CHECKED, types.int16, 300, int8_option, None),
+        (Opcode.CONVERT_CHECKED, types.int16, -128, int8_option, types.Some(-128)),
+        (Opcode.CONVERT_SATURATING, types.int16, -1, types.uint8, 0),
+        (Opcode.CONVERT_WRAPPING, level, Level.HIGH, types.int8, -56),
+        (Opcode.CONVERT_WRAPPING, types.boolean, True, types.uint8, 1),
+        (Opcode.CONVERT_WRAPPING, types.boolean, False, types.int64, 0),
+    ]
+    # Booleans are 1-bit unsigned integers.
+    for value, wrapped, saturated, checked in [
+            (0, False, False, types.Some(False)), (1, True, True, types.Some(True)),
+            (2, False, True, None), (3, True, True, None), (-1, True, False, None)]:
+        cases += [(Opcode.CONVERT_WRAPPING, types.int8, value, types.boolean, wrapped),
+                  (Opcode.CONVERT_SATURATING, types.int8, value, types.boolean, saturated),
+                  (Opcode.CONVERT_CHECKED, types.int8, value, boolean_option, checked)]
+    instructions = [instruction(opcode, result(index), const(index))
+                    for index, (opcode, _, _, _, _) in enumerate(cases)]
+    output = execute([*instructions, instruction(Opcode.RETURN)],
+                     result_types=tuple(target for _, _, _, target, _ in cases),
+                     constants=tuple(Constant(source, value) for _, source, value, _, _ in cases))
+    assert output == tuple(expected for *_, expected in cases)
+
+
 def check_defaults_and_equality():
     class Mode(enum.Enum):
         FIRST = 7
@@ -263,6 +296,15 @@ def check_validation():
                    result_types=(types.uint8,), local_types=(types.uint8,))
     expect_invalid([instruction(Opcode.ADD_WRAPPING, result(0), local(0), local(0)), ret], 'Expected type',
                    result_types=(types.TypeOption(types.uint8),), local_types=(types.uint8,))
+    for value_type in (types.Duration, types.TypeOption(types.uint8)):
+        expect_invalid([instruction(Opcode.CONVERT_WRAPPING, result(0), local(0)), ret], 'Conversion source',
+                       result_types=(types.uint8,), local_types=(value_type,))
+    expect_invalid([instruction(Opcode.CONVERT_CHECKED, result(0), local(0)), ret], 'Option destination',
+                   result_types=(types.uint8,), local_types=(types.int8,))
+    expect_invalid([instruction(Opcode.CONVERT_WRAPPING, result(0), local(0)), ret], 'Conversion destination',
+                   result_types=(types.TypeOption(types.uint8),), local_types=(types.int8,))
+    expect_invalid([instruction(Opcode.CONVERT_WRAPPING, result(0), local(0)), ret], 'Conversion destination',
+                   result_types=(types.Duration,), local_types=(types.int8,))
     expect_invalid([instruction(Opcode.JUMP, 1), ret], 'Invalid operands')
     for index in (-1, 0, 2, True):
         expect_invalid([instruction(Opcode.JUMP, BranchTarget(index)), ret], 'later instruction')
@@ -317,6 +359,7 @@ check_structs_and_options()
 check_defaults_and_equality()
 check_ordering()
 check_arithmetic()
+check_conversions()
 check_branches()
 check_validation()
 check_dump()

@@ -7,7 +7,7 @@ from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_li
 from .types import resolve_type, check_runtime_type
 from .value import Value, check_value_type
 from ..program import (
-    ARITHMETIC_OPCODES,
+    ARITHMETIC_OPCODES, CONVERSION_OPCODES,
     BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
 )
 
@@ -147,6 +147,11 @@ INTEGER_MEMBERS = {
                                    ('rem', 'Rem', ('checked',))]
     for mode in modes
 }
+# Conversions take one integer or enum argument; 'lossless' requires that every source value fits.
+INTEGER_MEMBERS.update({
+    'From': ('convert', 'lossless'), 'CheckedFrom': ('convert', 'checked'),
+    'WrappingFrom': ('convert', 'wrapping'), 'SaturatingFrom': ('convert', 'saturating'),
+})
 
 
 def type_member(scope, reference, parameters, local_names=()):
@@ -302,6 +307,22 @@ class TypedExpression:
             integer_type = self.arguments[0].value_type
             if not integer_type.contains_parameters and not isinstance(integer_type, blocks.types.TypeInt):
                 raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
+        elif self.operation == 'convert':
+            source_type = self.arguments[0].value_type
+            target_type = (self.value_type.inner_type if self.payload == 'checked'
+                           else self.value_type)
+            if source_type.contains_parameters or target_type.contains_parameters:
+                return
+            if not isinstance(target_type, blocks.types.TypeInt):
+                raise ProgramError(self.source, f'Conversion requires an integer target, got {target_type}')
+            if not isinstance(source_type, (blocks.types.TypeInt, blocks.types.TypeEnum)):
+                raise ProgramError(self.arguments[0].source,
+                                   f'Conversion requires an integer or enum value, got {source_type}')
+            source_min, source_max = blocks.types.integer_range(source_type)
+            if self.payload == 'lossless' and not (target_type.min_value <= source_min
+                                                   and source_max <= target_type.max_value):
+                raise ProgramError(self.source, f'{target_type}.From cannot convert every {source_type} value; '
+                                   'use CheckedFrom, WrappingFrom, or SaturatingFrom')
         elif self.operation in ('is_some', 'is_none'):
             receiver = self.arguments[0]
             if (not receiver.value_type.contains_parameters
@@ -325,6 +346,13 @@ class TypedExpression:
             return blocks.Some(self.arguments[0].evaluate(inputs, locals))
         if self.operation == 'field':
             return self.arguments[0].evaluate(inputs, locals)[self.payload]
+        if self.operation == 'convert':
+            # A lossless conversion always fits, so checking cannot fail.
+            target_type = self.value_type.inner_type if self.payload == 'checked' else self.value_type
+            result = blocks.types.convert(self.arguments[0].value_type, target_type,
+                                          'checked' if self.payload == 'lossless' else self.payload,
+                                          self.arguments[0].evaluate(inputs, locals))
+            return result.value if self.payload == 'lossless' else result
         operation = self.operation
         if operation == 'input':
             return inputs[self.payload]
@@ -418,6 +446,7 @@ class ExpressionValue(Value):
 
 
 OPCODES_BY_MEMBER = {member: opcode for opcode, member in ARITHMETIC_OPCODES.items()}
+OPCODES_BY_CONVERSION = {overflow: opcode for opcode, overflow in CONVERSION_OPCODES.items()}
 
 
 class InstructionCompiler:
@@ -516,6 +545,10 @@ class InstructionCompiler:
             self.emit(Opcode.GET_FIELD, destination, left, index)
         elif operation == 'some':
             self.emit(Opcode.MAKE_SOME, destination, left)
+        elif operation == 'convert':
+            # A lossless conversion never changes the value, so wrapping yields the same result.
+            overflow = 'wrapping' if expression.payload == 'lossless' else expression.payload
+            self.emit(OPCODES_BY_CONVERSION[overflow], destination, left)
         elif operation in ('not', 'is_some', 'is_none'):
             self.emit(Opcode.NOT if operation == 'not' else Opcode.IS_SOME, destination, left)
             if operation == 'is_none':
@@ -757,11 +790,20 @@ class ExpressionCompiler:
 
     def member_call(self, call, value_type, member):
         operation, overflow = member
+        result_type = blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
+        if operation == 'convert':
+            if len(call.parameters) != 1:
+                raise ProgramError(call, f'{call.fun} expects exactly one argument')
+            # As in Rust, a literal takes the target type for From (i8::from(5)) and
+            # otherwise the default literal type (i8::try_from(300) converts an i32).
+            argument = call.parameters[0]
+            literal_type = value_type if overflow == 'lossless' else None
+            source = self.compile(argument, None if self.context_type(argument) else literal_type)
+            return TypedExpression(result_type, 'convert', (source,), overflow)
         if len(call.parameters) != 2:
             raise ProgramError(call, f'{call.fun} expects exactly two arguments')
         left = self.compile(call.parameters[0], value_type)
         right = self.compile(call.parameters[1], value_type)
-        result_type = blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
         return TypedExpression(result_type, 'arith', (left, right), member)
 
     def option_operand(self, expression, expected=None):
@@ -942,14 +984,15 @@ class ExpressionCompiler:
             inner_type = self.known_type(expression.parameters[0]) if len(expression.parameters) == 1 else None
             return blocks.types.TypeOption(inner_type) if inner_type is not None else None
         if isinstance(expression, blocks.FunctionCall):
-            method = property_reference(self.scope, expression.fun, self.names)
-            if isinstance(method, PropertyAccess):
-                option_type = self.known_type(method.receiver)
-                return option_type.inner_type if isinstance(option_type, blocks.types.TypeOption) else None
+            # Type members take precedence over methods, as in _compile().
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
                 value_type, (operation, overflow) = member
                 return blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
+            method = property_reference(self.scope, expression.fun, self.names)
+            if isinstance(method, PropertyAccess):
+                option_type = self.known_type(method.receiver)
+                return option_type.inner_type if isinstance(option_type, blocks.types.TypeOption) else None
         if (isinstance(expression, blocks.FunctionCall) and not self.runtime
                 and isinstance(expression.fun, blocks.Reference)):
             function = self.scope.resolve_function(expression.fun, required=False)

@@ -333,6 +333,21 @@ def check_struct_fields():
     engine.assert_is_idle()
 
 
+
+def check_conversions():
+    source = engine.get_native_state('int_source')
+    some = wirely.Some
+    for value, wrapped, saturated, checked, level in [
+            (300, 44, 127, None, 1), (-129, 127, -128, None, 0),
+            (-128, -128, -128, some(-128), 0), (5, 5, 5, some(5), 1)]:
+        source.set_value(value)
+        engine.step()
+        for output, expected in [('Wrapped', wrapped), ('Saturated', saturated), ('Checked', checked),
+                                 ('Wide', value), ('Level', level)]:
+            engine.assert_value_is(f'conversions.{output}', expected)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -344,3 +359,4 @@ check_option_presence()
 check_ordering()
 check_arithmetic()
 check_struct_fields()
+check_conversions()

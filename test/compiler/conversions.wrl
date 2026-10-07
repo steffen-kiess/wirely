@@ -1,0 +1,47 @@
+enum type Level: uint8 {
+  Off = 0,
+  High = 200,
+}
+enum type Offset: int8 {
+  Low = -100,
+  Zero = 0,
+}
+constant Small: int8 = -5;
+constant Byte: uint8 = 255;
+
+// From accepts every source type whose values all fit, and identity.
+assert int16.From(Small) == -5 && int16.From(Byte) == 255 && uint16.From(Byte) == 255;
+assert int8.From(Small) == -5 && int64.From(uint32.SaturatingFrom(-1)) == 0;
+constant Large: int64 = int64.From(uint32.WrappingFrom(-1));
+assert Large == 4294967295;
+
+// A literal takes the target type for From and int32 otherwise.
+assert int8.From(-128) == -128 && uint64.From(18446744073709551615) == 18446744073709551615;
+assert int8.WrappingFrom(300) == 44 && int8.CheckedFrom(300) == None;
+
+// Enums convert through their member numbers and underlying type.
+assert uint8.From(Level.High) == 200 && int16.From(Level.High) == 200;
+assert int8.From(Offset.Low) == -100 && int16.From(Offset.Low) == -100;
+assert int8.CheckedFrom(Level.High) == None && int8.WrappingFrom(Level.High) == -56;
+assert uint8.SaturatingFrom(Offset.Low) == 0 && uint8.CheckedFrom(Offset.Zero) == Some(0);
+
+// Wrapping keeps the low bits, saturating clamps, checked gives None.
+assert int8.WrappingFrom(128) == -128 && uint8.WrappingFrom(-1) == 255;
+assert uint8.WrappingFrom(256) == 0 && int8.WrappingFrom(-129) == 127;
+assert int8.SaturatingFrom(1000) == 127 && int8.SaturatingFrom(-1000) == -128;
+assert uint8.SaturatingFrom(-1) == 0 && uint8.SaturatingFrom(300) == 255;
+assert int8.CheckedFrom(127) == Some(127) && int8.CheckedFrom(128) == None;
+assert uint8.CheckedFrom(-1) == None && uint8.CheckedFrom(0) == Some(0);
+constant Min64: int64 = int64.SaturatingSub(-9223372036854775807, 1);
+assert uint64.SaturatingFrom(Min64) == 0 && uint64.WrappingFrom(Min64) == 9223372036854775808;
+assert int32.CheckedFrom(Min64) == None && int64.From(Min64) == Min64;
+
+// Type parameters.
+node type Narrow {
+  parameter Type: ValueType;
+  parameter Value: int16;
+  constant Result: Option[Type] = Type.CheckedFrom(Value);
+  constant Wide: int64 = int64.From(Type.SaturatingFrom(Value));
+  assert Result == None && Wide == 127;
+}
+node narrow: Narrow { Type: int8, Value: 300 }
