@@ -60,6 +60,7 @@ it on slow links.
 | 11 | `IntegrityFailure` | The uploaded data does not match its digest |
 | 12 | `ProgramRejected` | The runtime cannot load the uploaded program |
 | 13 | `TransitionFailed` | The state transition procedure failed |
+| 14 | `Internal` | The runtime failed to handle the request |
 
 ## Sessions
 
@@ -332,6 +333,29 @@ their timeout. Sessions should use message limits of about 256 bytes.
 ### KNX
 
 The KNX transport will be specified later.
+
+## Local sockets
+
+`wirely run-service --state-directory DIR` creates two Unix domain sockets
+in `DIR`, accessible only to the user running the service:
+
+- `control` uses the TCP framing and accepts plain and TLS connections.
+  TLS requires `--control-tls-cert` and `--control-tls-key`.
+- `control-serial` uses the serial framing; each connection is a separate
+  line.
+
+Neither socket uses authentication tags. The service currently supports
+`Hello`, `Status`, `Pause`, `Resume`, `Step`, and the snapshot operations.
+
+`wirely client` sends requests to these sockets, for example:
+
+```sh
+wirely client --unix-path DIR/control dump --program program.wrl
+wirely client --unix-path DIR/control-serial --protocol serial pause
+```
+
+Use `--tls` for TLS connections, with `--tls-ca` and `--tls-server-name`
+to verify the certificate.
 
 ## Open questions
 

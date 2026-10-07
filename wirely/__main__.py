@@ -11,6 +11,12 @@ def main():
     run_service_parser = subparsers.add_parser('run-service')
     run_service_parser.add_argument('--verbose', action='store_true')
     run_service_parser.add_argument('--debug', action='store_true')
+    run_service_parser.add_argument('--state-directory',
+                                    help='directory for the control sockets')
+    run_service_parser.add_argument('--control-tls-cert',
+                                    help='certificate chain for TLS on the control socket')
+    run_service_parser.add_argument('--control-tls-key',
+                                    help='private key for TLS on the control socket')
     run_service_parser.add_argument('input_filename', type=str, nargs='+')
     run_service_parser.set_defaults(module_name='wirely.cli.service')
 
@@ -30,6 +36,10 @@ def main():
     show_graph_parser = subparsers.add_parser('show-graph')
     show_graph_parser.add_argument('input_filename')
     show_graph_parser.set_defaults(module_name='wirely.cli.graphviz')
+
+    client_parser = subparsers.add_parser('client', help='control a running runtime')
+    importlib.import_module('wirely.cli.client').add_arguments(client_parser)
+    client_parser.set_defaults(module_name='wirely.cli.client')
 
     args = parser.parse_args()
     module = importlib.import_module(args.module_name)

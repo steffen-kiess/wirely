@@ -32,6 +32,12 @@ class Engine:
         self.triggered_procs = set()
         self.triggered_procs_event = asyncio.Event()
 
+        self.step_count = 0  # Number of completed steps.
+        # While paused, run() starts no steps; step() can still be called directly.
+        self.paused = False
+        self._resumed_event = asyncio.Event()
+        self._resumed_event.set()
+
         self.wakeups = {}
         self.next_wakeup = None
 
@@ -205,6 +211,7 @@ class Engine:
         self.cache = variables
         self.last_step_state = state_old
         self.state = state_new
+        self.step_count += 1
         if self.debug:
             print(f'Finished step of {self.program.name}')
         return run_count, state_change_count, step_info
@@ -212,6 +219,7 @@ class Engine:
     async def run(self):
         while True:
             await asyncio.sleep(0)
+            await self._resumed_event.wait()
             run_count, state_change_count, step_info = self.step()
             if state_change_count == 0:
                 now = blocks.MonotonicTime.current_time()
@@ -239,6 +247,16 @@ class Engine:
                     except TimeoutError:
                         pass
                 self.triggered_procs_event.clear()
+
+    def pause(self):
+        self.paused = True
+        self._resumed_event.clear()
+
+    def resume(self):
+        self.paused = False
+        self._resumed_event.set()
+        # Handle triggers and wakeups that arrived while paused.
+        self.triggered_procs_event.set()
 
     def get_block_path_list(self, name_parts):
         return self.get_block_path('.'.join(name_parts))

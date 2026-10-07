@@ -4,6 +4,7 @@ import contextlib
 import sdnotify
 
 import asyncio
+import ssl
 import sys
 import logging
 
@@ -15,17 +16,21 @@ from wirely.util import check_parameters
 import wirely.compiler
 
 import wirely.misc.service
+from wirely.control.server import ControlServer
 from wirely.runtime.engine import Engine
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
 
 
-async def run_engine(engine) -> None:
+async def run_engine(engine, state_directory=None, tls_context=None) -> None:
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
             await engine.start_tasks_async(tg, async_exit_stack)
             tg.create_task(wirely.misc.service.should_never_return(engine.run()))
+            if state_directory is not None:
+                await async_exit_stack.enter_async_context(
+                    ControlServer(engine, state_directory, tls_context))
             # tg.create_task(wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw()))
 
             now = datetime.datetime.now()
@@ -48,6 +53,17 @@ async def run_engine(engine) -> None:
 async def async_run(args) -> None:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
+    if (args.control_tls_cert is None) != (args.control_tls_key is None):
+        print('Error: --control-tls-cert and --control-tls-key must be used together', file=sys.stderr)
+        return 2
+    if args.control_tls_cert is not None and args.state_directory is None:
+        print('Error: TLS options require --state-directory', file=sys.stderr)
+        return 2
+    tls_context = None
+    if args.control_tls_cert is not None:
+        tls_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        tls_context.load_cert_chain(args.control_tls_cert, args.control_tls_key)
+
     global_block_type = blocks.compiler.compile_files(args.input_filename)
     if global_block_type is None:
         sys.exit(1)
@@ -64,4 +80,4 @@ async def async_run(args) -> None:
     now = datetime.datetime.now()
     print('{}: Start'.format(now.isoformat()), flush=True)
 
-    await run_engine(eng)
+    await run_engine(eng, args.state_directory, tls_context)
