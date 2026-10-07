@@ -217,6 +217,30 @@ Where a runtime value is needed without one, such as an uninitialized
 temporary, the default is a time from a generation that is never current,
 so it compares to no current time.
 
+Timestamps range from zero to 2^64 − 1 nanoseconds. The `std` library
+declares these functions, which work in procedure bodies and keep the
+generation of `time`:
+
+| Function | Result |
+| --- | --- |
+| `MonotonicTime.SaturatingAdd(time, duration)`, `MonotonicTime.SaturatingSub(time, duration)` | The later or earlier time, clamped to the timestamp range. |
+| `MonotonicTime.CheckedAdd(time, duration)`, `MonotonicTime.CheckedSub(time, duration)` | `Some` with the later or earlier time, or `None` outside the range. |
+| `MonotonicTime.CheckedDurationSince(time, earlier)` | `Some` with the `Duration` from `earlier` to `time`, or `None` when they belong to different generations or `earlier` is later. |
+| `MonotonicTime.CheckedLess(a, b)` | `Some(true)` when `a` is before `b`, `Some(false)` otherwise, or `None` for different generations. |
+
+For example, a deadline computed from a time input:
+
+```wrl
+node type Deadline {
+  parameter Timeout: Duration;
+  input Start: value MonotonicTime;
+  default output: value MonotonicTime;
+  procedure run depends on Start as start produces default output as deadline {
+    deadline = MonotonicTime.SaturatingAdd(start, Timeout);
+  }
+}
+```
+
 Time library nodes produce and work with monotonic times, including
 `Time.MonotonicTimeReached`.
 

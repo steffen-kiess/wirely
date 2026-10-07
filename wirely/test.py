@@ -120,7 +120,7 @@ negative_tests = [
     'test/negative/resource_declarations.wrl',
     'test/negative/resource_value_types.wrl',
     'test/negative/resource_connections.wrl',
-    'test/negative/monotonic_time_literals.wrl',
+    'test/negative/monotonic_time.wrl',
     'test/negative/option_literals.wrl',
     'test/negative/option_properties.wrl',
     'test/negative/unit_literals.wrl',

@@ -20,6 +20,9 @@ def check_main_program():
     engine.get_native_state('pair_source').set_value(pair(False, 0))
     engine.get_native_state('span_source').set_value(wirely.Duration(duration_ns=0))
     engine.get_native_state('factor_source').set_value(1)
+    for name in ('monotonic_source', 'monotonic_other'):
+        engine.get_native_state(name).set_value(wirely.MonotonicTime(0, 0))
+    engine.get_native_state('monotonic_span').set_value(wirely.Duration(duration_ns=0))
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -432,6 +435,34 @@ def check_time_of_day_functions():
     engine.assert_is_idle()
 
 
+
+def check_monotonic_time_functions():
+    time, some, maximum = wirely.MonotonicTime, wirely.Some, wirely.MonotonicTime.MAX_NS
+    sources = [engine.get_native_state(name) for name in ('monotonic_source', 'monotonic_other', 'monotonic_span')]
+    outputs = ('Later', 'Earlier', 'CheckedLater', 'CheckedEarlier', 'Elapsed', 'Less')
+    for value, other, span, expected in [
+            # Within range; other is earlier in the same generation.
+            (time(1, 100), time(1, 40), 10,
+             (time(1, 110), time(1, 90), some(time(1, 110)), some(time(1, 90)), some(60), some(False))),
+            # Saturation at both ends; other is later.
+            (time(1, 5), time(1, maximum), maximum,
+             (time(1, maximum), time(1, 0), None, None, None, some(True))),
+            # Equal times.
+            (time(1, 7), time(1, 7), 0,
+             (time(1, 7), time(1, 7), some(time(1, 7)), some(time(1, 7)), some(0), some(False))),
+            # Different generations, including the generation-0 default.
+            (time(2, 100), time(0, 0), 1,
+             (time(2, 101), time(2, 99), some(time(2, 101)), some(time(2, 99)), None, None))]:
+        for source, item in zip(sources, (value, other, wirely.Duration(duration_ns=span))):
+            source.set_value(item)
+        engine.step()
+        for output, result in zip(outputs, expected):
+            if output == 'Elapsed' and result is not None:
+                result = some(wirely.Duration(duration_ns=result.value))
+            engine.assert_value_is(f'monotonic_math.{output}', result)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -447,3 +478,4 @@ check_conversions()
 check_native_functions()
 check_duration_functions()
 check_time_of_day_functions()
+check_monotonic_time_functions()

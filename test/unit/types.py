@@ -135,6 +135,11 @@ def check_times():
         with checks.assertRaises(AttributeError):
             setattr(value, field, 0)
     assert instant != wirely.MonotonicTime(8, instant.time_ns)
+    # Generations and timestamps are limited to their uint64 storage.
+    maximum = wirely.MonotonicTime.MAX_NS
+    for generation, time_ns in [(-1, 0), (1, -1), (maximum + 1, 0), (1, maximum + 1)]:
+        with checks.assertRaises(ValueError):
+            wirely.MonotonicTime(generation, time_ns)
     # The default value's generation 0 is never current.
     default = wirely.types.MonotonicTime.default_value()
     assert default == wirely.MonotonicTime(0, 0)

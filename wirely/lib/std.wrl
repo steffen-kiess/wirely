@@ -175,6 +175,15 @@ namespace Duration {
   native function CheckedDiv(duration: Duration, divisor: uint32): Option[Duration];
 }
 
+namespace MonotonicTime {
+  native function SaturatingAdd(time: MonotonicTime, duration: Duration): MonotonicTime;
+  native function SaturatingSub(time: MonotonicTime, duration: Duration): MonotonicTime;
+  native function CheckedAdd(time: MonotonicTime, duration: Duration): Option[MonotonicTime];
+  native function CheckedSub(time: MonotonicTime, duration: Duration): Option[MonotonicTime];
+  native function CheckedDurationSince(time: MonotonicTime, earlier: MonotonicTime): Option[Duration];
+  native function CheckedLess(a: MonotonicTime, b: MonotonicTime): Option[boolean];
+}
+
 namespace TimeOfDay {
   native function WrappingAdd(time: TimeOfDay, duration: Duration): TimeOfDay;
   native function WrappingSub(time: TimeOfDay, duration: Duration): TimeOfDay;

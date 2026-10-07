@@ -19,8 +19,13 @@ class MonotonicTime:
     generation: int
     time_ns: int
 
+    # Largest generation and timestamp, the range of their uint64 storage.
+    MAX_NS = 2**64 - 1
+
     @check_parameters
     def __init__(self, generation: int, time_ns: int):
+        if not 0 <= generation <= MonotonicTime.MAX_NS or not 0 <= time_ns <= MonotonicTime.MAX_NS:
+            raise ValueError(f'Monotonic time out of range: generation {generation}, {time_ns} ns')
         object.__setattr__(self, 'generation', generation)
         object.__setattr__(self, 'time_ns', time_ns)
 

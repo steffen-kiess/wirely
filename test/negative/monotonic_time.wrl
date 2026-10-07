@@ -1,0 +1,51 @@
+// TEST: removed invalid constant
+constant Deadline: MonotonicTime = MonotonicTime.Invalid; // E: Invalid MonotonicTime value MonotonicTime.Invalid
+
+// TEST: removed invalid constant in a procedure
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    let deadline: MonotonicTime = MonotonicTime.Invalid; // E: Unknown procedure value MonotonicTime.Invalid
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: duration in place of a time
+// LIBRARIES: std
+node type Probe {
+  default input: value Duration;
+  default output: value Option[boolean];
+  procedure run depends on default input as span produces default output as output {
+    output = MonotonicTime.CheckedLess(span, span); // E: Expected value of type MonotonicTime, got Duration
+  }
+}
+node source: Std.DebugValueSource { Type: Duration }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: checked comparison used as a boolean
+// LIBRARIES: std
+node type Probe {
+  default input: value MonotonicTime;
+  default output: value boolean;
+  procedure run depends on default input as time produces default output as output {
+    output = MonotonicTime.CheckedLess(time, time); // E: Expected value of type boolean, got TypeOption(boolean)
+  }
+}
+node source: Std.DebugValueSource { Type: MonotonicTime }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: ordering operator
+// LIBRARIES: std
+node type Probe {
+  default input: value MonotonicTime;
+  default output: value boolean;
+  procedure run depends on default input as time produces default output as output {
+    output = time < time; // E: got MonotonicTime
+  }
+}
+node source: Std.DebugValueSource { Type: MonotonicTime }
+node probe: Probe {}
+connect source -> probe;

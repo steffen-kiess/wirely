@@ -17,6 +17,7 @@ from ..types import StructValue, TypeStruct, value_types
 # Maps namespaces to modules of this package, each with a native_functions registry.
 function_pkgs = {
     ('Duration',): 'duration',
+    ('MonotonicTime',): 'monotonic_time',
     ('TestLibrary',): 'test_library',
     ('TimeOfDay',): 'time_of_day',
 }

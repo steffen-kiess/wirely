@@ -99,14 +99,6 @@ def check_scalar_codecs():
         (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum, maximum)),
     ]:
         assert ty.deserialize(ty.serialize(value)) == value
-    for ty, invalid in [
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(-1, 0)),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(1, -1)),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum + 1, 0)),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(1, maximum + 1)),
-    ]:
-        with checks.assertRaises(ValueError):
-            ty.serialize(invalid)
 
     for ty in (wirely.types.String, wirely.types.ValueType,
                wirely.types.TypeList(wirely.types.uint8), wirely.types.TypeOption(wirely.types.String)):

@@ -295,3 +295,34 @@ node type TimeMath {
 
 node time_math: TimeMath {}
 connect time_source -> time_math;
+
+node type MonotonicMath {
+  default input: value MonotonicTime;
+  input Other: value MonotonicTime;
+  input Span: value Duration;
+  output Later: value MonotonicTime;
+  output Earlier: value MonotonicTime;
+  output CheckedLater: value Option[MonotonicTime];
+  output CheckedEarlier: value Option[MonotonicTime];
+  output Elapsed: value Option[Duration];
+  output Less: value Option[boolean];
+
+  procedure run depends on default input as time, Other as other, Span as span
+    produces Later, Earlier, CheckedLater, CheckedEarlier, Elapsed, Less
+  {
+    Later = MonotonicTime.SaturatingAdd(time, span);
+    Earlier = MonotonicTime.SaturatingSub(time, span);
+    CheckedLater = MonotonicTime.CheckedAdd(time, span);
+    CheckedEarlier = MonotonicTime.CheckedSub(time, span);
+    Elapsed = MonotonicTime.CheckedDurationSince(time, other);
+    Less = MonotonicTime.CheckedLess(time, other);
+  }
+}
+
+node monotonic_source: Std.DebugValueSource { Type: MonotonicTime }
+node monotonic_other: Std.DebugValueSource { Type: MonotonicTime }
+node monotonic_span: Std.DebugValueSource { Type: Duration }
+node monotonic_math: MonotonicMath {}
+connect monotonic_source -> monotonic_math;
+connect monotonic_other -> monotonic_math.Other;
+connect monotonic_span -> monotonic_math.Span;
