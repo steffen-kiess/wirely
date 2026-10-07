@@ -1,7 +1,9 @@
+import datetime
 import enum
 import io
 
 from wirely import types
+from wirely.types.time import Duration as RuntimeDuration
 from wirely.program import (
     BranchTarget, Constant, InputSourceBinding, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, ResultBinding,
@@ -129,6 +131,23 @@ def check_defaults_and_equality():
     ], local_types=(option, types.unit), result_types=(mode, mode, types.boolean))
     assert output == (Mode.FIRST, Mode.FIRST, True)
 
+
+def check_ordering():
+    output = execute([
+        instruction(Opcode.LESS, result(0), const(0), const(1)),
+        instruction(Opcode.LESS, result(1), const(1), const(0)),
+        instruction(Opcode.LESS, result(2), const(0), const(0)),
+        instruction(Opcode.LESS, result(3), const(2), const(3)),
+        instruction(Opcode.LESS, result(4), const(4), const(5)),
+        instruction(Opcode.RETURN),
+    ], result_types=(types.boolean,) * 5,
+       constants=(Constant(types.int16, -1), Constant(types.int16, 0),
+                  Constant(types.Duration, RuntimeDuration(duration_ns=1)),
+                  Constant(types.Duration, RuntimeDuration(duration_ns=2)),
+                  Constant(types.TimeOfDay, datetime.time(23, 59)),
+                  Constant(types.TimeOfDay, datetime.time(0, 0))))
+    assert output == (True, False, False, True, False)
+
     program = make_program([
         instruction(Opcode.NOT, local(0), local(0)),
         instruction(Opcode.COPY, result(0), local(0)),
@@ -192,6 +211,11 @@ def check_validation():
                    result_types=(types.uint8,))
     expect_invalid([instruction(Opcode.EQUAL, result(0), result(0), const(0)), ret], 'Expected type',
                    constants=(Constant(types.uint8, 0),))
+    for value_type in (types.boolean, types.MonotonicTime, types.TypeOption(types.uint8)):
+        expect_invalid([instruction(Opcode.LESS, result(0), local(0), local(0)), ret], 'not ordered',
+                       local_types=(value_type,))
+    expect_invalid([instruction(Opcode.LESS, result(0), local(0), const(0)), ret], 'Expected type',
+                   local_types=(types.uint8,), constants=(Constant(types.int8, 0),))
     expect_invalid([instruction(Opcode.JUMP, 1), ret], 'Invalid operands')
     for index in (-1, 0, 2, True):
         expect_invalid([instruction(Opcode.JUMP, BranchTarget(index)), ret], 'later instruction')
@@ -244,6 +268,7 @@ def check_dump():
 check_boolean_operations()
 check_structs_and_options()
 check_defaults_and_equality()
+check_ordering()
 check_branches()
 check_validation()
 check_dump()

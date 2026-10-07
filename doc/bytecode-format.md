@@ -693,6 +693,7 @@ denote integer parameters.
 | `AND destination, left, right` | Compute boolean conjunction. |
 | `OR destination, left, right` | Compute boolean disjunction. |
 | `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
+| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer, `Duration`, or `TimeOfDay` type. |
 | `JUMP offset` | Continue at the branch target. |
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |

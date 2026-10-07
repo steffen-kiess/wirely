@@ -13,6 +13,9 @@ def check_main_program():
     source.set_value(False)
     engine.get_native_state('option_source').set_value(None)
     engine.get_native_state('nested_source').set_value(None)
+    engine.get_native_state('int_source').set_value(0)
+    engine.get_native_state('duration_source').set_value(wirely.Duration(duration_ns=0))
+    engine.get_native_state('time_source').set_value(datetime.time(0))
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -260,6 +263,25 @@ def check_option_presence():
     engine.assert_is_idle()
 
 
+
+def check_ordering():
+    cases = {
+        'int': [-2, -1, 0],
+        'duration': [wirely.Duration(duration_ns=999_999_999), wirely.Duration(duration_ns=1_000_000_000),
+                     wirely.Duration(duration_ns=1_000_000_001)],
+        'time': [datetime.time(7, 59), datetime.time(8), datetime.time(8, 1)],
+    }
+    for name, (below, equal, above) in cases.items():
+        source = engine.get_native_state(f'{name}_source')
+        for value, expected in [(below, (True, True, False, False)), (equal, (False, True, False, True)),
+                                (above, (False, False, True, True))]:
+            source.set_value(value)
+            engine.step()
+            for output, result in zip(('Less', 'LessEqual', 'Greater', 'GreaterEqual'), expected):
+                engine.assert_value_is(f'{name}_ordering.{output}', result)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -268,3 +290,4 @@ check_root_only()
 check_root_dependencies()
 check_root_state()
 check_option_presence()
+check_ordering()

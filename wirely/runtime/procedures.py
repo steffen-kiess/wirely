@@ -78,6 +78,9 @@ def execute_procedure(program, procedure, inputs):
             elif opcode == Opcode.EQUAL:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)
+            elif opcode == Opcode.LESS:
+                left, right = read(operands[1]), read(operands[2])
+                result = value_type(operands[1]).less(left, right)
             values[destination.kind][destination.index] = result
         index += 1
     return {name: _to_native(value_type, value)

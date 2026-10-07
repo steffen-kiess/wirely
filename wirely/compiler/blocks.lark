@@ -88,6 +88,10 @@ list_specifier: "multi" -> list_specifier__create_list
 ?equality_expression: unary_expression
                     | unary_expression "==" unary_expression -> binary_expression__equal
                     | unary_expression "!=" unary_expression -> binary_expression__not_equal
+                    | unary_expression "<" unary_expression -> binary_expression__less
+                    | unary_expression "<=" unary_expression -> binary_expression__less_equal
+                    | unary_expression ">" unary_expression -> binary_expression__greater
+                    | unary_expression ">=" unary_expression -> binary_expression__greater_equal
 ?unary_expression: atom
                  | "!" unary_expression -> unary_expression
 ?atom: reference -> copy
@@ -116,6 +120,10 @@ if_expression: "if" condition expression_block "else" expression_block
 ?condition_equality: condition_unary
                   | condition_unary "==" condition_unary -> binary_expression__equal
                   | condition_unary "!=" condition_unary -> binary_expression__not_equal
+                  | condition_unary "<" condition_unary -> binary_expression__less
+                  | condition_unary "<=" condition_unary -> binary_expression__less_equal
+                  | condition_unary ">" condition_unary -> binary_expression__greater
+                  | condition_unary ">=" condition_unary -> binary_expression__greater_equal
 ?condition_unary: condition_atom
                 | "!" condition_unary -> unary_expression
 ?condition_atom: reference -> copy

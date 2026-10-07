@@ -264,7 +264,7 @@ offset and wraps at midnight.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean
-operators, and declared native functions. General arithmetic
+operators, comparisons, and declared native functions. General arithmetic
 expressions are not currently implemented.
 
 ## Compile-time functions
@@ -450,6 +450,10 @@ lists compare ordered contents and length; structs compare fields and must
 have the same declared type. Durations compare nanoseconds; monotonic times
 compare generation and timestamp, with two invalid values equal. `!=` is
 the complement of `==`.
+
+`<`, `<=`, `>`, and `>=` order integers, `Duration`, and `TimeOfDay` values
+of the same type. Times of day compare within one day, so `"23:00"` is
+after `"01:00"`. Comparisons do not chain: write `a < b && b < c`.
 
 All concrete value types support equality at compile time. Procedures can
 compare runtime types, including times, options, and structs; strings,

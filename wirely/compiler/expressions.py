@@ -38,6 +38,22 @@ class BinaryExpression(Expression):
     def not_equal(left, right, *, source_position):
         return BinaryExpression(left, right, operator='ne', source_position=source_position)
 
+    @staticmethod
+    def less(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='lt', source_position=source_position)
+
+    @staticmethod
+    def less_equal(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='le', source_position=source_position)
+
+    @staticmethod
+    def greater(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='gt', source_position=source_position)
+
+    @staticmethod
+    def greater_equal(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='ge', source_position=source_position)
+
 
 class UnaryExpression(Expression):
     def __init__(self, operand, *, source_position):
@@ -160,9 +176,13 @@ class TypedExpression:
         if self.operation in ('not', 'and', 'or'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
-        elif self.operation in ('eq', 'ne'):
+        elif self.operation in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
+            if (self.operation not in ('eq', 'ne') and not left.value_type.contains_parameters
+                    and not left.value_type.is_ordered):
+                raise ProgramError(self.source, 'Ordering comparison requires an integer, Duration, '
+                                   f'or TimeOfDay value, got {left.value_type}')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
@@ -217,6 +237,15 @@ class TypedExpression:
             return left == right
         if operation == 'ne':
             return left != right
+        less = self.arguments[0].value_type.less
+        if operation == 'lt':
+            return less(left, right)
+        if operation == 'le':
+            return not less(right, left)
+        if operation == 'gt':
+            return less(right, left)
+        if operation == 'ge':
+            return not less(left, right)
         raise AssertionError(f'Unknown compiler expression operation {operation!r}')
 
 
@@ -320,6 +349,15 @@ class InstructionCompiler:
             right = self.compile(expression.arguments[1])
             self.emit(Opcode.EQUAL, destination, left, right)
             if operation == 'ne':
+                self.emit(Opcode.NOT, destination, destination)
+        elif operation in ('lt', 'le', 'gt', 'ge'):
+            right = self.compile(expression.arguments[1])
+            # a <= b is !(b < a), and a >= b is !(a < b).
+            if operation in ('lt', 'ge'):
+                self.emit(Opcode.LESS, destination, left, right)
+            else:
+                self.emit(Opcode.LESS, destination, right, left)
+            if operation in ('le', 'ge'):
                 self.emit(Opcode.NOT, destination, destination)
         else:
             raise AssertionError(f'Unknown procedure operation {operation!r}')

@@ -125,3 +125,32 @@ node presence: Presence { Type: boolean }
 node nested_presence: Presence { Type: Option[boolean] }
 connect option_source -> presence;
 connect nested_source -> nested_presence;
+
+node type Ordering {
+  parameter Type: ValueType;
+  parameter Limit: Type;
+  default input: value Type;
+  output Less: value boolean;
+  output LessEqual: value boolean;
+  output Greater: value boolean;
+  output GreaterEqual: value boolean;
+
+  procedure run depends on default input as input
+    produces Less, LessEqual, Greater, GreaterEqual
+  {
+    Less = input < Limit;
+    LessEqual = input <= Limit;
+    Greater = input > Limit;
+    GreaterEqual = if input >= Limit { true } else { false };
+  }
+}
+
+node int_source: Std.DebugValueSource { Type: int16 }
+node duration_source: Std.DebugValueSource { Type: Duration }
+node time_source: Std.DebugValueSource { Type: TimeOfDay }
+node int_ordering: Ordering { Type: int16, Limit: -1 }
+node duration_ordering: Ordering { Type: Duration, Limit: "PT1S" }
+node time_ordering: Ordering { Type: TimeOfDay, Limit: "08:00" }
+connect int_source -> int_ordering;
+connect duration_source -> duration_ordering;
+connect time_source -> time_ordering;

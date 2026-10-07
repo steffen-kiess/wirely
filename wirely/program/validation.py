@@ -19,6 +19,7 @@ _SIGNATURES = {
     Opcode.AND: (Operand, Operand, Operand),
     Opcode.OR: (Operand, Operand, Operand),
     Opcode.EQUAL: (Operand, Operand, Operand),
+    Opcode.LESS: (Operand, Operand, Operand),
     Opcode.JUMP: (BranchTarget,),
     Opcode.JUMP_IF_TRUE: (Operand, BranchTarget),
     Opcode.JUMP_IF_FALSE: (Operand, BranchTarget),
@@ -106,9 +107,11 @@ def _validate_body(procedure, constant_types):
             elif opcode in (Opcode.NOT, Opcode.AND, Opcode.OR, Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
                 for value_type in operand_types:
                     _same_type(value_type, boolean)
-            elif opcode == Opcode.EQUAL:
+            elif opcode in (Opcode.EQUAL, Opcode.LESS):
                 _same_type(operand_types[0], boolean)
                 _same_type(operand_types[1], operand_types[2])
+                if opcode == Opcode.LESS and not operand_types[1].is_ordered:
+                    raise ValueError(f'Type {operand_types[1]} is not ordered')
         except ValueError as error:
             raise ValueError(f'Instruction idx{index}: {error}') from error
 

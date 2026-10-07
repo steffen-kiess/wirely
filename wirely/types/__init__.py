@@ -14,6 +14,7 @@ from .time import MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDura
 # A value type supporting runtime validation, equality, and text parsing.
 class Type(abc.ABC):
     has_runtime_representation = False
+    is_ordered = False  # Whether less() defines a total order on values.
 
     @property
     def nesting_depth(self):
@@ -151,6 +152,11 @@ class TypeConcrete(Type):
 
     def equals(self, value1, value2):
         return self.verify_value(value1) == self.verify_value(value2)
+
+    def less(self, value1, value2):
+        if not self.is_ordered:
+            raise ValueError(f'{self} values are not ordered')
+        return self.verify_value(value1) < self.verify_value(value2)
 
 
 class TypeOption(Type):
@@ -397,6 +403,8 @@ class TypeBoolean(TypeConcrete):
 
 # TODO: Work on value verification etc.
 class TypeInt(TypeConcrete):
+    is_ordered = True
+
     def __init__(self, *, is_signed, bits):
         name = f'int{bits}'
         if not is_signed:
@@ -468,6 +476,8 @@ class TypeMonotonicTime(TypeConcrete):
 
 # TODO: Add to_csv_value and make json serializable?
 class TypeDuration(TypeConcrete):
+    is_ordered = True
+
     def __init__(self):
         super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
@@ -480,6 +490,8 @@ class TypeDuration(TypeConcrete):
 
 # TODO: Add to_csv_value?
 class TypeTimeOfDay(TypeConcrete):
+    is_ordered = True
+
     def __init__(self):
         super().__init__(name='TimeOfDay', python_type=datetime.time, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 

@@ -18,6 +18,7 @@ class Opcode(enum.Enum):
     AND = enum.auto()
     OR = enum.auto()
     EQUAL = enum.auto()
+    LESS = enum.auto()
     JUMP = enum.auto()
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
