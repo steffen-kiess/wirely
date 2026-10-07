@@ -236,3 +236,11 @@ _literal_parsers = {
 def parse_value(value_type, value, *, scope=None):
     parser = _literal_parsers[type(value_type)]
     return value_type.verify_value(parser(value_type, value, scope=scope))
+
+
+def type_parameters(value_type):
+    """Yield the parameters a parameter-dependent type refers to."""
+    if isinstance(value_type, TypeParameter):
+        yield value_type.parameter
+    elif isinstance(value_type, (TypeOption, TypeList)):
+        yield from type_parameters(value_type.inner_type)

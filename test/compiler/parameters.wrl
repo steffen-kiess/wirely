@@ -98,6 +98,13 @@ node type Dependent {
 }
 node dependent_before_type: Dependent { Value: -3, Type?: Some(int8), Expected: -3 }
 node dependent_before_bound_type: Dependent { Value: -3, Type: int8, Expected: -3 }
+node type Chained {
+  parameter Type: ValueType;
+  parameter Inner: Type;
+  parameter Value: Inner;
+  assert Value == 5;
+}
+node chained_reversed: Chained { Value: 5, Inner: int8, Type: ValueType }
 node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
 node type Raw {
   optional parameter r#type: boolean;

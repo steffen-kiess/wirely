@@ -13,7 +13,7 @@ from .attributes import copy_attributes
 
 from wirely.compiler import model as blocks
 from wirely.util import check_parameters
-from wirely.compiler.types import parse_value, resolve_type, check_runtime_type
+from wirely.compiler.types import parse_value, resolve_type, check_runtime_type, type_parameters
 
 
 _UNSET_SOURCE_PATH = object()
@@ -1332,11 +1332,16 @@ class DeclarationBlockInstantiation(Declaration):
                 compile_constant(graph, value, blocks.types.TypeOption(par.type_resolved), {})
                 self.par_values[par] = blocks.value.OptionalBinding(graph, value, par)
 
-        # Bind type parameters first because other parameter types may refer to them.
-        bindings = [(parameter, self.block_type.parameters_by_name[parameter.name.id_str])
-                    for parameter in block_arg if not parameter.is_optional]
-        bindings.sort(key=lambda binding: binding[1].type_resolved != blocks.types.ValueType)
-        for parameter, par in bindings:
+        pending = {self.block_type.parameters_by_name[parameter.name.id_str]: parameter
+                   for parameter in block_arg if not parameter.is_optional}
+
+        def bind(par):
+            parameter = pending.pop(par, None)
+            if parameter is None:
+                return
+            # Bind the parameters this parameter's type refers to first.
+            for dependency in type_parameters(par.type_resolved):
+                bind(dependency)
             value = parameter.value
             par_type = resolve_type(par.type_resolved, self.par_values)
             # TODO: Is passing par_values=self.par_values here the correct thing to do?
@@ -1346,6 +1351,9 @@ class DeclarationBlockInstantiation(Declaration):
             else:
                 val = graph.get_const_value(value, par_type, par_values=self.par_values)
                 self.par_values[par] = val
+
+        for par in list(pending):
+            bind(par)
 
     def compile_pass2(self, graph):
         block = self.block_type.create(graph=graph, par_values=self.par_values, name=self.block_name, instantiation=self)
