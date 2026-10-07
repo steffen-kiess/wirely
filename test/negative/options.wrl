@@ -16,11 +16,11 @@ constant Result: boolean = Value.UnwrapOr(1); // E: Expected value of type boole
 
 // TEST: unknown option method
 constant Value: Option[uint8] = None;
-constant Result: uint8 = Value.Unwrap(); // E: Value of type Option[uint8] has no method 'Unwrap'
+constant Result: uint8 = Value.Take(); // E: Value of type Option[uint8] has no method 'Take'
 
 // TEST: method of a non-option value
 constant Value: uint8 = 1;
-constant Result: uint8 = Value.Unwrap(); // E: Value of type uint8 has no method 'Unwrap'
+constant Result: uint8 = Value.Take(); // E: Value of type uint8 has no method 'Take'
 
 // TEST: calling an option property
 constant Value: Option[uint8] = None;
@@ -84,3 +84,32 @@ node type Shadow {
 node shadow: Shadow { Limit: 1 }
 node source: Std.Constant { Type: Option[uint8], Value: None }
 connect source -> shadow;
+
+// TEST: Unwrap of None
+constant Value: Option[uint8] = None;
+constant Result: uint8 = Value.Unwrap(); // E: Called Unwrap on a None value
+
+// TEST: Unwrap with an argument
+constant Value: Option[uint8] = Some(1);
+constant Result: uint8 = Value.Unwrap(2); // E: Unwrap expects no arguments
+
+// TEST: Unwrap on a non-option
+constant Value: uint8 = 1;
+constant Result: uint8 = Value.Unwrap(); // E: Expected an Option value, got uint8
+
+// TEST: Unwrap in a procedure
+node type Probe {
+  parameter Value: Option[uint8] = Some(1);
+  default output: value uint8;
+  procedure run produces default output as output {
+    output = Value.Unwrap(); // E: Unwrap is compile-time only; use UnwrapOr or if let
+  }
+}
+node probe: Probe {}
+
+// TEST: Unwrap of None in an instance
+node type Probe {
+  parameter Value: Option[uint8];
+  constant Result: uint8 = Value.Unwrap(); // E: Called Unwrap on a None value
+}
+node probe: Probe { Value: None } // H: While instantiating 'probe'

@@ -289,6 +289,10 @@ class TypedExpression:
             check_value_type(condition.value_type, boolean, condition.source)
             check_value_type(otherwise.value_type, then.value_type, otherwise.source)
             check_value_type(then.value_type, self.value_type, then.source)
+        elif self.operation == 'unwrap':
+            option = self.arguments[0]
+            if not option.value_type.contains_parameters and not isinstance(option.value_type, blocks.types.TypeOption):
+                raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
         elif self.operation in ('unwrap_or', 'if_let'):
             option = self.arguments[0]
             if option.value_type.contains_parameters and not isinstance(option.value_type, blocks.types.TypeOption):
@@ -370,6 +374,10 @@ class TypedExpression:
         if operation in ('arith', 'neg'):
             return self.evaluate_arithmetic(inputs, locals)
         left = self.arguments[0].evaluate(inputs, locals)
+        if operation == 'unwrap':
+            if left is None:
+                raise ProgramError(self.source, 'Called Unwrap on a None value')
+            return left.value
         if operation == 'not':
             return not left
         if operation == 'is_some':
@@ -679,6 +687,8 @@ class ExpressionCompiler:
             if isinstance(method, PropertyAccess):
                 if method.name.id_str == 'UnwrapOr':
                     return self.unwrap_or(expression, method.receiver, expected)
+                if method.name.id_str == 'Unwrap':
+                    return self.unwrap(expression, method.receiver, expected)
                 if method.name.id_str in ('IsSome', 'IsNone'):
                     raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
                 receiver = self.compile(method.receiver)
@@ -836,6 +846,17 @@ class ExpressionCompiler:
         if isinstance(option.value_type, blocks.types.TypeOption):
             return option, option.value_type.inner_type
         raise ProgramError(expression, f'Expected an Option value, got {option.value_type}')
+
+    def unwrap(self, call, receiver, expected):
+        # Programs must not fail at runtime, so Unwrap is compile-time only.
+        if self.runtime:
+            raise ProgramError(call, 'Unwrap is compile-time only; use UnwrapOr or if let')
+        if call.parameters:
+            raise ProgramError(call, 'Unwrap expects no arguments')
+        option_type = (blocks.types.TypeOption(expected)
+                       if expected is not None and self.context_type(receiver) is None else None)
+        option, inner_type = self.option_operand(receiver, option_type)
+        return TypedExpression(inner_type, 'unwrap', (option,))
 
     def unwrap_or(self, call, receiver, expected):
         if len(call.parameters) != 1:

@@ -517,6 +517,10 @@ For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
 when absent. `value.UnwrapOr(fallback)` returns the contained value, or
 `fallback` of type `T` when absent. As in Rust, the fallback is evaluated
 even when unused, so a compile-time error in it fails compilation.
+`value.Unwrap()` returns the contained value and fails compilation when
+the value is `None`. It is compile-time only, for example
+`constant Small: int8 = int8.CheckedFrom(Large).Unwrap();`; procedure
+bodies use `UnwrapOr` or `if let`.
 
 `if let Some(name) = value { … } else { … }` binds the contained value to
 `name` within the first block and evaluates the `else` block when absent:
