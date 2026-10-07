@@ -173,6 +173,14 @@ namespace Duration {
   native function CheckedSub(a: Duration, b: Duration): Option[Duration];
   native function CheckedMul(duration: Duration, factor: uint32): Option[Duration];
   native function CheckedDiv(duration: Duration, divisor: uint32): Option[Duration];
+  native function FromSecs(secs: uint32): Duration;
+  native function FromMillis(millis: uint32): Duration;
+  native function FromMicros(micros: uint32): Duration;
+  native function FromNanos(nanos: uint64): Duration;
+  native function AsSecs(duration: Duration): uint64;
+  native function AsMillis(duration: Duration): uint64;
+  native function AsMicros(duration: Duration): uint64;
+  native function AsNanos(duration: Duration): uint64;
 }
 
 namespace MonotonicTime {

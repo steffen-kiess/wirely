@@ -263,14 +263,18 @@ node type DurationMath {
   output Difference: value Duration;
   output Scaled: value Option[Duration];
   output Divided: value Option[Duration];
+  output FactorSecs: value Duration;
+  output Millis: value uint64;
 
   procedure run depends on default input as span, Factor as factor
-    produces Sum, Difference, Scaled, Divided
+    produces Sum, Difference, Scaled, Divided, FactorSecs, Millis
   {
     Sum = Duration.SaturatingAdd(span, "PT1S");
     Difference = Duration.SaturatingSub(span, "PT1S");
     Scaled = Duration.CheckedMul(span, factor);
     Divided = Duration.CheckedDiv(span, factor);
+    FactorSecs = Duration.FromSecs(factor);
+    Millis = Duration.AsMillis(span);
   }
 }
 

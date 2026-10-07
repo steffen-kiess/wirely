@@ -23,3 +23,16 @@ assert Duration.CheckedDiv(Max, 4294967295) == Some("PT4.294967297S");
 constant Total: Duration = Second + "PT2S" - "PT0.5S";
 assert Total == "PT2.5S" && Max - Max == "PT0S";
 assert Second + Second > Second && "PT1M" - Second == "PT59S";
+
+// Conversions from integer counts never overflow; extraction rounds down.
+assert Duration.FromSecs(90) == "PT1M30S" && Duration.FromMillis(1500) == "PT1.5S";
+assert Duration.FromMicros(1) == "PT0.000001S" && Duration.FromNanos(1) == "PT0.000000001S";
+assert Duration.FromSecs(4294967295) == "PT4294967295S";
+assert Duration.FromMillis(4294967295) == "PT4294967.295S";
+assert Duration.FromMicros(4294967295) == "PT4294.967295S";
+assert Duration.FromNanos(18446744073709551615) == Max;
+constant Almost: Duration = "PT1.999999999S";
+assert Duration.AsSecs(Almost) == 1 && Duration.AsMillis(Almost) == 1999;
+assert Duration.AsMicros(Almost) == 1999999 && Duration.AsNanos(Almost) == 1999999999;
+assert Duration.AsNanos(Max) == 18446744073709551615 && Duration.AsSecs(Max) == 18446744073;
+assert Duration.AsSecs(Duration.FromSecs(4294967295)) == 4294967295;

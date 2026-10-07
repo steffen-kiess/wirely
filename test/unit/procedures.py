@@ -414,7 +414,8 @@ def check_duration_functions():
         factor_source.set_value(factor)
         engine.step()
         for output, expected in [('Sum', duration(total)), ('Difference', duration(difference)),
-                                 ('Scaled', scaled), ('Divided', divided)]:
+                                 ('Scaled', scaled), ('Divided', divided),
+                                 ('FactorSecs', duration(factor * second)), ('Millis', span // 1_000_000)]:
             engine.assert_value_is(f'duration_math.{output}', expected)
     engine.assert_is_idle()
 

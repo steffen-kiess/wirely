@@ -145,6 +145,18 @@ and compile-time expressions:
 In compile-time expressions, `a + b` and `a - b` also combine two
 durations; a result outside the range fails compilation.
 
+These functions convert between durations and integer counts of seconds,
+milliseconds, microseconds, or nanoseconds:
+
+| Function | Result |
+| --- | --- |
+| `Duration.FromSecs(secs)`, `Duration.FromMillis(millis)`, `Duration.FromMicros(micros)` | The duration of a `uint32` count of the unit. |
+| `Duration.FromNanos(nanos)` | The duration of a `uint64` count of nanoseconds. |
+| `Duration.AsSecs(duration)`, `Duration.AsMillis(duration)`, `Duration.AsMicros(duration)`, `Duration.AsNanos(duration)` | The `uint64` count of whole units, rounded down. |
+
+For example, `Duration.AsSecs("PT1.9S")` is 1. Convert other integer types
+with `uint32.From` or `uint32.CheckedFrom`.
+
 ### Time of day
 
 `TimeOfDay` describes a clock time without a date or timezone, with

@@ -64,3 +64,49 @@ def checked_div(*, context):
     if divisor == 0:
         return None
     return _checked(context.arguments['duration'].duration_ns // divisor)
+
+
+
+# Conversions to and from integer counts of a unit. The input types keep
+# construction within the range; extraction rounds down.
+_SECOND_NS, _MILLISECOND_NS, _MICROSECOND_NS = 1_000_000_000, 1_000_000, 1_000
+
+
+@native_function(native_functions, 'FromSecs')
+def from_secs(*, context):
+    return wirely.Duration(duration_ns=context.arguments['secs'] * _SECOND_NS)
+
+
+@native_function(native_functions, 'FromMillis')
+def from_millis(*, context):
+    return wirely.Duration(duration_ns=context.arguments['millis'] * _MILLISECOND_NS)
+
+
+@native_function(native_functions, 'FromMicros')
+def from_micros(*, context):
+    return wirely.Duration(duration_ns=context.arguments['micros'] * _MICROSECOND_NS)
+
+
+@native_function(native_functions, 'FromNanos')
+def from_nanos(*, context):
+    return wirely.Duration(duration_ns=context.arguments['nanos'])
+
+
+@native_function(native_functions, 'AsSecs')
+def as_secs(*, context):
+    return context.arguments['duration'].duration_ns // _SECOND_NS
+
+
+@native_function(native_functions, 'AsMillis')
+def as_millis(*, context):
+    return context.arguments['duration'].duration_ns // _MILLISECOND_NS
+
+
+@native_function(native_functions, 'AsMicros')
+def as_micros(*, context):
+    return context.arguments['duration'].duration_ns // _MICROSECOND_NS
+
+
+@native_function(native_functions, 'AsNanos')
+def as_nanos(*, context):
+    return context.arguments['duration'].duration_ns

@@ -33,3 +33,13 @@ constant Value: Duration = Duration.SaturatingAdd("PT1S"); // E: Function 'Durat
 
 // TEST: checked result type
 constant Value: Duration = Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Duration, got Option[Duration]
+
+// TEST: conversion argument type
+constant Count: uint64 = 2;
+constant Value: Duration = Duration.FromSecs(Count); // E: Expected value of type uint32, got uint64
+
+// TEST: conversion literal above uint32
+constant Value: Duration = Duration.FromMillis(4294967296); // E: Int value out of range: 4294967296
+
+// TEST: conversion result type
+constant Value: uint32 = Duration.AsSecs("PT1S"); // E: Expected value of type uint32, got uint64
