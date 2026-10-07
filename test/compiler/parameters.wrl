@@ -105,6 +105,13 @@ node type Chained {
   assert Value == 5;
 }
 node chained_reversed: Chained { Value: 5, Inner: int8, Type: ValueType }
+node type ChainedReverse {
+  parameter Value: Inner;
+  parameter Inner: Type;
+  parameter Type: ValueType;
+  assert Value == 5;
+}
+node chained_declared_reversed: ChainedReverse { Type: ValueType, Inner: int8, Value: 5 }
 node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
 node type Raw {
   optional parameter r#type: boolean;

@@ -24,6 +24,11 @@ node type Invalid {
 }
 node invalid: Invalid {}
 
+// TEST: parameter_type_self_reference
+node type Invalid {
+  parameter Type: Type; // E: Cannot find type Type
+}
+
 // TEST: unknown_parameter
 // LIBRARIES: std
 node node1: Std.DebugEventSource { missing_keyword: boolean } // E: Unknown parameter for DebugEventSource: missing_keyword

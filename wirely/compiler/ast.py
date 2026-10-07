@@ -628,6 +628,9 @@ class Scope(Declaration):
                 # TODO: Avoid hasattr
                 if name in self.static_declarations:
                     par = self.static_declarations[name]
+                    # A parameter whose type refers to itself is not a type.
+                    if not getattr(par, 'resolving_type', False):
+                        par.resolve_type()
                     declared_type = getattr(par, 'type_resolved', None)
                     is_type = (isinstance(par.ty, Reference) and par.ty.length == 1
                                and par.ty.identifiers[0].id_str == 'ValueType')
@@ -1166,11 +1169,15 @@ class DeclarationParameter(Declaration):
         pass
 
     def resolve_type(self):
+        # Types may refer to parameters declared later, which resolve on demand.
         if hasattr(self, 'type_resolved'):
-            raise Exception("hasattr(self, 'type_resolved')")
-
-        # TODO: Is this correct?
-        self.type_resolved = self.interface.resolve_type(self.ty)
+            return
+        self.resolving_type = True
+        try:
+            # TODO: Is this correct?
+            self.type_resolved = self.interface.resolve_type(self.ty)
+        finally:
+            self.resolving_type = False
 
     def __repr__(self):
         # return f'Parameter <{self.name}> [{self.name.source_position.start_line}] : <{self.ty}>'
