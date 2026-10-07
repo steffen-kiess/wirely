@@ -260,7 +260,7 @@ and require a signed integer type. Raw strings (`r"..."` and `r#"..."#`)
 are also accepted.
 Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
-value of type `T`.
+value of type `T`. Without an expected type, `Some(x)` takes `T` from `x`.
 `MonotonicTime.Invalid` is the available monotonic-time constant. The
 compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.
@@ -510,8 +510,9 @@ let level = if let Some(sum) = int16.CheckedAdd(input, 1) { sum } else { 0 };
 `let`. Other patterns are not supported, and the value cannot contain `&&`
 or `||` without parentheses.
 
-Procedures can copy any runtime value, including options and structs, and
-read struct fields.
+Procedures can copy any runtime value, including options and structs, read
+struct fields, and build options and structs with `Some(x)` and struct
+literals. List literals are compile-time only.
 Their connector dependencies and results currently use single `value`
 connectors, not events or multi inputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.

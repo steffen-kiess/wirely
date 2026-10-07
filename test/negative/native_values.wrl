@@ -64,11 +64,6 @@ node type Probe {
   native procedure run uses [true] as value; // E: List literals require a List type
 }
 
-// TEST: option inference needs context
-node type Probe {
-  native procedure run uses Some(true) as value; // E: Some requires an Option type
-}
-
 // TEST: typed local mismatch
 node type Probe {
   native procedure run uses { let value: uint8 = true; value } as value; // E: Invalid int value

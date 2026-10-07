@@ -22,11 +22,8 @@ constant Bad: boolean = None.IsNone; // E: Cannot infer expression type
 // TEST: parenthesized unresolved None
 constant Bad: boolean = (None).IsSome; // E: Cannot infer expression type
 
-// TEST: unresolved Some
-constant Bad: boolean = Some(true).IsSome; // E: Some requires an Option type
-
 // TEST: unresolved nested Some
-constant Bad: boolean = Some(None).IsSome; // E: Some requires an Option type
+constant Bad: boolean = Some(None).IsSome; // E: Cannot infer expression type
 
 // TEST: unresolved block result
 constant Bad: boolean = { None }.IsNone; // E: Cannot infer expression type

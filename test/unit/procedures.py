@@ -326,6 +326,10 @@ def check_struct_fields():
         engine.step()
         engine.assert_value_is('pair_fields.Enabled', enabled)
         engine.assert_value_is('pair_fields.Next', expected_next)
+        engine.assert_value_is('pair_fields.Built', pair(not enabled, number if enabled else 0))
+        engine.assert_value_is('pair_fields.Wrapped', wirely.Some(pair(enabled, number)))
+        engine.assert_value_is('pair_fields.Nested',
+                               None if number == 0 else wirely.Some(wirely.Some(enabled)))
     engine.assert_is_idle()
 
 

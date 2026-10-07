@@ -179,6 +179,11 @@ def type_member(scope, reference, parameters, local_names=()):
     return value_type, member
 
 
+def is_some_call(expression):
+    return (isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference)
+            and expression.fun.length == 1 and expression.fun.identifiers[0].id_str == 'Some')
+
+
 def is_type_declaration(declaration):
     declared_type = getattr(declaration, 'type_resolved', None)
     return (declared_type == blocks.types.ValueType
@@ -470,6 +475,13 @@ class InstructionCompiler:
             return self.compile(expression.arguments[-1], destination)
         if destination is None:
             destination = self.allocate(expression.value_type)
+        if operation == 'struct':
+            # Field values are computed before being stored; bodies never read the destination.
+            values = [self.compile(argument) for argument in expression.arguments]
+            fields = tuple(expression.value_type.fields)
+            for name, value in zip(expression.payload, values):
+                self.emit(Opcode.SET_FIELD, destination, value, fields.index(name))
+            return destination
         left = self.compile(expression.arguments[0])
         if operation == 'if':
             skip_then = self.emit(Opcode.JUMP_IF_FALSE, left, BranchTarget(0))
@@ -502,6 +514,8 @@ class InstructionCompiler:
         elif operation == 'field':
             index = tuple(expression.arguments[0].value_type.fields).index(expression.payload)
             self.emit(Opcode.GET_FIELD, destination, left, index)
+        elif operation == 'some':
+            self.emit(Opcode.MAKE_SOME, destination, left)
         elif operation in ('not', 'is_some', 'is_none'):
             self.emit(Opcode.NOT if operation == 'not' else Opcode.IS_SOME, destination, left)
             if operation == 'is_none':
@@ -685,10 +699,12 @@ class ExpressionCompiler:
             if (names not in (['true'], ['false'], ['None'], ['MonotonicTime', 'Invalid'])
                     and not isinstance(self.known_type(expression), blocks.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
-        if not self.runtime and isinstance(expression, blocks.StructLiteral):
+        if isinstance(expression, blocks.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)
             fields = check_struct_literal(value_type, expression, self.scope)
+            if self.runtime:
+                check_runtime_type(value_type, expression)
             arguments = tuple(self.compile(field.value, value_type.fields[name])
                               for name, field in fields.items())
             return TypedExpression(value_type, 'struct', arguments, tuple(fields))
@@ -701,21 +717,23 @@ class ExpressionCompiler:
                 raise ProgramError(expression, 'List literals require a List type')
             arguments = tuple(self.compile(value, inner_type) for value in expression.values)
             return TypedExpression(expected, 'list', arguments)
+        if is_some_call(expression):
+            if len(expression.parameters) != 1:
+                raise ProgramError(expression, 'Some expects exactly one argument')
+            if isinstance(expected, blocks.types.TypeOption):
+                inner_type = expected.inner_type
+            elif expected is not None and expected.contains_parameters:
+                inner_type = expected
+            else:
+                # Without an expected Option type, the argument determines it, as in Rust.
+                argument = self.compile(expression.parameters[0])
+                return TypedExpression(blocks.types.TypeOption(argument.value_type), 'some', (argument,))
+            argument = self.compile(expression.parameters[0], inner_type)
+            return TypedExpression(expected, 'some', (argument,))
         if not self.runtime and isinstance(expression, blocks.FunctionCall):
             if not isinstance(expression.fun, blocks.Reference):
                 raise ProgramError(expression.fun, 'Function is not a reference')
             name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
-            if name == 'Some':
-                if isinstance(expected, blocks.types.TypeOption):
-                    inner_type = expected.inner_type
-                elif expected is not None and expected.contains_parameters:
-                    inner_type = expected
-                else:
-                    raise ProgramError(expression, 'Some requires an Option type')
-                if len(expression.parameters) != 1:
-                    raise ProgramError(expression, 'Some expects exactly one argument')
-                argument = self.compile(expression.parameters[0], inner_type)
-                return TypedExpression(expected, 'some', (argument,))
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is None:
                 raise ProgramError(expression.fun, f'Cannot find function {name!r}')
@@ -791,6 +809,10 @@ class ExpressionCompiler:
     def check_runtime_syntax(self, expression):
         if isinstance(expression, blocks.ParameterOption):
             raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
+        if is_some_call(expression):
+            for argument in expression.parameters:
+                self.check_runtime_syntax(argument)
+            return
         if (isinstance(expression, blocks.FunctionCall)
                 and type_member(self.scope, expression.fun, self.parameters, self.names) is not None):
             for argument in expression.parameters:
@@ -840,6 +862,10 @@ class ExpressionCompiler:
             return self.context_type(expression.left) or self.context_type(expression.right)
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
             return self.context_type(expression.operand)
+        if is_some_call(expression):
+            inner_type = (self.context_type(expression.parameters[0])
+                          if len(expression.parameters) == 1 else None)
+            return blocks.types.TypeOption(inner_type) if inner_type is not None else None
         return self.known_type(expression)
 
     def known_type(self, expression):
@@ -912,6 +938,9 @@ class ExpressionCompiler:
             return self.context_type(expression.otherwise) or self.known_type(expression.otherwise)
         if isinstance(expression, blocks.StructLiteral):
             return self.scope.resolve_type(expression.struct_type, par_values=self.parameters)
+        if is_some_call(expression):
+            inner_type = self.known_type(expression.parameters[0]) if len(expression.parameters) == 1 else None
+            return blocks.types.TypeOption(inner_type) if inner_type is not None else None
         if isinstance(expression, blocks.FunctionCall):
             method = property_reference(self.scope, expression.fun, self.names)
             if isinstance(method, PropertyAccess):

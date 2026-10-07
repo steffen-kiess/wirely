@@ -213,10 +213,19 @@ node type PairFields {
   default input: value ProcedureTests.Pair;
   output Enabled: value boolean;
   output Next: value uint8;
+  output Built: value ProcedureTests.Pair;
+  output Wrapped: value Option[ProcedureTests.Pair];
+  output Nested: value Option[Option[boolean]];
 
-  procedure run depends on default input as input produces Enabled, Next {
+  procedure run depends on default input as input
+    produces Enabled, Next, Built, Wrapped, Nested
+  {
     Enabled = input.enabled;
     Next = uint8.SaturatingAdd(input.number, 1);
+    let maybe = if input.enabled { Some(input.number) } else { None };
+    Built = ProcedureTests.Pair { number: maybe.UnwrapOr(0), enabled: !input.enabled };
+    Wrapped = Some(input);
+    Nested = if input.number == 0 { None } else { Some(Some(input.enabled)) };
   }
 }
 

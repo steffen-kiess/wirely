@@ -368,3 +368,23 @@ procedure two depends on first produces second { second = first; } // E: Circula
 
 // TEST: top-level native procedure
 native procedure p1; // E: Native procedures must belong to a node type
+
+// TEST: Some argument count in a procedure
+temporary result: Option[boolean];
+procedure run produces result {
+  result = Some(true, false); // E: Some expects exactly one argument
+}
+
+// TEST: struct literal missing field in a procedure
+struct type Pair { enabled: boolean, number: uint8, }
+temporary result: Pair;
+procedure run produces result {
+  result = Pair { enabled: true }; // E: Missing fields of Pair: number
+}
+
+// TEST: struct literal unknown field in a procedure
+struct type Pair { enabled: boolean, }
+temporary result: Pair;
+procedure run produces result {
+  result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
+}

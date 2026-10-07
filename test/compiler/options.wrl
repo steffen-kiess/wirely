@@ -42,3 +42,8 @@ node type Fallback {
 }
 node some_fallback: Fallback { Type: int16, Value: Some(-3), Default: 4 }
 node none_fallback: Fallback { Type: boolean, Value: None, Default: true }
+
+// Some infers its type from the argument without an expected Option type.
+assert Some(1) == Some(1) && Some(Present) == Some(Some(5)) && Some(true).IsSome;
+assert Some(Some(true)) != Some(None) && Present == Some(5);
+assert { let maybe = Some(true); maybe.IsSome && maybe.UnwrapOr(false) };
