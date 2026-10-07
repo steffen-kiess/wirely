@@ -440,8 +440,15 @@ class Block(blocks.Node):
                 # TODO:  whether dependencies of output include required inputs as dependencies
 
                 # TODO: Clean up temporary / output stuff
-                if result.temporary.producer is not None:
-                    raise Exception(f'{result} already has producer {result.temporary.producer}, got new producer {self}')
+                previous = result.temporary.producer
+                if previous is not None:
+                    if isinstance(result, Block.Output):
+                        target = 'Default output' if result.name == '' else f'Output {result.name!r}'
+                    else:
+                        target = f'Variable {result.name!r}'
+                    raise blocks.ProgramError(
+                        declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
+                        hints=[blocks.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
                 # print(f'Setting result for {result} / {result.temporary}')
                 result.temporary.producer = self
 

@@ -65,6 +65,14 @@ class SourceElement:
         if exc is not None:
             raise InternalCompilerError(self, exc)
 
+    def __repr__(self):
+        # The source text reads naturally in diagnostics; subclasses may refine it.
+        position = getattr(self, 'source_position', None)
+        meta = getattr(position, 'meta', None)
+        if meta is not None and not getattr(meta, 'empty', True) and position.input_data:
+            return position.input_data[meta.start_pos:meta.end_pos]
+        return f'{type(self).__name__}()'
+
 
 class CompilerHint:
     @check_parameters
@@ -1101,11 +1109,19 @@ class DeclarationConnector(Declaration):
             name = self.name_str
             if name == '':
                 name = 'default input'
+            if name in new_graph.block_inputs:
+                raise ProgramError(self, f'Duplicate input {name!r}', hints=[
+                    CompilerHint(new_graph.block_inputs[name].conn_spec, 'Previous input was here'),
+                ])
             connector = blocks.BlockInput(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, conn_spec=self.conn_spec, resource_type=resource_type)
         elif self.conn_type == BlockConnectorType.BlockOutput:
             name = self.name_str
             if name == '':
                 name = 'default output'
+            if name in new_graph.block_outputs:
+                raise ProgramError(self, f'Duplicate output {name!r}', hints=[
+                    CompilerHint(new_graph.block_outputs[name].conn_spec, 'Previous output was here'),
+                ])
             connector = blocks.BlockOutput(new_graph, ty, name=name, output_name=self.name_str, conn_spec=self.conn_spec, resource_type=resource_type)
         else:
             raise Exception(f'Unknown conn_type: {self.conn_type!r}')
@@ -1275,7 +1291,12 @@ class DeclarationBlockInstantiation(Declaration):
         self.inner_attributes = instantiation.inner_attributes
 
     def compile_pass1(self, graph):
-        pass
+        name = self.name.id_str
+        if name in graph.node_declarations:
+            raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
+                CompilerHint(graph.node_declarations[name], 'Previous node was here'),
+            ])
+        graph.node_declarations[name] = self
 
     def compile_pass1_5(self, graph):
         name = self.name

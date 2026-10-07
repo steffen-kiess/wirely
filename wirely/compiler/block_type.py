@@ -31,6 +31,7 @@ class BlockType(blocks.Scope):
         self.block_type_interfaces = {}
         self.block_type_implementations = {}
         self.procedures = {}
+        self.node_declarations = {}
         self.initializer = None
         self.variables = {}
         # TODO: Clarify what is the key here (name or input_name)
@@ -169,8 +170,9 @@ class BlockType(blocks.Scope):
         for par in self.parsed_parameters.values():
             # print(par, par.is_optional)
             if not par.is_optional and par not in block.parameter_values:
-                # TODO: Raise ProgramError and pass source location
-                raise Exception(f'Missing value for parameter {par.name!r}')
+                raise blocks.ProgramError(
+                    instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
+                    hints=[blocks.CompilerHint(par, 'Parameter was declared here')])
 
         # TODO: Pass list of connections to constructor instead of getting them from self.graph
         block.custom_inputs = {}

@@ -36,6 +36,20 @@ def connect(source, target, source_element, *, attributes=()):
             blocks.CompilerHint(declaration(target), 'Target was declared here'),
         ])
 
+    # A single input or a type's output takes one source.
+    is_multi = isinstance(target, Block.Input) and target.is_list
+    if not is_multi and target.connected_source is not None:
+        if isinstance(target, Block.Input):
+            connector = 'Default input' if target.name == '' else f'Input {target.name!r}'
+            message = f'{connector} of node {target.block.name!r} already has a source; only multi inputs accept several'
+        else:
+            connector = 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
+            message = f'{connector} already has a source'
+        previous = next((connection.source_element for connection in source.block.graph.connections
+                         if connection.target is target), None)
+        hints = [] if previous is None else [blocks.CompilerHint(previous, 'Previous connection was here')]
+        raise blocks.ProgramError(source_element, message, hints=hints)
+
     def record(kind):
         actual_target = target.members[-1] if isinstance(target, Block.Input) and target.is_list else target
         source.block.graph.connections.append(Connection(

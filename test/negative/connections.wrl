@@ -52,3 +52,51 @@ node type Probe {
   output Ready: value boolean; // E: Output 'Ready' has no producer
 }
 node probe: Probe {} // H: While instantiating 'probe'
+
+// TEST: second source for a single input
+// LIBRARIES: std
+node first: Std.Constant { Type: boolean, Value: true }
+node second: Std.Constant { Type: boolean, Value: false }
+node printer: Std.DebugValuePrinter { Type: boolean }
+connect first -> printer; // H: Previous connection was here
+connect second -> printer; // E: Default input of node 'printer' already has a source; only multi inputs accept several
+
+// TEST: second source for a composite input
+// LIBRARIES: std
+node type Forward {
+  input Value: value boolean;
+  default output: value boolean;
+  connect Value -> default output;
+}
+node first: Std.Constant { Type: boolean, Value: true }
+node second: Std.Constant { Type: boolean, Value: false }
+node forward: Forward {}
+connect first -> forward.Value; // H: Previous connection was here
+connect second -> forward.Value; // E: Input 'Value' of node 'forward' already has a source
+
+// TEST: second source for a node type output
+// LIBRARIES: std
+node type Probe {
+  default output: value boolean;
+  node first: Std.Constant { Type: boolean, Value: true }
+  node second: Std.Constant { Type: boolean, Value: false }
+  connect first -> default output; // H: Previous connection was here
+  connect second -> default output; // E: Default output already has a source
+}
+node probe: Probe {}
+
+// TEST: second producer for an output
+node type Probe {
+  default output: value boolean;
+  procedure first produces default output as output { output = true; } // H: Previous producer was here
+  procedure second produces default output as output { output = false; } // E: Default output is already produced by procedure 'first'
+}
+node probe: Probe {}
+
+// TEST: second producer for a temporary
+node type Probe {
+  temporary flag: boolean;
+  procedure first produces flag { flag = true; } // H: Previous producer was here
+  procedure second produces flag { flag = false; } // E: Variable 'flag' is already produced by procedure 'first'
+}
+node probe: Probe {}

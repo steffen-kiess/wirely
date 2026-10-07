@@ -1,0 +1,47 @@
+// TEST: missing parameter value
+node type Probe {
+  parameter Value: boolean; // H: Parameter was declared here
+}
+node probe: Probe {} // E: Missing value for parameter 'Value' of node 'probe'
+
+// TEST: duplicate node
+node type Probe {}
+node probe: Probe {} // H: Previous node was here
+node probe: Probe {} // E: Duplicate node name 'probe'
+
+// TEST: duplicate node in a node type
+node type Inner {}
+node type Outer {
+  node inner: Inner {} // H: Previous node was here
+  node inner: Inner {} // E: Duplicate node name 'inner'
+}
+
+// TEST: duplicate input
+node type Probe {
+  input Value: value boolean; // H: Previous input was here
+  input Value: value boolean; // E: Duplicate input 'Value'
+}
+
+// TEST: duplicate output
+node type Probe {
+  output Value: value boolean; // H: Previous output was here
+  output Value: value boolean; // E: Duplicate output 'Value'
+}
+
+// TEST: duplicate default output
+node type Probe {
+  default output: value boolean; // H: Previous output was here
+  default output: value boolean; // E: Duplicate output 'default output'
+}
+
+// TEST: literal of the wrong type
+node type Probe {
+  parameter Flag: boolean;
+}
+node probe: Probe { Flag: 5 } // E: Invalid boolean value 5
+
+// TEST: literal as a type
+node type Probe {
+  parameter Type: ValueType;
+}
+node probe: Probe { Type: 5 } // E: Expected Reference or BracketOperator as type name, got 5
