@@ -17,8 +17,11 @@ constant At: TimeOfDay = TimeOfDay.WrappingAdd("23:30", "PT1H",);
 constant ExpectedAt: TimeOfDay = "00:30";
 assert At == ExpectedAt;
 
-node forward: Later {}
-node type Later {}
+node forward: Later { Value: 1 }
+node type Later {
+  parameter Value: uint8;
+  assert Value == 1;
+}
 node native_forward: TestLibrary.TestBlock {}
 
 node type WeakNames {

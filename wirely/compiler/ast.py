@@ -1308,8 +1308,8 @@ class DeclarationBlockInstantiation(Declaration):
         self.block_type = graph.resolve_block_type(inst.block_class_name)
         # print(self.block_name, self.block_type, block_arg)
 
-        # TODO: Is this needed?
-        # self.block_type.compile_pass1_5_if_needed()
+        # The node type may be declared after this node.
+        self.block_type.compile_pass1_5_if_needed()
 
         self.par_values = {}
         seen = set()
