@@ -99,6 +99,7 @@ negative_tests = [
     'test/negative/optional_outputs.wrl',
     'test/negative/constants.wrl',
     'test/negative/arithmetic.wrl',
+    'test/negative/connections.wrl',
     'test/negative/options.wrl',
     'test/negative/type_comparisons.wrl',
     'test/negative/assertions.wrl',

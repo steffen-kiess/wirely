@@ -247,13 +247,18 @@ node probe: Probe {}
 
 // TEST: resource input
 resource type Service;
+node type Provider {
+  default output: resource Service;
+}
 node type Probe {
   input ServiceInput: resource Service;
   default output: value boolean;
   procedure run depends on ServiceInput // E: cannot access resources
     produces default output as output { output = true; }
 }
+node provider: Provider {}
 node probe: Probe {}
+connect provider -> probe.ServiceInput;
 
 // TEST: old state must be declared
 node type Probe {

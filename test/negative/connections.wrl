@@ -1,0 +1,54 @@
+// TEST: unconnected procedure input
+node type Probe {
+  default input: value boolean; // H: Input was declared here
+  default output: value boolean;
+  procedure run depends on default input as input produces default output as output {
+    output = input;
+  }
+}
+node probe: Probe {} // E: Default input of node 'probe' is not connected
+
+// TEST: unconnected resource input
+resource type Service;
+node type Probe {
+  input Service: resource Service; // H: Input was declared here
+}
+node probe: Probe {} // E: Input 'Service' of node 'probe' is not connected
+
+// TEST: unconnected unused input
+node type Probe {
+  input Enabled: value boolean; // H: Input was declared here
+}
+node probe: Probe {} // E: Input 'Enabled' of node 'probe' is not connected
+
+// TEST: unconnected composite input
+node type Inner {
+  default input: value boolean;
+}
+node type Outer {
+  default input: value boolean; // H: Input was declared here
+  node inner: Inner {}
+  connect default input -> inner;
+}
+node outer: Outer {} // E: Default input of node 'outer' is not connected
+
+// TEST: unconnected child input
+node type Inner {
+  default input: value boolean; // H: Input was declared here
+}
+node type Outer {
+  node inner: Inner {} // E: Default input of node 'outer.inner' is not connected
+}
+node outer: Outer {}
+
+// TEST: output without producer
+node type Probe {
+  default output: value boolean; // E: Default output has no producer
+}
+node probe: Probe {} // H: While instantiating 'probe'
+
+// TEST: named output without producer
+node type Probe {
+  output Ready: value boolean; // E: Output 'Ready' has no producer
+}
+node probe: Probe {} // H: While instantiating 'probe'

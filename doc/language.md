@@ -306,10 +306,12 @@ For a named output, write `node_name.OutputName`. Inside a type body,
 Data connectors have a kind and a type: `value boolean` carries the current
 value, while `event boolean` carries an occurrence with a boolean payload.
 An event may be absent in a step. Source and target must have the same kind
-and type; Wirely does not automatically convert them. Ordinary inputs accept
-one source. A `multi value T` or `multi event T` input accepts several sources;
+and type; Wirely does not automatically convert them. Ordinary inputs,
+including resource inputs, need exactly one source. A `multi value T` or
+`multi event T` input accepts any number of sources;
 `connect a, b -> target;` connects both. `Std.And` is an example of a multi
-input.
+input. Each output of a node type needs a producing procedure or a
+connection inside the type.
 
 ### Opaque resource connectors
 

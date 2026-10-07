@@ -73,22 +73,24 @@ class Block(blocks.Node):
         return next((attribute.value for attribute in self.attributes
                      if attribute.name == 'position'), None)
 
-    def validate(self):
+    def validate(self, path):
+        """Require a source for each single input and a producer for each output."""
+        name = Block.path_name(path, qualified=True)
         for input in self.all_block_inputs:
-            if input.connected_source is None:
-                # TODO: Hack
-                if isinstance(input.block, blocks.BlockOutput):
-                    continue
-                raise Exception(f'Input {self.graph}.{self.name}.{input.name} is not connected')
+            if input.connected_source is None and not isinstance(input.block, blocks.BlockOutput):
+                connector = 'Default input' if input.name == '' else f'Input {input.name!r}'
+                raise blocks.ProgramError(self.instantiation, f'{connector} of node {name!r} is not connected',
+                                          hints=[blocks.CompilerHint(input.conn_spec, 'Input was declared here')])
 
         for output in self.block_outputs:
-            if isinstance(output.conn_spec, blocks.ConnectorSpecificationResource):
+            if (isinstance(output.conn_spec, blocks.ConnectorSpecificationResource)
+                    or output.block_output.connected_source is not None):
                 continue
-            if output.temporary.producer is None:
-                # TODO: Hack
-                if isinstance(output.temporary.block, blocks.BlockInput):
-                    continue
-                raise Exception(f'Output {self.graph}.{self.name}.{output.name} has no producer')
+            if output.orig_temporary.producer is None:
+                connector = 'Default output' if output.name == '' else f'Output {output.name!r}'
+                raise blocks.ProgramError(output.conn_spec, f'{connector} has no producer', hints=[
+                    blocks.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
+                ])
 
     # TODO: Clean up
     @property
@@ -133,6 +135,8 @@ class Block(blocks.Node):
         if instance.path in instances:
             raise Exception(f'Duplicate path {path}')
         instances[instance.path] = instance
+        if not self.is_root:
+            self.validate(path)
 
         for name, child_block in self.block_type.blocks.items():
             child_path = path + (child_block,)
