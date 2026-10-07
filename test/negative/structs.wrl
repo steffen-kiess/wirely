@@ -297,3 +297,53 @@ struct type Record {
 }
 node type Bad { temporary saved: Record; } // E: parameter-only
 node n: Bad {}
+
+// TEST: unknown_field_access
+struct type Pair { flag: boolean, }
+constant Value: Pair = Pair { flag: true };
+assert Value.missing; // E: Value of type Pair has no property 'missing'
+
+// TEST: field_access_on_scalar
+constant Value: uint8 = 1;
+assert Value.flag; // E: Value of type uint8 has no property 'flag'
+
+// TEST: field_access_through_option
+struct type Pair { flag: boolean, }
+constant Value: Option[Pair] = None;
+assert Value.flag; // E: Value of type TypeOption(Pair) has no property 'flag'
+
+// TEST: option_property_on_struct
+struct type Pair { flag: boolean, }
+constant Value: Pair = Pair { flag: true };
+assert Value.IsSome; // E: Value of type Pair has no property 'IsSome'
+
+// TEST: calling_a_field
+struct type Pair { flag: boolean, }
+constant Value: Pair = Pair { flag: true };
+assert Value.flag(); // E: Value of type Pair has no method 'flag'
+
+// TEST: field_type_mismatch
+struct type Pair { flag: boolean, }
+constant Value: Pair = Pair { flag: true };
+constant Number: uint8 = Value.flag; // E: Expected value of type uint8, got boolean
+
+// TEST: field_access_on_type_parameter
+struct type Pair { flag: boolean, }
+node type Generic {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  constant Flag: boolean = Value.flag; // E: Field access requires a known struct type
+}
+node generic: Generic { Type: Pair, Value: Pair { flag: true } }
+
+// TEST: parameter_only_field_in_procedure
+struct type Labeled { label: String, enabled: boolean, }
+node type Probe {
+  parameter Value: Labeled;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let label = Value.label; // E: parameter-only
+    output = Value.enabled;
+  }
+}
+node probe: Probe { Value: Labeled { label: "a", enabled: true } }

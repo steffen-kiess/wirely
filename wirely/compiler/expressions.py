@@ -301,7 +301,8 @@ class TypedExpression:
             receiver = self.arguments[0]
             if (not receiver.value_type.contains_parameters
                     and not isinstance(receiver.value_type, blocks.types.TypeOption)):
-                raise ProgramError(self.source, 'Option presence properties require an Option value')
+                name = 'IsSome' if self.operation == 'is_some' else 'IsNone'
+                raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
 
     def evaluate(self, inputs, locals):
         if self.operation == 'constant':
@@ -317,6 +318,8 @@ class TypedExpression:
             return tuple(argument.evaluate(inputs, locals) for argument in self.arguments)
         if self.operation == 'some':
             return blocks.Some(self.arguments[0].evaluate(inputs, locals))
+        if self.operation == 'field':
+            return self.arguments[0].evaluate(inputs, locals)[self.payload]
         operation = self.operation
         if operation == 'input':
             return inputs[self.payload]
@@ -496,6 +499,9 @@ class InstructionCompiler:
                                    left, BranchTarget(0))
             self.compile(expression.arguments[1], destination)
             self.patch(skip_right)
+        elif operation == 'field':
+            index = tuple(expression.arguments[0].value_type.fields).index(expression.payload)
+            self.emit(Opcode.GET_FIELD, destination, left, index)
         elif operation in ('not', 'is_some', 'is_none'):
             self.emit(Opcode.NOT if operation == 'not' else Opcode.IS_SOME, destination, left)
             if operation == 'is_none':
@@ -589,10 +595,16 @@ class ExpressionCompiler:
         if isinstance(expression, PropertyAccess):
             name = expression.name.id_str
             receiver = self.compile(expression.receiver)
-            if name not in ('IsSome', 'IsNone'):
-                raise ProgramError(expression.name, f'Value of type {receiver.value_type} has no property {name!r}')
-            return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
-                                   (receiver,))
+            receiver_type = receiver.value_type
+            if isinstance(receiver_type, blocks.types.TypeStruct) and name in receiver_type.fields:
+                return TypedExpression(receiver_type.fields[name], 'field', (receiver,), name)
+            if (name in ('IsSome', 'IsNone') and (isinstance(receiver_type, blocks.types.TypeOption)
+                                                  or receiver_type.contains_parameters)):
+                return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
+                                       (receiver,))
+            if receiver_type.contains_parameters:
+                raise ProgramError(expression.name, 'Field access requires a known struct type')
+            raise ProgramError(expression.name, f'Value of type {receiver_type} has no property {name!r}')
         if isinstance(expression, blocks.FunctionCall):
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
@@ -833,7 +845,10 @@ class ExpressionCompiler:
     def known_type(self, expression):
         expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, PropertyAccess):
-            return blocks.types.boolean
+            receiver_type = self.known_type(expression.receiver)
+            if isinstance(receiver_type, blocks.types.TypeStruct):
+                return receiver_type.fields.get(expression.name.id_str)
+            return blocks.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
         if isinstance(expression, blocks.ParameterOption):
             parameter = expression.declaration(self.scope, self.names)
             return blocks.types.TypeOption(parameter.type_resolved)

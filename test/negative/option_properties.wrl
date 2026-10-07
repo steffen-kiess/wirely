@@ -1,20 +1,20 @@
 // LIBRARIES: std
 
 // TEST: Boolean receiver
-constant Bad: boolean = true.IsSome; // E: require an Option value
+constant Bad: boolean = true.IsSome; // E: Value of type boolean has no property 'IsSome'
 
 // TEST: integer receiver
-constant Bad: boolean = (7).IsNone; // E: require an Option value
+constant Bad: boolean = (7).IsNone; // E: Value of type int32 has no property 'IsNone'
 
 // TEST: enum receiver
 namespace Names {
   enum type Mode: uint8 { IsSome = 1, IsNone = 2, }
 }
-constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: require an Option value
+constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: Value of type Names.Mode has no property 'IsNone'
 
 // TEST: type descriptor receiver
 constant Type: ValueType = boolean;
-constant Bad: boolean = Type.IsSome; // E: require an Option value
+constant Bad: boolean = Type.IsSome; // E: Value of type ValueType has no property 'IsSome'
 
 // TEST: unresolved None
 constant Bad: boolean = None.IsNone; // E: Cannot infer expression type
@@ -55,13 +55,13 @@ constant Bad: boolean = TimeOfDay.AddWrap("08:00", "01:00").IsSome(); // E: prop
 
 // TEST: chained properties
 constant Value: Option[boolean] = None;
-constant Bad: boolean = Value.IsSome.IsNone; // E: require an Option value
+constant Bad: boolean = Value.IsSome.IsNone; // E: Value of type boolean has no property 'IsNone'
 
 // TEST: parameter-dependent receiver rejected after resolution
 node type Probe {
   parameter Type: ValueType;
   parameter Value: Type;
-  constant Bad: boolean = Value.IsSome; // E: require an Option value
+  constant Bad: boolean = Value.IsSome; // E: Value of type boolean has no property 'IsSome'
 }
 node probe: Probe { Type: boolean, Value: true } // H: While instantiating
 
@@ -70,7 +70,7 @@ node type Probe {
   parameter Value: boolean = false;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.IsNone; // E: require an Option value
+    output = Value.IsNone; // E: Value of type boolean has no property 'IsNone'
   }
 }
 node probe: Probe {}
@@ -110,7 +110,7 @@ node type Probe {
   parameter Value: Type;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.IsSome; // E: require an Option value
+    output = Value.IsSome; // E: Value of type int8 has no property 'IsSome'
   }
 }
 node probe: Probe { Type: int8, Value: 7 }

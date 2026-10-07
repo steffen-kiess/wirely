@@ -208,3 +208,18 @@ node type PendingOption {
 
 node pending: PendingOption { Type: boolean, Default: true }
 connect option_source -> pending;
+
+node type PairFields {
+  default input: value ProcedureTests.Pair;
+  output Enabled: value boolean;
+  output Next: value uint8;
+
+  procedure run depends on default input as input produces Enabled, Next {
+    Enabled = input.enabled;
+    Next = uint8.SaturatingAdd(input.number, 1);
+  }
+}
+
+node pair_source: Std.DebugValueSource { Type: ProcedureTests.Pair }
+node pair_fields: PairFields {}
+connect pair_source -> pair_fields;

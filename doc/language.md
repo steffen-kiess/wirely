@@ -234,6 +234,9 @@ Fields and literal entries are comma-separated, with an optional trailing
 comma. Literals name their type and supply every field exactly once, in any
 order. Structs are distinct named types; fields may use other structs,
 enums, options, or lists. Struct definitions cannot be recursive.
+Read a field with `value.field`, for example `reading.temperature`, also in
+procedure bodies. Field access needs a struct type known where the code is
+written, not a `ValueType` parameter.
 
 Declare an enum at top level or inside a namespace:
 
@@ -507,7 +510,8 @@ let level = if let Some(sum) = int16.CheckedAdd(input, 1) { sum } else { 0 };
 `let`. Other patterns are not supported, and the value cannot contain `&&`
 or `||` without parentheses.
 
-Procedures can copy any runtime value, including options and structs.
+Procedures can copy any runtime value, including options and structs, and
+read struct fields.
 Their connector dependencies and results currently use single `value`
 connectors, not events or multi inputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.

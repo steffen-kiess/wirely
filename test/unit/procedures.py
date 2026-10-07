@@ -18,6 +18,7 @@ def check_main_program():
     engine.get_native_state('time_source').set_value(datetime.time(0))
     engine.get_native_state('int8_source').set_value(0)
     engine.get_native_state('uint8_source').set_value(0)
+    engine.get_native_state('pair_source').set_value(pair(False, 0))
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -312,6 +313,22 @@ def check_arithmetic():
     engine.assert_is_idle()
 
 
+
+def pair(enabled, number):
+    pair_type = wirely.ValueType(engine.get_variable('pair_source').var_type)
+    return pair_type.make_struct({'enabled': enabled, 'number': number})
+
+
+def check_struct_fields():
+    source = engine.get_native_state('pair_source')
+    for enabled, number, expected_next in [(True, 7, 8), (False, 255, 255), (True, 0, 1)]:
+        source.set_value(pair(enabled, number))
+        engine.step()
+        engine.assert_value_is('pair_fields.Enabled', enabled)
+        engine.assert_value_is('pair_fields.Next', expected_next)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -322,3 +339,4 @@ check_root_state()
 check_option_presence()
 check_ordering()
 check_arithmetic()
+check_struct_fields()

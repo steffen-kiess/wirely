@@ -1,0 +1,45 @@
+struct type Inner {
+  value: int16,
+  IsSome: boolean,
+}
+struct type Reading {
+  temperature: int16,
+  inner: Inner,
+  maybe: Option[uint8],
+  items: List[uint8],
+}
+constant Sample: Reading = Reading {
+  temperature: 215,
+  inner: Inner { value: -3, IsSome: true },
+  maybe: Some(4),
+  items: [1, 2],
+};
+
+// Fields, nested fields, and fields named like option properties.
+assert Sample.temperature == 215 && Sample.inner.value == -3;
+assert Sample.inner.IsSome && Sample.maybe.IsSome && Sample.items == [1, 2];
+assert Sample.maybe.UnwrapOr(0) == 4;
+
+// Postfix receivers.
+assert (Sample).temperature == 215 && { Sample }.inner.value == -3;
+assert (if true { Sample } else { Sample }).inner.IsSome;
+assert Reading {
+  temperature: 1, inner: Inner { value: 2, IsSome: false }, maybe: None, items: [],
+}.inner.value == 2;
+
+// Fields give literals their type.
+assert Sample.temperature > 200 && Sample.temperature - 15 == 200;
+constant Low: int16 = Sample.inner.value * 2;
+assert Low == -6;
+constant Copy: Inner = Sample.inner;
+assert Copy == Inner { value: -3, IsSome: true };
+
+// Fields of parameters and in if let.
+node type Threshold {
+  parameter Input: Reading;
+  parameter Limit: int16;
+  constant Exceeded: boolean = Input.temperature > Limit;
+  constant Count: uint8 = if let Some(count) = Input.maybe { count } else { 0 };
+  assert Exceeded && Count == 4;
+}
+node threshold: Threshold { Input: Sample, Limit: 200 }

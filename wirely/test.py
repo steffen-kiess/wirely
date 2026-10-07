@@ -77,6 +77,7 @@ to_compile = [
     'test/compiler/ordering.wrl',
     'test/compiler/arithmetic.wrl',
     'test/compiler/options.wrl',
+    'test/compiler/structs.wrl',
     'test/compiler/library_settings.wrl',
     'test/compiler/literals.wrl',
     'test/compiler/namespaces.wrl',
