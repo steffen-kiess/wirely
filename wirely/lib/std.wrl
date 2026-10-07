@@ -166,5 +166,5 @@ namespace Std {
 }
 
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
 }

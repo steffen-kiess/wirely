@@ -1,6 +1,6 @@
 namespace CSV {
   #[internal]
-  native function SupportsType(type: ValueType): boolean;
+  native constant function SupportsType(type: ValueType): boolean;
 
   // Writes lines with:
   // - Current date / time

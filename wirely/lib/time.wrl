@@ -2,7 +2,7 @@
 // monotonic-time-related blocks?
 namespace Time {
   #[internal]
-  native function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
+  native constant function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 
   // Block which returns false if the current time is before input, true if the
   // current time is at or after input, and None if the input is None or not

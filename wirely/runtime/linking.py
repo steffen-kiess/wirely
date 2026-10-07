@@ -2,7 +2,7 @@
 
 import inspect
 
-from ..native import get_native_block_type_by_name
+from ..native import get_native_block_type_by_name, get_native_function_by_name
 
 
 def validate_native_method(native_class, name, *, has_native_state):
@@ -73,3 +73,8 @@ def link_native_classes(program):
             has_native_state=state_modes[type_name],
         )
     return classes
+
+
+def link_native_functions(program):
+    """Resolve the implementation of every function in the program's function table."""
+    return tuple(get_native_function_by_name(function.name) for function in program.functions)

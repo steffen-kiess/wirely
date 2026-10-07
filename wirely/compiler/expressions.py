@@ -452,12 +452,13 @@ OPCODES_BY_CONVERSION = {overflow: opcode for opcode, overflow in CONVERSION_OPC
 class InstructionCompiler:
     """Lower resolved procedure expressions to forward-only instructions."""
 
-    def __init__(self, source_types, result_types, intern_constant):
+    def __init__(self, source_types, result_types, intern_constant, intern_function):
         self.inputs = {name: Operand(OperandKind.INPUT, index)
                        for index, name in enumerate(source_types)}
         self.results = {name: Operand(OperandKind.RESULT, index)
                         for index, name in enumerate(result_types)}
         self.intern_constant = intern_constant
+        self.intern_function = intern_function
         self.instructions = []
         self.local_types = []
         self.locals = {}
@@ -504,6 +505,11 @@ class InstructionCompiler:
             return self.compile(expression.arguments[-1], destination)
         if destination is None:
             destination = self.allocate(expression.value_type)
+        if operation == 'call':
+            arguments = [self.compile(argument) for argument in expression.arguments]
+            self.emit(Opcode.CALL, destination, self.intern_function(expression.payload[0]),
+                      len(arguments), *arguments)
+            return destination
         if operation == 'struct':
             # Field values are computed before being stored; bodies never read the destination.
             values = [self.compile(argument) for argument in expression.arguments]
@@ -763,13 +769,16 @@ class ExpressionCompiler:
                 return TypedExpression(blocks.types.TypeOption(argument.value_type), 'some', (argument,))
             argument = self.compile(expression.parameters[0], inner_type)
             return TypedExpression(expected, 'some', (argument,))
-        if not self.runtime and isinstance(expression, blocks.FunctionCall):
+        if isinstance(expression, blocks.FunctionCall):
             if not isinstance(expression.fun, blocks.Reference):
                 raise ProgramError(expression.fun, 'Function is not a reference')
             name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is None:
                 raise ProgramError(expression.fun, f'Cannot find function {name!r}')
+            if self.runtime and function.is_constant:
+                raise ProgramError(expression.fun,
+                                   f'{name} is a compile-time function and cannot be called in procedure bodies')
             if len(expression.parameters) != len(function.parameter_types):
                 raise ProgramError(expression, f'Function {name!r} expected {len(function.parameter_types)} parameters')
             arguments = tuple(self.compile(argument, value_type)
@@ -863,6 +872,12 @@ class ExpressionCompiler:
         if (isinstance(expression, blocks.FunctionCall)
                 and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
             self.check_runtime_syntax(property_reference(self.scope, expression.fun, self.names).receiver)
+            for argument in expression.parameters:
+                self.check_runtime_syntax(argument)
+            return
+        if (isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference)
+                and self.scope.resolve_function(expression.fun, required=False) is not None):
+            # Constant functions are rejected when the call is compiled.
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
@@ -993,8 +1008,7 @@ class ExpressionCompiler:
             if isinstance(method, PropertyAccess):
                 option_type = self.known_type(method.receiver)
                 return option_type.inner_type if isinstance(option_type, blocks.types.TypeOption) else None
-        if (isinstance(expression, blocks.FunctionCall) and not self.runtime
-                and isinstance(expression.fun, blocks.Reference)):
+        if isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference):
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is not None:
                 return function.return_type
@@ -1007,7 +1021,7 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
-def compile_procedure(procedure, instance, source_types, result_types, intern_constant):
+def compile_procedure(procedure, instance, source_types, result_types, intern_constant, intern_function):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     names = {name: TypedExpression(value_type, 'input', payload=name)
@@ -1040,4 +1054,4 @@ def compile_procedure(procedure, instance, source_types, result_types, intern_co
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign results: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
-    return InstructionCompiler(source_types, result_types, intern_constant).body(statements)
+    return InstructionCompiler(source_types, result_types, intern_constant, intern_function).body(statements)

@@ -262,32 +262,38 @@ Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
 value of type `T`. Without an expected type, `Some(x)` takes `T` from `x`.
 Monotonic times have no literals; use `Option[MonotonicTime]` with `None`
-when a time may be absent. The compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
-offset and wraps at midnight.
+when a time may be absent. The compile-time function
+`TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"` offset and wraps at
+midnight.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean
 operators, comparisons, integer arithmetic, and declared native functions.
 
-## Compile-time functions
+## Native functions
 
 Declare native functions at the root or inside a namespace. The library
 supplies a fixed signature; a registered Python implementation supplies
-its result.
+its result. A `native function` can be called in procedure bodies and in
+compile-time expressions. A `native constant function` is compile-time
+only; use it when the function can fail or uses parameter-only types such
+as `String`:
 
 ```wrl
 namespace Example {
-  native function Parse(value: String): uint16;
+  native constant function Parse(value: String): uint16;
+  native function Clamp(value: int16, low: int16, high: int16): int16;
 }
 
 constant Address: uint16 = Example.Parse("1/2/3");
 ```
 
 Calls take positional arguments and may appear in constants, parameter
-values and defaults, and assertions. Within a namespace, an unqualified
-name searches enclosing scopes. Declarations may follow their calls.
+values and defaults, assertions, and, for functions that are not
+constant, procedure bodies. Within a namespace, an unqualified name
+searches enclosing scopes. Declarations may follow their calls.
 A `ValueType` result can initialize a type-valued constant or parameter.
-See [native Python implementations](native-python.md#compile-time-functions)
+See [native Python implementations](native-python.md#native-functions)
 to supply an implementation.
 
 ## Connectors and connections
@@ -504,8 +510,8 @@ For example, `OutputType == unit` or `Option[int16] == Option[int16]`.
 `if` requires a Boolean condition and an `else`; both branches yield the same
 type. Expression blocks may contain locals followed by a final expression
 without a semicolon. These expressions also work in parameter values and
-other compile-time expressions. Functions available at compile time cannot
-be called in procedure bodies, except integer type members.
+other compile-time expressions. Procedure bodies can call native functions
+that are not declared `constant`.
 
 For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
 when absent. `value.UnwrapOr(fallback)` returns the contained value, or

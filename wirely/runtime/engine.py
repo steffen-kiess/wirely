@@ -11,7 +11,7 @@ from wirely.runtime.procedures import execute_procedure
 
 class Engine:
     def __init__(self, program):
-        from .linking import link_native_classes
+        from .linking import link_native_classes, link_native_functions
 
         if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
@@ -44,6 +44,7 @@ class Engine:
         self.fake_monotonic_time_offset = None
 
         self.native_classes = link_native_classes(program)
+        self.native_functions = link_native_functions(program)
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
             native_state = None
@@ -181,7 +182,7 @@ class Engine:
                     target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
                     getattr(target, proc.reference[1])(context=context)
                 else:
-                    for name, value in execute_procedure(self.program, proc, inputs).items():
+                    for name, value in execute_procedure(self.program, proc, inputs, self.native_functions).items():
                         context.set_result(name, value)
                 missing = set(proc.results) - context._written_results
                 if missing:

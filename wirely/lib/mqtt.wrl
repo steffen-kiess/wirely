@@ -5,7 +5,7 @@ namespace MQTT {
   }
 
   #[internal]
-  native function SupportsType(type: ValueType): boolean;
+  native constant function SupportsType(type: ValueType): boolean;
 
   #[internal]
   struct type TemplateParts {
@@ -13,7 +13,7 @@ namespace MQTT {
     suffix: String,
   }
   #[internal]
-  native function ParseTemplate(template: Option[String]): TemplateParts;
+  native constant function ParseTemplate(template: Option[String]): TemplateParts;
 
   resource type Broker;
 

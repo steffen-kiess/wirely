@@ -4,7 +4,7 @@ from wirely.compiler import model as blocks
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import (
-    Constant, InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
+    Constant, Function, InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
     RunStage, Variable, VariableBlock,
 )
 
@@ -256,6 +256,16 @@ def compile_nocatch(global_block_type):
     constants = []
     constant_indices = {}
 
+    functions = []
+    function_indices = {}
+
+    def intern_function(declaration):
+        if declaration.function_name not in function_indices:
+            function_indices[declaration.function_name] = len(functions)
+            functions.append(Function(declaration.function_name, declaration.argument_names,
+                                      declaration.parameter_types, declaration.return_type))
+        return function_indices[declaration.function_name]
+
     def intern_constant(value_type, value):
         value = value_type.verify_value(value)
         key = value_type, value_type.serialize(value)
@@ -294,7 +304,7 @@ def compile_nocatch(global_block_type):
                             else variable_map[path, target.var_identifier])
                 result_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types,
-                                                 intern_constant)
+                                                 intern_constant, intern_function)
 
     from .static_bindings import evaluate_bindings
     schedules = {}
@@ -368,4 +378,5 @@ def compile_nocatch(global_block_type):
         instances=native_instances, initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
         constants=tuple(constants),
+        functions=tuple(functions),
     )

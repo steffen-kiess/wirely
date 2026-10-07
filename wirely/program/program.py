@@ -8,7 +8,7 @@ from pprint import pformat
 from types import MappingProxyType
 
 from ..types import Type
-from .procedures import Constant, ProcedureBody
+from .procedures import Constant, Function, ProcedureBody
 
 
 class RunStage(enum.Enum):
@@ -162,6 +162,7 @@ class Program:
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
     variables: Mapping[str, Variable]  # Debug lookup from variable aliases to definitions.
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
+    functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self):
@@ -172,6 +173,7 @@ class Program:
         }))
         object.__setattr__(self, 'native_construction_order', tuple(self.native_construction_order))
         object.__setattr__(self, 'constants', tuple(self.constants))
+        object.__setattr__(self, 'functions', tuple(self.functions))
 
     def dump(self, file=None):
         """Write the runtime program to a text stream (stdout by default)."""
@@ -211,6 +213,13 @@ class Program:
         for index, constant in enumerate(self.constants):
             line(f'const.{index}: {constant.value_type}', 2)
             value('value', constant.value, 4)
+
+        line()
+        line('Functions:')
+        for index, function in enumerate(self.functions):
+            parameters = ', '.join(f'{name}: {value_type}' for name, value_type
+                                   in zip(function.argument_names, function.parameter_types))
+            line(f'func.{index}: {".".join(function.name)}({parameters}): {function.return_type}', 2)
 
         line()
         line('Native construction order:')

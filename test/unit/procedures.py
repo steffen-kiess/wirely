@@ -348,6 +348,50 @@ def check_conversions():
     engine.assert_is_idle()
 
 
+
+def check_native_functions():
+    # Runtime native functions run in procedures and in compile-time expressions.
+    functions = compile_program('''namespace TestLibrary {
+      native function Clamp(value: int16, low: int16, high: int16): int16;
+      native function Nothing(): unit;
+    }
+    node type Clamped {
+      constant High: int16 = TestLibrary.Clamp(500, 0, 10);
+      default input: value int16;
+      default output: value int16;
+      output Done: value unit;
+      procedure run depends on default input as input produces default output as output, Done {
+        output = TestLibrary.Clamp(input, -10, High);
+        Done = TestLibrary.Nothing();
+      }
+    }
+    node source: Std.DebugValueSource { Type: int16 }
+    node clamped: Clamped {}
+    connect source -> clamped;
+    ''', add_std=True)
+    function_engine = Engine(functions)
+    source = function_engine.get_native_state('source')
+    for value, expected in [(5, 5), (500, 10), (-500, -10)]:
+        source.set_value(value)
+        function_engine.step()
+        function_engine.assert_value_is('clamped', expected)
+        function_engine.assert_value_is('clamped.Done', wirely.Unit())
+    function_engine.assert_is_idle()
+
+    # An exception from a runtime function is an internal error, not a program error.
+    diagnostics = []
+    graph = wirely.compiler.compile_strs([('<fail>', '''namespace TestLibrary {
+      native function Fail(): boolean;
+    }
+    constant Value: boolean = TestLibrary.Fail();
+    ''')], on_diagnostic=diagnostics.append)
+    assert graph is not None
+    assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is None
+    assert any(diagnostic.kind == 'internal_error'
+               and "Internal error in function 'TestLibrary.Fail'" in diagnostic.message
+               for diagnostic in diagnostics), diagnostics
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -360,3 +404,4 @@ check_ordering()
 check_arithmetic()
 check_struct_fields()
 check_conversions()
+check_native_functions()

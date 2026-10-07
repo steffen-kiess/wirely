@@ -1,56 +1,56 @@
 // TEST: missing implementation
-native function Missing(): boolean; // E: Missing implementation
+native constant function Missing(): boolean; // E: Missing implementation
 
 // TEST: missing return type
-native function Missing(); // E: Syntax error
+native constant function Missing(); // E: Syntax error
 
 // TEST: node scope
 node type Invalid {
-  native function AddWrap(): TimeOfDay; // E: only allowed at root
+  native constant function AddWrap(): TimeOfDay; // E: only allowed at root
 }
 
 // TEST: constructor name
-native function Some(value: uint8): Option[uint8]; // E: Some is reserved
+native constant function Some(value: uint8): Option[uint8]; // E: Some is reserved
 
 // TEST: duplicate argument
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, time: String): TimeOfDay; // E: Duplicate function argument
+  native constant function AddWrap(time: TimeOfDay, time: String): TimeOfDay; // E: Duplicate function argument
 }
 
 // TEST: duplicate function
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
 }
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
+  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
 }
 
 // TEST: declaration collision
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
   struct type AddWrap {} // E: conflicting function
 }
 
 // TEST: reverse declaration collision
 namespace TimeOfDay {
   node type AddWrap {}
-  native function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
+  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
 }
 
 // TEST: unknown argument type
 namespace TimeOfDay {
-  native function AddWrap(time: Unknown, offset: String): TimeOfDay; // E: Cannot find type Unknown
+  native constant function AddWrap(time: Unknown, offset: String): TimeOfDay; // E: Cannot find type Unknown
 }
 
 // TEST: unknown return type
 namespace TimeOfDay {
-  native function AddWrap(time: TimeOfDay, offset: String): Unknown; // E: Cannot find type Unknown
+  native constant function AddWrap(time: TimeOfDay, offset: String): Unknown; // E: Cannot find type Unknown
 }
 
 // TEST: unavailable signature type
 parameter Kind: ValueType;
 namespace TimeOfDay {
-  native function AddWrap(time: Kind, offset: String): TimeOfDay; // E: Cannot find type Kind
+  native constant function AddWrap(time: Kind, offset: String): TimeOfDay; // E: Cannot find type Kind
 }
 
 // TEST: argument count
@@ -66,14 +66,32 @@ constant Invalid: TimeOfDay = TimeOfDay.AddWrap(true, "01:00"); // E: Invalid Ti
 constant Invalid: boolean = TimeOfDay.AddWrap("12:00", "01:00"); // E: Expected value of type boolean
 
 // TEST: function bodies
-native function Missing(): boolean { true } // E: Syntax error
+native constant function Missing(): boolean { true } // E: Syntax error
 
-// TEST: runtime call
+// TEST: constant function in a procedure
 // LIBRARIES: std
 node type Invalid {
   default output: value TimeOfDay;
   procedure run produces default output as output {
-    output = TimeOfDay.AddWrap("12:00", "01:00"); // E: Runtime calls
+    output = TimeOfDay.AddWrap("12:00", "01:00"); // E: TimeOfDay.AddWrap is a compile-time function and cannot be called in procedure bodies
   }
 }
 node invalid: Invalid {}
+
+// TEST: runtime function with a parameter-only type
+native function Describe(value: uint8): String; // E: Function 'Describe' uses parameter-only type String; declare it native constant function
+
+// TEST: runtime function without an implementation
+namespace TestLibrary {
+  native function Missing(): boolean;
+}
+constant Value: boolean = TestLibrary.Missing(); // E: Cannot load function 'TestLibrary.Missing': Cannot find native function 'TestLibrary.Missing'
+
+// TEST: runtime function argument type in a procedure
+namespace TestLibrary {
+  native function Clamp(value: int16, low: int16, high: int16): int16;
+}
+temporary result: int16;
+procedure run produces result {
+  result = TestLibrary.Clamp(true, 0, 1); // E: Invalid int value true
+}

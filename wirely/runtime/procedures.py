@@ -1,11 +1,13 @@
 """Execution of validated, forward-only procedure instructions."""
 
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind
+from ..native.functions import call_native_function
 from ..types import Some, convert
 from ..types.value_types import _from_native, _to_native
 
 
-def execute_procedure(program, procedure, inputs):
+def execute_procedure(program, procedure, inputs, functions=()):
+    """Run a bytecode procedure; functions are the linked implementations of program.functions."""
     body = procedure.body
     input_types = tuple(bindings[0].variable.var_type for _, bindings, _ in procedure.dependencies)
     result_types = tuple(binding.variable.var_type for binding in procedure.results.values())
@@ -78,6 +80,13 @@ def execute_procedure(program, procedure, inputs):
             elif opcode == Opcode.EQUAL:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)
+            elif opcode == Opcode.CALL:
+                function = program.functions[operands[1]]
+                # Implementations must not fail; an exception is a library error.
+                result = call_native_function(
+                    functions[operands[1]], function.name, function.argument_names,
+                    function.parameter_types, function.return_type,
+                    [read(argument) for argument in operands[3:]])
             elif opcode in CONVERSION_OPCODES:
                 target_type = value_type(destination)
                 if CONVERSION_OPCODES[opcode] == 'checked':

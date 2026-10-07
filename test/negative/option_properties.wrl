@@ -126,7 +126,7 @@ node probe: Probe {}
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = TimeOfDay.AddWrap("08:00", "01:00").IsSome; // E: Runtime calls
+    output = TimeOfDay.AddWrap("08:00", "01:00").IsSome; // E: is a compile-time function and cannot be called in procedure bodies
   }
 }
 node probe: Probe {}
@@ -137,7 +137,7 @@ node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      flag: TimeOfDay.AddWrap("08:00", "01:00").IsSome, // E: Runtime calls
+      flag: TimeOfDay.AddWrap("08:00", "01:00").IsSome, // E: is a compile-time function and cannot be called in procedure bodies
     };
   }
 }

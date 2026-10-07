@@ -245,13 +245,44 @@ generation also causes a rerun; handle that case as
 `Time.MonotonicTimeReached` does in
 [`time.py`](../wirely/native/time.py).
 
-## Compile-time functions
+## Native functions
 
-Declare the function's signature with `native function` in a `.wrl` library
-included in the compilation. Before compiling, add its Python implementation
-to `native_function_impls` in `wirely.compiler.native_functions`. The key is
-a tuple of namespace components followed by the function name, such as
-`('Example', 'Parse')` for `Example.Parse`. The value is a callable or a pair
+### Runtime functions
+
+A `native function` runs in procedure bodies and in compile-time
+expressions. Register its implementation in the module that
+`native_block_pkgs` maps its namespace to, in a `native_functions`
+dictionary, using the Wirely function name:
+
+```python
+from wirely.native.functions import native_function
+
+native_functions = {}
+
+
+@native_function(native_functions, 'Clamp')
+def clamp(*, context):
+    arguments = context.arguments
+    return min(max(arguments['value'], arguments['low']), arguments['high'])
+```
+
+The context has read-only `function_name` and `arguments` (native values by
+declared argument name). Implementations must be synchronous and must
+return a value of the declared return type for every argument; return an
+`Option` when a result may be absent. An exception is an internal error:
+during compilation it stops compilation, and at runtime it propagates out
+of `Engine.step()`. Procedures may be skipped when their inputs are
+unchanged, so side effects such as logging are best effort. An `Engine`
+resolves every function its program calls when it is constructed.
+
+### Constant functions
+
+Declare a compile-time-only function with `native constant function` in a
+`.wrl` library included in the compilation. Before compiling, add its
+Python implementation to `native_function_impls` in
+`wirely.compiler.native_functions`. The key is a tuple of namespace
+components followed by the function name, such as `('Example', 'Parse')`
+for `Example.Parse`. The value is a callable or a pair
 of an absolute Python module name and the name of a callable in that module:
 
 ```python

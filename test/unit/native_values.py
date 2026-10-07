@@ -118,7 +118,7 @@ def check_values():
 namespace Example {
   enum type Mode: uint8 { On = 1, }
   struct type Pair { value: boolean, }
-  native function Identity(value: uint16): uint16;
+  native constant function Identity(value: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }
@@ -179,7 +179,7 @@ def check_type_member_collision():
     diagnostics = []
     with patch.dict(native_function_impls, {('int16', 'WrappingAdd'): identity}):
         graph = compile_strs([('<collision>', '''namespace int16 {
-      native function WrappingAdd(a: int16, b: int16): int16;
+      native constant function WrappingAdd(a: int16, b: int16): int16;
     }
     constant Value: int16 = int16.WrappingAdd(1, 2);
     ''')], on_diagnostic=diagnostics.append)

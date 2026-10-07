@@ -1,4 +1,4 @@
-"""Implementations and invocation of declared compile-time functions."""
+"""Implementations and invocation of declared native functions."""
 
 import importlib
 from collections.abc import Mapping
@@ -165,3 +165,24 @@ def invoke(function, values, sources, call):
     except Exception as error:
         name = '.'.join(function.function_name)
         raise blocks.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
+
+
+def invoke_runtime_function(function, values, call):
+    """Evaluate a runtime-callable native function during compilation."""
+    from wirely.native import get_native_function_by_name
+    from wirely.native.functions import call_native_function
+    name = '.'.join(function.function_name)
+    if not hasattr(function, '_runtime_implementation'):
+        try:
+            function._runtime_implementation = get_native_function_by_name(function.function_name)
+        except (ImportError, ValueError) as error:
+            raise blocks.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
+    try:
+        return call_native_function(function._runtime_implementation, function.function_name,
+                                    function.argument_names, function.parameter_types,
+                                    function.return_type, values)
+    except Exception as error:
+        # Runtime functions must not fail, so an exception is a library error.
+        inner = RuntimeError(f'Internal error in function {name!r}: {type(error).__name__}: {error}')
+        inner.__cause__ = error
+        raise blocks.ast.InternalCompilerError(call, inner) from error

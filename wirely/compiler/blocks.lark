@@ -3,6 +3,7 @@ file_input: inner_attribute* declaration*
 declaration: outer_attribute* bare_declaration -> attributed
 
 bare_declaration: "native" "function" identifier "(" function_argument_list ")" ":" value ";" -> declaration_native_function
+           | "native" "constant" "function" identifier "(" function_argument_list ")" ":" value ";" -> declaration_native_function__create_constant
            | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
            | "resource" "type" identifier ";" -> declaration_resource_type
            | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type

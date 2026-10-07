@@ -1,16 +1,20 @@
 import datetime
 import enum
 import io
+from unittest import TestCase
 
 from wirely import types
 from wirely.types.time import Duration as RuntimeDuration
 from wirely.program import (
-    BranchTarget, Constant, InputSourceBinding, Instruction, NativeInstance,
+    BranchTarget, Constant, Function, InputSourceBinding, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, ResultBinding,
     RunStage, Variable, VariableBlock, validate_program,
 )
 from wirely.runtime.engine import Engine
 from wirely.runtime.procedures import execute_procedure
+
+
+checks = TestCase()
 
 
 def local(index):
@@ -29,7 +33,8 @@ def instruction(opcode, *operands):
     return Instruction(opcode, operands)
 
 
-def make_program(instructions, *, local_types=(), result_types=(types.boolean,), constants=(), inputs=()):
+def make_program(instructions, *, local_types=(), result_types=(types.boolean,), constants=(), inputs=(),
+                 functions=()):
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'result{index}', value_type) for index, value_type in enumerate(result_types))
     instance = NativeInstance('test', ('Test',), False, {}, ())
@@ -46,6 +51,7 @@ def make_program(instructions, *, local_types=(), result_types=(types.boolean,),
         instances={'test': instance}, native_construction_order=('test',),
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
         variables={variable.name: variable for variable in outputs}, constants=constants,
+        functions=functions,
     )
 
 
@@ -147,6 +153,42 @@ def check_conversions():
                      result_types=tuple(target for _, _, _, target, _ in cases),
                      constants=tuple(Constant(source, value) for _, source, value, _, _ in cases))
     assert output == tuple(expected for *_, expected in cases)
+
+
+def check_calls():
+    clamp = Function(('TestLibrary', 'Clamp'), ('value', 'low', 'high'), (types.int16,) * 3, types.int16)
+    nothing = Function(('TestLibrary', 'Nothing'), (), (), types.unit)
+    output = execute([
+        instruction(Opcode.CALL, result(0), 0, 3, const(0), const(1), const(2)),
+        instruction(Opcode.CALL, result(1), 1, 0),
+        instruction(Opcode.RETURN),
+    ], result_types=(types.int16, types.unit), functions=(clamp, nothing),
+       constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)))
+    assert output == (100, types.Unit())
+
+    # Linking requires an implementation for every table entry.
+    missing = Function(('TestLibrary', 'Missing'), (), (), types.boolean)
+    with checks.assertRaisesRegex(ValueError, "Cannot find native function 'TestLibrary.Missing'"):
+        execute([instruction(Opcode.RETURN)], functions=(missing,))
+
+    # Implementations must not fail; an exception propagates.
+    fail = Function(('TestLibrary', 'Fail'), (), (), types.boolean)
+    with checks.assertRaisesRegex(RuntimeError, 'Fail always fails'):
+        execute([instruction(Opcode.CALL, result(0), 0, 0), instruction(Opcode.RETURN)], functions=(fail,))
+
+    ret = instruction(Opcode.RETURN)
+    options = dict(result_types=(types.int16,), functions=(clamp,), local_types=(types.int16, types.uint8))
+    expect_invalid([instruction(Opcode.CALL, result(0), 1, 0), ret], 'Function index out of range', **options)
+    expect_invalid([instruction(Opcode.CALL, result(0), 0, 2, local(0), local(0)), ret], 'expects 3 arguments',
+                   **options)
+    expect_invalid([instruction(Opcode.CALL, result(0), 0, 3, local(0), local(0)), ret], 'Invalid operands',
+                   **options)
+    expect_invalid([instruction(Opcode.CALL, result(0), 0, 3, local(0), local(1), local(0)), ret],
+                   'Expected type int16, got uint8', **options)
+    expect_invalid([instruction(Opcode.CALL, local(1), 0, 3, local(0), local(0), local(0)), ret],
+                   'Expected type int16, got uint8', **options)
+    expect_invalid([ret], 'Function func.0', functions=(Function(('Test',), ('a',), (types.String,),
+                                                                  types.unit),))
 
 
 def check_defaults_and_equality():
@@ -360,6 +402,7 @@ check_defaults_and_equality()
 check_ordering()
 check_arithmetic()
 check_conversions()
+check_calls()
 check_branches()
 check_validation()
 check_dump()

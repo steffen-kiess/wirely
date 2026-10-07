@@ -33,6 +33,9 @@ class Opcode(enum.Enum):
     CONVERT_WRAPPING = enum.auto()
     CONVERT_SATURATING = enum.auto()
     CONVERT_CHECKED = enum.auto()
+    # CALL destination, function, count, arguments...: count repeats the
+    # function's parameter count so instructions decode without tables.
+    CALL = enum.auto()
     JUMP = enum.auto()
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
@@ -102,3 +105,17 @@ class ProcedureBody:
 class Constant:
     value_type: Type
     value: object
+
+
+@dataclass(frozen=True, slots=True)
+class Function:
+    """A native function called by procedure bodies, linked by name at runtime."""
+
+    name: tuple[str, ...]  # Qualified name components.
+    argument_names: tuple[str, ...]
+    parameter_types: tuple[Type, ...]
+    return_type: Type
+
+    def __post_init__(self):
+        for name in ('name', 'argument_names', 'parameter_types'):
+            object.__setattr__(self, name, tuple(getattr(self, name)))

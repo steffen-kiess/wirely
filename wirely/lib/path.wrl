@@ -1,5 +1,5 @@
 namespace Path {
-  native function Join(base: String, path: String): String;
-  native function Parent(path: String): String;
-  native function SourceFile(): String;
+  native constant function Join(base: String, path: String): String;
+  native constant function Parent(path: String): String;
+  native constant function SourceFile(): String;
 }

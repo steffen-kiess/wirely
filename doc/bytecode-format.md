@@ -662,7 +662,8 @@ must also be within the selected table or list.
 
 ### Integer parameters
 
-Field indices and branch displacements share this unsigned encoding:
+Field indices, branch displacements, function indices, and argument counts
+share this unsigned encoding:
 
 | First byte | Value encoding | Total bytes |
 | --- | --- | --- |
@@ -677,8 +678,8 @@ Field indices select members in declaration order, starting at zero.
 ### Instructions
 
 Mnemonics are uppercase. Instructions with a destination place it first.
-Each name below denotes a value operand except `field` and `offset`, which
-denote integer parameters.
+Each name below denotes a value operand except `field`, `offset`,
+`function`, and `count`, which denote integer parameters.
 
 | Instruction | Behavior |
 | --- | --- |
@@ -703,6 +704,7 @@ denote integer parameters.
 | `JUMP offset` | Continue at the branch target. |
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
+| `CALL destination, function, count, arguments…` | Call a native function with `count` argument operands and assign its result. |
 | `RETURN` | End the procedure with its current result values. |
 
 `NOT`, `AND`, and `OR` require boolean operands and destinations.
@@ -717,6 +719,15 @@ saturating maps negative numbers to `false` and numbers above 1 to `true`.
 Equality compares struct fields recursively; options are equal when both
 are `None`, or both are `Some` with equal contained values. All unit values
 are equal.
+
+`CALL` selects an entry of the program's function table, which lists each
+called native function's qualified name, argument names and types, and
+return type; the table's encoding is not yet specified. `count` repeats
+the entry's parameter count so that instructions can be decoded without
+the table; the verifier checks that they match and that the argument and
+destination types match the entry. The runtime resolves each entry by
+name before execution. Functions return a value for every argument; unit
+serves functions without a meaningful result.
 
 Each invocation initializes every local and result to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for

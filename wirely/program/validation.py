@@ -2,7 +2,7 @@
 
 from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, boolean
 from .procedures import (
-    ARITHMETIC_OPCODES, CONVERSION_OPCODES,
+    ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import Program
@@ -41,7 +41,13 @@ def _same_type(actual, expected):
         raise ValueError(f'Expected type {expected}, got {actual}')
 
 
-def _validate_body(procedure, constant_types):
+def _call_signature(operands):
+    """Return the CALL signature, whose length depends on its count operand."""
+    count = operands[2] if len(operands) >= 3 and type(operands[2]) is int and operands[2] >= 0 else 0
+    return (Operand, int, int) + (Operand,) * count
+
+
+def _validate_body(procedure, constant_types, functions):
     body = procedure.body
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
@@ -70,7 +76,7 @@ def _validate_body(procedure, constant_types):
             if not isinstance(instruction, Instruction) or not isinstance(instruction.opcode, Opcode):
                 raise ValueError('Expected an instruction with a known opcode')
             opcode, operands = instruction.opcode, instruction.operands
-            signature = _SIGNATURES[opcode]
+            signature = _call_signature(operands) if opcode == Opcode.CALL else _SIGNATURES[opcode]
             if len(operands) != len(signature) or any(type(value) is not cls for value, cls in zip(operands, signature)):
                 raise ValueError(f'Invalid operands for {opcode.name}')
             operand_types = []
@@ -115,6 +121,17 @@ def _validate_body(procedure, constant_types):
                 _same_type(operand_types[1], operand_types[2])
                 if opcode == Opcode.LESS and not operand_types[1].is_ordered:
                     raise ValueError(f'Type {operand_types[1]} is not ordered')
+            elif opcode == Opcode.CALL:
+                function_index, count = operands[1], operands[2]
+                if not 0 <= function_index < len(functions):
+                    raise ValueError(f'Function index out of range: {function_index}')
+                function = functions[function_index]
+                if count != len(function.parameter_types):
+                    raise ValueError(f'Function {".".join(function.name)} expects {len(function.parameter_types)} '
+                                     f'arguments, got {count}')
+                _same_type(operand_types[0], function.return_type)
+                for argument_type, parameter_type in zip(operand_types[1:], function.parameter_types):
+                    _same_type(argument_type, parameter_type)
             elif opcode in CONVERSION_OPCODES:
                 if not isinstance(operand_types[1], (TypeInt, TypeEnum, TypeBoolean)):
                     raise ValueError(f'Conversion source must be an integer, enum, or boolean, got {operand_types[1]}')
@@ -149,10 +166,23 @@ def validate_program(program):
         except Exception as error:
             raise ValueError(f'Constant const.{index}: {error}') from error
     constant_types = tuple(constant.value_type for constant in program.constants)
+    for index, function in enumerate(program.functions):
+        try:
+            if not isinstance(function, Function):
+                raise ValueError('Expected a Function')
+            if not function.name or not all(type(part) is str and part for part in function.name):
+                raise ValueError('Expected a qualified function name')
+            if (len(function.argument_names) != len(function.parameter_types)
+                    or len(set(function.argument_names)) != len(function.argument_names)):
+                raise ValueError('Expected one distinct name per parameter')
+            for value_type in (*function.parameter_types, function.return_type):
+                _runtime_type(value_type)
+        except ValueError as error:
+            raise ValueError(f'Function func.{index}: {error}') from error
     for schedule in program.procs.values():
         for procedure in schedule:
             if procedure.body is not None:
                 try:
-                    _validate_body(procedure, constant_types)
+                    _validate_body(procedure, constant_types, program.functions)
                 except ValueError as error:
                     raise ValueError(f'Procedure {procedure.reference[1]!r}: {error}') from error
