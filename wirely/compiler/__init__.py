@@ -15,7 +15,7 @@ class _DiagnosticCallbackError(Exception):
 
 
 def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, always_print_stacktrace=None,
-                 services=None, on_diagnostic=None):
+                 services=None, on_diagnostic=None, shuffle_seed=None, shuffle_layout=None):
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
     def report_progress(message):
@@ -33,6 +33,10 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         verbose_passes = blocks.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
     if always_print_stacktrace is None:
         always_print_stacktrace = blocks.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
+    if shuffle_seed is None and os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED'):
+        shuffle_seed = int(os.environ['WIRELY_COMPILER_SHUFFLE_SEED'])
+    if shuffle_layout is None:
+        shuffle_layout = blocks.util.getEnvironmentBool('WIRELY_COMPILER_SHUFFLE_LAYOUT', False)
 
     if add_std:
         filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
@@ -46,6 +50,9 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
             parsed = wirely.compiler.parser.parse_str(input_data, filename=filename)
             parsed_files.append((filename, parsed))
             decls += parsed
+        if shuffle_seed is not None:
+            from .shuffle import shuffle_declarations
+            shuffle_declarations(decls, shuffle_seed, layout=shuffle_layout)
         file_metadata = validate_files(parsed_files)
         from .native_functions import validate_collisions
         validate_collisions(decls)

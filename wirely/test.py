@@ -48,6 +48,7 @@ test_names = [
     'unit/negative_cases',
     'unit/attribute_editing',
     'unit/control',
+    'unit/shuffle',
     'wrl/delay',
     'wrl/std',
     'wrl/and',

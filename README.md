@@ -72,6 +72,18 @@ slowest first:
 tools/run-tests --timings unit/types unit/equality
 ```
 
+To check that compilation does not depend on declaration order, set
+`WIRELY_COMPILER_SHUFFLE_SEED` to an integer. The compiler then shuffles
+declarations, node parameters, struct literal fields, and procedure
+bindings with that seed; connections keep their relative order. Also set
+`WIRELY_COMPILER_SHUFFLE_LAYOUT=1` to shuffle struct fields and enum
+members, which changes serialization and enum default values. Negative
+tests may report different diagnostics in this mode.
+
+```
+WIRELY_COMPILER_SHUFFLE_SEED=1 tools/run-tests
+```
+
 Test dependency and Python versions in temporary environments:
 
 ```
