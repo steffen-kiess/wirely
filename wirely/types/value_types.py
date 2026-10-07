@@ -7,14 +7,6 @@ from .. import types as _types
 from .option import Some
 
 
-def _type_name(value_type):
-    if isinstance(value_type, _types.TypeOption):
-        return f'Option[{_type_name(value_type.inner_type)}]'
-    if isinstance(value_type, _types.TypeList):
-        return f'List[{_type_name(value_type.inner_type)}]'
-    return str(value_type)
-
-
 def _to_native(value_type, value):
     if isinstance(value_type, _types.TypeStruct):
         if not isinstance(value, _types.StructValue) or value._type is not value_type:
@@ -62,7 +54,7 @@ class ValueType:
             raise ValueError('ValueType requires a resolved value type')
 
     def __str__(self):
-        return _type_name(self._type)
+        return str(self._type)
 
     def __repr__(self):
         return f'ValueType({self})'

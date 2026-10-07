@@ -51,7 +51,7 @@ constant Value: int16 = int16.WrappingAdd(1); // E: int16.WrappingAdd expects ex
 constant Value: int16 = int16.WrappingAdd(1, true); // E: Invalid int value true
 
 // TEST: checked result type
-constant Value: int16 = int16.CheckedAdd(1, 2); // E: got TypeOption(int16)
+constant Value: int16 = int16.CheckedAdd(1, 2); // E: got Option[int16]
 
 // TEST: value names shadow type names
 constant int16: boolean = true;

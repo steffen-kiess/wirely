@@ -203,6 +203,9 @@ class TypeOption(Type):
     def __repr__(self):
         return f'TypeOption({self.inner_type})'
 
+    def __str__(self):
+        return f'Option[{self.inner_type}]'
+
     def verify_value(self, value):
         if value is None:
             return None
@@ -327,6 +330,9 @@ class TypeList(Type):
 
     def __repr__(self):
         return f'TypeList({self.inner_type})'
+
+    def __str__(self):
+        return f'List[{self.inner_type}]'
 
     def verify_value(self, value):
         if type(value) in (list, tuple):

@@ -310,7 +310,7 @@ assert Value.flag; // E: Value of type uint8 has no property 'flag'
 // TEST: field_access_through_option
 struct type Pair { flag: boolean, }
 constant Value: Option[Pair] = None;
-assert Value.flag; // E: Value of type TypeOption(Pair) has no property 'flag'
+assert Value.flag; // E: Value of type Option[Pair] has no property 'flag'
 
 // TEST: option_property_on_struct
 struct type Pair { flag: boolean, }

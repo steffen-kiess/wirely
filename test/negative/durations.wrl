@@ -32,4 +32,4 @@ constant Value: Duration = Duration.SaturatingMul("PT1S", Factor); // E: Expecte
 constant Value: Duration = Duration.SaturatingAdd("PT1S"); // E: Function 'Duration.SaturatingAdd' expected 2 parameters
 
 // TEST: checked result type
-constant Value: Duration = Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Duration, got TypeOption(Duration)
+constant Value: Duration = Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Duration, got Option[Duration]

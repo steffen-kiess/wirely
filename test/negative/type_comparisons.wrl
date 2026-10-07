@@ -65,12 +65,12 @@ node missing: OptionalOutput { OutputType: int16 } // H: While instantiating 'mi
 // TEST: mismatched lists
 constant Left: List[int8] = [];
 constant Right: List[uint8] = [];
-assert Left == Right; // E: Expected value of type TypeList(int8), got TypeList(uint8)
+assert Left == Right; // E: Expected value of type List[int8], got List[uint8]
 
 // TEST: mismatched options
 constant Left: Option[int8] = None;
 constant Right: Option[uint8] = None;
-assert Left != Right; // E: Expected value of type TypeOption(int8), got TypeOption(uint8)
+assert Left != Right; // E: Expected value of type Option[int8], got Option[uint8]
 
 // TEST: nominal structs
 struct type Left { flag: boolean, }
@@ -94,7 +94,7 @@ node type Compare {
   parameter Type: ValueType;
   parameter Left: Type;
   parameter Right: List[uint8];
-  assert Left == Right; // E: Expected value of type TypeList(int8), got TypeList(uint8)
+  assert Left == Right; // E: Expected value of type List[int8], got List[uint8]
 }
 node compare: Compare { Type: List[int8], Left: [], Right: [] }
 // ^H: While instantiating 'compare'
@@ -108,7 +108,7 @@ procedure run produces result {
 // TEST: procedure list operand
 temporary result: boolean;
 procedure run produces result {
-  let items: List[uint8] = []; // E: Type TypeList(uint8) is not a runtime type: TypeList(uint8) is parameter-only
+  let items: List[uint8] = []; // E: Type List[uint8] is not a runtime type: List[uint8] is parameter-only
   result = items == items;
 }
 
@@ -123,7 +123,7 @@ procedure run produces result {
 // TEST: procedure parameter-only option operand
 temporary result: boolean;
 procedure run produces result {
-  let value: Option[String] = None; // E: Type TypeOption(String) is not a runtime type: inner type: String is parameter-only
+  let value: Option[String] = None; // E: Type Option[String] is not a runtime type: inner type: String is parameter-only
   result = value == value;
 }
 
@@ -139,7 +139,7 @@ assert Mode.Off < Mode.On; // E: got Mode
 
 // TEST: ordering options
 constant Value: Option[uint8] = None;
-assert Value >= None; // E: got TypeOption(uint8)
+assert Value >= None; // E: got Option[uint8]
 
 // TEST: ordering monotonic times
 constant Deadline: Option[MonotonicTime] = None;

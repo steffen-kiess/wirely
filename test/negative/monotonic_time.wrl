@@ -30,7 +30,7 @@ node type Probe {
   default input: value MonotonicTime;
   default output: value boolean;
   procedure run depends on default input as time produces default output as output {
-    output = MonotonicTime.CheckedLess(time, time); // E: Expected value of type boolean, got TypeOption(boolean)
+    output = MonotonicTime.CheckedLess(time, time); // E: Expected value of type boolean, got Option[boolean]
   }
 }
 node source: Std.DebugValueSource { Type: MonotonicTime }

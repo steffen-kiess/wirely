@@ -180,6 +180,16 @@ def check_times():
         later - default
 
 
+def check_type_names():
+    # Types print in Wirely syntax.
+    types = wirely.types
+    pair = types.TypeStruct('Pair', {'flag': types.boolean})
+    nested = types.TypeOption(types.TypeList(types.TypeOption(types.uint8)))
+    assert str(nested) == 'Option[List[Option[uint8]]]'
+    assert str(types.TypeOption(pair)) == 'Option[Pair]'
+    assert str(wirely.ValueType(nested)) == 'Option[List[Option[uint8]]]'
+
+
 def check_structs():
     packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean})
     descriptor = wirely.ValueType(packet_type)
@@ -373,6 +383,7 @@ check_parsing_and_conversions()
 check_descriptors_and_lists()
 check_unit()
 check_times()
+check_type_names()
 check_structs()
 check_default_values()
 

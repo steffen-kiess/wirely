@@ -33,7 +33,7 @@ node type Forward {
     Time: "12:00",
     OutputType: boolean,
     OutputValue?: parameter_option(Value),
-    // ^E: Expected value of type TypeOption(boolean), got TypeOption(uint16)
+    // ^E: Expected value of type Option[boolean], got Option[uint16]
   }
 }
 node forward: Forward { Value: 0 }
@@ -44,7 +44,7 @@ node type Forward {
   node child: Memory.ToggleFlipFlopTrigger {
     OutputType: uint16,
     OutputValue?: parameter_option(Value),
-    // ^E: Expected value of type TypeOption(uint16), got TypeOption(boolean)
+    // ^E: Expected value of type Option[uint16], got Option[boolean]
   }
 }
 node forward: Forward { Value: false }

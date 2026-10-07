@@ -32,7 +32,7 @@ constant Result: int16 = int16.From(1, 2); // E: int16.From expects exactly one 
 
 // TEST: checked result type
 constant Value: int16 = 1;
-constant Result: int8 = int8.CheckedFrom(Value); // E: Expected value of type int8, got TypeOption(int8)
+constant Result: int8 = int8.CheckedFrom(Value); // E: Expected value of type int8, got Option[int8]
 
 // TEST: lossy From through a type parameter
 node type Generic {

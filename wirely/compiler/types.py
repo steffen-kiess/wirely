@@ -62,6 +62,9 @@ class TypeParameter(Type):
         # return f'TypeParameter({self.parameter})'
         return f'TypeParameter({self.parameter.interface.name}.{self.parameter.name})'
 
+    def __str__(self):
+        return self.parameter.name.id_str
+
     def __eq__(self, other):
         if not isinstance(other, TypeParameter):
             return False

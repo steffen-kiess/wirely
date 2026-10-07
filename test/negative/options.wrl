@@ -16,7 +16,7 @@ constant Result: boolean = Value.UnwrapOr(1); // E: Expected value of type boole
 
 // TEST: unknown option method
 constant Value: Option[uint8] = None;
-constant Result: uint8 = Value.Unwrap(); // E: Value of type TypeOption(uint8) has no method 'Unwrap'
+constant Result: uint8 = Value.Unwrap(); // E: Value of type Option[uint8] has no method 'Unwrap'
 
 // TEST: method of a non-option value
 constant Value: uint8 = 1;

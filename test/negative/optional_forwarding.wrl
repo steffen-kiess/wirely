@@ -55,12 +55,12 @@ node child: Destination { Foo?: Some(1) } // E: Invalid boolean value
 
 // TEST: incorrect_intrinsic_type
 optional parameter Foo: int16;
-constant Value: Option[boolean] = parameter_option(Foo); // E: Expected value of type TypeOption(boolean), got TypeOption(int16)
+constant Value: Option[boolean] = parameter_option(Foo); // E: Expected value of type Option[boolean], got Option[int16]
 
 // TEST: ordinary_binding_does_not_unwrap
 node type Destination { optional parameter Foo: boolean; }
 optional parameter Foo: boolean;
-node child: Destination { Foo: parameter_option(Foo) } // E: Expected value of type boolean, got TypeOption(boolean)
+node child: Destination { Foo: parameter_option(Foo) } // E: Expected value of type boolean, got Option[boolean]
 
 // TEST: duplicate_bindings
 node type Destination { optional parameter Foo: boolean; }
