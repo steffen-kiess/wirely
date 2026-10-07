@@ -2,7 +2,8 @@
 
 import inspect
 
-from ..native import get_native_block_type_by_name, get_native_function_by_name
+from ..functions import get_native_function_by_name
+from ..native import get_native_block_type_by_name
 
 
 def validate_native_method(native_class, name, *, has_native_state):

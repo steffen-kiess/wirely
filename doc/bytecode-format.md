@@ -726,8 +726,8 @@ return type; the table's encoding is not yet specified. `count` repeats
 the entry's parameter count so that instructions can be decoded without
 the table; the verifier checks that they match and that the argument and
 destination types match the entry. The runtime resolves each entry by
-name before execution. Functions return a value for every argument; unit
-serves functions without a meaningful result.
+name before execution. Functions are pure and return a value for every
+argument.
 
 Each invocation initializes every local and result to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for

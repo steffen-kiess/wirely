@@ -250,12 +250,15 @@ generation also causes a rerun; handle that case as
 ### Runtime functions
 
 A `native function` runs in procedure bodies and in compile-time
-expressions. Register its implementation in the module that
-`native_block_pkgs` maps its namespace to, in a `native_functions`
-dictionary, using the Wirely function name:
+expressions, so its implementation is shared by the compiler and the
+runtime and lives in [`wirely/functions/`](../wirely/functions/) rather
+than with the runtime-only native node types. `function_pkgs` in
+[`wirely/functions/__init__.py`](../wirely/functions/__init__.py) maps each
+namespace to a module there. Register the implementation in that module's
+`native_functions` dictionary, using the Wirely function name:
 
 ```python
-from wirely.native.functions import native_function
+from wirely.functions import native_function
 
 native_functions = {}
 
@@ -267,13 +270,13 @@ def clamp(*, context):
 ```
 
 The context has read-only `function_name` and `arguments` (native values by
-declared argument name). Implementations must be synchronous and must
-return a value of the declared return type for every argument; return an
-`Option` when a result may be absent. An exception is an internal error:
-during compilation it stops compilation, and at runtime it propagates out
-of `Engine.step()`. Procedures may be skipped when their inputs are
-unchanged, so side effects such as logging are best effort. An `Engine`
-resolves every function its program calls when it is constructed.
+declared argument name). Implementations must be synchronous and pure:
+the result depends only on the arguments, and calling the function has no
+side effects. They must return a value of the declared return type for
+every argument; return an `Option` when a result may be absent. An
+exception is an internal error: during compilation it stops compilation,
+and at runtime it propagates out of `Engine.step()`. An `Engine` resolves
+every function its program calls when it is constructed.
 
 ### Constant functions
 

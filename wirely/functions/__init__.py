@@ -1,11 +1,23 @@
-"""Native functions callable from procedure bodies and compile-time expressions."""
+"""Native functions shared by the compiler and the Python runtime.
 
+These functions are callable from procedure bodies and compile-time
+expressions. Implementations must be pure: their result depends only on
+their arguments, and they have no side effects.
+"""
+
+import importlib
 import inspect
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
 from ..types import StructValue, TypeStruct, value_types
+
+
+# Maps namespaces to modules of this package, each with a native_functions registry.
+function_pkgs = {
+    ('TestLibrary',): 'test_library',
+}
 
 
 def native_function(registry, name):
@@ -49,3 +61,17 @@ def call_native_function(implementation, function_name, argument_names, paramete
     if isinstance(return_type, TypeStruct) and isinstance(result, Mapping) and not isinstance(result, StructValue):
         result = value_types.ValueType(return_type).make_struct(result)
     return return_type.verify_value(value_types._from_native(return_type, result))
+
+
+def get_native_function_by_name(function_name: tuple[str, ...]):
+    """Return the implementation of a native function, validated for calling."""
+    description = '.'.join(function_name)
+    pkg_name = function_pkgs.get(function_name[:-1])
+    if pkg_name is None:
+        raise ValueError(f'No native namespace for function {description!r}')
+    pkg = importlib.import_module('.' + pkg_name, __name__)
+    implementation = pkg.native_functions.get(function_name[-1])
+    if implementation is None:
+        raise ValueError(f'Cannot find native function {description!r}')
+    validate_native_function(implementation, function_name)
+    return implementation

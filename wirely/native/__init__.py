@@ -43,17 +43,3 @@ def get_native_block_type_by_name(type_name: tuple[str, ...]):
         raise ValueError(f'Cannot find native class for node type {".".join(type_name)!r}')
     return native_class
 
-
-def get_native_function_by_name(function_name: tuple[str, ...]):
-    """Return the runtime implementation of a native function, validated for calling."""
-    from .functions import validate_native_function
-    description = '.'.join(function_name)
-    pkg_name = native_block_pkgs.get(function_name[:-1])
-    if pkg_name is None:
-        raise ValueError(f'No native namespace for function {description!r}')
-    pkg = importlib.import_module('.' + pkg_name, __name__)
-    implementation = getattr(pkg, 'native_functions', {}).get(function_name[-1])
-    if implementation is None:
-        raise ValueError(f'Cannot find native function {description!r}')
-    validate_native_function(implementation, function_name)
-    return implementation

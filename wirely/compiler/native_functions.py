@@ -169,8 +169,7 @@ def invoke(function, values, sources, call):
 
 def invoke_runtime_function(function, values, call):
     """Evaluate a runtime-callable native function during compilation."""
-    from wirely.native import get_native_function_by_name
-    from wirely.native.functions import call_native_function
+    from wirely.functions import call_native_function, get_native_function_by_name
     name = '.'.join(function.function_name)
     if not hasattr(function, '_runtime_implementation'):
         try:

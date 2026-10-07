@@ -1,7 +1,7 @@
 """Execution of validated, forward-only procedure instructions."""
 
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind
-from ..native.functions import call_native_function
+from ..functions import call_native_function
 from ..types import Some, convert
 from ..types.value_types import _from_native, _to_native
 
