@@ -11,7 +11,7 @@ def check_equality():
     instant = wirely.MonotonicTime(1, 100)
     next_instant = wirely.MonotonicTime(1, 101)
     other_generation = wirely.MonotonicTime(2, 100)
-    invalid = wirely.MonotonicTime.create_invalid()
+    default = wirely.MonotonicTime(0, 0)
     packet_type = wirely.ValueType(engine.get_variable('packet_left').var_type)
     nested_type = wirely.ValueType(engine.get_variable('nested_left').var_type.inner_type)
     empty_type = wirely.ValueType(engine.get_variable('empty_left').var_type)
@@ -36,8 +36,8 @@ def check_equality():
         'monotonic': [(instant, wirely.MonotonicTime(1, 100), True),
                       (instant, next_instant, False),
                       (instant, other_generation, False),
-                      (invalid, wirely.MonotonicTime.create_invalid(), True),
-                      (invalid, instant, False)],
+                      (default, wirely.MonotonicTime(0, 0), True),
+                      (default, instant, False)],
         'option': [(None, None, True), (None, wirely.Some(at), False),
                    (wirely.Some(at), wirely.Some(at), True),
                    (wirely.Some(at), wirely.Some(later), False)],
@@ -52,7 +52,7 @@ def check_equality():
                    (nested_value, nested(wirely.Some(packet()), wirely.Some(None)), True),
                    (nested_value, nested(None, wirely.Some(None)), False),
                    (nested_value, nested(wirely.Some(value), None), False),
-                   (nested_value, nested(wirely.Some(packet(instant=invalid)), wirely.Some(None)), False)],
+                   (nested_value, nested(wirely.Some(packet(instant=default)), wirely.Some(None)), False)],
         'empty': [(empty_type.make_struct({}), empty_type.make_struct({}), True)],
     }
 

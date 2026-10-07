@@ -96,7 +96,7 @@ def check_wakeups():
             context.set_wakeup_time(None)
 
     for deadline in [None, blocks.MonotonicTime(1, 100),
-                     blocks.MonotonicTime.create_invalid(), blocks.MonotonicTime(2, 100)]:
+                     blocks.MonotonicTime(0, 0), blocks.MonotonicTime(2, 100)]:
         wakeup_probe = make_engine(
             'native procedure run;',
             lambda context, deadline=deadline: check_wakeup(context, deadline),
@@ -106,7 +106,8 @@ def check_wakeups():
         if deadline is None:
             assert wakeup_probe.next_wakeup is None
         else:
-            expected = deadline if deadline.generation == 1 else blocks.MonotonicTime.create_invalid()
+            # A wakeup from a non-current generation is due now.
+            expected = deadline if deadline.generation == 1 else blocks.MonotonicTime(1, 0)
             assert wakeup_probe.next_wakeup == expected
 
     for explicit_cancellation in [False, True]:

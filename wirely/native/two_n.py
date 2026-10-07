@@ -150,11 +150,6 @@ class CodeEnteredEvent(NativeState):
 @native_block_type(native_block_types, has_native_state=False)
 class KeyState(NativeState):
     @staticmethod
-    def read_timeout_time(*, context):
-        value = context.inputs['timeout_time_old']
-        context.set_result('timeout_time_old', value)
-
-    @staticmethod
     def get_value(*, context):
         value = context.inputs['current_value_old']
         timeout_time = context.inputs['timeout_time_old']
@@ -165,22 +160,22 @@ class KeyState(NativeState):
             # KeyPressed
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             new_value = True
-            new_timeout_time = now + context.values['Timeout']
+            new_timeout_time = blocks.Some(now + context.values['Timeout'])
         elif event == blocks.Some(False):
             # KeyReleased
             new_value = False
-            new_timeout_time = blocks.MonotonicTime.create_invalid()
+            new_timeout_time = None
         else:
             # No event, keep current value (if there is no timeout)
             if not value:
                 new_value = False
-                new_timeout_time = blocks.MonotonicTime.create_invalid()
+                new_timeout_time = None
             elif timeout_reached != blocks.Some(False):
                 # Old value was True, but timeout was reached or time was lost
                 print('Warning: TwoN.KeyState: Resetting key after timeout', flush=True)
                 # Change value to False, cancel timeout
                 new_value = False
-                new_timeout_time = blocks.MonotonicTime.create_invalid()
+                new_timeout_time = None
             else:
                 # Current (True) value is kept, keep timeout
                 new_value = True

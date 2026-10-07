@@ -32,7 +32,7 @@ def check_scalar_codecs():
          bytes.fromhex('40 42 0f 00 00 00 00 00'), 8),
         (wirely.types.MonotonicTime, wirely.MonotonicTime(7, 123),
          bytes.fromhex('07 00 00 00 00 00 00 00 7b 00 00 00 00 00 00 00'), 8),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime.create_invalid(), bytes(16), 8),
+        (wirely.types.MonotonicTime, wirely.MonotonicTime(0, 0), bytes(16), 8),
         (wirely.types.TimeOfDay, datetime.time(0, 0, 1),
          bytes.fromhex('00 ca 9a 3b 00 00 00 00'), 8),
         (thermostat_type, thermostat_modes.Heat, b'\x04', 1),

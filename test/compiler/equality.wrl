@@ -16,9 +16,6 @@ constant At: TimeOfDay = "08:00";
 assert At == "08:00" && "08:00" == At && At != "08:01";
 constant Span: Duration = "PT60S";
 assert Span == "PT1M" && "PT1M" == Span && Span != "PT61S";
-constant Invalid: MonotonicTime = MonotonicTime.Invalid;
-assert Invalid == MonotonicTime.Invalid;
-assert !(MonotonicTime.Invalid != Invalid);
 
 struct type Settings {
   text: String,

@@ -76,9 +76,6 @@ temporary LiteralUnequal: boolean;
 procedure literals produces LiteralEqual, LiteralUnequal {
   let at: TimeOfDay = "08:00";
   let span: Duration = "PT60S";
-  let invalid: MonotonicTime = MonotonicTime.Invalid;
-  LiteralEqual = at == "08:00" && "PT1M" == span
-    && invalid == MonotonicTime.Invalid;
-  LiteralUnequal = "08:01" != at && span != "PT61S"
-    && !(MonotonicTime.Invalid != invalid);
+  LiteralEqual = at == "08:00" && "PT1M" == span;
+  LiteralUnequal = "08:01" != at && span != "PT61S";
 }

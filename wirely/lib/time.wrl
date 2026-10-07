@@ -4,11 +4,11 @@ namespace Time {
   #[internal]
   native function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 
-  // Block which return false if the current time is before input, true if the
-  // current time is at or after input and None if the current time is not
-  // comparable to input.
+  // Block which returns false if the current time is before input, true if the
+  // current time is at or after input, and None if the input is None or not
+  // comparable to the current time.
   node type MonotonicTimeReached {
-    default input: value MonotonicTime;
+    default input: value Option[MonotonicTime];
     default output: value Option[boolean];
 
     native procedure run
@@ -31,7 +31,7 @@ namespace Time {
     state new_value: Option[Type] = None;
     // The time when the output will change to new_value if there are no further
     // changes
-    state update_time: MonotonicTime = MonotonicTime.Invalid;
+    state update_time: Option[MonotonicTime] = None;
 
     node reached: MonotonicTimeReached {}
     connect update_time.old -> reached;

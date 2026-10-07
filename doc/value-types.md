@@ -155,18 +155,33 @@ Here, `Late` defaults to 00:30.
 
 `MonotonicTime` is a point on a monotonic clock, used for deadlines and
 elapsed-time calculations. It contains a clock generation and a nanosecond
-reading. Readings from the same generation can be compared; generations
-distinguish clock histories when the clock's continuity is lost. A
-monotonic time is distinct from a wall-clock time or a time of day.
+reading. A monotonic time is distinct from a wall-clock time or a time of
+day.
 
-Use `MonotonicTime.Invalid` as an initial value when there is no deadline:
+A new generation starts whenever the runtime loses track of how much time
+has passed. For example, a device without a real-time clock may save its
+state before losing power; after a restart it cannot tell whether a minute
+or a day has passed, so times loaded from the saved state belong to an
+earlier generation. Readings from the same generation can be compared;
+readings from different generations cannot. A later generation does not
+imply a later time: arithmetic can move a time into the future, so a time
+from an earlier generation may lie after the current time. Library nodes
+report such times as not comparable, for example
+`Time.MonotonicTimeReached` yields `None`.
+
+Monotonic times have no literals. Use `Option[MonotonicTime]` with `None`
+when there is no deadline, and decide at each use what an absent time
+means:
 
 ```wrl
-node deadline: Std.Constant {
-  Type: MonotonicTime,
-  Value: MonotonicTime.Invalid,
+node type Timeout {
+  state deadline: Option[MonotonicTime] = None;
 }
 ```
+
+Where a runtime value is needed without one, such as an uninitialized
+temporary, the default is a time from a generation that is never current,
+so it compares to no current time.
 
 Time library nodes produce and work with monotonic times, including
 `Time.MonotonicTimeReached`.

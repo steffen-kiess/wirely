@@ -108,13 +108,15 @@ class Engine:
 
     # Update self.next_wakeup to include wakeup_time
     def update_next_wakeup(self, now, wakeup_time):
-        if wakeup_time is not None and not wakeup_time.is_invalid and not blocks.MonotonicTime.is_comparable(now, wakeup_time):
-            print('Warning: Got non-current wakeup time {wakeup_time}', flush=True)
-            wakeup_time = blocks.MonotonicTime.create_invalid()
         if wakeup_time is None:
             return
+        if not blocks.MonotonicTime.is_comparable(now, wakeup_time):
+            # A time from another generation cannot be waited for; it is due now.
+            print(f'Warning: Got non-current wakeup time {wakeup_time}', flush=True)
+            wakeup_time = now
 
-        if self.next_wakeup is None or wakeup_time.is_invalid or blocks.MonotonicTime.compare(self.next_wakeup, wakeup_time) > 0:
+        if (self.next_wakeup is None or not blocks.MonotonicTime.is_comparable(self.next_wakeup, wakeup_time)
+                or blocks.MonotonicTime.compare(self.next_wakeup, wakeup_time) > 0):
             self.next_wakeup = wakeup_time
 
     def step(self):
@@ -224,7 +226,7 @@ class Engine:
                 if self.next_wakeup is None:
                     # Sleep without timeout
                     await self.triggered_procs_event.wait()
-                elif self.next_wakeup.is_invalid or not blocks.MonotonicTime.is_comparable(now, self.next_wakeup):
+                elif not blocks.MonotonicTime.is_comparable(now, self.next_wakeup):
                     # Don't sleep
                     pass
                 else:

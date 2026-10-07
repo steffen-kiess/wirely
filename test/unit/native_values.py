@@ -56,7 +56,7 @@ class ValuesProbe(NativeState):
         assert context.values['option'] == wirely.Some(False)
         assert context.values['at'] == datetime.time(0, 30)
         assert context.values['span'] == wirely.Duration.parse('PT1S')
-        assert context.values['instant'] == wirely.MonotonicTime.create_invalid()
+        assert context.values['instant'] is None
         assert context.values['descriptors'] == (wirely.Some(wirely.value_types.uint16), None)
         with checks.assertRaises(KeyError):
             context.values['Number']
@@ -95,7 +95,7 @@ def check_values():
     constant Items: List[Option[uint16]] = [Some(7), None];
     constant At: TimeOfDay = "00:30";
     constant Span: Duration = "PT1S";
-    constant Instant: MonotonicTime = MonotonicTime.Invalid;
+    constant Instant: Option[MonotonicTime] = None;
     constant Types: List[Option[ValueType]] = [Some(uint16), None];
     input Number: resource Service;
     output Result: value uint16;

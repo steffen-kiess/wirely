@@ -136,12 +136,12 @@ def check_times():
         with checks.assertRaises(AttributeError):
             setattr(value, field, 0)
     assert instant != wirely.MonotonicTime(8, instant.time_ns)
-    invalid = wirely.MonotonicTime.create_invalid()
-    assert invalid.is_invalid and not invalid.is_valid
-    assert instant.is_valid and not instant.is_invalid
-    assert not wirely.MonotonicTime.is_comparable(instant, invalid)
+    # The default value's generation 0 is never current.
+    default = wirely.types.MonotonicTime.default_value()
+    assert default == wirely.MonotonicTime(0, 0)
+    assert not wirely.MonotonicTime.is_comparable(instant, default)
     with checks.assertRaises(Exception):
-        wirely.MonotonicTime.compare(instant, invalid)
+        wirely.MonotonicTime.compare(instant, default)
     assert wirely.Duration.parse('P1DT2H3M4.5S').total_seconds == 93784.5
     assert wirely.Duration.parse('PT2S') == span
     for text in ('P', 'PT', '-PT1S', 'P1M', 'invalid'):
@@ -160,9 +160,11 @@ def check_times():
     for left, right, expected in [(instant, later, -1), (later, instant, 1),
                                   (instant, equivalent, 0)]:
         assert wirely.MonotonicTime.compare(left, right) == expected
-    assert invalid + span == invalid and invalid - span == invalid
+    # Arithmetic keeps generation 0, so results stay non-comparable to current times.
+    assert default + span == wirely.MonotonicTime(0, span.duration_ns)
+    assert not wirely.MonotonicTime.is_comparable(later, default + span)
     with checks.assertRaises(Exception):
-        later - invalid
+        later - default
 
 
 def check_structs():
@@ -221,7 +223,7 @@ def check_default_values():
     cases += [
         (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
         (types.Duration, wirely.Duration(duration_ns=0)),
-        (types.MonotonicTime, wirely.MonotonicTime.create_invalid()),
+        (types.MonotonicTime, wirely.MonotonicTime(0, 0)),
         (types.TimeOfDay, datetime.time(0, 0)), (types.ValueType, types.unit),
         (enum_type, members.First), (types.TypeList(types.String), ()),
         (types.TypeList(types.TypeList(types.uint8)), ()),

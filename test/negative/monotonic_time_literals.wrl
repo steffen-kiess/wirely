@@ -1,0 +1,12 @@
+// TEST: removed invalid constant
+constant Deadline: MonotonicTime = MonotonicTime.Invalid; // E: Invalid MonotonicTime value MonotonicTime.Invalid
+
+// TEST: removed invalid constant in a procedure
+node type Probe {
+  default output: value boolean;
+  procedure run produces default output as output {
+    let deadline: MonotonicTime = MonotonicTime.Invalid; // E: Unknown procedure value MonotonicTime.Invalid
+    output = true;
+  }
+}
+node probe: Probe {}

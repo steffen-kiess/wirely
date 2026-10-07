@@ -61,20 +61,13 @@ namespace TwoN {
     // The current value which is kept if there is no new event
     state current_value: boolean = false;
 
-    // The next time at which the the state will be reset to False. If this time
-    // is not comparable to the current time, the the state will be reset to
-    // False.
-    state timeout_time: MonotonicTime = MonotonicTime.Invalid;
+    // The next time at which the state will be reset to False, or None while
+    // the key is released. If this time is not comparable to the current time,
+    // the state will be reset to False.
+    state timeout_time: Option[MonotonicTime] = None;
 
     node timeout_reached: Time.MonotonicTimeReached {}
-    // TODO: Allow this?
-    // connect timeout_time.old -> timeout_reached;
-    temporary timeout_time_old: MonotonicTime;
-
-    native procedure read_timeout_time
-      depends on timeout_time.old as "timeout_time_old"
-      produces timeout_time_old;
-    connect timeout_time_old -> timeout_reached;
+    connect timeout_time.old -> timeout_reached;
 
     native procedure get_value
       depends on current_value.old as "current_value_old",

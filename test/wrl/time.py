@@ -12,6 +12,7 @@ async def run_test():
         await engine.start_tasks_async(tg, async_exit_stack)
 
         engine.get_native_state('delay_input').set_value(4)
+        engine.get_native_state('reached_input').set_value(None)
 
         engine.step()
 
@@ -326,6 +327,16 @@ async def run_test():
         engine.assert_value_is('delay', 18)
 
         # TODO: Add test for generation change?
+
+        # MonotonicTimeReached: None and non-comparable times give None.
+        reached_input = engine.get_native_state('reached_input')
+        now = blocks.MonotonicTime.current_time()
+        for time, expected in [(None, None), (blocks.Some(now + blocks.Duration.parse('PT1H')), blocks.Some(False)),
+                               (blocks.Some(blocks.MonotonicTime(now.generation, 0)), blocks.Some(True)),
+                               (blocks.Some(blocks.MonotonicTime(0, 0)), None)]:
+            reached_input.set_value(time)
+            engine.step()
+            engine.assert_value_is('reached', expected)
 
         # Without this sleep there is a warning: "sys:1: RuntimeWarning: coroutine 'TimeOfDayMinute.run_task' was never awaited"
         await asyncio.sleep(0.001)

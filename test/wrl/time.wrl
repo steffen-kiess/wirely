@@ -18,3 +18,7 @@ node delay: Time.DebounceStable { Type: int8, Duration: "PT10S" }
 node delay_output: Std.DebugValuePrinter { Type: int8 }
 connect delay_input -> delay;
 connect delay -> delay_output;
+
+node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
+node reached: Time.MonotonicTimeReached {}
+connect reached_input -> reached;

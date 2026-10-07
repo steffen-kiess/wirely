@@ -154,8 +154,6 @@ def _parse_value_type(self, value, *, scope=None):
 
 
 def _parse_monotonic_time(self, value, *, scope=None):
-    if isinstance(value, blocks.Reference) and value.length == 2 and value.identifiers[0].id_str == 'MonotonicTime' and value.identifiers[1].id_str == 'Invalid':
-        return blocks.MonotonicTime.create_invalid()
     raise blocks.ProgramError(value, f'Invalid MonotonicTime value {value!r}')
 
 

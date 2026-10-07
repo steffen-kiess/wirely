@@ -720,8 +720,10 @@ are equal.
 
 Each invocation initializes every local and result to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums the first declared member, and for structs the
-defaults of their fields. Defaults need not have an all-zero representation.
+options `None`, for enums the first declared member, for durations and
+times of day zero, for monotonic times generation 0 with timestamp 0, and
+for structs the defaults of their fields. Generation 0 is never current,
+so the monotonic-time default compares to no current time. Defaults need not have an all-zero representation.
 Values remain valid and canonical, including padding and unused option
 payloads, as specified by the runtime binary representation.
 

@@ -490,7 +490,8 @@ class TypeMonotonicTime(TypeConcrete):
         super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self):
-        return RuntimeMonotonicTime.create_invalid()
+        # Generation 0 is never current, so the default compares to no current time.
+        return RuntimeMonotonicTime(0, 0)
 
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeMonotonicTime.parse')

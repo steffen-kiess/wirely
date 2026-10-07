@@ -27,7 +27,7 @@ namespace CSV {
     // The next time at which the current value will be written out again even
     // if it does not change. If this time is not comparable to the current
     // time, the value will be written out again.
-    state repeat_time: MonotonicTime = MonotonicTime.Invalid;
+    state repeat_time: Option[MonotonicTime] = None;
 
     node repeat_time_reached: Time.MonotonicTimeReached {}
     connect repeat_time.old -> repeat_time_reached;

@@ -261,8 +261,8 @@ are also accepted.
 Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
 value of type `T`. Without an expected type, `Some(x)` takes `T` from `x`.
-`MonotonicTime.Invalid` is the available monotonic-time constant. The
-compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
+Monotonic times have no literals; use `Option[MonotonicTime]` with `None`
+when a time may be absent. The compile-time function `TimeOfDay.AddWrap(time, offset)` adds an `"HH:MM"`
 offset and wraps at midnight.
 
 Compile-time expressions support literals, parameter and constant
@@ -452,8 +452,7 @@ Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
 `==` and `!=` for matching value types. Options compare presence and payload;
 lists compare ordered contents and length; structs compare fields and must
 have the same declared type. Durations compare nanoseconds; monotonic times
-compare generation and timestamp, with two invalid values equal. `!=` is
-the complement of `==`.
+compare generation and timestamp. `!=` is the complement of `==`.
 
 `<`, `<=`, `>`, and `>=` order integers, `Duration`, and `TimeOfDay` values
 of the same type. Times of day compare within one day, so `"23:00"` is

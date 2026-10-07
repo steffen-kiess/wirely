@@ -21,7 +21,9 @@ class MonotonicTimeReached(NativeState):
         now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
 
         # print('MonotonicTimeReached', time, now)
-        if not blocks.MonotonicTime.is_comparable(time, now):
+        if time is not None:
+            time = time.value
+        if time is None or not blocks.MonotonicTime.is_comparable(time, now):
             result = None
             context.set_wakeup_time(None)
         elif blocks.MonotonicTime.compare(now, time) >= 0:
@@ -51,14 +53,14 @@ class DebounceStable(NativeState):
             # Or: Input is current value. Cancel any changes.
             n_cur = blocks.Some(inp)
             n_new = None
-            n_update_time = blocks.MonotonicTime.create_invalid()
+            n_update_time = None
             out = inp
         elif new != blocks.Some(inp):
             # Input is neither cur not new. Start a change to inp.
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             n_cur = cur
             n_new = blocks.Some(inp)
-            n_update_time = now + context.values['Duration']
+            n_update_time = blocks.Some(now + context.values['Duration'])
             # Note: cur cannot be None because if the first if
             out = cur.value
         elif not reached.value:
@@ -80,7 +82,7 @@ class DebounceStable(NativeState):
 
             n_cur = new
             n_new = None
-            n_update_time = blocks.MonotonicTime.create_invalid()
+            n_update_time = None
             out = new.value
 
         context.set_result('current_value', n_cur)

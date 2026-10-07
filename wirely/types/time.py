@@ -11,8 +11,8 @@ from wirely.util import check_parameters
 # Keeps track of restarts by tracking the generation of the time. Times with
 # different generations aren't comparable. A new generation is started whenever
 # the value of the monotonic clock gets lost.
-# TODO: Remove invalid value and use Option[MonotonicTime] for those cases instead? (At least if invalid means "never")
-# Maybe: Allow creating MonotonicTime value which represent +inf? Should these be comparable to all other values?
+# Generation 0 is never current. The type's default value, MonotonicTime(0, 0),
+# therefore behaves like a time from a lost generation.
 @dataclass(frozen=True, slots=True, init=False, eq=False)
 class MonotonicTime:
     generation: int
@@ -23,22 +23,9 @@ class MonotonicTime:
         object.__setattr__(self, 'generation', generation)
         object.__setattr__(self, 'time_ns', time_ns)
 
-    # Value which is not comparable to any other value, can be used as initializer for variables.
-    @staticmethod
-    def create_invalid():
-        return MonotonicTime(0, 0)
-
-    @property
-    def is_invalid(self):
-        return self.generation == 0 and self.time_ns == 0
-
-    @property
-    def is_valid(self):
-        return not self.is_invalid
-
     @staticmethod
     def current_time():
-        # Note: Generation 0 is reserved for the invalid value.
+        # Note: Generation 0 is never current.
         # Note: Currently the generation is always 1 because values cannot be stored anyway
         # TODO: Keep track of generation values
         generation = 1
@@ -66,21 +53,15 @@ class MonotonicTime:
             return 1
 
     def __repr__(self):
-        if self.is_invalid:
-            return 'MonotonicTime.invalid'
         return f'MonotonicTime(generation={self.generation}, time_ns={self.time_ns})'
 
     def __add__(self, duration):
         if not isinstance(duration, Duration):
             raise Exception(f'Cannot add Duration and {type(duration)}')
-        if self.is_invalid:
-            return self
         return MonotonicTime(generation=self.generation, time_ns=self.time_ns + duration.duration_ns)
 
     def __sub__(self, other):
         if isinstance(other, Duration):
-            if self.is_invalid:
-                return self
             return MonotonicTime(generation=self.generation, time_ns=self.time_ns - other.duration_ns)
         elif isinstance(other, MonotonicTime):
             if not MonotonicTime.is_comparable(self, other):

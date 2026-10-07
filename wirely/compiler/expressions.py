@@ -729,7 +729,7 @@ class ExpressionCompiler:
             self.check_runtime_syntax(expression)
         if self.runtime and isinstance(expression, blocks.Reference):
             names = [identifier.id_str for identifier in expression.identifiers]
-            if (names not in (['true'], ['false'], ['None'], ['MonotonicTime', 'Invalid'])
+            if (names not in (['true'], ['false'], ['None'])
                     and not isinstance(self.known_type(expression), blocks.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
         if isinstance(expression, blocks.StructLiteral):

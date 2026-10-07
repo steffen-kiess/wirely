@@ -142,8 +142,8 @@ constant Value: Option[uint8] = None;
 assert Value >= None; // E: got TypeOption(uint8)
 
 // TEST: ordering monotonic times
-constant Invalid: MonotonicTime = MonotonicTime.Invalid;
-assert Invalid > MonotonicTime.Invalid; // E: got MonotonicTime
+constant Deadline: Option[MonotonicTime] = None;
+assert if let Some(time) = Deadline { time > time } else { false }; // E: got MonotonicTime
 
 // TEST: ordering types
 assert int8 < int16; // E: got ValueType

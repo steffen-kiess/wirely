@@ -147,6 +147,6 @@ class ValueWriter(NativeState):
             # TODO: Think what happens if new_value_csv is ('', False)
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             # Write value once an hour
-            repeat_time = now + blocks.Duration.parse('PT1H')
+            repeat_time = blocks.Some(now + blocks.Duration.parse('PT1H'))
 
         context.set_result('repeat_time', repeat_time)

@@ -83,7 +83,7 @@ Time-based values and triggers. `TimeOfDay` parameters use strings such as
 
 | Node type | Parameters | Connectors and behavior |
 | --- | --- | --- |
-| `MonotonicTimeReached` | None | In: `value MonotonicTime`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the times cannot be compared. |
+| `MonotonicTimeReached` | None | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
 | `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. |
 | `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight. |
 | `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |

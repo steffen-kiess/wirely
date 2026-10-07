@@ -26,28 +26,20 @@ namespace Memory {
     // Minimum delay between two output events.
     parameter MinimumDelay: Duration = "PT1S";
 
-    // Time when the next event is allowed. Invalid or non-comparable time means
+    // Time when the next event is allowed. None or a non-comparable time means
     // that the next event is allowed now.
-    // TODO: Should this be an Option[MonotonicTime]?
     state next_event_allowed_at: Option[MonotonicTime] = None;
     // If this is not None, there is a pending change.
     // TODO: Should this forget the new value if the monotonic time is lost?
     state pending_event: Option[boolean] = None;
 
     node next_event_allowed_at_reached: Time.MonotonicTimeReached {}
-    // TODO: Allow this?
-    // connect next_event_allowed_at.old -> next_event_allowed_at_reached;
-    temporary next_event_allowed_at_snapshot: MonotonicTime;
-
-    native procedure read_time
-      depends on next_event_allowed_at.old as "next_event_allowed_at_old"
-      produces next_event_allowed_at_snapshot;
-    connect next_event_allowed_at_snapshot -> next_event_allowed_at_reached;
+    connect next_event_allowed_at.old -> next_event_allowed_at_reached;
 
     native procedure update
       depends on next_event_allowed_at.old as "next_event_allowed_at_old",
         pending_event.old as "pending_event_old", default input as "input",
-        Feedback, next_event_allowed_at_snapshot, next_event_allowed_at_reached
+        Feedback, next_event_allowed_at_reached
       produces default output as "output", next_event_allowed_at,
         pending_event
       uses parameter_option(OutputValue) as OutputValue, MinimumDelay;

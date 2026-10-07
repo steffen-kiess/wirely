@@ -8,18 +8,6 @@ native_block_types = {}
 @native_block_type(native_block_types, has_native_state=False)
 class ToggleFlipFlopTrigger:
     @staticmethod
-    def read_time(*, context):
-        value = context.inputs['next_event_allowed_at_old']
-
-        # Turn value from Option[MonotonicTime] into MonotonicTime
-        if value is None:
-            value = blocks.MonotonicTime.create_invalid()
-        else:
-            value = value.value
-
-        context.set_result('next_event_allowed_at_snapshot', value)
-
-    @staticmethod
     def update(*, context):
         output_value = context.values['OutputValue']
         value = blocks.Unit() if output_value is None else output_value.value
