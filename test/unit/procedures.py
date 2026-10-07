@@ -262,6 +262,11 @@ def check_option_presence():
             engine.assert_value_is(f'{name}.Present', expected is not None)
             engine.assert_value_is(f'{name}.Absent', expected is None)
             engine.assert_value_is(f'{name}.Copy', expected)
+            fallback = True if name == 'presence' else wirely.Some(True)
+            unwrapped = fallback if expected is None else expected.value
+            engine.assert_value_is(f'{name}.Unwrapped', unwrapped)
+            engine.assert_value_is(f'{name}.Matched', unwrapped)
+            engine.assert_value_is(f'{name}.Ignored', expected is not None)
     engine.assert_is_idle()
 
 
@@ -287,18 +292,18 @@ def check_ordering():
 
 def check_arithmetic():
     some = wirely.Some
-    cases = {  # input: Wrapped, Saturated, Checked, Quotient
-        'int8': [(127, -128, -127, None, some(0)), (-128, -127, 127, None, some(0)),
-                 (-50, -49, 50, some(-100), some(-2)), (0, 1, 0, some(0), None)],
-        'uint8': [(255, 0, 0, None, some(0)), (3, 4, 0, some(6), some(33)),
-                  (0, 1, 0, some(0), None)],
+    cases = {  # input: Wrapped, Saturated, Checked, Quotient, Fallback
+        'int8': [(127, -128, -127, None, some(0), 1), (-128, -127, 127, None, some(0), 1),
+                 (-50, -49, 50, some(-100), some(-2), -100), (0, 1, 0, some(0), None, 0)],
+        'uint8': [(255, 0, 0, None, some(0), 1), (3, 4, 0, some(6), some(33), 6),
+                  (0, 1, 0, some(0), None, 0)],
     }
     for name, rows in cases.items():
         source = engine.get_native_state(f'{name}_source')
         for value, *expected in rows:
             source.set_value(value)
             engine.step()
-            for output, result in zip(('Wrapped', 'Saturated', 'Checked', 'Quotient'), expected):
+            for output, result in zip(('Wrapped', 'Saturated', 'Checked', 'Quotient', 'Fallback'), expected):
                 engine.assert_value_is(f'{name}_arithmetic.{output}', result)
     engine.assert_is_idle()
 

@@ -489,7 +489,21 @@ other compile-time expressions. Functions available at compile time cannot
 be called in procedure bodies, except integer type members.
 
 For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
-when absent.
+when absent. `value.UnwrapOr(fallback)` returns the contained value, or
+`fallback` of type `T` when absent. As in Rust, the fallback is evaluated
+even when unused, so a compile-time error in it fails compilation.
+
+`if let Some(name) = value { … } else { … }` binds the contained value to
+`name` within the first block and evaluates the `else` block when absent:
+
+```wrl
+let level = if let Some(sum) = int16.CheckedAdd(input, 1) { sum } else { 0 };
+```
+
+`Some(_)` matches without binding. The `else` block is required, and
+`else if let` chains further patterns. The binding follows the rules for
+`let`. Other patterns are not supported, and the value cannot contain `&&`
+or `||` without parentheses.
 
 Procedures can copy any runtime value, including options and structs.
 Their connector dependencies and results currently use single `value`

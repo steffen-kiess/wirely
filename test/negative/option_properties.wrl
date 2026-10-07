@@ -33,10 +33,14 @@ constant Bad: boolean = { None }.IsNone; // E: Cannot infer expression type
 
 // TEST: unknown reference property
 constant Value: Option[boolean] = None;
-constant Bad: boolean = Value.Unknown; // E: Unknown option property 'Unknown'
+constant Bad: boolean = Value.Unknown; // E: Value of type TypeOption(boolean) has no property 'Unknown'
+
+// TEST: property of a non-option value
+constant Value: uint8 = 1;
+constant Bad: boolean = Value.Unknown; // E: Value of type uint8 has no property 'Unknown'
 
 // TEST: unknown postfix property
-constant Bad: boolean = { let value: Option[boolean] = None; value }.Unknown; // E: Unknown option property 'Unknown'
+constant Bad: boolean = { let value: Option[boolean] = None; value }.Unknown; // E: Value of type TypeOption(boolean) has no property 'Unknown'
 
 // TEST: property call
 constant Value: Option[boolean] = None;
@@ -85,7 +89,7 @@ node type Probe {
   parameter Value: Option[boolean] = None;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.Unknown; // E: Unknown option property 'Unknown'
+    output = Value.Unknown; // E: Value of type TypeOption(boolean) has no property 'Unknown'
   }
 }
 node probe: Probe {}

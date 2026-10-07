@@ -117,8 +117,9 @@ list_specifier: "multi" -> list_specifier__create_list
      | if_expression
      | expression_block
 
-if_expression: "if" condition expression_block "else" expression_block
-             | "if" condition expression_block "else" if_expression
+?if_expression: "if" condition expression_block "else" _else_branch -> if_expression
+              | "if" "let" identifier "(" identifier ")" "=" condition_equality expression_block "else" _else_branch -> if_let_expression
+_else_branch: expression_block | if_expression
 // A bare struct literal cannot be an if condition, as in Rust.
 ?condition: condition_or
 ?condition_or: condition_and

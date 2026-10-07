@@ -1,0 +1,86 @@
+// TEST: UnwrapOr on a non-option
+constant Value: uint8 = 1;
+constant Result: uint8 = Value.UnwrapOr(2); // E: Expected an Option value, got uint8
+
+// TEST: UnwrapOr argument count
+constant Value: Option[uint8] = None;
+constant Result: uint8 = Value.UnwrapOr(); // E: UnwrapOr expects exactly one argument
+
+// TEST: UnwrapOr fallback type
+constant Value: Option[uint8] = None;
+constant Result: uint8 = Value.UnwrapOr(true); // E: Invalid int value true
+
+// TEST: UnwrapOr result type
+constant Value: Option[uint8] = None;
+constant Result: boolean = Value.UnwrapOr(1); // E: Expected value of type boolean, got uint8
+
+// TEST: unknown option method
+constant Value: Option[uint8] = None;
+constant Result: uint8 = Value.Unwrap(); // E: Value of type TypeOption(uint8) has no method 'Unwrap'
+
+// TEST: method of a non-option value
+constant Value: uint8 = 1;
+constant Result: uint8 = Value.Unwrap(); // E: Value of type uint8 has no method 'Unwrap'
+
+// TEST: calling an option property
+constant Value: Option[uint8] = None;
+assert Value.IsSome(); // E: Option properties cannot be called; omit parentheses
+
+// TEST: eager fallback
+constant Value: Option[int16] = Some(1);
+constant Result: int16 = Value.UnwrapOr(1 / 0); // E: Division by zero
+
+// TEST: if let with None
+constant Value: Option[uint8] = None;
+constant Result: uint8 = if let None(value) = Value { value } else { 0 }; // E: if let patterns must have the form Some(name)
+
+// TEST: if let with a nested pattern
+constant Value: Option[Option[uint8]] = None;
+constant Result: uint8 = if let Some(Some(value)) = Value { value } else { 0 }; // E: Syntax error
+
+// TEST: if let on a non-option
+constant Value: uint8 = 1;
+constant Result: uint8 = if let Some(value) = Value { value } else { 0 }; // E: Expected an Option value, got uint8
+
+// TEST: if let without else
+constant Value: Option[uint8] = None;
+constant Result: uint8 = if let Some(value) = Value { value }; // E: Syntax error
+
+// TEST: if let scrutinee with a logical operator
+constant Value: Option[uint8] = None;
+constant Result: uint8 = if let Some(value) = Value || Value { value } else { 0 }; // E: Syntax error
+
+// TEST: if let binding outside the then block
+constant Value: Option[uint8] = None;
+constant Result: uint8 = if let Some(value) = Value { 1 } else { value }; // E: Invalid int value value
+
+// TEST: if let branch types
+constant Value: Option[uint8] = None;
+constant Result: uint8 = if let Some(value) = Value { value } else { true }; // E: Invalid int value true
+
+// TEST: if let binding shadowing an input
+// LIBRARIES: std
+node type Shadow {
+  default input: value Option[uint8];
+  default output: value uint8;
+  procedure run depends on default input as input produces default output as output {
+    output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure binding or parameter 'input'
+  }
+}
+node shadow: Shadow {}
+node source: Std.Constant { Type: Option[uint8], Value: None }
+connect source -> shadow;
+
+// TEST: if let binding shadowing a parameter
+// LIBRARIES: std
+node type Shadow {
+  parameter Limit: uint8;
+  default input: value Option[uint8];
+  default output: value uint8;
+  procedure run depends on default input as input produces default output as output {
+    output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure binding or parameter 'Limit'
+  }
+}
+node shadow: Shadow { Limit: 1 }
+node source: Std.Constant { Type: Option[uint8], Value: None }
+connect source -> shadow;

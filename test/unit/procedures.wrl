@@ -103,26 +103,33 @@ connect source -> forwarded;
 
 node type Presence {
   parameter Type: ValueType;
+  parameter Default: Type;
   default input: value Option[Type];
   output Present: value boolean;
   output Absent: value boolean;
   output Copy: value Option[Type];
+  output Unwrapped: value Type;
+  output Matched: value Type;
+  output Ignored: value boolean;
 
   procedure run depends on default input as input
-    produces Present, Absent, Copy
+    produces Present, Absent, Copy, Unwrapped, Matched, Ignored
   {
     let value = input;
     let absent: Option[Type] = None;
     Present = { let copy = value; copy }.IsSome;
     Absent = (value).IsNone;
     Copy = if input.IsSome { value } else { absent };
+    Unwrapped = input.UnwrapOr(Default);
+    Matched = if let Some(value) = input { value } else { Default };
+    Ignored = if let Some(_) = input { true } else { false };
   }
 }
 
 node option_source: Std.DebugValueSource { Type: Option[boolean] }
 node nested_source: Std.DebugValueSource { Type: Option[Option[boolean]] }
-node presence: Presence { Type: boolean }
-node nested_presence: Presence { Type: Option[boolean] }
+node presence: Presence { Type: boolean, Default: true }
+node nested_presence: Presence { Type: Option[boolean], Default: Some(true) }
 connect option_source -> presence;
 connect nested_source -> nested_presence;
 
@@ -163,15 +170,17 @@ node type Arithmetic {
   output Saturated: value Type;
   output Checked: value Option[Type];
   output Quotient: value Option[Type];
+  output Fallback: value Type;
 
   procedure run depends on default input as input
-    produces Wrapped, Saturated, Checked, Quotient
+    produces Wrapped, Saturated, Checked, Quotient, Fallback
   {
     let step = Step;
     Wrapped = Type.WrappingAdd(input, step);
     Saturated = Type.SaturatingSub(0, input);
     Checked = Type.CheckedMul(input, 2);
     Quotient = Type.CheckedDiv(100, input);
+    Fallback = Type.CheckedMul(input, 2).UnwrapOr(Step);
   }
 }
 

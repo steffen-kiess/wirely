@@ -194,6 +194,16 @@ class IfExpression(Expression):
         self.otherwise = otherwise
 
 
+class IfLetExpression(Expression):
+    def __init__(self, constructor, name, scrutinee, then, otherwise, *, source_position):
+        super().__init__(source_position=source_position)
+        self.constructor = constructor
+        self.name = name
+        self.scrutinee = scrutinee
+        self.then = then
+        self.otherwise = otherwise
+
+
 class ExpressionBlock(Expression):
     def __init__(self, *items, source_position):
         super().__init__(source_position=source_position)
@@ -269,6 +279,18 @@ class TypedExpression:
             check_value_type(condition.value_type, boolean, condition.source)
             check_value_type(otherwise.value_type, then.value_type, otherwise.source)
             check_value_type(then.value_type, self.value_type, then.source)
+        elif self.operation in ('unwrap_or', 'if_let'):
+            option = self.arguments[0]
+            if option.value_type.contains_parameters and not isinstance(option.value_type, blocks.types.TypeOption):
+                return
+            if not isinstance(option.value_type, blocks.types.TypeOption):
+                raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
+            if self.operation == 'unwrap_or':
+                check_value_type(self.arguments[1].value_type, option.value_type.inner_type, self.arguments[1].source)
+            else:
+                then, otherwise = self.arguments[1:]
+                check_value_type(otherwise.value_type, then.value_type, otherwise.source)
+            check_value_type(self.arguments[1].value_type, self.value_type, self.arguments[1].source)
         elif self.operation in ('arith', 'neg'):
             for argument in self.arguments[1:]:
                 check_value_type(argument.value_type, self.arguments[0].value_type, argument.source)
@@ -321,7 +343,16 @@ class TypedExpression:
         if operation == 'if':
             branch = self.arguments[1] if left else self.arguments[2]
             return branch.evaluate(inputs, locals)
+        if operation == 'if_let':
+            if left is None:
+                return self.arguments[2].evaluate(inputs, locals)
+            if self.payload is not None:
+                locals = {**locals, self.payload: left.value}
+            return self.arguments[1].evaluate(inputs, locals)
         right = self.arguments[1].evaluate(inputs, locals)
+        if operation == 'unwrap_or':
+            # The fallback is evaluated eagerly, as in Rust.
+            return right if left is None else left.value
         if operation == 'eq':
             return left == right
         if operation == 'ne':
@@ -444,6 +475,21 @@ class InstructionCompiler:
             self.patch(skip_then)
             self.compile(expression.arguments[2], destination)
             self.patch(skip_else)
+        elif operation in ('unwrap_or', 'if_let'):
+            present = self.allocate(blocks.types.boolean)
+            self.emit(Opcode.IS_SOME, present, left)
+            skip_some = self.emit(Opcode.JUMP_IF_FALSE, present, BranchTarget(0))
+            if operation == 'unwrap_or':
+                self.emit(Opcode.GET_OPTION_VALUE, destination, left)
+            else:
+                inner_type = expression.arguments[0].value_type.inner_type
+                if expression.payload is not None:
+                    self.emit(Opcode.GET_OPTION_VALUE, self.local(expression.payload, inner_type), left)
+                self.compile(expression.arguments[1], destination)
+            skip_none = self.emit(Opcode.JUMP, BranchTarget(0))
+            self.patch(skip_some)
+            self.compile(expression.arguments[-1], destination)
+            self.patch(skip_none)
         elif operation in ('and', 'or'):
             self.emit(Opcode.COPY, destination, left)
             skip_right = self.emit(Opcode.JUMP_IF_FALSE if operation == 'and' else Opcode.JUMP_IF_TRUE,
@@ -542,18 +588,25 @@ class ExpressionCompiler:
         boolean = blocks.types.boolean
         if isinstance(expression, PropertyAccess):
             name = expression.name.id_str
-            if name not in ('IsSome', 'IsNone'):
-                raise ProgramError(expression.name, f'Unknown option property {name!r}')
             receiver = self.compile(expression.receiver)
+            if name not in ('IsSome', 'IsNone'):
+                raise ProgramError(expression.name, f'Value of type {receiver.value_type} has no property {name!r}')
             return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
                                    (receiver,))
         if isinstance(expression, blocks.FunctionCall):
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
                 return self.member_call(expression, *member)
-        if (isinstance(expression, blocks.FunctionCall)
-                and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
-            raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
+        if isinstance(expression, blocks.FunctionCall):
+            method = property_reference(self.scope, expression.fun, self.names)
+            if isinstance(method, PropertyAccess):
+                if method.name.id_str == 'UnwrapOr':
+                    return self.unwrap_or(expression, method.receiver, expected)
+                if method.name.id_str in ('IsSome', 'IsNone'):
+                    raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
+                receiver = self.compile(method.receiver)
+                raise ProgramError(method.name,
+                                   f'Value of type {receiver.value_type} has no method {method.name.id_str!r}')
         if isinstance(expression, blocks.ParameterOption):
             if self.runtime:
                 raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
@@ -595,6 +648,8 @@ class ExpressionCompiler:
             then = self.compile(expression.then, branch_type)
             otherwise = self.compile(expression.otherwise, then.value_type)
             return TypedExpression(then.value_type, 'if', (condition, then, otherwise))
+        if isinstance(expression, IfLetExpression):
+            return self.if_let(expression, expected)
         if isinstance(expression, ExpressionBlock):
             previous = dict(self.names)
             try:
@@ -679,11 +734,59 @@ class ExpressionCompiler:
         result_type = blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
         return TypedExpression(result_type, 'arith', (left, right), member)
 
+    def option_operand(self, expression, expected=None):
+        option = self.compile(expression, expected)
+        if isinstance(option.value_type, blocks.types.TypeOption):
+            return option, option.value_type.inner_type
+        raise ProgramError(expression, f'Expected an Option value, got {option.value_type}')
+
+    def unwrap_or(self, call, receiver, expected):
+        if len(call.parameters) != 1:
+            raise ProgramError(call, 'UnwrapOr expects exactly one argument')
+        # An untyped receiver such as None takes its type from the expected result.
+        option_type = (blocks.types.TypeOption(expected)
+                       if expected is not None and self.context_type(receiver) is None else None)
+        option, inner_type = self.option_operand(receiver, option_type)
+        fallback = self.compile(call.parameters[0], inner_type)
+        return TypedExpression(inner_type, 'unwrap_or', (option, fallback))
+
+    def bind_pattern(self, expression, inner_type):
+        """Bind the if-let name in self.names and return its slot, or None for _."""
+        name = expression.name.id_str
+        if name == '_':
+            return None
+        if name in self.protected:
+            raise ProgramError(expression.name, f'Cannot shadow procedure binding or parameter {name!r}')
+        slot = self.next_slot
+        self.next_slot += 1
+        self.names[name] = TypedExpression(inner_type, 'local', payload=slot)
+        return slot
+
+    def if_let(self, expression, expected):
+        if expression.constructor.id_str != 'Some':
+            raise ProgramError(expression.constructor, 'if let patterns must have the form Some(name)')
+        option, inner_type = self.option_operand(expression.scrutinee)
+        branch_type = expected or self.context_type(expression.otherwise)
+        previous = dict(self.names)
+        try:
+            slot = self.bind_pattern(expression, inner_type)
+            then = self.compile(expression.then, branch_type or self.context_type(expression.then))
+        finally:
+            self.names = previous
+        otherwise = self.compile(expression.otherwise, then.value_type)
+        return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
+
     def check_runtime_syntax(self, expression):
         if isinstance(expression, blocks.ParameterOption):
             raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
         if (isinstance(expression, blocks.FunctionCall)
                 and type_member(self.scope, expression.fun, self.parameters, self.names) is not None):
+            for argument in expression.parameters:
+                self.check_runtime_syntax(argument)
+            return
+        if (isinstance(expression, blocks.FunctionCall)
+                and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
+            self.check_runtime_syntax(property_reference(self.scope, expression.fun, self.names).receiver)
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
@@ -704,6 +807,10 @@ class ExpressionCompiler:
             self.check_runtime_syntax(expression.receiver)
         elif isinstance(expression, IfExpression):
             self.check_runtime_syntax(expression.condition)
+            self.check_runtime_syntax(expression.then)
+            self.check_runtime_syntax(expression.otherwise)
+        elif isinstance(expression, IfLetExpression):
+            self.check_runtime_syntax(expression.scrutinee)
             self.check_runtime_syntax(expression.then)
             self.check_runtime_syntax(expression.otherwise)
         elif isinstance(expression, ExpressionBlock):
@@ -773,10 +880,28 @@ class ExpressionCompiler:
         if isinstance(expression, ExpressionBlock) and not expression.bindings:
             return self.known_type(expression.result)
         if isinstance(expression, IfExpression):
-            return self.known_type(expression.then) or self.known_type(expression.otherwise)
+            # A typed branch takes precedence over a literal one.
+            return (self.context_type(expression.then) or self.context_type(expression.otherwise)
+                    or self.known_type(expression.then))
+        if isinstance(expression, IfLetExpression):
+            option_type = self.known_type(expression.scrutinee)
+            if isinstance(option_type, blocks.types.TypeOption):
+                previous, next_slot = dict(self.names), self.next_slot
+                try:
+                    self.bind_pattern(expression, option_type.inner_type)
+                    then_type = self.context_type(expression.then)
+                finally:
+                    self.names, self.next_slot = previous, next_slot
+                if then_type is not None:
+                    return then_type
+            return self.context_type(expression.otherwise) or self.known_type(expression.otherwise)
         if isinstance(expression, blocks.StructLiteral):
             return self.scope.resolve_type(expression.struct_type, par_values=self.parameters)
         if isinstance(expression, blocks.FunctionCall):
+            method = property_reference(self.scope, expression.fun, self.names)
+            if isinstance(method, PropertyAccess):
+                option_type = self.known_type(method.receiver)
+                return option_type.inner_type if isinstance(option_type, blocks.types.TypeOption) else None
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
                 value_type, (operation, overflow) = member

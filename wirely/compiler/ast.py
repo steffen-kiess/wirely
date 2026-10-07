@@ -693,9 +693,9 @@ class Scope(Declaration):
             if (isinstance(value, FunctionCall) and not value_type.contains_parameters
                     and type_member(self, value.fun, par_values) is not None):
                 return compile_constant(self, value, value_type, par_values)
-            if (isinstance(value, FunctionCall)
+            if (isinstance(value, FunctionCall) and not value_type.contains_parameters
                     and isinstance(property_reference(self, value.fun), PropertyAccess)):
-                raise ProgramError(value, 'Option properties cannot be called; omit parentheses')
+                return compile_constant(self, value, value_type, par_values)
             if isinstance(value, ParameterOption):
                 parameter = value.declaration(self)
                 result = blocks.value.ParameterOptionValue(parameter, ast_element=value)

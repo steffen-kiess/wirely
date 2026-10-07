@@ -55,7 +55,7 @@ constant Value: int16 = int16.CheckedAdd(1, 2); // E: got TypeOption(int16)
 
 // TEST: value names shadow type names
 constant int16: boolean = true;
-constant Value: boolean = int16.WrappingAdd(1, 2); // E: Option properties cannot be called
+constant Value: boolean = int16.WrappingAdd(1, 2); // E: Value of type boolean has no method 'WrappingAdd'
 
 // TEST: checked member result of a type parameter
 node type Generic {

@@ -1,0 +1,44 @@
+constant Present: Option[uint8] = Some(5);
+constant Absent: Option[uint8] = None;
+
+// UnwrapOr returns the contained value or the fallback.
+assert Present.UnwrapOr(0) == 5 && Absent.UnwrapOr(7) == 7;
+assert Absent.UnwrapOr(Present.UnwrapOr(1)) == 5;
+constant Unwrapped: uint8 = Absent.UnwrapOr(3);
+assert Unwrapped == 3;
+constant Nested: Option[Option[uint8]] = Some(None);
+assert Nested.UnwrapOr(Some(1)) == None && Nested.UnwrapOr(Some(1)).UnwrapOr(2) == 2;
+assert int8.CheckedAdd(127, 1).UnwrapOr(-1) == -1;
+assert int8.CheckedAdd(1, 1).UnwrapOr(-1) == 2;
+
+// if let binds the contained value in the then block.
+constant Next: uint8 = if let Some(value) = Present { value + 1 } else { 0 };
+assert Next == 6;
+assert (if let Some(value) = Absent { value } else { 9 }) == 9;
+assert (if let Some(_) = Present { true } else { false });
+assert (if let Some(_) = Absent { 1 } else if let Some(other) = Present { other } else { 2 }) == 5;
+assert (if let Some(inner) = Nested { inner.IsNone } else { false });
+assert (if let Some(sum) = int8.CheckedAdd(100, 27) { sum == 127 } else { false });
+
+// The binding may shadow a local and is scoped to the then block.
+constant Shadowed: uint8 = {
+  let value: uint8 = 1;
+  let result = if let Some(value) = Present { value } else { value };
+  result + value
+};
+assert Shadowed == 6;
+
+// A typed branch provides the type of a literal branch.
+assert (if true { 1 } else { Unwrapped }) == 1;
+
+// Type parameters.
+node type Fallback {
+  parameter Type: ValueType;
+  parameter Value: Option[Type];
+  parameter Default: Type;
+  constant Result: Type = Value.UnwrapOr(Default);
+  constant Matched: Type = if let Some(value) = Value { value } else { Default };
+  assert Result == Matched;
+}
+node some_fallback: Fallback { Type: int16, Value: Some(-3), Default: 4 }
+node none_fallback: Fallback { Type: boolean, Value: None, Default: true }
