@@ -1332,11 +1332,12 @@ class DeclarationBlockInstantiation(Declaration):
                 compile_constant(graph, value, blocks.types.TypeOption(par.type_resolved), {})
                 self.par_values[par] = blocks.value.OptionalBinding(graph, value, par)
 
-        for parameter in block_arg:
-            if parameter.is_optional:
-                continue
+        # Bind type parameters first because other parameter types may refer to them.
+        bindings = [(parameter, self.block_type.parameters_by_name[parameter.name.id_str])
+                    for parameter in block_arg if not parameter.is_optional]
+        bindings.sort(key=lambda binding: binding[1].type_resolved != blocks.types.ValueType)
+        for parameter, par in bindings:
             value = parameter.value
-            par = self.block_type.parameters_by_name[parameter.name.id_str]
             par_type = resolve_type(par.type_resolved, self.par_values)
             # TODO: Is passing par_values=self.par_values here the correct thing to do?
             if par_type == blocks.types.ValueType:

@@ -97,6 +97,7 @@ node type Dependent {
   assert Value == Expected;
 }
 node dependent_before_type: Dependent { Value: -3, Type?: Some(int8), Expected: -3 }
+node dependent_before_bound_type: Dependent { Value: -3, Type: int8, Expected: -3 }
 node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
 node type Raw {
   optional parameter r#type: boolean;
