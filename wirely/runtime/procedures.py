@@ -1,6 +1,6 @@
 """Execution of validated, forward-only procedure instructions."""
 
-from ..program import Opcode, OperandKind
+from ..program import ARITHMETIC_OPCODES, Opcode, OperandKind
 from ..types import Some
 from ..types.value_types import _from_native, _to_native
 
@@ -78,6 +78,9 @@ def execute_procedure(program, procedure, inputs):
             elif opcode == Opcode.EQUAL:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)
+            elif opcode in ARITHMETIC_OPCODES:
+                left, right = read(operands[1]), read(operands[2])
+                result = value_type(operands[1]).arithmetic(*ARITHMETIC_OPCODES[opcode], left, right)
             elif opcode == Opcode.LESS:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).less(left, right)

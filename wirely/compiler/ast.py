@@ -271,11 +271,10 @@ class IntNumber(Value):
     def positive(cls, token, *, source_position):
         return cls(token, source_position=source_position)
 
-    @classmethod
-    def negative(cls, token, *, source_position):
-        value = cls(token, source_position=source_position)
-        value.value = -value.value
-        return value
+    def negated(self, *, source_position):
+        result = IntNumber(self.token, source_position=source_position)
+        result.value = -self.value
+        return result
 
 
 class FloatNumber(Value):
@@ -687,8 +686,13 @@ class Scope(Declaration):
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value, value_type, par_values={}):
         with value.context:
-            from .expressions import Expression, PropertyAccess, compile_constant, property_reference
+            from .expressions import (
+                Expression, PropertyAccess, compile_constant, property_reference, type_member,
+            )
             value = property_reference(self, value)
+            if (isinstance(value, FunctionCall) and not value_type.contains_parameters
+                    and type_member(self, value.fun, par_values) is not None):
+                return compile_constant(self, value, value_type, par_values)
             if (isinstance(value, FunctionCall)
                     and isinstance(property_reference(self, value.fun), PropertyAccess)):
                 raise ProgramError(value, 'Option properties cannot be called; omit parentheses')
@@ -955,6 +959,8 @@ class DeclarationEnumType(Declaration):
                 raise ProgramError(member.name, f'Duplicate enum member {member_name}', hints=[
                     CompilerHint(names[member_name], 'Previous member was here'),
                 ])
+            if not isinstance(member.value, IntNumber):
+                raise ProgramError(member.value, 'Enum member values must be integer literals')
             number = parse_value(underlying, member.value)
             if number in values:
                 raise ProgramError(member.value, f'Duplicate enum value {number}', hints=[

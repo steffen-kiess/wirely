@@ -10,23 +10,11 @@ node source: Std.Constant { Type: int8, Value: +128 } // E: Int value out of ran
 // LIBRARIES: std
 node source: Std.Constant { Type: uint8, Value: -1 } // E: Int value out of range: -1
 
-// TEST: double_minus
-node type Settings {
-  parameter Value: int8;
-}
-node settings: Settings { Value: --42 } // E: Syntax error
-
 // TEST: double_plus
 node type Settings {
   parameter Value: int8;
 }
 node settings: Settings { Value: ++42 } // E: Syntax error
-
-// TEST: minus_plus
-node type Settings {
-  parameter Value: int8;
-}
-node settings: Settings { Value: -+42 } // E: Syntax error
 
 // TEST: plus_minus
 node type Settings {
@@ -34,23 +22,11 @@ node type Settings {
 }
 node settings: Settings { Value: +-42 } // E: Syntax error
 
-// TEST: minus_reference
-node type Settings {
-  parameter Value: int8;
-}
-node settings: Settings { Value: -Value } // E: Syntax error
-
 // TEST: plus_reference
 node type Settings {
   parameter Value: int8;
 }
 node settings: Settings { Value: +Value } // E: Syntax error
-
-// TEST: minus_parentheses
-node type Settings {
-  parameter Value: int8;
-}
-node settings: Settings { Value: -(42) } // E: Syntax error
 
 // TEST: empty_hex
 node type Settings {

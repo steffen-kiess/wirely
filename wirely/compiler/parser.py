@@ -205,7 +205,7 @@ class Transformer(lark.Transformer):
             return MetadataLiteral(children[0] == ('true',), source_position)
         if data.startswith('metadata_'):
             value = children[0].value
-            if data == 'metadata_negative_float':
+            if data in ('metadata_negative_int', 'metadata_negative_float'):
                 value = -value
             return MetadataLiteral(value, source_position)
 

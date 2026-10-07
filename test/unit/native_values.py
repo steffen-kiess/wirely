@@ -173,6 +173,22 @@ def check_optional_values():
             assert values['Default'] is None
 
 
+
+def check_type_member_collision():
+    # A namespace function named like a type member is ambiguous at the call.
+    diagnostics = []
+    with patch.dict(native_function_impls, {('int16', 'WrappingAdd'): identity}):
+        graph = compile_strs([('<collision>', '''namespace int16 {
+      native function WrappingAdd(a: int16, b: int16): int16;
+    }
+    constant Value: int16 = int16.WrappingAdd(1, 2);
+    ''')], on_diagnostic=diagnostics.append)
+    assert graph is None
+    assert any('int16.WrappingAdd is both a type member and a function' in diagnostic.message
+               for diagnostic in diagnostics), diagnostics
+
+
 check_fixture()
 check_values()
 check_optional_values()
+check_type_member_collision()

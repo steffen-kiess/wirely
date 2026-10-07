@@ -264,8 +264,7 @@ offset and wraps at midnight.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean
-operators, comparisons, and declared native functions. General arithmetic
-expressions are not currently implemented.
+operators, comparisons, integer arithmetic, and declared native functions.
 
 ## Compile-time functions
 
@@ -455,6 +454,28 @@ the complement of `==`.
 of the same type. Times of day compare within one day, so `"23:00"` is
 after `"01:00"`. Comparisons do not chain: write `a < b && b < c`.
 
+Integer arithmetic uses `+`, `-`, `*`, `/`, `%`, and unary `-` on operands
+of the same integer type. Precedence follows Rust: unary operators, then
+`*`, `/`, and `%`, then `+` and `-`, then comparisons. Division truncates
+toward zero, and the remainder has the dividend's sign. These operators
+are compile-time only; each operation must produce a value of its type, so
+`200 + 100 - 150` fails as `uint8`, as does division by zero.
+
+Procedures, which must not fail, use members of integer types instead.
+Write a type, a dot, and the member name, as in `uint8.WrappingAdd(a, b)`
+or `Type.CheckedDiv(a, b)` for a `ValueType` parameter. Both arguments have
+that type:
+
+| Member | Result |
+| --- | --- |
+| `WrappingAdd`, `WrappingSub`, `WrappingMul` | Wrap around the type's range. |
+| `SaturatingAdd`, `SaturatingSub`, `SaturatingMul` | Clamp to the type's minimum or maximum. |
+| `CheckedAdd`, `CheckedSub`, `CheckedMul`, `CheckedDiv`, `CheckedRem` | `Some(result)`, or `None` on overflow or division by zero. |
+
+Negate with subtraction from zero, for example
+`int16.SaturatingSub(0, value)`. Members also work in compile-time
+expressions.
+
 All concrete value types support equality at compile time. Procedures can
 compare runtime types, including times, options, and structs; strings,
 lists, and aggregates containing parameter-only types are compile-time-only.
@@ -465,7 +486,7 @@ For example, `OutputType == unit` or `Option[int16] == Option[int16]`.
 type. Expression blocks may contain locals followed by a final expression
 without a semicolon. These expressions also work in parameter values and
 other compile-time expressions. Functions available at compile time cannot
-be called in procedure bodies.
+be called in procedure bodies, except integer type members.
 
 For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
 when absent.

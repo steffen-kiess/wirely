@@ -148,6 +148,45 @@ def check_ordering():
                   Constant(types.TimeOfDay, datetime.time(0, 0))))
     assert output == (True, False, False, True, False)
 
+
+def check_arithmetic():
+    int8_option = types.TypeOption(types.int8)
+    cases = [  # opcode, left, right, expected
+        (Opcode.ADD_WRAPPING, 127, 1, -128),
+        (Opcode.ADD_SATURATING, 127, 1, 127),
+        (Opcode.ADD_CHECKED, 127, 1, None),
+        (Opcode.ADD_CHECKED, 126, 1, types.Some(127)),
+        (Opcode.SUB_WRAPPING, -128, 1, 127),
+        (Opcode.SUB_SATURATING, 0, -128, 127),
+        (Opcode.SUB_CHECKED, 0, -128, None),
+        (Opcode.MUL_WRAPPING, 64, 2, -128),
+        (Opcode.MUL_SATURATING, -64, 3, -128),
+        (Opcode.MUL_CHECKED, -64, 2, types.Some(-128)),
+        (Opcode.DIV_CHECKED, -7, 2, types.Some(-3)),
+        (Opcode.DIV_CHECKED, -128, -1, None),
+        (Opcode.DIV_CHECKED, 1, 0, None),
+        (Opcode.REM_CHECKED, -7, 2, types.Some(-1)),
+        (Opcode.REM_CHECKED, 1, 0, None),
+    ]
+    constants = []
+    instructions = []
+    result_types = []
+    for index, (opcode, left, right, expected) in enumerate(cases):
+        constants += [Constant(types.int8, left), Constant(types.int8, right)]
+        instructions.append(instruction(opcode, result(index), const(2 * index), const(2 * index + 1)))
+        result_types.append(int8_option if opcode.name.endswith('_CHECKED') else types.int8)
+    instructions.append(instruction(Opcode.RETURN))
+    output = execute(instructions, result_types=tuple(result_types), constants=tuple(constants))
+    assert output == tuple(expected for _, _, _, expected in cases)
+    # Unsigned results wrap modulo 2**bits and saturate at zero.
+    output = execute([
+        instruction(Opcode.SUB_WRAPPING, result(0), const(0), const(1)),
+        instruction(Opcode.SUB_SATURATING, result(1), const(0), const(1)),
+        instruction(Opcode.RETURN),
+    ], result_types=(types.uint8, types.uint8),
+       constants=(Constant(types.uint8, 0), Constant(types.uint8, 1)))
+    assert output == (255, 0)
+
     program = make_program([
         instruction(Opcode.NOT, local(0), local(0)),
         instruction(Opcode.COPY, result(0), local(0)),
@@ -216,6 +255,14 @@ def check_validation():
                        local_types=(value_type,))
     expect_invalid([instruction(Opcode.LESS, result(0), local(0), const(0)), ret], 'Expected type',
                    local_types=(types.uint8,), constants=(Constant(types.int8, 0),))
+    expect_invalid([instruction(Opcode.ADD_WRAPPING, result(0), local(0), local(0)), ret], 'integer type',
+                   local_types=(types.boolean,))
+    expect_invalid([instruction(Opcode.ADD_WRAPPING, result(0), local(0), local(1)), ret], 'Expected type',
+                   result_types=(types.uint8,), local_types=(types.uint8, types.int8))
+    expect_invalid([instruction(Opcode.ADD_CHECKED, result(0), local(0), local(0)), ret], 'Expected type',
+                   result_types=(types.uint8,), local_types=(types.uint8,))
+    expect_invalid([instruction(Opcode.ADD_WRAPPING, result(0), local(0), local(0)), ret], 'Expected type',
+                   result_types=(types.TypeOption(types.uint8),), local_types=(types.uint8,))
     expect_invalid([instruction(Opcode.JUMP, 1), ret], 'Invalid operands')
     for index in (-1, 0, 2, True):
         expect_invalid([instruction(Opcode.JUMP, BranchTarget(index)), ret], 'later instruction')
@@ -269,6 +316,7 @@ check_boolean_operations()
 check_structs_and_options()
 check_defaults_and_equality()
 check_ordering()
+check_arithmetic()
 check_branches()
 check_validation()
 check_dump()

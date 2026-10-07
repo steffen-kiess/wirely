@@ -15,17 +15,17 @@ enum type Bad: Missing { // E: Enum underlying type must be a supported integer 
 
 // TEST: boolean_member
 enum type Bad: int8 {
-  One = true, // E: Invalid int value
+  One = true, // E: Enum member values must be integer literals
 }
 
 // TEST: string_member
 enum type Bad: int8 {
-  One = "1", // E: Invalid int value
+  One = "1", // E: Enum member values must be integer literals
 }
 
 // TEST: float_member
 enum type Bad: int8 {
-  One = 1.0, // E: Invalid int value
+  One = 1.0, // E: Enum member values must be integer literals
 }
 
 // TEST: int8_overflow
@@ -149,7 +149,7 @@ enum type Bad: int8 {
 
 // TEST: arithmetic_member_value
 enum type Bad: int8 {
-  One = 1 + 2 // E: Syntax error
+  One = 1 + 2, // E: Enum member values must be integer literals
 }
 
 // TEST: unknown_member

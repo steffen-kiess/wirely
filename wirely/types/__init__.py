@@ -424,6 +424,37 @@ class TypeInt(TypeConcrete):
     def default_value(self):
         return 0
 
+    def arithmetic(self, operation, overflow, left, right):
+        """Apply 'add', 'sub', 'mul', 'div' or 'rem' with 'wrapping', 'saturating' or 'checked' overflow.
+
+        Division truncates toward zero. Checked results are Some(value), or None on overflow or a
+        zero divisor."""
+        left, right = self.verify_value(left), self.verify_value(right)
+        if operation in ('div', 'rem'):
+            if overflow != 'checked':
+                raise ValueError(f'Division requires checked overflow, got {overflow!r}')
+            if right == 0:
+                return None
+            quotient = abs(left) // abs(right)
+            if (left < 0) != (right < 0):
+                quotient = -quotient
+            result = quotient if operation == 'div' else left - right * quotient
+        elif operation == 'add':
+            result = left + right
+        elif operation == 'sub':
+            result = left - right
+        elif operation == 'mul':
+            result = left * right
+        else:
+            raise ValueError(f'Unknown integer operation {operation!r}')
+        if overflow == 'wrapping':
+            return (result - self.min_value) % 2**self.bits + self.min_value
+        if overflow == 'saturating':
+            return min(max(result, self.min_value), self.max_value)
+        if overflow == 'checked':
+            return Some(result) if self.min_value <= result <= self.max_value else None
+        raise ValueError(f'Unknown overflow mode {overflow!r}')
+
     def _parse_impl(self, s):
         i = int(s)
         if i < self.min_value or i > self.max_value:

@@ -1,0 +1,67 @@
+// Operators: precedence, associativity, and literal typing.
+assert 2 + 3 * 4 == 14 && (2 + 3) * 4 == 20;
+assert 10 - 4 - 3 == 3 && 24 / 4 / 2 == 3 && 2 * 3 % 4 == 2;
+assert -2 * -3 == 6 && -(2 - 5) == 3 && - 5 == -5;
+assert --42 == 42 && -+42 == -42 && -(42) == -42;
+assert 1 + 2 < 4 && !(1 + 2 > 3) && (1 + 2 == 3) == true;
+constant Sum: uint8 = 200 + 50 - 100;
+assert Sum == 150 && Sum + 1 == 151 && 1 + Sum == 151;
+constant Max: uint64 = 18446744073709551614 + 1;
+assert Max == 18446744073709551615;
+constant Min: int8 = -128;
+assert Min == -127 - 1 && -(Min + 1) == 127;
+constant Negated: int16 = -Positive;
+constant Positive: int16 = 5;
+assert Negated == -5 && Negated < 0;
+
+// Division truncates toward zero; the remainder has the dividend's sign.
+assert 7 / 2 == 3 && -7 / 2 == -3 && 7 / -2 == -3 && -7 / -2 == 3;
+assert 7 % 2 == 1 && -7 % 2 == -1 && 7 % -2 == 1 && -7 % -2 == -1;
+
+// Negative literals remain accepted in enums and attributes.
+enum type Level: int8 {
+  Low = -128,
+  High = 127,
+}
+node source: Std.Constant {
+  #![position(x = -3, y = -4.5)]
+  Type: boolean,
+  Value: true,
+}
+
+// Integer members.
+assert int8.WrappingAdd(127, 1) == -128 && uint8.WrappingAdd(255, 2) == 1;
+assert int8.WrappingSub(-128, 1) == 127 && uint8.WrappingSub(0, 1) == 255;
+assert int8.WrappingMul(64, 2) == -128 && uint8.WrappingMul(16, 17) == 16;
+assert int8.SaturatingAdd(127, 1) == 127 && int8.SaturatingAdd(-128, -1) == -128;
+assert uint8.SaturatingSub(1, 2) == 0 && int8.SaturatingSub(-128, 1) == -128;
+assert int8.SaturatingMul(-64, 3) == -128 && uint8.SaturatingMul(16, 16) == 255;
+assert int8.CheckedAdd(126, 1) == Some(127) && int8.CheckedAdd(127, 1) == None;
+assert uint8.CheckedSub(1, 1) == Some(0) && uint8.CheckedSub(0, 1) == None;
+assert int8.CheckedMul(-64, 2) == Some(-128) && int8.CheckedMul(64, 2) == None;
+assert int8.CheckedDiv(-7, 2) == Some(-3) && int8.CheckedDiv(-128, -1) == None;
+assert int8.CheckedDiv(1, 0) == None;
+assert int8.CheckedRem(-7, 2) == Some(-1) && int8.CheckedRem(-128, -1) == Some(0);
+assert int8.CheckedRem(1, 0) == None;
+
+// Negation through subtraction from zero.
+assert int8.WrappingSub(0, -128) == -128 && int8.SaturatingSub(0, -128) == 127;
+assert int8.CheckedSub(0, -128) == None && uint8.WrappingSub(0, 1) == 255;
+
+constant Wrapped: uint16 = uint16.WrappingAdd(65535, 1);
+assert Wrapped == 0;
+constant Checked: Option[int32] = int32.CheckedMul(65536, 65536);
+assert Checked == None;
+
+// Members of a type parameter.
+node type Counter {
+  parameter Type: ValueType;
+  parameter Start: Type;
+  constant Next: Type = Type.WrappingAdd(Start, 1);
+  assert Type.CheckedAdd(Start, 1) == None;
+  assert Next == Type.WrappingSub(Start, Start);
+}
+node counter: Counter { Type: uint8, Start: 255 }
+
+// A namespace function remains reachable beside a type of the same name.
+assert TimeOfDay.AddWrap("23:00", "02:00") == "01:00";

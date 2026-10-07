@@ -694,12 +694,18 @@ denote integer parameters.
 | `OR destination, left, right` | Compute boolean disjunction. |
 | `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
 | `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer, `Duration`, or `TimeOfDay` type. |
+| `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
+| `ADD_SATURATING`, `SUB_SATURATING`, `MUL_SATURATING` `destination, left, right` | Compute the integer result clamped to the operand type's range. |
+| `ADD_CHECKED`, `SUB_CHECKED`, `MUL_CHECKED`, `DIV_CHECKED`, `REM_CHECKED` `destination, left, right` | Assign `Some` with the integer result, or `None` when it is outside the operand type's range or the divisor is zero. |
 | `JUMP offset` | Continue at the branch target. |
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
 | `RETURN` | End the procedure with its current result values. |
 
 `NOT`, `AND`, and `OR` require boolean operands and destinations.
+Arithmetic sources share one integer type `T`. The destination has type
+`T`, or `Option[T]` for `_CHECKED` instructions. Division truncates toward
+zero, and the remainder has the dividend's sign.
 Equality compares struct fields recursively; options are equal when both
 are `None`, or both are `Some` with equal contained values. All unit values
 are equal.

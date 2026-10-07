@@ -1,7 +1,8 @@
 """Validation of typed procedure instructions before execution."""
 
-from ..types import Type, TypeOption, TypeStruct, boolean
+from ..types import Type, TypeInt, TypeOption, TypeStruct, boolean
 from .procedures import (
+    ARITHMETIC_OPCODES,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import Program
@@ -20,6 +21,7 @@ _SIGNATURES = {
     Opcode.OR: (Operand, Operand, Operand),
     Opcode.EQUAL: (Operand, Operand, Operand),
     Opcode.LESS: (Operand, Operand, Operand),
+    **{opcode: (Operand, Operand, Operand) for opcode in ARITHMETIC_OPCODES},
     Opcode.JUMP: (BranchTarget,),
     Opcode.JUMP_IF_TRUE: (Operand, BranchTarget),
     Opcode.JUMP_IF_FALSE: (Operand, BranchTarget),
@@ -112,6 +114,13 @@ def _validate_body(procedure, constant_types):
                 _same_type(operand_types[1], operand_types[2])
                 if opcode == Opcode.LESS and not operand_types[1].is_ordered:
                     raise ValueError(f'Type {operand_types[1]} is not ordered')
+            elif opcode in ARITHMETIC_OPCODES:
+                integer_type = operand_types[1]
+                if not isinstance(integer_type, TypeInt):
+                    raise ValueError(f'Arithmetic requires an integer type, got {integer_type}')
+                _same_type(operand_types[2], integer_type)
+                _same_type(operand_types[0], TypeOption(integer_type)
+                           if ARITHMETIC_OPCODES[opcode][1] == 'checked' else integer_type)
         except ValueError as error:
             raise ValueError(f'Instruction idx{index}: {error}') from error
 

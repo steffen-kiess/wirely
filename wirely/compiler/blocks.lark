@@ -85,15 +85,23 @@ list_specifier: "multi" -> list_specifier__create_list
               | or_expression "||" and_expression -> binary_expression__logical_or
 ?and_expression: equality_expression
                | and_expression "&&" equality_expression -> binary_expression__logical_and
-?equality_expression: unary_expression
-                    | unary_expression "==" unary_expression -> binary_expression__equal
-                    | unary_expression "!=" unary_expression -> binary_expression__not_equal
-                    | unary_expression "<" unary_expression -> binary_expression__less
-                    | unary_expression "<=" unary_expression -> binary_expression__less_equal
-                    | unary_expression ">" unary_expression -> binary_expression__greater
-                    | unary_expression ">=" unary_expression -> binary_expression__greater_equal
+?equality_expression: additive_expression
+                    | additive_expression "==" additive_expression -> binary_expression__equal
+                    | additive_expression "!=" additive_expression -> binary_expression__not_equal
+                    | additive_expression "<" additive_expression -> binary_expression__less
+                    | additive_expression "<=" additive_expression -> binary_expression__less_equal
+                    | additive_expression ">" additive_expression -> binary_expression__greater
+                    | additive_expression ">=" additive_expression -> binary_expression__greater_equal
+?additive_expression: multiplicative_expression
+                    | additive_expression "+" multiplicative_expression -> binary_expression__add
+                    | additive_expression "-" multiplicative_expression -> binary_expression__subtract
+?multiplicative_expression: unary_expression
+                          | multiplicative_expression "*" unary_expression -> binary_expression__multiply
+                          | multiplicative_expression "/" unary_expression -> binary_expression__divide
+                          | multiplicative_expression "%" unary_expression -> binary_expression__remainder
 ?unary_expression: atom
                  | "!" unary_expression -> unary_expression
+                 | "-" unary_expression -> unary_expression__negate
 ?atom: reference -> copy
      | postfix_atom
 ?postfix_atom: reference "{" struct_literal_field_list "}" -> struct_literal
@@ -117,15 +125,23 @@ if_expression: "if" condition expression_block "else" expression_block
              | condition_or "||" condition_and -> binary_expression__logical_or
 ?condition_and: condition_equality
               | condition_and "&&" condition_equality -> binary_expression__logical_and
-?condition_equality: condition_unary
-                  | condition_unary "==" condition_unary -> binary_expression__equal
-                  | condition_unary "!=" condition_unary -> binary_expression__not_equal
-                  | condition_unary "<" condition_unary -> binary_expression__less
-                  | condition_unary "<=" condition_unary -> binary_expression__less_equal
-                  | condition_unary ">" condition_unary -> binary_expression__greater
-                  | condition_unary ">=" condition_unary -> binary_expression__greater_equal
+?condition_equality: condition_additive
+                   | condition_additive "==" condition_additive -> binary_expression__equal
+                   | condition_additive "!=" condition_additive -> binary_expression__not_equal
+                   | condition_additive "<" condition_additive -> binary_expression__less
+                   | condition_additive "<=" condition_additive -> binary_expression__less_equal
+                   | condition_additive ">" condition_additive -> binary_expression__greater
+                   | condition_additive ">=" condition_additive -> binary_expression__greater_equal
+?condition_additive: condition_multiplicative
+                   | condition_additive "+" condition_multiplicative -> binary_expression__add
+                   | condition_additive "-" condition_multiplicative -> binary_expression__subtract
+?condition_multiplicative: condition_unary
+                         | condition_multiplicative "*" condition_unary -> binary_expression__multiply
+                         | condition_multiplicative "/" condition_unary -> binary_expression__divide
+                         | condition_multiplicative "%" condition_unary -> binary_expression__remainder
 ?condition_unary: condition_atom
                 | "!" condition_unary -> unary_expression
+                | "-" condition_unary -> unary_expression__negate
 ?condition_atom: reference -> copy
                | condition_postfix
 ?condition_postfix: int_number -> copy
@@ -150,7 +166,6 @@ reference_list: _separated_empty{reference, ","} -> copy_list
 
 int_number: _integer_magnitude
           | "+" _integer_magnitude -> int_number__positive
-          | "-" _integer_magnitude -> int_number__negative
 _integer_magnitude: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
 float_number: FLOAT
 string_constant: STRING | RAW_STRING
@@ -228,6 +243,7 @@ metadata_arguments: ((metadata | metadata_literal) ("," (metadata | metadata_lit
 metadata_value_literal: metadata_literal -> copy
                       | metadata_path -> metadata_named_literal
 metadata_literal: int_number -> metadata_literal
+                | "-" int_number -> metadata_negative_int
                 | float_number -> metadata_literal
                 | "+" float_number -> metadata_positive_float
                 | "-" float_number -> metadata_negative_float

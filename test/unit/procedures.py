@@ -16,6 +16,8 @@ def check_main_program():
     engine.get_native_state('int_source').set_value(0)
     engine.get_native_state('duration_source').set_value(wirely.Duration(duration_ns=0))
     engine.get_native_state('time_source').set_value(datetime.time(0))
+    engine.get_native_state('int8_source').set_value(0)
+    engine.get_native_state('uint8_source').set_value(0)
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -282,6 +284,25 @@ def check_ordering():
     engine.assert_is_idle()
 
 
+
+def check_arithmetic():
+    some = wirely.Some
+    cases = {  # input: Wrapped, Saturated, Checked, Quotient
+        'int8': [(127, -128, -127, None, some(0)), (-128, -127, 127, None, some(0)),
+                 (-50, -49, 50, some(-100), some(-2)), (0, 1, 0, some(0), None)],
+        'uint8': [(255, 0, 0, None, some(0)), (3, 4, 0, some(6), some(33)),
+                  (0, 1, 0, some(0), None)],
+    }
+    for name, rows in cases.items():
+        source = engine.get_native_state(f'{name}_source')
+        for value, *expected in rows:
+            source.set_value(value)
+            engine.step()
+            for output, result in zip(('Wrapped', 'Saturated', 'Checked', 'Quotient'), expected):
+                engine.assert_value_is(f'{name}_arithmetic.{output}', result)
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_generic_copies()
@@ -291,3 +312,4 @@ check_root_dependencies()
 check_root_state()
 check_option_presence()
 check_ordering()
+check_arithmetic()

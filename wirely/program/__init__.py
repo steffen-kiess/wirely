@@ -1,7 +1,8 @@
 """Resolved program definitions shared by the compiler and runtime."""
 
 from .procedures import (
-    BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
+    ARITHMETIC_OPCODES, BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind,
+    ProcedureBody,
 )
 from .program import (
     InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,

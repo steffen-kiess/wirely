@@ -7,6 +7,7 @@ from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_li
 from .types import resolve_type, check_runtime_type
 from .value import Value, check_value_type
 from ..program import (
+    ARITHMETIC_OPCODES,
     BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
 )
 
@@ -54,11 +55,42 @@ class BinaryExpression(Expression):
     def greater_equal(left, right, *, source_position):
         return BinaryExpression(left, right, operator='ge', source_position=source_position)
 
+    @staticmethod
+    def add(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='add', source_position=source_position)
+
+    @staticmethod
+    def subtract(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='sub', source_position=source_position)
+
+    @staticmethod
+    def multiply(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='mul', source_position=source_position)
+
+    @staticmethod
+    def divide(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='div', source_position=source_position)
+
+    @staticmethod
+    def remainder(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='rem', source_position=source_position)
+
+
+ARITHMETIC_OPERATORS = ('add', 'sub', 'mul', 'div', 'rem')
+
 
 class UnaryExpression(Expression):
-    def __init__(self, operand, *, source_position):
+    def __init__(self, operand, *, operator='not', source_position):
         super().__init__(source_position=source_position)
         self.operand = operand
+        self.operator = operator
+
+    @staticmethod
+    def negate(operand, *, source_position):
+        # A negated literal stays a literal, so -128 can be an int8.
+        if isinstance(operand, blocks.IntNumber):
+            return operand.negated(source_position=source_position)
+        return UnaryExpression(operand, operator='neg', source_position=source_position)
 
 
 class PropertyAccess(Expression):
@@ -103,6 +135,55 @@ def property_reference(scope, expression, local_names=()):
     for name in identifiers[split:]:
         receiver = PropertyAccess(receiver, name, source_position=expression.source_position)
     return receiver
+
+
+# Member functions of integer types, mapped to their operation and overflow mode.
+INTEGER_MEMBERS = {
+    f'{mode.capitalize()}{name}': (operation, mode)
+    for operation, name, modes in [('add', 'Add', ('wrapping', 'saturating', 'checked')),
+                                   ('sub', 'Sub', ('wrapping', 'saturating', 'checked')),
+                                   ('mul', 'Mul', ('wrapping', 'saturating', 'checked')),
+                                   ('div', 'Div', ('checked',)),
+                                   ('rem', 'Rem', ('checked',))]
+    for mode in modes
+}
+
+
+def type_member(scope, reference, parameters, local_names=()):
+    """Resolve Type.Member to (type, member), or None when the callee is not a type member."""
+    if not isinstance(reference, blocks.Reference) or reference.length < 2:
+        return None
+    root = reference.identifiers[0].id_str
+    declaration = scope.static_declarations.get(root)
+    # Value names shadow type names.
+    if root in local_names or (reference.length == 2 and declaration is not None
+                               and not is_type_declaration(declaration)):
+        return None
+    prefix = blocks.Reference.from_list(*reference.identifiers[:-1],
+                                        source_position=reference.source_position)
+    try:
+        value_type = scope.resolve_type(prefix, par_values=parameters)
+    except ProgramError:
+        return None
+    name = reference.identifiers[-1].id_str
+    member = None
+    if value_type.contains_parameters or isinstance(value_type, blocks.types.TypeInt):
+        member = INTEGER_MEMBERS.get(name)
+    function = scope.resolve_function(reference, required=False)
+    if member is None:
+        if function is None:
+            raise ProgramError(reference, f'Type {value_type} has no member {name!r}')
+        return None
+    if function is not None:
+        raise ProgramError(reference, f'{reference} is both a type member and a function')
+    return value_type, member
+
+
+def is_type_declaration(declaration):
+    declared_type = getattr(declaration, 'type_resolved', None)
+    return (declared_type == blocks.types.ValueType
+            or (isinstance(declaration.ty, blocks.Reference) and declaration.ty.length == 1
+                and declaration.ty.identifiers[0].id_str == 'ValueType'))
 
 
 class IfExpression(Expression):
@@ -188,6 +269,12 @@ class TypedExpression:
             check_value_type(condition.value_type, boolean, condition.source)
             check_value_type(otherwise.value_type, then.value_type, otherwise.source)
             check_value_type(then.value_type, self.value_type, then.source)
+        elif self.operation in ('arith', 'neg'):
+            for argument in self.arguments[1:]:
+                check_value_type(argument.value_type, self.arguments[0].value_type, argument.source)
+            integer_type = self.arguments[0].value_type
+            if not integer_type.contains_parameters and not isinstance(integer_type, blocks.types.TypeInt):
+                raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
         elif self.operation in ('is_some', 'is_none'):
             receiver = self.arguments[0]
             if (not receiver.value_type.contains_parameters
@@ -218,6 +305,8 @@ class TypedExpression:
             for slot, expression in zip(self.payload, self.arguments[:-1]):
                 locals[slot] = expression.evaluate(inputs, locals)
             return self.arguments[-1].evaluate(inputs, locals)
+        if operation in ('arith', 'neg'):
+            return self.evaluate_arithmetic(inputs, locals)
         left = self.arguments[0].evaluate(inputs, locals)
         if operation == 'not':
             return not left
@@ -248,6 +337,23 @@ class TypedExpression:
             return not less(left, right)
         raise AssertionError(f'Unknown compiler expression operation {operation!r}')
 
+    def evaluate_arithmetic(self, inputs, locals):
+        integer_type = self.arguments[0].value_type
+        operands = [argument.evaluate(inputs, locals) for argument in self.arguments]
+        if self.operation == 'neg':
+            operation, overflow, operands = 'sub', None, [0, *operands]
+        else:
+            operation, overflow = self.payload
+        if overflow is not None:
+            return integer_type.arithmetic(operation, overflow, *operands)
+        # Operators fail compilation instead of overflowing.
+        if operation in ('div', 'rem') and operands[1] == 0:
+            raise ProgramError(self.source, 'Division by zero')
+        result = integer_type.arithmetic(operation, 'checked', *operands)
+        if result is None:
+            raise ProgramError(self.source, f'Arithmetic overflow: result does not fit {integer_type}')
+        return result.value
+
 
 class ExpressionValue(Value):
     """A compile-time expression that can still contain parameter references."""
@@ -270,6 +376,9 @@ class ExpressionValue(Value):
 
     def evaluate(self):
         return self.value_type.verify_value(self.expression.evaluate({}, {}))
+
+
+OPCODES_BY_MEMBER = {member: opcode for opcode, member in ARITHMETIC_OPCODES.items()}
 
 
 class InstructionCompiler:
@@ -350,6 +459,9 @@ class InstructionCompiler:
             self.emit(Opcode.EQUAL, destination, left, right)
             if operation == 'ne':
                 self.emit(Opcode.NOT, destination, destination)
+        elif operation == 'arith':
+            right = self.compile(expression.arguments[1])
+            self.emit(OPCODES_BY_MEMBER[expression.payload], destination, left, right)
         elif operation in ('lt', 'le', 'gt', 'ge'):
             right = self.compile(expression.arguments[1])
             # a <= b is !(b < a), and a >= b is !(a < b).
@@ -435,6 +547,10 @@ class ExpressionCompiler:
             receiver = self.compile(expression.receiver)
             return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
                                    (receiver,))
+        if isinstance(expression, blocks.FunctionCall):
+            member = type_member(self.scope, expression.fun, self.parameters, self.names)
+            if member is not None:
+                return self.member_call(expression, *member)
         if (isinstance(expression, blocks.FunctionCall)
                 and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
             raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
@@ -444,9 +560,25 @@ class ExpressionCompiler:
             parameter = expression.declaration(self.scope, self.names)
             value = blocks.value.ParameterOptionValue(parameter, ast_element=expression)
             return TypedExpression(value.value_type, 'constant', payload=value)
+        if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
+            if self.runtime:
+                raise ProgramError(expression, 'Negation is compile-time only; use T.WrappingSub(0, value), '
+                                   'T.SaturatingSub(0, value), or T.CheckedSub(0, value)')
+            operand = self.compile(expression.operand, expected)
+            return TypedExpression(operand.value_type, 'neg', (operand,))
         if isinstance(expression, UnaryExpression):
             operand = self.compile(expression.operand, boolean)
             return TypedExpression(boolean, 'not', (operand,))
+        if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
+            if self.runtime:
+                name = expression.operator.capitalize()
+                alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
+                                else f'T.Wrapping{name}, T.Saturating{name}, or T.Checked{name}')
+                raise ProgramError(expression, f'Arithmetic operators are compile-time only; use {alternatives}')
+            operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
+            left = self.compile(expression.left, operand_type)
+            right = self.compile(expression.right, left.value_type)
+            return TypedExpression(left.value_type, 'arith', (left, right), (expression.operator, None))
         if isinstance(expression, BinaryExpression):
             if expression.operator in ('and', 'or'):
                 left = self.compile(expression.left, boolean)
@@ -538,9 +670,23 @@ class ExpressionCompiler:
         value = self.scope.get_const_value(expression, value_type, par_values=self.parameters)
         return TypedExpression(value_type, 'constant', payload=value)
 
+    def member_call(self, call, value_type, member):
+        operation, overflow = member
+        if len(call.parameters) != 2:
+            raise ProgramError(call, f'{call.fun} expects exactly two arguments')
+        left = self.compile(call.parameters[0], value_type)
+        right = self.compile(call.parameters[1], value_type)
+        result_type = blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
+        return TypedExpression(result_type, 'arith', (left, right), member)
+
     def check_runtime_syntax(self, expression):
         if isinstance(expression, blocks.ParameterOption):
             raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
+        if (isinstance(expression, blocks.FunctionCall)
+                and type_member(self.scope, expression.fun, self.parameters, self.names) is not None):
+            for argument in expression.parameters:
+                self.check_runtime_syntax(argument)
+            return
         if isinstance(expression, (blocks.FunctionCall, blocks.BracketOperator)):
             raise ProgramError(expression, 'Runtime calls and indexing are not supported in procedures')
         if isinstance(expression, blocks.StructLiteral):
@@ -571,6 +717,10 @@ class ExpressionCompiler:
             return None
         if isinstance(expression, ExpressionBlock):
             return None if expression.bindings else self.context_type(expression.result)
+        if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
+            return self.context_type(expression.left) or self.context_type(expression.right)
+        if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
+            return self.context_type(expression.operand)
         return self.known_type(expression)
 
     def known_type(self, expression):
@@ -613,6 +763,11 @@ class ExpressionCompiler:
             return blocks.types.String
         if isinstance(expression, blocks.UnitLiteral):
             return blocks.types.unit
+        if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
+            return (self.context_type(expression.left) or self.context_type(expression.right)
+                    or self.known_type(expression.left))
+        if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
+            return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return blocks.types.boolean
         if isinstance(expression, ExpressionBlock) and not expression.bindings:
@@ -621,6 +776,11 @@ class ExpressionCompiler:
             return self.known_type(expression.then) or self.known_type(expression.otherwise)
         if isinstance(expression, blocks.StructLiteral):
             return self.scope.resolve_type(expression.struct_type, par_values=self.parameters)
+        if isinstance(expression, blocks.FunctionCall):
+            member = type_member(self.scope, expression.fun, self.parameters, self.names)
+            if member is not None:
+                value_type, (operation, overflow) = member
+                return blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
         if (isinstance(expression, blocks.FunctionCall) and not self.runtime
                 and isinstance(expression.fun, blocks.Reference)):
             function = self.scope.resolve_function(expression.fun, required=False)

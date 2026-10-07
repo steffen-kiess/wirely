@@ -154,3 +154,30 @@ node time_ordering: Ordering { Type: TimeOfDay, Limit: "08:00" }
 connect int_source -> int_ordering;
 connect duration_source -> duration_ordering;
 connect time_source -> time_ordering;
+
+node type Arithmetic {
+  parameter Type: ValueType;
+  parameter Step: Type;
+  default input: value Type;
+  output Wrapped: value Type;
+  output Saturated: value Type;
+  output Checked: value Option[Type];
+  output Quotient: value Option[Type];
+
+  procedure run depends on default input as input
+    produces Wrapped, Saturated, Checked, Quotient
+  {
+    let step = Step;
+    Wrapped = Type.WrappingAdd(input, step);
+    Saturated = Type.SaturatingSub(0, input);
+    Checked = Type.CheckedMul(input, 2);
+    Quotient = Type.CheckedDiv(100, input);
+  }
+}
+
+node int8_source: Std.DebugValueSource { Type: int8 }
+node uint8_source: Std.DebugValueSource { Type: uint8 }
+node int8_arithmetic: Arithmetic { Type: int8, Step: 1 }
+node uint8_arithmetic: Arithmetic { Type: uint8, Step: 1 }
+connect int8_source -> int8_arithmetic;
+connect uint8_source -> uint8_arithmetic;

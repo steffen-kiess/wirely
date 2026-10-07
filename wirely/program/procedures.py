@@ -19,10 +19,28 @@ class Opcode(enum.Enum):
     OR = enum.auto()
     EQUAL = enum.auto()
     LESS = enum.auto()
+    ADD_WRAPPING = enum.auto()
+    ADD_SATURATING = enum.auto()
+    ADD_CHECKED = enum.auto()
+    SUB_WRAPPING = enum.auto()
+    SUB_SATURATING = enum.auto()
+    SUB_CHECKED = enum.auto()
+    MUL_WRAPPING = enum.auto()
+    MUL_SATURATING = enum.auto()
+    MUL_CHECKED = enum.auto()
+    DIV_CHECKED = enum.auto()
+    REM_CHECKED = enum.auto()
     JUMP = enum.auto()
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
     RETURN = enum.auto()
+
+
+# Integer opcodes mapped to TypeInt.arithmetic() operation and overflow mode.
+ARITHMETIC_OPCODES = {
+    opcode: tuple(opcode.name.lower().split('_'))
+    for opcode in Opcode if opcode.name.split('_')[0] in ('ADD', 'SUB', 'MUL', 'DIV', 'REM')
+}
 
 
 class OperandKind(enum.Enum):
