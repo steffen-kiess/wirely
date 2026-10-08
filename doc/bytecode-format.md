@@ -114,7 +114,7 @@ knowledge of that section's semantics.
 | Build ID | `BuildIDSHA512` | Single |
 | Value types | `TypeRecord` | Fixed |
 | Static values | `Variable` | Fixed |
-| Native node states | `NativeNodeState` | Fixed |
+| Native states | `NativeState` | Fixed |
 | State variables | `Variable` | Fixed |
 | Temporaries | `Variable` | Fixed |
 | Procedures | `Procedure` | Fixed |
@@ -206,8 +206,8 @@ zeroed.
 
 ```wirely
 // A native state object and its initializer bindings.
-// Native node states table.
-struct type NativeNodeState {
+// Native states table.
+struct type NativeState {
   // Index into Node types.
   NodeType: Ref,
   // Range into Static bindings; initializer uses bindings.
@@ -217,7 +217,7 @@ struct type NativeNodeState {
 }
 ```
 
-Each native state object has its own entry in Native node states.
+Each native state object has its own entry in Native states.
 Stateless calls, bytecode procedures, and composed nodes have no entries.
 States are numbered and constructed in `native_construction_order`, with
 resource providers before consumers. Construction links the node type to
@@ -261,7 +261,7 @@ using this layout.
 // A native method invocation or procedure body with its bindings.
 // Procedures table.
 struct type Procedure {
-  // Index into Native node states, or no entry for stateless calls and
+  // Index into Native states, or no entry for stateless calls and
   // procedure bodies.
   Node: OptionalRef,
   // Index into Native methods, or no entry for a procedure body.
@@ -411,7 +411,7 @@ sequence, including an empty sequence.
 // One node supplying its native state as a resource.
 // Resource providers sequence.
 struct type ResourceProvider {
-  // Index into Native node states; supplies a native state object.
+  // Index into Native states; supplies a native state object.
   Node: Ref,
 }
 ```
@@ -873,7 +873,7 @@ struct type DebugMetadata {
 // A display name referring to a node or variable.
 // Node/State variable/Temporary names tables.
 struct type DebugName {
-  // Index into Native node states, State variables, or Temporaries,
+  // Index into Native states, State variables, or Temporaries,
   // selected by the names table.
   Target: Ref,
   // Display name in Debug data.
@@ -908,7 +908,7 @@ that instance.
 struct type NodeAlias {
   // Declared path or type name in Debug data.
   Name: StringRef,
-  // Index into Native node states.
+  // Index into Native states.
   Node: Ref,
 }
 ```
@@ -958,7 +958,7 @@ ranges support independent reads.
 | `name` | Debug metadata |
 | `state_variables`, `temporaries` | Variable types, offsets, and debug names |
 | `initial_state` | Initial-state buffer |
-| Native-state `instances` | Native node states and debug names |
+| Native-state `instances` | Native states and debug names |
 | `instances[*].initializer_values` | Initializer static bindings and data |
 | `native_construction_order` | Native state numbering and construction order |
 | `procs` | Stages, procedures, methods, bindings, and debug names |
@@ -1021,12 +1021,12 @@ Both variables' types map to the same transition type.
 ```wirely
 // Origin of one new native state object. Native state sources table.
 struct type NativeStateSource {
-  // Index into the old program's Native node states to keep, or no entry
+  // Index into the old program's Native states to keep, or no entry
   // to construct a new object.
   Old: OptionalRef,
 }
 ```
 
-Native state sources have one entry per new Native node states entry.
-New state variables that are neither copied nor written by the procedure
-keep their Initial state.
+Native state sources have one entry per entry of the new program's
+Native states. New state variables that are neither copied nor written
+by the procedure keep their Initial state.
