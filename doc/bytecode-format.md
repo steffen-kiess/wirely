@@ -53,11 +53,12 @@ struct type SectionEntry {
 }
 ```
 
-The directory contains `header.SectionCount` consecutive entries.
-Sections occupy disjoint byte ranges starting on 8-byte boundaries, with
-one section per section type. Their offsets locate bytes independently of
-directory order. Numeric section-type and record-type assignments will be
-specified when the format is finalized.
+The directory contains `header.SectionCount` consecutive entries with
+strictly ascending `SectionType`, so each section type occurs at most once.
+Sections occupy disjoint byte ranges starting on 8-byte boundaries. Their
+offsets locate bytes independently of directory order. Numeric
+section-type and record-type assignments will be specified when the format
+is finalized.
 
 Each section holds a table, a record, or a buffer, depending on its
 layout. A table contains `Length / storage_size` consecutive records of its
@@ -69,9 +70,12 @@ lengths.
 
 Consumers ignore unknown section types. Structured records are always
 stored in tables or record sections, so a known `RecordType` lets
-inspection tools such as objdump display records even when the section's
-purpose is unknown. Resolving section-specific references requires
-knowledge of that section's semantics.
+inspection tools display records even when the section's purpose is
+unknown. Resolving section-specific references requires knowledge of that
+section's semantics.
+
+`wirely objdump -h FILE` lists the sections of a file, and `-s` dumps
+their contents.
 
 | Section | Record type | Layout |
 | --- | --- | --- |
@@ -1083,8 +1087,9 @@ its native state again.
 
 The header has the expected magic and version, and `FileLength` is the
 file length. The directory and all sections lie within the file and start
-on 8-byte boundaries. Each known section type occurs at most once, has its
-listed `RecordType`, and has a length that fits that record type. All
+on 8-byte boundaries. Section types are strictly ascending, and each known
+section has its listed `RecordType` and a length that fits that record
+type. All
 ordinary sections are present. A missing debug section counts as empty, so
 references into it fail. Unknown sections are only checked to lie within
 the file.

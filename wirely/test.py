@@ -49,6 +49,7 @@ test_names = [
     'unit/attribute_editing',
     'unit/control',
     'unit/shuffle',
+    'unit/container',
     'wrl/delay',
     'wrl/std',
     'wrl/and',

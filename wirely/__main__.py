@@ -41,6 +41,18 @@ def main():
     importlib.import_module('wirely.cli.client').add_arguments(client_parser)
     client_parser.set_defaults(module_name='wirely.cli.client')
 
+    objdump_parser = subparsers.add_parser('objdump', add_help=False,
+                                           help='show the sections of a binary program file')
+    objdump_parser.add_argument('--help', action='help', help='show this help message and exit')
+    objdump_parser.add_argument('-h', '--section-headers', action='store_true',
+                                help='list the section directory')
+    objdump_parser.add_argument('-x', '--all-headers', action='store_true',
+                                help='list all headers; currently the same as -h')
+    objdump_parser.add_argument('-s', '--full-contents', action='store_true',
+                                help='dump the contents of all sections')
+    objdump_parser.add_argument('input_filename')
+    objdump_parser.set_defaults(module_name='wirely.cli.objdump')
+
     args = parser.parse_args()
     module = importlib.import_module(args.module_name)
     has_async_run = hasattr(module, 'async_run')
