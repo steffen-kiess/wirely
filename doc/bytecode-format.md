@@ -972,3 +972,61 @@ ranges support independent reads.
 Program tables preserve native-object, procedure, and variable identities
 and the names needed to resolve native implementations and functions.
 Debug sections preserve display names and aliases.
+
+## State transitions
+
+A transition file carries the state of a running program over to a new
+program. It uses the same header and section directory as a program and
+contains the transition's own Value types, their definitions, Names,
+Static values, Program data, Native functions, Function parameters, and
+one body procedure with its tables. It has no stages or temporaries.
+The procedure's input sources read the old program's State variables, and
+its results write the new program's State variables.
+
+| Section | Struct | Layout |
+| --- | --- | --- |
+| Old build ID, New build ID | `BuildIDSHA512` | Single |
+| Old type map, New type map | `TypeMapEntry` | Fixed |
+| State copies | `StateCopy` | Fixed |
+| Native state sources | `NativeStateSource` | Fixed |
+
+```wirely
+// The transition's equivalent of an old or new program type.
+// Old type map and New type map tables.
+struct type TypeMapEntry {
+  // Index into the transition's Value types, or no entry.
+  Type: OptionalRef,
+}
+```
+
+Each type map has one entry per Value types entry of its program. A mapped
+type and its transition type have the same kind; their inner, underlying,
+and field types are mapped to each other's; and enums and structs have
+equal qualified names, members, and field names. Dependencies precede
+their users, so one forward pass verifies a map. Operand types of inputs
+and results are looked up through the maps.
+
+```wirely
+// Copies an unchanged state variable. State copies table.
+struct type StateCopy {
+  // Index into the old program's State variables.
+  Old: Ref,
+  // Index into the new program's State variables.
+  New: Ref,
+}
+```
+
+Both variables' types map to the same transition type.
+
+```wirely
+// Origin of one new native state object. Native state sources table.
+struct type NativeStateSource {
+  // Index into the old program's Native node states to keep, or no entry
+  // to construct a new object.
+  Old: OptionalRef,
+}
+```
+
+Native state sources have one entry per new Native node states entry.
+New state variables that are neither copied nor written by the procedure
+keep their Initial state.
