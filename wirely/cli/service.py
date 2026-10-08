@@ -17,6 +17,7 @@ import wirely.compiler
 
 import wirely.misc.service
 from wirely.control.server import ControlServer
+from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.runtime.engine import Engine
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
@@ -64,20 +65,29 @@ async def async_run(args) -> None:
         tls_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         tls_context.load_cert_chain(args.control_tls_cert, args.control_tls_key)
 
-    global_block_type = blocks.compiler.compile_files(args.input_filename)
-    if global_block_type is None:
-        sys.exit(1)
+    with contextlib.ExitStack() as exit_stack:
+        # Lock before starting anything, so a second runtime fails before it starts native tasks.
+        if args.state_directory is not None:
+            try:
+                exit_stack.enter_context(lock_state_directory(args.state_directory))
+            except StateDirectoryLocked as error:
+                print(f'Error: {error}', file=sys.stderr)
+                return 1
 
-    prog = program_compiler.compile(global_block_type)
-    if prog is None:
-        sys.exit(1)
+        global_block_type = blocks.compiler.compile_files(args.input_filename)
+        if global_block_type is None:
+            sys.exit(1)
 
-    eng = Engine(prog)
+        prog = program_compiler.compile(global_block_type)
+        if prog is None:
+            sys.exit(1)
 
-    if args.debug:
-        eng.debug = True
+        eng = Engine(prog)
 
-    now = datetime.datetime.now()
-    print('{}: Start'.format(now.isoformat()), flush=True)
+        if args.debug:
+            eng.debug = True
 
-    await run_engine(eng, args.state_directory, tls_context)
+        now = datetime.datetime.now()
+        print('{}: Start'.format(now.isoformat()), flush=True)
+
+        await run_engine(eng, args.state_directory, tls_context)

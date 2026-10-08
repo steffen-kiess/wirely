@@ -344,6 +344,9 @@ in `DIR`, accessible only to the user running the service:
 - `control-serial` uses the serial framing; each connection is a separate
   line.
 
+While running, the service holds a write lock on `DIR/lock`, so only one
+runtime uses a state directory at a time.
+
 Neither socket uses authentication tags. The service currently supports
 `Hello`, `Status`, `Pause`, `Resume`, `Step`, and the snapshot operations.
 

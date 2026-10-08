@@ -18,6 +18,7 @@ from wirely.control.client import ControlClient
 from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
 from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, encode
 from wirely.control.server import ControlServer
+from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
 
@@ -60,6 +61,20 @@ async def expect_error(code, awaitable):
         assert error.code == code, error
     else:
         raise AssertionError(f'Expected {code.name}')
+
+
+async def check_locked(server):
+    # The lock conflicts even within the same process.
+    try:
+        with lock_state_directory(server.state_directory):
+            raise AssertionError('Locked the state directory twice')
+    except StateDirectoryLocked:
+        pass
+    client = await ControlClient.connect_unix(server.stream_path)
+    try:
+        assert (await client.request(Op.STATUS))[2] == engine.step_count
+    finally:
+        await client.close()
 
 
 async def check_stream(server):
@@ -205,13 +220,17 @@ async def run_test():
             context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
             context.load_cert_chain(cert_path, key_path)
             state_directory = os.path.join(directory, 'state')
-            async with ControlServer(engine, state_directory, context) as server:
-                assert sorted(os.listdir(state_directory)) == ['control', 'control-serial']
-                await check_stream(server)
-                await check_tls(server, cert_path)
-                await check_serial(server)
-                await check_cli(server)
-            assert os.listdir(state_directory) == []
+            with lock_state_directory(state_directory):
+                async with ControlServer(engine, state_directory, context) as server:
+                    assert sorted(os.listdir(state_directory)) == ['control', 'control-serial', 'lock']
+                    await check_locked(server)
+                    await check_stream(server)
+                    await check_tls(server, cert_path)
+                    await check_serial(server)
+                    await check_cli(server)
+                assert os.listdir(state_directory) == ['lock']
+            with lock_state_directory(state_directory):
+                pass
     finally:
         run_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

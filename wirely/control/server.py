@@ -125,7 +125,8 @@ class ControlServer:
     """Serves the control protocol for an engine on sockets in a state directory.
 
     The `control` socket uses stream framing, optionally inside TLS. The
-    `control-serial` socket uses serial framing.
+    `control-serial` socket uses serial framing. The caller holds the state
+    directory lock, see `wirely.misc.state_directory`.
     """
 
     def __init__(self, engine, state_directory, tls_context=None):
@@ -144,7 +145,6 @@ class ControlServer:
         return os.path.join(self.state_directory, SERIAL_SOCKET_NAME)
 
     async def __aenter__(self):
-        os.makedirs(self.state_directory, mode=0o700, exist_ok=True)
         try:
             stream_socket = self._listen(self.stream_path)
             serial_socket = self._listen(self.serial_path)
