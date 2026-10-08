@@ -5,8 +5,11 @@ import errno
 import fcntl
 import os
 import struct
+import sys
 
 LOCK_FILE_NAME = 'lock'
+# Python 3.11 lacks the constant; Linux uses this value on all architectures.
+F_OFD_SETLK = getattr(fcntl, 'F_OFD_SETLK', 37 if sys.platform == 'linux' else None)
 
 
 class StateDirectoryLocked(Exception):
@@ -29,12 +32,12 @@ def _lock_file(path):
     """Open a file and hold a write lock on all of it, failing if it is locked."""
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
     try:
-        if hasattr(fcntl, 'F_OFD_SETLK'):
+        if F_OFD_SETLK is not None:
             # Locks of the open file description, unlike lockf(), survive closing
             # other descriptors of the file. struct flock: type, whence, start,
             # length (0 = to the end), pid (must be 0).
             flock = struct.pack('hhqqi', fcntl.F_WRLCK, os.SEEK_SET, 0, 0, 0)
-            fcntl.fcntl(fd, fcntl.F_OFD_SETLK, flock)
+            fcntl.fcntl(fd, F_OFD_SETLK, flock)
         else:
             fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BaseException as error:
