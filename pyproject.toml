@@ -16,7 +16,7 @@ authors = [{name = "Steffen Kieß"}]
 dependencies = [
     "lark>=1.1.5",
     "sdnotify>=0.3.0",
-    "cbor2>=5.0.1",
+    "cbor2>=5.4.5",
 ]
 
 [project.urls]
