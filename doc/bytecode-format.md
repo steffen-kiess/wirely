@@ -42,25 +42,12 @@ struct type Range {
 }
 ```
 
-```wirely
-// A consecutive array within a byte-data section.
-// Target buffer and element type are specified at use.
-struct type ArrayRange {
-  // Byte offset of first element; zero when Count is zero.
-  Offset: uint32,
-  // Number of consecutive elements.
-  Count: uint32,
-}
-```
-
-An array starts at its element type's alignment. Its byte range is
-`[Offset, Offset + Count * element_storage_size)` within the named buffer.
-Table ranges and byte ranges fit their targets.
+Table ranges fit their targets.
 
 ```wirely
-// UTF-8 bytes within the data buffer specified by the referring field.
+// UTF-8 bytes within the byte section specified by the referring field.
 struct type StringRef {
-  // Byte offset into the associated data buffer.
+  // Byte offset into the associated byte section.
   Offset: uint32,
   // Number of UTF-8 bytes starting at Offset.
   LengthBytes: uint32,
@@ -131,7 +118,8 @@ knowledge of that section's semantics.
 | State variables | `Variable` | Fixed |
 | Temporaries | `Variable` | Fixed |
 | Procedures | `Procedure` | Fixed |
-| Initializers | `NativeNodeInitializer` | Fixed |
+| Procedure bodies | `ProcedureBody` | Fixed |
+| Local variables | `LocalVariable` | Fixed |
 | Stages | `Stage` | Fixed |
 | Static bindings | `StaticBinding` | Fixed |
 | Value inputs | `ValueInput` | Fixed |
@@ -141,13 +129,21 @@ knowledge of that section's semantics.
 | Results | `Result` | Fixed |
 | Initial state | — | Bytes |
 | Program data | — | Bytes |
+| Procedure code | — | Bytes |
 | Node types | `NodeType` | Fixed |
 | Native methods | `NativeMethod` | Fixed |
-| Interface names | `InterfaceName` | Fixed |
+| Native functions | `NativeFunction` | Fixed |
+| Function parameters | `FunctionParameter` | Fixed |
+| Interface names | `NameRef` | Fixed |
+| Name components | `NameRef` | Fixed |
 | Enum definitions | `EnumDefinition` | Fixed |
+| Enum members | `EnumMember` | Fixed |
+| Struct definitions | `StructDefinition` | Fixed |
+| Struct fields | `StructField` | Fixed |
+| Names | — | Bytes |
 | Debug metadata | `DebugMetadata` | Single |
 | Node names | `DebugName` | Fixed |
-| Procedure names | `DebugName` | Fixed |
+| Procedure names | `ProcedureDebugName` | Fixed |
 | State variable names | `DebugName` | Fixed |
 | Temporary names | `DebugName` | Fixed |
 | Node aliases | `NodeAlias` | Fixed |
@@ -162,6 +158,12 @@ sections contain a buffer of `Length` bytes, described by their byte-data record
 type. Empty tables and buffers have length zero. Padding between sections is
 outside their lengths. All ordinary program sections are present; debug sections
 are optional as a group.
+
+Structured records are always stored in fixed or single sections, so a
+known `RecordType` suffices to decode them. Byte sections contain only
+values, strings, and instruction streams. Program data holds values read
+during execution, Names holds names for linking and type metadata, and
+Debug data holds display names.
 
 ```wirely
 // Identity of the original unstripped file.
@@ -203,22 +205,11 @@ zeroed.
 ## Program tables
 
 ```wirely
-// A native state object. Native node states table.
+// A native state object and its initializer bindings.
+// Native node states table.
 struct type NativeNodeState {
   // Index into Node types.
   NodeType: Ref,
-}
-```
-
-Each native state object has its own entry in Native node states.
-Stateless calls and composed nodes have no entries. States are numbered
-in `native_construction_order`, with resource providers before consumers.
-
-```wirely
-// Constructs a native state object. Initializers table.
-struct type NativeNodeInitializer {
-  // Index into Native node states; object to construct.
-  Node: Ref,
   // Range into Static bindings; initializer uses bindings.
   Values: Range,
   // Range into Resource inputs; constructor dependencies.
@@ -226,10 +217,13 @@ struct type NativeNodeInitializer {
 }
 ```
 
-Initializers contain one entry per native state, in state-table order.
-Each initializer links its node's type to a native constructor and supplies that
-initializer's resolved `uses` values and resource inputs. Its static
-values remain available throughout the native object's lifetime.
+Each native state object has its own entry in Native node states.
+Stateless calls, bytecode procedures, and composed nodes have no entries.
+States are numbered and constructed in `native_construction_order`, with
+resource providers before consumers. Construction links the node type to
+a native constructor and supplies the initializer's resolved `uses`
+values and resource inputs. Its static values remain available throughout
+the native object's lifetime.
 
 ```wirely
 // A typed value with a byte offset into its associated storage.
@@ -243,11 +237,13 @@ struct type Variable {
 }
 ```
 
-Static values describe resolved `uses` values for procedures and
-initializers. Bindings reference these descriptors, which can be shared
-for equal typed values. Their data and referenced payloads are stored in
-Program data. Only values bound by a consumer's `uses` clause are stored;
-node parameters, constants, and expressions supply those values.
+Static values describe resolved `uses` values for native procedures and
+initializers, and constants read by procedure bodies. Bindings and
+`const` operands reference these descriptors, which can be shared for
+equal typed values. Their data and referenced payloads are stored in
+Program data. Only values bound by `uses` clauses or read by procedure
+bodies are stored; node parameters, constants, and expressions supply
+those values.
 
 State and temporary entries are ordered by ascending byte offset,
 preserving runtime layout order for equal offsets. Each variable identity
@@ -262,12 +258,16 @@ final buffer padding are zero. The runtime allocates state and temporary buffers
 using this layout.
 
 ```wirely
-// A native method invocation with its bindings. Procedures table.
+// A native method invocation or procedure body with its bindings.
+// Procedures table.
 struct type Procedure {
-  // Index into Native node states, or no entry for stateless calls.
+  // Index into Native node states, or no entry for stateless calls and
+  // procedure bodies.
   Node: OptionalRef,
-  // Index into Native methods.
-  Method: Ref,
+  // Index into Native methods, or no entry for a procedure body.
+  Method: OptionalRef,
+  // Index into Procedure bodies, or no entry for a native method.
+  Body: OptionalRef,
   // Range into Static bindings; procedure uses bindings.
   Values: Range,
   // Range into Value inputs.
@@ -280,13 +280,42 @@ struct type Procedure {
 ```
 
 Procedures are stored in execution order, consecutively within each
-stage. The method identifies the native implementation and its interface
-names. When present, the node supplies the native state object and its
-type matches the method's node type. Each procedure receives its own
+stage. Each procedure has either a method or a body.
+
+The method identifies the native implementation and its interface names.
+When present, the node supplies the native state object and its type
+matches the method's node type. Each native procedure receives its own
 resolved `uses` values; omitting `uses` gives an empty binding range.
 Triggers and wakeups identify a scheduled native-object procedure by its
 node and method references. Stateless procedures retain distinct entries
 even when they invoke the same method.
+
+A body procedure executes its instruction stream. Its `Values` and
+`Resources` ranges are empty, and each value input has one source.
+Operands `input.N` and `result.N` select entry N of its `Inputs` and
+`Results` ranges.
+
+```wirely
+// An instruction stream and its locals. Procedure bodies table.
+struct type ProcedureBody {
+  // Byte offset of the instruction stream in Procedure code.
+  CodeOffset: uint32,
+  // Instruction stream length in bytes.
+  CodeLength: uint32,
+  // Range into Local variables; local.N selects entry N.
+  Locals: Range,
+}
+```
+
+```wirely
+// A procedure-local value. Local variables table.
+struct type LocalVariable {
+  // Index into Value types; runtime type of the local.
+  ValueType: Ref,
+}
+```
+
+Each instruction stream lies within Procedure code.
 
 ```wirely
 // An execution stage and its ordered procedure range.
@@ -322,8 +351,9 @@ bound option value.
 // Binds variable sources to one named procedure input.
 // Value inputs table.
 struct type ValueInput {
-  // Index into Interface names; input receiving sources.
-  Name: Ref,
+  // Index into Interface names; input receiving sources. No entry for
+  // procedure bodies.
+  Name: OptionalRef,
   // 0 = one connection, 1 = ordered connection list.
   IsList: uint8,
   // Range into Input sources.
@@ -331,7 +361,7 @@ struct type ValueInput {
 }
 ```
 
-Input names belong to the native method's `ValueInputNames` range.
+Native input names belong to the method's `ValueInputNames` range.
 `IsList = 0` selects one connection; `IsList = 1` selects an ordered
 sequence, including an empty sequence.
 
@@ -390,8 +420,9 @@ struct type ResourceProvider {
 // Binds one named procedure output to a destination variable.
 // Results table.
 struct type Result {
-  // Index into Interface names; output supplying value.
-  Name: Ref,
+  // Index into Interface names; output supplying value. No entry for
+  // procedure bodies.
+  Name: OptionalRef,
   // 0 = next state, 1 = temporaries.
   Bank: uint8,
   // Index into State variables or Temporaries, selected by Bank.
@@ -401,7 +432,7 @@ struct type Result {
 }
 ```
 
-Output names belong to the native method's `OutputNames` range. A bank-0
+Native output names belong to the method's `OutputNames` range. A bank-0
 result writes the next state and its `StateNew` temporary. A bank-1 result
 writes a temporary and has no `StateNew` entry.
 
@@ -414,8 +445,8 @@ zero.
 ```wirely
 // A qualified type name and its native interfaces. Node types table.
 struct type NodeType {
-  // StringRef array in Program data; name parts.
-  Components: ArrayRange,
+  // Range into Name components; qualified name.
+  Components: Range,
   // Range into Interface names; initializer uses names.
   InitializerValueNames: Range,
   // Range into Interface names; constructor resource names.
@@ -428,24 +459,21 @@ struct type NodeType {
 Node types include types defining native methods for stateless calls,
 even when no native state entry refers to them.
 
-Each component's `StringRef` points to UTF-8 bytes in Program data.
-Components preserve qualified-name boundaries, such as
-`("ABB", "JRA", "Shutter")`. Each interface-name range contains unique
-names in UTF-8 bytewise lexical order. Bindings use absolute indices into
-Interface names.
+Each interface-name range contains unique names in UTF-8 bytewise
+lexical order. Bindings use absolute indices into Interface names.
 
 The reader matches qualified node type and method names to native code and binds
 interface names to static values, inputs, outputs, and resources. Embedded
 adapters can retain numeric bindings and function pointers after linking. Native
 trigger names resolve to the same local method indices. These names remain
-ordinary program data for linking after a restart.
+in Names for linking after a restart.
 
 ```wirely
 // A named native procedure and its interfaces. Native methods table.
 struct type NativeMethod {
   // Index into Node types; defines the method.
   NodeType: Ref,
-  // Method name in Program data.
+  // Method name in Names.
   Name: StringRef,
   // Range into Interface names; procedure uses names.
   ValueNames: Range,
@@ -462,24 +490,55 @@ Method entries are contiguous per node type, ordered by method name.
 Procedure method references are absolute within Native methods.
 
 ```wirely
-// One static binding, resource, input, or output name.
-// Interface names table.
-struct type InterfaceName {
-  // Interface name in Program data.
+// A name in Names. Interface names and Name components tables.
+struct type NameRef {
+  // UTF-8 name in Names.
   Name: StringRef,
 }
 ```
+
+Interface names contain static binding, resource, input, and output
+names. Name components store each qualified name as consecutive parts,
+such as `("ABB", "JRA", "Shutter")`; records refer to a qualified name
+by a range into this table.
+
+```wirely
+// A native function called by procedure bodies.
+// Native functions table.
+struct type NativeFunction {
+  // Range into Name components; qualified name.
+  Components: Range,
+  // Range into Function parameters, in argument order.
+  Parameters: Range,
+  // Index into Value types; runtime result type.
+  ReturnType: Ref,
+}
+```
+
+```wirely
+// One parameter of a native function. Function parameters table.
+struct type FunctionParameter {
+  // Parameter name in Names.
+  Name: StringRef,
+  // Index into Value types; runtime argument type.
+  ValueType: Ref,
+}
+```
+
+The runtime resolves each function by its qualified name before
+execution. Parameter names and types describe the native
+implementation's signature; parameter names are distinct.
 
 ```wirely
 // A named enumeration associated with its runtime value type.
 // Enum definitions table.
 struct type EnumDefinition {
-  // Enum name in Program data.
-  Name: StringRef,
+  // Range into Name components; qualified name.
+  Components: Range,
   // EnumType index in Value types.
   ValueType: Ref,
-  // EnumMember array in Program data.
-  Members: ArrayRange,
+  // Range into Enum members.
+  Members: Range,
 }
 ```
 
@@ -489,11 +548,11 @@ and member numbers support native enum reconstruction and conversions
 such as JSON. Members are ordered by numeric value.
 
 ```wirely
-// One named enumeration member in an EnumDefinition's member array.
+// One named enumeration member. Enum members table.
 struct type EnumMember {
   // Member number; signed values use sign-extended bits.
   Number: uint64,
-  // Member name in Program data.
+  // Member name in Names.
   Name: StringRef,
 }
 ```
@@ -503,20 +562,49 @@ are sign-extended in two's complement; unsigned integers are zero-extended.
 Interpretation follows the enum's underlying integer type, and each value
 fits that type. Runtime enum values use their underlying integer's width.
 
+```wirely
+// A named struct associated with its value type.
+// Struct definitions table.
+struct type StructDefinition {
+  // Range into Name components; qualified name.
+  Components: Range,
+  // StructType index in Value types.
+  ValueType: Ref,
+  // Range into Struct fields, in declaration order.
+  Fields: Range,
+}
+```
+
+```wirely
+// One named struct field. Struct fields table.
+struct type StructField {
+  // Field name in Names.
+  Name: StringRef,
+  // Index into Value types.
+  ValueType: Ref,
+}
+```
+
+`ValueType` references the `StructType` whose `Definition` points to this
+entry. Field offsets follow the
+[runtime binary representation](value-types.md#runtime-binary-representation).
+Field index N in `GET_FIELD` and `SET_FIELD` selects entry N of `Fields`.
+Names support native struct reconstruction and display.
+
 ## Value types and program data
 
 Value type entries use the following equal-storage-size layouts.
 Runtime value sizes and alignments are determined from this table.
 
-`TypeRecord` is a `SimpleType`, `EnumType`, or `CompositeType`, selected
-by its first byte (`Kind`).
+`TypeRecord` is a `SimpleType`, `EnumType`, `CompositeType`, or
+`StructType`, selected by its first byte (`Kind`).
 
 ```wirely
 // Identifies a scalar value type.
 // Primitive and static scalar type records.
 struct type SimpleType {
   // Primitive or static scalar kind.
-  Kind: Kind,
+  Kind: uint8,
   // Reserved; zero.
   Reserved32: uint32,
   // Zero.
@@ -526,10 +614,9 @@ struct type SimpleType {
 
 ```wirely
 // Identifies an enum's runtime integer representation and named definition.
-// Kind.Enum.
 struct type EnumType {
-  // Kind.Enum.
-  Kind: Kind,
+  // Enum kind.
+  Kind: uint8,
   // Index into Value types; underlying integer type.
   UnderlyingType: Ref,
   // Index into Enum definitions.
@@ -541,10 +628,9 @@ struct type EnumType {
 
 ```wirely
 // Identifies an option or list type and its contained value type.
-// Kind.Option or Kind.List.
 struct type CompositeType {
-  // Kind.Option or Kind.List for static values.
-  Kind: Kind,
+  // Option kind, or List kind for static values.
+  Kind: uint8,
   // Index into Value types.
   InnerType: Ref,
   // Zero.
@@ -553,48 +639,48 @@ struct type CompositeType {
 ```
 
 ```wirely
-// Identifies a value type record's layout and represented type.
-enum type Kind: uint8 {
-  Unit = 0,
-  Boolean = 1,
-  Int8 = 2,
-  UInt8 = 3,
-  Int16 = 4,
-  UInt16 = 5,
-  Int32 = 6,
-  UInt32 = 7,
-  Int64 = 8,
-  UInt64 = 9,
-  Duration = 10,
-  TimeOfDay = 11,
-  MonotonicTime = 12,
-  Enum = 13,
-  Option = 14,
-  String = 15,
-  ValueType = 16,
-  // List for static values.
-  List = 17,
+// Identifies a struct type by its named definition.
+struct type StructType {
+  // Struct kind.
+  Kind: uint8,
+  // Index into Struct definitions.
+  Definition: Ref,
+  // Zero.
+  Reserved: uint64,
 }
 ```
 
-Intern structurally equal types. Inner types occur before their composite
-types, and underlying integers before their enum types, making size
-calculation possible in one forward pass. `String`, `ValueType`, and lists,
-including composites containing them, are only used for static values
-in this format.
+`Kind` identifies the record layout and represented type. Kind numbers
+will be assigned when the format is finalized.
+
+| Kind | Record |
+| --- | --- |
+| `Unit`, `Boolean` | `SimpleType` |
+| `Int8`, `UInt8`, `Int16`, `UInt16`, `Int32`, `UInt32`, `Int64`, `UInt64` | `SimpleType` |
+| `Duration`, `TimeOfDay`, `MonotonicTime` | `SimpleType` |
+| `String`, `ValueType` | `SimpleType` |
+| `Enum` | `EnumType` |
+| `Struct` | `StructType` |
+| `Option`, `List` | `CompositeType` |
+
+Intern structurally equal types; enums and structs have one entry per
+declaration. Inner types occur before their composite types, underlying
+integers before their enum types, and field types before their struct
+types, making size calculation possible in one forward pass. `String`,
+`ValueType`, and lists, including composites and structs containing them,
+are only used for static values in this format.
 
 ### Program data
 
-Program data stores static value slots, list arrays, string and binary
-payloads, type-name component arrays, and enum member arrays. Payloads use
-their type's storage layout. Equal values or payloads can share storage;
-nested references form an acyclic structure.
+Program data stores static value slots, list arrays, and string payloads.
+Payloads use their type's storage layout. Equal values or payloads can
+share storage; nested references form an acyclic structure.
 
 Static values describe the resolved type and offset of each top-level
-binding value. Runtime types use the same representation as initial-state
-data. Static `String` values use `StringRef` into Program data. Options
-apply the runtime option layout to the representations below, including
-strings and lists.
+binding value or constant. Runtime types use the same representation as
+initial-state data. Static `String` values use `StringRef` into Program
+data. Options apply the runtime option layout to the representations
+below, including strings and lists.
 
 ```wirely
 // A static value identifying another value type.
@@ -621,9 +707,17 @@ zero. Zero-sized units retain their element count.
 Nested list elements contain `ListValue` offset/count pairs into the same
 buffer.
 
+### Names
+
+Names contains UTF-8 bytes for qualified-name components and for method,
+interface, function parameter, enum member, and struct field names. A
+runtime that links native code numerically and needs no names during
+execution, such as for JSON enum conversion, can discard Names after
+linking.
+
 ## Procedure instruction byte stream
 
-A procedure executes a byte stream of instructions. Each instruction starts
+A procedure body executes a byte stream of instructions. Each instruction starts
 with one `uint8` opcode, followed by its operands in the order listed below.
 The opcode determines the operand count and instruction length. Opcode and
 operand-kind numbers remain to be assigned. Multi-byte integers are little
@@ -636,10 +730,10 @@ example `COPY local.0, input.1`.
 
 | Operand kind | Index selects | Access |
 | --- | --- | --- |
-| `input` | Entry in the procedure's dependency input list | Read |
-| `result` | Entry in the procedure's result list | Read/write |
-| `local` | Entry in the procedure's typed local table | Read/write |
-| `const` | Entry in the global constant table | Read |
+| `input` | Entry in the procedure's `Inputs` range | Read |
+| `result` | Entry in the procedure's `Results` range | Read/write |
+| `local` | Entry in the body's `Locals` range | Read/write |
+| `const` | Entry in Static values | Read |
 
 Operands identify whole typed values. There are no references. Whether to
 add an immediate-value operand kind has not yet been decided. Field indices
@@ -658,7 +752,7 @@ kind; bits 4–0 select the index encoding:
 
 The verifier requires the shortest form: inline for 0–28, `uint8` for
 29–255, `uint16` for 256–65535, and `uint32` for larger indices. Every index
-must also be within the selected table or list.
+must also be within the selected range or table.
 
 ### Integer parameters
 
@@ -673,7 +767,7 @@ share this unsigned encoding:
 
 There is no extended `uint8` form. The verifier requires the shortest form:
 one byte for 0–253, `uint16` for 254–65535, and `uint32` for larger values.
-Field indices select members in declaration order, starting at zero.
+Field indices select struct fields in declaration order, starting at zero.
 
 ### Instructions
 
@@ -720,13 +814,10 @@ Equality compares struct fields recursively; options are equal when both
 are `None`, or both are `Some` with equal contained values. All unit values
 are equal.
 
-`CALL` selects an entry of the program's function table, which lists each
-called native function's qualified name, argument names and types, and
-return type; the table's encoding is not yet specified. `count` repeats
-the entry's parameter count so that instructions can be decoded without
-the table; the verifier checks that they match and that the argument and
-destination types match the entry. The runtime resolves each entry by
-name before execution. Functions are pure and return a value for every
+`CALL` selects an entry of Native functions. `count` repeats the entry's
+parameter count so that instructions can be decoded without the table; the
+verifier checks that they match and that the argument and destination
+types match the entry. Functions are pure and return a value for every
 argument.
 
 Each invocation initializes every local and result to its type's default.
@@ -757,7 +848,8 @@ returns are allowed. There are no calls or backward branches.
 
 Before execution, the verifier checks the entire stream for known opcodes
 and operand kinds, complete operands, shortest encodings, index bounds,
-operand types, writable destinations, and valid branch targets. Target
+operand types, runtime-typed constants, writable destinations, and valid
+branch targets. Target
 calculation must not overflow. Every byte belongs to a decoded instruction;
 unknown instructions cannot be skipped. Default initialization removes the
 need to track which locals or results have been assigned.
@@ -778,14 +870,26 @@ struct type DebugMetadata {
 ```
 
 ```wirely
-// A display name referring to a node, procedure, or variable.
-// Node/Procedure/State variable/Temporary names tables.
+// A display name referring to a node or variable.
+// Node/State variable/Temporary names tables.
 struct type DebugName {
-  // Index into Native node states, Procedures, State variables, or
-  // Temporaries, selected by the names table.
+  // Index into Native node states, State variables, or Temporaries,
+  // selected by the names table.
   Target: Ref,
   // Display name in Debug data.
   Name: StringRef,
+}
+```
+
+```wirely
+// Display names of a procedure. Procedure names table.
+struct type ProcedureDebugName {
+  // Index into Procedures.
+  Target: Ref,
+  // Owning instance's display name in Debug data.
+  NodeName: StringRef,
+  // Procedure or method name in Debug data.
+  ProcedureName: StringRef,
 }
 ```
 
@@ -795,8 +899,8 @@ target tables. Variable block membership is defined by the variable tables.
 
 Node names preserve `NativeInstance.name` for retained native objects.
 Procedure names preserve the owning instance's display name, including
-for stateless calls. The method name identifies the call within that
-instance.
+for stateless calls and procedure bodies, and the procedure's name within
+that instance.
 
 ```wirely
 // An alias referring to a node instance.
@@ -830,11 +934,12 @@ Variable aliases are also sorted by UTF-8 name bytes.
 
 Debug data contains UTF-8 bytes referenced by debug records. All debug
 references stay within the debug sections or identify ordinary program
-table entries. Ordinary program records reference ordinary program data.
+table entries. Ordinary program records reference only ordinary sections.
 An external tool can strip the debug sections as a group and retain the
 Build ID section.
 
-An embedded reader reads the header and directory and links native code.
+An embedded reader reads the header and directory and links native code
+and functions using Names.
 Debug records and their data can be read on demand. To print a node name,
 read its Node names entry, then stream the referenced Debug data byte range
 over UART. Numeric node, procedure, and variable indices also serve as
@@ -853,14 +958,17 @@ ranges support independent reads.
 | `name` | Debug metadata |
 | `state_variables`, `temporaries` | Variable types, offsets, and debug names |
 | `initial_state` | Initial-state buffer |
-| Native-state `instances` | Native node states, initializers, and debug names |
+| Native-state `instances` | Native node states and debug names |
 | `instances[*].initializer_values` | Initializer static bindings and data |
-| `native_construction_order` | Native state numbering and initializer order |
+| `native_construction_order` | Native state numbering and construction order |
 | `procs` | Stages, procedures, methods, bindings, and debug names |
 | `procs[*].values` | Procedure static bindings and data |
+| `procs[*].body` | Procedure bodies, local variables, and Procedure code |
+| `constants` | Static values and data |
+| `functions` | Native functions and function parameters |
 | `node_aliases`, `singleton_aliases` | Aliases targeting retained nodes |
 | `variables` | Variable aliases |
 
 Program tables preserve native-object, procedure, and variable identities
-and the names needed to resolve native implementations. Debug sections
-preserve display names and aliases.
+and the names needed to resolve native implementations and functions.
+Debug sections preserve display names and aliases.
