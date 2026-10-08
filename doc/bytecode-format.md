@@ -54,8 +54,9 @@ struct type StringRef {
 }
 ```
 
-A string occupies exactly `[Offset, Offset + LengthBytes)` in its buffer.
-An empty string has both fields zero. Equal strings can share bytes.
+A string occupies exactly `[Offset, Offset + LengthBytes)` in its buffer
+and is valid UTF-8 (RFC 3629). An empty string has both fields zero. Equal
+strings can share bytes.
 
 ## Header and sections
 
@@ -156,8 +157,8 @@ Fixed sections contain `Length / record_storage_size` consecutive records, where
 that size. Single sections contain one record with its storage size. Byte
 sections contain a buffer of `Length` bytes, described by their byte-data record
 type. Empty tables and buffers have length zero. Padding between sections is
-outside their lengths. All ordinary program sections are present; debug sections
-are optional as a group.
+outside their lengths. All ordinary program sections are present; each debug
+section is optional.
 
 Structured records are always stored in fixed or single sections, so a
 known `RecordType` suffices to decode them. Byte sections contain only
@@ -249,13 +250,14 @@ State and temporary entries are ordered by ascending byte offset,
 preserving runtime layout order for equal offsets. Each variable identity
 retains its own entry, including zero-sized units sharing an offset.
 
-State and temporary tables use runtime types. Each runtime buffer lays out
-variables in decreasing type alignment, preserving variable order within an
-alignment group. Each variable occupies its type's storage size. The buffer
-alignment is the maximum type alignment, and its size rounds the last slot's end
-up to that alignment. Empty buffers have size zero and alignment 1. Slot and
-final buffer padding are zero. The runtime allocates state and temporary buffers
-using this layout.
+State and temporary tables use runtime types. Each variable occupies its
+type's storage size at an offset aligned for its type, starting at or after
+the end of the previous slot. The buffer alignment is the maximum type
+alignment, and its size rounds the last slot's end up to that alignment.
+Empty buffers have size zero and alignment 1. Slot and final buffer padding
+are zero. The runtime allocates state and temporary buffers using this
+layout. Producers lay out variables in decreasing type alignment, preserving
+variable order within an alignment group.
 
 ```wirely
 // A native method invocation or procedure body with its bindings.
@@ -663,7 +665,8 @@ will be assigned when the format is finalized.
 | `Struct` | `StructType` |
 | `Option`, `List` | `CompositeType` |
 
-Intern structurally equal types; enums and structs have one entry per
+Types are the same when they have the same index. Producers intern
+structurally equal types; enums and structs have one entry per
 declaration. Inner types occur before their composite types, underlying
 integers before their enum types, and field types before their struct
 types, making size calculation possible in one forward pass. `String`,
@@ -674,7 +677,7 @@ are only used for static values in this format.
 
 Program data stores static value slots, list arrays, and string payloads.
 Payloads use their type's storage layout. Equal values or payloads can
-share storage; nested references form an acyclic structure.
+share storage.
 
 Static values describe the resolved type and offset of each top-level
 binding value or constant. Runtime types use the same representation as
@@ -750,9 +753,9 @@ kind; bits 4–0 select the index encoding:
 | 30 | Following `uint16` | 3 |
 | 31 | Following `uint32` | 5 |
 
-The verifier requires the shortest form: inline for 0–28, `uint8` for
-29–255, `uint16` for 256–65535, and `uint32` for larger indices. Every index
-must also be within the selected range or table.
+Indices use the shortest form: inline for 0–28, `uint8` for 29–255,
+`uint16` for 256–65535, and `uint32` for larger indices. Every index is
+within the selected range or table.
 
 ### Integer parameters
 
@@ -765,7 +768,7 @@ share this unsigned encoding:
 | 254 | Following `uint16` | 3 |
 | 255 | Following `uint32` | 5 |
 
-There is no extended `uint8` form. The verifier requires the shortest form:
+There is no extended `uint8` form. Values use the shortest form:
 one byte for 0–253, `uint16` for 254–65535, and `uint32` for larger values.
 Field indices select struct fields in declaration order, starting at zero.
 
@@ -815,10 +818,9 @@ are `None`, or both are `Some` with equal contained values. All unit values
 are equal.
 
 `CALL` selects an entry of Native functions. `count` repeats the entry's
-parameter count so that instructions can be decoded without the table; the
-verifier checks that they match and that the argument and destination
-types match the entry. Functions are pure and return a value for every
-argument.
+parameter count so that instructions can be decoded without the table;
+they match, and the argument and destination types match the entry.
+Functions are pure and return a value for every argument.
 
 Each invocation initializes every local and result to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
@@ -834,7 +836,7 @@ allowing a destination also to be a source. `COPY` preserves its source
 unless it is also the destination. Struct and option copies are whole-value
 operations subject to the runtime type size and nesting limits.
 
-### Control flow and verification
+### Control flow
 
 A branch target is the byte offset immediately after the complete branch
 instruction plus its unsigned displacement. A zero displacement targets
@@ -846,13 +848,10 @@ immediately after the stream is not a target: for a 120-byte stream, offset
 The stream is nonempty and its final instruction is `RETURN`. Earlier
 returns are allowed. There are no calls or backward branches.
 
-Before execution, the verifier checks the entire stream for known opcodes
-and operand kinds, complete operands, shortest encodings, index bounds,
-operand types, runtime-typed constants, writable destinations, and valid
-branch targets. Target
-calculation must not overflow. Every byte belongs to a decoded instruction;
-unknown instructions cannot be skipped. Default initialization removes the
-need to track which locals or results have been assigned.
+Target calculation must not overflow. Every byte of the stream belongs to
+a decoded instruction; unknown instructions cannot be skipped. Default
+initialization removes the need to track which locals or results have been
+assigned.
 
 ## Debugging and lazy reads
 
@@ -972,6 +971,106 @@ ranges support independent reads.
 Program tables preserve native-object, procedure, and variable identities
 and the names needed to resolve native implementations and functions.
 Debug sections preserve display names and aliases.
+
+## Verification
+
+A runtime verifies a file before using it. A file is valid when it
+follows all rules of this proposal except the producer requirements
+below, so validity depends only on the file's bytes. Native code is not
+involved; matching names to native implementations is part of linking.
+Transition files also follow the rules in
+[State transitions](#state-transitions).
+
+Each check concerns one record and records it refers to, or a record and
+its predecessor in a sorted table. Apart from a few bytes per value type,
+verification needs no memory beyond the file.
+
+A runtime may also reject a valid file that it cannot run:
+
+- The file has a format version the runtime does not support.
+- The file exceeds the runtime's limits, such as the file size, a table
+  size, the number of sections, or the number of verification steps.
+  The runtime may reject it before verifying it completely.
+- Linking fails, because the runtime lacks a native implementation or
+  function the program names, or its interface does not match.
+
+State transitions cannot fail. Native constructors should not fail
+either: returning to the previous program would require constructing
+its native state again.
+
+### Structure and references
+
+The header has the expected magic and version, and `FileLength` is the
+file length. The directory and all sections lie within the file and start
+on 8-byte boundaries. Each known section type occurs at most once, has its
+listed `RecordType`, and has a length that fits that record type. All
+ordinary sections are present. A missing debug section counts as empty, so
+references into it fail. Unknown sections are only checked to lie within
+the file.
+
+Bytes not referenced by any record are not checked. This includes bytes of
+Procedure code outside every instruction stream.
+
+Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
+and `StringRef` byte ranges, whose bytes are valid UTF-8. Small enumerated
+fields such as `Bank` and `IsList` have listed values, and reserved fields
+and padding are zero.
+
+### Types and values
+
+Inner, underlying, and field types precede the types using them, so one
+pass over Value types finds the storage size, alignment, nesting depth, and
+member count of each type. The verifier keeps these per type to tell
+runtime types from static-only types. Enum and struct definitions refer
+back to their value types, so each definition belongs to one type. Enum
+members are in strictly ascending order and fit the underlying type.
+
+Rules requiring equal types compare type indices.
+
+Static values, list elements, and Initial state contain valid values in the
+runtime binary representation, with zero padding. Sorted members let enum
+values be found by binary search. List elements are checked with the list's
+inner type, which precedes the list type, so checks terminate even when
+lists share bytes.
+
+State variables and temporaries are sorted by offset, and each slot starts
+at or after the end of the previous one. Comparing each entry with its
+predecessor therefore shows that slots do not overlap and gives the buffer
+size. Their types, and those of locals, constant operands, and native
+function parameters and results, are runtime types.
+
+### Names and bindings
+
+Sorting turns uniqueness into a comparison with the predecessor. This
+applies to interface-name ranges, methods within a node type, and aliases.
+Each method lies in the method range of the node type it names. Binding,
+input, resource, and output names lie in the matching range of their method
+or node type. Each debug name entry targets its own index.
+
+### Procedures and code
+
+Stage schedules follow each other without gaps and cover the procedure
+table. Each procedure has a method or a body, and a native state it uses has
+the method's node type. Initializer resource providers have lower native
+state indices than their consumers. Bank-0 results have a `StateNew`
+temporary of the same type.
+
+Each instruction stream is decoded once from its start. Opcodes, operand
+kinds and encodings, index bounds, operand types, and writable destinations
+are checked as instructions are decoded. Branches only go forward, so a
+branch target is confirmed when decoding reaches it, using one bit per
+code byte or by decoding ahead.
+
+### Producer requirements
+
+Verifiers do not check these rules:
+
+- Sections do not overlap each other, the header, or the directory.
+- Equal types share one entry. Otherwise values of equal types cannot be
+  combined, and the program may be rejected.
+- Buffers place variables in decreasing type alignment.
+- Struct field, enum member, and function parameter names are distinct.
+- The Build ID matches the unstripped file.
 
 ## State transitions
 
