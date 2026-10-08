@@ -119,7 +119,7 @@ extensions.
 ### Program identity
 
 Programs are identified by their short build ID, the first 16 bytes of
-the [Build ID](bytecode-format.md#header-and-sections). Clients use it to
+the [Build ID](bytecode-format.md#buildid). Clients use it to
 find the matching unstripped program file, whose debug sections map
 names to variables.
 
@@ -176,8 +176,9 @@ defaults to 1. Response `{1: steps completed, 2: procedures run}`.
 A snapshot is a consistent view of the runtime buffers between two steps.
 Bank 0 is the state written by the last step. Bank 1 holds the
 temporaries of the last step, including values of skipped procedures. Both
-use the [buffer layout](bytecode-format.md#program-tables) of the active
-program. Snapshots do not include native state, whose representation
+use the
+[buffer layout](bytecode-format.md#statevariables-and-temporaries)
+of the active program. Snapshots do not include native state, whose representation
 depends on the runtime.
 
 `Snapshot` takes a snapshot. Response:
