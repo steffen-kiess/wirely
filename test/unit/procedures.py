@@ -96,6 +96,25 @@ def check_pure_stages():
     pure_engine.assert_is_idle()
 
 
+def check_output_storage():
+    # Output storage does not share slots with declared temporaries.
+    program = compile_program('''node type Split {
+      output Value: value boolean;
+      temporary Value_val: boolean;
+      procedure run produces Value as value, Value_val {
+        value = true;
+        Value_val = false;
+      }
+    }
+    node split: Split {}
+    ''')
+    assert 'split:run.value' in program.temporaries.variables
+    engine = Engine(program)
+    engine.step()
+    engine.assert_value_is('split.Value', True)
+    engine.assert_value_is('split.Value_val', False)
+
+
 def check_generic_copies():
     # Generic copies preserve options and structs without exposing their contents.
     for value_type, initial in [('Option[boolean]', 'Some(true)'),
@@ -466,6 +485,7 @@ def check_monotonic_time_functions():
 
 check_main_program()
 check_pure_stages()
+check_output_storage()
 check_generic_copies()
 check_mixed_procedures()
 check_root_only()

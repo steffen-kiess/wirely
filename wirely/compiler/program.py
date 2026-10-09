@@ -62,7 +62,9 @@ def compile_nocatch(global_block_type):
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = blocks.Block.path_name(path)
-        variable_name = name + '.' + var.name if name else var.name
+        # Output storage is named after its producer: <path>:<procedure>.<result key>.
+        separator = ':' if getattr(var, 'output', None) is not None else '.'
+        variable_name = name + separator + var.name if name else var.name
         v = Variable(variable_name, var_type)
         # print(v.name)
         binding = InputSourceBinding(v)
@@ -337,10 +339,10 @@ def compile_nocatch(global_block_type):
     node_aliases = {}
     variables = {}
 
-    def aliased_members(owner, members):
+    def aliased_members(members):
         # Default outputs are aliased by their node, other outputs by their own name.
-        storage = {output.orig_temporary for output in owner.block_outputs if hasattr(output, 'orig_temporary')}
-        return [member for member in members if member.name != '' and member not in storage]
+        return [member for member in members
+                if member.name != '' and getattr(member, 'output', None) is None]
 
     def add_aliases(scope, path=(), prefix=''):
         for name, block in scope.blocks.items():
@@ -349,7 +351,7 @@ def compile_nocatch(global_block_type):
             node_aliases[alias] = node_ids[child_path]
             owner = block.block_type.singleton_instance if block.block_type.is_singleton else block
             members = owner.block_inputs + owner.block_outputs + owner.block_statevars + owner.block_temporaries
-            for member in aliased_members(owner, members):
+            for member in aliased_members(members):
                 binding = variable_map.get((child_path, member.var_identifier))
                 if binding is not None:
                     variables.setdefault(alias + '.' + member.name, binding)
@@ -363,7 +365,7 @@ def compile_nocatch(global_block_type):
     root_path = (root,) if root is not None else ()
     add_aliases(graph, root_path)
     if root is not None:
-        for member in aliased_members(root, root.block_temporaries + root.block_statevars):
+        for member in aliased_members(root.block_temporaries + root.block_statevars):
             variables[member.name] = variable_map[root_path, member.var_identifier]
     singleton_aliases = {
         instance.block_type.fullname: node_ids[path]

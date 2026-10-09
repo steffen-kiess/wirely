@@ -318,7 +318,8 @@ class Block(blocks.Node):
                 self.input_dependencies.append(dependency)
 
             if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
-                self.temporary = Block.Temporary(block, name + '_val', var_type, impl_var_type=self.impl_var_type)
+                # The producing procedure renames this to <procedure>.<result key>.
+                self.temporary = Block.Temporary(block, name, var_type, impl_var_type=self.impl_var_type, output=self)
                 # TODO: Hack
                 self.orig_temporary = self.temporary
 
@@ -344,8 +345,9 @@ class Block(blocks.Node):
 
     # TODO: Allow both temporaries and output values to be references to other values
     class Temporary(Source, Target):
-        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, *, impl_var_type):
+        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, *, impl_var_type, output=None):
             Block.Member.__init__(self, block, name)
+            self.output = output  # The output stored here, or None for declared temporaries.
             if not isinstance(var_type, blocks.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
@@ -367,7 +369,8 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Temporary should contains a reference to BlockType, not to Block
         @property
         def var_identifier(self):
-            return 'TEMP ' + self.block.type_name + '.' + self.name
+            separator = '.' if self.output is None else ':'
+            return 'TEMP ' + self.block.type_name + separator + self.name
 
     class StateVariable(Source, Target):
         def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, initial_value):
@@ -447,6 +450,10 @@ class Block(blocks.Node):
                         hints=[blocks.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
                 # print(f'Setting result for {result} / {result.temporary}')
                 result.temporary.producer = self
+
+            for key, target in static_context._targets.items():
+                if isinstance(target, Block.Output):
+                    target.temporary.name = f'{name}.{key}'
 
             self.can_trigger = can_trigger
 

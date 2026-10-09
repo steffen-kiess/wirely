@@ -970,7 +970,7 @@ same order:
 | --- | --- | --- |
 | `NodeSymbols` | `NativeStates` | Node path, such as `a.b` |
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
-| `TemporarySymbols` | `Temporaries` | Variable path |
+| `TemporarySymbols` | `Temporaries` | Variable path, or for output storage the procedure symbol and result key joined by `.`, such as `a.b:run.output` |
 | `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
 
 Symbols identify nodes, variables, and procedures in diagnostics and when

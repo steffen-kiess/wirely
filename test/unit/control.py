@@ -205,7 +205,7 @@ async def check_cli(server):
     assert '2 steps' in await run_client_command(*serial, 'step', '--count', '2')
     output = await run_client_command('--unix-path', server.stream_path, 'dump', '--program', program_path)
     assert '  d.value: 42\n' in output
-    assert '  c._val: 42\n' in output
+    assert '  c:run.output: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output
     assert 'running' in await run_client_command(*serial, 'resume')

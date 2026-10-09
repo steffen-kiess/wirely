@@ -107,7 +107,7 @@ def resolve_variable(path, var):
         owner = var.block.block_type.singleton_instance
         if owner is not var.block:
             members = owner.block_inputs + owner.block_outputs + owner.block_temporaries + owner.block_statevars
-            member = next(member for member in members if type(member) is type(var) and member.name == var.name)
+            member = next(member for member in members if type(member) is type(var) and member.var_identifier == var.var_identifier)
             return resolve_variable((owner.block_type,), member)
 
     if isinstance(var, blocks.Block.StateVariable):
@@ -203,7 +203,7 @@ def resolve_variable(path, var):
         block = path[-2]
         var_inst = None
         for t in block.block_temporaries:
-            if t.name == var.name:
+            if t.output is None and t.name == var.name:
                 var_inst = t
                 break
         if var_inst is None:
