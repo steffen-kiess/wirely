@@ -1476,7 +1476,9 @@ class DeclarationTemporaryVariable(Declaration):
         pass
 
     def compile_pass2(self, graph):
-        pass
+        if not any(self in procedure.produces.get_resolved_outputs()
+                   for procedure in graph.procedures.values()):
+            raise ProgramError(self, f'Temporary {self.name_str!r} has no producer')
 
     # TODO: Clean up compilation passes
 

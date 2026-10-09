@@ -362,7 +362,7 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 Inside a node type, `state name: Type = value;` declares a persistent value
 with an initial value. `temporary name: Type;` holds a value calculated
-within a step. Procedures declare which inputs or temporaries they
+within a step by one procedure. Procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. Procedures
 run in dependency order; dependencies must be acyclic.
 

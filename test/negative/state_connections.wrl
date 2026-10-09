@@ -13,7 +13,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -35,7 +34,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -57,7 +55,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -79,7 +76,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -102,6 +98,7 @@ node type ResourceSink {
 node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
+  procedure write produces temporary_value { temporary_value = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -123,7 +120,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -145,7 +141,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -167,7 +162,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -189,7 +183,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -211,7 +204,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -233,7 +225,6 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}

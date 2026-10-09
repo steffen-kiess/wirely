@@ -275,6 +275,7 @@ struct type Wide16 {
 node type Invalid {
   parameter Type: ValueType;
   temporary value: Type;
+  native procedure write produces value;
 }
 node invalid: Invalid { Type: Option[Wide16] } // E: storage size 136 bytes exceeds 128 bytes
 
@@ -319,6 +320,7 @@ struct type Member128 {
 node type Invalid {
   parameter Type: ValueType;
   temporary value: Type;
+  native procedure write produces value;
 }
 node invalid: Invalid { Type: Option[Member128] } // E: total member count 129 exceeds 128
 
@@ -395,6 +397,7 @@ struct type Depth17 {
 node type Invalid {
   parameter Type: ValueType;
   temporary value: Type;
+  native procedure write produces value;
 }
 node invalid: Invalid { Type: Depth17 } // E: nesting depth 17 exceeds 16
 

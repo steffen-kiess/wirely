@@ -110,3 +110,10 @@ node type Probe {
   procedure second produces flag { flag = false; } // E: Variable 'flag' is already produced by procedure 'first'
 }
 node probe: Probe {}
+
+// TEST: temporary without producer
+node type Probe {
+  default output: value boolean;
+  temporary flag: boolean; // E: Temporary 'flag' has no producer
+  connect flag -> default output;
+}
