@@ -115,6 +115,39 @@ def check_output_storage():
     engine.assert_value_is('split.Value_val', False)
 
 
+def check_temporary_connections():
+    # Temporaries feed outputs and child inputs without separate storage.
+    program = compile_program('''node type Copy {
+      default input: value boolean;
+      default output: value boolean;
+      procedure run depends on default input as input produces default output as output {
+        output = input;
+      }
+    }
+    node type Normalize {
+      output Level: value boolean;
+      output Inverted: value boolean;
+      temporary level: boolean;
+      procedure normalize produces level { level = true; }
+      procedure invert depends on level produces Inverted as inverted {
+        inverted = if level { false } else { true };
+      }
+      node child: Copy {}
+      connect level -> child;
+      connect level -> Level;
+    }
+    node n: Normalize {}
+    node reader: Copy {}
+    connect n.Level -> reader;
+    ''')
+    engine = Engine(program)
+    engine.step()
+    assert engine.get_variable('n.Level') is engine.get_variable('n.level')
+    for name, value in [('n.Level', True), ('n.Inverted', False), ('n.child', True), ('reader', True)]:
+        engine.assert_value_is(name, value)
+    engine.assert_is_idle()
+
+
 def check_generic_copies():
     # Generic copies preserve options and structs without exposing their contents.
     for value_type, initial in [('Option[boolean]', 'Some(true)'),
@@ -486,6 +519,7 @@ def check_monotonic_time_functions():
 check_main_program()
 check_pure_stages()
 check_output_storage()
+check_temporary_connections()
 check_generic_copies()
 check_mixed_procedures()
 check_root_only()

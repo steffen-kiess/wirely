@@ -397,7 +397,8 @@ are not supported.
 
 Use `connect last_value.old -> target;` to feed local state into a
 `value Type` input or output. It reads the initial value on the first step
-and the previous step's state thereafter.
+and the previous step's state thereafter. Similarly, `connect name -> target;`
+feeds the value of a temporary calculated this step.
 
 `last_value.new` reads the value produced this step. Use it in procedure
 dependencies or as a connection source. It requires a writer in the same

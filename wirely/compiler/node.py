@@ -117,8 +117,8 @@ class BlockOutput(Node):
 
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(source, (blocks.Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.StateRead)):
-            raise Exception('source parameter value is not an Output, BlockInput or BlockStateVariable')
+        if not isinstance(source, (blocks.Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, blocks.StateRead)):
+            raise Exception('source parameter value is not a data or resource source')
         # if self.is_list:
         if False:
             # TODO: Clean up

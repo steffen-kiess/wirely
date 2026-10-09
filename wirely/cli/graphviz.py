@@ -90,6 +90,10 @@ def get_graph(graph, engine=None):
                     continue
                 if isinstance(source, blocks.BlockStateVariable):
                     digraph.node(source_block.name, label=source.name + '.old')
+                if isinstance(source, blocks.BlockTemporaryVariable):
+                    digraph.node(source.name, label=source.name)
+                    digraph.edge(source.name, block.name + ':' + input.name)
+                    continue
 
                 # label = f'{source.name} -> {input.name}'
                 # digraph.edge(source_block.name, block.name, label=label)
