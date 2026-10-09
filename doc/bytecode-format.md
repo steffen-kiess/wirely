@@ -171,6 +171,18 @@ Ranges fit their target tables. A record cannot contain a variable-length
 list, so lists are stored as consecutive entries of a table and referred to
 by a range.
 
+### ByteRange
+
+```wirely
+// Bytes in the buffer named by the referring field's comment.
+struct type ByteRange {
+  // Byte offset into the buffer; zero when Length is zero.
+  Offset: uint32,
+  // Number of bytes starting at Offset.
+  Length: uint32,
+}
+```
+
 ### StringRef
 
 ```wirely
@@ -736,16 +748,12 @@ bank-1 output writes a temporary and has no `StateNew` entry.
 ```wirely
 // An instruction stream and its locals. ProcedureBodies table.
 struct type ProcedureBody {
-  // Byte offset of the instruction stream in ProcedureCode.
-  CodeOffset: uint32,
-  // Instruction stream length in bytes.
-  CodeLength: uint32,
+  // Byte range in ProcedureCode; the instruction stream.
+  Code: ByteRange,
   // Range into TypeLists; local.N has the type of entry N.
   Locals: Range,
 }
 ```
-
-Each instruction stream lies within `ProcedureCode`.
 
 ### NativeFunctions
 
@@ -1065,9 +1073,9 @@ Bytes not referenced by any record are not checked. This includes bytes of
 `ProcedureCode` outside every instruction stream.
 
 Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
-and `StringRef` byte ranges, whose bytes are valid UTF-8. Small enumerated
-fields such as `Bank` and `IsList` have listed values, and padding is
-zero.
+`ByteRange` byte ranges, and `StringRef` byte ranges, whose bytes are valid
+UTF-8. Small enumerated fields such as `Bank` and `IsList` have listed
+values, and padding is zero.
 
 ### Types and values
 
