@@ -703,24 +703,25 @@ sources form an ordered sequence, which can be empty.
 ```wirely
 // One variable supplying a procedure input. InputSources table.
 struct type InputSource {
-  // 0 = old state, 1 = temporaries.
+  // Old state, new state, or temporaries.
   Bank: uint8,
   // Index into StateVariables or Temporaries, selected by Bank.
   Variable: Ref,
 }
 ```
 
-A bank-0 input reads the step's old-state snapshot. A bank-1 input reads a
-temporary computed during the step, including newly produced state values
-exposed through `StateNew` temporaries.
+An old-state input reads the step's old-state snapshot. A new-state input
+reads the state value written earlier in the step. A temporary input reads
+a temporary computed during the step.
 
-State inputs compare the step's old-state snapshot with the snapshot read
-by the previous step, using the variable's value-type equality. Temporary
-inputs compare this step's values with the previous step's cached
-values. A difference requires procedure execution. On the first step,
-procedures execute without previous values. Triggers and wakeups also
-require execution. A skipped procedure preserves its state and temporary
-outputs.
+Old-state inputs compare the step's old-state snapshot with the snapshot
+read by the previous step, using the variable's value-type equality.
+New-state inputs compare this step's new state with the step's old state,
+which the previous step produced. Temporary inputs compare this step's
+values with the previous step's cached values. A difference requires
+procedure execution. On the first step, procedures execute without
+previous values. Triggers and wakeups also require execution. A skipped
+procedure preserves its state and temporary outputs.
 
 ### Outputs
 
@@ -730,18 +731,16 @@ struct type Output {
   // Index into InterfaceNames; output name. No entry for procedure
   // bodies.
   Name: OptionalRef,
-  // 0 = next state, 1 = temporaries.
+  // New state or temporaries.
   Bank: uint8,
   // Index into StateVariables or Temporaries, selected by Bank.
   Variable: Ref,
-  // Index into Temporaries; new state value, or no entry.
-  StateNew: OptionalRef,
 }
 ```
 
 Native output names belong to the native procedure's `OutputNames` range.
-A bank-0 output writes the next state and its `StateNew` temporary. A
-bank-1 output writes a temporary and has no `StateNew` entry.
+A new-state output writes the state that becomes the next step's old
+state. A temporary output writes a temporary.
 
 ### ProcedureBodies
 
@@ -985,7 +984,7 @@ building [state transitions](#state-transitions).
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // 0 = state, 1 = temporaries.
+  // Old state, new state, or temporaries.
   Bank: uint8,
   // Index into StateVariables or Temporaries, selected by Bank.
   Variable: Ref,
@@ -1116,7 +1115,6 @@ entries as its target table.
 Stage schedules follow each other without gaps and cover the procedure
 table. Each procedure has a native procedure or a body. Initializer
 resource providers have lower native state indices than their consumers.
-Bank-0 outputs have a `StateNew` temporary of the same type.
 
 Each instruction stream is decoded once from its start. Opcodes, operand
 kinds and encodings, index bounds, immediate values, operand types, and

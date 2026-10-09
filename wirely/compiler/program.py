@@ -33,7 +33,6 @@ def compile_nocatch(global_block_type):
                             instantiation=graph, register=False)
 
     variable_map = {}
-    state_map_new = {}
     all_variables = []
     state_map = {}
     state_variables = []
@@ -66,15 +65,16 @@ def compile_nocatch(global_block_type):
         variable_name = name + '.' + var.name if name else var.name
         v = Variable(variable_name, var_type)
         # print(v.name)
-        variable_map[path, var.var_identifier] = v
+        binding = InputSourceBinding(v)
+        variable_map[path, var.var_identifier] = binding
         all_variables.append(v)
-        return v
+        return binding
 
     # TODO: Use get_all_block_paths()?
     singletons = {}
     top_blocks = (root,) if root is not None else tuple(graph.blocks.values())
     for block in top_blocks:
-        block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
+        block.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=(block,), parent_instance=None)
 
     def resolve_binding(path, source):
         source_path, variable = blocks.resolve_variable(path, source)
@@ -83,15 +83,11 @@ def compile_nocatch(global_block_type):
             if variable.phase == 'new':
                 if state.producer is None:
                     raise blocks.ProgramError(variable.reference, f'State {state.name}.new requires a producing procedure')
-                return InputSourceBinding(state_map_new[source_path, state])
-            return InputSourceBinding(
-                state_map[source_path, state],
-            )
+                return InputSourceBinding(state_map[source_path, state], new_state=True)
+            return InputSourceBinding(state_map[source_path, state], new_state=False)
         if isinstance(variable, blocks.Block.StateVariable):
-            return InputSourceBinding(
-                state_map[source_path, variable],
-            )
-        return InputSourceBinding(add_var(source_path, variable))
+            return InputSourceBinding(state_map[source_path, variable], new_state=False)
+        return add_var(source_path, variable)
 
     for path in instances:
         block = path[-1]
@@ -301,7 +297,7 @@ def compile_nocatch(global_block_type):
                 if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
                     raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
                 variable = (state_map[path, target] if isinstance(target, blocks.Block.StateVariable)
-                            else variable_map[path, target.var_identifier])
+                            else variable_map[path, target.var_identifier].variable)
                 result_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types,
                                                  intern_constant, intern_function)
@@ -326,11 +322,9 @@ def compile_nocatch(global_block_type):
                 dependencies.append((name, tuple(resolve_binding(path, member) for member in members), is_list))
             for name, target in proc.static_context._targets.items():
                 if isinstance(target, blocks.Block.StateVariable):
-                    results[name] = ResultBinding(
-                        state_map[path, target], state_map_new[path, target],
-                    )
+                    results[name] = ResultBinding(state_map[path, target])
                 else:
-                    results[name] = ResultBinding(variable_map[path, target.var_identifier])
+                    results[name] = ResultBinding(variable_map[path, target.var_identifier].variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].block_type.fullname_tuple, proc.declaration_procedure.python_name),
@@ -351,14 +345,14 @@ def compile_nocatch(global_block_type):
             owner = block.block_type.singleton_instance if block.block_type.is_singleton else block
             members = owner.block_inputs + owner.block_outputs + owner.block_statevars + owner.block_temporaries
             for member in members:
-                variable = variable_map.get((child_path, member.var_identifier))
-                if variable is not None:
-                    variables.setdefault(alias + '.' + member.name, variable)
+                binding = variable_map.get((child_path, member.var_identifier))
+                if binding is not None:
+                    variables.setdefault(alias + '.' + member.name, binding)
             output = owner.block_outputs_byname.get('')
             if output is not None:
-                variable = variable_map.get((child_path, output.var_identifier))
-                if variable is not None:
-                    variables.setdefault(alias, variable)
+                binding = variable_map.get((child_path, output.var_identifier))
+                if binding is not None:
+                    variables.setdefault(alias, binding)
             add_aliases(block.block_type, child_path, alias + '.')
 
     root_path = (root,) if root is not None else ()

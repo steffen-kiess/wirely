@@ -39,7 +39,8 @@ def make_program(instructions, *, local_types=(), result_types=(types.boolean,),
     instance = NativeInstance('test', ('Test',), False, {}, ())
     procedure = Procedure(
         node_id='test', reference=(('Test',), 'run'), node_context=instance,
-        dependencies=tuple((variable.name, (InputSourceBinding(variable),), False) for variable in state),
+        dependencies=tuple((variable.name, (InputSourceBinding(variable, new_state=False),), False)
+                           for variable in state),
         resources=(), results={variable.name: ResultBinding(variable) for variable in outputs},
         body=ProcedureBody(instructions, local_types),
     )
@@ -49,7 +50,7 @@ def make_program(instructions, *, local_types=(), result_types=(types.boolean,),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
         instances={'test': instance}, native_construction_order=('test',),
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
-        variables={variable.name: variable for variable in outputs}, constants=constants,
+        variables={variable.name: InputSourceBinding(variable) for variable in outputs}, constants=constants,
         functions=functions,
     )
 

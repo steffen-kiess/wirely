@@ -78,9 +78,10 @@ class VariableBlock:
 
 @dataclass(frozen=True, slots=True)
 class InputSourceBinding:
-    """A procedure input from a temporary or the step's state snapshot."""
+    """A procedure input from a temporary or one of the step's state tables."""
 
-    variable: Variable  # Source in the temporaries or the step's old state.
+    variable: Variable  # Source in the temporaries or the state variables.
+    new_state: bool | None = None  # None for temporaries; else whether it reads this step's new state.
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,6 @@ class ResultBinding:
     """A procedure result targeting a temporary or the next step's state."""
 
     variable: Variable  # Destination temporary or persistent state variable.
-    state_new: Variable | None = None  # Temporary exposing the new state value.
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,14 +153,14 @@ class Program:
 
     name: str  # Program name for diagnostics.
     state_variables: VariableBlock  # Variables persisted between engine steps.
-    temporaries: VariableBlock  # Per-step variables, including new-state values and flags.
+    temporaries: VariableBlock  # Per-step variables, including flags.
     initial_state: Mapping[Variable, object]  # Starting values of persistent state.
     instances: Mapping[str, NativeInstance]  # Stored node contexts indexed by node ID.
     native_construction_order: tuple[str, ...]  # Node IDs ordered with providers first.
     procs: Mapping[RunStage, tuple[Procedure, ...]]  # Stages and procedures in execution order.
     node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
-    variables: Mapping[str, Variable]  # Debug lookup from variable aliases to definitions.
+    variables: Mapping[str, InputSourceBinding]  # Debug lookup from variable aliases to sources.
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
@@ -195,6 +195,11 @@ class Program:
                 if is_list:
                     providers = '[' + providers + ']'
                 line(f'{name}: {providers}', indent)
+
+        def source(binding):
+            if binding.new_state is None:
+                return binding.variable.name
+            return f'{binding.variable.name} ({"new" if binding.new_state else "old"} state)'
 
         line(f'Program {self.name}')
         for label, variable_block in [('State variables', self.state_variables),
@@ -248,23 +253,15 @@ class Program:
                 value('values', dict(proc.values), 6)
                 line('dependencies:', 6)
                 for name, bindings, is_list in proc.dependencies:
-                    sources = []
-                    for binding in bindings:
-                        source = binding.variable.name
-                        if binding.variable in self.state_variables.variable_set:
-                            source += ' (old state)'
-                        sources.append(source)
-                    source = ', '.join(sources)
+                    sources = ', '.join(source(binding) for binding in bindings)
                     if is_list:
-                        source = '[' + source + ']'
-                    line(f'{name}: {source}', 8)
+                        sources = '[' + sources + ']'
+                    line(f'{name}: {sources}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
                 line('results:', 6)
                 for name, binding in proc.results.items():
                     line(f'{name}: {binding.variable.name}', 8)
-                    if binding.state_new is not None:
-                        line(f'new: {binding.state_new.name}', 10)
                 if proc.body is not None:
                     line('locals:', 6)
                     for index, value_type in enumerate(proc.body.local_types):
@@ -273,9 +270,10 @@ class Program:
                     for index, instruction in enumerate(proc.body.instructions):
                         line(f'idx{index}: {instruction}', 8)
 
+        variable_aliases = {name: source(binding) for name, binding in self.variables.items()}
         for label, aliases in [('Node aliases', self.node_aliases),
                                ('Singleton aliases', self.singleton_aliases),
-                               ('Variable aliases', self.variables)]:
+                               ('Variable aliases', variable_aliases)]:
             line()
             line(label + ':')
             for name, target in sorted(aliases.items()):

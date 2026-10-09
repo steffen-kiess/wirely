@@ -98,8 +98,8 @@ async def check_stream(server):
         assert state[1] == bytes(engine.state.data)
         # Snapshots keep their data while the runtime continues.
         assert await client.request(Op.STEP) == {1: 1, 2: 0}
-        parts = await client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 1, 3: [[8, 4], [0, 2]]})
-        assert parts == {1: bytes(engine.cache.data[8:12] + engine.cache.data[0:2])}
+        parts = await client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 1, 3: [[4, 4], [0, 2]]})
+        assert parts == {1: bytes(engine.cache.data[4:8] + engine.cache.data[0:2])}
         await expect_error(ErrorCode.INVALID_ARGUMENT,
                            client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 0, 3: [[2, 4]]}))
         await expect_error(ErrorCode.INVALID_ARGUMENT,

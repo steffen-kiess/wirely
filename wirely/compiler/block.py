@@ -5,7 +5,7 @@ from wirely.util import check_parameters
 from .attributes import copy_attributes
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
-from wirely.program import Variable
+from wirely.program import InputSourceBinding, Variable
 
 # TODO: Rename this to BlockInstantiation or BlockUsage?
 # TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
@@ -108,7 +108,7 @@ class Block(blocks.Node):
     # TODO: Rename
     # TODO: Must probably be cleaned up to allow multiple instantiations of the same block
     # path: A tuple which contains the name of the block being instantiated
-    def instantiate(self, *, singletons, variable_map, state_map_new, all_variables, state_map, state_variables, instances, path, parent_instance):
+    def instantiate(self, *, singletons, variable_map, all_variables, state_map, state_variables, instances, path, parent_instance):
         if self.block_type.is_singleton:
             if self.block_type in singletons:
                 return
@@ -140,7 +140,7 @@ class Block(blocks.Node):
 
         for name, child_block in self.block_type.blocks.items():
             child_path = path + (child_block,)
-            child_block.instantiate(singletons=singletons, variable_map=variable_map, state_map_new=state_map_new, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
+            child_block.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
 
         # TODO: Clean up
         # path_prefix = '.'.join([block.name for block in path])
@@ -152,26 +152,22 @@ class Block(blocks.Node):
             source = (self.block_type.variables[state_var.name]
                       if self.is_root else self.instantiation)
             check_runtime_type(var_type, source)
-            v = Variable(path_prefix + state_var.name + '.new', var_type)
-            state_map_new[path, state_var] = v
-            all_variables.append(v)
-
             v = Variable(path_prefix + state_var.name, var_type)
             state_map[path, state_var] = v
-            variable_map[path, state_var.var_identifier] = v
+            variable_map[path, state_var.var_identifier] = InputSourceBinding(v, new_state=False)
             state_variables.append(v)
 
     def bind_variables(self, *, path, variable_map, resolve_binding):
         for var in self.all_block_inputs:
             if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
+            variable_map[path, var.var_identifier] = resolve_binding(path, var)
         for var in self.block_outputs:
             if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
+            variable_map[path, var.var_identifier] = resolve_binding(path, var)
         for var in self.block_temporaries:
-            variable_map[path, var.var_identifier] = resolve_binding(path, var).variable
+            variable_map[path, var.var_identifier] = resolve_binding(path, var)
 
     # TODO: Probably should be merged into instantiate()
     def get_block_procedures_paths(self, prefix):

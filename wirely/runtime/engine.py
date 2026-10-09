@@ -149,13 +149,18 @@ class Engine:
                     values = []
                     for binding in bindings:
                         variable = binding.variable
-                        if variable in self.program.state_variables.variable_set:
-                            value = state_old[variable]
-                            if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
-                                skip_step = False
-                        else:
+                        if binding.new_state is None:
                             value = variables[variable]
                             if skip_step and not variable.var_type.equals(value, cache[variable]):
+                                skip_step = False
+                        elif binding.new_state:
+                            value = state_new[variable]
+                            # The old state is the previous step's new state.
+                            if skip_step and not variable.var_type.equals(value, state_old[variable]):
+                                skip_step = False
+                        else:
+                            value = state_old[variable]
+                            if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
                                 skip_step = False
                         values.append(blocks.value_types._to_native(variable.var_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
@@ -166,10 +171,8 @@ class Engine:
                 if skip_step:
                     for result in proc.results.values():
                         variable = result.variable
-                        if result.state_new is not None:
-                            value = state_old[variable]
-                            state_new.add(variable, value)
-                            variables.add(result.state_new, value)
+                        if variable in self.program.state_variables.variable_set:
+                            state_new.add(variable, state_old[variable])
                         else:
                             variables.add(variable, cache[variable])
                     if key in self.wakeups:
@@ -201,9 +204,8 @@ class Engine:
                 for name, result in proc.results.items():
                     variable = result.variable
                     value = results[name]
-                    if result.state_new is not None:
+                    if variable in self.program.state_variables.variable_set:
                         state_new.add(variable, value)
-                        variables.add(result.state_new, value)
                         changed = not variable.var_type.equals(state_old[variable], value)
                         state_change_count += changed
                     else:
@@ -280,18 +282,23 @@ class Engine:
         return self.native_states[self.get_block_path_singleton(name)]
 
     def get_variable(self, name):
+        return self._get_binding(name).variable
+
+    def _get_binding(self, name):
         try:
             return self.program.variables[name]
         except KeyError:
             raise ValueError(f'Could not find variable {name!r}') from None
 
     def get_value(self, name):
-        return self.get_bound_value(self.get_variable(name))
+        return self.get_bound_value(self._get_binding(name))
 
-    def get_bound_value(self, variable):
-        if variable in self.program.state_variables.variable_set:
-            return self.last_step_state[variable]
-        return self.cache[variable]
+    def get_bound_value(self, binding):
+        if binding.new_state is None:
+            return self.cache[binding.variable]
+        if binding.new_state:
+            return self.state[binding.variable]
+        return self.last_step_state[binding.variable]
 
     def assert_value_is(self, name, expected_value):
         actual_value = self.get_value(name)
