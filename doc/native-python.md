@@ -24,7 +24,7 @@ states from the program's initializer values and resource bindings.
 
 For example, `Std.OptionSome` declares:
 
-```wrl
+```wirely
 namespace Std {
   node type OptionSome {
     parameter InnerType: ValueType;
@@ -90,7 +90,7 @@ aliases, dependencies, and state access.
 
 Declare static values for each native procedure or initializer with `uses`:
 
-```wrl
+```wirely
 native procedure run
   depends on input
   produces output
@@ -202,7 +202,7 @@ Repeated triggers before execution schedule one invocation.
 
 Declare constructor resource inputs inside a native node type:
 
-```wrl
+```wirely
 native initializer depends on Broker;
 ```
 

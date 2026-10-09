@@ -101,7 +101,7 @@ Add `as "key"` aliases to implicit connectors and complex references in
 Procedures that read previous state must declare that dependency explicitly;
 state changes only rerun procedures that depend on them. For example:
 
-```wrl
+```wirely
 native procedure run
   depends on implicit input as "input", last_value.old as "previous"
   produces implicit output as "output", last_value as "next";
@@ -124,7 +124,7 @@ strings such as `r"C:\logs\wirely"` to preserve literal backslashes.
 - Declare named enum types with explicit integer representations and member
   values, and use qualified literals such as `Mode.Heat`:
 
-  ```wrl
+  ```wirely
   enum type Mode: uint8 {
     Off = 0,
     Heat = 1,
@@ -133,7 +133,7 @@ strings such as `r"C:\logs\wirely"` to preserve literal backslashes.
 
 - Declare named struct types and construct values by field name:
 
-  ```wrl
+  ```wirely
   struct type Reading {
     temperature: int16,
     valid: boolean,

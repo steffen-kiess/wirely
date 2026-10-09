@@ -7,7 +7,7 @@ service. Several `.wrl` files passed to the compiler form one program.
 
 ## A first program
 
-```wrl
+```wirely
 node source: Std.Constant { Type: boolean, Value: true }
 node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
@@ -39,7 +39,7 @@ and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
 `position` supplies node-instance coordinates:
 
-```wrl
+```wirely
 node source: Std.Constant {
   #![position(x = 120, y = -40.5)]
   Type: boolean,
@@ -72,7 +72,7 @@ to the attribute's repeatability rules.
 Declarations may appear at the top level or inside a node type. Node
 instantiation uses a brace body with named parameters, or `{}` when empty:
 
-```wrl
+```wirely
 node source: Std.Constant { Type: boolean, Value: true }
 node sink: Std.DebugValuePrinter { Type: boolean }
 connect source -> sink;
@@ -81,7 +81,7 @@ connect source -> sink;
 The type name may be a local name or a namespace-qualified name such as
 `Std.Constant`. A program may also declare its own types:
 
-```wrl
+```wirely
 node type Forward {
   default input: value boolean;
   default output: value boolean;
@@ -97,7 +97,7 @@ node type Forward {
 
 To make a composite type, connect its external input to child nodes:
 
-```wrl
+```wirely
 node type PrintBoolean {
   default input: value boolean;
   node printer: Std.DebugValuePrinter { Type: boolean }
@@ -112,7 +112,7 @@ connect source -> sink;
 A `namespace Name { ... }` groups node types under `Name.Type`. Namespaces can
 contain other namespaces, and a dotted declaration names the same path:
 
-```wrl
+```wirely
 namespace ABB.JRA {
   node type Status {
   }
@@ -146,7 +146,7 @@ may have a default (`= value`) or be marked `optional`. Instantiation passes
 named parameters, for example `Time.TriggerAt { Time: "08:00" }`. Type parameters
 use `ValueType`; a later parameter or connector can refer to one:
 
-```wrl
+```wirely
 node type Example {
   parameter Type: ValueType;
   parameter Initial: Type;
@@ -166,7 +166,7 @@ Use `Name?: expression` in a node instantiation to pass an `Option[T]` to an
 optional or defaulted parameter of type `T`. `Some(value)` supplies the value;
 `None` omits the argument and uses the destination's default, if any:
 
-```wrl
+```wirely
 node type Forward {
   optional parameter Label: String;
   node child: Child { Label?: parameter_option(Label) }
@@ -186,7 +186,7 @@ resolves all its constants once, even unused ones. Initializers may refer to
 parameters and other constants in the same scope, in any declaration order.
 Pass constants to children through ordinary parameter bindings:
 
-```wrl
+```wirely
 node type Select {
   parameter Enabled: boolean;
   constant Selected: int16 = {
@@ -201,7 +201,7 @@ Use `assert condition;` or `assert condition, "message";` at the program
 root or in a node type. The condition must be Boolean and may use compile-time
 expressions, parameters, and constants declared later in the same scope:
 
-```wrl
+```wirely
 node type Checked {
   assert Start != End, "Start and end must differ";
   parameter Start: int16;
@@ -224,7 +224,7 @@ status, and serialization support.
 
 Declare a struct at top level or inside a namespace:
 
-```wrl
+```wirely
 struct type Reading {
   temperature: int16,
   valid: boolean,
@@ -245,7 +245,7 @@ written, not a `ValueType` parameter.
 
 Declare an enum at top level or inside a namespace:
 
-```wrl
+```wirely
 enum type Mode: int8 {
   Off = 0,
   Heat = 1,
@@ -282,7 +282,7 @@ compile-time expressions. A `native constant function` is compile-time
 only; use it when the function can fail or uses parameter-only types such
 as `String`:
 
-```wrl
+```wirely
 namespace Example {
   native constant function Parse(value: String): uint16;
   native function Clamp(value: int16, low: int16, high: int16): int16;
@@ -305,7 +305,7 @@ An `input` or `output` declares a named connector. `default input` and
 `default output` declare the connectors used when a connection names just
 the node. For example:
 
-```wrl
+```wirely
 node bus: KNX.Connection { UnixPath: "/run/knxnet" }
 node receiver: KNX.ValueReceiver { Type: boolean, GroupAddress: "0/4/5" }
 connect bus -> receiver.Bus;
@@ -330,7 +330,7 @@ connection inside the type.
 Libraries can declare opaque resource types for connections between service
 nodes and their clients:
 
-```wrl
+```wirely
 namespace Example {
   resource type Session;
 
@@ -380,7 +380,7 @@ references require aliases. Names must be unique within each clause.
 Native procedures also accept `as "key"` for Python keys.
 For example:
 
-```wrl
+```wirely
 procedure run
   depends on default input as current, last_value.old as previous
   produces default output as output, last_value as next
@@ -418,7 +418,7 @@ input for the following step. Use it to break dependency cycles.
 Write a procedure body in `.wrl` to calculate outputs from declared inputs
 and node parameters:
 
-```wrl
+```wirely
 node type Select {
   parameter Fallback: boolean = false;
   input Enabled: value boolean;
@@ -450,7 +450,7 @@ annotation. Integer literals default to `int32` without an expected type.
 Annotations also select literal conversions, which happen during
 compilation:
 
-```wrl
+```wirely
 let enabled = true;
 let count: uint8 = 3;
 let time: TimeOfDay = "08:00";
@@ -532,7 +532,7 @@ bodies use `UnwrapOr` or `if let`.
 `if let Some(name) = value { … } else { … }` binds the contained value to
 `name` within the first block and evaluates the `else` block when absent:
 
-```wrl
+```wirely
 let level = if let Some(sum) = int16.CheckedAdd(input, 1) { sum } else { 0 };
 ```
 

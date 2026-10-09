@@ -18,7 +18,7 @@ Use one declaration per line. Separate type declarations and logical groups
 with one blank line. Keep closely related declarations together, such as
 a node and its connections. Avoid blank lines immediately inside braces.
 
-```wrl
+```wirely
 namespace Example {
   node type Forward {
     parameter Type: ValueType;
@@ -38,7 +38,7 @@ namespace Example {
 For enum and struct bodies, put each member on its own line with a trailing
 comma:
 
-```wrl
+```wirely
 enum type Mode: uint8 {
   Off = 0,
   Heat = 1,
@@ -56,7 +56,7 @@ For a multiline procedure header with a body, put the opening brace on its
 own line, aligned with `procedure`. Indent the body one level. A short
 header may keep its opening brace on the declaration line.
 
-```wrl
+```wirely
 procedure run
   depends on default input as input
   produces default output as output
@@ -69,7 +69,7 @@ procedure run
 Break long lists after commas, adding another two spaces for their
 continuation. Keep a reference and its `as` alias together where practical.
 
-```wrl
+```wirely
 native procedure run stage output
   depends on current_value.old as "current_value_old",
     requested_value as "requested_value", Enabled
@@ -81,7 +81,7 @@ trailing commas. For multiline argument lists, break after `(` and align
 the closing parenthesis with the declaration. Use trailing commas and
 similar layouts for other long lists; avoid elaborate column alignment.
 
-```wrl
+```wirely
 node source: Std.Constant {
   Type: boolean,
   Value: true,
@@ -100,7 +100,7 @@ Prefer `// ` comments, including consecutive lines for longer explanations.
 Put comments above the code they describe and at the same indentation.
 Explain purpose or non-obvious behavior rather than restating the code.
 
-```wrl
+```wirely
 // Keep the lights off until an occupancy value has been received.
 node occupied: Std.OptionUnwrapOr {
   InnerType: boolean,

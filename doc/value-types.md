@@ -60,7 +60,7 @@ time. The default event type is `unit`, so no payload parameter is needed.
 
 The unit literal is `()`:
 
-```wrl
+```wirely
 node source: Std.Constant { Type: unit, Value: () }
 ```
 
@@ -68,7 +68,7 @@ node source: Std.Constant { Type: unit, Value: () }
 
 Boolean literals are `true` and `false`:
 
-```wrl
+```wirely
 node source: Std.Constant { Type: boolean, Value: true }
 node printer: Std.DebugValuePrinter { Type: boolean }
 connect source -> printer;
@@ -81,7 +81,7 @@ notation. Leading zeros do not change the base: `010` is 10 and `080` is 80.
 A parameter's declared type determines the integer width and
 signedness. For example:
 
-```wrl
+```wirely
 node small: Std.Constant { Type: uint8, Value: 42 }
 node large: Std.Constant { Type: int32, Value: 100000 }
 node negative: Std.Constant { Type: int8, Value: -128 }
@@ -100,7 +100,7 @@ String literal syntax is based on
 and MQTT topics. Use double-quoted strings, with escapes such as `\n` and
 `\"`, or raw strings to preserve their contents:
 
-```wrl
+```wirely
 node type TextSettings {
   parameter Label: String = "Kitchen";
   parameter Path: String = r"C:\logs\wirely";
@@ -125,7 +125,7 @@ minutes, and seconds rather than calendar months or years. Durations range
 from zero to 2^64 − 1 nanoseconds (`"PT18446744073.709551615S"`, about 584
 years).
 
-```wrl
+```wirely
 node source: Std.Constant { Type: boolean, Value: true }
 node delay: Time.DebounceStable { Type: boolean, Duration: "PT1.5S" }
 connect source -> delay;
@@ -187,7 +187,7 @@ so `TimeOfDay.WrappingSub("24:00", "PT1H")` is 23:00.
 equal times, 24 hours from `"00:00"` to `"24:00"`, and zero from `"24:00"`
 to `"00:00"`.
 
-```wrl
+```wirely
 node type Schedule {
   parameter Start: TimeOfDay = "22:00";
   constant End: TimeOfDay = TimeOfDay.WrappingAdd(Start, "PT8H");
@@ -219,7 +219,7 @@ Monotonic times have no literals. Use `Option[MonotonicTime]` with `None`
 when there is no deadline, and decide at each use what an absent time
 means:
 
-```wrl
+```wirely
 node type Timeout {
   state deadline: Option[MonotonicTime] = None;
 }
@@ -242,7 +242,7 @@ generation of `time`:
 
 For example, a deadline computed from a time input:
 
-```wrl
+```wirely
 node type Deadline {
   parameter Timeout: Duration;
   input Start: value MonotonicTime;
@@ -262,7 +262,7 @@ Time library nodes produce and work with monotonic times, including
 `boolean`, `uint16`, or `Option[boolean]`. Other parameters and connectors
 can refer to that parameter:
 
-```wrl
+```wirely
 node type ConstantValue {
   parameter Type: ValueType;
   parameter Initial: Type;
@@ -278,7 +278,7 @@ node type ConstantValue {
 for absence and `Some(x)` for presence, where `x` has type `T`.
 `Some` takes exactly one argument and requires an `Option[T]` context:
 
-```wrl
+```wirely
 node absent: Std.Constant { Type: Option[boolean], Value: None }
 node literal: Std.Constant { Type: Option[boolean], Value: Some(true) }
 node source: Std.Constant { Type: boolean, Value: true }
@@ -290,7 +290,7 @@ connect source -> present;
 `T`. List literals use brackets, such as `[]`, `[1, 2]`, or
 `["first", "second"]`. For example:
 
-```wrl
+```wirely
 node type ListSettings {
   parameter Names: List[String] = ["Kitchen", "Hall"];
   parameter Values: List[uint8] = [1, 2, 3];

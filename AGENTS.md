@@ -27,7 +27,8 @@ reformat unrelated code. Limit lines in Markdown files to 80 characters
 unless that would cause problems, for example with links.
 
 For new and modified `.wrl` code, including examples in documentation,
-follow the [Wirely style guide](doc/wirely-style.md).
+follow the [Wirely style guide](doc/wirely-style.md). Tag Wirely code blocks
+in Markdown as `wirely`.
 
 When changing a block, check its `.wrl` declaration in `wirely/lib/`, its
 Python implementation in `wirely/native/`, and any paired fixture in

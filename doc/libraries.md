@@ -185,7 +185,7 @@ TwoN dependencies, device credentials, and network access to the device.
 
 To read credentials beside the file containing the configuration, supply:
 
-```wrl
+```wirely
 UsernamePasswordFile:
   Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt"),
 ```
@@ -254,7 +254,7 @@ Its underlying integer type is `uint8`, matching Matter's `enum8`.
 Write literals as `ThermostatSystemModeEnum.Heat`, using the exact type and
 member names. For example:
 
-```wrl
+```wirely
 node mode: Std.Constant {
   Type: ThermostatSystemModeEnum,
   Value: ThermostatSystemModeEnum.Heat,
