@@ -23,6 +23,7 @@ native node type Invalid {
 // TEST: initializer_state_dependency
 native node type Invalid {
   state count: uint8 = 0;
+  native procedure write produces count;
   native initializer depends on count.old as "old"; // E: Initializer dependencies must be resources
 }
 

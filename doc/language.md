@@ -362,7 +362,8 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 Inside a node type, `state name: Type = value;` declares a persistent value
 with an initial value. `temporary name: Type;` holds a value calculated
-within a step by one procedure. Procedures declare which inputs or temporaries they
+within a step. Each state and temporary variable needs exactly one
+producing procedure. Procedures declare which inputs or temporaries they
 `depend on` and which connectors or variables they `produce`. Procedures
 run in dependency order; dependencies must be acyclic.
 
@@ -401,8 +402,8 @@ and the previous step's state thereafter. Similarly, `connect name -> target;`
 feeds the value of a temporary calculated this step.
 
 `last_value.new` reads the value produced this step. Use it in procedure
-dependencies or as a connection source. It requires a writer in the same
-or an earlier stage and makes the reader depend on that writer. If the
+dependencies or as a connection source. Its writer must run in the same
+or an earlier stage, and the reader depends on that writer. If the
 writer is skipped because its inputs are unchanged, it supplies the
 retained state value.
 

@@ -264,6 +264,7 @@ connect provider -> probe.ServiceInput;
 // TEST: old state must be declared
 node type Probe {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   procedure run produces default output as output {
     output = saved.old; // E: Unknown procedure value

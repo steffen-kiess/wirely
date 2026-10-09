@@ -191,3 +191,4 @@ procedure run produces text { text = "hello"; }
 // TEST: constant type in root state
 constant Type: ValueType = String;
 state text: Type = "hello"; // E: parameter-only
+procedure run produces text { text = "hello"; }

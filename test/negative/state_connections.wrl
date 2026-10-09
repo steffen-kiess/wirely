@@ -13,6 +13,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -21,7 +22,7 @@ node type Invalid {
   connect saved -> default output; // E: explicitly reference .old or .new
 }
 
-// TEST: unproduced_new_state
+// TEST: unproduced_state
 resource type Handle;
 node type Sink {
   default input: value uint8;
@@ -33,13 +34,13 @@ node type ResourceSink {
   default input: resource Handle;
 }
 node type Invalid {
-  state saved: boolean = false;
+  state saved: boolean = false; // E: State 'saved' has no producer
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect saved.new -> default output; // E: requires a producing procedure
+  connect saved.new -> default output;
 }
 
 // TEST: wrong_value_type
@@ -55,6 +56,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -76,6 +78,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -98,7 +101,10 @@ node type ResourceSink {
 node type Invalid {
   state saved: boolean = false;
   temporary temporary_value: boolean;
-  procedure write produces temporary_value { temporary_value = true; }
+  procedure write produces saved, temporary_value {
+    saved = true;
+    temporary_value = true;
+  }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -120,6 +126,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -141,6 +148,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -162,6 +170,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -183,6 +192,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -204,6 +214,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -225,6 +236,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
+  procedure write produces saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}

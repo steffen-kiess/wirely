@@ -81,12 +81,7 @@ def compile_nocatch(global_block_type):
     def resolve_binding(path, source):
         source_path, variable = blocks.resolve_variable(path, source)
         if isinstance(variable, blocks.StateRead):
-            state = variable.state
-            if variable.phase == 'new':
-                if state.producer is None:
-                    raise blocks.ProgramError(variable.reference, f'State {state.name}.new requires a producing procedure')
-                return InputSourceBinding(state_map[source_path, state], new_state=True)
-            return InputSourceBinding(state_map[source_path, state], new_state=False)
+            return InputSourceBinding(state_map[source_path, variable.state], new_state=variable.phase == 'new')
         if isinstance(variable, blocks.Block.StateVariable):
             return InputSourceBinding(state_map[source_path, variable], new_state=False)
         return add_var(source_path, variable)

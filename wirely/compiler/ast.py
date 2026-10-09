@@ -520,8 +520,6 @@ class ResolvedReferenceBlockMember(SourceElement):
             if isinstance(variable, DeclarationStateVariable):
                 if self.member_name_str not in ('old', 'new'):
                     raise ProgramError(self.member_name_elem, 'State connection sources must explicitly reference .old or .new')
-                if self.member_name_str == 'new':
-                    check_state_read_writer(graph, variable, self.member_name_elem)
                 self.member = blocks.StateRead(
                     graph.block_state_variables[self.block_name_str],
                     self.member_name_str, self.member_name_elem,
@@ -1433,7 +1431,7 @@ class DeclarationStateVariable(Declaration):
         pass
 
     def compile_pass2(self, graph):
-        pass
+        check_producer(graph, self, 'State')
 
     # TODO: Clean up compilation passes
 
@@ -1448,10 +1446,10 @@ class DeclarationStateVariable(Declaration):
         copy_attributes(variable, self)
 
 
-def check_state_read_writer(graph, state, reference):
-    if not any(state in procedure.produces.get_resolved_outputs()
+def check_producer(graph, variable, kind):
+    if not any(variable in procedure.produces.get_resolved_outputs()
                for procedure in graph.procedures.values()):
-        raise ProgramError(reference, f'State {state.name.id_str}.new requires a producing procedure')
+        raise ProgramError(variable, f'{kind} {variable.name_str!r} has no producer')
 
 
 class DeclarationTemporaryVariable(Declaration):
@@ -1476,9 +1474,7 @@ class DeclarationTemporaryVariable(Declaration):
         pass
 
     def compile_pass2(self, graph):
-        if not any(self in procedure.produces.get_resolved_outputs()
-                   for procedure in graph.procedures.values()):
-            raise ProgramError(self, f'Temporary {self.name_str!r} has no producer')
+        check_producer(graph, self, 'Temporary')
 
     # TODO: Clean up compilation passes
 
@@ -1568,8 +1564,6 @@ class DependsDeclaration(SourceElement):
                 name, member = [identifier.id_str for identifier in dep.identifiers]
                 variable = self.graph.variables.get(name)
                 if isinstance(variable, DeclarationStateVariable) and member in ('old', 'new'):
-                    if member == 'new':
-                        check_state_read_writer(self.graph, variable, dep)
                     resolved.append(blocks.StateRead(variable, member, dep))
                     continue
                 child = self.graph.blocks.get(name)

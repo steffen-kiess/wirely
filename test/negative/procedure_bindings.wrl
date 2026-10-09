@@ -24,7 +24,7 @@ node type Invalid {
 // TEST: procedure_state_alias
 node type Invalid {
   state value: boolean = false;
-
+  native procedure write produces value;
   native procedure run depends on value.old;
   // ^E: Default connectors and complex references require an explicit alias
 }
@@ -89,14 +89,6 @@ node type Invalid {
   // ^E: Cannot resolve procedure dependency child.Missing
 }
 
-// TEST: procedure_state_new_dependency
-node type Invalid {
-  state value: boolean = false;
-
-  native procedure run depends on value.new as "value";
-  // ^E: State value.new requires a producing procedure
-}
-
 // TEST: procedure_deep_dependency
 node type Invalid {
   native procedure run depends on child.inner.Value as "value";
@@ -106,7 +98,7 @@ node type Invalid {
 // TEST: procedure_state_dependency
 node type Invalid {
   state value: boolean = false;
-
+  native procedure write produces value;
   native procedure run depends on value;
   // ^E: State dependencies must explicitly reference .old or .new
 }

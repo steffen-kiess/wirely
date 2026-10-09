@@ -132,6 +132,12 @@ node type Boundaries {
   input Depth: value Depth16;
 }
 state optional_member_boundary: Option[Member127] = None;
+procedure keep_boundary
+  depends on optional_member_boundary.old as old
+  produces optional_member_boundary
+{
+  optional_member_boundary = old;
+}
 
 // Compile-time options can exceed every runtime limit.
 constant AboveStorage: Option[Wide16] = None;
