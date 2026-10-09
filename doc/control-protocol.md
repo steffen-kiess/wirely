@@ -119,7 +119,7 @@ extensions.
 ### Program identity
 
 Programs are identified by their short build ID, the first 16 bytes of
-the [Build ID](bytecode-format.md#buildid). Clients use it to
+the [Build ID](bytecode-format.md#buildidsha512). Clients use it to
 find the matching unstripped program file, whose symbol sections map
 names to variables.
 

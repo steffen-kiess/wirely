@@ -78,7 +78,7 @@ their contents.
 
 | Section | Record type | Layout |
 | --- | --- | --- |
-| [`BuildID`](#buildid) | `BuildIDSHA512` | Record |
+| [`BuildIDSHA512`](#buildidsha512) | — | Buffer |
 | [`Names`](#names) | — | Buffer |
 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
 | [`EnumMembers`](#enummembers) | `EnumMember` | Table |
@@ -107,12 +107,10 @@ their contents.
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
 | [`ProcedureCode`](#procedurecode) | — | Buffer |
 | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
-| [`NodeNames`](#nodenames-statevariablenames-and-temporarynames) | `DisplayName` | Table |
-| [`StateVariableNames`](#nodenames-statevariablenames-and-temporarynames) | `DisplayName` | Table |
-| [`TemporaryNames`](#nodenames-statevariablenames-and-temporarynames) | `DisplayName` | Table |
-| [`ProcedureNames`](#procedurenames) | `ProcedureDisplayName` | Table |
-| [`NodeAliases`](#nodealiases-and-singletonaliases) | `NodeAlias` | Table |
-| [`SingletonAliases`](#nodealiases-and-singletonaliases) | `NodeAlias` | Table |
+| [`NodeSymbols`](#symbol-tables) | `Symbol` | Table |
+| [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
+| [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
+| [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
 | [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
 | [`SymbolData`](#symboldata) | — | Buffer |
 
@@ -120,36 +118,11 @@ The sections from `SymbolMetadata` on are
 [symbol sections](#symbol-sections); each of them is optional. All other
 sections are present.
 
-### BuildID
+### BuildIDSHA512
 
-```wirely
-// Identity of the original unstripped file. BuildID record.
-struct type BuildIDSHA512 {
-  // Digest bytes 0 through 7, little-endian.
-  Word0: uint64,
-  // Digest bytes 8 through 15, little-endian.
-  Word1: uint64,
-  // Digest bytes 16 through 23, little-endian.
-  Word2: uint64,
-  // Digest bytes 24 through 31, little-endian.
-  Word3: uint64,
-  // Digest bytes 32 through 39, little-endian.
-  Word4: uint64,
-  // Digest bytes 40 through 47, little-endian.
-  Word5: uint64,
-  // Digest bytes 48 through 55, little-endian.
-  Word6: uint64,
-  // Digest bytes 56 through 63, little-endian.
-  Word7: uint64,
-}
-```
-
-The words preserve standard SHA-512 digest-byte order: each word is its
-eight consecutive digest bytes interpreted as a little-endian integer.
-
-Compute SHA-512 over the entire unstripped file, including its header,
-directory, symbol sections, and padding, with the 64 `BuildID` bytes set to
-zero. Store the resulting digest in this section, which has length 64.
+`BuildIDSHA512` contains the 64-byte SHA-512 digest of the entire
+unstripped file, including its header, directory, symbol sections, and
+padding, computed with the digest bytes set to zero.
 
 Stripping removes symbol sections and updates the directory, section
 locations, and file length while retaining this original build ID. It
@@ -212,7 +185,7 @@ struct type StringRef {
 
 Strings are stored in three buffers: `Names` holds names for linking and
 type metadata, `ProgramData` holds static string values, and `SymbolData`
-holds display names. A string occupies exactly
+holds symbols and aliases. A string occupies exactly
 `[Offset, Offset + LengthBytes)` in its buffer and is valid UTF-8
 (RFC 3629). An empty string has both fields zero. Equal strings can share
 bytes.
@@ -255,14 +228,12 @@ struct type IntegerType {
 ```
 
 ```wirely
-// Kind Builtin: a runtime-provided type with a known representation.
+// Kind Builtin: a built-in type defined by this format.
 struct type BuiltinType {
   // Builtin kind.
   Kind: uint8,
-  // Index into ValueTypes; representation of the values.
-  Representation: Ref,
-  // Qualified name in Names.
-  Name: StringRef,
+  // Built-in type identifier.
+  Builtin: uint32,
 }
 ```
 
@@ -316,24 +287,22 @@ will be assigned when the format is finalized.
 | `Struct` | `StructType` |
 | `Option`, `List` | `CompositeType` |
 
-Built-in types are types the runtime provides, such as `Duration`,
-`TimeOfDay`, and `MonotonicTime`, and are identified by name. Their
-representation determines their size, alignment, default value, and
-equality, and an integer representation also orders them. `Duration` and
-`TimeOfDay` are represented by 64-bit nanosecond counts, and
-`MonotonicTime` by a struct of a generation and a timestamp. Values are
-checked only against the representation.
+Built-in types are `Duration`, `TimeOfDay`, and `MonotonicTime`. Their
+identifiers will be assigned when the format is finalized. Their values,
+defaults, and representation are described in
+[Value types](value-types.md); `Duration` and `TimeOfDay` are ordered.
+Files contain only `MonotonicTime` values of generation 0.
 
 Enum and struct names support native type reconstruction, display, and
 conversions such as JSON. An enum's underlying type supplies its runtime
 integer encoding, and its default member is the first declared member.
 
-Types are the same when they have the same index. Producers intern
-structurally equal types; enums and structs have one entry per
-declaration. Inner, underlying, representation, and field types occur
-before the types using them, making size calculation possible in one
-forward pass. `String`, `ValueType`, and lists, including composites and
-structs containing them, are only used for static values in this format.
+Types are equal exactly when their indices are equal. Producers intern
+structurally equal types; enums and structs have one entry per declaration.
+Inner, underlying, and field types occur before the types using them,
+making size calculation possible in one forward pass. `String`,
+`ValueType`, and lists, including composites and structs containing them,
+are only used for static values in this format.
 
 ### EnumMembers
 
@@ -467,7 +436,9 @@ within an alignment group.
 `InitialState` has the same byte layout and size as the runtime state
 buffer. It stores every state variable's initial data bytes at its declared
 offset, with zero slot and final buffer padding. The runtime can copy this
-buffer directly into its state buffer. An empty buffer has length zero.
+buffer directly into its state buffer. A program started by a
+[state transition](#state-transitions) receives its state from the
+transition instead. An empty buffer has length zero.
 
 ## Native states
 
@@ -679,9 +650,10 @@ struct type NativeProcedure {
 }
 ```
 
-The qualified name extends the name of the declaring node type, such as
-`Std.Constant.run` for procedure `run` of `Std.Constant`. Entries are
-sorted by UTF-8 name bytes, without duplicates.
+The qualified name joins the name of the declaring node type and the
+procedure name with `:`, such as `Std.Constant:run` for procedure `run` of
+`Std.Constant`. Entries are sorted by UTF-8 name bytes, without
+duplicates.
 
 ### InputInterfaces
 
@@ -795,12 +767,11 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 ### Linking
 
 The runtime matches the qualified names of native state types, native
-procedures, native functions, and built-in types to native code, and binds
-interface names to static values, inputs, outputs, and resources. Linking
-also checks that each procedure's native state has the type its native
-procedure expects. Embedded adapters can retain numeric bindings and
-function pointers after linking. Native trigger names resolve to the same
-native procedure indices.
+procedures, and native functions to native code, and binds interface names
+to static values, inputs, outputs, and resources. Linking also checks that
+each procedure's native state has the type its native procedure expects.
+Embedded adapters can retain numeric bindings and function pointers after
+linking. Native trigger names resolve to the same native procedure indices.
 
 ## ProcedureCode
 
@@ -843,22 +814,22 @@ within the selected range or table.
 
 ### Immediates
 
-An `immediate` operand uses its index N as the value, so the length of an
-instruction never depends on types. The operand has the type the
-instruction requires at its position, as determined by another operand or
-by the called function. Immediates cannot be used where no other operand
-determines the type, such as conversion sources. The type is an integer,
-boolean, or enum type, and N is interpreted as follows:
+An `immediate` operand stores its value N in the index field, so
+instructions can be decoded without type information. The operand has the
+type the instruction requires at its position, as determined by another
+operand or by the called function. Immediates cannot be used where no
+other operand determines the type, such as conversion sources. The type is
+an integer, boolean, or enum type, and N is interpreted as follows:
 
 - An unsigned integer is N.
 - A signed integer is N zigzag-decoded, `(N >> 1) ^ -(N & 1)`: N = 0, 1, 2,
   3, 4, … gives 0, −1, 1, −2, 2, …, so small values of either sign have
   short encodings.
 - A boolean is N, which is 0 or 1.
-- An enum is the member number N, decoded like its underlying integer
-  type, and is a declared member.
+- An enum is the member with index N within the enum's `Members` range.
 
-The value fits its type. Larger values use `const` operands.
+Integer values fit their type, and enum indices lie within `Members`.
+Other values use `const` operands.
 
 ### Integer parameters
 
@@ -894,7 +865,7 @@ Each name below denotes a value operand except `field`, `offset`,
 | `AND destination, left, right` | Compute boolean conjunction. |
 | `OR destination, left, right` | Compute boolean disjunction. |
 | `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
-| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type, or the same built-in type with an integer representation. |
+| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type, or the same ordered built-in type. |
 | `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
 | `ADD_SATURATING`, `SUB_SATURATING`, `MUL_SATURATING` `destination, left, right` | Compute the integer result clamped to the operand type's range. |
 | `ADD_CHECKED`, `SUB_CHECKED`, `MUL_CHECKED`, `DIV_CHECKED`, `REM_CHECKED` `destination, left, right` | Assign `Some` with the integer result, or `None` when it is outside the operand type's range or the divisor is zero. |
@@ -927,13 +898,12 @@ Functions are pure and return a value for every argument.
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums their default member, for built-in types the
-default of their representation, and for structs the defaults of their
-fields. Defaults need not have an all-zero representation. The default
-`MonotonicTime` has generation 0, which is never current, so it compares
-to no current time. Values remain valid and canonical, including padding
-and unused option payloads, as specified by the runtime binary
-representation.
+options `None`, for enums their default member, for built-in types their
+default, and for structs the defaults of their fields. Defaults need not
+have an all-zero representation. The default `MonotonicTime` has generation
+0, which is never current, so it compares to no current time. Values remain
+valid and canonical, including padding and unused option payloads, as
+specified by the runtime binary representation.
 
 Instructions read all source values before modifying their destination,
 allowing a destination also to be a source. `COPY` preserves its source
@@ -959,80 +929,45 @@ assigned.
 
 ## Symbol sections
 
-Symbol sections hold display names and aliases. Their records reference
-ordinary tables and the `SymbolData` buffer; ordinary records never
-reference symbol sections. A tool can strip the symbol sections and retain
-the `BuildID` record.
+Symbol sections hold symbols and aliases. Their records reference ordinary
+tables and the `SymbolData` buffer; ordinary records never reference
+symbol sections. A tool can strip the symbol sections and retain the
+`BuildIDSHA512` section.
 
 ### SymbolMetadata
 
 ```wirely
-// Display names for the program and its variable blocks.
-// SymbolMetadata record.
+// Symbols for the whole program. SymbolMetadata record.
 struct type SymbolMetadata {
   // Program name in SymbolData.
   ProgramName: StringRef,
-  // State block name in SymbolData.
-  StateBlockName: StringRef,
-  // Temporary block name in SymbolData.
-  TempBlockName: StringRef,
 }
 ```
 
-### NodeNames, StateVariableNames, and TemporaryNames
+### Symbol tables
 
 ```wirely
-// A display name referring to a node or variable.
-// NodeNames, StateVariableNames, and TemporaryNames tables.
-struct type DisplayName {
-  // Index into NativeStates, StateVariables, or Temporaries, selected by
-  // the table.
-  Target: Ref,
-  // Display name in SymbolData.
+// The name of a node, variable, or procedure.
+// NodeSymbols, StateVariableSymbols, TemporarySymbols, and
+// ProcedureSymbols tables.
+struct type Symbol {
+  // Name in SymbolData.
   Name: StringRef,
 }
 ```
 
-These tables and `ProcedureNames` contain one entry per target, ordered by
-target index. Counts match their target tables. Variable block membership
-is defined by the variable tables.
+Each symbol table has one entry per entry of its target table, in the
+same order:
 
-`NodeNames` preserve `NativeInstance.name` for retained native objects.
+| Table | Target table | Name |
+| --- | --- | --- |
+| `NodeSymbols` | `NativeStates` | Node path, such as `a.b` |
+| `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
+| `TemporarySymbols` | `Temporaries` | Variable path |
+| `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
 
-### ProcedureNames
-
-```wirely
-// Display names of a procedure. ProcedureNames table.
-struct type ProcedureDisplayName {
-  // Index into Procedures.
-  Target: Ref,
-  // Owning instance's display name in SymbolData.
-  NodeName: StringRef,
-  // Procedure name in SymbolData.
-  ProcedureName: StringRef,
-}
-```
-
-`ProcedureNames` preserve the owning instance's display name, including
-for stateless calls and procedure bodies, and the procedure's name within
-that instance.
-
-### NodeAliases and SingletonAliases
-
-```wirely
-// An alias referring to a node instance.
-// NodeAliases and SingletonAliases tables.
-struct type NodeAlias {
-  // Declared path or type name in SymbolData.
-  Name: StringRef,
-  // Index into NativeStates.
-  Node: Ref,
-}
-```
-
-Node and singleton aliases refer only to retained native objects.
-Aliases are sorted by UTF-8 name bytes. Multiple aliases can point to
-one identity.
+Symbols identify nodes, variables, and procedures in diagnostics and when
+building [state transitions](#state-transitions).
 
 ### VariableAliases
 
@@ -1049,7 +984,9 @@ struct type VariableAlias {
 }
 ```
 
-Variable aliases are also sorted by UTF-8 name bytes.
+Aliases map source names, including the inputs and outputs of nodes, to
+the variable that stores their value. They are sorted by UTF-8 name bytes.
+Multiple aliases can refer to one variable.
 
 ### SymbolData
 
@@ -1057,7 +994,7 @@ Variable aliases are also sorted by UTF-8 name bytes.
 
 An embedded reader reads the header and directory and links native code
 and functions using `Names`. Symbol records and their data can be read on
-demand. To print a node name, read its `NodeNames` entry, then stream the
+demand. To print a node name, read its `NodeSymbols` entry, then stream the
 referenced `SymbolData` byte range over UART. Numeric node, procedure, and
 variable indices also serve as diagnostic identifiers.
 
@@ -1072,22 +1009,21 @@ ranges support independent reads.
 | Program data | File representation |
 | --- | --- |
 | `name` | `SymbolMetadata` |
-| `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their display names |
+| `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
 | `initial_state` | `InitialState` |
-| Native-state `instances` | `NativeStates`, `NativeStateTypes`, and `NodeNames` |
+| Native-state `instances` | `NativeStates`, `NativeStateTypes`, and `NodeSymbols` |
 | `instances[*].initializer_values` | Initializer `StaticBindings` and their values |
 | `native_construction_order` | Order of `NativeStates` |
-| `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureNames` |
+| `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
 | `procs[*].values` | Procedure `StaticBindings` and their values |
 | `procs[*].body` | `ProcedureBodies`, `TypeLists`, and `ProcedureCode` |
 | `constants` | `StaticValues` and `ProgramData` |
 | `functions` | `NativeFunctions` and `TypeLists` |
-| `node_aliases`, `singleton_aliases` | `NodeAliases` and `SingletonAliases` |
 | `variables` | `VariableAliases` |
 
 Program tables preserve native-object, procedure, and variable identities
 and the names needed to resolve native implementations and functions.
-Symbol sections preserve display names and aliases.
+Symbol sections preserve symbols and variable aliases.
 
 ## Verification
 
@@ -1108,9 +1044,8 @@ A runtime may also reject a valid file that it cannot run:
 - The file exceeds the runtime's limits, such as the file size, a table
   size, the number of sections, or the number of verification steps.
   The runtime may reject it before verifying it completely.
-- Linking fails, because the runtime lacks a native implementation,
-  function, or built-in type the program names, or its interface does not
-  match.
+- Linking fails, because the runtime lacks a native implementation or
+  function the program names, or its interface does not match.
 
 State transitions cannot fail. Native constructors should not fail
 either: returning to the previous program would require constructing
@@ -1136,15 +1071,13 @@ zero.
 
 ### Types and values
 
-Inner, underlying, representation, and field types precede the types using
-them, so one pass over `ValueTypes` finds the storage size, alignment,
-nesting depth, and member count of each type. The verifier keeps these per
-type to tell runtime types from static-only types. Integer types have a
-listed width, and underlying types are integers. Enum members are in
-strictly ascending order and fit the underlying type, and `Default` lies
-within `Members`.
-
-Rules requiring equal types compare type indices.
+Inner, underlying, and field types precede the types using them, so one
+pass over `ValueTypes` finds the storage size, alignment, nesting depth,
+and member count of each type. The verifier keeps these per type to tell
+runtime types from static-only types. Integer types have a listed width,
+built-in types a known identifier, and underlying types are integers. Enum
+members are in strictly ascending order and fit the underlying type, and
+`Default` lies within `Members`.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Sorted members let
@@ -1167,8 +1100,8 @@ applies to ranges into `InterfaceNames`, `InputInterfaces`, and
 matching range of their native procedure or native state type, and their
 source and provider counts match `IsList`. A resource provider's output
 lies within its type's `ResourceOutputInterfaces` and has the resource
-type of the interface it is bound to. Each display name entry targets its
-own index.
+type of the interface it is bound to. Each symbol table has as many
+entries as its target table.
 
 ### Procedures and code
 
@@ -1188,10 +1121,9 @@ using one bit per code byte or by decoding ahead.
 Verifiers do not check these rules:
 
 - Sections do not overlap each other, the header, or the directory.
-- Equal types share one entry. Otherwise values of equal types cannot be
-  combined, and the program may be rejected.
 - Buffers place variables in decreasing type alignment.
 - Struct field and enum member names are distinct.
+- Symbols within a symbol table are distinct.
 - The build ID matches the unstripped file.
 
 ## State transitions
@@ -1200,15 +1132,21 @@ A transition file carries the state of a running program over to a new
 program. It uses the same header and section directory as a program and
 contains the transition's own `ValueTypes`, `EnumMembers`, `StructFields`,
 `TypeLists`, `Names`, `StaticValues`, `ProgramData`, `NativeFunctions`, and
-one body procedure with its tables. It has no `Stages` or `Temporaries`.
-The procedure's input sources read the old program's `StateVariables`, and
-its outputs write the new program's `StateVariables`.
+`ProcedureCode`, and a `ProcedureBodies` table with one entry: the
+transition procedure. It has no stages, procedure records, bindings, or
+variable tables.
+
+The transition procedure reads the old program's state and writes the new
+program's state. Operand `input.N` reads entry N of the old program's
+`StateVariables`, and `output.N` writes entry N of the new program's
+`StateVariables`. The procedure can use locals like any procedure body.
+Outputs start with their type's default, so the procedure writes every new
+state value that differs from it.
 
 | Section | Record type | Layout |
 | --- | --- | --- |
-| `OldBuildID`, `NewBuildID` | `BuildIDSHA512` | Record |
+| `OldBuildIDSHA512`, `NewBuildIDSHA512` | — | Buffer |
 | `OldTypeMap`, `NewTypeMap` | `TypeMapEntry` | Table |
-| `StateCopies` | `StateCopy` | Table |
 | `NativeStateSources` | `NativeStateSource` | Table |
 
 ```wirely
@@ -1222,24 +1160,13 @@ struct type TypeMapEntry {
 
 Each type map has one entry per `ValueTypes` entry of its program. A mapped
 type and its transition type have the same kind, and integers the same
-width and signedness. Their inner, underlying, representation, and field
-types are mapped to each other's. Built-in types, enums, and structs have
+width and signedness. Their inner, underlying, and field types are mapped
+to each other's. Built-in types have equal identifiers, enums and structs
 equal qualified names, enums equal members and defaults, and structs equal
 field names.
 Dependencies precede their users, so one forward pass verifies a map.
-Operand types of inputs and outputs are looked up through the maps.
-
-```wirely
-// Copies an unchanged state variable. StateCopies table.
-struct type StateCopy {
-  // Index into the old program's StateVariables.
-  Old: Ref,
-  // Index into the new program's StateVariables.
-  New: Ref,
-}
-```
-
-Both variables' types map to the same transition type.
+Operand types of inputs and outputs are looked up through the maps; the
+types of used inputs and of all outputs are mapped.
 
 ```wirely
 // Origin of one new native state object. NativeStateSources table.
@@ -1251,5 +1178,4 @@ struct type NativeStateSource {
 ```
 
 `NativeStateSources` has one entry per entry of the new program's
-`NativeStates`. New state variables that are neither copied nor written
-by the procedure keep their `InitialState`.
+`NativeStates`.
