@@ -93,6 +93,16 @@ node type Probe {
 }
 node probe: Probe {}
 
+// TEST: connected and produced output
+node type Probe {
+  default input: value boolean;
+  default output: value boolean;
+  procedure first depends on default input as input produces default output as output { // H: Producer was here
+    output = input;
+  }
+  connect default input -> default output; // E: Default output is already produced by procedure 'first'
+}
+
 // TEST: second producer for a temporary
 node type Probe {
   temporary flag: boolean;

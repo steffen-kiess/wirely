@@ -49,6 +49,13 @@ def connect(source, target, source_element, *, attributes=()):
                          if connection.target is target), None)
         hints = [] if previous is None else [blocks.CompilerHint(previous, 'Previous connection was here')]
         raise blocks.ProgramError(source_element, message, hints=hints)
+    # A type's output takes either a connection or a producing procedure.
+    if isinstance(target, blocks.BlockOutput):
+        for name, procedure in target.graph.procedures.items():
+            if target in procedure.produces.get_resolved_outputs():
+                connector = 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
+                raise blocks.ProgramError(source_element, f'{connector} is already produced by procedure {name!r}',
+                                          hints=[blocks.CompilerHint(procedure, 'Producer was here')])
 
     def record(kind):
         actual_target = target.members[-1] if isinstance(target, Block.Input) and target.is_list else target
