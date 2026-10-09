@@ -337,6 +337,11 @@ def compile_nocatch(global_block_type):
     node_aliases = {}
     variables = {}
 
+    def aliased_members(owner, members):
+        # Default outputs are aliased by their node, other outputs by their own name.
+        storage = {output.orig_temporary for output in owner.block_outputs if hasattr(output, 'orig_temporary')}
+        return [member for member in members if member.name != '' and member not in storage]
+
     def add_aliases(scope, path=(), prefix=''):
         for name, block in scope.blocks.items():
             child_path = blocks.path_resolve_singleton(path + (block,))
@@ -344,7 +349,7 @@ def compile_nocatch(global_block_type):
             node_aliases[alias] = node_ids[child_path]
             owner = block.block_type.singleton_instance if block.block_type.is_singleton else block
             members = owner.block_inputs + owner.block_outputs + owner.block_statevars + owner.block_temporaries
-            for member in members:
+            for member in aliased_members(owner, members):
                 binding = variable_map.get((child_path, member.var_identifier))
                 if binding is not None:
                     variables.setdefault(alias + '.' + member.name, binding)
@@ -358,7 +363,7 @@ def compile_nocatch(global_block_type):
     root_path = (root,) if root is not None else ()
     add_aliases(graph, root_path)
     if root is not None:
-        for member in root.block_temporaries + root.block_statevars:
+        for member in aliased_members(root, root.block_temporaries + root.block_statevars):
             variables[member.name] = variable_map[root_path, member.var_identifier]
     singleton_aliases = {
         instance.block_type.fullname: node_ids[path]

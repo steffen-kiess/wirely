@@ -153,7 +153,7 @@ class Program:
 
     name: str  # Program name for diagnostics.
     state_variables: VariableBlock  # Variables persisted between engine steps.
-    temporaries: VariableBlock  # Per-step variables, including flags.
+    temporaries: VariableBlock  # Per-step variables.
     initial_state: Mapping[Variable, object]  # Starting values of persistent state.
     instances: Mapping[str, NativeInstance]  # Stored node contexts indexed by node ID.
     native_construction_order: tuple[str, ...]  # Node IDs ordered with providers first.

@@ -9,8 +9,6 @@ engine.step()
 engine.assert_value_is('inp', False)
 engine.assert_value_is('delay1', False)
 engine.assert_value_is('delay2', False)
-engine.assert_value_is('inp._val', False)
-engine.assert_value_is('prnt0.', False)
 
 engine.assert_is_idle()
 

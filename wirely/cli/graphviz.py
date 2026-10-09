@@ -18,7 +18,8 @@ def get_graph(graph, engine=None):
             label = input.name
             if label == '':
                 label = '()'
-            if engine is not None and engine.cache is not None:
+            # Default inputs have no alias; their edge shows the source.
+            if engine is not None and engine.cache is not None and input.name != '':
                 name = block.name + '.' + input.name
                 if name in engine.program.variables:
                     label += f' = {engine.get_value(name)}'
@@ -41,7 +42,7 @@ def get_graph(graph, engine=None):
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                name = block.name + '.' + output.name
+                name = block.name + '.' + output.name if output.name else block.name
                 if name in engine.program.variables:
                     label += f' = {engine.get_value(name)}'
                 else:
