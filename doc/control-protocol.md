@@ -120,7 +120,7 @@ extensions.
 
 Programs are identified by their short build ID, the first 16 bytes of
 the [Build ID](bytecode-format.md#buildid). Clients use it to
-find the matching unstripped program file, whose debug sections map
+find the matching unstripped program file, whose symbol sections map
 names to variables.
 
 ### Hello
@@ -178,8 +178,8 @@ Bank 0 is the state written by the last step. Bank 1 holds the
 temporaries of the last step, including values of skipped procedures. Both
 use the
 [buffer layout](bytecode-format.md#statevariables-and-temporaries)
-of the active program. Snapshots do not include native state, whose representation
-depends on the runtime.
+of the active program. Snapshots do not include native state, whose
+representation depends on the runtime.
 
 `Snapshot` takes a snapshot. Response:
 
@@ -215,7 +215,7 @@ while running.
 ### Program upload
 
 A runtime holds at most one upload and one staged program. Uploads
-transfer a file in the [binary program format](bytecode-format.md). Debug
+transfer a file in the [binary program format](bytecode-format.md). Symbol
 sections may be stripped.
 
 `UploadBegin` request:
@@ -281,7 +281,7 @@ prepare a state transition. Request:
 The response is `{1: bytes, 2: file length}`. If the program does not have
 the expected build ID, the runtime answers `NotFound`.
 
-The runtime returns the program as it stores it, which may lack debug
+The runtime returns the program as it stores it, which may lack symbol
 sections. To match variables by name, clients need the unstripped file
 with the same build ID.
 
