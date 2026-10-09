@@ -120,14 +120,14 @@ class VariableBlockInstance:
 
 class ProcedureContext:
     __slots__ = (
-        '_inputs', '_results', '_written_results', '_static',
+        '_inputs', '_outputs', '_written_outputs', '_static',
         '_step_info', '_wakeup_time', '_wakeup_time_set',
     )
 
-    def __init__(self, *, inputs: Mapping[str, object], results, static, step_info):
+    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info):
         self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
-        self._results = results
-        self._written_results = set()
+        self._outputs = outputs
+        self._written_outputs = set()
         self._static = static
         self._step_info = step_info
         self._wakeup_time = None
@@ -162,18 +162,18 @@ class ProcedureContext:
             raise ValueError(f'Expected a RunStage, got {stage!r}')
         return self._step_info._stage_times[stage]
 
-    def set_result(self, name: str, value: object):
-        if not isinstance(name, str) or name not in self._static.results:
-            raise ValueError(f'Unknown result name {name!r} in procedure on {self.name}')
-        if name in self._written_results:
-            raise ValueError(f'Result {name!r} on {self.name} was already written')
+    def set_output(self, name: str, value: object):
+        if not isinstance(name, str) or name not in self._static.outputs:
+            raise ValueError(f'Unknown output name {name!r} in procedure on {self.name}')
+        if name in self._written_outputs:
+            raise ValueError(f'Output {name!r} on {self.name} was already written')
         try:
-            value_type = self._static.results[name].variable.var_type
+            value_type = self._static.outputs[name].variable.var_type
             value = value_type.verify_value(value_types._from_native(value_type, value))
         except Exception as exc:
-            raise ValueError(f'Invalid value for result {name!r} on {self.name}: {exc}') from exc
-        self._results[name] = value
-        self._written_results.add(name)
+            raise ValueError(f'Invalid value for output {name!r} on {self.name}: {exc}') from exc
+        self._outputs[name] = value
+        self._written_outputs.add(name)
 
     def __repr__(self):
         return f'ProcedureContext(name={self.name!r})'

@@ -64,7 +64,7 @@ def check_input_bindings():
             context.name = 'other'
         assert context.name == 'probe'
         seen.append(context.inputs)
-        context.set_result('result', context.inputs['value'])
+        context.set_output('output', context.inputs['value'])
 
     probe = make_engine('''
     default input: value uint8;
@@ -73,7 +73,7 @@ def check_input_bindings():
 
     native procedure run
       depends on default input as "value", named
-      produces default output as "result";
+      produces default output as "output";
     ''', check_inputs, extra='''
     node source: Std.Constant { Type: uint8, Value: 7 }
     connect source -> probe;
@@ -143,7 +143,7 @@ def check_context_names():
 
     def check_node_name(context):
         with checks.assertRaisesRegex(ValueError, f'on {context.name}$'):
-            context.set_result('missing', None)
+            context.set_output('missing', None)
         named_contexts.append(context.name)
 
     named_engine = make_engine('native procedure run;', check_node_name, extra='''
@@ -351,7 +351,7 @@ def check_triggers():
 def check_multi_inputs():
     def check_list(context):
         assert context.inputs['values'] == (7, 2)
-        context.set_result('result', sum(context.inputs['values']))
+        context.set_output('output', sum(context.inputs['values']))
 
     probe = make_engine('''
     default input: multi value uint8;
@@ -359,7 +359,7 @@ def check_multi_inputs():
 
     native procedure run
       depends on default input as "values"
-      produces default output as "result";
+      produces default output as "output";
     ''', check_list, extra='''
     node first: Std.Constant { Type: uint8, Value: 7 }
     node second: Std.Constant { Type: uint8, Value: 2 }
@@ -370,7 +370,7 @@ def check_multi_inputs():
 
     def check_empty_list(context):
         assert context.inputs['values'] == ()
-        context.set_result('result', 0)
+        context.set_output('output', 0)
 
     probe = make_engine('''
     default input: multi value uint8;
@@ -378,7 +378,7 @@ def check_multi_inputs():
 
     native procedure run
       depends on default input as "values"
-      produces default output as "result";
+      produces default output as "output";
     ''', check_empty_list)
     probe.step()
     probe.assert_value_is('probe', 0)
@@ -411,53 +411,53 @@ def check_multi_inputs():
     probe.assert_is_idle()
 
 
-def check_results():
-    def check_result_errors(context):
-        with checks.assertRaisesRegex(ValueError, f'Unknown result.*on {context.name}$'):
-            context.set_result('missing', 7)
+def check_outputs():
+    def check_output_errors(context):
+        with checks.assertRaisesRegex(ValueError, f'Unknown output.*on {context.name}$'):
+            context.set_output('missing', 7)
         try:
-            context.set_result('result', 'invalid')
+            context.set_output('output', 'invalid')
         except ValueError as error:
             assert 'Invalid value' in str(error)
             assert f'on {context.name}:' in str(error)
         else:
-            raise AssertionError('Invalid result was accepted')
-        context.set_result('result', 7)
+            raise AssertionError('Invalid output was accepted')
+        context.set_output('output', 7)
         with checks.assertRaisesRegex(ValueError, f'on {context.name} was already written'):
-            context.set_result('result', 8)
+            context.set_output('output', 8)
 
     probe = make_engine('''
     default output: value uint8;
 
-    native procedure run produces default output as "result";
-    ''', check_result_errors)
+    native procedure run produces default output as "output";
+    ''', check_output_errors)
     probe.step()
     probe.assert_value_is('probe', 7)
 
     probe = make_engine('''
     default output: value uint8;
 
-    native procedure run produces default output as "result";
+    native procedure run produces default output as "output";
     ''', lambda context: None)
-    with checks.assertRaisesRegex(ValueError, 'did not write results'):
+    with checks.assertRaisesRegex(ValueError, 'did not write outputs'):
         probe.step()
 
-    def check_generic_result(context):
+    def check_generic_output(context):
         for invalid in [True, blocks.Some(None)]:
             try:
-                context.set_result('result', invalid)
+                context.set_output('output', invalid)
             except ValueError as error:
                 assert 'Invalid value' in str(error)
             else:
-                raise AssertionError('Invalid option result was accepted')
-        context.set_result('result', blocks.Some(True))
+                raise AssertionError('Invalid option output was accepted')
+        context.set_output('output', blocks.Some(True))
 
     probe = make_engine('''
     parameter Type: ValueType;
     default output: value Type;
 
-    native procedure run produces default output as "result";
-    ''', check_generic_result, parameters='Type: Option[boolean]')
+    native procedure run produces default output as "output";
+    ''', check_generic_output, parameters='Type: Option[boolean]')
     probe.step()
     probe.assert_value_is('probe', blocks.Some(True))
 
@@ -473,7 +473,7 @@ def check_events():
 
         def forward_event(context):
             seen_events.append(context.inputs['event'])
-            context.set_result('result', context.inputs['event'])
+            context.set_output('output', context.inputs['event'])
 
         probe = make_engine(f'''
     default input: event {payload_type};
@@ -481,7 +481,7 @@ def check_events():
 
     native procedure run
       depends on default input as "event"
-      produces default output as "result";
+      produces default output as "output";
     ''', forward_event, extra=f'''
     node source: Std.DebugEventSource {{ Type: {payload_type} }}
     connect source -> probe;
@@ -503,31 +503,31 @@ def check_events():
             probe.assert_is_idle()
 
 
-def check_unit_results():
-    def check_unit_result(context):
+def check_unit_outputs():
+    def check_unit_output(context):
         with checks.assertRaisesRegex(ValueError, 'Invalid value'):
-            context.set_result('result', None)
-        context.set_result('result', blocks.Unit())
+            context.set_output('output', None)
+        context.set_output('output', blocks.Unit())
 
     probe = make_engine('''
     default output: value unit;
 
-    native procedure run produces default output as "result";
-    ''', check_unit_result)
+    native procedure run produces default output as "output";
+    ''', check_unit_output)
     probe.step()
     probe.assert_value_is('probe', blocks.Unit())
 
-    def check_unit_event_result(context):
+    def check_unit_event_output(context):
         for invalid in [blocks.Some(None), blocks.Unit()]:
             with checks.assertRaisesRegex(ValueError, 'Invalid value'):
-                context.set_result('result', invalid)
-        context.set_result('result', blocks.Some(blocks.Unit()))
+                context.set_output('output', invalid)
+        context.set_output('output', blocks.Some(blocks.Unit()))
 
     probe = make_engine('''
     default output: event unit;
 
-    native procedure run produces default output as "result";
-    ''', check_unit_event_result)
+    native procedure run produces default output as "output";
+    ''', check_unit_event_output)
     probe.step()
     probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
 
@@ -536,7 +536,7 @@ def check_binding_keys():
     def check_keys(context):
         assert context.inputs['line\nkey'] == 7
         assert context.inputs[r'raw\key'] == 7
-        context.set_result('', 7)
+        context.set_output('', 7)
 
     probe = make_engine(r'''
     node source: Std.Constant { Type: uint8, Value: 7 }
@@ -549,7 +549,7 @@ def check_binding_keys():
     probe.step()
     probe.assert_value_is('probe', 7)
 
-    # Aliases are checked independently for input and result bindings.
+    # Aliases are checked independently for input and output bindings.
     probe = make_engine('''
     node source: Std.Constant { Type: uint8, Value: 7 }
     default output: value uint8;
@@ -557,7 +557,7 @@ def check_binding_keys():
     native procedure run
       depends on source as "value"
       produces default output as "value";
-    ''', lambda context: context.set_result('value', context.inputs['value']))
+    ''', lambda context: context.set_output('value', context.inputs['value']))
     probe.step()
     probe.assert_value_is('probe', 7)
 
@@ -771,8 +771,8 @@ check_context_names()
 check_stage_times()
 check_triggers()
 check_multi_inputs()
-check_results()
+check_outputs()
 check_events()
-check_unit_results()
+check_unit_outputs()
 check_binding_keys()
 check_native_methods()

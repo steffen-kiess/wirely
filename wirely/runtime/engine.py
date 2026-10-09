@@ -169,8 +169,8 @@ class Engine:
                     if not blocks.MonotonicTime.is_comparable(now, deadline) or blocks.MonotonicTime.compare(now, deadline) >= 0:
                         skip_step = False
                 if skip_step:
-                    for result in proc.results.values():
-                        variable = result.variable
+                    for output in proc.outputs.values():
+                        variable = output.variable
                         if variable in self.program.state_variables.variable_set:
                             state_new.add(variable, state_old[variable])
                         else:
@@ -182,9 +182,9 @@ class Engine:
                     print(f'Running procedure {proc.node_id} {proc.reference}')
                 run_count += 1
                 self.triggered_procs.discard(key)
-                results = {}
+                outputs = {}
                 context = ProcedureContext(
-                    inputs=inputs, results=results, static=proc, step_info=step_info,
+                    inputs=inputs, outputs=outputs, static=proc, step_info=step_info,
                 )
                 if proc.body is None:
                     native_state = self.native_states[proc.node_id]
@@ -192,18 +192,18 @@ class Engine:
                     getattr(target, proc.reference[1])(context=context)
                 else:
                     for name, value in execute_procedure(self.program, proc, inputs, self.native_functions).items():
-                        context.set_result(name, value)
-                missing = set(proc.results) - context._written_results
+                        context.set_output(name, value)
+                missing = set(proc.outputs) - context._written_outputs
                 if missing:
-                    raise ValueError(f'Procedure {proc.reference[1]!r} on {context.name} did not write results: {sorted(missing)!r}')
+                    raise ValueError(f'Procedure {proc.reference[1]!r} on {context.name} did not write outputs: {sorted(missing)!r}')
                 if context.wakeup_time is None:
                     self.wakeups.pop(key, None)
                 else:
                     self.wakeups[key] = context.wakeup_time
                 self.update_next_wakeup(now, context.wakeup_time)
-                for name, result in proc.results.items():
-                    variable = result.variable
-                    value = results[name]
+                for name, output in proc.outputs.items():
+                    variable = output.variable
+                    value = outputs[name]
                     if variable in self.program.state_variables.variable_set:
                         state_new.add(variable, value)
                         changed = not variable.var_type.equals(state_old[variable], value)

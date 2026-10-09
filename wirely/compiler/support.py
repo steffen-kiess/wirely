@@ -274,7 +274,7 @@ class StaticProcedureContext:
         self._targets = targets
         self._input_bindings = []
         self._resource_bindings = []
-        self._result_types = {}
+        self._output_types = {}
         self.name = name
         self.node_context = node_context
         self.block_parameter_values = block_parameter_values

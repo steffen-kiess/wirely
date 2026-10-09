@@ -374,7 +374,7 @@ it after `depends on`. Bind node parameters and constants by name, or use
 for binding syntax and Python access. Procedures with Wirely bodies refer
 to parameters and constants directly and do not accept `uses`.
 
-Use `reference as name` to name a procedure input or result. An unaliased
+Use `reference as name` to name a procedure input or output. An unaliased
 simple identifier uses its own name. Default connectors and complex
 references require aliases. Names must be unique within each clause.
 Native procedures also accept `as "key"` for Python keys.
@@ -383,16 +383,16 @@ For example:
 ```wrl
 procedure run
   depends on default input as current, last_value.old as previous
-  produces default output as result, last_value as next
+  produces default output as output, last_value as next
 {
-  result = previous;
+  output = previous;
   next = current;
 }
 ```
 
 `last_value.old` reads the previous step's state without depending on this
 step's writer. Dependencies can also name direct child outputs, such as
-`sensor.Value as value`. Result destinations are local output connectors,
+`sensor.Value as value`. Output destinations are local output connectors,
 temporaries, or state variables. Arbitrary expressions and deeper paths
 are not supported.
 
@@ -415,7 +415,7 @@ input for the following step. Use it to break dependency cycles.
 
 ### Procedure bodies
 
-Write a procedure body in `.wrl` to calculate results from declared inputs
+Write a procedure body in `.wrl` to calculate outputs from declared inputs
 and node parameters:
 
 ```wrl
@@ -436,13 +436,13 @@ node type Select {
 ```
 
 Inside the body, use input aliases and runtime-valued parameter and constant
-names as values. Assign each result exactly once; results cannot be read.
-Input, result, parameter, and constant names must be distinct. Alias state
+names as values. Assign each output exactly once; outputs cannot be read.
+Input, output, parameter, and constant names must be distinct. Alias state
 reads and writes separately when a procedure uses both.
 
 `let` creates an immutable local. A later `let` may reuse a local name;
-locals cannot shadow inputs, results, parameters, or constants. A block's
-locals are visible only inside that block. Results are assigned in the
+locals cannot shadow inputs, outputs, parameters, or constants. A block's
+locals are visible only inside that block. Outputs are assigned in the
 outer body.
 
 Local types are inferred from their initializers, or supplied by an
@@ -544,15 +544,15 @@ or `||` without parentheses.
 Procedures can copy any runtime value, including options and structs, read
 struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
-Their connector dependencies and results currently use single `value`
+Their connector inputs and outputs currently use single `value`
 connectors, not events or multi inputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
-results. They cannot access resources, clocks, or deadlines.
+outputs. They cannot access resources, clocks, or deadlines.
 The engine runs them initially and when dependencies change, retaining
-results while dependencies are unchanged. Immutable locals and
-single-assignment results keep these transformations easy to reason about.
+outputs while dependencies are unchanged. Immutable locals and
+single-assignment outputs keep these transformations easy to reason about.
 
 Bodies have no loops or recursion. This keeps an unrelated computation
 from holding up actions such as switching on a light. The goal is prompt,

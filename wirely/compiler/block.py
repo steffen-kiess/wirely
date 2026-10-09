@@ -318,7 +318,7 @@ class Block(blocks.Node):
                 self.input_dependencies.append(dependency)
 
             if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
-                # The producing procedure renames this to <procedure>.<result key>.
+                # The producing procedure renames this to <procedure>.<output key>.
                 self.temporary = Block.Temporary(block, name, var_type, impl_var_type=self.impl_var_type, output=self)
                 # TODO: Hack
                 self.orig_temporary = self.temporary
@@ -404,7 +404,7 @@ class Block(blocks.Node):
 
     class Procedure:
         # TODO: Make name mandatory
-        def __init__(self, block: 'Block', dependencies, results, can_trigger=False, name=None, *, static_context, declaration_procedure):
+        def __init__(self, block: 'Block', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
             if not isinstance(block, Block):
                 raise Exception('block parameter is not a Block')
 
@@ -428,28 +428,28 @@ class Block(blocks.Node):
                 #     raise Exception('dependencies parameter value is for another block')
                 self.dependencies.append(dependency)
 
-            self.results = []
-            for result in results:
-                if not isinstance(result, Block.Target):
-                    raise Exception(f'results parameter value is not an Output or Temporary instance: {type(result)}')
-                if result.block != self.block:
-                    raise Exception('results parameter value is for another block')
-                self.results.append(result)
+            self.outputs = []
+            for output in outputs:
+                if not isinstance(output, Block.Target):
+                    raise Exception(f'outputs parameter value is not an Output or Temporary instance: {type(output)}')
+                if output.block != self.block:
+                    raise Exception('outputs parameter value is for another block')
+                self.outputs.append(output)
 
                 # TODO:  whether dependencies of output include required inputs as dependencies
 
                 # TODO: Clean up temporary / output stuff
-                previous = result.temporary.producer
+                previous = output.temporary.producer
                 if previous is not None:
-                    if isinstance(result, Block.Output):
-                        target = 'Default output' if result.name == '' else f'Output {result.name!r}'
+                    if isinstance(output, Block.Output):
+                        target = 'Default output' if output.name == '' else f'Output {output.name!r}'
                     else:
-                        target = f'Variable {result.name!r}'
+                        target = f'Variable {output.name!r}'
                     raise blocks.ProgramError(
                         declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
                         hints=[blocks.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
-                # print(f'Setting result for {result} / {result.temporary}')
-                result.temporary.producer = self
+                # print(f'Setting output for {output} / {output.temporary}')
+                output.temporary.producer = self
 
             for key, target in static_context._targets.items():
                 if isinstance(target, Block.Output):

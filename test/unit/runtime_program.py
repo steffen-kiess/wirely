@@ -86,7 +86,7 @@ def check_resource_isolation():
 
         def run(self, *, context):
             self.count += 1
-            context.set_result('output', self.count)
+            context.set_output('output', self.count)
 
     source = '''namespace TestLibrary {
   resource type Service;

@@ -53,7 +53,7 @@ class Consumer(NativeState):
     def read(self, *, context):
         assert dict(context.inputs) == dict(self.inputs)
         procedure_calls.append(('read', context.inputs['Service']))
-        context.set_result('Count', context.inputs['Service'].value)
+        context.set_output('Count', context.inputs['Service'].value)
 
     def poll(self, *, context):
         assert context.inputs['Service'] is self.inputs['Service']
@@ -66,7 +66,7 @@ class ProcedureConsumer:
     def read(*, context):
         assert context.inputs['Service'] is context.inputs['child']
         assert isinstance(context.inputs['Value'], int)
-        context.set_result('Count', context.inputs['Service'].value)
+        context.set_output('Count', context.inputs['Service'].value)
 
 
 @native_block_type(registry, has_native_state=True)

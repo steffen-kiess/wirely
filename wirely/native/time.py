@@ -34,7 +34,7 @@ class MonotonicTimeReached(NativeState):
             context.set_wakeup_time(time)
         # print('MonotonicTimeReached', time, now, result)
 
-        context.set_result('output', result)
+        context.set_output('output', result)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -85,10 +85,10 @@ class DebounceStable(NativeState):
             n_update_time = None
             out = new.value
 
-        context.set_result('current_value', n_cur)
-        context.set_result('new_value', n_new)
-        context.set_result('update_time', n_update_time)
-        context.set_result('output', out)
+        context.set_output('current_value', n_cur)
+        context.set_output('new_value', n_new)
+        context.set_output('update_time', n_update_time)
+        context.set_output('output', out)
 
 
 @native_block_type(native_block_types, has_native_state=True)
@@ -137,13 +137,13 @@ class TimeOfDayMinute(NativeState):
 
     def get_value(self, *, context):
         if self._fake_time is not None:
-            context.set_result('output', self._fake_time)
+            context.set_output('output', self._fake_time)
             return
 
         if self.task is None:
             raise Exception('start_tasks() was never called')
 
-        context.set_result('output', self.current_value)
+        context.set_output('output', self.current_value)
 
     # TODO: Is this used anywhere?
     def update_value(self):
@@ -193,7 +193,7 @@ class IsInDailyInterval:
         else:
             res = (time >= start) or (time < end)
 
-        context.set_result('output', res)
+        context.set_output('output', res)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -249,5 +249,5 @@ class TriggerAt:
                 
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
-        context.set_result('output', blocks.Some(value) if do_trigger else None)
-        context.set_result('trigger_state', new_state)
+        context.set_output('output', blocks.Some(value) if do_trigger else None)
+        context.set_output('trigger_state', new_state)

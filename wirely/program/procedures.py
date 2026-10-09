@@ -56,7 +56,7 @@ CONVERSION_OPCODES = {
 
 class OperandKind(enum.Enum):
     INPUT = enum.auto()
-    RESULT = enum.auto()
+    OUTPUT = enum.auto()
     LOCAL = enum.auto()
     CONST = enum.auto()
 

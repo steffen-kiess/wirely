@@ -16,7 +16,7 @@ node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    output = output; // E: Cannot read result
+    output = output; // E: Cannot read output
   }
 }
 node probe: Probe {  }
@@ -27,7 +27,7 @@ node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
     let value = true;
-    value = false; // E: expected a declared result
+    value = false; // E: expected a declared output
     output = value;
   }
 }
@@ -180,7 +180,7 @@ node probe: Probe {  }
 // TEST: missing result
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {} // E: did not assign results
+  procedure run produces default output as output {} // E: did not assign outputs
 }
 node probe: Probe {}
 
@@ -210,7 +210,7 @@ node type Probe {
   default input: value boolean;
   default output: value boolean;
   procedure run depends on default input as input produces default output as output {
-    input = false; // E: expected a declared result
+    input = false; // E: expected a declared output
     output = input;
   }
 }
@@ -361,7 +361,7 @@ procedure p1 produces t {
 
 // TEST: top-level missing assignment
 temporary t: int8;
-procedure p1 produces t {} // E: did not assign results
+procedure p1 produces t {} // E: did not assign outputs
 
 // TEST: top-level dependency cycle
 temporary first: boolean;

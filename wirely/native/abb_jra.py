@@ -39,7 +39,7 @@ class InterpretStatusInformation:
         for flag in JRAStatus:
             name = flag.name
             res = bool(val & flag)
-            context.set_result(name, res)
+            context.set_output(name, res)
 
 @native_block_type(native_block_types, has_native_state=False)
 class InterpretStatusInformationOption:
@@ -55,4 +55,4 @@ class InterpretStatusInformationOption:
                 res = None
             else:
                 res = blocks.Some(bool(val & flag))
-            context.set_result(name, res)
+            context.set_output(name, res)

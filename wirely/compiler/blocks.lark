@@ -156,9 +156,9 @@ _else_branch: expression_block | if_expression
 
 expression_block: "{" local_binding* value "}"
 procedure_body: "{" procedure_statement* "}"
-?procedure_statement: local_binding | result_assignment
+?procedure_statement: local_binding | output_assignment
 local_binding: "let" identifier [":" value] "=" value ";"
-result_assignment: identifier "=" value ";"
+output_assignment: identifier "=" value ";"
 
 value_list: _separated_empty{value, ","} -> copy_list
 

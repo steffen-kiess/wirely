@@ -149,4 +149,4 @@ class ValueWriter(NativeState):
             # Write value once an hour
             repeat_time = blocks.Some(now + blocks.Duration.parse('PT1H'))
 
-        context.set_result('repeat_time', repeat_time)
+        context.set_output('repeat_time', repeat_time)

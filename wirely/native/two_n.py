@@ -89,9 +89,9 @@ class KeyEvent(NativeState):
         self.received_value = None
 
         if value is None:
-            context.set_result('output', None)
+            context.set_output('output', None)
         else:
-            context.set_result('output', blocks.Some(value))
+            context.set_output('output', blocks.Some(value))
             # Trigger to set value to None again
             self.trigger('get_value')
 
@@ -140,9 +140,9 @@ class CodeEnteredEvent(NativeState):
         self.pending = False
 
         if not value:
-            context.set_result('output', None)
+            context.set_output('output', None)
         else:
-            context.set_result('output', blocks.Some(blocks.Unit()))
+            context.set_output('output', blocks.Some(blocks.Unit()))
             # Trigger to set value to None again
             self.trigger('get_value')
 
@@ -181,9 +181,9 @@ class KeyState(NativeState):
                 new_value = True
                 new_timeout_time = timeout_time
 
-        context.set_result('output', new_value)
-        context.set_result('timeout_time', new_timeout_time)
-        context.set_result('current_value', new_value)
+        context.set_output('output', new_value)
+        context.set_output('timeout_time', new_timeout_time)
+        context.set_output('current_value', new_value)
 
 
 @native_block_type(native_block_types, has_native_state=True)
@@ -256,7 +256,7 @@ class IOState(NativeState):
         if value is None:
             raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
-        context.set_result('output', value)
+        context.set_output('output', value)
 
 
 @native_block_type(native_block_types, has_native_state=True)
@@ -327,7 +327,7 @@ class SwitchState(NativeState):
         if value is None:
             raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
-        context.set_result('output', value)
+        context.set_output('output', value)
 
 
 @native_block_type(native_block_types, has_native_state=True)

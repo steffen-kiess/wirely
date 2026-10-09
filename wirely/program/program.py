@@ -85,8 +85,8 @@ class InputSourceBinding:
 
 
 @dataclass(frozen=True, slots=True)
-class ResultBinding:
-    """A procedure result targeting a temporary or the next step's state."""
+class OutputBinding:
+    """A procedure output targeting a temporary or the next step's state."""
 
     variable: Variable  # Destination temporary or persistent state variable.
 
@@ -115,14 +115,14 @@ class NativeInstance:
 
 @dataclass(frozen=True, slots=True)
 class Procedure:
-    """A scheduled procedure with its inputs and result destinations."""
+    """A scheduled procedure with its inputs and output destinations."""
 
     node_id: str  # Owning node's key in Program.instances.
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
-    results: Mapping[str, ResultBinding]  # Result destinations indexed by output name.
+    outputs: Mapping[str, OutputBinding]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, object] = field(default_factory=dict)  # Native static bindings.
 
@@ -135,7 +135,7 @@ class Procedure:
                 (name, tuple(bindings), is_list)
                 for name, bindings, is_list in getattr(self, field)
             ))
-        object.__setattr__(self, 'results', MappingProxyType(dict(self.results)))
+        object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
     @property
     def key(self):
@@ -259,8 +259,8 @@ class Program:
                     line(f'{name}: {sources}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
-                line('results:', 6)
-                for name, binding in proc.results.items():
+                line('outputs:', 6)
+                for name, binding in proc.outputs.items():
                     line(f'{name}: {binding.variable.name}', 8)
                 if proc.body is not None:
                     line('locals:', 6)

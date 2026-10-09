@@ -4,7 +4,7 @@ from wirely.compiler import model as blocks
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import (
-    Constant, Function, InputSourceBinding, NativeInstance, Procedure, Program, ResultBinding,
+    Constant, Function, InputSourceBinding, NativeInstance, OutputBinding, Procedure, Program,
     RunStage, Variable, VariableBlock,
 )
 
@@ -62,7 +62,7 @@ def compile_nocatch(global_block_type):
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = blocks.Block.path_name(path)
-        # Output storage is named after its producer: <path>:<procedure>.<result key>.
+        # Output storage is named after its producer: <path>:<procedure>.<output key>.
         separator = ':' if getattr(var, 'output', None) is not None else '.'
         variable_name = name + separator + var.name if name else var.name
         v = Variable(variable_name, var_type)
@@ -284,7 +284,7 @@ def compile_nocatch(global_block_type):
                 if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
                     raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
                 source_types[name] = resolve_binding(path, source).variable.var_type
-            result_types = {}
+            output_types = {}
             for name, target in proc.static_context._targets.items():
                 spec = getattr(target, 'conn_spec', None)
                 binding = next(binding for binding in proc.declaration_procedure.produces.outputs
@@ -295,8 +295,8 @@ def compile_nocatch(global_block_type):
                     raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
                 variable = (state_map[path, target] if isinstance(target, blocks.Block.StateVariable)
                             else variable_map[path, target.var_identifier].variable)
-                result_types[name] = variable.var_type
-            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, result_types,
+                output_types[name] = variable.var_type
+            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
                                                  intern_constant, intern_function)
 
     from .static_bindings import evaluate_bindings
@@ -306,7 +306,7 @@ def compile_nocatch(global_block_type):
         for path, proc in stage_procs:
             dependencies = []
             resources = []
-            results = {}
+            outputs = {}
             for name, source in proc.static_context._sources.items():
                 if blocks.ast.dependency_is_resource(source):
                     binding = next(binding for binding in proc.declaration_procedure.depends.dependencies
@@ -319,15 +319,15 @@ def compile_nocatch(global_block_type):
                 dependencies.append((name, tuple(resolve_binding(path, member) for member in members), is_list))
             for name, target in proc.static_context._targets.items():
                 if isinstance(target, blocks.Block.StateVariable):
-                    results[name] = ResultBinding(state_map[path, target])
+                    outputs[name] = OutputBinding(state_map[path, target])
                 else:
-                    results[name] = ResultBinding(variable_map[path, target.var_identifier].variable)
+                    outputs[name] = OutputBinding(variable_map[path, target.var_identifier].variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].block_type.fullname_tuple, proc.declaration_procedure.python_name),
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=tuple(resources),
-                results=results, body=bodies.get((path, proc)),
+                outputs=outputs, body=bodies.get((path, proc)),
                 values=evaluate_bindings(proc.declaration_procedure.uses, instances[path]),
             ))
         schedules[stage] = tuple(schedule)

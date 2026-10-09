@@ -196,7 +196,7 @@ def check_mixed_procedures():
     node mixed: Std.Constant { Type: boolean, Value: true }
     '''
     with patch.object(wirely.native.std.Constant, 'run',
-                      staticmethod(lambda *, context: context.set_result('temp', context.values['Value']))):
+                      staticmethod(lambda *, context: context.set_output('temp', context.values['Value']))):
         mixed_engine = Engine(compile_program(mixed_source))
         mixed_engine.step()
         mixed_engine.assert_value_is('mixed', True)

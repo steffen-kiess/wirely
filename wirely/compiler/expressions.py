@@ -229,7 +229,7 @@ class LocalBinding(SourceElement):
         self.initializer = initializer
 
 
-class ResultAssignment(SourceElement):
+class OutputAssignment(SourceElement):
     def __init__(self, name, expression, *, source_position):
         super().__init__(source_position=source_position)
         self.name = name
@@ -472,11 +472,11 @@ OPCODES_BY_CONVERSION = {overflow: opcode for opcode, overflow in CONVERSION_OPC
 class InstructionCompiler:
     """Lower resolved procedure expressions to forward-only instructions."""
 
-    def __init__(self, source_types, result_types, intern_constant, intern_function):
+    def __init__(self, source_types, output_types, intern_constant, intern_function):
         self.inputs = {name: Operand(OperandKind.INPUT, index)
                        for index, name in enumerate(source_types)}
-        self.results = {name: Operand(OperandKind.RESULT, index)
-                        for index, name in enumerate(result_types)}
+        self.outputs = {name: Operand(OperandKind.OUTPUT, index)
+                        for index, name in enumerate(output_types)}
         self.intern_constant = intern_constant
         self.intern_function = intern_function
         self.instructions = []
@@ -602,7 +602,7 @@ class InstructionCompiler:
 
     def body(self, statements):
         for slot, expression in statements:
-            destination = (self.results[slot] if isinstance(slot, str)
+            destination = (self.outputs[slot] if isinstance(slot, str)
                            else self.local(slot, expression.value_type))
             self.compile(expression, destination)
         self.emit(Opcode.RETURN)
@@ -756,7 +756,7 @@ class ExpressionCompiler:
             if name in self.names:
                 return self.names[name]
             if self.runtime and name in self.protected:
-                raise ProgramError(expression, f'Cannot read result or unavailable parameter {name!r}')
+                raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
         if self.runtime:
             self.check_runtime_syntax(expression)
         if self.runtime and isinstance(expression, blocks.Reference):
@@ -1058,14 +1058,14 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
-def compile_procedure(procedure, instance, source_types, result_types, intern_constant, intern_function):
+def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     names = {name: TypedExpression(value_type, 'input', payload=name)
              for name, value_type in source_types.items()}
-    protected = set(result_types) | set(instance.block_type.static_declarations)
+    protected = set(output_types) | set(instance.block_type.static_declarations)
     overlap = ((set(source_types) & protected)
-               | (set(result_types) & set(instance.block_type.static_declarations)))
+               | (set(output_types) & set(instance.block_type.static_declarations)))
     if overlap:
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
@@ -1081,14 +1081,14 @@ def compile_procedure(procedure, instance, source_types, result_types, intern_co
             statements.append(compiler.local(statement))
             continue
         name = statement.name.id_str
-        if name not in result_types:
-            raise ProgramError(statement.name, f'Cannot assign to {name!r}; expected a declared result')
+        if name not in output_types:
+            raise ProgramError(statement.name, f'Cannot assign to {name!r}; expected a declared output')
         if name in written:
-            raise ProgramError(statement.name, f'Result {name!r} is assigned more than once')
-        statements.append((name, compiler.compile(statement.expression, result_types[name])))
+            raise ProgramError(statement.name, f'Output {name!r} is assigned more than once')
+        statements.append((name, compiler.compile(statement.expression, output_types[name])))
         written.add(name)
-    missing = set(result_types) - written
+    missing = set(output_types) - written
     if missing:
-        raise ProgramError(declaration.body, f'Procedure did not assign results: {sorted(missing)!r}')
+        raise ProgramError(declaration.body, f'Procedure did not assign outputs: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
-    return InstructionCompiler(source_types, result_types, intern_constant, intern_function).body(statements)
+    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(statements)

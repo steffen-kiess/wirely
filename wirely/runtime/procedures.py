@@ -10,16 +10,16 @@ def execute_procedure(program, procedure, inputs, functions=()):
     """Run a bytecode procedure; functions are the linked implementations of program.functions."""
     body = procedure.body
     input_types = tuple(bindings[0].variable.var_type for _, bindings, _ in procedure.dependencies)
-    result_types = tuple(binding.variable.var_type for binding in procedure.results.values())
+    output_types = tuple(binding.variable.var_type for binding in procedure.outputs.values())
     values = {
         OperandKind.INPUT: [_from_native(value_type, inputs[name])
                             for (name, _, _), value_type in zip(procedure.dependencies, input_types)],
-        OperandKind.RESULT: [value_type.default_value() for value_type in result_types],
+        OperandKind.OUTPUT: [value_type.default_value() for value_type in output_types],
         OperandKind.LOCAL: [value_type.default_value() for value_type in body.local_types],
     }
     types = {
         OperandKind.INPUT: input_types,
-        OperandKind.RESULT: result_types,
+        OperandKind.OUTPUT: output_types,
         OperandKind.LOCAL: body.local_types,
     }
 
@@ -102,4 +102,4 @@ def execute_procedure(program, procedure, inputs, functions=()):
             values[destination.kind][destination.index] = result
         index += 1
     return {name: _to_native(value_type, value)
-            for name, value_type, value in zip(procedure.results, result_types, values[OperandKind.RESULT])}
+            for name, value_type, value in zip(procedure.outputs, output_types, values[OperandKind.OUTPUT])}

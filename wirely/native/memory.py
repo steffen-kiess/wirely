@@ -53,6 +53,6 @@ class ToggleFlipFlopTrigger:
                 pending = None
                 next = blocks.Some(now + minimum_delay)
 
-        context.set_result('output', output)
-        context.set_result('next_event_allowed_at', next)
-        context.set_result('pending_event', pending)
+        context.set_output('output', output)
+        context.set_output('next_event_allowed_at', next)
+        context.set_output('pending_event', pending)

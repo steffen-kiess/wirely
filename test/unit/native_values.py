@@ -63,7 +63,7 @@ class ValuesProbe(NativeState):
             context.values['seed'] = 1
         with checks.assertRaises(AttributeError):
             context.values = {}
-        context.set_result('Number', context.values['seed'])
+        context.set_output('Number', context.values['seed'])
 
     def empty(self, *, context):
         assert not context.values

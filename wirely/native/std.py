@@ -11,7 +11,7 @@ class Constant:
     def run(*, context):
         par_value = context.values['Value']
 
-        context.set_result('output', par_value)
+        context.set_output('output', par_value)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -26,7 +26,7 @@ class And:
             if not val:
                 res = False
 
-        context.set_result('output', res)
+        context.set_output('output', res)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -37,7 +37,7 @@ class DelayOneStep:
         # print(context)
 
         value = context.inputs['input']
-        context.set_result('value', value)
+        context.set_output('value', value)
 
     @staticmethod
     def copy_to_output(*, context):
@@ -45,7 +45,7 @@ class DelayOneStep:
         # print(context)
 
         value = context.inputs['value_old']
-        context.set_result('output', value)
+        context.set_output('output', value)
         # print(value)
 
 
@@ -76,7 +76,7 @@ class DebugValueSource(NativeState):
         self.out_type = context.values['Type']
 
     def run(self, *, context):
-        context.set_result('output', self.current_value)
+        context.set_output('output', self.current_value)
 
     def set_value(self, value):
         self.current_value = value
@@ -112,7 +112,7 @@ class DebugEventSource(NativeState):
         self.out_type = context.values['Type']
 
     def run(self, *, context):
-        context.set_result('output', self.next_value)
+        context.set_output('output', self.next_value)
         if self.next_value is not None:
             self.next_value = None
             self.trigger('run')
@@ -150,7 +150,7 @@ class OptionNone:
     def run(*, context):
         val = None
 
-        context.set_result('output', val)
+        context.set_output('output', val)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -161,7 +161,7 @@ class OptionSome:
         # Pack value
         val = blocks.Some(val)
 
-        context.set_result('output', val)
+        context.set_output('output', val)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -177,14 +177,14 @@ class OptionUnwrapOr:
         else:
             res = val.value
 
-        context.set_result('output', res)
+        context.set_output('output', res)
 
 
 @native_block_type(native_block_types, has_native_state=False)
 class OptionIsSome:
     @staticmethod
     def run(*, context):
-        context.set_result('output', context.inputs['input'] is not None)
+        context.set_output('output', context.inputs['input'] is not None)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -196,7 +196,7 @@ class OptionCreate:
         else:
             result = None
 
-        context.set_result('output', result)
+        context.set_output('output', result)
 
 
 @native_block_type(native_block_types, has_native_state=False)
@@ -214,8 +214,8 @@ class DetectEdge:
         else:
             raise Exception(f'TODO: Implement edge type {edge_type}')
 
-        context.set_result('last_value', blocks.Some(value))
+        context.set_output('last_value', blocks.Some(value))
         if do_trigger:
-            context.set_result('output', blocks.Some(value))
+            context.set_output('output', blocks.Some(value))
         else:
-            context.set_result('output', None)
+            context.set_output('output', None)

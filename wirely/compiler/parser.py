@@ -9,7 +9,7 @@ from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, ResultAssignment, ProcedureBody,
+    LocalBinding, OutputAssignment, ProcedureBody,
 )
 
 
@@ -20,7 +20,7 @@ with open(os.path.dirname(__file__) + '/blocks.lark', 'r') as file:
 
 ast_classes = [
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, ResultAssignment, ProcedureBody,
+    LocalBinding, OutputAssignment, ProcedureBody,
     blocks.ConnectionKindSpecifier,
     blocks.ConnectorSpecification,
     blocks.ConnectorSpecificationData,

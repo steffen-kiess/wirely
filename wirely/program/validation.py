@@ -58,14 +58,14 @@ def _validate_body(procedure, constant_types, functions):
         if is_list or len(bindings) != 1:
             raise ValueError(f'Bytecode input {name!r} must have exactly one source')
         input_types.append(bindings[0].variable.var_type)
-    result_types = tuple(binding.variable.var_type for binding in procedure.results.values())
+    output_types = tuple(binding.variable.var_type for binding in procedure.outputs.values())
     tables = {
         OperandKind.INPUT: tuple(input_types),
-        OperandKind.RESULT: result_types,
+        OperandKind.OUTPUT: output_types,
         OperandKind.LOCAL: body.local_types,
         OperandKind.CONST: constant_types,
     }
-    for value_type in (*input_types, *result_types, *body.local_types):
+    for value_type in (*input_types, *output_types, *body.local_types):
         _runtime_type(value_type)
     instructions = body.instructions
     if not instructions or not isinstance(instructions[-1], Instruction) or instructions[-1].opcode != Opcode.RETURN:
@@ -92,8 +92,8 @@ def _validate_body(procedure, constant_types, functions):
                     if type(operand.index) is not int or not index < operand.index < len(instructions):
                         raise ValueError(f'Branch target must identify a later instruction: {operand}')
             if opcode not in (*_BRANCHES, Opcode.RETURN):
-                if operands[0].kind not in (OperandKind.LOCAL, OperandKind.RESULT):
-                    raise ValueError('Destination must be local or result')
+                if operands[0].kind not in (OperandKind.LOCAL, OperandKind.OUTPUT):
+                    raise ValueError('Destination must be local or output')
             if opcode == Opcode.COPY:
                 _same_type(operand_types[0], operand_types[1])
             elif opcode in (Opcode.GET_FIELD, Opcode.SET_FIELD):

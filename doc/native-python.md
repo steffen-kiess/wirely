@@ -51,7 +51,7 @@ native_block_types = {}
 class OptionSome:
     @staticmethod
     def run(*, context):
-        context.set_result('output', wirely.Some(context.inputs['input']))
+        context.set_output('output', wirely.Some(context.inputs['input']))
 ```
 
 Use `has_native_state=False` for a `node type` with native procedures, as
@@ -62,7 +62,7 @@ methods such as `def run(self, *, context)`. Either form can also declare
 Procedures run synchronously with the keyword argument `context`; their
 return values are ignored. Use native node tasks for asynchronous I/O.
 
-## Inputs, results, and state
+## Inputs, outputs, and state
 
 `context.name` is read-only and uses the node naming described under
 [native objects](#native-objects-resources-and-tasks).
@@ -77,11 +77,12 @@ resource supplies a tuple of these objects in connection order. Resource
 identity is stable, and changes inside an object do not trigger a procedure
 rerun.
 
-`context.set_result(name, value)` writes outputs, temporaries, and state.
-Write every declared result once per invocation, including `None` for no
-event. To preserve a state result, write its previous value again.
+`context.set_output(name, value)` writes a procedure output: an output
+connector, a temporary, or a state variable. Write every declared output
+once per invocation, including `None` for no event. To preserve a state
+variable, write its previous value again.
 
-Input and result names come from the `.wrl` `depends on` and `produces`
+Input and output names come from the `.wrl` `depends on` and `produces`
 clauses. See [state and execution](language.md#state-and-execution) for
 aliases, dependencies, and state access.
 

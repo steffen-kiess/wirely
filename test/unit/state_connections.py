@@ -20,7 +20,7 @@ observations = {}
 class Owner:
     @staticmethod
     def write(*, context):
-        context.set_result('saved', context.inputs['input'])
+        context.set_output('saved', context.inputs['input'])
 
 
 @native_block_type(registry, has_native_state=False)
@@ -28,21 +28,21 @@ class Forward:
     @staticmethod
     def run(*, context):
         calls[context.name] += 1
-        context.set_result('output', context.inputs['input'])
+        context.set_output('output', context.inputs['input'])
 
 
 @native_block_type(registry, has_native_state=False)
 class Feedback:
     @staticmethod
     def advance(*, context):
-        context.set_result('saved', min(context.inputs['input'] + 1, 2))
+        context.set_output('saved', min(context.inputs['input'] + 1, 2))
 
 
 @native_block_type(registry, has_native_state=False)
 class Shared:
     @staticmethod
     def advance(*, context):
-        context.set_result('saved', min(context.inputs['old'] + 1, 2))
+        context.set_output('saved', min(context.inputs['old'] + 1, 2))
 
 
 @native_block_type(registry, has_native_state=False)
@@ -53,7 +53,7 @@ class Collect:
         values = context.inputs['input']
         list_inputs.append(values)
         observations[context.name] = values
-        context.set_result('output', True)
+        context.set_output('output', True)
 
 
 definitions = '''
@@ -251,7 +251,7 @@ class Current(Owner):
     @staticmethod
     def observe(*, context):
         observations[context.name] = (context.inputs['previous'], context.inputs['current'])
-        context.set_result('output', True)
+        context.set_output('output', True)
 
 
 @native_block_type(registry, has_native_state=False)

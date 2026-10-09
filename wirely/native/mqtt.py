@@ -432,14 +432,14 @@ class EventReceiver(NativeState):
         # TODO: Add checks whether everything is running?
 
         if len(self.received_values) == 0:
-            context.set_result('output', None)
+            context.set_output('output', None)
             return
         value = self.received_values.pop(0)
 
         res_opt = blocks.Some(value)
         # print(f'get_value: {res_opt}')
 
-        context.set_result('output', res_opt)
+        context.set_output('output', res_opt)
 
         self.trigger('get_value')
 
