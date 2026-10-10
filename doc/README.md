@@ -15,3 +15,5 @@ For `.wrl` formatting and naming, follow the
 To implement nodes and procedures in Python, use the
 [native Python implementation guide](native-python.md). For Python
 contributions, follow the [Python style guide](python-style.md).
+
+For compiler development, read the [compiler stages guide](compiler-stages.md).

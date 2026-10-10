@@ -1,0 +1,28 @@
+// Reopened namespaces and forward child types share the collected names.
+namespace Stages {
+  node type Outer {
+    parameter Value: uint8;
+    node child: Later { Value: Value }
+
+    node type Nested {
+      node ancestor: Outer { Value: 4 }
+    }
+  }
+}
+
+namespace Stages {
+  node type Later {
+    parameter Value: uint8;
+    parameter Expected: uint8 = Value;
+    assert Value == Expected;
+    assert Value > 0;
+  }
+}
+
+node first: Stages.Outer { Value: 3 }
+node second: Stages.Outer { Value: 7 }
+
+// An unused body can refer to a child interface declared later.
+node type Unused {
+  node child: Stages.Later { Value: 2 }
+}

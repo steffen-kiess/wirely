@@ -428,3 +428,22 @@ temporary result: Pair;
 procedure run produces result {
   result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
 }
+
+// TEST: circular procedure reference specifications
+node type References {
+  procedure first
+    depends on second.result as input // E: Circular procedure port reference
+    produces result: value boolean
+  {
+    result = input;
+  }
+  procedure second
+    depends on input: value boolean
+    produces first.input as result
+  {
+    result = input;
+  }
+}
+
+// TEST: root temporary without a source
+temporary unused: boolean; // E: Temporary 'unused' has no source

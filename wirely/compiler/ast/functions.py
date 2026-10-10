@@ -26,7 +26,7 @@ class DeclarationNativeFunction(Declaration):
         return DeclarationNativeFunction(name, arguments, return_type, is_constant=True,
                                          source_position=source_position)
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         from ..native_functions import validate_entry
         if not isinstance(graph, model.ast.DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Native functions are only allowed at root or in namespaces')
@@ -63,14 +63,5 @@ class DeclarationNativeFunction(Declaration):
         from ..native_functions import invoke_runtime_function
         return invoke_runtime_function(self, values, call)
 
-    def compile_pass1_5(self, graph):
+    def prepare_interface(self, graph):
         self.resolve_signature()
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass

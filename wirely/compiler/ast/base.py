@@ -1,7 +1,6 @@
 """Source positions, diagnostics, and base classes of the syntax tree."""
 
 import typing
-import abc
 import contextlib
 import os
 
@@ -132,28 +131,17 @@ class Value(SourceElement):
         super().__init__(source_position=source_position)
 
 
-class Declaration(SourceElement, abc.ABC):
-    @check_parameters
-    def __init__(self, source_position: SourcePosition):
-        super().__init__(source_position=source_position)
+class Declaration(SourceElement):
+    """Declarations implement only the preparation operations they need."""
 
-    # TODO: Move implementation here?
-    @abc.abstractmethod
-    def compile_pass1_btd(self, interface):
-        ...
+    def register_interface_declarations(self, scope):
+        pass
 
-    @abc.abstractmethod
-    def create_io(self, new_graph):
-        ...
+    def collect_declarations(self, scope):
+        pass
 
-    @abc.abstractmethod
-    def compile_pass1(self, graph):
-        ...
+    def prepare_interface(self, scope):
+        pass
 
-    @abc.abstractmethod
-    def compile_pass1_5(self, graph):
-        ...
-
-    @abc.abstractmethod
-    def compile_pass2(self, graph):
-        ...
+    def bind_body(self, scope):
+        pass

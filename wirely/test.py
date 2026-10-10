@@ -34,6 +34,7 @@ from wirely.runtime.engine import Engine
 
 test_names = [
     'unit/runtime_program',
+    'unit/compiler_api',
     'unit/native_interface',
     'unit/procedures',
     'unit/instructions',
@@ -79,6 +80,7 @@ to_compile = [
     'test/compiler/attributes.wrl',
     'test/compiler/constants.wrl',
     'test/compiler/connection_order.wrl',
+    'test/compiler/type_stages.wrl',
     'test/compiler/equality.wrl',
     'test/compiler/ordering.wrl',
     'test/compiler/arithmetic.wrl',

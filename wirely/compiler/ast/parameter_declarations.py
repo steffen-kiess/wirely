@@ -28,11 +28,8 @@ class DeclarationParameter(Declaration):
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
     @check_parameters
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         self.interface = interface
-
-    def create_io(self, new_graph):
-        pass
 
     def resolve_type(self):
         # Types may refer to parameters declared later, which resolve on demand.
@@ -53,15 +50,7 @@ class DeclarationParameter(Declaration):
         else:
             return f'{self.interface.name}.{self.name}'
 
-    # TODO: Clean up compilation passes
-
-    def compile_pass1(self, graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
+    def bind_body(self, graph):
         if self.default_value is not None:
             from ..expressions import compile_constant
             compile_constant(graph, self.default_value, self.type_resolved, {})
@@ -72,7 +61,7 @@ class DeclarationConstant(DeclarationParameter):
         super().__init__(None, name, ty, default_value=initializer,
                          source_position=source_position)
 
-    def compile_pass2(self, graph):
+    def bind_body(self, graph):
         # Check concrete types and expression syntax without running initializers.
         if self.type_resolved == model.types.ValueType:
             graph.get_const_value(self.default_value, self.type_resolved)
@@ -87,19 +76,10 @@ class DeclarationAssertion(Declaration):
         self.condition = condition
         self.message = message
 
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         interface.assertions.append(self)
 
-    def create_io(self, new_graph):
-        pass
-
-    def compile_pass1(self, graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
+    def bind_body(self, graph):
         from ..expressions import compile_constant
         compile_constant(graph, self.condition, model.types.boolean, {})
 

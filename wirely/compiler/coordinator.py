@@ -6,7 +6,7 @@ from . import model
 def source_order(element):
     position = element.source_position
     meta = position.meta
-    return (position.filename or '', getattr(meta, 'start_pos', -1))
+    return (str(position.filename or ''), getattr(meta, 'start_pos', -1))
 
 
 class CompilerCoordinator:
@@ -32,16 +32,18 @@ class CompilerCoordinator:
             self.report_progress('Finished graph compilation')
 
     def collect_declarations(self):
-        self.global_node_type.compile_pass1(None)
+        self.global_node_type.collect_declarations(None)
 
     def prepare_interfaces(self):
         for node_type in self.node_types:
             node_type.prepare_interface()
         for scope, declarations in self.declaration_groups:
+            if not isinstance(scope, model.DeclarationLibrary):
+                continue
             for declaration in declarations:
-                if isinstance(declaration, (model.DeclarationStructType, model.DeclarationNativeFunction)):
+                if not isinstance(declaration, (model.NodeType, model.DeclarationLibrary)):
                     with declaration.context:
-                        declaration.compile_pass1_5(scope)
+                        declaration.prepare_interface(scope)
 
     def resolve_instance_declarations(self):
         for node_type in self.node_types:
@@ -80,22 +82,21 @@ class CompilerCoordinator:
         for node_type in self.node_types:
             for declaration in node_type.node_declarations.values():
                 with declaration.context:
-                    declaration.compile_pass2(node_type)
+                    declaration.create_instance_interface(node_type)
 
     def bind_bodies(self):
         for node_type in self.node_types:
-            for procedure in node_type.procedures.values():
-                for port in (*procedure.input_ports.values(), *procedure.output_ports.values()):
-                    with port.declaration.context:
-                        port.resolve_reference()
+            ports = [port for procedure in node_type.procedures.values()
+                     for port in (*procedure.input_ports.values(), *procedure.output_ports.values())]
+            for port in sorted(ports, key=lambda port: source_order(port.declaration)):
+                with port.declaration.context:
+                    port.resolve_reference()
         for node_type in self.node_types:
-            node_type.compile_pass2(node_type.parent_graph)
+            node_type.bind_body()
 
     def validate_bodies(self):
-        # Root validation is still performed by program compilation.
         for node_type in self.node_types:
-            if node_type.parent_graph is not None:
-                model.ast.validate_nodes(node_type)
+            node_type.validate_body()
 
     def populate_instances(self):
         for node_type in self.population_order:

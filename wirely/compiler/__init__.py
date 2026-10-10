@@ -43,20 +43,16 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
 
     exc = None
     try:
-        from .attributes import validate_files
-        decls = []
-        parsed_files = []
-        for filename, input_data in filename_inpudatas:
-            parsed = wirely.compiler.parser.parse_str(input_data, filename=filename)
-            parsed_files.append((filename, parsed))
-            decls += parsed
+        if verbose_passes:
+            report_progress('Starting parsing sources')
+        parsed_files = wirely.compiler.parser.parse_sources(filename_inpudatas)
+        decls = [declaration for _, parsed in parsed_files for declaration in parsed]
         if shuffle_seed is not None:
             from .shuffle import shuffle_declarations
             shuffle_declarations(decls, shuffle_seed, layout=shuffle_layout)
-        file_metadata = validate_files(parsed_files)
-        from .native_functions import validate_collisions
-        validate_collisions(decls)
-        filename = None
+        if verbose_passes:
+            report_progress('Starting validating source metadata')
+        file_metadata = validate_source_metadata(parsed_files, decls)
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
         global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
         global_node_type.services = compilation_services
@@ -65,9 +61,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None)
         coordinator.compile()
     except lark.UnexpectedInput as e:
-        # TODO: Using input_data here is kind of a hack
-        report(Diagnostic('syntax_error', str(e), filename=filename, line=e.line,
-                          context=e.get_context(input_data)))
+        report(Diagnostic('syntax_error', str(e), filename=e.source_filename, line=e.line,
+                          context=e.get_context(e.source_input_data)))
         return None
     except _DiagnosticCallbackError as e:
         raise e.error from None
@@ -87,6 +82,15 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     for diagnostic in error_diagnostics(exc, always_print_stacktrace=always_print_stacktrace):
         report(diagnostic)
     return None
+
+
+def validate_source_metadata(parsed_files, declarations):
+    from .attributes import validate_files
+    from .native_functions import validate_collisions
+
+    metadata = validate_files(parsed_files)
+    validate_collisions(declarations)
+    return metadata
 
 
 _STANDARD_LIBRARY_NAMES = (

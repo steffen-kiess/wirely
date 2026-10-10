@@ -11,14 +11,12 @@ from .values import Reference, FunctionCall, ParameterOption, BracketOperator, S
 
 
 # This class contains methods for resolving references in a scope
-class Scope(Declaration):
+class Scope(Declaration, abc.ABC):
     @check_parameters
     def __init__(self, source_position: SourcePosition):
         super().__init__(source_position=source_position)
 
-        # TODO: Remove one of node_type_interfaces / node_type_implementations
-        self.node_type_interfaces = {}
-        self.node_type_implementations = {}
+        self.node_types = {}
         self.resource_types = {}
         self.enum_types = {}
         self.struct_types = {}
@@ -222,14 +220,14 @@ class Scope(Declaration):
                 library = library.libraries.get(identifier.id_str)
             if library is not None:
                 node_name = name.identifiers[-1].id_str
-                if node_name in library.node_type_implementations:
-                    return library.node_type_implementations[node_name]
+                if node_name in library.node_types:
+                    return library.node_types[node_name]
 
         if name.length == 1:
             node_type_name_id = name.identifiers[0]
 
-            if node_type_name_id.id_str in self.node_type_implementations:
-                return self.node_type_implementations[node_type_name_id.id_str]
+            if node_type_name_id.id_str in self.node_types:
+                return self.node_types[node_type_name_id.id_str]
 
         if self.parent_graph is None:
             raise model.ProgramError(name, f'Cannot find node type {name}')

@@ -37,17 +37,17 @@ class DeclarationStructType(Declaration):
         self.value_type = None
         self.resolving = False
 
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         if interface.name is not None:
             raise ProgramError(self, 'Struct type declaration not allowed inside node type')
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
             raise ProgramError(self.name, f'Struct type {name} conflicts with built-in type')
         for kind, declarations in (
                 ('struct type', graph.struct_types), ('enum type', graph.enum_types),
-                ('node type', graph.node_type_interfaces), ('resource type', graph.resource_types),
+                ('node type', graph.node_types), ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
                 previous = declarations[name]
@@ -82,14 +82,8 @@ class DeclarationStructType(Declaration):
         finally:
             self.resolving = False
 
-    def create_io(self, new_graph):
-        pass
-
-    def compile_pass1_5(self, graph):
+    def prepare_interface(self, graph):
         self.resolve_fields()
-
-    def compile_pass2(self, graph):
-        pass
 
 
 class DeclarationEnumType(Declaration):
@@ -102,18 +96,18 @@ class DeclarationEnumType(Declaration):
         self.members = members
         self.inner_attributes = getattr(members, 'inner_attributes', ())
 
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         if interface.name is not None:
             raise ProgramError(self, 'Enum type declaration not allowed inside node type')
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
             raise ProgramError(self.name, f'Enum type {name} conflicts with built-in type')
         for kind, declarations in (
                 ('enum type', graph.enum_types),
                 ('struct type', graph.struct_types),
-                ('node type', graph.node_type_interfaces),
+                ('node type', graph.node_types),
                 ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
@@ -162,15 +156,6 @@ class DeclarationEnumType(Declaration):
         self.value_type.declaration = self
         graph.enum_types[name] = self.value_type
 
-    def create_io(self, new_graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass
-
 
 class DeclarationResourceType(Declaration):
     @check_parameters
@@ -178,11 +163,11 @@ class DeclarationResourceType(Declaration):
         super().__init__(source_position=source_position)
         self.name = name
 
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         if interface.name is not None:
             raise ProgramError(self, 'Resource type declaration not allowed inside node type')
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in graph.struct_types:
             raise model.ProgramError(self.name, f'Resource type {name} conflicts with struct type', hints=[
@@ -197,21 +182,12 @@ class DeclarationResourceType(Declaration):
             raise ProgramError(self, f'Duplicate resource type {name}', hints=[
                 CompilerHint(previous, 'Previous resource type was here'),
             ])
-        if name in graph.node_type_interfaces:
+        if name in graph.node_types:
             raise ProgramError(self, f'Resource type {name} conflicts with node type', hints=[
-                CompilerHint(graph.node_type_interfaces[name], 'Previous node type was here'),
+                CompilerHint(graph.node_types[name], 'Previous node type was here'),
             ])
         if isinstance(graph, model.ast.DeclarationLibrary):
             fullname = graph.fullname + '.' + name
         else:
             fullname = name
         graph.resource_types[name] = model.ResourceType(fullname, self)
-
-    def create_io(self, new_graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass

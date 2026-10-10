@@ -44,7 +44,7 @@ class DeclarationLibrary(Scope):
             return self.parent_graph.fullname_tuple + (self.name.id_str,)
         return (self.name.id_str,)
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
@@ -75,26 +75,8 @@ class DeclarationLibrary(Scope):
                     ]
                     raise ProgramError(decl, 'Declaration not allowed in namespace', hints=hints)
 
-                decl.compile_pass1(self.compiled_scope)
+                decl.collect_declarations(self.compiled_scope)
                 
-
-    def compile_pass1_5(self, graph):
-        for decl in self.declarations:
-            with decl.context:
-                decl.compile_pass1_5(self.compiled_scope)
-
-    def compile_pass2(self, graph):
-        for decl in self.declarations:
-            with decl.context:
-                decl.compile_pass2(self.compiled_scope)
-
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
-        pass
 
     def __repr__(self):
         return self.fullname

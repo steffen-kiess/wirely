@@ -1,4 +1,4 @@
-"""Completion states for compiler preparation operations."""
+"""Completion states for compiler stages and dependent resolutions."""
 
 from enum import Enum, auto
 

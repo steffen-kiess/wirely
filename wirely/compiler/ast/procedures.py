@@ -84,7 +84,7 @@ class DependsDeclaration(SourceElement):
         self.resolved_dependencies_value = None
         self.resolved_dependencies_value_in_process = False
 
-    def compile_pass1(self, graph, proc):
+    def collect_declarations(self, graph, proc):
         self.graph = graph
         self.proc = proc
 
@@ -133,7 +133,7 @@ class DependsDeclaration(SourceElement):
         self.resolved_dependencies_value = resolved
         return self.resolved_dependencies_value
 
-    def compile_pass2(self, graph, proc):
+    def bind_body(self, graph, proc):
         # Make sure get_resolved_dependencies() is executed at some point
         self.get_resolved_dependencies()
 
@@ -144,7 +144,7 @@ class ProducesDeclaration(SourceElement):
         super().__init__(source_position=source_position)
         self.outputs = outputs
 
-    def compile_pass1(self, graph, proc):
+    def collect_declarations(self, graph, proc):
         self.graph = graph
         self.proc = proc
 
@@ -198,7 +198,7 @@ class DeclarationInitializer(Declaration):
         self.depends = depends
         self.uses = uses
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         if not isinstance(graph, model.NodeType) or not graph.is_native:
             raise ProgramError(self, 'Native initializer requires a native node type')
         if graph.initializer is not None:
@@ -206,27 +206,18 @@ class DeclarationInitializer(Declaration):
                 CompilerHint(graph.initializer, 'Previous initializer was here'),
             ])
         graph.initializer = self
-        self.depends.compile_pass1(graph, self)
+        self.depends.collect_declarations(graph, self)
 
-    def compile_pass2(self, graph):
+    def bind_body(self, graph):
         for port in self.depends.dependencies:
             if isinstance(port, TypedPort):
                 raise ProgramError(port, 'Initializer dependencies must reference resources')
-        self.depends.compile_pass2(graph, self)
+        self.depends.bind_body(graph, self)
         if self.uses is not None:
             self.uses.check(graph)
         for port, dep in zip(self.depends.dependencies, self.depends.get_resolved_dependencies()):
             if not dependency_is_resource(dep):
                 raise ProgramError(port, 'Initializer dependencies must be resources')
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
 
 
 class DeclarationProcedure(Declaration):
@@ -261,7 +252,7 @@ class DeclarationProcedure(Declaration):
                 raise ProgramError(port.alias, 'Procedure aliases must be identifiers')
         return procedure
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in graph.procedures:
             hints = [
@@ -276,21 +267,19 @@ class DeclarationProcedure(Declaration):
                 ])
         graph.procedures[name] = self
 
-        self.depends.compile_pass1(graph, self)
-        self.produces.compile_pass1(graph, self)
+        self.depends.collect_declarations(graph, self)
+        self.produces.collect_declarations(graph, self)
 
     @property
     def python_name(self):
         return self.alias.value if self.alias is not None else self.name.id_str
 
-    def compile_pass1_5(self, graph):
-        pass
+    def bind_body(self, graph):
+        if graph.parent_graph is None and self.is_native:
+            raise ProgramError(self, 'Native procedures must belong to a node type')
+        self.bind_connections(graph)
 
-    def compile_pass2(self, graph):
-        if graph.parent_graph is not None:
-            self.compile_interface(graph)
-
-    def compile_interface(self, graph):
+    def bind_connections(self, graph):
         # Reference ports connect to the ports they reference.
         for declaration in self.depends.dependencies:
             if isinstance(declaration, ReferencePort):
@@ -333,12 +322,7 @@ class DeclarationProcedure(Declaration):
             if not port.is_list and port.connected_source is None:
                 raise ProgramError(port.declaration, f'Input port {port.name!r} of procedure {self.name.id_str!r} has no source')
 
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
+    def prepare_interface(self, new_graph):
         check_port_keys(self.depends.dependencies)
         check_port_keys(self.produces.outputs)
         self.input_ports = {

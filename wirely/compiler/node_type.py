@@ -28,9 +28,6 @@ class NodeType(model.Scope):
         self.is_singleton = specifiers_status['singleton']
 
         self.instance_nodes = {}
-        # TODO: Remove one of node_type_interfaces / node_type_implementations
-        self.node_type_interfaces = {}
-        self.node_type_implementations = {}
         self.procedures = {}
         self.node_declarations = {}
         # Nodes and named ports share names.
@@ -46,8 +43,7 @@ class NodeType(model.Scope):
         self.assertions = []
         self.interface_state = ResolutionState.PENDING
         self.instance_declarations_state = ResolutionState.PENDING
-        self.pass2_done = False
-        self.pass2_in_progress = False
+        self.body_state = ResolutionState.PENDING
 
     @staticmethod
     def make(*args, source_position: typing.Optional[model.SourcePosition]):
@@ -56,7 +52,7 @@ class NodeType(model.Scope):
         declarations = args[-1]
         return NodeType(list(specifiers), name, declarations, source_position=source_position)
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
@@ -79,19 +75,18 @@ class NodeType(model.Scope):
                 raise model.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
                     model.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
                 ])
-            if self.name.id_str in graph.node_type_interfaces:
+            if self.name.id_str in graph.node_types:
                 hints = [
-                    model.CompilerHint(graph.node_type_interfaces[self.name.id_str], 'Previous node type was here'),
+                    model.CompilerHint(graph.node_types[self.name.id_str], 'Previous node type was here'),
                 ]
                 raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
-            graph.node_type_interfaces[self.name.id_str] = self
+            graph.node_types[self.name.id_str] = self
 
-        # TODO: Merge parsed_parameters and parameters?
         parsed_parameters = {}
         parsed_constants = {}
         static_declarations = {}
         for decl in self.declarations:
-            decl.compile_pass1_btd(self)
+            decl.register_interface_declarations(self)
 
             # TODO: Clean up isinstance?
             if not isinstance(decl, model.DeclarationParameter):
@@ -116,23 +111,10 @@ class NodeType(model.Scope):
         self.parsed_parameters = parsed_parameters
         self.parsed_constants = parsed_constants
 
-        # Former "implementation" part
-
         for decl in self.declarations:
             if isinstance(decl, model.Declaration):
                 with decl.context:
-                    decl.compile_pass1(self)
-
-        if self.parent_graph is not None:
-            if self.name.id_str in self.parent_graph.node_type_implementations:
-                hints = [
-                    model.CompilerHint(graph.node_type_implementations[self.name.id_str], 'Previous implementation was here'),
-                ]
-                raise model.ProgramError(self, f'Duplicate node type implementation for {self.name!r}', hints=hints)
-            self.parent_graph.node_type_implementations[self.name.id_str] = self
-
-    def compile_pass1_5(self, graph):
-        self.compile_pass1_5_if_needed()
+                    decl.collect_declarations(self)
 
     def prepare_interface(self):
         if self.interface_state is ResolutionState.COMPLETE:
@@ -144,9 +126,10 @@ class NodeType(model.Scope):
             for declaration in self.static_declarations.values():
                 declaration.resolve_type()
             for declaration in self.declarations:
+                if isinstance(declaration, (model.NodeType, model.DeclarationLibrary)):
+                    continue
                 with declaration.context:
-                    declaration.create_io(self)
-            self.parameters_by_name = self.parsed_parameters
+                    declaration.prepare_interface(self)
         except Exception:
             self.interface_state = ResolutionState.FAILED
             raise
@@ -156,34 +139,42 @@ class NodeType(model.Scope):
         if self.instance_declarations_state is ResolutionState.COMPLETE:
             return
         if self.instance_declarations_state is not ResolutionState.PENDING:
-            raise model.ProgramError(self, f'Recursive node type instantiation of {self.fullname!r}')
-        self.prepare_interface()
+            raise RuntimeError('Cannot reuse unfinished instance declaration resolution')
+        if self.interface_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Instance declarations require a prepared interface')
         self.instance_declarations_state = ResolutionState.RESOLVING
         try:
             for declaration in self.node_declarations.values():
                 with declaration.context:
-                    declaration.compile_pass1_5(self)
+                    declaration.resolve_instance_arguments(self)
         except Exception:
             self.instance_declarations_state = ResolutionState.FAILED
             raise
         self.instance_declarations_state = ResolutionState.COMPLETE
 
-    def compile_pass1_5_if_needed(self):
-        self.resolve_instance_declarations()
-
-    def compile_pass2(self, graph):
-        if self.pass2_done:
-            return
-        if self.pass2_in_progress:
-            raise model.ProgramError(self, f'Recursive node type instantiation of {self.fullname!r}')
-        self.pass2_in_progress = True
+    def bind_body(self):
+        if self.body_state is not ResolutionState.PENDING:
+            raise RuntimeError('Body binding requires an unbound body')
+        if self.instance_declarations_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Body binding requires resolved instance declarations')
+        self.body_state = ResolutionState.RESOLVING
         try:
-            self._compile_pass2()
-            self.pass2_done = True
-        finally:
-            self.pass2_in_progress = False
+            self._bind_body()
+        except Exception:
+            self.body_state = ResolutionState.FAILED
+            raise
 
-    def _compile_pass2(self):
+    def validate_body(self):
+        if self.body_state is not ResolutionState.RESOLVING:
+            raise RuntimeError('Body validation requires a bound body')
+        try:
+            model.ast.validate_nodes(self)
+        except Exception:
+            self.body_state = ResolutionState.FAILED
+            raise
+        self.body_state = ResolutionState.COMPLETE
+
+    def _bind_body(self):
         reference_declarations = []
         connections = []
         for decl in self.declarations:
@@ -197,29 +188,14 @@ class NodeType(model.Scope):
                 continue
             if isinstance(decl, model.Declaration):
                 with decl.context:
-                    decl.compile_pass2(self)
+                    decl.bind_body(self)
         # Initializers, procedures, and connections can reference later nodes.
         for decl in reference_declarations:
             with decl.context:
-                decl.compile_pass2(self)
+                decl.bind_body(self)
         for decl in connections:
             with decl.context:
-                decl.compile_pass2(self)
-        # The root graph binds its procedures when compiling the program.
-        if self.parent_graph is not None:
-            model.ast.validate_nodes(self)
-
-        # TODO: Allow interfaces without implementations?
-        # if self.name.id_str not in graph.node_type_implementations:
-        #     raise model.ProgramError(self, f'Node type interface for {self.name!r} without implementation')
-
-        # TODO: Validate parameters
-
-    def create(self, *, name, graph, par_values, instantiation, register=True):
-        node = self.create_instance_interface(name=name, graph=graph, par_values=par_values,
-                                              instantiation=instantiation, register=register)
-        self.populate_instance(node)
-        return node
+                decl.bind_body(self)
 
     def create_instance_interface(self, *, name, graph, par_values, instantiation, register=True):
         if self.interface_state is not ResolutionState.COMPLETE:
@@ -262,7 +238,7 @@ class NodeType(model.Scope):
         return node
 
     def populate_instance(self, node):
-        if not self.pass2_done:
+        if self.body_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance population requires a completed body')
         if node.node_type is not self or node.population_state is not ResolutionState.PENDING:
             raise RuntimeError('Instance population requires an unpopulated instance of this type')
@@ -388,11 +364,3 @@ class NodeType(model.Scope):
             return (self.name.id_str),
         else:
             return self.parent_graph.fullname_tuple + (self.name.id_str,)
-
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
-        pass

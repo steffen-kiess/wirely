@@ -117,3 +117,32 @@ node type Recursive {
   node child: Recursive { P: P } // E: Recursive node type instantiation of 'Recursive'
 }
 node root: Recursive {}
+
+// TEST: parameterized indirect instantiation cycle
+node type First {
+  parameter Count: uint8 = 1;
+  node child: Second { Count: Count } // H: Instantiation continues here
+}
+node type Second {
+  parameter Count: uint8;
+  node child: First { Count: Count } // E: Recursive node type instantiation of 'First'
+}
+
+// TEST: instantiation cycle in reopened namespace
+namespace Cycle {
+  node type First {
+    node child: Second {} // H: Instantiation continues here
+  }
+}
+namespace Cycle {
+  node type Second {
+    node child: First {} // E: Recursive node type instantiation of 'Cycle.First'
+  }
+}
+
+// TEST: unused nested type is validated
+node type Outer {
+  node type Unused {
+    temporary value: boolean; // E: Temporary 'value' has no source
+  }
+}

@@ -3,6 +3,7 @@
 import typing
 
 from wirely.compiler.attributes import copy_attributes
+from wirely.compiler.stages import ResolutionState
 from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
@@ -49,7 +50,7 @@ class DeclarationInstance(Declaration):
         self.instantiation = instantiation
         self.inner_attributes = instantiation.inner_attributes
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in graph.node_declarations:
             raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
@@ -58,7 +59,7 @@ class DeclarationInstance(Declaration):
         register_name(graph, self.name, self)
         graph.node_declarations[name] = self
 
-    def compile_pass1_5(self, graph):
+    def resolve_instance_arguments(self, graph):
         name = self.name
         inst = self.instantiation
 
@@ -69,7 +70,8 @@ class DeclarationInstance(Declaration):
         # print(self.node_name, self.node_type, parameter_bindings)
 
         # The node type may be declared after this node.
-        self.node_type.prepare_interface()
+        if self.node_type.interface_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Instance arguments require a prepared child interface')
 
         self.par_values = {}
         seen = set()
@@ -79,9 +81,9 @@ class DeclarationInstance(Declaration):
 
             if key.id_str in self.node_type.parsed_constants:
                 raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
-            if key.id_str not in self.node_type.parameters_by_name:
+            if key.id_str not in self.node_type.parsed_parameters:
                 raise ProgramError(key, f'Unknown parameter for {self.node_type.name.id_str}: {key}')
-            par = self.node_type.parameters_by_name[key.id_str]
+            par = self.node_type.parsed_parameters[key.id_str]
             if par in seen:
                 raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
             seen.add(par)
@@ -92,7 +94,7 @@ class DeclarationInstance(Declaration):
                 compile_constant(graph, value, model.types.TypeOption(par.type_resolved), {})
                 self.par_values[par] = model.value.OptionalBinding(graph, value, par)
 
-        pending = {self.node_type.parameters_by_name[parameter.name.id_str]: parameter
+        pending = {self.node_type.parsed_parameters[parameter.name.id_str]: parameter
                    for parameter in parameter_bindings if not parameter.is_optional}
 
         def bind(par):
@@ -115,18 +117,10 @@ class DeclarationInstance(Declaration):
         for par in list(pending):
             bind(par)
 
-    def compile_pass2(self, graph):
+    def create_instance_interface(self, graph):
         self.node_type.create_instance_interface(
             graph=graph, par_values=self.par_values, name=self.node_name, instantiation=self,
         )
-
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
-        pass
 
 
 class DeclarationConnection(Declaration):
@@ -136,13 +130,7 @@ class DeclarationConnection(Declaration):
         self.sources = sources
         self.target = target
 
-    def compile_pass1(self, graph):
-        pass
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
+    def bind_body(self, graph):
         sources = self.sources
         target = self.target
 
@@ -156,14 +144,6 @@ class DeclarationConnection(Declaration):
             for source, attributes in zip(res_sources, self.edge_attributes):
                 model.connect(source.port, res_target.port, self, attributes=attributes)
 
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
-        pass
-
-    def create_io(self, new_graph):
-        pass
-
 
 class DeclarationState(Declaration):
     @check_parameters
@@ -175,7 +155,7 @@ class DeclarationState(Declaration):
 
         self.name_str = self.name.id_str
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in graph.value_nodes:
             hints = [
@@ -185,18 +165,10 @@ class DeclarationState(Declaration):
         register_name(graph, self.name, self)
         graph.value_nodes[name] = self
 
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass
-
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         self.interface = interface
 
-    def create_io(self, new_graph):
+    def prepare_interface(self, new_graph):
         ty = self.interface.resolve_type(self.var_type)
         check_runtime_type(ty, self)
         # TODO: Resolve initial_value
@@ -265,7 +237,7 @@ class DeclarationTemporary(Declaration):
 
         self.name_str = self.name.id_str
 
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         name = self.name.id_str
         if name in graph.value_nodes:
             hints = [
@@ -275,18 +247,10 @@ class DeclarationTemporary(Declaration):
         register_name(graph, self.name, self)
         graph.value_nodes[name] = self
 
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass
-
-    # TODO: Clean up compilation passes
-
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         self.interface = interface
 
-    def create_io(self, new_graph):
+    def prepare_interface(self, new_graph):
         ty = self.interface.resolve_type(self.var_type)
         check_runtime_type(ty, self)
         variable = model.TemporaryNode(new_graph, ty, name=self.name_str)

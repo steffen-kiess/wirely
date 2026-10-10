@@ -3,6 +3,7 @@
 from wirely.compiler import model
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
+from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
     OutputTarget, Procedure, ProcedureBody, Program, RunStage, Variable, VariableTable,
@@ -44,17 +45,30 @@ def compile(global_node_type, *, on_diagnostic=None):
 
 
 def compile_nocatch(global_node_type):
+    return lower_program(global_node_type)
+
+
+def specialize_instances(graph, root, *, variable_map, all_variables, state_map,
+                         state_variables, instances):
+    singletons = {}
+    top_nodes = (root,) if root is not None else tuple(graph.instance_nodes.values())
+    for node in top_nodes:
+        node.specialize(singletons=singletons, variable_map=variable_map,
+                        all_variables=all_variables, state_map=state_map,
+                        state_variables=state_variables, instances=instances,
+                        path=(node,), parent_instance=None)
+
+
+def lower_program(global_node_type):
     # TODO: More checks, e.g. that global_node_type has not parameters or inputs / outputs
     graph = global_node_type
+    if graph.body_state is not ResolutionState.COMPLETE:
+        raise RuntimeError('Program lowering requires a bound and validated global graph')
     root = None
     if graph.value_nodes or graph.procedures or graph.parsed_constants or graph.assertions:
-        for declaration in graph.procedures.values():
-            if declaration.is_native:
-                raise model.ProgramError(declaration, 'Native procedures must belong to a node type')
-            declaration.compile_interface(graph)
-        model.ast.validate_nodes(graph)
-        root = graph.create(name='<global>', graph=graph, par_values={},
-                            instantiation=graph, register=False)
+        root = graph.create_instance_interface(name='<global>', graph=graph, par_values={},
+                                               instantiation=graph, register=False)
+        graph.populate_instance(root)
 
     variable_map = {}
     all_variables = []
@@ -105,11 +119,8 @@ def compile_nocatch(global_node_type):
         all_variables.append(v)
         return input_source
 
-    # TODO: Use get_all_node_paths()?
-    singletons = {}
-    top_nodes = (root,) if root is not None else tuple(graph.instance_nodes.values())
-    for node in top_nodes:
-        node.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=(node,), parent_instance=None)
+    specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
+                         state_map=state_map, state_variables=state_variables, instances=instances)
 
     def resolve_source(path, source):
         source_path, variable = model.resolve_variable(path, source)

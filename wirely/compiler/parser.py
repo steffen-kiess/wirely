@@ -248,3 +248,17 @@ parser = lark.Lark(grammar, **opts)
 def parse_str(input_data, *, filename):
     t = Transformer(filename, input_data=input_data)
     return t.transform(parser.parse(input_data))
+
+
+def parse_sources(filename_inputdatas):
+    """Parse source files while retaining syntax diagnostic context."""
+    parsed_files = []
+    for filename, input_data in filename_inputdatas:
+        try:
+            parsed = parse_str(input_data, filename=filename)
+        except lark.UnexpectedInput as error:
+            error.source_filename = filename
+            error.source_input_data = input_data
+            raise
+        parsed_files.append((filename, parsed))
+    return parsed_files

@@ -53,13 +53,13 @@ class DeclarationPort(Declaration):
         return DeclarationPort(None, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
 
     @check_parameters
-    def compile_pass1_btd(self, interface):
+    def register_interface_declarations(self, interface):
         self.interface = interface
 
         if self.interface.is_singleton and self.direction_spec.direction == PortDirection.Input:
             raise model.ProgramError(self, 'Singleton node type cannot have inputs')
 
-    def create_io(self, new_graph):
+    def prepare_interface(self, new_graph):
         # TODO: Use self.kind ConnectionKind
         # TODO: Pass par_values to resolve_type?
         # TODO: Should the entires port_spec instance be passed?
@@ -95,18 +95,10 @@ class DeclarationPort(Declaration):
 
         copy_attributes(port, self)
 
-    # TODO: Clean up compilation passes
-
-    def compile_pass1(self, graph):
+    def collect_declarations(self, graph):
         if self.name is None:
             return
         previous = graph.name_declarations.get(self.name.id_str)
-        # create_io reports duplicate ports of the same kind.
+        # prepare_interface reports duplicate ports of the same kind.
         if not (isinstance(previous, DeclarationPort) and previous.direction == self.direction):
             model.ast.register_name(graph, self.name, self)
-
-    def compile_pass1_5(self, graph):
-        pass
-
-    def compile_pass2(self, graph):
-        pass

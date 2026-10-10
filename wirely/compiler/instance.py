@@ -4,6 +4,7 @@ import typing
 from wirely.compiler import model
 from wirely.util import check_parameters
 from .attributes import copy_attributes
+from .stages import ResolutionState
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import InputSource, Variable
@@ -104,10 +105,10 @@ class InstanceNode(model.GraphElement):
                 res.append(input)
         return res
 
-    # TODO: Rename
-    # TODO: Must probably be cleaned up to allow multiple instantiations of the same node
-    # path: A tuple which contains the name of the node being instantiated
-    def instantiate(self, *, singletons, variable_map, all_variables, state_map, state_variables, instances, path, parent_instance):
+    def specialize(self, *, singletons, variable_map, all_variables, state_map, state_variables, instances, path, parent_instance):
+        """Resolve one concrete use of a populated reusable instance."""
+        if self.population_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Specialization requires a populated instance')
         if self.node_type.is_singleton:
             if self.node_type in singletons:
                 return
@@ -139,7 +140,7 @@ class InstanceNode(model.GraphElement):
 
         for name, child_node in self.node_type.instance_nodes.items():
             child_path = path + (child_node,)
-            child_node.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
+            child_node.specialize(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
 
         # TODO: Clean up
         # path_prefix = '.'.join([node.name for node in path])
@@ -168,7 +169,7 @@ class InstanceNode(model.GraphElement):
         for var in self.temporaries:
             variable_map[path, var.var_identifier] = resolve_source(path, var)
 
-    # TODO: Probably should be merged into instantiate()
+    # TODO: Probably should be merged into specialize()
     def get_procedure_paths(self, prefix):
         path = model.path_resolve_singleton(prefix + (self,))
         res = [(path, proc) for proc in self.procedures]
@@ -176,7 +177,7 @@ class InstanceNode(model.GraphElement):
             res += child_node.get_procedure_paths(path)
         return res
 
-    # TODO: Probably should be merged into instantiate()
+    # TODO: Probably should be merged into specialize()
     def get_all_node_paths(self, prefix):
         path = model.path_resolve_singleton(prefix + (self,))
         res = [path]
