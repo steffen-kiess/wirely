@@ -42,7 +42,91 @@ Update node types and function calls as follows:
 | `Std.Delay` | `Std.DelayOneStep` |
 | `Time.IsBetween` | `Time.IsInDailyInterval` |
 | `Std.OptionUnwrapOrDefault` | `Std.OptionUnwrapOr` |
-| `TimeOfDay_AddWrap` | `TimeOfDay.AddWrap` |
+
+#### Attribute names
+
+Separate qualified attribute names with `.` instead of `::`.
+
+#### Library settings
+
+String settings are now library enums. For example, replace
+`ActiveState: "Low"` with `ActiveState: GPIO.ActiveState.Low`:
+
+| Node type | Parameter | Enum type |
+| --- | --- | --- |
+| `GPIO.Output` | `ActiveState` | `GPIO.ActiveState` |
+| `GPIO.Output` | `Drive` | `GPIO.Drive` |
+| `GPIO.Output` | `Bias` | `GPIO.Bias` |
+| `Std.DetectEdge` | `EdgeType` | `Std.EdgeType` |
+| `KNX.Connection` | `Protocol` | `KNX.Protocol` |
+| MQTT nodes | `Format` | `MQTT.Format` |
+
+Member names match the former strings.
+
+`TwoN.Connection` requires an absolute `UsernamePasswordFile`. To read a
+file beside the calling source file, use:
+
+```wirely
+UsernamePasswordFile:
+  Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt"),
+```
+
+#### Time values
+
+Replace `TimeOfDay_AddWrap(time, offset)` with
+`TimeOfDay.WrappingAdd(time, duration)`, for example
+`TimeOfDay.WrappingAdd("23:30", "PT1H")`.
+
+`TimeOfDay` strings use two-digit hours and minutes, optionally followed by
+seconds and up to nine fraction digits, such as `"08:00:30.125"`. `"24:00"`
+is the end of the day.
+
+Replace `MonotonicTime.Invalid` with `Option[MonotonicTime]` and `None`.
+`Time.MonotonicTimeReached` takes `value Option[MonotonicTime]`.
+
+#### Stricter checks
+
+- Every input except `multi` inputs needs a source, including resource
+  inputs that nothing uses.
+- Each state and temporary variable needs exactly one producing procedure.
+- `assert` is a keyword; write `r#assert` to use it as an identifier.
+
+### Added
+
+- Write procedure bodies in Wirely, in node types or at the program root.
+  Bodies assign each output once and support `let`, `if`, and expressions:
+
+  ```wirely
+  procedure run
+    depends on Enabled, default input as input
+    produces default output as output
+  {
+    output = if Enabled { input } else { Fallback };
+  }
+  ```
+
+  See [procedure bodies](doc/language.md#procedure-bodies).
+- Declare compile-time constants with `constant Name: Type = expression;`
+  and check conditions with `assert condition, "message";`.
+- Expressions support ordering comparisons, equality for all value types
+  (and for types at compile time), struct field access, and compile-time
+  integer arithmetic. Integer types provide wrapping, saturating, and
+  checked arithmetic and conversions such as `uint8.CheckedFrom(value)`.
+  Options support `IsSome`, `IsNone`, `UnwrapOr(fallback)`,
+  `if let Some(x) = value { ... } else { ... }`, and compile-time
+  `Unwrap()`.
+- Declare `native function` and `native constant function` in libraries.
+  See [native functions](doc/language.md#native-functions).
+- The `std` library provides arithmetic and conversions for `Duration`,
+  `MonotonicTime`, and `TimeOfDay`. See [value types](doc/value-types.md).
+- The `path` library provides `Path.Join`, `Path.Parent`, and
+  `Path.SourceFile`.
+- `wirely run-service --state-directory DIR` serves local control sockets
+  for status, pausing, stepping, and state snapshots; `wirely client` sends
+  these requests. See
+  [local sockets](doc/control-protocol.md#local-sockets).
+- `wirely.compiler.attribute_editing` adds, sets, and removes attributes
+  while preserving source formatting.
 
 ## 0.1.1 - 2026-10-04
 
