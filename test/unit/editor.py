@@ -93,9 +93,9 @@ edits = program.move({Node(('source',)): (10.4, -20.6), Node(('printer',)): (300
                       count: (5, 5)})
 checks.assertEqual(sorted(edit.filename for edit in edits), ['lib.wrl', 'main.wrl'])
 texts = edited(edits)
-checks.assertIn('#![position(x = 10, y = -21)]', texts['main.wrl'])
-checks.assertIn('#![position(x = 300, y = 0)]', texts['main.wrl'])
-checks.assertIn('#[position(x = 5, y = 5)]\n  state count', texts['lib.wrl'])
+checks.assertIn('#![position(x = 10.0, y = -21.0)]', texts['main.wrl'])
+checks.assertIn('#![position(x = 300.0, y = 0.0)]', texts['main.wrl'])
+checks.assertIn('#[position(x = 5.0, y = 5.0)]\n  state count', texts['lib.wrl'])
 
 # Deleting a node and a connection to it removes each once.
 texts = edited(program.delete([Connection((), 'counter', 'printer'), Node(('printer',))]))
@@ -106,7 +106,7 @@ checks.assertEqual((node_name('Std.DebugValuePrinter'), node_name('Memory.Toggle
                     node_name('Std.Constant[int32]')),
                    ('debug_value_printer', 'toggle_flip_flop_trigger', 'constant'))
 texts = edited(program.add_node((), 'Std.DebugValuePrinter', (1, 2)))
-checks.assertIn('#[position(x = 1, y = 2)]\nnode debug_value_printer: Std.DebugValuePrinter {}',
+checks.assertIn('#[position(x = 1.0, y = 2.0)]\nnode debug_value_printer: Std.DebugValuePrinter {}',
                 texts['main.wrl'])
 
 checks.assertFalse(program.can_connect((), 'source', 'printer').allowed)
@@ -131,14 +131,23 @@ checks.assertEqual(program.element_at('main.wrl', offset), ((), Connection((), '
 # The layout places items in columns from left to right, ignoring cycles, with
 # body inputs first and outputs last; stored positions are kept, and only an
 # unplaced item overlapping a placed one moves.
-items = [LayoutItem(name, 100, 50, column='last' if name == 'out' else None) for name in ('a', 'b', 'c', 'out')]
+items = [LayoutItem(name, 6, 3, column='last' if name == 'out' else None) for name in ('a', 'b', 'c', 'out')]
 edges = [('a', 'b'), ('b', 'c'), ('c', 'b')]
 positions = layout(items, edges)
 checks.assertEqual(positions, layout(items, edges))
 checks.assertEqual([positions[name][0] for name in ('a', 'b', 'c', 'out')],
-                   [0, 100 + COLUMN_GAP, 2 * (100 + COLUMN_GAP), 3 * (100 + COLUMN_GAP)])
-items[0] = LayoutItem('a', 100, 50, position=(2 * (100 + COLUMN_GAP), 20))
+                   [0, 6 + COLUMN_GAP, 2 * (6 + COLUMN_GAP), 3 * (6 + COLUMN_GAP)])
+items[0] = LayoutItem('a', 6, 3, position=(2 * (6 + COLUMN_GAP), 1))
 placed = layout(items, edges)
-checks.assertEqual(placed['a'], (2 * (100 + COLUMN_GAP), 20))
+checks.assertEqual(placed['a'], (2 * (6 + COLUMN_GAP), 1))
 checks.assertEqual(placed['b'], positions['b'])
-checks.assertGreater(placed['c'][1], 20 + 50)
+checks.assertGreater(placed['c'][1], 1 + 3)
+
+# Fractional sizes round up, stored positions snap before overlap avoidance,
+# and every layout coordinate remains a float.
+placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
+                 LayoutItem('auto', 6.2, 3.1)], [])
+checks.assertEqual(placed, {'fixed': (0.0, -1.0), 'auto': (0.0, 6.0)})
+checks.assertTrue(all(type(value) is float for position in placed.values() for value in position))
+texts = edited(program.add_declaration((), 'state extra: boolean = false;', (-2.5, 3.5)))
+checks.assertIn('#[position(x = -2.0, y = 4.0)]', texts['main.wrl'])

@@ -20,6 +20,7 @@ from wirely.compiler.outline import Connection, Node, NodeType
 from . import graph_model
 from .graph_view import EdgeGraphic, GraphTab, ItemGraphic
 from .graph_model import Unresolved
+from .grid import from_pixels
 from .palette import DeclarationDialog, NodePalette
 from .program import renamed_path
 from .properties import PropertiesPanel
@@ -326,7 +327,7 @@ class MainWindow(QMainWindow):
         palette = NodePalette(self.program.analysis.node_types(tab.path), self)
         if palette.exec() and palette.selected_type():
             type_text = palette.selected_type()
-            self.edit(lambda: self.program.add_node(tab.path, type_text, (position.x(), position.y())))
+            self.edit(lambda: self.program.add_node(tab.path, type_text, from_pixels(position.x(), position.y())))
 
     def add_declaration(self, tab, kind, position):
         # Public parameters and ports use PascalCase, the others snake_case.
@@ -339,7 +340,8 @@ class MainWindow(QMainWindow):
             except _EDIT_ERRORS as error:
                 QMessageBox.warning(self, f'Add {kind}', str(error))
                 continue
-            self.edit(lambda: self.program.add_declaration(tab.path, declaration, (position.x(), position.y())))
+            self.edit(lambda: self.program.add_declaration(tab.path, declaration,
+                                                          from_pixels(position.x(), position.y())))
             return
 
     def _refuse_while_broken(self, action):

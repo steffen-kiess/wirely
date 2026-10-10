@@ -18,9 +18,10 @@ from wirely.compiler.outline import Connection
 
 from . import layout as _layout
 from .graph_model import Unresolved, layout_edges
+from .grid import STEP, from_pixels, size
 
 PADDING = 8
-ROW_HEIGHT = 18
+ROW_HEIGHT = STEP
 SOCKET_RADIUS = 5
 MIN_WIDTH = 110
 COLUMN_GAP = 24
@@ -97,11 +98,12 @@ class ItemGraphic(QGraphicsObject):
         rows = max(len(model_item.inputs), len(model_item.outputs))
         left = max((label.horizontalAdvance(socket.label) for socket in model_item.inputs), default=0)
         right = max((label.horizontalAdvance(socket.label) for socket in model_item.outputs), default=0)
-        self.width = max(MIN_WIDTH, title.horizontalAdvance(model_item.title) + 2 * PADDING + 16,
-                         subtitle.horizontalAdvance(model_item.subtitle) + 2 * PADDING,
-                         left + right + 2 * PADDING + COLUMN_GAP)
-        self.header = PADDING + title.height() + subtitle.height() + 4
-        self.height = self.header + rows * ROW_HEIGHT + PADDING / 2
+        width = max(MIN_WIDTH, title.horizontalAdvance(model_item.title) + 2 * PADDING + 16,
+                    subtitle.horizontalAdvance(model_item.subtitle) + 2 * PADDING,
+                    left + right + 2 * PADDING + COLUMN_GAP)
+        self.width = size(width / STEP) * STEP
+        self.header = size((PADDING + title.height() + subtitle.height() + 4) / STEP) * STEP
+        self.height = self.header + (rows + 1) * STEP
         for socket in self.sockets.values():
             socket.setParentItem(None)
             if socket.scene() is not None:
@@ -110,7 +112,7 @@ class ItemGraphic(QGraphicsObject):
         for side, sockets, x in (('inputs', model_item.inputs, 0), ('outputs', model_item.outputs, self.width)):
             for row, socket in enumerate(sockets):
                 graphic = SocketGraphic(self, socket, side, row)
-                graphic.setPos(x, self.header + row * ROW_HEIGHT + ROW_HEIGHT / 2)
+                graphic.setPos(x, self.header + (row + 1) * STEP)
                 self.sockets[(side, socket.key)] = graphic
         messages = [diagnostic.message for diagnostic in model_item.diagnostics]
         self.setToolTip('\n\n'.join(messages) if messages else '')
@@ -119,7 +121,7 @@ class ItemGraphic(QGraphicsObject):
     def socket_position(self, side, key):
         socket = self.sockets.get((side, key))
         if socket is None:
-            return self.mapToScene(QPointF(0 if side == 'inputs' else self.width, self.header / 2))
+            return self.mapToScene(QPointF(0 if side == 'inputs' else self.width, self.header))
         return socket.scenePos()
 
     def boundingRect(self):
@@ -162,7 +164,7 @@ class ItemGraphic(QGraphicsObject):
         for side, sockets in (('inputs', model_item.inputs), ('outputs', model_item.outputs)):
             for row, socket in enumerate(sockets):
                 painter.setPen(text_color if socket.resolved else _ERROR_COLOR)
-                top = self.header + row * ROW_HEIGHT
+                top = self.header + (row + 1) * STEP - ROW_HEIGHT / 2
                 alignment = Qt.AlignmentFlag.AlignLeft if side == 'inputs' else Qt.AlignmentFlag.AlignRight
                 painter.drawText(QRectF(PADDING, top, self.width - 2 * PADDING, ROW_HEIGHT),
                                  alignment | Qt.AlignmentFlag.AlignVCenter, socket.label)
@@ -175,6 +177,13 @@ class ItemGraphic(QGraphicsObject):
             painter.drawText(QRectF(self.width - 10, -10, 16, 16), Qt.AlignmentFlag.AlignCenter, '!')
 
     def itemChange(self, change, value):
+        if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
+            # Round a drag's displacement so half-step ties preserve group spacing.
+            positions = getattr(self.scene(), '_press_positions', None)
+            origin = positions.get(self.model.id, QPointF()) if positions else QPointF()
+            delta = value - origin
+            x, y = from_pixels(delta.x(), delta.y())
+            return origin + QPointF(x * STEP, y * STEP)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             for edge in self.edges:
                 edge.update_path()
@@ -274,6 +283,20 @@ class GraphScene(QGraphicsScene):
         self._drag = None
         self._press_positions = None
 
+    def drawBackground(self, painter, rect):
+        super().drawBackground(painter, rect)
+        painter.save()
+        pen = QPen(QColor('#d3d3d3'), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        pen.setCosmetic(True)
+        painter.setPen(pen)
+        left = math.ceil(rect.left() / STEP)
+        right = math.floor(rect.right() / STEP)
+        top = math.ceil(rect.top() / STEP)
+        bottom = math.floor(rect.bottom() / STEP)
+        for y in range(top, bottom + 1):
+            painter.drawPoints([QPointF(x * STEP, y * STEP) for x in range(left, right + 1)])
+        painter.restore()
+
     def set_model(self, model):
         """Show a model, reusing the graphics of items with the same ID."""
         self.model = model
@@ -305,13 +328,13 @@ class GraphScene(QGraphicsScene):
             self.edge_graphics.append(graphic)
 
         positions = _layout.layout(
-            [_layout.LayoutItem(model_item.id, graphic.width, graphic.height, model_item.position,
+            [_layout.LayoutItem(model_item.id, graphic.width / STEP, graphic.height / STEP, model_item.position,
                                 'first' if model_item.kind == 'input' else
                                 'last' if model_item.kind == 'output' else None)
              for model_item, graphic in ((item, self.items_by_id[item.id]) for item in model.items)],
             layout_edges(model))
         for item_id, (x, y) in positions.items():
-            self.items_by_id[item_id].setPos(x, y)
+            self.items_by_id[item_id].setPos(x * STEP, y * STEP)
         for graphic in self.edge_graphics:
             graphic.update_path()
 
@@ -396,7 +419,7 @@ class GraphScene(QGraphicsScene):
             for graphic in self.selectedItems():
                 if isinstance(graphic, ItemGraphic) and graphic.model.id in self._press_positions \
                         and graphic.pos() != self._press_positions[graphic.model.id]:
-                    moved[graphic.model.id] = (graphic.pos().x(), graphic.pos().y())
+                    moved[graphic.model.id] = from_pixels(graphic.pos().x(), graphic.pos().y())
             self._press_positions = None
             if moved:
                 self.moved.emit(moved)

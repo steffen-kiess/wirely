@@ -6,10 +6,12 @@ automatic positions of the others unchanged; only an unplaced item that would
 overlap a placed one moves below it.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-COLUMN_GAP = 80
-ROW_GAP = 30
+from .grid import size, snap
+
+COLUMN_GAP = 4.0
+ROW_GAP = 2.0
 SWEEPS = 4
 
 
@@ -18,14 +20,16 @@ class LayoutItem:
     id: object
     width: float
     height: float
-    position: tuple | None = None
+    position: tuple[float, float] | None = None
     # 'first' or 'last' to force the first or last column.
     column: str | None = None
 
 
 def layout(items, edges):
-    """Return {ID: (x, y)} for items; edges are (source ID, target ID) pairs."""
-    items = list(items)
+    """Return snapped grid coordinates; edges are (source ID, target ID) pairs."""
+    items = [replace(item, width=size(item.width), height=size(item.height),
+                     position=None if item.position is None else tuple(map(snap, item.position)))
+             for item in items]
     if not items:
         return {}
     index = {item.id: number for number, item in enumerate(items)}
@@ -149,9 +153,9 @@ def _order(column, successors, predecessors):
 
 def _coordinates(items, rows):
     positions = [None] * len(items)
-    x = 0
+    x = 0.0
     for row in rows:
-        y = 0
+        y = 0.0
         for node in row:
             positions[node] = (x, y)
             y += items[node].height + ROW_GAP

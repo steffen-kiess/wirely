@@ -69,7 +69,7 @@ parameter, constant, state, temporary, or procedure in a node type body:
 
 ```wirely
 node source: Std.Constant {
-  #![position(x = 120, y = -40.5)]
+  #![position(x = 12.0, y = -4.0)]
   Type: boolean,
   Value: true,
 }
@@ -78,7 +78,9 @@ node source: Std.Constant {
 `position` requires one finite numeric literal for each of `x` and `y`, and
 can appear once per declaration. Coordinates are compiler metadata. Graph
 editors place the top-left corner of an element there, with `y` increasing
-downward.
+downward. The graphical editor uses grid units, each equal to the distance
+between adjacent ports. It snaps positions to whole grid units and writes
+floating point coordinates.
 
 Tools can add, change, rename, and remove declarations, connect ports, and
 set attributes in source text with `wirely.compiler.editing`. Comments and

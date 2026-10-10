@@ -43,7 +43,7 @@ class Item:
     subtitle: str
     inputs: tuple[Socket, ...]
     outputs: tuple[Socket, ...]
-    position: tuple | None
+    position: tuple[float, float] | None
     diagnostics: tuple
     # The node type a node instantiates, if declared in the sources.
     node_type: object = None
@@ -97,7 +97,8 @@ def build(program, path):
 
     def add(kind, record, title, subtitle, inputs, outputs, node_type=None):
         builders[record.id] = _ItemBuilder(record.id, kind, title, subtitle, list(inputs), list(outputs),
-                                           record.position, tuple(diagnostics[record.id]), node_type)
+                                           None if record.position is None else tuple(map(float, record.position)),
+                                           tuple(diagnostics[record.id]), node_type)
 
     for node in scope.nodes:
         inputs, outputs = _node_sockets(analysis, node)
@@ -236,4 +237,3 @@ def _reference(name):
         return format_identifier(name)
     except ValueError:
         return name
-
