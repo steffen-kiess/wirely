@@ -211,6 +211,29 @@ def validate_nodes(graph):
         node = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
         if node.connected_source is None:
             raise ProgramError(variable, f'{"State" if is_state else "Temporary"} {name!r} has no source')
+    for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values()):
+        check_alias_cycle(graph, node)
+
+
+def passed_on_variable(source):
+    """Return the temporary or copied state whose value source passes on, if any."""
+    if isinstance(source, model.TemporaryNode):
+        return source
+    if isinstance(source, model.StateRead) and source.phase == 'new' and source.state.copy_source is not None:
+        return source.state
+    return None
+
+
+def check_alias_cycle(graph, start):
+    """Reject a variable whose value is passed back to it without a procedure."""
+    node = start
+    seen = set()
+    while node is not None and node not in seen:
+        seen.add(node)
+        node = passed_on_variable(node.copy_source if isinstance(node, model.StateNode) else node.connected_source)
+        if node is start:
+            connection = next(connection for connection in graph.connections if connection.target is start)
+            raise ProgramError(connection.source_element, 'Circular connection')
 
 
 def register_name(graph, name, declaration):

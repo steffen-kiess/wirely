@@ -398,6 +398,8 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
         self.impl_var_type = self.var_type
 
         self.producer = None
+        # The source copied into this state, or None if a procedure port stores it.
+        self.copy_source = None
 
         self.node.state_variables.append(self)
 

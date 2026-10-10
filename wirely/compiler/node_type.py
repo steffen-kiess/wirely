@@ -257,6 +257,9 @@ class NodeType(model.Scope):
 
         for name, temporary in temporaries.items():
             temporary.alias_of = source(self.temporary_nodes[name].connected_source)
+        for name, state in self.state_nodes.items():
+            if state.copy_source is not None:
+                state_variables[name].copy_source = source(state.copy_source)
 
         node.initializer_sources = {}
         if self.initializer is not None:

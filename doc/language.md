@@ -442,12 +442,11 @@ connect default input -> invert.value;
 
 Port names must be unique within each clause. Each input port needs exactly
 one source unless it is `multi`. A temporary takes the value of its one
-source. State takes its new value from one procedure output port; other
-targets of that port receive the new value. Output ports may have any
-number of targets.
+source, and state takes its new value from its one source. Output ports may
+have any number of targets.
 
 `last_value.old` reads the previous step's state without depending on this
-step's writer.
+step's source.
 
 Use `connect last_value.old -> target;` to feed local state into a
 `value Type` input or output. It reads the initial value on the first step
@@ -455,10 +454,10 @@ and the previous step's state thereafter. Similarly, `connect name -> target;`
 feeds the value of a temporary calculated this step.
 
 `last_value.new` reads the value produced this step. Use it as a
-connection source or reference port in `depends on`. Its writer must run
-in the same or an earlier stage, and the reader depends on that writer. If
-the writer is skipped because its inputs are unchanged, it supplies the
-retained state value.
+connection source or reference port in `depends on`. The procedure
+producing the state's source must run in the same or an earlier stage, and
+the reader depends on that procedure. If the procedure is skipped because
+its inputs are unchanged, it supplies its retained value.
 
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends

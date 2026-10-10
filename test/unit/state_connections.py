@@ -396,5 +396,91 @@ def check_current_snapshots():
     assert observations['second.owner'] == (0, 9)
 
 
+copied_definitions = '''
+node type Copies {
+  default input: value uint8;
+  output Fanned: value uint8;
+  output Delayed: value uint8;
+  output Current: value uint8;
+  output Twice: value uint8;
+  output Mirrored: value uint8;
+  output Published: value uint8;
+
+  state first: uint8 = 0;
+  state second: uint8 = 9;
+  state latched: uint8 = 0;
+  state twice: uint8 = 0;
+  state mirror: uint8 = 5;
+  state sent: uint8 = 0;
+  state published: uint8 = 0;
+
+  procedure forward
+    depends on default input as input
+    produces result: value uint8
+  {
+    result = input;
+  }
+  connect forward.result -> first;
+  connect forward.result -> second;
+  connect default input -> latched;
+  connect latched.old -> twice;
+  connect first.new -> mirror;
+
+  procedure publish stage output
+    depends on default input as input
+    produces value: value uint8
+  {
+    value = input;
+  }
+  connect publish.value -> sent;
+  connect publish.value -> published;
+  procedure observe stage output
+    depends on published.new as value
+    produces Published as output
+  {
+    output = value;
+  }
+
+  connect second.old -> Fanned;
+  connect latched.old -> Delayed;
+  connect latched.new -> Current;
+  connect twice.old -> Twice;
+  connect mirror.old -> Mirrored;
+}
+'''
+
+
+def check_copied_states():
+    copied = make_engine('''
+    node source: Std.DebugValueSource { Type: uint8 }
+    node copies: Copies {}
+    connect source -> copies;
+    ''', declarations=copied_definitions)
+
+    def check(fanned, delayed, current, twice, mirrored, published):
+        for name, value in [('Fanned', fanned), ('Delayed', delayed), ('Current', current),
+                            ('Twice', twice), ('Mirrored', mirrored), ('Published', published)]:
+            copied.assert_value_is('copies.' + name, value)
+
+    copied.get_native_state('source').set_value(3)
+    copied.step()
+    check(9, 0, 3, 0, 5, 3)
+    copied.step()
+    check(3, 3, 3, 0, 3, 3)
+    copied.step()
+    check(3, 3, 3, 3, 3, 3)
+    copied.assert_is_idle()
+
+    copied.get_native_state('source').set_value(7)
+    copied.step()
+    check(3, 3, 7, 3, 3, 7)
+    copied.step()
+    check(7, 7, 7, 3, 7, 7)
+    copied.step()
+    check(7, 7, 7, 7, 7, 7)
+    copied.assert_is_idle()
+
+
 check_old_snapshots()
 check_current_snapshots()
+check_copied_states()

@@ -154,7 +154,7 @@ class StateNode(GraphElement):
             raise Exception(f'Duplicate state node name: {name!r}')
         self.graph.state_nodes[name] = self
 
-        # The procedure output port writing this state.
+        # The source of this state's new value.
         self.connected_source = None
 
         # TODO: Remove
@@ -164,6 +164,14 @@ class StateNode(GraphElement):
         if self.connected_source is not None:
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
+
+    @property
+    def copy_source(self):
+        """The source copied into this state, or None if a procedure port stores it."""
+        source = self.connected_source
+        if isinstance(source, ProcedureOutputPort) and source.state is self:
+            return None
+        return source
 
     def __repr__(self):
         return f'<StateNode "{self.name}">'

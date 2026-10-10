@@ -234,20 +234,3 @@ resource type Handle;
 native node type Invalid {
   native initializer depends on handle: resource Handle; // E: Initializer dependencies must reference resources
 }
-
-// TEST: state_from_non_procedure
-node type Invalid {
-  input Flag: value boolean;
-  state saved: boolean = false;
-  connect Flag -> saved; // E: State 'saved' must be supplied by a procedure output
-}
-
-// TEST: state_port_twice
-node type Invalid {
-  state first: boolean = false;
-  state second: boolean = false;
-  native procedure run
-    produces next: value boolean;
-  connect run.next -> first;
-  connect run.next -> second; // E: Port 'next' of procedure 'run' already supplies state 'first'
-}

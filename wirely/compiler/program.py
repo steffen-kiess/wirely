@@ -4,9 +4,15 @@ from wirely.compiler import model
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import (
-    Constant, Function, InputSource, NativeInstance, OutputTarget, Procedure, Program,
-    RunStage, Variable, VariableTable,
+    Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    OutputTarget, Procedure, ProcedureBody, Program, RunStage, Variable, VariableTable,
 )
+
+# Body of a procedure storing a copied state: output.0 = input.0.
+COPY_BODY = ProcedureBody((
+    Instruction(Opcode.COPY, (Operand(OperandKind.OUTPUT, 0), Operand(OperandKind.INPUT, 0))),
+    Instruction(Opcode.RETURN),
+))
 
 
 def compile(global_node_type, *, on_diagnostic=None):
@@ -341,6 +347,24 @@ def compile_nocatch(global_node_type):
                 values=evaluate_bindings(proc.declaration_procedure.uses, instances[path]),
             ))
         schedules[stage] = tuple(schedule)
+
+    # Copied states store their sources once every procedure has run.
+    # Readers of their new value read the source directly.
+    copies = []
+    for path, instance in instances.items():
+        node = instance.node or instance.node_type.singleton_instance
+        for state in node.state_variables:
+            if state.copy_source is None:
+                continue
+            copies.append(Procedure(
+                node_id=node_ids[path],
+                reference=(instance.node_type.fullname_tuple, f'<state {state.name}>'),
+                node_context=native_instances[node_ids[path]],
+                dependencies=(('value', (resolve_source(path, state.copy_source),), False),),
+                resources=(), outputs={'value': OutputTarget(state_map[path, state])},
+                body=COPY_BODY,
+            ))
+    schedules[RunStage.OUTPUT] += tuple(copies)
     node_aliases = {}
     variables = {}
 

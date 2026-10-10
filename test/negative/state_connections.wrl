@@ -260,3 +260,13 @@ procedure write stage output produces saved { saved = true; }
 procedure read depends on saved.new as value produces current {
   current = value;
 } // ^^E: later execution stage
+
+// TEST: state new value fed back
+state saved: boolean = false;
+connect saved.new -> saved; // E: Circular connection
+
+// TEST: state new value fed back through a temporary
+state saved: boolean = false;
+temporary current: boolean;
+connect saved.new -> current;
+connect current -> saved; // E: Circular connection

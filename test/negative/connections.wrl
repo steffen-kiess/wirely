@@ -117,3 +117,9 @@ node type Probe {
   temporary flag: boolean; // E: Temporary 'flag' has no source
   connect flag -> default output;
 }
+
+// TEST: temporary cycle
+temporary first: boolean;
+temporary second: boolean;
+connect first -> second;
+connect second -> first; // E: Circular connection

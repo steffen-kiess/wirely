@@ -78,12 +78,6 @@ def connect(source, target, source_element, *, attributes=()):
         if isinstance(target, model.InstanceInputPort):
             message += '; only multi inputs accept several'
         raise model.ProgramError(source_element, message, hints=previous_connection_hints())
-    if isinstance(target, model.StateNode):
-        if not isinstance(source, model.ProcedureOutputPort):
-            raise model.ProgramError(source_element, f'State {target.name!r} must be supplied by a procedure output')
-        if source.state is not None:
-            raise model.ProgramError(source_element, f'{describe_target(source)} already supplies state {source.state.name!r}',
-                                      hints=previous_connection_hints())
 
     def record(kind):
         actual_target = target.members[-1] if isinstance(target, model.InstanceInputPort) and target.is_list else target
@@ -117,7 +111,9 @@ def connect(source, target, source_element, *, attributes=()):
         incompatible(f'source has type {source_type} but target has type {target_type}')
 
     target.connect(source)
-    if isinstance(target, model.StateNode):
+    # A procedure port stores its first state; later states copy it.
+    if (isinstance(target, model.StateNode) and isinstance(source, model.ProcedureOutputPort)
+            and source.state is None):
         source.state = target
     record('state' if isinstance(source, (model.StateNode, StateRead)) else 'data')
 
@@ -135,6 +131,9 @@ def resolve_variable(path, var):
 
     if isinstance(var, StateRead):
         owner_path, state = resolve_variable(path, var.state)
+        # A copied state's new value is its source's value.
+        if var.phase == 'new' and state.copy_source is not None:
+            return resolve_variable(owner_path, state.copy_source)
         return owner_path, StateRead(state, var.phase, var.reference)
 
     if isinstance(var.node, InstanceNode) and var.node.node_type.is_singleton:
