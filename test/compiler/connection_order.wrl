@@ -1,0 +1,28 @@
+node type Forward {
+  default input: value boolean;
+  default output: value boolean;
+
+  connect child -> default output;
+  connect default input -> child;
+  node child: Std.And {}
+}
+
+node type Nested {
+  default output: value boolean;
+
+  connect forward -> default output;
+  connect first -> forward;
+  connect first -> combined;
+  connect second, first -> combined;
+  connect combined -> sink;
+
+  node first: Std.Constant { Type: boolean, Value: true }
+  node second: Std.Constant { Type: boolean, Value: false }
+  node forward: Forward {}
+  node combined: Std.And {}
+  node sink: Std.DebugValuePrinter { Type: boolean }
+}
+
+connect nested -> sink;
+node nested: Nested {}
+node sink: Std.DebugValuePrinter { Type: boolean }

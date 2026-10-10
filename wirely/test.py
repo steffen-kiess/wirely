@@ -78,6 +78,7 @@ to_compile = [
     'test/compiler/assertions.wrl',
     'test/compiler/attributes.wrl',
     'test/compiler/constants.wrl',
+    'test/compiler/connection_order.wrl',
     'test/compiler/equality.wrl',
     'test/compiler/ordering.wrl',
     'test/compiler/arithmetic.wrl',

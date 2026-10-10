@@ -151,10 +151,18 @@ class NodeType(model.Scope):
         self.parameters_by_name = self.parsed_parameters
 
     def compile_pass2(self, graph):
+        connections = []
         for decl in self.declarations:
+            if isinstance(decl, model.DeclarationConnection):
+                connections.append(decl)
+                continue
             if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
+        # Connections can reference nodes declared later in this scope.
+        for decl in connections:
+            with decl.context:
+                decl.compile_pass2(self)
         # The root graph binds its procedures when compiling the program.
         if self.parent_graph is not None:
             model.ast.validate_nodes(self)
