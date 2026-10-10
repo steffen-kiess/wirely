@@ -37,7 +37,8 @@ as variable aliases.
   ```
 - Connections can target temporaries and state; state takes its value from
   a procedure output port. Bound output ports can target child inputs.
-- `if` conditions accept type arguments, as in `T == Option[uint8]`.
+- `if` conditions accept indexing, `()`, list literals, and nested `if`, as
+  in `T == Option[uint8]`.
 
 ## 0.1.2 - 2026-10-10
 

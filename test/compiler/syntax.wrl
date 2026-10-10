@@ -180,6 +180,16 @@ namespace TestLibrary {
 constant IsOption: boolean = if Option[uint8] == Option[uint8] { true } else { false };
 assert IsOption;
 
+struct type Flag { set: boolean }
+constant Pair: List[uint8] = [1, 2];
+constant ConditionForms: boolean =
+  if [1, 2] == Pair && () == () && (Flag { set: true }).set {
+    if if true { true } else { false } { true } else { false }
+  } else {
+    false
+  };
+assert ConditionForms;
+
 struct type PortStruct { flag: boolean }
 node type TypedPorts {
   default input: value boolean;

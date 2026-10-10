@@ -489,6 +489,8 @@ Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
 lists compare ordered contents and length; structs compare fields and must
 have the same declared type. Durations compare nanoseconds; monotonic times
 compare generation and timestamp. `!=` is the complement of `==`.
+Put a struct literal in parentheses when it appears directly in an `if`
+condition.
 
 `<`, `<=`, `>`, and `>=` order integers, `Duration`, and `TimeOfDay` values
 of the same type. Times of day compare within one day, so `"23:00"` is

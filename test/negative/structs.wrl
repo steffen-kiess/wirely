@@ -347,3 +347,7 @@ node type Probe {
   }
 }
 node probe: Probe { Value: Labeled { label: "a", enabled: true } }
+
+// TEST: struct_literal_type
+struct type Flag { set: boolean }
+state bad: Flag { set: true } = Flag { set: true }; // E: Syntax error

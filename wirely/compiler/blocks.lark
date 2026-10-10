@@ -1,263 +1,273 @@
-file_input: inner_attribute* declaration*
+// Grammar of Wirely source files, parsed by Lark's LALR parser with the basic
+// lexer. Rule names and aliases select the AST constructor in
+// parser.Transformer: "name" calls the class Name, "name__method" calls
+// Name.method, and "copy" and "copy_list" pass the children through.
+// Rules starting with "_" are spliced into their parent; rules starting with
+// "?" are replaced by their child when they have only one.
 
+// ---------------------------------------------------------------------------
+// Files and declarations
+
+file_input: inner_attribute* declaration*
+declaration_list: inner_attribute* declaration* -> file_input
 declaration: outer_attribute* bare_declaration -> attributed
 
-bare_declaration: "native" "function" identifier "(" function_argument_list ")" ":" value ";" -> declaration_native_function
-           | "native" "constant" "function" identifier "(" function_argument_list ")" ":" value ";" -> declaration_native_function__create_constant
-           | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
-           | "resource" "type" identifier ";" -> declaration_resource_type
-           | "enum" "type" identifier ":" enum_underlying_type "{" enum_member_list "}" -> declaration_enum_type
-           | "node" identifier ":" block_instantiation -> declaration_block_instantiation
-           | "connect" connection_source_list "->" reference ";" -> declaration_connection
-           // TODO: Can this be done in a nicer way?
-           | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
-           | "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
-           | "state" identifier ":" value "=" value ";" -> declaration_state_variable
-           | "temporary" identifier ":" value ";" -> declaration_temporary_variable
-           | native_specifier "procedure" identifier ["as" string_constant] stage_declaration depends_declaration produces_declaration [uses_declaration] ";" -> declaration_procedure
-           | "procedure" identifier stage_declaration depends_declaration produces_declaration procedure_body -> declaration_procedure__create_body
-           | "native" "initializer" depends_declaration [uses_declaration] ";" -> declaration_initializer
-           | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
-           | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
-           | "assert" value ["," string_constant] ";" -> declaration_assertion
-           | "constant" identifier ":" value "=" value ";" -> declaration_constant
-           | [optional_specifier] "parameter" identifier ":" value ";" -> declaration_parameter
-           | "parameter" identifier ":" value "=" value ";" -> declaration_parameter__with_default_value
-declaration_list: inner_attribute* declaration* -> file_input
+// Namespaces and node types
+bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
+    // TODO: Can this be done in a nicer way?
+    | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
+    // Types
+    | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
+    | "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type
+    | "resource" "type" identifier ";" -> declaration_resource_type
+    // Native functions
+    | "native" "function" _signature ";" -> declaration_native_function
+    | "native" "constant" "function" _signature ";" -> declaration_native_function__create_constant
+    // Compile-time values
+    | "constant" identifier ":" type "=" expression ";" -> declaration_constant
+    | [optional_specifier] "parameter" identifier ":" type ";" -> declaration_parameter
+    | "parameter" identifier ":" type "=" expression ";" -> declaration_parameter__with_default_value
+    | "assert" expression ["," string_constant] ";" -> declaration_assertion
+    // Node type interface
+    | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
+    | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
+    // Graph members
+    | "node" identifier ":" block_instantiation -> declaration_block_instantiation
+    | "connect" connection_source_list "->" reference ";" -> declaration_connection
+    | "state" identifier ":" type "=" expression ";" -> declaration_state_variable
+    | "temporary" identifier ":" type ";" -> declaration_temporary_variable
+    // Procedures and initializers
+    | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
+    | "procedure" identifier _procedure_clauses procedure_body -> declaration_procedure__create_body
+    | "native" "initializer" depends_declaration [uses_declaration] ";" -> declaration_initializer
 
-enum_underlying_type: reference -> copy
-                    | enum_underlying_type "[" value "]" -> bracket_operator
-struct_field_list: inner_attribute* (struct_field ("," struct_field)* ","?)? -> file_input
-struct_field: outer_attribute* bare_struct_field -> attributed
-bare_struct_field: identifier ":" value -> struct_field
-struct_literal_field_list: (struct_literal_field ("," struct_literal_field)* ","?)? -> copy_list
-struct_literal_field: identifier ":" value
-
-enum_member_list: inner_attribute* (enum_member ("," enum_member)* ","?)? -> file_input
-enum_member: outer_attribute* bare_enum_member -> attributed
-bare_enum_member: identifier "=" value -> enum_member
-
-block_instantiation: reference "{" block_parameter_list "}" -> block_instantiation
-
-stage_declaration: -> stage_declaration__create_default
-                 | "stage" "input" -> stage_declaration__create_input
-                 | "stage" "output" -> stage_declaration__create_output
-
-depends_declaration: -> depends_declaration
-                   | "depends" "on" _separated_empty{procedure_binding, ","} -> depends_declaration
-
-produces_declaration: -> produces_declaration
-                   | "produces" _separated_empty{procedure_binding, ","} -> produces_declaration
-
-uses_declaration: "uses" _separated_empty{static_binding, ","}
-static_binding: value ["as" identifier | "as" string_constant]
-
-procedure_binding: reference -> procedure_binding
-                 | reference "as" string_constant -> procedure_binding
-                 | reference "as" identifier -> procedure_binding
-                 | identifier ":" port_specification -> procedure_port
-
-// Port types use the condition grammar, so a struct type can precede a body.
-port_specification: list_specifier connection_kind condition -> connector_specification_data
-                  | list_specifier "resource" reference -> connector_specification_resource
-
-block_parameter_list: inner_attribute* _separated_empty{block_parameter, ","} -> file_input
-
-block_parameter: identifier ":" value
-               | identifier "?:" value -> block_parameter__optional
-
-native_specifier: "native" -> native_specifier
-
-optional_specifier: "optional" -> optional_specifier
-
+native_specifier: "native"
+optional_specifier: "optional"
 block_type_specifier: native_specifier -> copy
-                    | "singleton" -> block_type_specifier__create_singleton
-block_type_specifier_list: block_type_specifier* -> copy_list
+    | "singleton" -> block_type_specifier__create_singleton
 
-connector_specification: list_specifier connection_kind value -> connector_specification_data
-                       | list_specifier "resource" reference -> connector_specification_resource
+// ---------------------------------------------------------------------------
+// Types and native functions
 
-connection_kind: "value" -> connection_kind_specifier__create_value
-               | "event" -> connection_kind_specifier__create_event
+struct_field_list: inner_attribute* _list{struct_field} -> file_input
+struct_field: outer_attribute* bare_struct_field -> attributed
+bare_struct_field: identifier ":" type -> struct_field
 
-block_connector_type: "input" -> block_connector_type_specifier__create_input
-                    | "output" -> block_connector_type_specifier__create_output
+enum_member_list: inner_attribute* _list{enum_member} -> file_input
+enum_member: outer_attribute* bare_enum_member -> attributed
+bare_enum_member: identifier "=" expression -> enum_member
 
+_signature: identifier "(" function_argument_list ")" ":" type
+function_argument_list: _list{function_argument} -> copy_list
+function_argument: identifier ":" type
+
+// ---------------------------------------------------------------------------
+// Connectors, nodes and connections
+
+connector_specification: list_specifier connection_kind type -> connector_specification_data
+    | list_specifier "resource" reference -> connector_specification_resource
 list_specifier: "multi" -> list_specifier__create_list
-              | ()     -> list_specifier__create_nolist
+    | () -> list_specifier__create_nolist
+connection_kind: "value" -> connection_kind_specifier__create_value
+    | "event" -> connection_kind_specifier__create_event
+block_connector_type: "input" -> block_connector_type_specifier__create_input
+    | "output" -> block_connector_type_specifier__create_output
 
-?value: or_expression
-?or_expression: and_expression
-              | or_expression "||" and_expression -> binary_expression__logical_or
-?and_expression: equality_expression
-               | and_expression "&&" equality_expression -> binary_expression__logical_and
-?equality_expression: additive_expression
-                    | additive_expression "==" additive_expression -> binary_expression__equal
-                    | additive_expression "!=" additive_expression -> binary_expression__not_equal
-                    | additive_expression "<" additive_expression -> binary_expression__less
-                    | additive_expression "<=" additive_expression -> binary_expression__less_equal
-                    | additive_expression ">" additive_expression -> binary_expression__greater
-                    | additive_expression ">=" additive_expression -> binary_expression__greater_equal
-?additive_expression: multiplicative_expression
-                    | additive_expression "+" multiplicative_expression -> binary_expression__add
-                    | additive_expression "-" multiplicative_expression -> binary_expression__subtract
-?multiplicative_expression: unary_expression
-                          | multiplicative_expression "*" unary_expression -> binary_expression__multiply
-                          | multiplicative_expression "/" unary_expression -> binary_expression__divide
-                          | multiplicative_expression "%" unary_expression -> binary_expression__remainder
-?unary_expression: atom
-                 | "!" unary_expression -> unary_expression
-                 | "-" unary_expression -> unary_expression__negate
-?atom: reference -> copy
-     | postfix_atom
-?postfix_atom: reference "{" struct_literal_field_list "}" -> struct_literal
-     | int_number -> copy
-     | float_number -> copy
-     | string_constant -> copy
-     | "(" ")" -> unit_literal
-     | "(" value ")" -> copy
-     | atom "[" value "]" -> bracket_operator
-     | atom "(" value_list ")" -> function_call__create
-     | postfix_atom "." identifier -> property_access
-     | "[" value_list "]" -> list_literal
-     | if_expression
-     | expression_block
+block_instantiation: reference "{" block_parameter_list "}"
+block_parameter_list: inner_attribute* _list{block_parameter} -> file_input
+block_parameter: identifier ":" expression
+    | identifier "?:" expression -> block_parameter__optional
 
-?if_expression: "if" condition expression_block "else" _else_branch -> if_expression
-              | "if" "let" identifier "(" identifier ")" "=" condition_equality expression_block "else" _else_branch -> if_let_expression
-_else_branch: expression_block | if_expression
-// A bare struct literal cannot be an if condition, as in Rust.
-?condition: condition_or
-?condition_or: condition_and
-             | condition_or "||" condition_and -> binary_expression__logical_or
-?condition_and: condition_equality
-              | condition_and "&&" condition_equality -> binary_expression__logical_and
-?condition_equality: condition_additive
-                   | condition_additive "==" condition_additive -> binary_expression__equal
-                   | condition_additive "!=" condition_additive -> binary_expression__not_equal
-                   | condition_additive "<" condition_additive -> binary_expression__less
-                   | condition_additive "<=" condition_additive -> binary_expression__less_equal
-                   | condition_additive ">" condition_additive -> binary_expression__greater
-                   | condition_additive ">=" condition_additive -> binary_expression__greater_equal
-?condition_additive: condition_multiplicative
-                   | condition_additive "+" condition_multiplicative -> binary_expression__add
-                   | condition_additive "-" condition_multiplicative -> binary_expression__subtract
-?condition_multiplicative: condition_unary
-                         | condition_multiplicative "*" condition_unary -> binary_expression__multiply
-                         | condition_multiplicative "/" condition_unary -> binary_expression__divide
-                         | condition_multiplicative "%" condition_unary -> binary_expression__remainder
-?condition_unary: condition_atom
-                | "!" condition_unary -> unary_expression
-                | "-" condition_unary -> unary_expression__negate
-?condition_atom: reference -> copy
-               | condition_postfix
-?condition_postfix: int_number -> copy
-               | float_number -> copy
-               | string_constant -> copy
-               | "(" value ")" -> copy
-               | condition_atom "(" value_list ")" -> function_call__create
-               | condition_atom "[" value "]" -> bracket_operator
-               | condition_postfix "." identifier -> property_access
-               | expression_block
+connection_source_list: _list1{connection_source} -> copy_list
+connection_source: outer_attribute* reference -> attributed
 
-expression_block: "{" local_binding* value "}"
+// ---------------------------------------------------------------------------
+// Procedures
+
+// Clauses in fixed order; each may be omitted.
+_procedure_clauses: stage_declaration depends_declaration produces_declaration
+stage_declaration: () -> stage_declaration__create_default
+    | "stage" "input" -> stage_declaration__create_input
+    | "stage" "output" -> stage_declaration__create_output
+depends_declaration: ()
+    | "depends" "on" _list{procedure_binding}
+produces_declaration: ()
+    | "produces" _list{procedure_binding}
+uses_declaration: "uses" _list{static_binding}
+
+// A port bound to a graph member, or a typed port wired with connect.
+procedure_binding: reference ["as" identifier | "as" string_constant]
+    | identifier ":" connector_specification -> procedure_port
+static_binding: expression ["as" identifier | "as" string_constant]
+
 procedure_body: "{" procedure_statement* "}"
 ?procedure_statement: local_binding | output_assignment
-local_binding: "let" identifier [":" value] "=" value ";"
-output_assignment: identifier "=" value ";"
+local_binding: "let" identifier [":" type] "=" expression ";"
+output_assignment: identifier "=" expression ";"
 
-value_list: _separated_empty{value, ","} -> copy_list
+// ---------------------------------------------------------------------------
+// Expressions
+
+// Types are compile-time expressions. As in Rust, a bare struct literal is not
+// allowed where a "{" can follow: in types and if conditions.
+?expression: disjunction{struct_atom}
+?expression_no_struct: disjunction{atom}
+?type: expression_no_struct
+expression_list: _list{expression} -> copy_list
+
+// Binary and unary operators, from lowest to highest precedence. The
+// parameter is the atom rule, which decides whether struct literals appear.
+?disjunction{a}: conjunction{a}
+    | disjunction{a} "||" conjunction{a} -> binary_expression__logical_or
+?conjunction{a}: comparison{a}
+    | conjunction{a} "&&" comparison{a} -> binary_expression__logical_and
+// Comparisons do not chain.
+?comparison{a}: sum{a}
+    | sum{a} "==" sum{a} -> binary_expression__equal
+    | sum{a} "!=" sum{a} -> binary_expression__not_equal
+    | sum{a} "<" sum{a} -> binary_expression__less
+    | sum{a} "<=" sum{a} -> binary_expression__less_equal
+    | sum{a} ">" sum{a} -> binary_expression__greater
+    | sum{a} ">=" sum{a} -> binary_expression__greater_equal
+?sum{a}: product{a}
+    | sum{a} "+" product{a} -> binary_expression__add
+    | sum{a} "-" product{a} -> binary_expression__subtract
+?product{a}: unary{a}
+    | product{a} "*" unary{a} -> binary_expression__multiply
+    | product{a} "/" unary{a} -> binary_expression__divide
+    | product{a} "%" unary{a} -> binary_expression__remainder
+?unary{a}: primary{a}
+    | "!" unary{a} -> unary_expression
+    | "-" unary{a} -> unary_expression__negate
+
+// A dotted name is a reference; "." after anything else is a property access.
+?primary{a}: reference -> copy
+    | postfix{a}
+?postfix{a}: a
+    | primary{a} "[" expression "]" -> bracket_operator
+    | primary{a} "(" expression_list ")" -> function_call__create
+    | postfix{a} "." identifier -> property_access
+
+?struct_atom: atom
+    | reference "{" struct_literal_field_list "}" -> struct_literal
+struct_literal_field_list: _list{struct_literal_field} -> copy_list
+struct_literal_field: identifier ":" expression
+
+?atom: int_number -> copy
+    | float_number -> copy
+    | string_constant -> copy
+    | "(" ")" -> unit_literal
+    | "(" expression ")" -> copy
+    | "[" expression_list "]" -> list_literal
+    | if_expression
+    | expression_block
+
+?if_expression: "if" expression_no_struct expression_block _else -> if_expression
+    | "if" _let comparison{atom} expression_block _else -> if_let_expression
+// "let Some(name) =" in an if let
+_let: "let" identifier "(" identifier ")" "="
+_else: "else" (expression_block | if_expression)
+expression_block: "{" local_binding* expression "}"
+
+// ---------------------------------------------------------------------------
+// Names and literals
 
 reference: identifier ("." identifier)* -> reference__from_list
-         | "default" block_connector_type -> reference__create_default
-reference_list: _separated_empty{reference, ","} -> copy_list
+    | "default" block_connector_type -> reference__create_default
+
+// https://doc.rust-lang.org/reference/identifiers.html
+// https://doc.rust-lang.org/rust-by-example/compatibility/raw_identifiers.html
+// "!" keeps the keyword tokens, see
+// https://lark-parser.readthedocs.io/en/latest/tree_construction.html#pinning-rule-terminals-with
+!identifier: CNAME
+    | RAW_IDENTIFIER
+    // Weak keywords are also accepted as identifiers.
+    | "constant"
+    | "default"
+    | "event"
+    | "input"
+    | "multi"
+    | "on"
+    | "output"
+    | "resource"
+    | "stage"
+    | "state"
+    | "type"
+    | "value"
 
 int_number: _integer_magnitude
-          | "+" _integer_magnitude -> int_number__positive
+    | "+" _integer_magnitude -> int_number__positive
 _integer_magnitude: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
 float_number: FLOAT
 string_constant: STRING | RAW_STRING
+
+// ---------------------------------------------------------------------------
+// Attributes: #[outer] applies to the next item, #![inner] to the enclosing one
+
+outer_attribute: "#[" metadata "]"
+inner_attribute: "#![" metadata "]"
+metadata: metadata_path -> metadata_flag
+    | metadata_path "=" metadata_value_literal -> metadata_value
+    | metadata_path "(" metadata_arguments ")" -> metadata_list
+metadata_path: identifier ("." identifier)*
+metadata_arguments: _list{metadata_argument}
+?metadata_argument: metadata | metadata_literal
+metadata_value_literal: metadata_literal -> copy
+    | metadata_path -> metadata_named_literal
+metadata_literal: int_number -> metadata_literal
+    | "-" int_number -> metadata_negative_int
+    | float_number -> metadata_literal
+    | "+" float_number -> metadata_positive_float
+    | "-" float_number -> metadata_negative_float
+    | string_constant -> metadata_literal
+
+// ---------------------------------------------------------------------------
+// Helpers
+
+// Comma-separated lists, possibly empty or with at least one element, with an
+// optional trailing comma
+_list{x}: _list1{x}?
+_list1{x}: x ("," x)* ","?
+
+// ---------------------------------------------------------------------------
 // Tokens
 
-// COMMENT: /\/\/[^\n]*/
-//        | /\/\*([^\*]|\*[^\/])*\*\//
-
-COMMENT: /\/\/[^\n]*/
-%ignore COMMENT
-
-// COMMENT_START, COMMENT_NEST, COMMENT_CONTENT and COMMENT_END are handled specially by the lexer
-COMMENT_START: "/*"
-// Similar to COMMENT_START, but allows mulitple slashes at the beginning
-COMMENT_NEST: /\/+\*/
-// A comment content consists of one or more of:
-// - something which is neither * nor /
-// - one or more * followed by something which is neither * nor /
-// - one or more / followed by something which is neither * nor /
-COMMENT_CONTENT: /([^\*\/]|\*+[^\*\/]|\/+[^\*\/])+/
-// Note: Multiple stars are considered part of the comment end
-COMMENT_END: /\*+\//
-
-// %ignore is needed to prevent these terminals from being dropped as unused
-%ignore COMMENT_START
-%ignore COMMENT_NEST
-%ignore COMMENT_CONTENT
-%ignore COMMENT_END
-
-// String: A quote, followed an arbitrary number of normal character (preceeded by an arbitrary number of backslashes) or quotes (preceeded by an odd number of backslashes), followed by a quote (preceeded by an even number of backslashes)
-// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
-STRING: /\"(\\*[^\"\\]|(\\\\)*\\\")*(\\\\)*\"/s
-// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw
-// TODO: Support raw strings with more than one #?
-RAW_STRING.2: /r\"[^\"]*\"|r#\"(\"*[^\"#]|#)*\"*\"#/s
+%import common.CNAME
+RAW_IDENTIFIER: "r#" CNAME
 
 DEC_NUMBER: /[0-9]+(?!\w)/
 HEX_NUMBER: /0x[\da-f]*(?!\w)/i
 OCT_NUMBER: /0o[0-7]*(?!\w)/i
 %import common.FLOAT -> FLOAT
 
-%import common.CNAME
-// https://doc.rust-lang.org/reference/identifiers.html
-// https://doc.rust-lang.org/rust-by-example/compatibility/raw_identifiers.html
-// https://lark-parser.readthedocs.io/en/latest/tree_construction.html#pinning-rule-terminals-with
-!identifier: CNAME
-           | RAW_IDENTIFIER
-// Weak keywords are also accepted as identifiers.
-           | "constant"
-           | "default"
-           | "event"
-           | "input"
-           | "multi"
-           | "on"
-           | "output"
-           | "resource"
-           | "stage"
-           | "state"
-           | "type"
-           | "value"
-RAW_IDENTIFIER: "r#" CNAME
+// A quote, then any number of characters other than quotes and backslashes
+// (each after any number of backslashes) or of quotes (after an odd number of
+// backslashes), then a quote after an even number of backslashes.
+// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
+STRING: /\"(\\*[^\"\\]|(\\\\)*\\\")*(\\\\)*\"/s
+// https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw
+// TODO: Support raw strings with more than one #?
+RAW_STRING.2: /r\"[^\"]*\"|r#\"(\"*[^\"#]|#)*\"*\"#/s
 
 %ignore /[\t \f\r\n]+/
 
-_separated_nonempty{x, sep}: x (sep x)* sep?
-_separated_empty{x, sep}: _separated_nonempty{x, sep}?
+COMMENT: /\/\/[^\n]*/
+%ignore COMMENT
 
-outer_attribute: "#[" metadata "]"
-inner_attribute: "#![" metadata "]"
-metadata_path: identifier ("." identifier)*
-metadata: metadata_path -> metadata_flag
-        | metadata_path "=" metadata_value_literal -> metadata_value
-        | metadata_path "(" metadata_arguments ")" -> metadata_list
-metadata_arguments: ((metadata | metadata_literal) ("," (metadata | metadata_literal))* ","?)? -> metadata_arguments
-metadata_value_literal: metadata_literal -> copy
-                      | metadata_path -> metadata_named_literal
-metadata_literal: int_number -> metadata_literal
-                | "-" int_number -> metadata_negative_int
-                | float_number -> metadata_literal
-                | "+" float_number -> metadata_positive_float
-                | "-" float_number -> metadata_negative_float
-                | string_constant -> metadata_literal
-connection_source_list: _separated_nonempty{connection_source, ","} -> copy_list
-connection_source: outer_attribute* reference -> attributed
-
-function_argument_list: _separated_empty{function_argument, ","} -> copy_list
-function_argument: identifier ":" value
+// Block comments nest. The lexer handles COMMENT_START, COMMENT_NEST,
+// COMMENT_CONTENT and COMMENT_END specially; %ignore keeps them from being
+// dropped as unused.
+COMMENT_START: "/*"
+// Like COMMENT_START, but allows multiple slashes at the beginning
+COMMENT_NEST: /\/+\*/
+// One or more of:
+// - a character which is neither * nor /
+// - one or more * followed by a character which is neither * nor /
+// - one or more / followed by a character which is neither * nor /
+COMMENT_CONTENT: /([^\*\/]|\*+[^\*\/]|\/+[^\*\/])+/
+// Multiple stars are part of the comment end
+COMMENT_END: /\*+\//
+%ignore COMMENT_START
+%ignore COMMENT_NEST
+%ignore COMMENT_CONTENT
+%ignore COMMENT_END
