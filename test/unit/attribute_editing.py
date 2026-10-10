@@ -135,6 +135,10 @@ check(remove_attribute, '#[x]\nconnect #[x] a -> c;\n', Connection((), 'a', 'c')
       'connect a -> c;\n')
 with checks.assertRaises(ValueError):
     set_attribute('#[x]\nconnect a, b -> c;\n', Connection((), 'a', 'c'), 'x')
+check(add_attribute, 'connect a, a -> c;\n', Connection((), 'a', 'c', 1), 'x',
+      'connect a, #[x] a -> c;\n')
+with checks.assertRaises(ValueError):
+    add_attribute('connect a, a -> c;\n', Connection((), 'a', 'c'), 'x')
 
 # Files with semantic errors are edited, but targets and metadata are checked.
 check(add_attribute, 'node a: Missing.Type { Unknown: 1 + true }\nconnect a -> nowhere;\n',

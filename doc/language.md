@@ -80,6 +80,8 @@ can appear once per node instance. Coordinates are compiler metadata.
 Tools can add, set, and remove attributes of instances, node types, and
 connections in source text with `wirely.compiler.attribute_editing`.
 Comments and formatting are preserved, and the file only needs to parse.
+`wirely.compiler.outline` reads the declarations, ports, and connections of
+such files; references to declarations in other files stay unresolved.
 
 `#[internal]` marks an implementation detail. It takes no arguments and can
 appear once on an instance, node type, function, namespace, value or

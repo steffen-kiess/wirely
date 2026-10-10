@@ -3,6 +3,7 @@
 The functions only parse the given text, so they also work on a single file
 that does not compile, for example because of unknown types or missing
 libraries. Everything outside the edited attributes is left unchanged.
+Targets are the IDs from wirely.compiler.outline.
 """
 
 import math
@@ -13,31 +14,7 @@ import lark
 
 from . import ast
 from . import parser
-from .node_type import NodeType as _NodeType
-
-
-@dataclass(frozen=True)
-class Node:
-    """A node instance, addressed by enclosing namespaces/node types and name."""
-    path: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class NodeType:
-    """A node type, addressed by enclosing namespaces/node types and name."""
-    path: tuple[str, ...]
-
-
-@dataclass(frozen=True)
-class Connection:
-    """The edge from source to target in a connect statement within scope.
-
-    References are written as in the source, e.g. 'node.output' or
-    'default input'.
-    """
-    scope: tuple[str, ...]
-    source: str
-    target: str
+from .outline import Connection, Node, NodeType, outline_parsed
 
 
 @dataclass
@@ -67,14 +44,14 @@ def format_metadata(name, **arguments):
 def add_attribute(text, target, metadata, *, filename='<input>'):
     """Add an attribute, preferring an inner attribute on its own line."""
     _metadata_name(metadata)
-    site = _locate(parser.parse_str(text, filename=filename), target, text)
+    site = _locate(text, target, filename)
     return _insert(text, site, metadata)
 
 
 def set_attribute(text, target, metadata, *, filename='<input>'):
     """Replace the attributes named like metadata in place, or add one."""
     name = _metadata_name(metadata)
-    site = _locate(parser.parse_str(text, filename=filename), target, text)
+    site = _locate(text, target, filename)
     existing = _matching(site, name)
     if not existing:
         return _insert(text, site, metadata)
@@ -87,7 +64,7 @@ def set_attribute(text, target, metadata, *, filename='<input>'):
 
 def remove_attribute(text, target, name, *, filename='<input>'):
     """Remove all attributes called name; the text is unchanged if none exist."""
-    site = _locate(parser.parse_str(text, filename=filename), target, text)
+    site = _locate(text, target, filename)
     for attribute in sorted(_matching(site, name), key=_start, reverse=True):
         text = _remove_span(text, _start(attribute), _end(attribute))
     return text
@@ -129,17 +106,6 @@ def _end(element):
     return element.source_position.meta.end_pos
 
 
-def _reference_text(reference):
-    return '.'.join(identifier.id_str for identifier in reference.identifiers)
-
-
-def _walk(declarations, scope):
-    for item in declarations:
-        yield scope, item
-        if isinstance(item, (ast.DeclarationLibrary, _NodeType)):
-            yield from _walk(item.declarations, scope + (item.name.id_str,))
-
-
 def _single(matches, target):
     if not matches:
         raise ValueError(f'No match for {target}')
@@ -148,39 +114,27 @@ def _single(matches, target):
     return matches[0]
 
 
-def _locate(declarations, target, text):
+def _locate(text, target, filename):
+    if not isinstance(target, (Node, NodeType, Connection)):
+        raise TypeError(f'Unsupported attribute target {target!r}')
+    declarations = parser.parse_str(text, filename=filename)
+    record = _single(outline_parsed([(filename, declarations)]).find(target), target)
+    declaration = record._declaration
     if isinstance(target, Node):
-        declaration = _single([
-            item for scope, item in _walk(declarations, ())
-            if isinstance(item, ast.DeclarationInstance)
-            and scope + (item.name.id_str,) == tuple(target.path)
-        ], target)
         instantiation = declaration.instantiation
         return _body_site(text, declaration,
                           declaration.outer_attributes + instantiation.inner_attributes,
                           _end(instantiation.type_name), _end(instantiation) - 1)
     if isinstance(target, NodeType):
-        declaration = _single([
-            item for scope, item in _walk(declarations, ())
-            if isinstance(item, _NodeType)
-            and scope + (item.name.id_str,) == tuple(target.path)
-        ], target)
         return _body_site(text, declaration,
                           declaration.outer_attributes + declaration.inner_attributes,
                           _end(declaration.name), _end(declaration) - 1)
-    if isinstance(target, Connection):
-        declaration, source = _single([
-            (item, source) for scope, item in _walk(declarations, ())
-            if isinstance(item, ast.DeclarationConnection) and scope == tuple(target.scope)
-            and _reference_text(item.target) == target.target
-            for source in item.sources if _reference_text(source) == target.source
-        ], target)
-        if len(declaration.sources) == 1:
-            return _Site(list(declaration.outer_attributes + source.outer_attributes), [],
-                         'outer', _start(declaration))
-        return _Site(list(source.outer_attributes), list(declaration.outer_attributes),
-                     'source', _start(source))
-    raise TypeError(f'Unsupported attribute target {target!r}')
+    source = record._source
+    if len(declaration.sources) == 1:
+        return _Site(list(declaration.outer_attributes + source.outer_attributes), [],
+                     'outer', _start(declaration))
+    return _Site(list(source.outer_attributes), list(declaration.outer_attributes),
+                 'source', _start(source))
 
 
 def _body_site(text, declaration, attributes, brace_search_start, close_brace):
