@@ -214,7 +214,14 @@ class NodeType(model.Scope):
         if self.pass2_in_progress:
             raise model.ProgramError(instantiation, f'Recursive node type instantiation of {self.fullname!r}')
         self.compile_pass2(self.parent_graph)
-        # print('create', name, graph, par_values)
+        node = self.create_instance_interface(name=name, graph=graph, par_values=par_values,
+                                              instantiation=instantiation, register=register)
+        self.populate_instance(node)
+        return node
+
+    def create_instance_interface(self, *, name, graph, par_values, instantiation, register=True):
+        if self.interface_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Instance creation requires a prepared interface')
         node = model.InstanceNode(name=name, graph=graph, node_type=self, par_values=par_values,
                              instantiation=instantiation, register=register)
         # TODO: Remove
@@ -249,6 +256,24 @@ class NodeType(model.Scope):
             new_output = model.InstanceOutputPort(node, output.output_name, output.var_type, type_output_port=output)
             node.custom_outputs[output] = new_output
 
+        node.population_state = ResolutionState.PENDING
+        return node
+
+    def populate_instance(self, node):
+        if not self.pass2_done:
+            raise RuntimeError('Instance population requires a completed body')
+        if node.node_type is not self or node.population_state is not ResolutionState.PENDING:
+            raise RuntimeError('Instance population requires an unpopulated instance of this type')
+        node.population_state = ResolutionState.RESOLVING
+        try:
+            self._populate_instance(node)
+        except Exception:
+            node.population_state = ResolutionState.FAILED
+            raise
+        node.population_state = ResolutionState.COMPLETE
+
+    def _populate_instance(self, node):
+        instantiation = node.instantiation
         # TODO: Probably more stuff should be done at an earlier stage
         state_variables = {}
         temporaries = {}
@@ -340,13 +365,6 @@ class NodeType(model.Scope):
                 node, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
                 static_context=static_context, declaration_procedure=procedure,
             )
-
-        # print(node)
-        # print(node.input_ports)
-        # print(node.output_ports)
-        # print(node.all_input_ports)
-
-        return node
 
     def __repr__(self):
         return self.fullname
