@@ -62,6 +62,9 @@ class NodeType(model.Scope):
         self.parent_graph = graph
         if graph is not None:
             self.services = graph.services
+            self.coordinator = graph.coordinator
+        self.coordinator.node_types.append(self)
+        self.coordinator.declaration_groups.append((self, self.declarations))
 
         if self.parent_graph is not None:
             if self.name.id_str in graph.struct_types:
@@ -157,7 +160,7 @@ class NodeType(model.Scope):
         self.prepare_interface()
         self.instance_declarations_state = ResolutionState.RESOLVING
         try:
-            for declaration in self.declarations:
+            for declaration in self.node_declarations.values():
                 with declaration.context:
                     declaration.compile_pass1_5(self)
         except Exception:
@@ -190,6 +193,8 @@ class NodeType(model.Scope):
             if isinstance(decl, model.DeclarationConnection):
                 connections.append(decl)
                 continue
+            if isinstance(decl, (model.NodeType, model.DeclarationLibrary, model.DeclarationInstance)):
+                continue
             if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
@@ -211,9 +216,6 @@ class NodeType(model.Scope):
         # TODO: Validate parameters
 
     def create(self, *, name, graph, par_values, instantiation, register=True):
-        if self.pass2_in_progress:
-            raise model.ProgramError(instantiation, f'Recursive node type instantiation of {self.fullname!r}')
-        self.compile_pass2(self.parent_graph)
         node = self.create_instance_interface(name=name, graph=graph, par_values=par_values,
                                               instantiation=instantiation, register=register)
         self.populate_instance(node)

@@ -63,3 +63,11 @@ namespace InitializerOrder {
     node source: Source {}
   }
 }
+
+// Lexical containment does not instantiate the nested type.
+node type LexicalOuter {
+  node type Nested {
+    node child: LexicalOuter {}
+  }
+}
+node lexical_outer: LexicalOuter {}

@@ -116,7 +116,9 @@ class DeclarationInstance(Declaration):
             bind(par)
 
     def compile_pass2(self, graph):
-        node = self.node_type.create(graph=graph, par_values=self.par_values, name=self.node_name, instantiation=self)
+        self.node_type.create_instance_interface(
+            graph=graph, par_values=self.par_values, name=self.node_name, instantiation=self,
+        )
 
     # TODO: Clean up compilation passes
 

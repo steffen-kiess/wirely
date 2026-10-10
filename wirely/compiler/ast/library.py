@@ -49,6 +49,7 @@ class DeclarationLibrary(Scope):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
         self.services = graph.services
+        self.coordinator = graph.coordinator
         # TODO: What should be allowed here?
         if not isinstance(graph, DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Attempt to put namespace into invalid context')
@@ -62,6 +63,8 @@ class DeclarationLibrary(Scope):
                 CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
             ])
         self.compiled_scope = graph.libraries.setdefault(self.name.id_str, self)
+
+        self.coordinator.declaration_groups.append((self.compiled_scope, self.declarations))
 
         for decl in self.declarations:
             with decl.context:

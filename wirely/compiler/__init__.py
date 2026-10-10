@@ -61,27 +61,9 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
         global_node_type.services = compilation_services
         global_node_type.file_metadata = file_metadata
-        if verbose_passes:
-            report_progress('Starting pass 1')
-        global_node_type.compile_pass1(None)
-        if verbose_passes:
-            report_progress('Starting pass 1.5')
-        global_node_type.compile_pass1_5(None)
-        if verbose_passes:
-            report_progress('Starting pass 2')
-        global_node_type.compile_pass2(None)
-        if verbose_passes:
-            report_progress('Finished all passes')
-        # TODO: Clean up
-        # for decl in decls:
-        #     with decl.context:
-        #         decl.compile_pass1(graph)
-        # for decl in decls:
-        #     with decl.context:
-        #         decl.compile_pass1_5(graph)
-        # for decl in decls:
-        #     with decl.context:
-        #         decl.compile_pass2(graph)
+        from .coordinator import CompilerCoordinator
+        coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None)
+        coordinator.compile()
     except lark.UnexpectedInput as e:
         # TODO: Using input_data here is kind of a hack
         report(Diagnostic('syntax_error', str(e), filename=filename, line=e.line,

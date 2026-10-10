@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from wirely.compiler import model
 from wirely.util import check_parameters
 from .types import resolve_type
+from .stages import ResolutionState
 
 
 @dataclass(frozen=True)
@@ -213,21 +214,44 @@ class ProcedurePort(GraphElement):
         self.declaration = declaration
         self._specification = specification
         self._counterpart = counterpart
+        self.reference_state = (ResolutionState.COMPLETE if specification is not None
+                                else ResolutionState.PENDING)
 
         # TODO: Remove
         self.node = self
 
+    def resolve_reference(self):
+        """Prepare a reference port's counterpart and inherited specification."""
+        if self.reference_state is ResolutionState.COMPLETE:
+            return
+        if self.reference_state is ResolutionState.RESOLVING:
+            raise model.ProgramError(self.declaration, 'Circular procedure port reference')
+        if self.reference_state is ResolutionState.FAILED:
+            raise RuntimeError('Cannot reuse a failed procedure port resolution')
+        self.reference_state = ResolutionState.RESOLVING
+        try:
+            counterpart = self._counterpart()
+            if isinstance(counterpart, ProcedurePort):
+                counterpart.resolve_reference()
+            specification = port_specification(counterpart)
+            self._counterpart = counterpart
+            self._specification = specification
+        except Exception:
+            self.reference_state = ResolutionState.FAILED
+            raise
+        self.reference_state = ResolutionState.COMPLETE
+
     @property
     def counterpart(self):
-        """The port referenced by a reference port, or None for a typed port."""
-        if callable(self._counterpart):
-            self._counterpart = self._counterpart()
+        """The prepared referenced port, or None for a typed port."""
+        if self.reference_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Procedure port references must be resolved before use')
         return self._counterpart
 
     @property
     def specification(self):
-        if self._specification is None:
-            self._specification = port_specification(self.counterpart)
+        if self.reference_state is not ResolutionState.COMPLETE:
+            raise RuntimeError('Procedure port specifications must be resolved before use')
         return self._specification
 
     @property

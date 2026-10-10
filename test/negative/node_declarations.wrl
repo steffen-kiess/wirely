@@ -108,7 +108,7 @@ node type First {
   node type Second {
     node child: First {} // E: Recursive node type instantiation of 'First'
   }
-  node child: Second {}
+  node child: Second {} // H: Instantiation continues here
 }
 
 // TEST: parameterized recursive instantiation
