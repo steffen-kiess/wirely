@@ -270,7 +270,7 @@ class ResolvedPortReference(SourceElement):
         # print(direction, repr(self.node_name_str), repr(self.port_name_str))
         static = graph.static_declarations.get(self.node_name_str)
         if static is not None:
-            self.port = static_source(static, self.node_name, self.port_name, direction, purpose)
+            self.port = static_source(static, self.node_name, self.port_name, direction)
             return
 
         # TODO: Should this be here?
@@ -327,11 +327,9 @@ class ResolvedPortReference(SourceElement):
                 raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
 
 
-def static_source(declaration, name, port_name, direction, purpose):
+def static_source(declaration, name, port_name, direction):
     """Return the connection source for a parameter or constant."""
     kind = 'Constant' if isinstance(declaration, model.ast.DeclarationConstant) else 'Parameter'
-    if purpose in ('dependency', 'destination'):
-        raise ProgramError(name, f'{kind} {name.id_str!r} is not a port; read it directly or bind it with uses')
     if direction == PortDirection.Input:
         raise ProgramError(name, f'Cannot connect to {kind.lower()} {name.id_str!r}')
     if port_name is not None:

@@ -439,7 +439,7 @@ class InstanceProcedure:
 
         self.dependencies = []
         for dependency in dependencies:
-            if not isinstance(dependency, (InstanceSource, InstanceOutputPort, model.StateRead)):
+            if not isinstance(dependency, (InstanceSource, InstanceOutputPort, model.StateRead, model.StaticSource)):
                 raise Exception('dependencies parameter value is not an Input or Temporary instance')
             # Old-state dependencies have no producer edge; new-state reads depend on the writer.
             # TODO: Allow dependencies on other nodes? Probably yes. Maybe check where dependency.node is a child of the current node?

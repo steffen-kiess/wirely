@@ -15,11 +15,22 @@ node type Forward {
   connect Value -> default output;
 }
 
+// Procedure ports reading a parameter.
+node type Sum {
+  parameter Value: int16;
+  default output: value int16;
+  procedure run depends on Value as left, right: value int16 produces default output as output {
+    output = int16.WrappingAdd(left, right);
+  }
+  connect Value -> run.right;
+}
+
 node limit_twice: Twice {}
 connect Limit -> limit_twice;
 node forward: Forward { Value: 12 }
 node forward_twice: Twice {}
 connect forward -> forward_twice;
 node other: Forward { Value: 5 }
+node sum: Sum { Value: 5 }
 node all: Std.And {}
 connect Enabled -> all;

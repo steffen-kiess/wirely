@@ -128,12 +128,22 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: not a scheduling dependency
+// TEST: dependency without alias
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run depends on Flag produces default output as output { // E: Constant 'Flag' is not a port
+  procedure run depends on Flag produces default output as output { // E: Procedure names must be distinct
     output = Flag;
+  }
+}
+node probe: Probe {}
+
+// TEST: constant destination
+node type Probe {
+  constant Flag: boolean = true;
+  temporary flag: boolean;
+  procedure run produces Flag as flag { // E: Cannot connect to constant 'Flag'
+    flag = true;
   }
 }
 node probe: Probe {}
