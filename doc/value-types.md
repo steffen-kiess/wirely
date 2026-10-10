@@ -1,6 +1,6 @@
 # Wirely value types
 
-Value types describe node parameters, data carried by connectors, and values
+Value types describe node parameters, data carried by ports, and values
 stored in state or temporaries. Names are case-sensitive. This reference
 complements the [language guide](language.md) and
 [library reference](libraries.md).
@@ -8,8 +8,8 @@ complements the [language guide](language.md) and
 ## Type overview
 
 A runtime type represents values used during execution, for example on a
-`value` or `event` connector. Parameter-only types configure a node when it
-is instantiated. Value and event connectors, state, and temporaries
+`value` or `event` port. Parameter-only types configure a node when it is
+instantiated. Value and event ports, state, and temporaries
 require runtime types. Runtime types can also be used for parameters.
 
 | Type | Allowed values | Use |
@@ -47,7 +47,7 @@ Integer ranges are inclusive. For a signed integer of width `n`, the range
 is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.
 Enums must declare at least one member.
 
-Value types are distinct from connector kinds. `value T` carries a current
+Value types are distinct from port kinds. `value T` carries a current
 value of type `T`; `event T` carries occurrences with payloads of type `T`.
 
 ## Values and examples
@@ -259,7 +259,7 @@ Time library nodes produce and work with monotonic times, including
 ### Type parameters
 
 `ValueType` is the type of a parameter whose value is itself a type, such as
-`boolean`, `uint16`, or `Option[boolean]`. Other parameters and connectors
+`boolean`, `uint16`, or `Option[boolean]`. Other parameters and ports
 can refer to that parameter:
 
 ```wirely

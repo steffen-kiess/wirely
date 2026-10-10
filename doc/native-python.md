@@ -57,7 +57,7 @@ class OptionSome:
 Use `has_native_state=False` for a `node type` with native procedures, as
 above. For a `native node type`, use `has_native_state=True` and instance
 methods such as `def run(self, *, context)`. Either form can also declare
-`.wrl` state variables.
+`.wrl` state.
 
 Procedures run synchronously with the keyword argument `context`; their
 return values are ignored. Use native node tasks for asynchronous I/O.
@@ -79,7 +79,7 @@ rerun.
 
 `context.set_output(name, value)` writes a procedure output port. Write
 every declared output once per invocation, including `None` for no event.
-To preserve a state variable, write its previous value again.
+To preserve state, write its previous value again.
 
 Input and output names are the port names or `as "key"` strings of the
 `.wrl` `depends on` and `produces` clauses. See
@@ -143,15 +143,15 @@ are normalized into tuples.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.
-Event connectors use the same representation, adding an outer option:
+Event ports use the same representation, adding an outer option:
 
-| Connector | No event | Example occurrence |
+| Port | No event | Example occurrence |
 | --- | --- | --- |
 | `event unit` | `None` | `wirely.Some(wirely.Unit())` |
 | `event boolean` | `None` | `wirely.Some(True)` |
 | `event Option[boolean]` | `None` | `wirely.Some(None)` for an absent payload; `wirely.Some(wirely.Some(True))` for a present payload |
 
-These encodings apply to both reads and writes. Value connectors carry
+These encodings apply to both reads and writes. Value ports carry
 values directly. After emitting an event, schedule another invocation with
 `self.trigger('run')` to write `None`.
 

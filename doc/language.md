@@ -26,6 +26,33 @@ use `python3 -m wirely run-service hello.wrl`. Runtime service dependencies
 are described in [the library reference](libraries.md). To inspect or pause a
 running service, see [local control sockets](control-protocol.md#local-sockets).
 
+## Nodes, ports, and connections
+
+A program, like each node type body, is a graph of nodes joined by
+connections. There are four kinds of nodes:
+
+- An instance, `node name: Type { … }`, creates a node of a node type.
+- A temporary holds a value calculated within a step.
+- State keeps a value from one step to the next.
+- A procedure runs code that reads its inputs and writes its outputs.
+
+[State and execution](#state-and-execution) describes the last three.
+
+Nodes have input and output ports. Each port has a kind, `value`, `event`,
+or `resource`, and a type, as in `value boolean`. An instance has the ports
+declared by its node type. A temporary has a default input and a default
+output. State has a default input and the outputs `old` and `new`. A
+procedure has the ports it declares. Write `name.Port` for a named port and
+just `name` for a default port.
+
+A connection joins an output port, its source, to an input port, its target.
+`connect` statements and procedure reference ports create connections.
+Inside a node type, its own input ports are sources and its output ports are
+targets.
+
+Parameters and constants configure nodes during compilation. Runtime values
+flow through ports in each step.
+
 ## Attributes
 
 Outer attributes `#[...]` attach to the following declaration, struct field,
@@ -50,22 +77,22 @@ node source: Std.Constant {
 `position` requires one finite numeric literal for each of `x` and `y`, and
 can appear once per node instance. Coordinates are compiler metadata.
 
-Tools can add, set, and remove attributes of nodes, node types, and
+Tools can add, set, and remove attributes of instances, node types, and
 connections in source text with `wirely.compiler.attribute_editing`.
 Comments and formatting are preserved, and the file only needs to parse.
 
 `#[internal]` marks an implementation detail. It takes no arguments and can
-appear once on a node, node type, function, namespace, value or resource
-type, constant, parameter, connector, state or temporary variable, struct
-field, or enum member. Eligible bodies also accept `#![internal]`. References
-to internal declarations remain unrestricted. Internal declarations and
-contents of internal namespaces or types are omitted from the library
-reference.
+appear once on an instance, node type, function, namespace, value or
+resource type, constant, parameter, `input` or `output` declaration, state,
+temporary, struct field, or enum member. Eligible bodies also accept
+`#![internal]`. References to internal declarations remain unrestricted.
+Internal declarations and contents of internal namespaces or types are
+omitted from the library reference.
 
-Attributes before `connect` apply to every edge in that statement;
-attributes before an individual source apply to that source's edge. Each
-edge combines statement attributes followed by source attributes, subject
-to the attribute's repeatability rules.
+Attributes before `connect` apply to every connection in that statement;
+attributes before an individual source apply to that source's connection.
+Each connection combines statement attributes followed by source
+attributes, subject to the attribute's repeatability rules.
 
 ## Declarations and names
 
@@ -124,8 +151,8 @@ Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
 unique. Namespaces contain node, enum, struct, and resource types or other
 namespaces, not instances.
-Nodes, procedures, state and temporary variables, and named connectors in
-one node type, or at the top level, share one namespace.
+Nodes and named ports in one node type, or at the top level, share one
+namespace.
 A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
@@ -139,14 +166,14 @@ at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
-list literals, connection sources, and procedure bindings.
+list literals, connection sources, and procedure ports.
 
 ## Parameters, types, and literals
 
 A node type declares parameters with `parameter Name: Type;`. A parameter
 may have a default (`= value`) or be marked `optional`. Instantiation passes
 named parameters, for example `Time.TriggerAt { Time: "08:00" }`. Type parameters
-use `ValueType`; a later parameter or connector can refer to one:
+use `ValueType`; a later parameter or port can refer to one:
 
 ```wirely
 node type Example {
@@ -301,11 +328,11 @@ A `ValueType` result can initialize a type-valued constant or parameter.
 See [native Python implementations](native-python.md#native-functions)
 to supply an implementation.
 
-## Connectors and connections
+## Ports and connections
 
-An `input` or `output` declares a named connector. `default input` and
-`default output` declare the connectors used when a connection names just
-the node. For example:
+An `input` or `output` declares a named port of a node type. `default input`
+and `default output` declare the ports used when a connection names just the
+node. For example:
 
 ```wirely
 node bus: KNX.Connection { UnixPath: "/run/knxnet" }
@@ -313,22 +340,22 @@ node receiver: KNX.ValueReceiver { Type: boolean, GroupAddress: "0/4/5" }
 connect bus -> receiver.Bus;
 ```
 
-The first connection uses `bus`'s default output and the named `Bus` input.
-For a named output, write `node_name.OutputName`. Inside a type body,
-`default input` and `default output` may also be connection endpoints.
+The connection uses `bus`'s default output and the named `Bus` input. For
+a named output, write `node_name.OutputName`. Inside a type body, write
+`default input` and `default output` for the type's own default ports.
 
-Data connectors have a kind and a type: `value boolean` carries the current
-value, while `event boolean` carries an occurrence with a boolean payload.
+A `value boolean` port carries the current value, while an `event boolean`
+port carries an occurrence with a boolean payload.
 An event may be absent in a step. Source and target must have the same kind
 and type; Wirely does not automatically convert them. Ordinary inputs,
 including resource inputs, and the outputs of a node type need exactly one
 source. A `multi value T` or `multi event T` input accepts any number of
 sources; `connect a, b -> target;` connects both. `Std.And` is an example
-of a multi input. Inside a type, connections can also target temporaries,
-state, and procedure ports, as described in
+of a multi input. Connections to and from temporaries, state, and
+procedures are described in
 [State and execution](#state-and-execution).
 
-### Opaque resource connectors
+### Opaque resource ports
 
 Libraries can declare opaque resource types for connections between service
 nodes and their clients:
@@ -353,7 +380,7 @@ types cannot share a name in the same scope. Resource names resolve through
 enclosing scopes; use a qualified name such as `Example.Session` outside
 that namespace. A declaration may appear after its uses.
 
-Resource connectors are compatible only when they refer to the same
+Resource ports are compatible only when they refer to the same
 resource declaration. Resources identify opaque service state rather than
 carrying data values. They cannot be used for parameters, state, temporaries,
 `ValueType` arguments, or value types such as `Option[T]` and `List[T]`.
@@ -376,10 +403,11 @@ it after `depends on`. Bind node parameters and constants by name, or use
 for binding syntax and Python access. Procedures with Wirely bodies refer
 to parameters and constants directly and do not accept `uses`.
 
-A port is either bound or typed. A bound port, `reference as name`, is
-connected to the reference: from a connection source in `depends on`, to a
-connection target in `produces`. An unaliased simple identifier uses its
-own name. Default connectors and complex references require aliases.
+A procedure port is either a reference port or a typed port. A reference
+port, `reference as name`, is connected to the reference: from a connection
+source in `depends on`, to a connection target in `produces`. An unaliased
+simple identifier uses its own name. Default ports and complex references
+require aliases.
 Native procedures also accept `as "key"` for Python keys. For example:
 
 ```wirely
@@ -394,7 +422,7 @@ procedure run
 
 A typed port, `name: value Type`, `name: event Type`, or
 `name: resource Type`, is wired with `connect`. Input ports can be `multi`.
-Refer to a port as `procedure.port`, in `connect` or in a bound port:
+Refer to a port as `procedure.port`, in `connect` or in a reference port:
 
 ```wirely
 procedure invert
@@ -427,9 +455,9 @@ and the previous step's state thereafter. Similarly, `connect name -> target;`
 feeds the value of a temporary calculated this step.
 
 `last_value.new` reads the value produced this step. Use it as a
-connection source or bound input port. Its writer must run in the same
-or an earlier stage, and the reader depends on that writer. If the
-writer is skipped because its inputs are unchanged, it supplies the
+connection source or reference port in `depends on`. Its writer must run
+in the same or an earlier stage, and the reader depends on that writer. If
+the writer is skipped because its inputs are unchanged, it supplies the
 retained state value.
 
 Procedures run in three stages: `stage input` reads external sources, the
@@ -571,8 +599,8 @@ or `||` without parentheses.
 Procedures can copy any runtime value, including options and structs, read
 struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
-Their connector inputs and outputs currently use single `value`
-connectors, not events or multi inputs. State reads must be listed in
+Their ports are currently limited to single `value` ports, not events
+or multi inputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
@@ -593,4 +621,4 @@ stage; Python supplies the implementation. See the
 
 Node types can also combine child nodes and connections in `.wrl`, as
 `KNX.ValueProvider` does. See the
-[library reference](libraries.md) for available nodes and their connectors.
+[library reference](libraries.md) for available node types and their ports.

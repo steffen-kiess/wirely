@@ -70,7 +70,7 @@ Break long lists after commas, adding another two spaces for their
 continuation. Keep a reference and its `as` alias, or a port name and its
 type, together where practical.
 
-Prefer bound ports in hand-written code. Put the connections of typed ports
+Prefer reference ports in hand-written code. Put the connections of typed ports
 after the procedure.
 
 ```wirely
@@ -97,7 +97,7 @@ connect source -> printer;
 ## Names and comments
 
 Choose descriptive names. Use `PascalCase` for namespaces, types, and public
-parameters and connectors; prefer `snake_case` for internal nodes, state,
+parameters and ports; prefer `snake_case` for internal nodes, state,
 temporaries, and procedures. Match existing interface names exactly.
 
 Prefer `// ` comments, including consecutive lines for longer explanations.

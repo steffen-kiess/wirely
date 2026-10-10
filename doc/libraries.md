@@ -3,11 +3,11 @@
 The libraries below are available by default. Instantiate a node
 as `node name: Library.Type { Parameter: value }`. Names and parameter
 capitalization matter. Public library namespaces, node and resource types,
-parameters, and named connectors use PascalCase, preserving acronyms such
-as `KNX` and `URI`. In the signatures below, `in` and `out` mean default
-connectors; named connectors are written explicitly. `value T` carries a
-current value, and `event T` carries an occurrence with a payload. A dash
-means no connector of that kind.
+parameters, and named ports use PascalCase, preserving acronyms such as
+`KNX` and `URI`. In the signatures below, `in` and `out` mean default ports;
+named ports are written explicitly. `value T` carries a current value, and
+`event T` carries an occurrence with a payload. A dash means no port of that
+kind.
 
 See the [language guide](language.md) for syntax and connection rules. The
 declarations in [`wirely/lib/`](../wirely/lib/) are the source for exact
@@ -54,7 +54,7 @@ the fixture's lifetime.
 
 General data flow, optional values, edge detection, and debug nodes.
 
-| Node type | Parameters | Connectors and behavior |
+| Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Constant` | `Type: ValueType`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
 | `And` | None | In: `multi value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
@@ -81,7 +81,7 @@ dependencies.
 Time-based values and triggers. `TimeOfDay` parameters use strings such as
 `"08:00"`; `Duration` parameters use strings such as `"PT1S"`.
 
-| Node type | Parameters | Connectors and behavior |
+| Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `MonotonicTimeReached` | None | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
 | `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. |
@@ -94,7 +94,7 @@ KNX nodes use a `KNX.Connection` node and a named
 `Bus: resource KNX.Bus` input.
 `GroupAddress` is a KNX group address string such as `"0/4/5"`.
 
-| Node type | Parameters | Connectors and behavior |
+| Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Connection` | Optional `Host: String`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
 | `ValueReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
@@ -144,7 +144,7 @@ default JSON formatting or `MQTT.Format.SnakeCase` enum encoding. Omitting
 string controlling JSON output. A template embeds the encoded value at one
 `%s` placeholder; `%%` represents a literal percent sign. The `URI` accepts `mqtt://host`, `mqtts://host`, or `mqtt+unix:///path`.
 
-| Node type | Parameters | Connectors and behavior |
+| Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
@@ -170,7 +170,7 @@ TwoN nodes communicate with a 2N device. Create `TwoN.Connection`, then
 connect its default `resource TwoN.Device` output to each client's named
 `Device` input.
 
-| Node type | Parameters | Connectors and behavior |
+| Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
