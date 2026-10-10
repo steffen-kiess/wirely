@@ -259,6 +259,82 @@ def reconnect(sources, connection, *, source=None, target=None):
             + connect(sources, connection.scope, new_source, new_target, attributes=attributes))
 
 
+def set_parameter_binding(sources, node, name, value_text, *, optional=False):
+    """Set a parameter binding of a node, replacing bindings with the same name."""
+    binding = f'{format_identifier(name)}{"?:" if optional else ":"} {value_text.strip()}'
+    _parse_declaration(f'node x: T {{ {binding} }}')
+    record = _single(outline(sources).find(node), node)
+    filename = record.filename
+    text = dict(sources)[filename]
+    instantiation = record._declaration.instantiation
+    bindings = instantiation.parameters
+    matching = [item for item in bindings if item.name.id_str == name]
+    if matching:
+        first, *rest = matching
+        return ([TextEdit(filename, _start(first), _end(first), binding)]
+                + _merge_removals(dict(sources), _binding_removals(filename, text, bindings, rest)))
+    if bindings:
+        last = bindings[-1]
+        comma = _skip_trivia(text, _end(last))
+        has_comma = text[comma] == ','
+        line_start = _line_start(text, _start(last))
+        if text[line_start:_start(last)].strip():
+            if has_comma:
+                return [TextEdit(filename, comma + 1, comma + 1, f' {binding},')]
+            return [TextEdit(filename, _end(last), _end(last), f', {binding}')]
+        indent = text[line_start:_start(last)]
+        position = _line_end(text, comma + 1 if has_comma else _end(last))
+        edits = [] if has_comma else [TextEdit(filename, _end(last), _end(last), ',')]
+        return edits + [TextEdit(filename, position, position,
+                                 f'\n{indent}{binding}{"," if has_comma else ""}')]
+    open_brace = _skip_trivia(text, _end(instantiation.type_name))
+    close_brace = _end(instantiation) - 1
+    if not text[open_brace + 1:close_brace].strip() and '\n' not in text[open_brace:close_brace]:
+        return [TextEdit(filename, open_brace, close_brace + 1, f'{{ {binding} }}')]
+    site = _body_site(text, record._declaration, instantiation.inner_attributes,
+                      _end(instantiation.type_name), close_brace)
+    return _diff_edit(filename, text, _insert_inner(text, site, [binding]))
+
+
+def remove_parameter_binding(sources, node, name):
+    """Remove the bindings called name; there are no edits if none exist."""
+    record = _single(outline(sources).find(node), node)
+    text = dict(sources)[record.filename]
+    bindings = record._declaration.instantiation.parameters
+    removed = [item for item in bindings if item.name.id_str == name]
+    return _merge_removals(dict(sources), _binding_removals(record.filename, text, bindings, removed))
+
+
+def set_node_type(sources, node, type_text):
+    """Change the node type a node instantiates."""
+    type_text = type_text.strip()
+    _parse_declaration(f'node x: {type_text} {{}}')
+    record = _single(outline(sources).find(node), node)
+    type_name = record._declaration.instantiation.type_name
+    return [TextEdit(record.filename, _start(type_name), _end(type_name), type_text)]
+
+
+def replace_declaration(sources, target, declaration):
+    """Replace a state, temporary, constant, parameter, or port declaration.
+
+    The new declaration must be of the same kind and name, and a port must
+    keep its direction; attributes and comments around it are kept.
+    """
+    if not isinstance(target, (State, Temporary, Constant, Parameter, Port)):
+        raise TypeError(f'Unsupported declaration target {target!r}')
+    declaration = declaration.strip()
+    item = _parse_declaration(declaration)
+    if item.outer_attributes:
+        raise ValueError('Attributes of a replaced declaration are kept; edit them separately')
+    record = _single(outline(sources).find(target), target)
+    old = record._declaration
+    if type(item) is not type(old) or _declaration_name(item) != _declaration_name(old):
+        raise ValueError(f'Expected a declaration of the same kind and name as {target}')
+    if isinstance(item, ast.DeclarationPort) and item.direction != old.direction:
+        raise ValueError('A replaced port must keep its direction')
+    return [TextEdit(record.filename, _start(old), _end(old), declaration)]
+
+
 def add_attribute(sources, target, metadata):
     """Add an attribute, preferring an inner attribute on its own line."""
     _metadata_name(metadata)
@@ -290,6 +366,9 @@ def remove_attribute(sources, target, name):
         text = _remove_span(text, _start(attribute), _end(attribute))
     return _diff_edit(filename, original, text)
 
+
+# Declarations that only have outer attributes.
+_OUTER_TARGETS = (State, Temporary, Constant, Parameter, Port, Procedure)
 
 _KIND_ORDER = (
     ast.DeclarationParameter, ast.DeclarationConstant, ast.DeclarationPort, ast.DeclarationState,
@@ -332,6 +411,46 @@ def _references(result, edge, target):
             if any(node.node_type == NodeType(target.path[:-1]) for node in result.find(endpoint.element)):
                 return True
     return False
+
+
+def _declaration_name(item):
+    return item.name_str if isinstance(item, ast.DeclarationPort) else item.name.id_str
+
+
+def _binding_removals(filename, text, bindings, removed):
+    """Remove bindings with their commas, and lines they leave empty."""
+    removed_ids = {id(item) for item in removed}
+    edits = []
+    inline = []
+    for item in bindings:
+        if id(item) not in removed_ids:
+            inline.append(False)
+            continue
+        end = _end(item)
+        comma = _skip_trivia(text, end)
+        if comma < len(text) and text[comma] == ',':
+            end = comma + 1
+        line_start = _line_start(text, _start(item))
+        rest = text[end:_line_end(text, end)].strip()
+        if not text[line_start:_start(item)].strip() and (not rest or rest.startswith('//')):
+            edits.append(TextEdit(filename, *_removal_range(text, _start(item), end), ''))
+            inline.append(False)
+        else:
+            inline.append(True)
+    if any(inline):
+        if all(inline):
+            for item in bindings:
+                end = _end(item)
+                comma = _skip_trivia(text, end)
+                if comma < len(text) and text[comma] == ',':
+                    end = comma + 1
+                while end < len(text) and text[end] in ' \t':
+                    end += 1
+                edits.append(TextEdit(filename, _start(item), end, ''))
+        else:
+            edits += _list_item_removals(filename, [_start(item) for item in bindings],
+                                         [_end(item) for item in bindings], inline)
+    return edits
 
 
 def _single(matches, target):
@@ -467,16 +586,23 @@ def _disconnect_edges(texts, edges):
         if len(removed) == len(sources):
             edits.append(_removal(texts, filename, _outer_start(statement), _end(statement)))
             continue
-        is_removed = [id(source) in removed for source in sources]
-        tail = len(sources)
-        while is_removed[tail - 1]:
-            tail -= 1
-        if tail < len(sources):
-            edits.append(TextEdit(filename, _end(sources[tail - 1]), _end(sources[-1]), ''))
-        for index in range(tail):
-            if is_removed[index]:
-                edits.append(TextEdit(filename, _outer_start(sources[index]),
-                                      _outer_start(sources[index + 1]), ''))
+        edits += _list_item_removals(filename, [_outer_start(source) for source in sources],
+                                     [_end(source) for source in sources],
+                                     [id(source) in removed for source in sources])
+    return edits
+
+
+def _list_item_removals(filename, starts, ends, removed):
+    """Remove some items of a comma-separated list along with their commas."""
+    edits = []
+    tail = len(removed)
+    while removed[tail - 1]:
+        tail -= 1
+    if tail < len(removed):
+        edits.append(TextEdit(filename, ends[tail - 1], ends[-1], ''))
+    for index in range(tail):
+        if removed[index]:
+            edits.append(TextEdit(filename, starts[index], starts[index + 1], ''))
     return edits
 
 
@@ -530,7 +656,7 @@ def _end(element):
 
 
 def _locate(sources, target):
-    if not isinstance(target, (Node, NodeType, Connection)):
+    if not isinstance(target, (Node, NodeType, Connection, *_OUTER_TARGETS)):
         raise TypeError(f'Unsupported attribute target {target!r}')
     record = _single(outline(sources).find(target), target)
     text = dict(sources)[record.filename]
@@ -544,6 +670,8 @@ def _locate(sources, target):
         site = _body_site(text, declaration,
                           declaration.outer_attributes + declaration.inner_attributes,
                           _end(declaration.name), _end(declaration) - 1)
+    elif isinstance(target, _OUTER_TARGETS):
+        site = _Site(list(declaration.outer_attributes), [], 'outer', _start(declaration))
     else:
         source = record._source
         if len(declaration.sources) == 1:

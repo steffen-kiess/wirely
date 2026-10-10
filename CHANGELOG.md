@@ -47,8 +47,11 @@ them to `apply_edits()` to get the new texts.
 - `if` conditions accept indexing, `()`, list literals, and nested `if`, as
   in `T == Option[uint8]`.
 - `wirely.compiler.outline` lists the declarations, ports, and connections
-  of source files without compiling them. `wirely.compiler.editing` adds and
-  removes declarations and connects, disconnects, and reconnects ports.
+  of source files without compiling them. `wirely.compiler.editing` adds,
+  changes, and removes declarations, edits parameter bindings and node
+  types, and connects, disconnects, and reconnects ports.
+- `position` can be set on ports, parameters, constants, states,
+  temporaries, and procedures.
 
 ## 0.1.2 - 2026-10-10
 

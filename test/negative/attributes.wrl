@@ -39,6 +39,10 @@ struct type S {
 #[position(x = 1, y = 2)] connect a -> b;
 // ^E: Attribute position is not permitted on connection
 
+// TEST: wrong assertion target
+#[position(x = 1, y = 2)] assert true;
+// ^E: Attribute position is not permitted on assertion
+
 // TEST: missing arguments
 node n: Missing { #![position] } // E: position requires x and y arguments
 

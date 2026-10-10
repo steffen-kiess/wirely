@@ -100,7 +100,9 @@ def _internal(attribute):
 
 # Extensions must explicitly define qualified names as well as unqualified ones.
 ATTRIBUTE_REGISTRY = {
-    'position': AttributeDefinition(frozenset({'node'}), _position),
+    'position': AttributeDefinition(frozenset({
+        'node', 'port', 'state', 'temporary', 'constant', 'parameter', 'procedure',
+    }), _position),
     'internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',

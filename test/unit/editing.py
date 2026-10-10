@@ -4,10 +4,11 @@ from wirely.compiler import parser
 from wirely.compiler.editing import (
     TextEdit, add_attribute, add_declaration, apply_edits, connect, disconnect, format_constant,
     format_identifier, format_metadata, format_node, format_parameter, format_port, format_state,
-    format_temporary, fresh_name, reconnect, remove_attribute, remove_declaration, set_attribute,
+    format_temporary, fresh_name, reconnect, remove_attribute, remove_declaration,
+    remove_parameter_binding, replace_declaration, set_attribute, set_node_type, set_parameter_binding,
 )
 from wirely.compiler.outline import (
-    Connection, Node, NodeType, Port, Procedure, State, outline,
+    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, Temporary, outline,
 )
 
 
@@ -29,8 +30,9 @@ def edit(function, text, *arguments, **options):
     return result
 
 
-def check(function, source, target, argument, expected):
-    checks.assertEqual(edit(function, source, target, argument), expected)
+def check(function, source, *arguments):
+    *arguments, expected = arguments
+    checks.assertEqual(edit(function, source, *arguments), expected)
 
 
 # Multi-line bodies keep comments and follow the body's indentation.
@@ -313,3 +315,69 @@ checks.assertEqual(edit(remove_declaration, '''node type T {
 ''', Procedure(('T', 'other'))), 'node type T {\n  temporary t: int;\n  procedure run produces t { t = 1; }\n}\n')
 with checks.assertRaises(ValueError):
     edit(remove_declaration, body, Node(('missing',)))
+
+# Declarations in node type bodies take outer attributes.
+declarations = '''node type T {
+  #[internal]
+  state s: int = 0; // state
+  input a: value int;
+  procedure p produces s { s = 1; }
+}
+'''
+check(set_attribute, declarations, State(('T', 's')), position, declarations.replace(
+    '  state s', '  #[position(x = 1, y = -2.5)]\n  state s'))
+check(add_attribute, declarations, Port(('T', 'a'), 'input'), position, declarations.replace(
+    '  input a', '  #[position(x = 1, y = -2.5)]\n  input a'))
+check(set_attribute, declarations, Procedure(('T', 'p')), position, declarations.replace(
+    '  procedure p', '  #[position(x = 1, y = -2.5)]\n  procedure p'))
+check(remove_attribute, declarations, State(('T', 's')), 'internal',
+      declarations.replace('  #[internal]\n', ''))
+
+# Parameter bindings follow the body's style.
+node = Node(('n',))
+for source, expected in (
+        ('node n: T {}\n', 'node n: T { B: 2 }\n'),
+        ('node n: T { A: 1 }\n', 'node n: T { A: 1, B: 2 }\n'),
+        ('node n: T { A: 1, }\n', 'node n: T { A: 1, B: 2, }\n'),
+        ('node n: T {\n  A: 1,\n}\n', 'node n: T {\n  A: 1,\n  B: 2,\n}\n'),
+        ('node n: T {\n  A: 1 // a\n}\n', 'node n: T {\n  A: 1, // a\n  B: 2\n}\n'),
+        ('node n: T { #![internal] }\n', 'node n: T {\n  #![internal]\n  B: 2\n}\n')):
+    check(set_parameter_binding, source, node, 'B', '2', expected)
+checks.assertEqual(edit(set_parameter_binding, 'node n: T { A: 1, B: 2, A: 3 }\n', node, 'A', '5', optional=True),
+                   'node n: T { A?: 5, B: 2 }\n')
+for value in ('2 +', '2 }'):
+    with checks.assertRaises(ValueError):
+        edit(set_parameter_binding, 'node n: T {}\n', node, 'B', value)
+for name, expected in (('A', 'node n: T { B: 2, C: 3 }\n'), ('B', 'node n: T { A: 1, C: 3 }\n'),
+                       ('C', 'node n: T { A: 1, B: 2 }\n'), ('Z', 'node n: T { A: 1, B: 2, C: 3 }\n')):
+    check(remove_parameter_binding, 'node n: T { A: 1, B: 2, C: 3 }\n', node, name, expected)
+check(remove_parameter_binding, 'node n: T { A: 1, A: 2 }\n', node, 'A', 'node n: T { }\n')
+check(remove_parameter_binding, 'node n: T {\n  A: 1,\n  B: 2\n}\n', node, 'B', 'node n: T {\n  A: 1,\n}\n')
+check(remove_parameter_binding, 'node n: T {\n  A: 1,\n  B: 2,\n  C: 3,\n}\n', node, 'B',
+      'node n: T {\n  A: 1,\n  C: 3,\n}\n')
+
+check(set_node_type, 'node n: Old.T { A: 1 }\n', node, 'New.U', 'node n: New.U { A: 1 }\n')
+with checks.assertRaises(ValueError):
+    edit(set_node_type, 'node n: T {}\n', node, '1')
+
+# Replaced declarations keep their attributes and comments, kind, and name.
+check(replace_declaration, declarations, State(('T', 's')), format_state('s', 'uint8', '1'),
+      declarations.replace('state s: int = 0;', 'state s: uint8 = 1;'))
+check(replace_declaration, declarations, Port(('T', 'a'), 'input'), format_port('input', 'a', 'event', 'int', True),
+      declarations.replace('input a: value int;', 'input a: multi event int;'))
+check(replace_declaration, 'temporary t: int;\n', Temporary(('t',)), format_temporary('t', 'uint8'),
+      'temporary t: uint8;\n')
+check(replace_declaration, 'constant C: int = 1;\n', Constant(('C',)), format_constant('C', 'int', '2'),
+      'constant C: int = 2;\n')
+check(replace_declaration, 'parameter P: int;\n', Parameter(('P',)), format_parameter('P', 'int', optional=True),
+      'optional parameter P: int;\n')
+for target, declaration in ((Port(('T', 'a'), 'input'), 'output a: value int;'),
+                            (State(('T', 's')), 'state t: int = 0;'),
+                            (State(('T', 's')), 'temporary s: int;'),
+                            (State(('T', 's')), '#[internal] state s: int = 0;'),
+                            (State(('T', 's')), 'state s: int ='),
+                            (Procedure(('T', 'p')), 'procedure p produces s { s = 2; }')):
+    with checks.assertRaises((ValueError, TypeError)):
+        edit(replace_declaration, declarations, target, declaration)
+with checks.assertRaises(ValueError):
+    edit(replace_declaration, 'constant C: int = 1;\n', Constant(('C',)), 'parameter C: int = 1;')

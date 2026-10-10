@@ -64,7 +64,8 @@ combine their attributes.
 Attribute metadata supports dot-separated names, flags, `name = literal`,
 and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
-`position` supplies node-instance coordinates:
+`position` supplies the coordinates of a node instance, or of a port,
+parameter, constant, state, temporary, or procedure in a node type body:
 
 ```wirely
 node source: Std.Constant {
@@ -75,11 +76,11 @@ node source: Std.Constant {
 ```
 
 `position` requires one finite numeric literal for each of `x` and `y`, and
-can appear once per node instance. Coordinates are compiler metadata.
+can appear once per declaration. Coordinates are compiler metadata.
 
-Tools can add and remove declarations, connect ports, and set attributes in
-source text with `wirely.compiler.editing`. Comments and formatting are
-preserved, and only the edited files need to parse.
+Tools can add, change, and remove declarations, connect ports, and set
+attributes in source text with `wirely.compiler.editing`. Comments and
+formatting are preserved, and only the edited files need to parse.
 `wirely.compiler.outline` reads the declarations, ports, and connections of
 such files; references to declarations in other files stay unresolved.
 

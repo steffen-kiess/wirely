@@ -15,6 +15,25 @@ node positioned: Metadata {}
 node inner: Metadata {
   #![position(x = 1.5, y = -2)]
 }
+node type Positioned {
+  #[position(x = 0, y = 0)]
+  parameter Initial: boolean = true;
+  #[position(x = 0, y = 1)]
+  constant Inverted: boolean = !Initial;
+  #[position(x = 1, y = 0)]
+  default output: value boolean;
+  #[internal]
+  #[position(x = 2, y = 0)]
+  state previous: boolean = Initial;
+  #[position(x = 3, y = 0)]
+  temporary current: boolean;
+
+  #[position(x = 4, y = 0)]
+  procedure run depends on previous.old as old produces current { current = !old; }
+  connect current -> previous;
+  connect current -> default output;
+}
+node positioned_type: Positioned {}
 
 #[internal]
 namespace Implementation {
