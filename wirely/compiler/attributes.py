@@ -1,5 +1,6 @@
 """Parsed attribute metadata and compiler attribute definitions."""
 
+import contextlib
 import math
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -140,8 +141,13 @@ def validate_attributes(attributes, target):
     return tuple(result)
 
 
-def validate_files(files):
-    """Validate all metadata before the ordinary compilation passes."""
+def validate_files(files, *, contain=None):
+    """Validate all metadata before the ordinary compilation passes.
+
+    contain is CompilerCoordinator.contain when continuing after errors.
+    """
+    if contain is None:
+        contain = lambda element: contextlib.nullcontext()
     from . import ast
     from .node_type import NodeType
 
@@ -166,7 +172,8 @@ def validate_files(files):
 
     def visit(item, scope):
         target = targets[type(item)]
-        item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
+        with contain(None):
+            item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
         child_scope = scope
         if isinstance(item, ast.DeclarationLibrary):
             child_scope = scope + (item.name.id_str,)
@@ -178,17 +185,19 @@ def validate_files(files):
                 previous.inner_attributes += item.inner_attributes
                 merged = previous.attributes + item.attributes
                 seen = set()
-                for attribute in merged:
-                    if attribute.name in seen and not ATTRIBUTE_REGISTRY[attribute.name].repeatable:
-                        _error(attribute, f'Duplicate attribute {attribute.name}')
-                    seen.add(attribute.name)
+                with contain(None):
+                    for attribute in merged:
+                        if attribute.name in seen and not ATTRIBUTE_REGISTRY[attribute.name].repeatable:
+                            _error(attribute, f'Duplicate attribute {attribute.name}')
+                        seen.add(attribute.name)
                 previous.attributes = merged
         elif isinstance(item, NodeType):
             child_scope = scope + (item,)
         if isinstance(item, ast.DeclarationConnection):
-            item.edge_attributes = tuple(validate_attributes(
-                item.outer_attributes + source.outer_attributes, 'connection',
-            ) for source in item.sources)
+            with contain(None):
+                item.edge_attributes = tuple(validate_attributes(
+                    item.outer_attributes + source.outer_attributes, 'connection',
+                ) for source in item.sources)
         for child in getattr(item, 'declarations', ()):
             visit(child, child_scope)
         for child in getattr(item, 'fields', ()):
@@ -198,8 +207,10 @@ def validate_files(files):
 
     metadata = []
     for filename, parsed in files:
-        metadata.append(FileMetadata(filename, parsed.inner_attributes,
-                                     validate_attributes(parsed.inner_attributes, 'file')))
+        attributes = ()
+        with contain(None):
+            attributes = validate_attributes(parsed.inner_attributes, 'file')
+        metadata.append(FileMetadata(filename, parsed.inner_attributes, attributes))
         for declaration in parsed:
             visit(declaration, ())
     return tuple(metadata)

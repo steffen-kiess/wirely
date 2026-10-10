@@ -341,6 +341,11 @@ class Outline:
 
 def outline(sources, *, add_std=False):
     """Outline (filename, text) pairs; files that fail to parse are skipped."""
+    return outline_parsed(*parse(sources, add_std=add_std))
+
+
+def parse(sources, *, add_std=False):
+    """Return the file records and the (filename, declarations) of files that parse."""
     if add_std:
         from . import _standard_library_sources
         sources = _standard_library_sources() + list(sources)
@@ -352,7 +357,8 @@ def outline(sources, *, add_std=False):
             error = None
         except lark.UnexpectedInput as exception:
             error = Diagnostic('syntax_error', str(exception), filename=filename,
-                               line=exception.line, context=exception.get_context(text))
+                               line=exception.line, context=exception.get_context(text),
+                               start=getattr(exception, 'pos_in_stream', None))
         except ast.ProgramError as exception:
             error = next(error_diagnostics(exception))
         except lark.exceptions.VisitError as exception:
@@ -360,11 +366,16 @@ def outline(sources, *, add_std=False):
                 raise exception.orig_exc
             error = next(error_diagnostics(exception.orig_exc))
         files.append(SourceFile(filename, error))
+    return tuple(files), parsed_files
+
+
+def outline_parsed(files, parsed_files):
+    """Outline the result of parse()."""
     root = _Builder('global', (), None)
     for filename, declarations in parsed_files:
         root.blocks.append((filename, declarations))
         _collect(root, declarations)
-    return Outline(tuple(files), _build_scope(root))
+    return Outline(files, _build_scope(root))
 
 
 class _Builder:

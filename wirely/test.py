@@ -50,6 +50,7 @@ test_names = [
     'unit/negative_cases',
     'unit/editing',
     'unit/outline',
+    'unit/analysis',
     'unit/control',
     'unit/shuffle',
     'unit/container',

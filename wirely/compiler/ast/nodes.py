@@ -74,28 +74,38 @@ class DeclarationInstance(Declaration):
             raise RuntimeError('Instance arguments require a prepared child interface')
 
         self.par_values = {}
+        # Parameters whose bindings failed, when the coordinator continues after errors.
+        self.failed_parameters = set()
+        coordinator = graph.coordinator
         seen = set()
         for parameter in parameter_bindings:
             key = parameter.name
             value = parameter.value
-
-            if key.id_str in self.node_type.parsed_constants:
-                raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
-            if key.id_str not in self.node_type.parsed_parameters:
-                raise ProgramError(key, f'Unknown parameter for {self.node_type.name.id_str}: {key}')
-            par = self.node_type.parsed_parameters[key.id_str]
-            if par in seen:
-                raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
-            seen.add(par)
-            if parameter.is_optional:
-                if not par.is_optional:
-                    raise ProgramError(parameter, 'Optional binding requires an optional or defaulted parameter')
-                from ..expressions import compile_constant
-                compile_constant(graph, value, model.types.TypeOption(par.type_resolved), {})
-                self.par_values[par] = model.value.OptionalBinding(graph, value, par)
+            par = self.node_type.parsed_parameters.get(key.id_str)
+            with coordinator.contain(parameter):
+                if key.id_str in self.node_type.parsed_constants:
+                    raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
+                if par is None:
+                    raise ProgramError(key, f'Unknown parameter for {self.node_type.name.id_str}: {key}')
+                if par in seen:
+                    raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
+                seen.add(par)
+                if getattr(par, 'failed', False):
+                    # The parameter's own error was already reported.
+                    parameter.failed = True
+                    continue
+                if parameter.is_optional:
+                    if not par.is_optional:
+                        raise ProgramError(parameter, 'Optional binding requires an optional or defaulted parameter')
+                    from ..expressions import compile_constant
+                    compile_constant(graph, value, model.types.TypeOption(par.type_resolved), {})
+                    self.par_values[par] = model.value.OptionalBinding(graph, value, par)
+            if getattr(parameter, 'failed', False) and par is not None:
+                self.failed_parameters.add(par)
 
         pending = {self.node_type.parsed_parameters[parameter.name.id_str]: parameter
-                   for parameter in parameter_bindings if not parameter.is_optional}
+                   for parameter in parameter_bindings
+                   if not parameter.is_optional and not getattr(parameter, 'failed', False)}
 
         def bind(par):
             parameter = pending.pop(par, None)
@@ -105,14 +115,17 @@ class DeclarationInstance(Declaration):
             for dependency in type_parameters(par.type_resolved):
                 bind(dependency)
             value = parameter.value
-            par_type = resolve_type(par.type_resolved, self.par_values)
-            # TODO: Is passing par_values=self.par_values here the correct thing to do?
-            if par_type == model.types.ValueType:
-                val = graph.get_const_value(value, par_type, par_values=self.par_values)
-                self.par_values[par] = (val.value if isinstance(val, model.ConstantValue) else val)
-            else:
-                val = graph.get_const_value(value, par_type, par_values=self.par_values)
-                self.par_values[par] = val
+            with coordinator.contain(parameter):
+                par_type = resolve_type(par.type_resolved, self.par_values)
+                # TODO: Is passing par_values=self.par_values here the correct thing to do?
+                if par_type == model.types.ValueType:
+                    val = graph.get_const_value(value, par_type, par_values=self.par_values)
+                    self.par_values[par] = (val.value if isinstance(val, model.ConstantValue) else val)
+                else:
+                    val = graph.get_const_value(value, par_type, par_values=self.par_values)
+                    self.par_values[par] = val
+            if getattr(parameter, 'failed', False):
+                self.failed_parameters.add(par)
 
         for par in list(pending):
             bind(par)

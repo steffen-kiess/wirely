@@ -52,6 +52,27 @@ class NodeType(model.Scope):
         declarations = args[-1]
         return NodeType(list(specifiers), name, declarations, source_position=source_position)
 
+    def _register_in(self, graph):
+        """Register this node type in its enclosing scope."""
+        if self.name.id_str in graph.struct_types:
+            raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
+                model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
+            ])
+        if self.name.id_str in graph.enum_types:
+            raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
+                model.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
+            ])
+        if self.name.id_str in graph.resource_types:
+            raise model.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
+                model.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
+            ])
+        if self.name.id_str in graph.node_types:
+            hints = [
+                model.CompilerHint(graph.node_types[self.name.id_str], 'Previous node type was here'),
+            ]
+            raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
+        graph.node_types[self.name.id_str] = self
+
     def collect_declarations(self, graph):
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
@@ -63,35 +84,20 @@ class NodeType(model.Scope):
         self.coordinator.declaration_groups.append((self, self.declarations))
 
         if self.parent_graph is not None:
-            if self.name.id_str in graph.struct_types:
-                raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
-                    model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
-                ])
-            if self.name.id_str in graph.enum_types:
-                raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
-                    model.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
-                ])
-            if self.name.id_str in graph.resource_types:
-                raise model.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
-                    model.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
-                ])
-            if self.name.id_str in graph.node_types:
-                hints = [
-                    model.CompilerHint(graph.node_types[self.name.id_str], 'Previous node type was here'),
-                ]
-                raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
-            graph.node_types[self.name.id_str] = self
+            with self.coordinator.contain(None):
+                self._register_in(graph)
 
         parsed_parameters = {}
         parsed_constants = {}
         static_declarations = {}
         for decl in self.declarations:
-            decl.register_interface_declarations(self)
+            with self.coordinator.contain(decl):
+                decl.register_interface_declarations(self)
 
             # TODO: Clean up isinstance?
-            if not isinstance(decl, model.DeclarationParameter):
+            if not isinstance(decl, model.DeclarationParameter) or getattr(decl, 'failed', False):
                 continue
-            with decl.context:
+            with self.coordinator.contain(decl), decl.context:
                 is_constant = isinstance(decl, model.DeclarationConstant)
                 if self.is_singleton and not is_constant:
                     # TODO: Allow parameters for singleton nodes and create one instance for each parameter combination?
@@ -113,8 +119,8 @@ class NodeType(model.Scope):
         self.parsed_constants = parsed_constants
 
         for decl in self.declarations:
-            if isinstance(decl, model.Declaration):
-                with decl.context:
+            if isinstance(decl, model.Declaration) and not getattr(decl, 'failed', False):
+                with self.coordinator.contain(decl), decl.context:
                     decl.collect_declarations(self)
 
     def prepare_interface(self):
@@ -125,11 +131,13 @@ class NodeType(model.Scope):
         self.interface_state = ResolutionState.RESOLVING
         try:
             for declaration in self.static_declarations.values():
-                declaration.resolve_type()
+                with self.coordinator.contain(declaration):
+                    declaration.resolve_type()
             for declaration in self.declarations:
-                if isinstance(declaration, (model.NodeType, model.DeclarationLibrary)):
+                if (isinstance(declaration, (model.NodeType, model.DeclarationLibrary))
+                        or getattr(declaration, 'failed', False)):
                     continue
-                with declaration.context:
+                with self.coordinator.contain(declaration), declaration.context:
                     declaration.prepare_interface(self)
         except Exception:
             self.interface_state = ResolutionState.FAILED
@@ -146,7 +154,7 @@ class NodeType(model.Scope):
         self.instance_declarations_state = ResolutionState.RESOLVING
         try:
             for declaration in self.node_declarations.values():
-                with declaration.context:
+                with self.coordinator.contain(declaration), declaration.context:
                     declaration.resolve_instance_arguments(self)
         except Exception:
             self.instance_declarations_state = ResolutionState.FAILED
@@ -206,12 +214,20 @@ class NodeType(model.Scope):
         # TODO: Remove
         node.parameter_values = dict(par_values)
 
+        # Parameters without a value because of an earlier error are not reported again.
+        failed = getattr(instantiation, 'failed_parameters', set())
+        # Port types are not checked again without all parameter values.
+        incomplete = bool(failed)
         for par in self.parsed_parameters.values():
             # print(par, par.is_optional)
             if not par.is_optional and par not in node.parameter_values:
-                raise model.ProgramError(
-                    instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
-                    hints=[model.CompilerHint(par, 'Parameter was declared here')])
+                incomplete = True
+                if par in failed or getattr(par, 'failed', False):
+                    continue
+                with self.coordinator.contain(None):
+                    raise model.ProgramError(
+                        instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
+                        hints=[model.CompilerHint(par, 'Parameter was declared here')])
 
         # TODO: Pass list of connections to constructor instead of getting them from self.graph
         node.custom_inputs = {}
@@ -221,8 +237,9 @@ class NodeType(model.Scope):
             # if not isinstance(input.port_spec, model.PortTypeSpecificationData):
             #     continue
             # TODO: Is the name of the node and the name of the input always the same?
-            if input.var_type is not None:
-                check_runtime_type(resolve_type(input.var_type, node.par_values), instantiation)
+            if input.var_type is not None and not incomplete:
+                with self.coordinator.contain(None):
+                    check_runtime_type(resolve_type(input.var_type, node.par_values), instantiation)
             new_input = model.InstanceInputPort(node, input.input_name, input.is_list, input.var_type, type_input_port=input)
             node.custom_inputs[input] = new_input
         for output in self.output_ports.values():
@@ -230,8 +247,9 @@ class NodeType(model.Scope):
             # if not isinstance(output.port_spec, model.PortTypeSpecificationData):
             #     continue
             # TODO: Is the name of the node and the name of the output always the same?
-            if output.var_type is not None:
-                check_runtime_type(resolve_type(output.var_type, node.par_values), instantiation)
+            if output.var_type is not None and not incomplete:
+                with self.coordinator.contain(None):
+                    check_runtime_type(resolve_type(output.var_type, node.par_values), instantiation)
             new_output = model.InstanceOutputPort(node, output.output_name, output.var_type, type_output_port=output)
             node.custom_outputs[output] = new_output
 

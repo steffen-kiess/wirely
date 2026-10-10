@@ -63,7 +63,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         coordinator.compile()
     except lark.UnexpectedInput as e:
         report(Diagnostic('syntax_error', str(e), filename=e.source_filename, line=e.line,
-                          context=e.get_context(e.source_input_data)))
+                          context=e.get_context(e.source_input_data),
+                          start=getattr(e, 'pos_in_stream', None)))
         return None
     except _DiagnosticCallbackError as e:
         raise e.error from None

@@ -67,7 +67,7 @@ class DeclarationLibrary(Scope):
         self.coordinator.declaration_groups.append((self.compiled_scope, self.declarations))
 
         for decl in self.declarations:
-            with decl.context:
+            with self.coordinator.contain(decl), decl.context:
                 # TODO: What is allowed here?
                 if not isinstance(decl, (model.NodeType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType, DeclarationNativeFunction)):
                     hints = [

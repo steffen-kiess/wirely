@@ -14,6 +14,9 @@ class Diagnostic:
     line: int | None = None
     context: str | None = None
     traceback: str | None = None
+    # Offsets into the source text of filename, if known.
+    start: int | None = None
+    end: int | None = None
 
 
 def print_diagnostic(diagnostic, *, file=None, traceback_file=None):
@@ -52,8 +55,16 @@ def error_diagnostics(error, *, always_print_stacktrace=False):
         line=None if position is None else position.start_line,
         context=None if source is None else error.get_context(),
         traceback=stacktrace,
+        **_offsets(position),
     )
     for hint in error.hints:
         position = hint.source_element.source_position
         yield Diagnostic('hint', str(hint), filename=position.filename,
-                         line=position.start_line, context=hint.get_context())
+                         line=position.start_line, context=hint.get_context(), **_offsets(position))
+
+
+def _offsets(position):
+    meta = None if position is None else position.meta
+    if meta is None or getattr(meta, 'empty', True):
+        return {}
+    return {'start': meta.start_pos, 'end': meta.end_pos}

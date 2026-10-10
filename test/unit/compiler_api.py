@@ -18,6 +18,7 @@ for source, message in (
     checks.assertEqual(len(diagnostics), 1)
     checks.assertEqual(diagnostics[0].kind, 'error')
     checks.assertEqual(diagnostics[0].message, message)
+    checks.assertEqual((diagnostics[0].start, diagnostics[0].end), (0, len(source)))
     with tempfile.TemporaryDirectory(prefix='wirely-compiler-api-') as directory:
         filename = Path(directory) / 'root.wrl'
         filename.write_text(source, encoding='utf-8')
@@ -26,6 +27,11 @@ for source, message in (
                                          on_diagnostic=diagnostics.append))
         checks.assertEqual(diagnostics[0].message, message)
         checks.assertEqual(diagnostics[0].filename, str(filename))
+
+# Syntax errors carry the offset of the unexpected input.
+diagnostics = []
+compile_strs([('<root>', 'node a: T {}\nnode 1')], on_diagnostic=diagnostics.append)
+checks.assertEqual((diagnostics[0].kind, diagnostics[0].start), ('syntax_error', 18))
 
 # Valid root graphs reach program compilation without repeating binding.
 source = 'temporary result: boolean; procedure run produces result { result = true; }'

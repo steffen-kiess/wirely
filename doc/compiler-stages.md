@@ -84,6 +84,12 @@ complete only after it succeeds. Types and constants that depend on other
 declarations can resolve those dependencies when first needed, with separate
 checks for cycles in those references.
 
+`wirely.compiler.analysis.analyze()` runs the stages through
+`create_child_interfaces` to resolve the port and parameter types of
+programs that do not compile. It continues after an error in a
+declaration, instance, or parameter binding and reports all errors with
+their source offsets.
+
 ## Generate the runtime program
 
 `program.compile()` calls `program.lower_program()` with the global graph.

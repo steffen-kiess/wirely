@@ -53,6 +53,9 @@ them to `apply_edits()` to get the new texts.
   updates the references to a declaration.
 - `position` can be set on ports, parameters, constants, states,
   temporaries, and procedures.
+- `wirely.compiler.analysis` resolves port and parameter types of programs
+  with errors or unfinished connections and reports all errors in
+  declarations and instances. Compiler diagnostics carry source offsets.
 
 ## 0.1.2 - 2026-10-10
 
