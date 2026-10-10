@@ -123,3 +123,30 @@ temporary first: boolean;
 temporary second: boolean;
 connect first -> second;
 connect second -> first; // E: Circular connection
+
+// TEST: cycle through a child node
+node type Relay {
+  default input: value boolean;
+  default output: value boolean;
+  connect default input -> default output;
+}
+node relay: Relay {}
+connect relay -> relay; // E: Circular connection
+
+// TEST: cycle between child nodes
+node type Relay {
+  default input: value boolean;
+  default output: value boolean;
+  temporary current: boolean;
+  connect default input -> current;
+  connect current -> default output;
+}
+node type Outer {
+  default output: value boolean;
+  node first: Relay {}
+  node second: Relay {}
+  connect first -> second; // E: Circular connection
+  connect second -> first;
+  connect second -> default output;
+}
+node outer: Outer {}

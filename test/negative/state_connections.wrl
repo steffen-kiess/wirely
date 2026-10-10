@@ -270,3 +270,19 @@ state saved: boolean = false;
 temporary current: boolean;
 connect saved.new -> current;
 connect current -> saved; // E: Circular connection
+
+// TEST: state new value fed back through a child node
+node type Relay {
+  default input: value boolean;
+  default output: value boolean;
+  connect default input -> default output;
+}
+node type Holder {
+  default output: value boolean;
+  state saved: boolean = false;
+  node relay: Relay {}
+  connect saved.new -> relay; // E: Circular connection
+  connect relay -> saved;
+  connect saved.old -> default output;
+}
+node holder: Holder {}

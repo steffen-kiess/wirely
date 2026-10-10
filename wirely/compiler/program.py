@@ -189,10 +189,7 @@ def compile_nocatch(global_node_type):
         members = source.members if is_list else (source,)
         paths = []
         for member in members:
-            try:
-                provider_path, output = model.resolve_variable(path, member)
-            except RecursionError as exc:
-                raise model.ProgramError(port, 'Circular resource connection') from exc
+            provider_path, output = model.resolve_variable(path, member)
             if not instances[provider_path].node_type.is_native:
                 raise model.ProgramError(port, 'Resource input has no native provider', hints=[
                     model.CompilerHint(output.port_spec, 'Resource output was declared here'),

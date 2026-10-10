@@ -125,15 +125,27 @@ def path_resolve_singleton(path):
         return path
 
 
-def resolve_variable(path, var):
+def resolve_variable(path, var, seen=None):
     if debug_variable_resolution:
         print(f'resolve_variable({path}, {var})')
+
+    # Values passed on through connections must not lead back to themselves.
+    if seen is None:
+        seen = {}
+    key = path, id(var)
+    if key in seen:
+        cycle = list(seen.values())[list(seen).index(key):]
+        port = next(item for item in cycle if isinstance(item, model.InstanceInputPort))
+        connection = next(connection for connection in port.node.graph.connections
+                          if connection.target is port)
+        raise model.ProgramError(connection.source_element, 'Circular connection')
+    seen[key] = var
 
     if isinstance(var, StateRead):
         owner_path, state = resolve_variable(path, var.state)
         # A copied state's new value is its source's value.
         if var.phase == 'new' and state.copy_source is not None:
-            return resolve_variable(owner_path, state.copy_source)
+            return resolve_variable(owner_path, state.copy_source, seen)
         return owner_path, StateRead(state, var.phase, var.reference)
 
     if isinstance(var.node, InstanceNode) and var.node.node_type.is_singleton:
@@ -141,7 +153,7 @@ def resolve_variable(path, var):
         if owner is not var.node:
             items = owner.input_ports + owner.output_ports + owner.temporaries + owner.state_variables
             item = next(item for item in items if type(item) is type(var) and item.var_identifier == var.var_identifier)
-            return resolve_variable((owner.node_type,), item)
+            return resolve_variable((owner.node_type,), item, seen)
 
     if isinstance(var, model.InstanceStateVariable):
         return path, var
@@ -175,7 +187,7 @@ def resolve_variable(path, var):
             if not isinstance(parent_node, InstanceNode):
                 parent_node = parent_node.singleton_instance
             input_var = parent_node.input_ports_byname[input_name]
-            return resolve_variable(path_resolve_singleton(new_path), input_var)
+            return resolve_variable(path_resolve_singleton(new_path), input_var, seen)
 
         # TODO: This is somewhat of a hack
         if (isinstance(var, model.InstanceInputPort)) and isinstance(node, model.TypeOutputPort):
@@ -185,7 +197,7 @@ def resolve_variable(path, var):
             if not isinstance(parent_node, InstanceNode):
                 parent_node = parent_node.singleton_instance
             output_var = parent_node.output_ports_byname[output_name]
-            return resolve_variable(path_resolve_singleton(new_path), output_var)
+            return resolve_variable(path_resolve_singleton(new_path), output_var, seen)
 
     if isinstance(var, model.InstanceInputPort):
         src = var.connected_source
@@ -193,12 +205,12 @@ def resolve_variable(path, var):
             raise Exception('src is None')
         new_path = path[:-1] + (src.node,)
         # print(src, type(src), src.node, new_path)
-        return resolve_variable(path_resolve_singleton(new_path), src)
+        return resolve_variable(path_resolve_singleton(new_path), src, seen)
 
     if isinstance(var, model.InstanceOutputPort):
         source = var.type_output_port.connected_source
         if source is not None:
-            return resolve_variable(path_resolve_singleton(path + (source.node,)), source)
+            return resolve_variable(path_resolve_singleton(path + (source.node,)), source, seen)
         if isinstance(var.port_spec, model.PortTypeSpecificationResource):
             return path, var
         raise Exception(f'Output {var} is not connected')
@@ -212,7 +224,7 @@ def resolve_variable(path, var):
                 raise Exception(f'temporary.node {temporary.node} != path[-1] {path[-1]}')
         # A declared temporary is another name for its source.
         if temporary.alias_of is not None:
-            return resolve_variable(path, temporary.alias_of)
+            return resolve_variable(path, temporary.alias_of, seen)
         if temporary.producer is None:
             raise Exception('temporary.producer is None')
         if debug_variable_resolution:
@@ -233,7 +245,7 @@ def resolve_variable(path, var):
                 break
         if var_inst is None:
             raise Exception(f'Cannot find temporary {var.name!r}')
-        return resolve_variable(path[:-1], var_inst)
+        return resolve_variable(path[:-1], var_inst, seen)
 
     if isinstance(var, model.ProcedureOutputPort):
         if path[-1] != var:
@@ -245,7 +257,7 @@ def resolve_variable(path, var):
         if isinstance(storage, model.InstanceStateVariable):
             # Other consumers of a port writing state read the new value.
             return path[:-1], StateRead(storage, 'new', var.declaration)
-        return resolve_variable(path[:-1], storage)
+        return resolve_variable(path[:-1], storage, seen)
 
     # TODO: Clean up
     if isinstance(var, model.TypeInputPort):
@@ -257,7 +269,7 @@ def resolve_variable(path, var):
         if not isinstance(parent_node, InstanceNode):
             parent_node = parent_node.singleton_instance
         input_var = parent_node.input_ports_byname[input_name]
-        return resolve_variable(path_resolve_singleton(new_path), input_var)
+        return resolve_variable(path_resolve_singleton(new_path), input_var, seen)
 
     # TODO: Clean up
     if isinstance(var, model.StateNode):
