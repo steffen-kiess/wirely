@@ -3,6 +3,7 @@
 import dataclasses
 import html
 import os
+import signal
 import sys
 
 import lark
@@ -33,6 +34,9 @@ def run(filenames):
     application.setApplicationName('Wirely')
     window = MainWindow(filenames)
     window.show()
+    # Let Ctrl+C in the terminal end the program; Python's handler would only
+    # run once Qt returns to Python code.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     return application.exec()
 
 
