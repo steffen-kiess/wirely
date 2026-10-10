@@ -237,8 +237,9 @@ class Engine:
                 if self.next_wakeup is None:
                     # Sleep without timeout
                     await self.triggered_procs_event.wait()
-                elif not wirely.MonotonicTime.is_comparable(now, self.next_wakeup):
-                    # Don't sleep
+                elif (not wirely.MonotonicTime.is_comparable(now, self.next_wakeup)
+                        or wirely.MonotonicTime.compare(self.next_wakeup, now) <= 0):
+                    # The wakeup is not comparable or has already passed; don't sleep.
                     pass
                 else:
                     diff = self.next_wakeup - now
