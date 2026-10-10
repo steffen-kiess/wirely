@@ -18,7 +18,7 @@ from wirely.compiler.outline import Connection
 
 from . import layout as _layout
 from .graph_model import Unresolved, layout_edges
-from .grid import STEP, from_pixels, size
+from .grid import STEP, from_pixels, size, snap
 
 PADDING = 8
 ROW_HEIGHT = STEP
@@ -178,12 +178,14 @@ class ItemGraphic(QGraphicsObject):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
-            # Round a drag's displacement so half-step ties preserve group spacing.
-            positions = getattr(self.scene(), '_press_positions', None)
-            origin = positions.get(self.model.id, QPointF()) if positions else QPointF()
-            delta = value - origin
-            x, y = from_pixels(delta.x(), delta.y())
-            return origin + QPointF(x * STEP, y * STEP)
+            scene = self.scene()
+            positions = getattr(scene, '_press_positions', None)
+            if positions and self.model.id in positions and scene.snapping:
+                # A group snaps its displacement, preserving fractional offsets.
+                origin = positions[self.model.id] if len(positions) > 1 else QPointF()
+                delta = value - origin
+                x, y = from_pixels(delta.x(), delta.y())
+                return origin + QPointF(snap(x) * STEP, snap(y) * STEP)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             for edge in self.edges:
                 edge.update_path()
@@ -279,6 +281,7 @@ class GraphScene(QGraphicsScene):
         self.edge_graphics = []
         self.model = None
         self.interactive = True
+        self.snapping = True
         self.check_connection = None
         self._drag = None
         self._press_positions = None
@@ -286,7 +289,10 @@ class GraphScene(QGraphicsScene):
     def drawBackground(self, painter, rect):
         super().drawBackground(painter, rect)
         painter.save()
-        pen = QPen(QColor('#d3d3d3'), 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        transform = painter.worldTransform()
+        zoom = math.hypot(transform.m11(), transform.m12())
+        diameter = max(2, min(6, 2 * zoom))
+        pen = QPen(QColor('#d3d3d3'), diameter, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
         pen.setCosmetic(True)
         painter.setPen(pen)
         left = math.ceil(rect.left() / STEP)

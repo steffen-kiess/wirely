@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from wirely.compiler.outline import Node, State
 from wirely.editor.app import MainWindow
-from wirely.editor.grid import STEP, from_pixels
+from wirely.editor.grid import STEP, from_pixels, snap
 
 
 checks = TestCase()
@@ -69,8 +69,8 @@ with tempfile.TemporaryDirectory() as directory:
     # Dragging a node writes its position; one undo removes it again.
     printer = scene.items_by_id[Node(('printer',))]
     start = at(printer.mapToScene(20, 8))
-    x, y = from_pixels(printer.pos().x() + 40, printer.pos().y() + 60)
-    expected = f'position(x = {x}, y = {y})'
+    x, y = map(snap, from_pixels(printer.pos().x() + 40, printer.pos().y() + 60))
+    expected = f'position(x = {x:g}, y = {y:g})'
     drag(view, start, start + QPoint(40, 60))
     checks.assertIn(expected, document.text())
     window.workspaces.activate(tab)
@@ -99,13 +99,13 @@ with tempfile.TemporaryDirectory() as directory:
         printer = scene.items_by_id[Node(('printer',))]
         start = at(printer.mapToScene(20, 8))
         scene_delta = view.mapToScene(start + delta) - view.mapToScene(start)
-        dx, dy = from_pixels(scene_delta.x(), scene_delta.y())
+        dx, dy = map(snap, from_pixels(scene_delta.x(), scene_delta.y()))
         drag(view, start, start + delta)
         for item_id, position in before.items():
             graphic = scene.items_by_id[item_id]
             checks.assertEqual(graphic.pos(), position + QPointF(dx * STEP, dy * STEP))
             x, y = from_pixels(graphic.pos().x(), graphic.pos().y())
-            checks.assertIn(f'position(x = {x}, y = {y})', document.text())
+            checks.assertIn(f'position(x = {x:g}, y = {y:g})', document.text())
         window.undo()
         checks.assertEqual(document.text(), source)
     view.resetTransform()
@@ -118,13 +118,13 @@ with tempfile.TemporaryDirectory() as directory:
         palette.return_value.exec.return_value = True
         palette.return_value.selected_type.return_value = 'Std.DebugEventPrinter'
         window.add_node(tab, position)
-    checks.assertIn('position(x = -3.0, y = 4.0)', document.text())
+    checks.assertIn('position(x = -3, y = 4)', document.text())
     window.undo()
     with patch('wirely.editor.app.DeclarationDialog') as dialog:
         dialog.return_value.exec.return_value = True
         dialog.return_value.declaration.return_value = 'state extra: boolean = false;'
         window.add_declaration(tab, 'state', position)
-    checks.assertIn('position(x = -3.0, y = 4.0)', document.text())
+    checks.assertIn('position(x = -3, y = 4)', document.text())
     state = scene.items_by_id[State(('extra',))]
     old = state.sockets[('outputs', 'old')].scenePos()
     new = state.sockets[('outputs', 'new')].scenePos()
@@ -133,29 +133,111 @@ with tempfile.TemporaryDirectory() as directory:
     window.undo()
     checks.assertEqual(document.text(), source)
 
-    # Loading fractional positions snaps for display without editing source.
+    # Creation without snapping preserves fractional coordinates for both
+    # nodes and declarations.
+    window.snap_action.trigger()
+    checks.assertFalse(scene.snapping)
+    with patch('wirely.editor.app.NodePalette') as palette:
+        palette.return_value.exec.return_value = True
+        palette.return_value.selected_type.return_value = 'Std.DebugEventPrinter'
+        window.add_node(tab, position)
+    checks.assertIn('position(x = -2.7, y = 4.3)', document.text())
+    window.undo()
+    with patch('wirely.editor.app.DeclarationDialog') as dialog:
+        dialog.return_value.exec.return_value = True
+        dialog.return_value.declaration.return_value = 'state extra: boolean = false;'
+        window.add_declaration(tab, 'state', position)
+    checks.assertIn('position(x = -2.7, y = 4.3)', document.text())
+    checks.assertEqual(scene.items_by_id[State(('extra',))].pos(), position)
+    window.undo()
+    window.snap_action.trigger()
+
+    # Loading fractional positions preserves them without editing source.
     fractional = '#[position(x = -2.7, y = 4.3)]\n' + source
     cursor = QTextCursor(document.text_document)
     cursor.select(QTextCursor.SelectionType.Document)
     cursor.insertText(fractional)
     window.session.refresh()
-    checks.assertEqual(scene.items_by_id[Node(('source',))].pos(), QPointF(-3 * STEP, 4 * STEP))
+    checks.assertEqual(scene.items_by_id[Node(('source',))].pos(), QPointF(-2.7 * STEP, 4.3 * STEP))
+    checks.assertEqual(document.text(), fractional)
+
+    # Toggling is not an edit. Free dragging survives the resulting refresh,
+    # and re-enabling snapping leaves the node alone until its next drag.
+    origin = scene.items_by_id[Node(('source',))].pos()
+    window.snap_action.trigger()
+    checks.assertEqual(document.text(), fractional)
+    view.centerOn(scene.itemsBoundingRect().center())
+    scene.clearSelection()
+    graphic = scene.items_by_id[Node(('source',))]
+    start = at(graphic.mapToScene(20, 8))
+    delta = QPoint(-13, 11)
+    movement = view.mapToScene(start + delta) - view.mapToScene(start)
+    drag(view, start, start + delta)
+    expected_position = origin + movement
+    checks.assertAlmostEqual(graphic.pos().x(), expected_position.x())
+    checks.assertAlmostEqual(graphic.pos().y(), expected_position.y())
+    window.session.refresh()
+    checks.assertAlmostEqual(graphic.pos().x(), expected_position.x())
+    checks.assertAlmostEqual(graphic.pos().y(), expected_position.y())
+    free_text = document.text()
+    window.snap_action.trigger()
+    checks.assertEqual(document.text(), free_text)
+    checks.assertAlmostEqual(graphic.pos().x(), expected_position.x())
+    checks.assertAlmostEqual(graphic.pos().y(), expected_position.y())
+    window.undo()
+    checks.assertEqual(document.text(), fractional)
+    checks.assertEqual(graphic.pos(), origin)
+    view.centerOn(scene.itemsBoundingRect().center())
+    start = at(graphic.mapToScene(20, 8))
+    movement = view.mapToScene(start + delta) - view.mapToScene(start)
+    x, y = map(snap, from_pixels((origin + movement).x(), (origin + movement).y()))
+    drag(view, start, start + delta)
+    checks.assertEqual(graphic.pos(), QPointF(x * STEP, y * STEP))
+    window.undo()
+    checks.assertEqual(document.text(), fractional)
+
+    # Group snapping retains unequal fractional offsets, including negatives.
+    window.edit(lambda: window.program.move({Node(('printer',)): (15.2, -0.25)}))
+    view.centerOn(scene.itemsBoundingRect().center())
+    before = {item_id: graphic.pos() for item_id, graphic in scene.items_by_id.items()}
+    for graphic in scene.items_by_id.values():
+        graphic.setSelected(True)
+    graphic = scene.items_by_id[Node(('source',))]
+    start = at(graphic.mapToScene(20, 8))
+    delta = QPoint(-37, 53)
+    movement = view.mapToScene(start + delta) - view.mapToScene(start)
+    dx, dy = map(snap, from_pixels(movement.x(), movement.y()))
+    drag(view, start, start + delta)
+    for item_id, origin in before.items():
+        graphic = scene.items_by_id[item_id]
+        checks.assertAlmostEqual(graphic.pos().x(), origin.x() + dx * STEP)
+        checks.assertAlmostEqual(graphic.pos().y(), origin.y() + dy * STEP)
+    window.undo()
+    window.undo()
     checks.assertEqual(document.text(), fractional)
     window.undo()
     checks.assertEqual(document.text(), source)
+    scene.clearSelection()
+    view.centerOn(scene.itemsBoundingRect().center())
 
     # Background dots stay on scene grid intersections at different scales
     # and offsets, including negative coordinates.
-    for scale, left in ((1, -72), (2, -63)):
+    dot_areas = []
+    for scale, left in ((1, -72), (2, -63), (4, -63)):
         image = QImage(72, 72, QImage.Format.Format_ARGB32)
         image.fill(QColor('white'))
         painter = QPainter(image)
-        scene.render(painter, QRectF(0, 0, 72, 72), QRectF(left, -72, 72 / scale, 72 / scale))
+        scene.render(painter, QRectF(0, 0, 72, 72), QRectF(left, left, 72 / scale, 72 / scale))
         painter.end()
         dot_x = round((-54 - left) * scale)
-        dot_y = round(18 * scale)
+        dot_y = dot_x
         checks.assertEqual(image.pixelColor(dot_x, dot_y), QColor('#d3d3d3'))
         checks.assertEqual(image.pixelColor(dot_x + 5, dot_y + 5), QColor('white'))
+        dot_areas.append(sum(image.pixelColor(x, y) != QColor('white')
+                             for x in range(dot_x - 4, dot_x + 5)
+                             for y in range(dot_y - 4, dot_y + 5)))
+    checks.assertGreater(dot_areas[1], dot_areas[0])
+    checks.assertGreater(dot_areas[2], dot_areas[1])
 
     # Dragging from an output to an input connects them.
     source_socket = scene.items_by_id[Node(('source',))].sockets[('outputs', None)]
@@ -164,7 +246,7 @@ with tempfile.TemporaryDirectory() as directory:
     checks.assertIn('connect source -> printer;', document.text())
     checks.assertEqual(len(scene.edge_graphics), 1)
 
-    # Edges follow snapped positions immediately, before a source edit.
+    # Edges follow position changes immediately, before a source edit.
     printer = scene.items_by_id[Node(('printer',))]
     position = printer.pos()
     printer.setPos(position + QPointF(1.4 * STEP, -0.6 * STEP))

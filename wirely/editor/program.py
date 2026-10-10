@@ -10,8 +10,6 @@ from wirely.compiler import editing
 from wirely.compiler.analysis import analyze
 from wirely.compiler.outline import Connection, NodeType
 
-from .grid import snap
-
 
 class Program:
     def __init__(self, sources):
@@ -104,7 +102,7 @@ class Program:
         return self.analysis.can_connect(scope, source, target, replacing=replacing)
 
     def move(self, positions):
-        """Set snapped grid positions of elements, given as {ID: (x, y)}."""
+        """Set grid positions of elements, given as {ID: (x, y)}."""
         return self._combined(
             lambda sources, target=target, x=x, y=y: editing.set_attribute(
                 sources, target, editing.format_metadata('position', x=_coordinate(x), y=_coordinate(y)))
@@ -176,7 +174,8 @@ def renamed_path(path, target, new_name):
 
 
 def _coordinate(value):
-    return snap(value)
+    value = float(value)
+    return int(value) if value.is_integer() else value
 
 
 def _difference(filename, old, new):

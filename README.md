@@ -54,7 +54,9 @@ split, or outside the editor to detach. Closing a detached window returns
 its tabs to the main window. Layouts last for the current session.
 A graph is read-only while its source has syntax errors. In a graph:
 
-- Drag a node to store its position in the source.
+- Drag a node to store its position in the source. Use View → Snap to Grid
+  to toggle snapping for all graphs. A selected group snaps its movement
+  while keeping its relative positions.
 - Drag from a port to another port to connect them. Drag a connection away
   from an input to move or remove it.
 - Press Delete to remove the selection and F2 to rename it.

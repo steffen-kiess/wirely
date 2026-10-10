@@ -79,8 +79,8 @@ node source: Std.Constant {
 can appear once per declaration. Coordinates are compiler metadata. Graph
 editors place the top-left corner of an element there, with `y` increasing
 downward. The graphical editor uses grid units, each equal to the distance
-between adjacent ports. It snaps positions to whole grid units and writes
-floating point coordinates.
+between adjacent ports. Stored positions can be fractional; whole-number
+coordinates are written as integers.
 
 Tools can add, change, rename, and remove declarations, connect ports, and
 set attributes in source text with `wirely.compiler.editing`. Comments and

@@ -20,7 +20,7 @@ from wirely.compiler.outline import Connection, Node, NodeType
 from . import graph_model
 from .graph_view import EdgeGraphic, GraphTab, ItemGraphic
 from .graph_model import Unresolved
-from .grid import from_pixels
+from .grid import from_pixels, snap
 from .palette import DeclarationDialog, NodePalette
 from .program import renamed_path
 from .properties import PropertiesPanel
@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.session.external_change.connect(self._external_change)
         self.text_tabs = {}
         self.graph_tabs = []
+        self.snapping = True
 
         self.workspaces = WorkspaceManager(self)
         self.workspaces.activated.connect(self._view_activated)
@@ -105,6 +106,11 @@ class MainWindow(QMainWindow):
         view_menu = host.menuBar().addMenu('&View')
         self._action(view_menu, 'Program &Graph', 'Ctrl+G', lambda: self.open_graph((), host=host))
         self._action(view_menu, '&Source of Selection', 'Ctrl+E', lambda: self.show_selection_source(host))
+        host.snap_action = QAction('Snap to Grid', host)
+        host.snap_action.setCheckable(True)
+        host.snap_action.setChecked(self.snapping)
+        host.snap_action.toggled.connect(self._set_snapping)
+        view_menu.addAction(host.snap_action)
         view_menu.addSeparator()
         split_right = self._action(view_menu, 'Split Right', None, lambda: self.workspaces.split(current(), 'right'))
         split_below = self._action(view_menu, 'Split Below', None, lambda: self.workspaces.split(current(), 'bottom'))
@@ -132,6 +138,20 @@ class MainWindow(QMainWindow):
         menu.addAction(action)
         return action
 
+    def _set_snapping(self, enabled):
+        self.snapping = enabled
+        for tab in self.graph_tabs:
+            tab.graph_scene.snapping = enabled
+        for host in self.workspaces.hosts():
+            action = host.snap_action
+            action.blockSignals(True)
+            action.setChecked(enabled)
+            action.blockSignals(False)
+
+    def _creation_position(self, position):
+        coordinates = from_pixels(position.x(), position.y())
+        return tuple(map(snap, coordinates)) if self.snapping else coordinates
+
     # Tabs
 
     def open_text(self, filename, focus=False, host=None):
@@ -156,6 +176,7 @@ class MainWindow(QMainWindow):
                 return tab
         tab = GraphTab(path, self)
         scene = tab.graph_scene
+        scene.snapping = self.snapping
         scene.check_connection = lambda source, target, replacing, tab=tab: self.program.can_connect(
             tab.path, source, target, replacing=replacing)
         scene.moved.connect(lambda positions: self.edit(lambda: self.program.move(positions)))
@@ -382,7 +403,7 @@ class MainWindow(QMainWindow):
         palette = NodePalette(self.program.analysis.node_types(tab.path), tab.window())
         if palette.exec() and palette.selected_type():
             type_text = palette.selected_type()
-            self.edit(lambda: self.program.add_node(tab.path, type_text, from_pixels(position.x(), position.y())))
+            self.edit(lambda: self.program.add_node(tab.path, type_text, self._creation_position(position)))
 
     def add_declaration(self, tab, kind, position):
         # Public parameters and ports use PascalCase, the others snake_case.
@@ -396,7 +417,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(tab.window(), f'Add {kind}', str(error))
                 continue
             self.edit(lambda: self.program.add_declaration(tab.path, declaration,
-                                                          from_pixels(position.x(), position.y())))
+                                                          self._creation_position(position)))
             return
 
     def _refuse_while_broken(self, action):

@@ -15,4 +15,4 @@ def size(value):
 
 
 def from_pixels(x, y):
-    return snap(x / STEP), snap(y / STEP)
+    return x / STEP, y / STEP

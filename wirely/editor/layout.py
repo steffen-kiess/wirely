@@ -8,7 +8,7 @@ overlap a placed one moves below it.
 
 from dataclasses import dataclass, replace
 
-from .grid import size, snap
+from .grid import size
 
 COLUMN_GAP = 4.0
 ROW_GAP = 2.0
@@ -26,9 +26,9 @@ class LayoutItem:
 
 
 def layout(items, edges):
-    """Return snapped grid coordinates; edges are (source ID, target ID) pairs."""
+    """Return grid coordinates; edges are (source ID, target ID) pairs."""
     items = [replace(item, width=size(item.width), height=size(item.height),
-                     position=None if item.position is None else tuple(map(snap, item.position)))
+                     position=None if item.position is None else tuple(map(float, item.position)))
              for item in items]
     if not items:
         return {}
@@ -177,7 +177,7 @@ def _avoid_placed(items, positions):
             moved = False
             for left, top, right, bottom in occupied:
                 if x < right and left < x + item.width and y < bottom and top < y + item.height:
-                    y = bottom + ROW_GAP
+                    y = size(bottom + ROW_GAP)
                     moved = True
         positions[number] = (x, y)
         occupied.append((x, y, x + item.width, y + item.height))

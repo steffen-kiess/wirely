@@ -88,14 +88,16 @@ def edited(edits):
     return dict(apply_edits(program.sources, edits))
 
 
-# Moving several elements writes one rounded position each, in one edit per file.
+# Moving several elements preserves coordinates, in one edit per file.
 edits = program.move({Node(('source',)): (10.4, -20.6), Node(('printer',)): (300, 0),
                       count: (5, 5)})
 checks.assertEqual(sorted(edit.filename for edit in edits), ['lib.wrl', 'main.wrl'])
 texts = edited(edits)
-checks.assertIn('#![position(x = 10.0, y = -21.0)]', texts['main.wrl'])
-checks.assertIn('#![position(x = 300.0, y = 0.0)]', texts['main.wrl'])
-checks.assertIn('#[position(x = 5.0, y = 5.0)]\n  state count', texts['lib.wrl'])
+checks.assertIn('#![position(x = 10.4, y = -20.6)]', texts['main.wrl'])
+checks.assertIn('#![position(x = 300, y = 0)]', texts['main.wrl'])
+checks.assertIn('#[position(x = 5, y = 5)]\n  state count', texts['lib.wrl'])
+texts = edited(program.move({Node(('source',)): (-3.0, -0.0)}))
+checks.assertIn('#![position(x = -3, y = 0)]', texts['main.wrl'])
 
 # Deleting a node and a connection to it removes each once.
 texts = edited(program.delete([Connection((), 'counter', 'printer'), Node(('printer',))]))
@@ -106,7 +108,7 @@ checks.assertEqual((node_name('Std.DebugValuePrinter'), node_name('Memory.Toggle
                     node_name('Std.Constant[int32]')),
                    ('debug_value_printer', 'toggle_flip_flop_trigger', 'constant'))
 texts = edited(program.add_node((), 'Std.DebugValuePrinter', (1, 2)))
-checks.assertIn('#[position(x = 1.0, y = 2.0)]\nnode debug_value_printer: Std.DebugValuePrinter {}',
+checks.assertIn('#[position(x = 1, y = 2)]\nnode debug_value_printer: Std.DebugValuePrinter {}',
                 texts['main.wrl'])
 
 checks.assertFalse(program.can_connect((), 'source', 'printer').allowed)
@@ -143,11 +145,11 @@ checks.assertEqual(placed['a'], (2 * (6 + COLUMN_GAP), 1))
 checks.assertEqual(placed['b'], positions['b'])
 checks.assertGreater(placed['c'][1], 1 + 3)
 
-# Fractional sizes round up, stored positions snap before overlap avoidance,
-# and every layout coordinate remains a float.
+# Fractional sizes round up, stored positions remain exact, and automatic
+# positions avoid overlaps on the grid. Every coordinate remains a float.
 placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
                  LayoutItem('auto', 6.2, 3.1)], [])
-checks.assertEqual(placed, {'fixed': (0.0, -1.0), 'auto': (0.0, 6.0)})
+checks.assertEqual(placed, {'fixed': (-0.4, -0.6), 'auto': (0.0, 6.0)})
 checks.assertTrue(all(type(value) is float for position in placed.values() for value in position))
 texts = edited(program.add_declaration((), 'state extra: boolean = false;', (-2.5, 3.5)))
-checks.assertIn('#[position(x = -2.0, y = 4.0)]', texts['main.wrl'])
+checks.assertIn('#[position(x = -2.5, y = 3.5)]', texts['main.wrl'])

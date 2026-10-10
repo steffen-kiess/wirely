@@ -152,6 +152,22 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     checks.assertIs(window.open_graph(()), graph)
     checks.assertIs(manager.active_host, detached)
 
+    # All hosts share the toggle, including graphs and windows opened later.
+    checks.assertTrue(action(detached, '&View', 'Snap to Grid').isChecked())
+    action(detached, '&View', 'Snap to Grid').trigger()
+    checks.assertFalse(action(window, '&View', 'Snap to Grid').isChecked())
+    checks.assertFalse(graph.graph_scene.snapping)
+    inner = window.open_graph(('Inner',))
+    checks.assertFalse(inner.graph_scene.snapping)
+    extra_window = manager.detach(inner)
+    checks.assertFalse(action(extra_window, '&View', 'Snap to Grid').isChecked())
+    action(window, '&View', 'Snap to Grid').trigger()
+    checks.assertTrue(action(detached, '&View', 'Snap to Grid').isChecked())
+    checks.assertTrue(action(extra_window, '&View', 'Snap to Grid').isChecked())
+    checks.assertTrue(inner.graph_scene.snapping)
+    window.close_tab(inner)
+    manager.activate(graph)
+
     # Tabs can be dragged into an existing detached group and back to its
     # original pane without replacing the view or moving its source cursor.
     cursor = editor.textCursor()
