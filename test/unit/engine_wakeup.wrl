@@ -1,0 +1,4 @@
+// The test sets a wakeup deadline that passes while a step runs.
+node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
+node reached: Time.MonotonicTimeReached {}
+connect reached_input -> reached;

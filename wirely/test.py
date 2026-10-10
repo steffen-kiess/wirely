@@ -50,6 +50,7 @@ test_names = [
     'unit/control',
     'unit/shuffle',
     'unit/container',
+    'unit/engine_wakeup',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
