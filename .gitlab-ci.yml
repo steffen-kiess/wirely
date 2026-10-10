@@ -64,4 +64,4 @@ build-debian-13:
     paths:
       - dist/wirely-*.whl
       - dist/wirely-*.tar.gz
-      - build/wirely.pex
+      # - build/wirely.pex
