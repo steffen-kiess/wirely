@@ -48,8 +48,9 @@ them to `apply_edits()` to get the new texts.
   in `T == Option[uint8]`.
 - `wirely.compiler.outline` lists the declarations, ports, and connections
   of source files without compiling them. `wirely.compiler.editing` adds,
-  changes, and removes declarations, edits parameter bindings and node
-  types, and connects, disconnects, and reconnects ports.
+  changes, renames, and removes declarations, edits parameter bindings and
+  node types, and connects, disconnects, and reconnects ports. Renaming
+  updates the references to a declaration.
 - `position` can be set on ports, parameters, constants, states,
   temporaries, and procedures.
 

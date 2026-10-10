@@ -14,15 +14,18 @@ order of their connections; connect() places new connections accordingly.
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import lark
 
 from . import ast
 from . import parser
+from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, OutputAssignment, ProcedureBody, PropertyAccess
 from .node_type import NodeType as _NodeType
+from wirely import types as _types
 from .outline import (
-    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, Temporary, outline,
+    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Temporary,
+    outline,
 )
 
 
@@ -124,10 +127,7 @@ def format_port(direction, name, kind, type_text, is_list=False):
 
 def fresh_name(sources, scope, base):
     """Return base, or base followed by a number, unused in the scope."""
-    record = _scope(outline(sources), scope)
-    used = {item.name for item in (*record.nodes, *record.parameters, *record.constants,
-                                   *record.states, *record.temporaries, *record.procedures)}
-    used.update(port.name for port in record.ports if port.name is not None)
+    used = _used_names(_scope(outline(sources), scope))
     name = base
     number = 2
     while name in used:
@@ -335,6 +335,69 @@ def replace_declaration(sources, target, declaration):
     return [TextEdit(record.filename, _start(old), _end(old), declaration)]
 
 
+def rename(sources, target, new_name):
+    """Rename a declaration and update the references to it.
+
+    Procedure ports that referred to the declaration without an alias get
+    the old name as alias, and native procedures keep their Python name.
+    Renaming fails if a reference would resolve differently afterwards.
+    """
+    if not isinstance(target, (Node, State, Temporary, Constant, Parameter, Port, Procedure, NodeType)):
+        raise TypeError(f'Unsupported rename target {target!r}')
+    before = outline(sources)
+    record = _single(before.find(target), target)
+    declaration = record._declaration
+    old = target.path[-1]
+    if isinstance(target, Port) and declaration.name is None:
+        raise ValueError('Default ports cannot be renamed')
+    new_text = format_identifier(new_name)
+    if new_name == old:
+        return []
+    parent = _scope(before, target.path[:-1])
+    if isinstance(target, NodeType):
+        if record.is_native:
+            raise ValueError('Native node types cannot be renamed')
+        if any(item.name == new_name for item in parent.node_types) or any(
+                namespace.path[-1] == new_name for namespace in parent.namespaces):
+            raise ValueError(f'Name {new_name!r} is already used')
+    elif new_name in _used_names(parent):
+        raise ValueError(f'Name {new_name!r} is already used')
+    texts = dict(sources)
+    edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
+    if isinstance(target, Procedure) and declaration.is_native and declaration.alias is None:
+        edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name), f' as "{old}"'))
+    if isinstance(target, NodeType):
+        for scope in _scopes(before.scope):
+            for node in scope.nodes:
+                if node.node_type == target:
+                    name = node._declaration.instantiation.type_name.identifiers[-1]
+                    edits.append(TextEdit(node.filename, _start(name), _end(name), new_text))
+    else:
+        old_text = format_identifier(old)
+        for filename, item in _scope_items(parent):
+            for reference, port in _endpoint_references(item):
+                root = reference.identifiers[0]
+                if root.id_str != old:
+                    continue
+                edits.append(TextEdit(filename, _start(root), _end(root), new_text))
+                if port is not None and port.alias is None and reference.length == 1:
+                    edits.append(TextEdit(filename, _end(reference), _end(reference), f' as {old_text}'))
+        if isinstance(target, Port):
+            edits += _port_reference_edits(before, NodeType(target.path[:-1]), old, new_text)
+        if isinstance(target, (Constant, Parameter)):
+            edits += _static_rename_edits(parent, old, new_name, new_text)
+        if isinstance(target, Parameter):
+            for scope in _scopes(before.scope):
+                for node in scope.nodes:
+                    if node.node_type == NodeType(target.path[:-1]):
+                        for binding in node._declaration.instantiation.parameters:
+                            if binding.name.id_str == old:
+                                edits.append(TextEdit(node.filename, _start(binding.name), _end(binding.name),
+                                                      new_text))
+    _verify_rename(sources, edits, before, target, new_name)
+    return edits
+
+
 def add_attribute(sources, target, metadata):
     """Add an attribute, preferring an inner attribute on its own line."""
     _metadata_name(metadata)
@@ -411,6 +474,194 @@ def _references(result, edge, target):
             if any(node.node_type == NodeType(target.path[:-1]) for node in result.find(endpoint.element)):
                 return True
     return False
+
+
+def _used_names(scope):
+    """Return the names of a scope's nodes, ports, statics, and procedures."""
+    used = {item.name for item in (*scope.nodes, *scope.parameters, *scope.constants,
+                                   *scope.states, *scope.temporaries, *scope.procedures)}
+    used.update(port.name for port in scope.ports if port.name is not None)
+    return used
+
+
+def _scope_items(scope):
+    """Yield (filename, declaration) for the declarations directly in a scope."""
+    for filename, block in scope._blocks:
+        declarations = block if isinstance(block, list) else block.declarations
+        for item in declarations:
+            if not isinstance(item, (_NodeType, ast.DeclarationLibrary)):
+                yield filename, item
+
+
+def _endpoint_references(item):
+    """Yield (reference, reference port or None) for connection and procedure port references."""
+    if isinstance(item, ast.DeclarationConnection):
+        for source in item.sources:
+            yield source, None
+        yield item.target, None
+    elif isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
+        ports = list(item.depends.dependencies)
+        if isinstance(item, ast.DeclarationProcedure):
+            ports += item.produces.outputs
+        for port in ports:
+            if isinstance(port, ast.ReferencePort):
+                yield port.reference, port
+
+
+def _port_reference_edits(result, node_type, old, new_text):
+    """Rename node.old references to a port of node_type in all scopes."""
+    edits = []
+    for scope in _scopes(result.scope):
+        for filename, item in _scope_items(scope):
+            for reference, _ in _endpoint_references(item):
+                if reference.length != 2 or reference.identifiers[1].id_str != old:
+                    continue
+                nodes = result.find(Node(scope.path + (reference.identifiers[0].id_str,)))
+                if any(node.node_type == node_type for node in nodes):
+                    name = reference.identifiers[1]
+                    edits.append(TextEdit(filename, _start(name), _end(name), new_text))
+    return edits
+
+
+def _static_rename_edits(scope, old, new, new_text):
+    """Rename expression references to a parameter or constant within its scope."""
+    if new in ('true', 'false', 'None') or new in _types.type_by_name:
+        raise ValueError(f'Name {new!r} is reserved')
+    sites = []
+    uses = []
+    for filename, item in _scope_items(scope):
+        for expression in _expression_fields(item):
+            sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(expression)]
+        if isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)) and item.uses is not None:
+            for binding in item.uses.bindings:
+                sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(binding.expression)]
+                expression = binding.expression
+                if (binding.alias is None and isinstance(expression, ast.Reference) and expression.length == 1
+                        and expression.identifiers[0].id_str == old):
+                    uses.append(TextEdit(filename, _end(expression), _end(expression), f' as {format_identifier(old)}'))
+    edits = []
+    for filename, identifier, bound in sites:
+        if identifier.id_str == new:
+            raise ValueError(f'Name {new!r} is already referenced in this scope')
+        if identifier.id_str == old and old not in bound:
+            if new in bound:
+                raise ValueError(f'Name {new!r} is bound locally where {old!r} is used')
+            edits.append(TextEdit(filename, _start(identifier), _end(identifier), new_text))
+    return edits + uses
+
+
+def _expression_fields(item):
+    """Yield the expressions of a declaration that can refer to statics of its scope."""
+    if isinstance(item, ast.DeclarationParameter):
+        yield item.ty
+        if item.default_value is not None:
+            yield item.default_value
+    elif isinstance(item, ast.DeclarationState):
+        yield item.var_type
+        yield item.initial_value
+    elif isinstance(item, ast.DeclarationTemporary):
+        yield item.var_type
+    elif isinstance(item, ast.DeclarationPort):
+        if isinstance(item.port_spec, ast.PortTypeSpecificationData):
+            yield item.port_spec.ty
+    elif isinstance(item, ast.DeclarationAssertion):
+        yield item.condition
+        if item.message is not None:
+            yield item.message
+    elif isinstance(item, ast.DeclarationInstance):
+        for binding in item.instantiation.parameters:
+            yield binding.value
+    elif isinstance(item, ast.DeclarationProcedure):
+        for port in (*item.depends.dependencies, *item.produces.outputs):
+            if isinstance(port, ast.TypedPort) and isinstance(port.port_spec, ast.PortTypeSpecificationData):
+                yield port.port_spec.ty
+        if item.body is not None:
+            yield item.body
+    elif isinstance(item, ast.DeclarationEnumType):
+        yield item.underlying_type
+        for member in item.members:
+            yield member.value
+    elif isinstance(item, ast.DeclarationStructType):
+        for field in item.fields:
+            yield field.field_type
+
+
+_SYNTAX_SKIPPED = ('source_position', 'outer_attributes', 'inner_attributes', 'attributes')
+
+
+def _reference_roots(element, bound=frozenset()):
+    """Yield (identifier, locally bound names) for the root of each value reference."""
+    if isinstance(element, ast.Reference):
+        yield element.identifiers[0], bound
+    elif isinstance(element, ast.FunctionCall):
+        if not (isinstance(element.fun, ast.Reference) and element.fun.length == 1):
+            yield from _reference_roots(element.fun, bound)
+        for parameter in element.parameters:
+            yield from _reference_roots(parameter, bound)
+    elif isinstance(element, ast.StructLiteral):
+        for field in element.fields:
+            yield from _reference_roots(field.value, bound)
+    elif isinstance(element, PropertyAccess):
+        yield from _reference_roots(element.receiver, bound)
+    elif isinstance(element, IfLetExpression):
+        yield from _reference_roots(element.scrutinee, bound)
+        yield from _reference_roots(element.then, bound | {element.name.id_str})
+        yield from _reference_roots(element.otherwise, bound)
+    elif isinstance(element, (ExpressionBlock, ProcedureBody)):
+        statements = (*element.bindings, element.result) if isinstance(element, ExpressionBlock) else element.statements
+        for statement in statements:
+            if isinstance(statement, LocalBinding):
+                if statement.annotation is not None:
+                    yield from _reference_roots(statement.annotation, bound)
+                yield from _reference_roots(statement.initializer, bound)
+                bound = bound | {statement.name.id_str}
+            elif isinstance(statement, OutputAssignment):
+                yield from _reference_roots(statement.expression, bound)
+            else:
+                yield from _reference_roots(statement, bound)
+    elif isinstance(element, (list, tuple)):
+        for item in element:
+            yield from _reference_roots(item, bound)
+    elif isinstance(element, ast.SourceElement):
+        for name, child in vars(element).items():
+            if name not in _SYNTAX_SKIPPED and isinstance(child, (ast.SourceElement, list, tuple)):
+                yield from _reference_roots(child, bound)
+
+
+def _map_id(element, target, new_target):
+    """Map an ID from before a rename to the ID afterwards."""
+    if element == target:
+        return new_target
+    if isinstance(element, ProcedurePort):
+        return replace(element, procedure=_map_id(element.procedure, target, new_target))
+    path = getattr(element, 'path', None)
+    if isinstance(target, NodeType) and path is not None and path[:len(target.path)] == target.path:
+        return replace(element, path=new_target.path + path[len(target.path):])
+    return element
+
+
+def _verify_rename(sources, edits, before, target, new_name):
+    """Check that references resolve to the same declarations after a rename."""
+    new_target = replace(target, path=target.path[:-1] + (new_name,))
+    after = outline(apply_edits(sources, edits))
+    port_type = NodeType(target.path[:-1]) if isinstance(target, Port) else None
+
+    def renamed(endpoint):
+        port = endpoint.port
+        if (port_type is not None and port == target.path[-1] and isinstance(endpoint.element, Node)
+                and any(node.node_type == port_type for node in before.find(endpoint.element))):
+            port = new_name
+        return _map_id(endpoint.element, target, new_target), port
+
+    def summary(result, endpoint_key, node_type_key):
+        scopes = list(_scopes(result.scope))
+        return ([(endpoint_key(edge.source), endpoint_key(edge.target)) for scope in scopes for edge in scope.edges],
+                [node_type_key(node.node_type) for scope in scopes for node in scope.nodes])
+
+    expected = summary(before, renamed, lambda node_type: _map_id(node_type, target, new_target))
+    actual = summary(after, lambda endpoint: (endpoint.element, endpoint.port), lambda node_type: node_type)
+    if expected != actual or len(after.find(new_target)) != 1:
+        raise ValueError('Renaming would change what references resolve to')
 
 
 def _declaration_name(item):

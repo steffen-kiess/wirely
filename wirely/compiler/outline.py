@@ -231,7 +231,7 @@ class Edge:
     filename: str
     span: tuple[int, int]
     source_span: tuple[int, int] | None
-    target_span: tuple[int, int]
+    target_span: tuple[int, int] | None
     attributes: tuple
     _declaration: object = field(default=None, compare=False, repr=False)
     _source: object = field(default=None, compare=False, repr=False)
@@ -595,7 +595,7 @@ def _edges(builder, item):
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, _resolve_endpoint(builder, port.reference, False),
-                           endpoint, _filename(port), _span(port), None, _span(port.reference), (), port)
+                           endpoint, _filename(port), _span(port), _span(port.reference), None, (), port)
         for port in item.produces.outputs:
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)

@@ -1,11 +1,12 @@
 from unittest import TestCase
 
-from wirely.compiler import parser
+from wirely.compiler import compile_strs, parser
 from wirely.compiler.editing import (
     TextEdit, add_attribute, add_declaration, apply_edits, connect, disconnect, format_constant,
     format_identifier, format_metadata, format_node, format_parameter, format_port, format_state,
     format_temporary, fresh_name, reconnect, remove_attribute, remove_declaration,
-    remove_parameter_binding, replace_declaration, set_attribute, set_node_type, set_parameter_binding,
+    remove_parameter_binding, rename, replace_declaration, set_attribute, set_node_type,
+    set_parameter_binding,
 )
 from wirely.compiler.outline import (
     Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, Temporary, outline,
@@ -381,3 +382,88 @@ for target, declaration in ((Port(('T', 'a'), 'input'), 'output a: value int;'),
         edit(replace_declaration, declarations, target, declaration)
 with checks.assertRaises(ValueError):
     edit(replace_declaration, 'constant C: int = 1;\n', Constant(('C',)), 'parameter C: int = 1;')
+
+# Renaming updates references; unaliased procedure ports keep the old name as alias.
+program = '''node type T {
+  parameter P: ValueType;
+  constant C: P = { let C = 1; C };
+  input a: value P;
+  default output: value P;
+  state s: P = C;
+  temporary t: P;
+  node n: Std.Constant { Type: P, Value: C }
+  procedure run depends on a, s.old as old, n as value produces t, s { t = a; s = old; }
+  native procedure check depends on t uses C, P;
+  connect s.new -> default output;
+  connect run.t -> t;
+  assert parameter_option(P) == P;
+}
+node x: T { P: uint8 }
+connect x.a -> x.a;
+'''
+
+
+def check_rename(target, name, *replacements, source=program):
+    expected = source
+    for old, new in replacements:
+        checks.assertIn(old, expected)
+        expected = expected.replace(old, new)
+    checks.assertEqual(edit(rename, source, target, name), expected)
+
+
+check_rename(Node(('T', 'n')), 'm', ('node n:', 'node m:'), ('n as value', 'm as value'))
+check_rename(State(('T', 's')), 'r', ('state s:', 'state r:'), ('s.old', 'r.old'), ('produces t, s', 'produces t, r as s'),
+             ('connect s.new', 'connect r.new'))
+check_rename(Temporary(('T', 't')), 'u', ('temporary t:', 'temporary u:'), ('produces t,', 'produces u as t,'),
+             ('depends on t uses', 'depends on u as t uses'), ('-> t;', '-> u;'))
+check_rename(Port(('T', 'a'), 'input'), 'b', ('input a:', 'input b:'), ('depends on a,', 'depends on b as a,'),
+             ('x.a -> x.a', 'x.b -> x.b'))
+check_rename(Procedure(('T', 'run')), 'go', ('procedure run', 'procedure go'), ('run.t', 'go.t'))
+check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "check"'))
+check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),
+             ('uses C', 'uses D as C'))
+check_rename(Parameter(('T', 'P')), 'Q', ('P: ValueType', 'Q: ValueType'), ('C: P', 'C: Q'), ('value P', 'value Q'),
+             ('s: P', 's: Q'), ('t: P', 't: Q'), ('Type: P', 'Type: Q'),
+             (', P;', ', Q as P;'), ('parameter_option(P) == P', 'parameter_option(Q) == Q'), ('{ P:', '{ Q:'))
+check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), ('x: T', 'x: U'))
+checks.assertEqual(edit(rename, program, Node(('x',)), 'x'), program)
+
+# References in other files and namespaces follow.
+files = [('a.wrl', 'namespace N { node type T { input a: value int; parameter P: int; } }\nnode n: N.T { P: 1 }\n'),
+         ('b.wrl', 'node m: N.T { P: 2 }\nconnect m.a -> n.a;\n')]
+checks.assertEqual(apply_edits(files, rename(files, NodeType(('N', 'T')), 'U')), [
+    ('a.wrl', 'namespace N { node type U { input a: value int; parameter P: int; } }\nnode n: N.U { P: 1 }\n'),
+    ('b.wrl', 'node m: N.U { P: 2 }\nconnect m.a -> n.a;\n')])
+checks.assertEqual(apply_edits(files, rename(files, Port(('N', 'T', 'a'), 'input'), 'b'))[1],
+                   ('b.wrl', 'node m: N.T { P: 2 }\nconnect m.b -> n.b;\n'))
+checks.assertEqual(apply_edits(files, rename(files, Parameter(('N', 'T', 'P')), 'Q')), [
+    ('a.wrl', 'namespace N { node type T { input a: value int; parameter Q: int; } }\nnode n: N.T { Q: 1 }\n'),
+    ('b.wrl', 'node m: N.T { Q: 2 }\nconnect m.a -> n.a;\n')])
+
+# Renaming is refused where it would break or change references.
+for source, target, name in (
+        (program, Node(('T', 'n')), 's'),
+        (program, Port(('T', 'default output'), 'output'), 'o'),
+        (program, Node(('T', 'n')), 'node type'),
+        (program, Parameter(('T', 'P')), 'boolean'),
+        (program, Constant(('T', 'C')), 'old'),
+        ('native node type T {}\n', NodeType(('T',)), 'U'),
+        ('node type T {}\nnode type V { node type U {} node v: T {} }\n', NodeType(('T',)), 'U'),
+        ('node type T { parameter P: int; constant C: int = { let Q = 1; P + Q }; }\n', Parameter(('T', 'P')), 'Q')):
+    with checks.assertRaises(ValueError):
+        edit(rename, source, target, name)
+
+# A renamed program compiles as before.
+files = [('a.wrl', '''node type Toggle {
+  parameter Initial: boolean;
+  default output: value boolean;
+  state on: boolean = Initial;
+  procedure flip depends on on.old as old produces on { on = !old; }
+  connect on.new -> default output;
+}
+node toggle: Toggle { Initial: true }
+'''), ('b.wrl', 'node print: Std.DebugValuePrinter { Type: boolean }\nconnect toggle -> print;\n')]
+for target, name in ((State(('Toggle', 'on')), 'enabled'), (Parameter(('Toggle', 'Initial')), 'Start'),
+                     (Node(('toggle',)), 'switch'), (NodeType(('Toggle',)), 'Switch')):
+    files = apply_edits(files, rename(files, target, name))
+    checks.assertIsNotNone(compile_strs(files, add_std=True))

@@ -80,6 +80,11 @@ checks.assertEqual([(edge.kind, edge.source, edge.target) for edge in node_type.
     ('connect', Endpoint('run.out', run, 'out'), Endpoint('t', Temporary(('T', 't')), None)),
 ])
 
+# Reference edges carry the span of the reference on its side.
+depends, produces = node_type.scope.edges[0], node_type.scope.edges[2]
+checks.assertEqual((source[slice(*depends.source_span)], depends.target_span), ('a', None))
+checks.assertEqual((produces.source_span, source[slice(*produces.target_span)]), (None, 'default output'))
+
 # Unknown types and names stay unresolved; identical edges are numbered.
 m, = result.find(Node(('m',)))
 checks.assertEqual((m.node_type, m.ports, m.position), (None, None, None))
