@@ -10,6 +10,8 @@ left unchanged.
 Targets and scopes are the IDs and paths from wirely.compiler.outline.
 Within a scope, the sources of a multi input are ordered by the textual
 order of their connections; connect() places new connections accordingly.
+Added declarations are set apart from their neighbours by blank lines;
+consecutive connect statements stay together.
 """
 
 import math
@@ -164,8 +166,8 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
     texts = dict(sources)
     if anchor is not None:
         return [_insert_after(texts, anchor.filename, _outer_start(anchor._declaration),
-                              anchor.span[1], lines)]
-    return [_insert_at_body_start(texts, _block(record, filename), lines)]
+                              anchor.span[1], lines, 'declaration')]
+    return [_insert_at_body_start(texts, _block(record, filename), lines, 'declaration')]
 
 
 def remove_declaration(sources, target, *, cascade=True):
@@ -220,10 +222,10 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
                           if candidate.filename == filename]
             candidates.sort(key=lambda candidate: candidate.span)
         if not candidates:
-            return [_insert_at_body_start(texts, _block(record, filename), lines)]
+            return [_insert_at_body_start(texts, _block(record, filename), lines, 'connect')]
         anchor = candidates[-1]
     return [_insert_after(texts, anchor.filename, _outer_start(anchor._declaration), anchor.span[1],
-                          lines)]
+                          lines, 'connect')]
 
 
 def disconnect(sources, connection):
@@ -757,15 +759,45 @@ def _diff_edit(filename, old, new):
     return [TextEdit(filename, prefix, len(old) - suffix, new[prefix:len(new) - suffix])]
 
 
-def _insert_after(texts, filename, start, end, lines):
-    """Insert lines after the declaration at start:end, on new lines when possible."""
+def _insert_after(texts, filename, start, end, lines, kind=None):
+    """Insert lines after the item at start:end, on new lines when possible.
+
+    kind is the _item_kind() of the inserted item, which decides the blank lines
+    around it; without it, none are added.
+    """
     text = texts[filename]
     line_end = _line_end(text, end)
     rest = text[end:line_end].strip()
     if rest and not rest.startswith('//') and len(lines) == 1:
         return TextEdit(filename, end, end, ' ' + lines[0])
     indent = _indentation(text, start)
-    return TextEdit(filename, line_end, line_end, ''.join(f'\n{indent}{line}' for line in lines))
+    inserted = ''.join(f'\n{indent}{line}' for line in lines)
+    if _blank_between(_item_kind(text, start), kind):
+        inserted = '\n' + inserted
+    if _blank_between(kind, _item_kind(text, line_end)) and text[line_end + 1:_line_end(text, line_end + 1)].strip():
+        inserted += '\n'
+    return TextEdit(filename, line_end, line_end, inserted)
+
+
+def _item_kind(text, position):
+    """Return 'connect' or 'declaration' for the next item at position, or None if there is none."""
+    position = _skip_trivia(text, position)
+    while text.startswith('#[', position):
+        depth = 0
+        while position < len(text):
+            depth += {'[': 1, ']': -1}.get(text[position], 0)
+            position += 1
+            if depth == 0:
+                break
+        position = _skip_trivia(text, position)
+    if position >= len(text) or text[position] == '}' or text.startswith('#![', position):
+        return None
+    return 'connect' if re.match(r'connect\b', text[position:position + 8]) else 'declaration'
+
+
+def _blank_between(first, second):
+    """Whether adjacent items of these kinds are separated by a blank line."""
+    return first is not None and second is not None and not first == second == 'connect'
 
 
 def _insert_before(texts, filename, start, lines):
@@ -777,7 +809,7 @@ def _insert_before(texts, filename, start, lines):
     return TextEdit(filename, line_start, line_start, ''.join(f'{indent}{line}\n' for line in lines))
 
 
-def _insert_at_body_start(texts, block, lines):
+def _insert_at_body_start(texts, block, lines, kind):
     filename, element = block
     text = texts[filename]
     if isinstance(element, list):
@@ -788,20 +820,32 @@ def _insert_at_body_start(texts, block, lines):
             line_start = _line_start(text, start)
             if not text[line_start:start].strip():
                 indent = text[line_start:start]
+                blank = '\n' if _blank_between(kind, _item_kind(text, start)) else ''
                 return TextEdit(filename, line_start, line_start,
-                                ''.join(f'{indent}{line}\n' for line in lines))
+                                ''.join(f'{indent}{line}\n' for line in lines) + blank)
             return TextEdit(filename, start, start, ' '.join(lines) + ' ')
         if element.inner_attributes:
             end = _end(element.inner_attributes[-1])
-            return _insert_after(texts, filename, _start(element.inner_attributes[0]), end, lines)
+            return _insert_after(texts, filename, _start(element.inner_attributes[0]), end, lines, kind)
         separator = '' if not text or text.endswith('\n') else '\n'
         return TextEdit(filename, len(text), len(text), separator + ''.join(f'{line}\n' for line in lines))
     site = _body_site(text, element, element.inner_attributes, _end(element.name), _end(element) - 1)
-    return _diff_edit(filename, text, _insert_inner(text, site, lines))[0]
+    blank_after = _blank_between(kind, _item_kind(text, site.anchor))
+    return _diff_edit(filename, text, _insert_inner(text, site, lines, blank_after=blank_after))[0]
 
 
 def _removal(texts, filename, start, end):
-    start, end = _removal_range(texts[filename], start, end)
+    """Remove an item and the lines it empties, leaving no doubled blank line behind."""
+    text = texts[filename]
+    start, end = _removal_range(text, start, end)
+    if start == _line_start(text, start) and (end == len(text) or text[end - 1] == '\n'):
+        before_blank = start > 0 and not text[_line_start(text, start - 1):start].strip()
+        after = text[end:_line_end(text, end)].strip()
+        after_blank = end < len(text) and not after
+        if after_blank and (before_blank or start == 0 or text[:start].rstrip().endswith('{')):
+            end = min(_line_end(text, end) + 1, len(text))
+        elif before_blank and (end == len(text) or after.startswith('}')):
+            start = _line_start(text, start - 1)
     return TextEdit(filename, start, end, '')
 
 
@@ -1011,14 +1055,17 @@ def _insert(text, site, metadata):
     return text[:anchor] + attribute + ' ' + text[anchor:]
 
 
-def _insert_inner(text, site, lines):
+def _insert_inner(text, site, lines, *, blank_after=False):
+    """Insert lines at the start of a body; with blank_after, a blank line separates them from its members."""
     open_brace, close_brace, anchor = site.open_brace, site.close_brace, site.anchor
     outer_indent = _indentation(text, site.declaration_start)
     if '\n' not in text[open_brace:close_brace]:
         indent = outer_indent + _indent_unit(text)
-        parts = [part for part in (text[open_brace + 1:anchor].strip(), *lines,
-                                   text[anchor:close_brace].strip()) if part]
-        body = ''.join(f'\n{indent}{part}' for part in parts)
+        parts = [part for part in (text[open_brace + 1:anchor].strip(), *lines) if part]
+        following = text[anchor:close_brace].strip()
+        if following:
+            parts += ['', following] if blank_after else [following]
+        body = ''.join(f'\n{indent}{part}' if part else '\n' for part in parts)
         return text[:open_brace + 1] + body + '\n' + outer_indent + text[close_brace:]
 
     line_end = _line_end(text, anchor)
@@ -1033,7 +1080,8 @@ def _insert_inner(text, site, lines):
         indent = _indentation(text, content)
     else:
         indent = outer_indent + _indent_unit(text)
-    return text[:insert_at] + ''.join(f'{indent}{line}\n' for line in lines) + text[insert_at:]
+    blank = '\n' if blank_after and text[insert_at:_line_end(text, insert_at)].strip() else ''
+    return text[:insert_at] + ''.join(f'{indent}{line}\n' for line in lines) + blank + text[insert_at:]
 
 
 def _skip_whitespace(text, position):

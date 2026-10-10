@@ -211,26 +211,52 @@ def check_insert(scope, declaration, expected, source=body, **options):
 
 
 # Declarations follow their own kind, then earlier kinds, then start the body.
+# Blank lines set them apart from their neighbours.
 check_insert(('T',), format_state('s', 'int', '0'), body.replace(
-    '  node x', '  state s: int = 0;\n  node x'))
+    '  node x', '\n  state s: int = 0;\n\n  node x'))
 check_insert(('T',), format_constant('C', 'int', '1'), body.replace(
-    '  input a', '  constant C: int = 1;\n  input a'))
+    '  input a', '\n  constant C: int = 1;\n\n  input a'))
 check_insert((), format_node('k', 'T'), body.replace(
-    '\nconnect s1', '\n#[position(x = 1, y = 2)]\nnode k: T {}\nconnect s1'),
+    '\nconnect s1', '\n\n#[position(x = 1, y = 2)]\nnode k: T {}\n\nconnect s1'),
     attributes=[format_metadata('position', x=1, y=2)])
-check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n' + body)
-check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n  node x: U {}\n}\n',
+check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n\n' + body)
+check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n\n  node x: U {}\n}\n',
              source='node type T { node x: U {} }\n')
 check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  #![internal]\n  temporary t: int;\n}\n',
              source='node type T { #![internal] }\n')
 check_insert(('T',), format_state('c', 'int', '0'),
-             'node type T {\n  state a: int = 0; state b: int = 0;\n  state c: int = 0;\n}\n',
+             'node type T {\n  state a: int = 0; state b: int = 0;\n\n  state c: int = 0;\n}\n',
              source='node type T {\n  state a: int = 0; state b: int = 0;\n}\n')
-check_insert((), format_parameter('p', 'int'), '// header\n\nparameter p: int;\nnode a: T {}\n',
+check_insert((), format_parameter('p', 'int'), '// header\n\nparameter p: int;\n\nnode a: T {}\n',
              source='// header\n\nnode a: T {}\n')
 check_insert((), format_parameter('p', 'int'), '// header\nparameter p: int;\n', source='// header')
 check_insert(('N',), format_node('b', 'T'), 'namespace N {}\nnamespace N {\n  node b: T {}\n}\n',
              source='namespace N {}\nnamespace N {}\n')
+
+# Consecutive connect statements stay together.
+sources = [('main.wrl', 'node type T {\n}\n')]
+for function, arguments, options in (
+        (add_declaration, (format_port('input', 'In', 'value', 'int8'),), {'x': -298, 'y': -85}),
+        (add_declaration, (format_port('output', 'Out', 'value', 'int8'),), {'x': 107, 'y': -58}),
+        (add_declaration, (format_state('last', 'int8', '4'),), {'x': -85, 'y': -162}),
+        (connect, ('last.old', 'Out'), None),
+        (connect, ('In', 'last'), None)):
+    attributes = [format_metadata('position', **options)] if options else []
+    sources = apply_edits(sources, function(sources, ('T',), *arguments, attributes=attributes))
+checks.assertEqual(sources[0][1], '''node type T {
+  #[position(x = -298, y = -85)]
+  input In: value int8;
+
+  #[position(x = 107, y = -58)]
+  output Out: value int8;
+
+  #[position(x = -85, y = -162)]
+  state last: int8 = 4;
+
+  connect last.old -> Out;
+  connect In -> last;
+}
+''')
 for declaration in ('connect a -> b;', 'node a: T {} node b: T {}', 'node a'):
     with checks.assertRaises(ValueError):
         edit(add_declaration, body, (), declaration)
@@ -257,7 +283,7 @@ for index, expected in ((0, 'connect q, s1, s2'), (1, 'connect s1, q, s2'),
 checks.assertEqual(edit(connect, body, ('T',), 'a', 'z', attributes=['internal']), body.replace(
     '  connect x -> y.in;\n', '  connect x -> y.in;\n  #[internal]\n  connect a -> z;\n'))
 checks.assertEqual(edit(connect, 'node type T {\n  input a: value int;\n}\n', ('T',), 'a', 'x'),
-                   'node type T {\n  input a: value int;\n  connect a -> x;\n}\n')
+                   'node type T {\n  input a: value int;\n\n  connect a -> x;\n}\n')
 checks.assertEqual(edit(connect, 'node type T {}\n', ('T',), 'a', 'x'),
                    'node type T {\n  connect a -> x;\n}\n')
 for source, target in (('a, b', 'c'), ('#[x] a', 'c'), ('a', 'c;')):
@@ -267,7 +293,7 @@ for source, target in (('a, b', 'c'), ('#[x] a', 'c'), ('a', 'c;')):
 # Global connections go to the file holding the target's connections.
 files = [('a.wrl', 'node a: T {}\nconnect a -> b.in;\n'), ('b.wrl', 'node b: T {}\n')]
 checks.assertEqual(connect(files, (), 'c', 'b.in'), [TextEdit('a.wrl', 31, 31, '\nconnect c -> b.in;')])
-checks.assertEqual(connect(files, (), 'c', 'd'), [TextEdit('b.wrl', 12, 12, '\nconnect c -> d;')])
+checks.assertEqual(connect(files, (), 'c', 'd'), [TextEdit('b.wrl', 12, 12, '\n\nconnect c -> d;')])
 
 # Disconnecting removes a source with its comma, or the whole statement.
 checks.assertIn('connect s2 -> m.multi; // comment\n', edit(disconnect, body, Connection((), 's1', 'm.multi')))
@@ -316,6 +342,25 @@ checks.assertEqual(edit(remove_declaration, '''node type T {
 ''', Procedure(('T', 'other'))), 'node type T {\n  temporary t: int;\n  procedure run produces t { t = 1; }\n}\n')
 with checks.assertRaises(ValueError):
     edit(remove_declaration, body, Node(('missing',)))
+
+# Removal leaves no doubled blank line, and none after { or before }.
+spaced = '''node type T {
+  input a: value int;
+
+  input b: value int;
+
+  temporary t: int;
+
+  connect b -> t;
+}
+'''
+for target, expected in (
+        (Port(('T', 'a'), 'input'), spaced.replace('  input a: value int;\n\n', '')),
+        (Port(('T', 'b'), 'input'), spaced.replace('  input b: value int;\n\n', '').replace(
+            '\n  connect b -> t;\n', '')),
+        (Temporary(('T', 't')), spaced.replace('  temporary t: int;\n\n', '').replace(
+            '\n\n  connect b -> t;', ''))):
+    checks.assertEqual(edit(remove_declaration, spaced, target), expected)
 
 # Declarations in node type bodies take outer attributes.
 declarations = '''node type T {
