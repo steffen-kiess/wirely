@@ -5,6 +5,8 @@ text itself. Items keep their identity across models by outline ID, so
 selection survives refreshes.
 """
 
+import math
+
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
@@ -22,6 +24,8 @@ ROW_HEIGHT = 18
 SOCKET_RADIUS = 5
 MIN_WIDTH = 110
 COLUMN_GAP = 24
+# Zoom per eighth of a degree of wheel rotation; one notch of 120 zooms by about 20%.
+ZOOM_RATE = 0.0015
 
 _KIND_COLORS = {
     'node': '#4a78b0', 'state': '#a0522d', 'temporary': '#6b8e23', 'constant': '#7b68a6',
@@ -469,7 +473,7 @@ class _ConnectionDrag:
 
 
 class GraphView(QGraphicsView):
-    """Zoom with Ctrl+wheel, pan with the middle mouse button, select with a rubber band."""
+    """Zoom with the wheel, pan with the middle mouse button, select with a rubber band."""
 
     context_menu = Signal(object, QPointF)
 
@@ -482,14 +486,12 @@ class GraphView(QGraphicsView):
         self._pan = None
 
     def wheelEvent(self, event):
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            factor = 1.0015 ** event.angleDelta().y()
-            scale = self.transform().m11() * factor
-            if 0.15 <= scale <= 4:
-                self.scale(factor, factor)
-            event.accept()
-            return
-        super().wheelEvent(event)
+        # Some touchpads only report pixel deltas.
+        delta = event.angleDelta().y() or event.pixelDelta().y()
+        factor = math.exp(ZOOM_RATE * delta)
+        if 0.15 <= self.transform().m11() * factor <= 4:
+            self.scale(factor, factor)
+        event.accept()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:

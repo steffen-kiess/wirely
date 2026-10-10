@@ -4,8 +4,8 @@ from unittest import TestCase
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QMouseEvent, QTextCursor
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QMouseEvent, QTextCursor, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
@@ -33,6 +33,14 @@ def drag(view, start, end):
     application.processEvents()
 
 
+def wheel(view, steps):
+    viewport = view.viewport()
+    position = QPointF(viewport.rect().center())
+    QApplication.sendEvent(viewport, QWheelEvent(
+        position, viewport.mapToGlobal(position), QPoint(), QPoint(0, 120 * steps), Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False))
+
+
 with tempfile.TemporaryDirectory() as directory:
     filename = os.path.join(directory, 'main.wrl')
     with open(filename, 'w', encoding='utf-8') as file:
@@ -48,6 +56,13 @@ with tempfile.TemporaryDirectory() as directory:
 
     def at(position):
         return view.mapFromScene(position)
+
+    # The wheel zooms; zooming in and out again restores the scale.
+    scale = view.transform().m11()
+    wheel(view, 1)
+    checks.assertGreater(view.transform().m11(), scale)
+    wheel(view, -1)
+    checks.assertAlmostEqual(view.transform().m11(), scale)
 
     # Dragging a node writes its position; one undo removes it again.
     printer = scene.items_by_id[Node(('printer',))]
