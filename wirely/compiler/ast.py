@@ -132,12 +132,6 @@ class Identifier(SourceElement):
         return self.id_str
 
 
-class RefType(enum.Enum):
-    InputPort = enum.auto()
-    OutputPort = enum.auto()
-
-
-# TODO: Merge with RefType?
 class PortDirection(enum.Enum):
     Input = enum.auto()
     Output = enum.auto()
@@ -411,8 +405,8 @@ class Reference(Value):
         return len(self.identifiers)
 
     @check_parameters
-    def resolve(self, graph, ref_type: RefType, purpose: str):
-        if ref_type in [RefType.InputPort, RefType.OutputPort]:
+    def resolve(self, graph, direction: PortDirection, purpose: str):
+        if direction in [PortDirection.Input, PortDirection.Output]:
             if self.length == 1:
                 node_name_id = self.identifiers[0]
                 port_name_id = None
@@ -421,9 +415,9 @@ class Reference(Value):
                 port_name_id = self.identifiers[1]
             else:
                 raise ProgramError(self, f'Got unexpected number of identifiers in {purpose}: {self}')
-            return ResolvedPortReference(graph, ref_type, node_name_id, port_name_id, purpose)
+            return ResolvedPortReference(graph, direction, node_name_id, port_name_id, purpose)
         else:
-            raise Exception(f'Unknown RefType: {ref_type!r}')
+            raise Exception(f'Unknown PortDirection: {direction!r}')
 
 
 class ListLiteral(Value):
@@ -478,15 +472,15 @@ class BracketOperator(Value):
 class ResolvedPortReference(SourceElement):
     @check_parameters
     # TODO: port_name should not be typing.Optional
-    def __init__(self, graph, ref_type: RefType, node_name: Identifier, port_name: typing.Optional[Identifier], purpose: str):
-        if ref_type == RefType.InputPort:
+    def __init__(self, graph, direction: PortDirection, node_name: Identifier, port_name: typing.Optional[Identifier], purpose: str):
+        if direction == PortDirection.Input:
             port_direction = 'input'
             port_dict_lambda = lambda node: node.input_ports_byname
-        elif ref_type == RefType.OutputPort:
+        elif direction == PortDirection.Output:
             port_direction = 'output'
             port_dict_lambda = lambda node: node.output_ports_byname
         else:
-            raise Exception(f'Unknown RefType: {ref_type!r}')
+            raise Exception(f'Unknown PortDirection: {direction!r}')
 
         self.node_name = node_name
         self.port_name = port_name
@@ -494,23 +488,23 @@ class ResolvedPortReference(SourceElement):
         self.node_name_str = self.node_name.id_str
         if self.port_name is None:
             # TODO: Clean up
-            if ref_type == RefType.InputPort:
+            if direction == PortDirection.Input:
                 # self.port_name_str = 'default input'
                 self.port_name_str = ''
-            elif ref_type == RefType.OutputPort:
+            elif direction == PortDirection.Output:
                 # self.port_name_str = 'default output'
                 self.port_name_str = ''
             else:
-                raise Exception(f'Unknown value for ref_type: {ref_type}')
+                raise Exception(f'Unknown value for direction: {direction}')
             # TODO: Remove port_name_elem (Hack)
             self.port_name_elem = node_name
         else:
             self.port_name_str = self.port_name.id_str
             self.port_name_elem = self.port_name
 
-        # print(ref_type, repr(self.node_name_str), repr(self.port_name_str))
+        # print(direction, repr(self.node_name_str), repr(self.port_name_str))
         # TODO: Should this be here?
-        if ref_type == RefType.InputPort:
+        if direction == PortDirection.Input:
             if self.node_name_str in graph.output_ports and self.port_name_str == '':
                 self.port = graph.output_ports[self.node_name_str]
                 # TODO: This is a hack
@@ -524,7 +518,7 @@ class ResolvedPortReference(SourceElement):
                 variables = graph.state_nodes if is_state else graph.temporary_nodes
                 self.port = variables[self.node_name_str]
                 return
-        if ref_type == RefType.OutputPort:
+        if direction == PortDirection.Output:
             variable = graph.value_nodes.get(self.node_name_str)
             if isinstance(variable, DeclarationState):
                 if self.port_name_str not in ('old', 'new'):
@@ -547,7 +541,7 @@ class ResolvedPortReference(SourceElement):
 
         procedure = graph.procedures.get(self.node_name_str)
         if procedure is not None:
-            self.port = procedure.resolve_port(self.node_name, self.port_name, ref_type == RefType.InputPort)
+            self.port = procedure.resolve_port(self.node_name, self.port_name, direction == PortDirection.Input)
             return
 
         if self.node_name_str not in graph.instance_nodes:
@@ -1412,9 +1406,9 @@ class DeclarationConnection(Declaration):
         target = self.target
 
         # print(source_node_name, source_output_name, target_node_name, target_input_name)
-        res_sources = [source.resolve(graph, RefType.OutputPort, 'source') for source in sources]
+        res_sources = [source.resolve(graph, PortDirection.Output, 'source') for source in sources]
 
-        res_target = target.resolve(graph, RefType.InputPort, 'target')
+        res_target = target.resolve(graph, PortDirection.Input, 'target')
 
         # TODO: Disallow multiple connect statements to a list input?
         with self.context:
@@ -1867,12 +1861,12 @@ class DeclarationProcedure(Declaration):
     def create_port(self, graph, declaration, *, is_input):
         port_type = model.ProcedureInputPort if is_input else model.ProcedureOutputPort
         if isinstance(declaration, ReferencePort):
-            ref_type = RefType.OutputPort if is_input else RefType.InputPort
+            direction = PortDirection.Output if is_input else PortDirection.Input
             purpose = 'dependency' if is_input else 'destination'
 
             def counterpart():
                 with declaration.context:
-                    return declaration.reference.resolve(graph, ref_type, purpose).port
+                    return declaration.reference.resolve(graph, direction, purpose).port
             return port_type(graph, self, declaration, counterpart=counterpart)
 
         spec = declaration.port_spec
