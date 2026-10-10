@@ -3,21 +3,24 @@
 from . import model
 
 
-def source_order(element):
-    position = element.source_position
-    meta = position.meta
-    return (str(position.filename or ''), getattr(meta, 'start_pos', -1))
-
-
 class CompilerCoordinator:
-    def __init__(self, global_node_type, report_progress=None):
+    def __init__(self, global_node_type, report_progress=None, *, shuffle_seed=None):
         self.global_node_type = global_node_type
         self.report_progress = report_progress
+        self.shuffle_seed = shuffle_seed
         self.node_types = []
         self.declaration_groups = []
         self.containment = {}
         self.population_order = []
         global_node_type.coordinator = self
+
+    def source_order(self, element):
+        position = element.source_position
+        order = (str(position.filename or ''), getattr(position.meta, 'start_pos', -1))
+        if self.shuffle_seed is not None:
+            from .shuffle import shuffled_source_order
+            return shuffled_source_order(order, self.shuffle_seed)
+        return order
 
     def compile(self):
         for operation in (
@@ -48,7 +51,7 @@ class CompilerCoordinator:
     def resolve_instance_declarations(self):
         for node_type in self.node_types:
             node_type.resolve_instance_declarations()
-            self.containment[node_type] = sorted(node_type.node_declarations.values(), key=source_order)
+            self.containment[node_type] = sorted(node_type.node_declarations.values(), key=self.source_order)
 
     def check_containment_cycles(self):
         """Only child instantiation creates a dependency between type bodies."""
@@ -75,7 +78,7 @@ class CompilerCoordinator:
             complete.add(node_type)
             self.population_order.append(node_type)
 
-        for node_type in sorted(self.node_types, key=source_order):
+        for node_type in sorted(self.node_types, key=self.source_order):
             visit(node_type)
 
     def create_child_interfaces(self):
@@ -88,7 +91,7 @@ class CompilerCoordinator:
         for node_type in self.node_types:
             ports = [port for procedure in node_type.procedures.values()
                      for port in (*procedure.input_ports.values(), *procedure.output_ports.values())]
-            for port in sorted(ports, key=lambda port: source_order(port.declaration)):
+            for port in sorted(ports, key=lambda port: self.source_order(port.declaration)):
                 with port.declaration.context:
                     port.resolve_reference()
         for node_type in self.node_types:

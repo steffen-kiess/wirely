@@ -104,6 +104,8 @@ node type Recursive {
 }
 
 // TEST: indirect recursive instantiation
+// SE: Recursive node type instantiation of
+// SH: Instantiation continues here
 node type First {
   node type Second {
     node child: First {} // E: Recursive node type instantiation of 'First'
@@ -119,6 +121,8 @@ node type Recursive {
 node root: Recursive {}
 
 // TEST: parameterized indirect instantiation cycle
+// SE: Recursive node type instantiation of
+// SH: Instantiation continues here
 node type First {
   parameter Count: uint8 = 1;
   node child: Second { Count: Count } // H: Instantiation continues here
@@ -129,6 +133,8 @@ node type Second {
 }
 
 // TEST: instantiation cycle in reopened namespace
+// SE: Recursive node type instantiation of 'Cycle.
+// SH: Instantiation continues here
 namespace Cycle {
   node type First {
     node child: Second {} // H: Instantiation continues here

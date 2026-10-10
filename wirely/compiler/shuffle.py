@@ -1,5 +1,7 @@
 """Randomized declaration order for testing order independence."""
 
+import hashlib
+import json
 import random
 
 from wirely.compiler import model
@@ -23,6 +25,12 @@ _LAYOUT_ATTRIBUTES = {
     model.DeclarationStructType: ('fields',),
     model.DeclarationEnumType: ('members',),
 }
+
+
+def shuffled_source_order(order, seed):
+    """Return a seeded sort key independent of traversal and Python hash seeds."""
+    data = json.dumps((seed, *order), ensure_ascii=True).encode('ascii')
+    return (hashlib.sha256(data).digest(), *order)
 
 
 def shuffle_declarations(declarations, seed, *, layout=False):

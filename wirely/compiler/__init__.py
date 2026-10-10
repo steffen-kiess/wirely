@@ -58,7 +58,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         global_node_type.services = compilation_services
         global_node_type.file_metadata = file_metadata
         from .coordinator import CompilerCoordinator
-        coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None)
+        coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None,
+                                          shuffle_seed=shuffle_seed)
         coordinator.compile()
     except lark.UnexpectedInput as e:
         report(Diagnostic('syntax_error', str(e), filename=e.source_filename, line=e.line,

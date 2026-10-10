@@ -1,7 +1,13 @@
+import os
+import subprocess
+import sys
+from types import SimpleNamespace
 from unittest import TestCase
 
 import wirely.compiler
 from wirely.compiler import model
+from wirely.compiler.ast import SourceElement
+from wirely.compiler.coordinator import CompilerCoordinator
 from wirely.compiler.parser import parse_str
 from wirely.compiler.shuffle import shuffle_declarations
 
@@ -101,6 +107,46 @@ for seed in range(20):
     layout_results.append(layout_order(declarations))
 for index in range(len(original_layout)):
     checks.assertTrue(any(result[index] != original_layout[index] for result in layout_results))
+
+# Source sorting is stable without shuffling and reproducibly random with it.
+declarations = parse()
+coordinator = CompilerCoordinator(SimpleNamespace())
+original_keys = [(str(d.source_position.filename or ''), d.source_position.meta.start_pos)
+                 for d in declarations]
+checks.assertEqual([coordinator.source_order(d) for d in declarations], original_keys)
+original_order = names(sorted(declarations, key=coordinator.source_order))
+source_orders = []
+for seed in range(20):
+    coordinator = CompilerCoordinator(SimpleNamespace(), shuffle_seed=seed)
+    keys = [coordinator.source_order(d) for d in declarations]
+    checks.assertEqual([coordinator.source_order(d) for d in reversed(declarations)], keys[::-1])
+    again = CompilerCoordinator(SimpleNamespace(), shuffle_seed=seed)
+    checks.assertEqual([again.source_order(d) for d in parse()], keys)
+    source_orders.append(names(sorted(declarations, key=coordinator.source_order)))
+checks.assertNotEqual(source_orders[0], original_order)
+checks.assertGreater(len({tuple(items) for items in source_orders}), 1)
+
+# Synthetic source positions retain their fallback and original diagnostic data.
+position = model.SourcePosition(filename=None, meta=None, input_data='')
+element = SourceElement(source_position=position)
+checks.assertEqual(CompilerCoordinator(SimpleNamespace()).source_order(element), ('', -1))
+coordinator = CompilerCoordinator(SimpleNamespace(), shuffle_seed=0)
+checks.assertEqual(coordinator.source_order(element)[1:], ('', -1))
+checks.assertIs(element.source_position, position)
+checks.assertIsNone(position.filename)
+checks.assertIsNone(position.meta)
+
+# Keys are reproducible in separate processes with different Python hash seeds.
+script = '''
+from wirely.compiler.shuffle import shuffled_source_order
+for position in range(10):
+    print(shuffled_source_order(('file\\nwith Unicode ä.wrl', position), 0)[0].hex())
+'''
+process_keys = [subprocess.check_output(
+    [sys.executable, '-c', script],
+    env={**os.environ, 'PYTHONHASHSEED': hash_seed}, text=True,
+) for hash_seed in ('1', '2')]
+checks.assertEqual(*process_keys)
 
 # Compilation reads the options from keyword arguments.
 sources = wirely.compiler._standard_library_sources(['std'])
