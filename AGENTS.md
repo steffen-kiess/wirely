@@ -3,10 +3,10 @@
 ## Layout
 
 `wirely/` contains the Python CLI tools and services, `.wrl` parser,
-compiler, engine, standard libraries in `lib/`, and Python native blocks in
-`native/`. From a checkout, use `tools/wirely` for the main CLI.
+compiler, engine, standard libraries in `lib/`, and Python native node types
+in `native/`. From a checkout, use `tools/wirely` for the main CLI.
 `test/` contains compiler fixtures and runtime/component tests, with
-`wirely/test.py` as their test runner. `examples/` contains sample block
+`wirely/test.py` as their test runner. `examples/` contains sample
 programs and device configuration.
 
 ## Setup
@@ -30,7 +30,7 @@ For new and modified `.wrl` code, including examples in documentation,
 follow the [Wirely style guide](doc/wirely-style.md). Tag Wirely code blocks
 in Markdown as `wirely`.
 
-When changing a block, check its `.wrl` declaration in `wirely/lib/`, its
+When changing a node type, check its `.wrl` declaration in `wirely/lib/`, its
 Python implementation in `wirely/native/`, and any paired fixture in
 `test/`. Keep names, parameters, and value types aligned.
 
@@ -54,7 +54,7 @@ added sentence for practical value to the intended reader.
 
 ## Tests
 
-Run the full block suite with `tools/run-tests`. This is the preferred local
+Run the full test suite with `tools/run-tests`. This is the preferred local
 test command for most work.
 
 Run one named test with `venv/bin/python -m wirely.test unit/types`. Replace
@@ -97,7 +97,7 @@ In an unmarked file, the directive applies to its single case.
 
 ## Working practices
 
-Prefer a focused test for the affected block, then run the full suite when
+Prefer a focused test for the affected node type, then run the full suite when
 its external services are available. State clearly when a required
 dependency prevents a test from running.
 

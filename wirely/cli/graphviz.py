@@ -1,6 +1,6 @@
 import graphviz
 import wirely
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 
 def htmlescape(s):
     return s.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
@@ -8,19 +8,19 @@ def htmlescape(s):
 def get_graph(graph, engine=None):
     digraph = graphviz.Digraph()
 
-    for block_name in graph.blocks:
-        block = graph.blocks[block_name]
+    for node_name in graph.instance_nodes:
+        node = graph.instance_nodes[node_name]
 
-        # label = f'{block.name}\n{block.block_type.name}'
+        # label = f'{node.name}\n{node.node_type.name}'
 
         inputs = ''
-        for input in block.all_block_inputs:
+        for input in node.all_input_ports:
             label = input.name
             if label == '':
                 label = '()'
             # Default inputs have no alias; their edge shows the source.
             if engine is not None and engine.cache is not None and input.name != '':
-                name = block.name + '.' + input.name
+                name = node.name + '.' + input.name
                 if name in engine.program.variables:
                     label += f' = {engine.get_value(name)}'
                 else:
@@ -37,12 +37,12 @@ def get_graph(graph, engine=None):
             '''
 
         outputs = ''
-        for output in block.block_outputs:
+        for output in node.output_ports:
             label = output.name
             if label == '':
                 label = '()'
             if engine is not None and engine.cache is not None:
-                name = block.name + '.' + output.name if output.name else block.name
+                name = node.name + '.' + output.name if output.name else node.name
                 if name in engine.program.variables:
                     label += f' = {engine.get_value(name)}'
                 else:
@@ -64,47 +64,47 @@ def get_graph(graph, engine=None):
         <TR><TD>
         <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">
           <TR>
-            <TD>{htmlescape(block.name)}</TD>
+            <TD>{htmlescape(node.name)}</TD>
           </TR>
           <TR>
-            <TD>{htmlescape(block.block_type.name.id_str)}</TD>
+            <TD>{htmlescape(node.node_type.name.id_str)}</TD>
           </TR>
         </TABLE>
         </TD></TR>
         {outputs}
         </TABLE>
         >'''
-        # digraph.node(block.name, label, shape='box')
-        digraph.node(block.name, s, shape='plaintext')
+        # digraph.node(node.name, label, shape='box')
+        digraph.node(node.name, s, shape='plaintext')
 
-    for block_name in graph.blocks:
-        block = graph.blocks[block_name]
-        for input in block.all_block_inputs:
+    for node_name in graph.instance_nodes:
+        node = graph.instance_nodes[node_name]
+        for input in node.all_input_ports:
             if input.connected_source is not None:
                 source = input.connected_source
-                source_block = source.block
-                if isinstance(source, blocks.StateRead):
+                source_node = source.node
+                if isinstance(source, model.StateRead):
                     source_name = source.name + '.' + source.phase
                     digraph.node(source_name, label=source_name)
-                    digraph.edge(source_name, block.name + ':' + input.name)
+                    digraph.edge(source_name, node.name + ':' + input.name)
                     continue
-                if isinstance(source, blocks.BlockStateVariable):
-                    digraph.node(source_block.name, label=source.name + '.old')
-                if isinstance(source, blocks.BlockTemporaryVariable):
+                if isinstance(source, model.StateNode):
+                    digraph.node(source_node.name, label=source.name + '.old')
+                if isinstance(source, model.TemporaryNode):
                     digraph.node(source.name, label=source.name)
-                    digraph.edge(source.name, block.name + ':' + input.name)
+                    digraph.edge(source.name, node.name + ':' + input.name)
                     continue
 
                 # label = f'{source.name} -> {input.name}'
-                # digraph.edge(source_block.name, block.name, label=label)
+                # digraph.edge(source_node.name, node.name, label=label)
 
-                # edge_name = block.name + '/' + input.name
+                # edge_name = node.name + '/' + input.name
                 # digraph.node(edge_name, '', shape='point')
-                # digraph.edge(source_block.name, edge_name, label=source.name)
-                # digraph.edge(edge_name, block.name, label=input.name)
+                # digraph.edge(source_node.name, edge_name, label=source.name)
+                # digraph.edge(edge_name, node.name, label=input.name)
 
-                digraph.edge(source_block.name + ':' + source.name, block.name + ':' + input.name)
-        digraph.node(block_name)
+                digraph.edge(source_node.name + ':' + source.name, node.name + ':' + input.name)
+        digraph.node(node_name)
 
     return digraph
 

@@ -41,7 +41,7 @@ class Variable:
 
 
 @dataclass(frozen=True, slots=True, init=False, eq=False)
-class VariableBlock:
+class VariableTable:
     """An immutable collection of variable definitions, without live values."""
 
     name: str  # Collection name for diagnostics.
@@ -49,7 +49,7 @@ class VariableBlock:
     variable_set: frozenset[Variable]  # Variables allowed in a runtime instance.
     offsets: Mapping[Variable, int]  # Byte offsets, ordered by decreasing alignment.
     size: int  # Buffer size in bytes, including final alignment padding.
-    alignment: int  # Required alignment of the block's starting byte offset.
+    alignment: int  # Required alignment of the table's starting byte offset.
 
     def __init__(self, variables, name):
         """Build a shared compact layout while preserving name lookup order."""
@@ -77,7 +77,7 @@ class VariableBlock:
 
 
 @dataclass(frozen=True, slots=True)
-class InputSourceBinding:
+class InputSource:
     """A procedure input from a temporary or one of the step's state tables."""
 
     variable: Variable  # Source in the temporaries or the state variables.
@@ -85,7 +85,7 @@ class InputSourceBinding:
 
 
 @dataclass(frozen=True, slots=True)
-class OutputBinding:
+class OutputTarget:
     """A procedure output targeting a temporary or the next step's state."""
 
     variable: Variable  # Destination temporary or persistent state variable.
@@ -120,9 +120,9 @@ class Procedure:
     node_id: str  # Owning node's key in Program.instances.
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
     node_context: NativeInstance  # Stored context for this node.
-    dependencies: tuple  # (input name, InputSourceBinding tuple, is_list) entries.
+    dependencies: tuple  # (input name, InputSource tuple, is_list) entries.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
-    outputs: Mapping[str, OutputBinding]  # Output destinations indexed by output name.
+    outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, object] = field(default_factory=dict)  # Native static bindings.
 
@@ -132,8 +132,8 @@ class Procedure:
         object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
         for field in ('dependencies', 'resources'):
             object.__setattr__(self, field, tuple(
-                (name, tuple(bindings), is_list)
-                for name, bindings, is_list in getattr(self, field)
+                (name, tuple(entries), is_list)
+                for name, entries, is_list in getattr(self, field)
             ))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
@@ -152,15 +152,15 @@ class Program:
     """
 
     name: str  # Program name for diagnostics.
-    state_variables: VariableBlock  # Variables persisted between engine steps.
-    temporaries: VariableBlock  # Per-step variables.
+    state_variables: VariableTable  # Variables persisted between engine steps.
+    temporaries: VariableTable  # Per-step variables.
     initial_state: Mapping[Variable, object]  # Starting values of persistent state.
     instances: Mapping[str, NativeInstance]  # Stored node contexts indexed by node ID.
     native_construction_order: tuple[str, ...]  # Node IDs ordered with providers first.
     procs: Mapping[RunStage, tuple[Procedure, ...]]  # Stages and procedures in execution order.
     node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
-    variables: Mapping[str, InputSourceBinding]  # Debug lookup from variable aliases to sources.
+    variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
@@ -196,20 +196,20 @@ class Program:
                     providers = '[' + providers + ']'
                 line(f'{name}: {providers}', indent)
 
-        def source(binding):
-            if binding.new_state is None:
-                return binding.variable.name
-            return f'{binding.variable.name} ({"new" if binding.new_state else "old"} state)'
+        def source(input_source):
+            if input_source.new_state is None:
+                return input_source.variable.name
+            return f'{input_source.variable.name} ({"new" if input_source.new_state else "old"} state)'
 
         line(f'Program {self.name}')
-        for label, variable_block in [('State variables', self.state_variables),
+        for label, variable_table in [('State variables', self.state_variables),
                                       ('Temporaries', self.temporaries)]:
             line()
-            line(f'{label} ({variable_block.name}):')
-            line(f'size: {variable_block.size}, alignment: {variable_block.alignment}', 2)
-            for name, variable in sorted(variable_block.variables.items()):
+            line(f'{label} ({variable_table.name}):')
+            line(f'size: {variable_table.size}, alignment: {variable_table.alignment}', 2)
+            for name, variable in sorted(variable_table.variables.items()):
                 line(f'{name}: {variable.var_type}', 2)
-                line(f'offset: {variable_block.offsets[variable]}', 4)
+                line(f'offset: {variable_table.offsets[variable]}', 4)
                 if variable in self.initial_state:
                     value('initial', self.initial_state[variable], 4)
 
@@ -252,16 +252,16 @@ class Program:
                 line(f'node context: {proc.node_context.name}', 6)
                 value('values', dict(proc.values), 6)
                 line('dependencies:', 6)
-                for name, bindings, is_list in proc.dependencies:
-                    sources = ', '.join(source(binding) for binding in bindings)
+                for name, input_sources, is_list in proc.dependencies:
+                    sources = ', '.join(source(input_source) for input_source in input_sources)
                     if is_list:
                         sources = '[' + sources + ']'
                     line(f'{name}: {sources}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
                 line('outputs:', 6)
-                for name, binding in proc.outputs.items():
-                    line(f'{name}: {binding.variable.name}', 8)
+                for name, output_target in proc.outputs.items():
+                    line(f'{name}: {output_target.variable.name}', 8)
                 if proc.body is not None:
                     line('locals:', 6)
                     for index, value_type in enumerate(proc.body.local_types):
@@ -270,7 +270,7 @@ class Program:
                     for index, instruction in enumerate(proc.body.instructions):
                         line(f'idx{index}: {instruction}', 8)
 
-        variable_aliases = {name: source(binding) for name, binding in self.variables.items()}
+        variable_aliases = {name: source(input_source) for name, input_source in self.variables.items()}
         for label, aliases in [('Node aliases', self.node_aliases),
                                ('Singleton aliases', self.singleton_aliases),
                                ('Variable aliases', variable_aliases)]:

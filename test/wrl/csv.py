@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import os
 
-import wirely as blocks
+import wirely
 from wirely.program import RunStage
 
 def assert_equals(value1, value2):
@@ -49,12 +49,12 @@ async def run_test():
         assert_content_is(fn, expected)
 
         # Wait until shortly before the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn, expected)
 
         # Wait until shortly after the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(10))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(10))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
@@ -67,12 +67,12 @@ async def run_test():
         assert_content_is(fn, expected)
 
         # Wait until shortly before the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn, expected)
 
         # Wait until shortly after the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
@@ -163,16 +163,16 @@ async def run_test():
         assert_equals(os.path.getsize(fn2), 0)
         expected = ''
 
-        engine.get_native_state('test_option_input').set_value(blocks.Some(False))
+        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('test_option_input').set_value(blocks.Some(False))
+        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
         _, _, step_info = engine.step()
         assert_content_is(fn2, expected)
 
-        engine.get_native_state('test_option_input').set_value(blocks.Some(True))
+        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)
@@ -185,12 +185,12 @@ async def run_test():
         assert_content_is(fn2, expected)
 
         # Wait until shortly before the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
         # Wait until shortly after the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(10))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(10))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
@@ -203,12 +203,12 @@ async def run_test():
         assert_content_is(fn2, expected)
 
         # Wait until shortly before the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
         # Wait until shortly after the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         _, _, step_info = engine.step()
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
@@ -233,12 +233,12 @@ async def run_test():
         assert_content_is(fn2, expected)
 
         # Wait until shortly before the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
         # Wait until shortly after the entry gets repeated
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(10))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(10))
         _, _, step_info = engine.step()
         # Note: No new message because value is None
         assert_content_is(fn2, expected)
@@ -251,12 +251,12 @@ async def run_test():
         assert_content_is(fn2, expected)
 
         # Wait until shortly before the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(3599))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
         engine.assert_is_idle()
         assert_content_is(fn2, expected)
 
         # Wait until shortly after the entry gets repeated again
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         _, _, step_info = engine.step()
         # Note: No new message because value is None
         assert_content_is(fn2, expected)

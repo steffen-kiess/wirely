@@ -54,11 +54,11 @@ def _validate_body(procedure, constant_types, functions):
     if procedure.resources:
         raise ValueError('Bytecode procedures cannot access resources')
     input_types = []
-    for name, bindings, is_list in procedure.dependencies:
-        if is_list or len(bindings) != 1:
+    for name, input_sources, is_list in procedure.dependencies:
+        if is_list or len(input_sources) != 1:
             raise ValueError(f'Bytecode input {name!r} must have exactly one source')
-        input_types.append(bindings[0].variable.var_type)
-    output_types = tuple(binding.variable.var_type for binding in procedure.outputs.values())
+        input_types.append(input_sources[0].variable.var_type)
+    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     tables = {
         OperandKind.INPUT: tuple(input_types),
         OperandKind.OUTPUT: output_types,

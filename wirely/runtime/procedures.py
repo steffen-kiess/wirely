@@ -9,8 +9,8 @@ from ..types.value_types import _from_native, _to_native
 def execute_procedure(program, procedure, inputs, functions=()):
     """Run a bytecode procedure; functions are the linked implementations of program.functions."""
     body = procedure.body
-    input_types = tuple(bindings[0].variable.var_type for _, bindings, _ in procedure.dependencies)
-    output_types = tuple(binding.variable.var_type for binding in procedure.outputs.values())
+    input_types = tuple(input_sources[0].variable.var_type for _, input_sources, _ in procedure.dependencies)
+    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     values = {
         OperandKind.INPUT: [_from_native(value_type, inputs[name])
                             for (name, _, _), value_type in zip(procedure.dependencies, input_types)],

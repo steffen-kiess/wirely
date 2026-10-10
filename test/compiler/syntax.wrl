@@ -22,7 +22,7 @@ node type Later {
   parameter Value: uint8;
   assert Value == 1;
 }
-node native_forward: TestLibrary.TestBlock {}
+node native_forward: TestLibrary.TestNode {}
 
 node type WeakNames {
   parameter constant: boolean;
@@ -171,7 +171,7 @@ namespace TestLibrary {
 }
 
 namespace TestLibrary {
-  node type TestBlock {
+  node type TestNode {
     native procedure test_procedure;
   }
 }

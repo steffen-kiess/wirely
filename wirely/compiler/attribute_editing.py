@@ -13,7 +13,7 @@ import lark
 
 from . import ast
 from . import parser
-from .block_type import BlockType
+from .block_type import NodeType as _NodeType
 
 
 @dataclass(frozen=True)
@@ -136,7 +136,7 @@ def _reference_text(reference):
 def _walk(declarations, scope):
     for item in declarations:
         yield scope, item
-        if isinstance(item, (ast.DeclarationLibrary, BlockType)):
+        if isinstance(item, (ast.DeclarationLibrary, _NodeType)):
             yield from _walk(item.declarations, scope + (item.name.id_str,))
 
 
@@ -152,17 +152,17 @@ def _locate(declarations, target, text):
     if isinstance(target, Node):
         declaration = _single([
             item for scope, item in _walk(declarations, ())
-            if isinstance(item, ast.DeclarationBlockInstantiation)
+            if isinstance(item, ast.DeclarationInstance)
             and scope + (item.name.id_str,) == tuple(target.path)
         ], target)
         instantiation = declaration.instantiation
         return _body_site(text, declaration,
                           declaration.outer_attributes + instantiation.inner_attributes,
-                          _end(instantiation.block_class_name), _end(instantiation) - 1)
+                          _end(instantiation.type_name), _end(instantiation) - 1)
     if isinstance(target, NodeType):
         declaration = _single([
             item for scope, item in _walk(declarations, ())
-            if isinstance(item, BlockType)
+            if isinstance(item, _NodeType)
             and scope + (item.name.id_str,) == tuple(target.path)
         ], target)
         return _body_site(text, declaration,

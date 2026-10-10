@@ -7,11 +7,11 @@ See the [language guide](language.md) for `.wrl` syntax and the
 
 ## Registration and procedures
 
-`native_block_pkgs` in
+`native_node_pkgs` in
 [`wirely/native/__init__.py`](../wirely/native/__init__.py) maps namespaces
 to modules: `Std` maps to `std`, and `ABB.JRA` to `abb_jra`. A new namespace
-needs a map entry. Each module supplies a `native_block_types` dictionary;
-`@native_block_type` registers a class under its Python name. Class and
+needs a map entry. Each module supplies a `native_node_types` dictionary;
+`@native_node_type` registers a class under its Python name. Class and
 procedure names match their `.wrl` declarations unless the procedure has
 an alias, such as `native procedure Poll as "poll";`. The alias supplies
 both the Python method name and its trigger key.
@@ -42,12 +42,12 @@ Its Python implementation is:
 
 ```python
 import wirely
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 
-native_block_types = {}
+native_node_types = {}
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class OptionSome:
     @staticmethod
     def run(*, context):

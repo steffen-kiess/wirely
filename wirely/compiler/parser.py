@@ -3,7 +3,7 @@ import os
 
 import lark
 
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, capture_source_path
@@ -21,56 +21,56 @@ with open(os.path.dirname(__file__) + '/blocks.lark', 'r') as file:
 ast_classes = [
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ExpressionBlock, PropertyAccess,
     LocalBinding, OutputAssignment, ProcedureBody,
-    blocks.ConnectionKindSpecifier,
-    blocks.ConnectorSpecification,
-    blocks.ConnectorSpecificationData,
-    blocks.ConnectorSpecificationResource,
-    blocks.DeclarationResourceType,
-    blocks.DeclarationEnumType,
-    blocks.EnumMember,
-    blocks.DeclarationStructType,
-    blocks.StructField,
-    blocks.StructLiteral,
-    blocks.StructLiteralField,
-    blocks.BlockConnectorTypeSpecifier,
-    blocks.ListSpecifier,
-    blocks.ProgramError,
-    blocks.Identifier,
-    blocks.UnitLiteral,
-    blocks.IntNumber,
-    blocks.FloatNumber,
-    blocks.StringConstant,
-    blocks.Reference,
-    blocks.Declaration,
-    blocks.DeclarationConnector,
-    blocks.DeclarationParameter,
-    blocks.DeclarationConstant,
-    blocks.DeclarationAssertion,
-    blocks.BlockType,
-    blocks.BlockParameter,
-    blocks.BlockInstantiation,
-    blocks.DeclarationBlockInstantiation,
-    blocks.DeclarationConnection,
-    blocks.DeclarationStateVariable,
-    blocks.DeclarationTemporaryVariable,
-    blocks.DeclarationProcedure,
-    blocks.DeclarationInitializer,
-    blocks.NativeSpecifier,
-    blocks.OptionalSpecifier,
-    blocks.StageDeclaration,
-    blocks.DependsDeclaration,
-    blocks.ProducesDeclaration,
-    blocks.ProcedureBinding,
-    blocks.ProcedurePort,
-    blocks.UsesDeclaration,
-    blocks.StaticBinding,
-    blocks.DeclarationLibrary,
-    blocks.BlockTypeSpecifier,
-    blocks.ListLiteral,
-    blocks.FunctionCall,
-    blocks.DeclarationNativeFunction,
-    blocks.FunctionArgument,
-    blocks.BracketOperator,
+    model.ConnectionKindSpecifier,
+    model.PortTypeSpecification,
+    model.PortTypeSpecificationData,
+    model.PortTypeSpecificationResource,
+    model.DeclarationResourceType,
+    model.DeclarationEnumType,
+    model.EnumMember,
+    model.DeclarationStructType,
+    model.StructField,
+    model.StructLiteral,
+    model.StructLiteralField,
+    model.PortDirectionSpecifier,
+    model.ListSpecifier,
+    model.ProgramError,
+    model.Identifier,
+    model.UnitLiteral,
+    model.IntNumber,
+    model.FloatNumber,
+    model.StringConstant,
+    model.Reference,
+    model.Declaration,
+    model.DeclarationPort,
+    model.DeclarationParameter,
+    model.DeclarationConstant,
+    model.DeclarationAssertion,
+    model.NodeType,
+    model.ParameterBinding,
+    model.Instantiation,
+    model.DeclarationInstance,
+    model.DeclarationConnection,
+    model.DeclarationState,
+    model.DeclarationTemporary,
+    model.DeclarationProcedure,
+    model.DeclarationInitializer,
+    model.NativeSpecifier,
+    model.OptionalSpecifier,
+    model.StageDeclaration,
+    model.DependsDeclaration,
+    model.ProducesDeclaration,
+    model.ReferencePort,
+    model.TypedPort,
+    model.UsesDeclaration,
+    model.StaticBinding,
+    model.DeclarationLibrary,
+    model.NodeTypeSpecifier,
+    model.ListLiteral,
+    model.FunctionCall,
+    model.DeclarationNativeFunction,
+    model.FunctionArgument,
+    model.BracketOperator,
 ]
 
 ast_classes_byname = {}
@@ -167,7 +167,7 @@ class Transformer(lark.Transformer):
     def attributed(self, *items):
         item = items[-1]
         # A dotted namespace declaration denotes its innermost namespace.
-        if isinstance(item, blocks.DeclarationLibrary):
+        if isinstance(item, model.DeclarationLibrary):
             while not hasattr(item.declarations, 'inner_attributes'):
                 item = item.declarations[0]
         item.outer_attributes = tuple(items[:-1])
@@ -187,7 +187,7 @@ class Transformer(lark.Transformer):
         if data.startswith('__'):
             return lark.Tree(data, children, meta)
 
-        source_position = blocks.SourcePosition(
+        source_position = model.SourcePosition(
             filename=self.filename, meta=meta, input_data=self.input_data,
             source_path=self.source_path,
         )
@@ -201,7 +201,7 @@ class Transformer(lark.Transformer):
             return Metadata(children[0], kind, value, source_position)
         if data == 'metadata_named_literal':
             if children[0] not in (('true',), ('false',)):
-                raise blocks.ProgramError(SourceElement(source_position=source_position),
+                raise model.ProgramError(SourceElement(source_position=source_position),
                                           'Attribute values must be literals')
             return MetadataLiteral(children[0] == ('true',), source_position)
         if data.startswith('metadata_'):
@@ -218,13 +218,13 @@ class Transformer(lark.Transformer):
                 result = cls(*children, source_position=source_position)
             else:
                 result = getattr(cls, parts[1])(*children, source_position=source_position)
-            if isinstance(result, (blocks.Declaration, blocks.BlockType,
-                                   blocks.DeclarationLibrary, LocalBinding,
-                                   blocks.StructField, blocks.EnumMember,
-                                   blocks.FunctionArgument)):
+            if isinstance(result, (model.Declaration, model.NodeType,
+                                   model.DeclarationLibrary, LocalBinding,
+                                   model.StructField, model.EnumMember,
+                                   model.FunctionArgument)):
                 name = getattr(result, 'name', None)
-                if isinstance(name, blocks.Identifier) and name.id_str == 'parameter_option':
-                    raise blocks.ProgramError(name, 'parameter_option is reserved for the intrinsic')
+                if isinstance(name, model.Identifier) and name.id_str == 'parameter_option':
+                    raise model.ProgramError(name, 'parameter_option is reserved for the intrinsic')
             return result
 
         raise Exception(f'No handler for {data}')
@@ -235,7 +235,7 @@ opts = {
     'start': 'file_input',
     'propagate_positions': True,
     'parser': 'lalr',
-    # Don't use default ('contextual') to prevent e.g. "blockx" from being allowed instead of "block x"
+    # Don't use default ('contextual') to prevent e.g. "nodex" from being allowed instead of "node x"
     # https://stackoverflow.com/questions/61711950/how-to-prevent-lark-from-recognizing-parts-of-an-identifier-as-a-keyword
     'lexer': 'basic',
     '_plugins': {

@@ -1,6 +1,6 @@
 import abc
 
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.compiler.types import resolve_type
 
 
@@ -16,7 +16,7 @@ class Value(abc.ABC):
     def contains_parameters(self):
         ...
 
-    # TODO: Pass block instead of par_values?
+    # TODO: Pass node instead of par_values?
     @abc.abstractmethod
     def resolve_self(self, par_values):
         ...
@@ -46,7 +46,7 @@ class ConstantValue(Value):
         return False
 
     def resolve_self(self, par_values):
-        if self.value_type == blocks.types.ValueType and self.value.contains_parameters:
+        if self.value_type == model.types.ValueType and self.value.contains_parameters:
             return ConstantValue(self.value_type, resolve_type(self.value, par_values),
                                  ast_element=self.ast_element)
         return self
@@ -79,12 +79,12 @@ class ValueParameter(Value):
             # TODO
             hints = []
             for par in par_values:
-                if not isinstance(par, blocks.DeclarationParameter):
-                    raise Exception("not isinstance(par, blocks.DeclarationParameter)")
+                if not isinstance(par, model.DeclarationParameter):
+                    raise Exception("not isinstance(par, model.DeclarationParameter)")
                 hints += [
-                    blocks.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
+                    model.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
                 ]
-            raise blocks.ProgramError(self.ast_element, f'Unable to resolve value parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
+            raise model.ProgramError(self.ast_element, f'Unable to resolve value parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
     def evaluate(self):
         raise Exception('Attempt to call ValueParameter.evaluate()')
@@ -113,7 +113,7 @@ class DeferredValue(Value):
 def check_value_type(actual_type, expected_type, ast_element):
     if (not actual_type.contains_parameters and not expected_type.contains_parameters
             and actual_type != expected_type):
-        raise blocks.ProgramError(ast_element, f'Expected value of type {expected_type}, got {actual_type}')
+        raise model.ProgramError(ast_element, f'Expected value of type {expected_type}, got {actual_type}')
 
 
 class ComputedValue(Value):
@@ -140,7 +140,7 @@ class ValueOptionSome(ComputedValue):
         )
 
     def evaluate(self):
-        return self.value_type.verify_value(blocks.Some(self.inner_value.evaluate()))
+        return self.value_type.verify_value(model.Some(self.inner_value.evaluate()))
 
 
 class ValueList(ComputedValue):
@@ -234,7 +234,7 @@ class ParameterOptionValue(Value):
     def __init__(self, parameter, *, ast_element):
         super().__init__(ast_element=ast_element)
         self.parameter = parameter
-        self.value_type = blocks.types.TypeOption(parameter.type_resolved)
+        self.value_type = model.types.TypeOption(parameter.type_resolved)
 
     @property
     def contains_parameters(self):
@@ -246,8 +246,8 @@ class ParameterOptionValue(Value):
             return ConstantValue(value_type, None, ast_element=self.ast_element)
         from .parameters import resolve_parameter
         value = resolve_parameter(self.parameter, par_values)
-        concrete = value if isinstance(value, blocks.Type) else value.evaluate()
-        return ConstantValue(value_type, blocks.Some(concrete), ast_element=self.ast_element)
+        concrete = value if isinstance(value, model.Type) else value.evaluate()
+        return ConstantValue(value_type, model.Some(concrete), ast_element=self.ast_element)
 
     def evaluate(self):
         raise Exception('Attempt to evaluate unresolved parameter presence')
@@ -260,7 +260,7 @@ class OptionalBinding(Value):
         super().__init__(ast_element=expression)
         self.scope = scope
         self.parameter = parameter
-        self.value_type = blocks.types.TypeOption(parameter.type_resolved)
+        self.value_type = model.types.TypeOption(parameter.type_resolved)
 
     @property
     def contains_parameters(self):

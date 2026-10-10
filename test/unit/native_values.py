@@ -6,7 +6,7 @@ import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
 
@@ -28,7 +28,7 @@ def identity(*, context):
     return context.arguments['value']
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class ValuesProbe(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -73,7 +73,7 @@ class ValuesProbe(NativeState):
     omitted = empty
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class Provider(NativeState):
     pass
 
@@ -125,7 +125,7 @@ node provider: TestLibrary.Provider {}
 connect provider -> first.Number;
 connect provider -> second.Number;
 '''
-    with patch.dict(wirely.native.test_library.native_block_types, registry), \
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
             patch.dict(native_function_impls, {('Example', 'Identity'): identity}):
         graph = compile_strs([('<values>', source)])
         assert graph is not None
@@ -143,7 +143,7 @@ def check_optional_values():
         ('', None, None), ('Maybe: None', wirely.Some(None), None),
         ('Maybe: Some(true), Type: uint16', wirely.Some(wirely.Some(True)), wirely.value_types.uint16),
     ]:
-        with patch.dict(wirely.native.test_library.native_block_types, registry):
+        with patch.dict(wirely.native.test_library.native_node_types, registry):
             graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
       native node type Provider {{
         optional parameter Maybe: Option[boolean];

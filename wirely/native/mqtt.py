@@ -4,11 +4,11 @@ import dataclasses
 import urllib
 import contextlib
 
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 
-native_block_types = {}
+native_node_types = {}
 
 
 def _json_format(option):
@@ -130,7 +130,7 @@ def parse_mqtt_uri(uri):
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -241,7 +241,7 @@ class Connection(NativeState):
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -317,7 +317,7 @@ class ValueOptionProvider(NativeState):
             print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -395,7 +395,7 @@ class EventSender(NativeState):
             print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -436,7 +436,7 @@ class EventReceiver(NativeState):
             return
         value = self.received_values.pop(0)
 
-        res_opt = blocks.Some(value)
+        res_opt = wirely.Some(value)
         # print(f'get_value: {res_opt}')
 
         context.set_output('output', res_opt)

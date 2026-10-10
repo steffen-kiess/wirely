@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import contextlib
 
-import wirely as blocks
+import wirely
 
 
 async def run_test():
@@ -34,7 +34,7 @@ async def run_test():
 
         # Note: There are 2 engine.step() calls because if the first call changes the TriggerAt state, TriggerAt.run() will be re-run.
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('00:00'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('00:00'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', True)
@@ -42,37 +42,37 @@ async def run_test():
         engine.assert_value_is('all_day', True)
         engine.assert_value_is('never', False)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('04:34'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('04:34'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', True)
         engine.assert_value_is('t1', False)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('11:59'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('11:59'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', True)
         engine.assert_value_is('t1', False)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:00'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:00'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', False)
         engine.assert_value_is('t1', True)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('13:45'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('13:45'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', False)
         engine.assert_value_is('t1', True)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('23:58'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('23:58'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', False)
         engine.assert_value_is('t1', True)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('23:59'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('23:59'))
         engine.step()
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', False)
@@ -82,210 +82,210 @@ async def run_test():
 
         # Test TriggerAt
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:33'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:33'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:34'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:34'))
         engine.step()
-        engine.assert_value_is('trigger', blocks.Some(blocks.Unit()))
-        engine.assert_value_is('trigger_value', blocks.Some(True))
+        engine.assert_value_is('trigger', wirely.Some(wirely.Unit()))
+        engine.assert_value_is('trigger_value', wirely.Some(True))
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:35'))
-        engine.step()
-        engine.assert_value_is('trigger', None)
-        engine.assert_value_is('trigger_value', None)
-
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:30'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:35'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:00'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:30'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:00'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
-        engine.step()
-        engine.assert_value_is('trigger', blocks.Some(blocks.Unit()))
-        engine.assert_value_is('trigger_value', blocks.Some(True))
-
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:00'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
+        engine.step()
+        engine.assert_value_is('trigger', wirely.Some(wirely.Unit()))
+        engine.assert_value_is('trigger_value', wirely.Some(True))
+
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:00'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:30'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
-        engine.step()
-        engine.assert_value_is('trigger', blocks.Some(blocks.Unit()))
-        engine.assert_value_is('trigger_value', blocks.Some(True))
-
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:37'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:30'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
+        engine.step()
+        engine.assert_value_is('trigger', wirely.Some(wirely.Unit()))
+        engine.assert_value_is('trigger_value', wirely.Some(True))
+
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:37'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:30'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:37'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:37'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
-        engine.step()
-        engine.assert_value_is('trigger', blocks.Some(blocks.Unit()))
-        engine.assert_value_is('trigger_value', blocks.Some(True))
-
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
+        engine.step()
+        engine.assert_value_is('trigger', wirely.Some(wirely.Unit()))
+        engine.assert_value_is('trigger_value', wirely.Some(True))
+
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
+        engine.step()
+        engine.assert_value_is('trigger', None)
+        engine.assert_value_is('trigger_value', None)
+
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
         # Test: none, after, before, after (should not trigger)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
         # Test: none, none, after, before, after (should not trigger)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:06'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:06'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
         # Test: none, before, none, before, after (should trigger)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
-        engine.assert_value_is('trigger', blocks.Some(blocks.Unit()))
-        engine.assert_value_is('trigger_value', blocks.Some(True))
+        engine.assert_value_is('trigger', wirely.Some(wirely.Unit()))
+        engine.assert_value_is('trigger_value', wirely.Some(True))
 
         # Test: none, before, none, after (should not trigger)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:31'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:31'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('18:05'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('18:05'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
 
-        todm.set_fake_time(blocks.TimeOfDay.parse('12:36'))
+        todm.set_fake_time(wirely.TimeOfDay.parse('12:36'))
         engine.step()
         engine.assert_value_is('trigger', None)
         engine.assert_value_is('trigger_value', None)
@@ -300,11 +300,11 @@ async def run_test():
         engine.step()
         engine.assert_value_is('delay', 4)
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(9))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
         engine.step()
         engine.assert_value_is('delay', 4)
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         engine.step()
         engine.assert_value_is('delay', 5)
 
@@ -312,7 +312,7 @@ async def run_test():
         engine.step()
         engine.assert_value_is('delay', 5)
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(9))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
         engine.step()
         engine.assert_value_is('delay', 5)
 
@@ -320,11 +320,11 @@ async def run_test():
         engine.step()
         engine.assert_value_is('delay', 5)
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(9))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
         engine.step()
         engine.assert_value_is('delay', 5)
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         engine.step()
         engine.assert_value_is('delay', 18)
 
@@ -332,10 +332,10 @@ async def run_test():
 
         # MonotonicTimeReached: None and non-comparable times give None.
         reached_input = engine.get_native_state('reached_input')
-        now = blocks.MonotonicTime.current_time()
-        for time, expected in [(None, None), (blocks.Some(now + blocks.Duration.parse('PT1H')), blocks.Some(False)),
-                               (blocks.Some(blocks.MonotonicTime(now.generation, 0)), blocks.Some(True)),
-                               (blocks.Some(blocks.MonotonicTime(0, 0)), None)]:
+        now = wirely.MonotonicTime.current_time()
+        for time, expected in [(None, None), (wirely.Some(now + wirely.Duration.parse('PT1H')), wirely.Some(False)),
+                               (wirely.Some(wirely.MonotonicTime(now.generation, 0)), wirely.Some(True)),
+                               (wirely.Some(wirely.MonotonicTime(0, 0)), None)]:
             reached_input.set_value(time)
             engine.step()
             engine.assert_value_is('reached', expected)

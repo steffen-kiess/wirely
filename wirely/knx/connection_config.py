@@ -1,4 +1,4 @@
-"""Build KNX connection configurations from named block parameters."""
+"""Build KNX connection configurations from named node parameters."""
 
 import asyncio
 import signal
@@ -77,7 +77,7 @@ def _ssh_connect_callback(target, path):
 def create_connection_config(*, host=None, protocol=None, port=None,
                              unix_path=None, ssh_target=None,
                              individual_address=None):
-    """Select one connection mode from the supplied KNX block parameters."""
+    """Select one connection mode from the supplied KNX node parameters."""
     for name, value in (
         ('Host', host), ('UnixPath', unix_path),
         ('SSHTarget', ssh_target), ('IndividualAddress', individual_address),

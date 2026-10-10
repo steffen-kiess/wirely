@@ -3,13 +3,13 @@ import typing
 from .attributes import copy_attributes
 from .types import check_runtime_type, resolve_type
 
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.util import check_parameters
 
 
-class BlockType(blocks.Scope):
+class NodeType(model.Scope):
     @check_parameters
-    def __init__(self, specifiers: typing.List[blocks.BlockTypeSpecifier], name: typing.Optional[blocks.Identifier], declarations: list, *, source_position: typing.Optional[blocks.SourcePosition]):
+    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, source_position: typing.Optional[model.SourcePosition]):
         super().__init__(source_position=source_position)
         self.name = name
         self.declarations = declarations
@@ -21,35 +21,35 @@ class BlockType(blocks.Scope):
             if specifier.specifier_str not in all_specifiers:
                 raise Exception(f'Unknown specifier: {specifier.specifier_str!r}')
             if specifiers_status[specifier.specifier_str]:
-                raise blocks.ProgramError(specifier, f'Got duplicate {specifier.specifier_str} specifier')
+                raise model.ProgramError(specifier, f'Got duplicate {specifier.specifier_str} specifier')
             specifiers_status[specifier.specifier_str] = True
         self.is_native = specifiers_status['native']
         self.is_singleton = specifiers_status['singleton']
 
-        self.blocks = {}
-        # TODO: Remove one of block_type_interfaces / block_type_implementations
-        self.block_type_interfaces = {}
-        self.block_type_implementations = {}
+        self.instance_nodes = {}
+        # TODO: Remove one of node_type_interfaces / node_type_implementations
+        self.node_type_interfaces = {}
+        self.node_type_implementations = {}
         self.procedures = {}
         self.node_declarations = {}
-        # Nodes, procedures, variables, and named connectors share names.
-        self.member_declarations = {}
+        # Nodes and named ports share names.
+        self.name_declarations = {}
         self.initializer = None
-        self.variables = {}
+        self.value_nodes = {}
         # TODO: Clarify what is the key here (name or input_name)
-        self.block_inputs = {}
-        self.block_outputs = {}
-        self.block_state_variables = {}
-        self.block_temporary_variables = {}
+        self.input_ports = {}
+        self.output_ports = {}
+        self.state_nodes = {}
+        self.temporary_nodes = {}
         self.libraries = {}
         self.assertions = []
 
     @staticmethod
-    def make(*args, source_position: typing.Optional[blocks.SourcePosition]):
+    def make(*args, source_position: typing.Optional[model.SourcePosition]):
         specifiers = args[:-2]
         name = args[-2]
         declarations = args[-1]
-        return BlockType(list(specifiers), name, declarations, source_position=source_position)
+        return NodeType(list(specifiers), name, declarations, source_position=source_position)
 
     def compile_pass1(self, graph):
         if hasattr(self, 'parent_graph'):
@@ -60,23 +60,23 @@ class BlockType(blocks.Scope):
 
         if self.parent_graph is not None:
             if self.name.id_str in graph.struct_types:
-                raise blocks.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
-                    blocks.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
+                raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
+                    model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
                 ])
             if self.name.id_str in graph.enum_types:
-                raise blocks.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
-                    blocks.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
+                raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
+                    model.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
                 ])
             if self.name.id_str in graph.resource_types:
-                raise blocks.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
-                    blocks.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
+                raise model.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
+                    model.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
                 ])
-            if self.name.id_str in graph.block_type_interfaces:
+            if self.name.id_str in graph.node_type_interfaces:
                 hints = [
-                    blocks.CompilerHint(graph.block_type_interfaces[self.name.id_str], 'Previous node type was here'),
+                    model.CompilerHint(graph.node_type_interfaces[self.name.id_str], 'Previous node type was here'),
                 ]
-                raise blocks.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
-            graph.block_type_interfaces[self.name.id_str] = self
+                raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
+            graph.node_type_interfaces[self.name.id_str] = self
 
         # TODO: Merge parsed_parameters and parameters?
         parsed_parameters = {}
@@ -86,20 +86,20 @@ class BlockType(blocks.Scope):
             decl.compile_pass1_btd(self)
 
             # TODO: Clean up isinstance?
-            if not isinstance(decl, blocks.DeclarationParameter):
+            if not isinstance(decl, model.DeclarationParameter):
                 continue
             with decl.context:
-                is_constant = isinstance(decl, blocks.DeclarationConstant)
+                is_constant = isinstance(decl, model.DeclarationConstant)
                 if self.is_singleton and not is_constant:
-                    # TODO: Allow parameters for singleton blocks and create one instance for each parameter combination?
-                    raise blocks.ProgramError(decl, 'Singleton node type cannot have parameters')
+                    # TODO: Allow parameters for singleton nodes and create one instance for each parameter combination?
+                    raise model.ProgramError(decl, 'Singleton node type cannot have parameters')
 
                 name = decl.name.id_str
                 if name in static_declarations:
                     previous = static_declarations[name]
                     kind = 'constant' if is_constant else 'parameter'
-                    raise blocks.ProgramError(decl, f'Duplicate {kind} name {name!r}', hints=[
-                        blocks.CompilerHint(previous, 'Previous declaration was here'),
+                    raise model.ProgramError(decl, f'Duplicate {kind} name {name!r}', hints=[
+                        model.CompilerHint(previous, 'Previous declaration was here'),
                     ])
                 static_declarations[name] = decl
                 (parsed_constants if is_constant else parsed_parameters)[name] = decl
@@ -111,17 +111,17 @@ class BlockType(blocks.Scope):
         # Former "implementation" part
 
         for decl in self.declarations:
-            if isinstance(decl, blocks.Declaration):
+            if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass1(self)
 
         if self.parent_graph is not None:
-            if self.name.id_str in self.parent_graph.block_type_implementations:
+            if self.name.id_str in self.parent_graph.node_type_implementations:
                 hints = [
-                    blocks.CompilerHint(graph.block_type_implementations[self.name.id_str], 'Previous implementation was here'),
+                    model.CompilerHint(graph.node_type_implementations[self.name.id_str], 'Previous implementation was here'),
                 ]
-                raise blocks.ProgramError(self, f'Duplicate node type implementation for {self.name!r}', hints=hints)
-            self.parent_graph.block_type_implementations[self.name.id_str] = self
+                raise model.ProgramError(self, f'Duplicate node type implementation for {self.name!r}', hints=hints)
+            self.parent_graph.node_type_implementations[self.name.id_str] = self
 
     def compile_pass1_5(self, graph):
         self.compile_pass1_5_if_needed()
@@ -143,7 +143,7 @@ class BlockType(blocks.Scope):
                 decl.create_io(self)
 
         for decl in self.declarations:
-            if isinstance(decl, blocks.Declaration):
+            if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass1_5(self)
 
@@ -152,123 +152,123 @@ class BlockType(blocks.Scope):
 
     def compile_pass2(self, graph):
         for decl in self.declarations:
-            if isinstance(decl, blocks.Declaration):
+            if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
         # The root graph binds its procedures when compiling the program.
         if self.parent_graph is not None:
-            blocks.ast.validate_members(self)
+            model.ast.validate_nodes(self)
 
         # TODO: Allow interfaces without implementations?
-        # if self.name.id_str not in graph.block_type_implementations:
-        #     raise blocks.ProgramError(self, f'Block type interface for {self.name!r} without implementation')
+        # if self.name.id_str not in graph.node_type_implementations:
+        #     raise model.ProgramError(self, f'Node type interface for {self.name!r} without implementation')
 
         # TODO: Validate parameters
 
     def create(self, *, name, graph, par_values, instantiation, register=True):
         # print('create', name, graph, par_values)
-        block = blocks.Block(name=name, graph=graph, block_type=self, par_values=par_values,
+        node = model.InstanceNode(name=name, graph=graph, node_type=self, par_values=par_values,
                              instantiation=instantiation, register=register)
         # TODO: Remove
-        block.parameter_values = dict(par_values)
+        node.parameter_values = dict(par_values)
 
         for par in self.parsed_parameters.values():
             # print(par, par.is_optional)
-            if not par.is_optional and par not in block.parameter_values:
-                raise blocks.ProgramError(
+            if not par.is_optional and par not in node.parameter_values:
+                raise model.ProgramError(
                     instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
-                    hints=[blocks.CompilerHint(par, 'Parameter was declared here')])
+                    hints=[model.CompilerHint(par, 'Parameter was declared here')])
 
         # TODO: Pass list of connections to constructor instead of getting them from self.graph
-        block.custom_inputs = {}
-        block.custom_outputs = {}
-        for input in self.block_inputs.values():
+        node.custom_inputs = {}
+        node.custom_outputs = {}
+        for input in self.input_ports.values():
             # TODO
-            # if not isinstance(input.conn_spec, blocks.ConnectorSpecificationData):
+            # if not isinstance(input.port_spec, model.PortTypeSpecificationData):
             #     continue
-            # TODO: Is the name of the block and the name of the input always the same?
+            # TODO: Is the name of the node and the name of the input always the same?
             if input.var_type is not None:
-                check_runtime_type(resolve_type(input.var_type, block.par_values), instantiation)
-            new_input = blocks.Block.Input(block, input.input_name, input.is_list, input.var_type, block_input=input)
-            block.custom_inputs[input] = new_input
-        for output in self.block_outputs.values():
+                check_runtime_type(resolve_type(input.var_type, node.par_values), instantiation)
+            new_input = model.InstanceNode.InputPort(node, input.input_name, input.is_list, input.var_type, type_input_port=input)
+            node.custom_inputs[input] = new_input
+        for output in self.output_ports.values():
             # TODO
-            # if not isinstance(output.conn_spec, blocks.ConnectorSpecificationData):
+            # if not isinstance(output.port_spec, model.PortTypeSpecificationData):
             #     continue
-            # TODO: Is the name of the block and the name of the output always the same?
+            # TODO: Is the name of the node and the name of the output always the same?
             if output.var_type is not None:
-                check_runtime_type(resolve_type(output.var_type, block.par_values), instantiation)
-            new_output = blocks.Block.Output(block, output.output_name, output.var_type, block_output=output)
-            block.custom_outputs[output] = new_output
+                check_runtime_type(resolve_type(output.var_type, node.par_values), instantiation)
+            new_output = model.InstanceNode.OutputPort(node, output.output_name, output.var_type, type_output_port=output)
+            node.custom_outputs[output] = new_output
 
         # TODO: Probably more stuff should be done at an earlier stage
         state_variables = {}
         temporaries = {}
-        for variable in self.variables.values():
-            if isinstance(variable, blocks.ast.DeclarationStateVariable):
+        for variable in self.value_nodes.values():
+            if isinstance(variable, model.ast.DeclarationState):
                 var_type = self.resolve_type(variable.var_type)
                 check_runtime_type(var_type, instantiation)
-                block_var = blocks.Block.StateVariable(
-                    block, variable.name.id_str, var_type, variable.initial_value,
+                storage = model.InstanceNode.StateVariable(
+                    node, variable.name.id_str, var_type, variable.initial_value,
                 )
-                copy_attributes(block_var, variable)
-                state_variables[variable.name.id_str] = block_var
-            elif isinstance(variable, blocks.ast.DeclarationTemporaryVariable):
-                var_type = self.resolve_type(variable.var_type, par_values=block.parameter_values)
+                copy_attributes(storage, variable)
+                state_variables[variable.name.id_str] = storage
+            elif isinstance(variable, model.ast.DeclarationTemporary):
+                var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = var_type  # TODO: ?
-                block_var = blocks.Block.Temporary(block, variable.name.id_str, var_type, impl_var_type=impl_var_type)
-                copy_attributes(block_var, variable)
-                temporaries[variable.name.id_str] = block_var
+                storage = model.InstanceNode.Temporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
+                copy_attributes(storage, variable)
+                temporaries[variable.name.id_str] = storage
             else:
                 raise Exception(f'Got unexpected variable: {variable}')
 
         # Each procedure output port writes its state, or else its own temporary.
-        block.port_storage = {}
+        node.port_storage = {}
         for procedure in self.procedures.values():
             for key, port in procedure.output_ports.items():
                 if port.state is not None:
-                    block.port_storage[port] = state_variables[port.state.name]
+                    node.port_storage[port] = state_variables[port.state.name]
                     continue
                 impl_var_type = port.var_type
-                if blocks.connection_kind(port) == blocks.ConnectionKind.Event:
-                    impl_var_type = blocks.types.TypeOption(port.var_type)
-                temporary = blocks.Block.Temporary(block, f'{procedure.name.id_str}.{key}', port.var_type,
+                if model.connection_kind(port) == model.ConnectionKind.Event:
+                    impl_var_type = model.types.TypeOption(port.var_type)
+                temporary = model.InstanceNode.Temporary(node, f'{procedure.name.id_str}.{key}', port.var_type,
                                                    impl_var_type=impl_var_type, port=port)
-                temporary.conn_spec = port.conn_spec
-                block.port_storage[port] = temporary
+                temporary.port_spec = port.port_spec
+                node.port_storage[port] = temporary
 
-        def source(member):
+        def source(port):
             """Map a connection source in this type to this instance."""
-            if isinstance(member, blocks.BlockInput):
-                return block.custom_inputs[member]
-            if isinstance(member, blocks.BlockTemporaryVariable):
-                return temporaries[member.name]
-            if isinstance(member, blocks.StateRead):
-                return blocks.StateRead(state_variables[member.name], member.phase, member.reference)
-            if isinstance(member, blocks.ProcedureOutputPort):
-                storage = block.port_storage[member]
-                if isinstance(storage, blocks.Block.StateVariable):
-                    return blocks.StateRead(storage, 'new', member.binding)
+            if isinstance(port, model.TypeInputPort):
+                return node.custom_inputs[port]
+            if isinstance(port, model.TemporaryNode):
+                return temporaries[port.name]
+            if isinstance(port, model.StateRead):
+                return model.StateRead(state_variables[port.name], port.phase, port.reference)
+            if isinstance(port, model.ProcedureOutputPort):
+                storage = node.port_storage[port]
+                if isinstance(storage, model.InstanceNode.StateVariable):
+                    return model.StateRead(storage, 'new', port.declaration)
                 return storage
-            if isinstance(member, blocks.Block.Output):
-                return member
-            raise Exception(f'Got unknown source: {member}')
+            if isinstance(port, model.InstanceNode.OutputPort):
+                return port
+            raise Exception(f'Got unknown source: {port}')
 
         for name, temporary in temporaries.items():
-            temporary.alias_of = source(self.block_temporary_variables[name].connected_source)
+            temporary.alias_of = source(self.temporary_nodes[name].connected_source)
 
-        block.initializer_sources = {}
+        node.initializer_sources = {}
         if self.initializer is not None:
             depends = self.initializer.depends
-            for binding, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
-                if isinstance(dep, blocks.BlockInput):
-                    source_member = block.custom_inputs[dep]
-                elif isinstance(dep, blocks.Block):
-                    source_member = dep.block_outputs_byname['']
+            for port, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
+                if isinstance(dep, model.TypeInputPort):
+                    source_port = node.custom_inputs[dep]
+                elif isinstance(dep, model.InstanceNode):
+                    source_port = dep.output_ports_byname['']
                 else:
-                    source_member = dep
-                block.initializer_sources[binding.key] = (source_member, binding)
+                    source_port = dep
+                node.initializer_sources[port.key] = (source_port, port)
 
         # TODO: Probably more stuff should be done at an earlier stage
         for procedure in self.procedures.values():
@@ -277,25 +277,25 @@ class BlockType(blocks.Scope):
                 if port.connected_source is not None:
                     sources[key] = source(port.connected_source)
                 else:
-                    sources[key] = blocks.Block.PortSources(
-                        block, f'{procedure.name.id_str}.{key}',
-                        [source(member) for member in port.sources], conn_spec=port.conn_spec,
+                    sources[key] = model.InstanceNode.PortSources(
+                        node, f'{procedure.name.id_str}.{key}',
+                        [source(member) for member in port.sources], port_spec=port.port_spec,
                     )
-            targets = {key: block.port_storage[port] for key, port in procedure.output_ports.items()}
+            targets = {key: node.port_storage[port] for key, port in procedure.output_ports.items()}
 
-            static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
+            static_context = model.StaticProcedureContext(sources=sources, targets=targets, name=node.name, node_parameter_values={key.name.id_str: value for key, value in node.par_values.items()})
 
-            blocks.Block.Procedure(
-                block, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
+            model.InstanceNode.Procedure(
+                node, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
                 static_context=static_context, declaration_procedure=procedure,
             )
 
-        # print(block)
-        # print(block.block_inputs)
-        # print(block.block_outputs)
-        # print(block.all_block_inputs)
+        # print(node)
+        # print(node.input_ports)
+        # print(node.output_ports)
+        # print(node.all_input_ports)
 
-        return block
+        return node
 
     def __repr__(self):
         return self.fullname

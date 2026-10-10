@@ -8,7 +8,7 @@ from types import MappingProxyType
 
 from wirely.types import TypeStruct, StructValue
 
-from . import model as blocks
+from . import model
 
 
 native_function_impls = {
@@ -75,12 +75,12 @@ class NativeFunctionContext:
         if argument is not None and argument not in self.arguments_ast:
             raise ValueError(f'Unknown function argument {argument!r}')
         source = self.call if argument is None else self.arguments_ast[argument]
-        return blocks.ProgramError(source, message)
+        return model.ProgramError(source, message)
 
 
 def validate_entry(name, declaration):
     if name not in native_function_impls:
-        raise blocks.ProgramError(declaration, f'Missing implementation for function {".".join(name)!r}')
+        raise model.ProgramError(declaration, f'Missing implementation for function {".".join(name)!r}')
     entry = native_function_impls[name]
     if callable(entry):
         return
@@ -89,7 +89,7 @@ def validate_entry(name, declaration):
             and all(part.isidentifier() for part in entry[0].split('.'))
             and entry[1].isidentifier()):
         return
-    raise blocks.ProgramError(declaration, f'Invalid implementation entry for function {".".join(name)!r}')
+    raise model.ProgramError(declaration, f'Invalid implementation entry for function {".".join(name)!r}')
 
 
 def validate_collisions(declarations):
@@ -102,13 +102,13 @@ def validate_collisions(declarations):
             if name is not None:
                 key = name.id_str
                 previous = names.get(key)
-                if previous is not None and (isinstance(item, blocks.DeclarationNativeFunction)
-                                             or isinstance(previous, blocks.DeclarationNativeFunction)):
-                    raise blocks.ProgramError(item, f'Duplicate or conflicting function declaration {key!r}')
+                if previous is not None and (isinstance(item, model.DeclarationNativeFunction)
+                                             or isinstance(previous, model.DeclarationNativeFunction)):
+                    raise model.ProgramError(item, f'Duplicate or conflicting function declaration {key!r}')
                 names[key] = item
-            if isinstance(item, blocks.DeclarationLibrary):
+            if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, scope + (item.name.id_str,))
-            elif isinstance(item, blocks.BlockType):
+            elif isinstance(item, model.NodeType):
                 visit(item.declarations, scope + (item,))
 
     visit(declarations, ())
@@ -132,14 +132,14 @@ def resolve_implementation(function, call):
             raise ValueError('implementation must be synchronous and return one value')
         inspect.signature(implementation).bind(context=None)
     except (ImportError, AttributeError, TypeError, ValueError, OSError) as error:
-        raise blocks.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
+        raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     function._resolved_implementation = implementation
     return implementation
 
 
 def invoke(function, values, sources, call):
     implementation = resolve_implementation(function, call)
-    arguments = {name: blocks.value_types._to_native(ty, value)
+    arguments = {name: model.value_types._to_native(ty, value)
                  for name, ty, value in zip(function.argument_names, function.parameter_types, values)}
     context = NativeFunctionContext(
         function.function_name, MappingProxyType(arguments),
@@ -148,20 +148,20 @@ def invoke(function, values, sources, call):
     )
     try:
         result = implementation(context=context)
-    except blocks.ProgramError:
+    except model.ProgramError:
         raise
     except (ValueError, ArithmeticError, OSError) as error:
-        raise blocks.ProgramError(call, str(error)) from error
+        raise model.ProgramError(call, str(error)) from error
     try:
         if (isinstance(function.return_type, TypeStruct)
                 and isinstance(result, Mapping)
                 and not isinstance(result, StructValue)):
-            result = blocks.value_types.ValueType(function.return_type).make_struct(result)
-        result = blocks.value_types._from_native(function.return_type, result)
+            result = model.value_types.ValueType(function.return_type).make_struct(result)
+        result = model.value_types._from_native(function.return_type, result)
         return function.return_type.verify_value(result)
     except Exception as error:
         name = '.'.join(function.function_name)
-        raise blocks.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
+        raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
 
 
 def invoke_runtime_function(function, values, call):
@@ -172,7 +172,7 @@ def invoke_runtime_function(function, values, call):
         try:
             function._runtime_implementation = get_native_function_by_name(function.function_name)
         except (ImportError, ValueError) as error:
-            raise blocks.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
+            raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     try:
         return call_native_function(function._runtime_implementation, function.function_name,
                                     function.argument_names, function.parameter_types,
@@ -181,4 +181,4 @@ def invoke_runtime_function(function, values, call):
         # Runtime functions must not fail, so an exception is a library error.
         inner = RuntimeError(f'Internal error in function {name!r}: {type(error).__name__}: {error}')
         inner.__cause__ = error
-        raise blocks.ast.InternalCompilerError(call, inner) from error
+        raise model.ast.InternalCompilerError(call, inner) from error

@@ -10,7 +10,7 @@ import wirely
 import wirely.native.test_library
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
 
@@ -19,7 +19,7 @@ registry = {}
 libraries = _standard_library_sources(['std', 'time', 'memory', 'two_n', 'path'])
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class SettingsDevice(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -31,41 +31,41 @@ class SettingsDevice(NativeState):
 
 
 def compile_program(source, *, filename='<configuration>'):
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = compile_strs(libraries + [(filename, source)])
         assert graph is not None
         return program_compiler.compile_nocatch(graph)
 
 
-def block_program(block, output_type, output_value, *, forward=False):
+def node_program(node_type, output_type, output_value, *, forward=False):
     settings = []
     if output_type is not None:
         settings.append('OutputType: ' + output_type)
     if output_value is not None:
         settings.append('OutputValue: ' + output_value)
-    child_settings = ['Time: "12:00"'] if block == 'Time.TriggerAt' else []
-    if block == 'Memory.ToggleFlipFlopTrigger':
+    child_settings = ['Time: "12:00"'] if node_type == 'Time.TriggerAt' else []
+    if node_type == 'Memory.ToggleFlipFlopTrigger':
         child_settings.append('MinimumDelay: "PT2S"')
     if forward:
         child_settings += ['OutputType: Type', 'OutputValue?: parameter_option(Value)']
-        connectors = ''
+        ports = ''
         connections = ''
-        if block == 'Memory.ToggleFlipFlopTrigger':
-            connectors = '  default input: event boolean;\n  input Feedback: value Option[boolean];\n'
+        if node_type == 'Memory.ToggleFlipFlopTrigger':
+            ports = '  default input: event boolean;\n  input Feedback: value Option[boolean];\n'
             connections = '  connect default input -> child;\n  connect Feedback -> child.Feedback;\n'
         arguments = ', '.join(settings).replace('OutputType:', 'Type:').replace('OutputValue:', 'Value:')
         source = f'''node type Wrapper {{
   parameter Type: ValueType = unit;
   optional parameter Value: Type;
-{connectors}  node child: {block} {{ {', '.join(child_settings)} }}
+{ports}  node child: {node_type} {{ {', '.join(child_settings)} }}
 {connections}}}
 node wrapper: Wrapper {{ {arguments} }}
 '''
         target = 'wrapper.child'
     else:
-        source = f'node checked: {block} {{ {", ".join(child_settings + settings)} }}\n'
+        source = f'node checked: {node_type} {{ {", ".join(child_settings + settings)} }}\n'
         target = 'checked'
-    if block == 'Memory.ToggleFlipFlopTrigger':
+    if node_type == 'Memory.ToggleFlipFlopTrigger':
         external = 'wrapper' if forward else target
         source += f'''node input: Std.DebugEventSource {{ Type: boolean }}
 node feedback: Std.DebugValueSource {{ Type: Option[boolean] }}
@@ -79,13 +79,13 @@ def check_event_payloads():
     cases = [(None, None, wirely.Unit()), ('boolean', 'false', False),
              ('uint16', '0', 0), ('Option[boolean]', 'None', None),
              ('Option[boolean]', 'Some(false)', wirely.Some(False))]
-    for block in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
+    for node_type in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
         # A supplied false-like value must survive optional parameter forwarding.
         scenarios = [(False, case) for case in cases] + [(True, cases[1])]
         for forward, (output_type, output_value, expected) in scenarios:
-            program, target = block_program(block, output_type, output_value, forward=forward)
+            program, target = node_program(node_type, output_type, output_value, forward=forward)
             runtime = Engine(program)
-            if block == 'Time.TriggerAt':
+            if node_type == 'Time.TriggerAt':
                 clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')
                 clock.set_fake_time(wirely.TimeOfDay.from_parts(11, 59))
                 runtime.step()
@@ -103,7 +103,7 @@ def check_event_payloads():
 
 
 def check_delayed_event():
-    program, target = block_program('Memory.ToggleFlipFlopTrigger', 'boolean', 'false', forward=True)
+    program, target = node_program('Memory.ToggleFlipFlopTrigger', 'boolean', 'false', forward=True)
     runtime = Engine(program)
     runtime.get_native_state('feedback').set_value(wirely.Some(False))
     runtime.step()
@@ -150,7 +150,7 @@ connect input -> wrapper;
     runtime.assert_value_is('wrapper', 2)
 
 
-def code_program(block, parameter, value):
+def code_program(node_type, parameter, value):
     return compile_program(f'''namespace TestLibrary {{
   native node type SettingsDevice {{
     default output: resource TwoN.Device;
@@ -159,7 +159,7 @@ def code_program(block, parameter, value):
 node type Wrapper {{
   parameter Value: String;
   input Device: resource TwoN.Device;
-  node child: TwoN.{block} {{ {parameter}: Value }}
+  node child: TwoN.{node_type} {{ {parameter}: Value }}
   connect Device -> child.Device;
 }}
 node device: TestLibrary.SettingsDevice {{}}
@@ -171,7 +171,7 @@ connect device -> wrapper.Device;
 def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
-        with patch.dict(wirely.native.test_library.native_block_types, registry):
+        with patch.dict(wirely.native.test_library.native_node_types, registry):
             runtime = Engine(program)
         runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
@@ -179,12 +179,12 @@ def check_codes_and_tracing():
         runtime.step()
         runtime.assert_value_is('wrapper.child', None)
     for enabled in ('0', '1'):
-        for block, parameter, value in [('KeyEvent', 'Key', '%secret'),
+        for node_type, parameter, value in [('KeyEvent', 'Key', '%secret'),
                                        ('CodeEnteredEvent', 'Code', '019283')]:
-            program = code_program(block, parameter, value)
+            program = code_program(node_type, parameter, value)
             output = io.StringIO()
             with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), \
-                    patch.dict(wirely.native.test_library.native_block_types, registry), \
+                    patch.dict(wirely.native.test_library.native_node_types, registry), \
                     contextlib.redirect_stdout(output):
                 Engine(program)
             assert (value in output.getvalue()) == (enabled == '1')

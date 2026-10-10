@@ -4,7 +4,6 @@ import os
 import traceback
 import contextlib
 
-import wirely as blocks
 from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
 
@@ -24,11 +23,11 @@ async def execute(engine, line):
     # print(parts)
 
     if line == 'list':
-        print('Got blocks:')
-        for block_name in engine.program.node_aliases:
-            if '.' in block_name:
+        print('Got nodes:')
+        for node_name in engine.program.node_aliases:
+            if '.' in node_name:
                 continue
-            print(f'  {block_name}')
+            print(f'  {node_name}')
         print('---', flush=True)
     elif line == 'graph':
         import wirely.cli.graphviz
@@ -47,16 +46,16 @@ async def execute(engine, line):
         else:
             raise CommandException('Unknown debug command')
     else:
-        block_path = engine.get_block_path(parts[0])
-        native_block = engine.native_states[block_path]
+        node_path = engine.get_node_path(parts[0])
+        native_state = engine.native_states[node_path]
 
-        block_type_name = '.'.join(engine.program.instances[block_path].type_name)
+        node_type_name = '.'.join(engine.program.instances[node_path].type_name)
 
-        if native_block is None:
-            raise CommandException(f'Block "{parts[0]}" ({block_type_name}) has no native state')
-        if not hasattr(native_block, 'debug_command'):
-            raise CommandException(f'Block "{parts[0]}" ({block_type_name}) has no debug_command function')
-        native_block.debug_command(parts[1:])
+        if native_state is None:
+            raise CommandException(f'Node "{parts[0]}" ({node_type_name}) has no native state')
+        if not hasattr(native_state, 'debug_command'):
+            raise CommandException(f'Node "{parts[0]}" ({node_type_name}) has no debug_command function')
+        native_state.debug_command(parts[1:])
 
 
 async def read_loop(engine):
@@ -113,11 +112,11 @@ def main():
         sys.exit(1)
     input_filenames = sys.argv[1:]
 
-    global_block_type = blocks.compiler.compile_files(input_filenames)
-    if global_block_type is None:
+    global_node_type = wirely.compiler.compile_files(input_filenames)
+    if global_node_type is None:
         sys.exit(1)
 
-    prog = program_compiler.compile(global_block_type)
+    prog = program_compiler.compile(global_node_type)
     if prog is None:
         sys.exit(1)
 
@@ -127,9 +126,9 @@ def main():
         if instance.type_name == ('Std', 'DebugValueSource'):
             ty = instance.parameters['Type']._type
             native_inst = eng.native_states[node_id]
-            if ty == blocks.types.boolean:
+            if ty == wirely.types.boolean:
                 native_inst.set_value(False)
-            elif isinstance(ty, blocks.types.TypeOption):
+            elif isinstance(ty, wirely.types.TypeOption):
                 native_inst.set_value(None)
             else:
                 raise Exception(f'Unknown type for debug input: {ty}')

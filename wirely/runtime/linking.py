@@ -3,7 +3,7 @@
 import inspect
 
 from ..functions import get_native_function_by_name
-from ..native import get_native_block_type_by_name
+from ..native import get_native_node_type_by_name
 
 
 def validate_native_method(native_class, name, *, has_native_state):
@@ -48,9 +48,9 @@ def link_native_classes(program):
     def resolve(instance):
         name = instance.type_name
         if name not in classes:
-            classes[name] = get_native_block_type_by_name(name)
+            classes[name] = get_native_node_type_by_name(name)
         native_class = classes[name]
-        if getattr(native_class, 'native_block_has_native_state', None) != instance.has_native_state:
+        if getattr(native_class, 'native_node_has_native_state', None) != instance.has_native_state:
             raise ValueError(
                 f'Node type {".".join(name)!r} requires has_native_state={instance.has_native_state}',
             )

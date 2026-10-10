@@ -6,7 +6,7 @@ from .procedures import (
     Operand, OperandKind, ProcedureBody,
 )
 from .program import (
-    InputSourceBinding, NativeInstance, Procedure, Program, OutputBinding,
-    RunStage, Variable, VariableBlock,
+    InputSource, NativeInstance, Procedure, Program, OutputTarget,
+    RunStage, Variable, VariableTable,
 )
 from .validation import validate_program

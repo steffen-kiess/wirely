@@ -3,12 +3,12 @@ import contextlib
 import os
 import sys
 
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
-native_block_types = {}
+native_node_types = {}
 
 
 class CsvValue:
@@ -47,7 +47,7 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class ValueWriter(NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
@@ -131,7 +131,7 @@ class ValueWriter(NativeState):
 
         # If reached is None or Some(True), the value has to be repeated
         # Note: The empty value is not repeated
-        force = reached != blocks.Some(False) and new_value_csv != ('', False)
+        force = reached != wirely.Some(False) and new_value_csv != ('', False)
         # print(f'NewValue={new_value} Reached={reached} force={force}')
 
         # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
@@ -147,6 +147,6 @@ class ValueWriter(NativeState):
             # TODO: Think what happens if new_value_csv is ('', False)
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             # Write value once an hour
-            repeat_time = blocks.Some(now + blocks.Duration.parse('PT1H'))
+            repeat_time = wirely.Some(now + wirely.Duration.parse('PT1H'))
 
         context.set_output('repeat_time', repeat_time)

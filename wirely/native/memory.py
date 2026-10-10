@@ -1,16 +1,16 @@
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 from wirely.program import RunStage
 
-native_block_types = {}
+native_node_types = {}
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class ToggleFlipFlopTrigger:
     @staticmethod
     def update(*, context):
         output_value = context.values['OutputValue']
-        value = blocks.Unit() if output_value is None else output_value.value
+        value = wirely.Unit() if output_value is None else output_value.value
         minimum_delay = context.values['MinimumDelay']
         now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
 
@@ -38,7 +38,7 @@ class ToggleFlipFlopTrigger:
             # Trying to set current value => Unset pending
             pending =  None
 
-        if next is not None and reached == blocks.Some(False):
+        if next is not None and reached == wirely.Some(False):
             # Cannot emit event right now
             output = None
             # Keep value of next
@@ -49,9 +49,9 @@ class ToggleFlipFlopTrigger:
                 next = None
             else:
                 # Trigger change
-                output = blocks.Some(value)
+                output = wirely.Some(value)
                 pending = None
-                next = blocks.Some(now + minimum_delay)
+                next = wirely.Some(now + minimum_delay)
 
         context.set_output('output', output)
         context.set_output('next_event_allowed_at', next)

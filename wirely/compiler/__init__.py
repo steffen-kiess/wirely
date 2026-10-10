@@ -4,7 +4,7 @@ from types import MappingProxyType
 import lark
 
 import wirely
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
 
@@ -30,13 +30,13 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     import wirely.compiler.parser
 
     if verbose_passes is None:
-        verbose_passes = blocks.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
+        verbose_passes = model.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
     if always_print_stacktrace is None:
-        always_print_stacktrace = blocks.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
+        always_print_stacktrace = model.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
     if shuffle_seed is None and os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED'):
         shuffle_seed = int(os.environ['WIRELY_COMPILER_SHUFFLE_SEED'])
     if shuffle_layout is None:
-        shuffle_layout = blocks.util.getEnvironmentBool('WIRELY_COMPILER_SHUFFLE_LAYOUT', False)
+        shuffle_layout = model.util.getEnvironmentBool('WIRELY_COMPILER_SHUFFLE_LAYOUT', False)
 
     if add_std:
         filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
@@ -57,19 +57,19 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         from .native_functions import validate_collisions
         validate_collisions(decls)
         filename = None
-        global_source_position = blocks.SourcePosition(filename='<global>', meta=None, input_data='')
-        global_block_type = blocks.BlockType([], None, decls, source_position=global_source_position)
-        global_block_type.services = compilation_services
-        global_block_type.file_metadata = file_metadata
+        global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
+        global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
+        global_node_type.services = compilation_services
+        global_node_type.file_metadata = file_metadata
         if verbose_passes:
             report_progress('Starting pass 1')
-        global_block_type.compile_pass1(None)
+        global_node_type.compile_pass1(None)
         if verbose_passes:
             report_progress('Starting pass 1.5')
-        global_block_type.compile_pass1_5(None)
+        global_node_type.compile_pass1_5(None)
         if verbose_passes:
             report_progress('Starting pass 2')
-        global_block_type.compile_pass2(None)
+        global_node_type.compile_pass2(None)
         if verbose_passes:
             report_progress('Finished all passes')
         # TODO: Clean up
@@ -91,16 +91,16 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         raise e.error from None
     except lark.exceptions.VisitError as e:
         exc = e.orig_exc
-    except blocks.ProgramError as e:
+    except model.ProgramError as e:
         exc = e
     except Exception as e:
         exc = e
 
     if exc is None:
-        return global_block_type
+        return global_node_type
 
-    if not isinstance(exc, blocks.ProgramError):
-        exc = blocks.InternalCompilerError(None, exc)
+    if not isinstance(exc, model.ProgramError):
+        exc = model.InternalCompilerError(None, exc)
 
     for diagnostic in error_diagnostics(exc, always_print_stacktrace=always_print_stacktrace):
         report(diagnostic)

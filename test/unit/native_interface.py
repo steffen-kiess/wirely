@@ -6,11 +6,10 @@ from textwrap import indent
 from unittest import TestCase
 from unittest.mock import patch
 
-import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
@@ -23,7 +22,7 @@ std_source = Path('wirely/lib/std.wrl').read_text()
 def make_engine(declaration, callback, *, extra='', parameters='', singleton=False):
     registry = {}
 
-    @native_block_type(registry, has_native_state=False)
+    @native_node_type(registry, has_native_state=False)
     class Probe:
         @staticmethod
         def run(*, context):
@@ -40,7 +39,7 @@ namespace TestLibrary {{
 node probe: TestLibrary.Probe {{ {parameters} }}
 {extra}
 '''
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = wirely.compiler.compile_strs([
             ('wirely/lib/std.wrl', std_source),
             ('<native-interface>', source),
@@ -51,7 +50,7 @@ node probe: TestLibrary.Probe {{ {parameters} }}
         return Engine(program)
 
 
-def check_input_bindings():
+def check_input_ports():
     seen = []
 
     def check_inputs(context):
@@ -95,24 +94,24 @@ def check_wakeups():
         with checks.assertRaisesRegex(ValueError, 'already set'):
             context.set_wakeup_time(None)
 
-    for deadline in [None, blocks.MonotonicTime(1, 100),
-                     blocks.MonotonicTime(0, 0), blocks.MonotonicTime(2, 100)]:
+    for deadline in [None, wirely.MonotonicTime(1, 100),
+                     wirely.MonotonicTime(0, 0), wirely.MonotonicTime(2, 100)]:
         wakeup_probe = make_engine(
             'native procedure run;',
             lambda context, deadline=deadline: check_wakeup(context, deadline),
         )
-        with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(1, 0)):
             wakeup_probe.step()
         if deadline is None:
             assert wakeup_probe.next_wakeup is None
         else:
             # A wakeup from a non-current generation is due now.
-            expected = deadline if deadline.generation == 1 else blocks.MonotonicTime(1, 0)
+            expected = deadline if deadline.generation == 1 else wirely.MonotonicTime(1, 0)
             assert wakeup_probe.next_wakeup == expected
 
     for explicit_cancellation in [False, True]:
         wakeup_calls = []
-        deadline = blocks.MonotonicTime(1, 10)
+        deadline = wirely.MonotonicTime(1, 10)
 
         def schedule_wakeup(context):
             assert context.wakeup_time is None
@@ -123,13 +122,13 @@ def check_wakeups():
                 context.set_wakeup_time(None)
 
         wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
-        with patch.object(blocks.MonotonicTime, 'current_time', return_value=blocks.MonotonicTime(1, 0)):
+        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(1, 0)):
             wakeup_probe.step()
             assert wakeup_probe.next_wakeup == deadline
             wakeup_probe.step()
             assert len(wakeup_calls) == 1
             assert wakeup_probe.next_wakeup == deadline
-        with patch.object(blocks.MonotonicTime, 'current_time', return_value=deadline):
+        with patch.object(wirely.MonotonicTime, 'current_time', return_value=deadline):
             wakeup_probe.step()
             assert len(wakeup_calls) == 2
             assert wakeup_probe.next_wakeup is None
@@ -174,12 +173,12 @@ def check_stage_times():
     stage_snapshots = {}
     clock_contexts = []
     stages = list(RunStage)
-    monotonic_times = [blocks.MonotonicTime(7, index * 1_000_000_000)
+    monotonic_times = [wirely.MonotonicTime(7, index * 1_000_000_000)
                        for index in range(1, 4)]
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
                                    tzinfo=datetime.timezone.utc)
                  for index in range(3)]
-    clock_offset = blocks.Duration.from_seconds(5)
+    clock_offset = wirely.Duration.from_seconds(5)
 
     def check_stage_time(context, stage):
         snapshot = context.start_time_for_stage(stage)
@@ -215,7 +214,7 @@ def check_stage_times():
             stage_clause = '' if stage is RunStage.DEFAULT else f' stage {stage.name.lower()}'
             clock_declarations.append(f'native procedure {name}{stage_clause};')
 
-    native_block_type(clock_registry, has_native_state=False)(
+    native_node_type(clock_registry, has_native_state=False)(
         type('ClockProbe', (), clock_methods),
     )
     clock_source = '''namespace TestLibrary {
@@ -225,7 +224,7 @@ def check_stage_times():
     }
     node probe: TestLibrary.ClockProbe {}
     '''
-    with patch.dict(wirely.native.test_library.native_block_types, clock_registry):
+    with patch.dict(wirely.native.test_library.native_node_types, clock_registry):
         graph = wirely.compiler.compile_strs([('<stage-times>', clock_source)])
         assert graph is not None
         program = program_compiler.compile(graph)
@@ -241,7 +240,7 @@ def check_stage_times():
             assert tz is datetime.timezone.utc
             return next(cls.timestamps)
 
-    with patch.object(blocks.MonotonicTime, 'current_time', side_effect=monotonic_times), \
+    with patch.object(wirely.MonotonicTime, 'current_time', side_effect=monotonic_times), \
             patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
         clock_engine.step()
     assert len(clock_contexts) == 6
@@ -252,7 +251,7 @@ def check_stage_times():
 def check_triggers():
     trigger_registry = {}
 
-    @native_block_type(trigger_registry, has_native_state=True)
+    @native_node_type(trigger_registry, has_native_state=True)
     class TriggerProbe(NativeState):
         def __init__(self, *, context):
             super().__init__(context=context)
@@ -274,11 +273,11 @@ def check_triggers():
         def run(self, *, context):
             self.calls.append('run')
 
-    @native_block_type(trigger_registry, has_native_state=True)
+    @native_node_type(trigger_registry, has_native_state=True)
     class SharedTriggerProbe(TriggerProbe):
         pass
 
-    with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+    with patch.dict(wirely.native.test_library.native_node_types, trigger_registry):
         trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
     namespace TestLibrary {
       native node type TriggerProbe {
@@ -298,7 +297,7 @@ def check_triggers():
     assert trigger_graph is not None
     trigger_program = program_compiler.compile(trigger_graph)
     assert trigger_program is not None
-    with patch.dict(wirely.native.test_library.native_block_types, trigger_registry):
+    with patch.dict(wirely.native.test_library.native_node_types, trigger_registry):
         trigger_engine = Engine(trigger_program)
     first = trigger_engine.get_native_state('first')
     second = trigger_engine.get_native_state('second')
@@ -402,10 +401,10 @@ def check_multi_inputs():
     ''')
     probe.step()
     assert event_snapshots[-1] == (None, None)
-    probe.get_native_state('first').send_event(blocks.Some(1))
-    probe.get_native_state('second').send_event(blocks.Some(3))
+    probe.get_native_state('first').send_event(wirely.Some(1))
+    probe.get_native_state('second').send_event(wirely.Some(3))
     probe.step()
-    assert event_snapshots[-1] == (blocks.Some(1), blocks.Some(3))
+    assert event_snapshots[-1] == (wirely.Some(1), wirely.Some(3))
     probe.step()
     assert event_snapshots[-1] == (None, None)
     probe.assert_is_idle()
@@ -436,10 +435,10 @@ def check_typed_ports():
     probe.step()
     assert snapshots[-1] == (None, None)
     probe.assert_value_is('probe', 7)
-    probe.get_native_state('probe.first').send_event(blocks.Some(1))
-    probe.get_native_state('probe.second').send_event(blocks.Some(3))
+    probe.get_native_state('probe.first').send_event(wirely.Some(1))
+    probe.get_native_state('probe.second').send_event(wirely.Some(3))
     probe.step()
-    assert snapshots[-1] == (blocks.Some(1), blocks.Some(3))
+    assert snapshots[-1] == (wirely.Some(1), wirely.Some(3))
     probe.assert_value_is('probe', 11)
 
 
@@ -475,14 +474,14 @@ def check_outputs():
         probe.step()
 
     def check_generic_output(context):
-        for invalid in [True, blocks.Some(None)]:
+        for invalid in [True, wirely.Some(None)]:
             try:
                 context.set_output('output', invalid)
             except ValueError as error:
                 assert 'Invalid value' in str(error)
             else:
                 raise AssertionError('Invalid option output was accepted')
-        context.set_output('output', blocks.Some(True))
+        context.set_output('output', wirely.Some(True))
 
     probe = make_engine('''
     parameter Type: ValueType;
@@ -491,15 +490,15 @@ def check_outputs():
     native procedure run produces default output as "output";
     ''', check_generic_output, parameters='Type: Option[boolean]')
     probe.step()
-    probe.assert_value_is('probe', blocks.Some(True))
+    probe.assert_value_is('probe', wirely.Some(True))
 
 
 def check_events():
     # Events use an outer option even when the payload is itself an option.
     for payload_type, event, command in [
-        ('unit', blocks.Some(blocks.Unit()), '()'),
-        ('Option[boolean]', blocks.Some(None), 'none'),
-        ('Option[boolean]', blocks.Some(blocks.Some(True)), 'true'),
+        ('unit', wirely.Some(wirely.Unit()), '()'),
+        ('Option[boolean]', wirely.Some(None), 'none'),
+        ('Option[boolean]', wirely.Some(wirely.Some(True)), 'true'),
     ]:
         seen_events = []
 
@@ -539,7 +538,7 @@ def check_unit_outputs():
     def check_unit_output(context):
         with checks.assertRaisesRegex(ValueError, 'Invalid value'):
             context.set_output('output', None)
-        context.set_output('output', blocks.Unit())
+        context.set_output('output', wirely.Unit())
 
     probe = make_engine('''
     default output: value unit;
@@ -547,13 +546,13 @@ def check_unit_outputs():
     native procedure run produces default output as "output";
     ''', check_unit_output)
     probe.step()
-    probe.assert_value_is('probe', blocks.Unit())
+    probe.assert_value_is('probe', wirely.Unit())
 
     def check_unit_event_output(context):
-        for invalid in [blocks.Some(None), blocks.Unit()]:
+        for invalid in [wirely.Some(None), wirely.Unit()]:
             with checks.assertRaisesRegex(ValueError, 'Invalid value'):
                 context.set_output('output', invalid)
-        context.set_output('output', blocks.Some(blocks.Unit()))
+        context.set_output('output', wirely.Some(wirely.Unit()))
 
     probe = make_engine('''
     default output: event unit;
@@ -561,10 +560,10 @@ def check_unit_outputs():
     native procedure run produces default output as "output";
     ''', check_unit_event_output)
     probe.step()
-    probe.assert_value_is('probe', blocks.Some(blocks.Unit()))
+    probe.assert_value_is('probe', wirely.Some(wirely.Unit()))
 
 
-def check_binding_keys():
+def check_port_keys():
     def check_keys(context):
         assert context.inputs['line\nkey'] == 7
         assert context.inputs[r'raw\key'] == 7
@@ -581,7 +580,7 @@ def check_binding_keys():
     probe.step()
     probe.assert_value_is('probe', 7)
 
-    # Aliases are checked independently for input and output bindings.
+    # Aliases are checked independently for input and output ports.
     probe = make_engine('''
     node source: Std.Constant { Type: uint8, Value: 7 }
     default output: value uint8;
@@ -598,7 +597,7 @@ cleanup_observations = []
 lifecycle_registry = {}
 
 
-@native_block_type(lifecycle_registry, has_native_state=True)
+@native_node_type(lifecycle_registry, has_native_state=True)
 class LifecycleProbe(NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         async_exit_stack.callback(self.observe_cleanup)
@@ -612,7 +611,7 @@ class LifecycleProbe(NativeState):
 
 
 def make_lifecycle_engine(*, fail=False):
-    with patch.dict(wirely.native.test_library.native_block_types, lifecycle_registry):
+    with patch.dict(wirely.native.test_library.native_node_types, lifecycle_registry):
         graph = wirely.compiler.compile_strs([('<native-lifecycle>', f'''
 namespace TestLibrary {{
   native node type LifecycleProbe {{
@@ -664,20 +663,20 @@ def check_native_methods():
         def class_method(cls, *, context):
             calls.append((cls.__name__, context.name))
 
-    @native_block_type(registry, has_native_state=True)
+    @native_node_type(registry, has_native_state=True)
     class InstanceProbe(Methods, NativeState):
         pass
 
-    @native_block_type(registry, has_native_state=True)
+    @native_node_type(registry, has_native_state=True)
     class OverrideProbe(InstanceProbe):
         def shared(self, *, context):
             calls.append(('override', context.name))
 
-    @native_block_type(registry, has_native_state=False)
+    @native_node_type(registry, has_native_state=False)
     class ClassProbe(Methods):
         pass
 
-    @native_block_type(registry, has_native_state=True)
+    @native_node_type(registry, has_native_state=True)
     class SharedProbe(InstanceProbe):
         pass
 
@@ -708,7 +707,7 @@ node class_only: TestLibrary.ClassProbe {}
 node shared: TestLibrary.SharedProbe {}
 node shared_again: TestLibrary.SharedProbe {}
 '''
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = wirely.compiler.compile_strs([('<native-methods>', source)])
         assert graph is not None
         runtime = Engine(program_compiler.compile_nocatch(graph))
@@ -727,7 +726,7 @@ node shared_again: TestLibrary.SharedProbe {}
 def check_native_linking_errors():
     constructed = []
 
-    @native_block_type({}, has_native_state=True)
+    @native_node_type({}, has_native_state=True)
     class ValidProbe(NativeState):
         def __init__(self, *, context):
             constructed.append(context.name)
@@ -773,7 +772,7 @@ def check_native_linking_errors():
     for methods, declaration, declared_state, implemented_state, message in cases:
         registry = {'ValidProbe': ValidProbe}
         implementation = type('InvalidProbe', (), methods)
-        native_block_type(registry, has_native_state=implemented_state)(implementation)
+        native_node_type(registry, has_native_state=implemented_state)(implementation)
         kind = 'native node' if declared_state else 'node'
         source = f'''namespace TestLibrary {{
   native node type ValidProbe {{
@@ -789,7 +788,7 @@ node invalid: TestLibrary.InvalidProbe {{}}
         graph = wirely.compiler.compile_strs([('<invalid-native-implementation>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
-        with patch.dict(wirely.native.test_library.native_block_types, registry, clear=True):
+        with patch.dict(wirely.native.test_library.native_node_types, registry, clear=True):
             with checks.assertRaisesRegex(ValueError, message) as raised:
                 Engine(program)
             checks.assertIn('InvalidProbe', str(raised.exception))
@@ -797,7 +796,7 @@ node invalid: TestLibrary.InvalidProbe {{}}
 
 
 check_native_linking_errors()
-check_input_bindings()
+check_input_ports()
 check_wakeups()
 check_context_names()
 check_stage_times()
@@ -807,5 +806,5 @@ check_typed_ports()
 check_outputs()
 check_events()
 check_unit_outputs()
-check_binding_keys()
+check_port_keys()
 check_native_methods()

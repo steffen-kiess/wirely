@@ -3,9 +3,9 @@ import contextlib
 import datetime
 from types import MappingProxyType
 
-import wirely as blocks
+import wirely
 from wirely.program import Program, validate_program
-from wirely.runtime.contexts import NativeNodeContext, VariableBlockInstance, ProcedureContext, StepContext
+from wirely.runtime.contexts import NativeNodeContext, VariableTableInstance, ProcedureContext, StepContext
 from wirely.runtime.procedures import execute_procedure
 
 
@@ -42,7 +42,7 @@ class Engine:
         self.next_wakeup = None
 
         # The current state, will be .old during the next step.
-        self.state = VariableBlockInstance(self.program.state_variables)
+        self.state = VariableTableInstance(self.program.state_variables)
         # The state before the last step. Was .old during the last step.
         self.last_step_state = None
         self.native_states = {}
@@ -75,7 +75,7 @@ class Engine:
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         def start_task_cleanup():
-            now_monotonic = blocks.MonotonicTime.current_time()
+            now_monotonic = wirely.MonotonicTime.current_time()
             if self.fake_monotonic_time_offset is not None:
                 now_monotonic += self.fake_monotonic_time_offset
 
@@ -117,13 +117,13 @@ class Engine:
     def update_next_wakeup(self, now, wakeup_time):
         if wakeup_time is None:
             return
-        if not blocks.MonotonicTime.is_comparable(now, wakeup_time):
+        if not wirely.MonotonicTime.is_comparable(now, wakeup_time):
             # A time from another generation cannot be waited for; it is due now.
             print(f'Warning: Got non-current wakeup time {wakeup_time}', flush=True)
             wakeup_time = now
 
-        if (self.next_wakeup is None or not blocks.MonotonicTime.is_comparable(self.next_wakeup, wakeup_time)
-                or blocks.MonotonicTime.compare(self.next_wakeup, wakeup_time) > 0):
+        if (self.next_wakeup is None or not wirely.MonotonicTime.is_comparable(self.next_wakeup, wakeup_time)
+                or wirely.MonotonicTime.compare(self.next_wakeup, wakeup_time) > 0):
             self.next_wakeup = wakeup_time
 
     def step(self):
@@ -133,8 +133,8 @@ class Engine:
         cache = self.cache
         state_old = self.state  # Snapshot read throughout this step.
         # State produced by this step, published when it completes.
-        state_new = VariableBlockInstance(self.program.state_variables)
-        variables = VariableBlockInstance(self.program.temporaries)
+        state_new = VariableTableInstance(self.program.state_variables)
+        variables = VariableTableInstance(self.program.temporaries)
         run_count = 0
         state_change_count = 0
         step_info = StepContext()
@@ -145,15 +145,15 @@ class Engine:
                 key = proc.key
                 inputs = self._resource_inputs(proc.resources)
                 skip_step = cache is not None and key not in self.triggered_procs
-                for name, bindings, is_list in proc.dependencies:
+                for name, input_sources, is_list in proc.dependencies:
                     values = []
-                    for binding in bindings:
-                        variable = binding.variable
-                        if binding.new_state is None:
+                    for input_source in input_sources:
+                        variable = input_source.variable
+                        if input_source.new_state is None:
                             value = variables[variable]
                             if skip_step and not variable.var_type.equals(value, cache[variable]):
                                 skip_step = False
-                        elif binding.new_state:
+                        elif input_source.new_state:
                             value = state_new[variable]
                             # The old state is the previous step's new state.
                             if skip_step and not variable.var_type.equals(value, state_old[variable]):
@@ -162,11 +162,11 @@ class Engine:
                             value = state_old[variable]
                             if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
                                 skip_step = False
-                        values.append(blocks.value_types._to_native(variable.var_type, value))
+                        values.append(wirely.value_types._to_native(variable.var_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
-                    if not blocks.MonotonicTime.is_comparable(now, deadline) or blocks.MonotonicTime.compare(now, deadline) >= 0:
+                    if not wirely.MonotonicTime.is_comparable(now, deadline) or wirely.MonotonicTime.compare(now, deadline) >= 0:
                         skip_step = False
                 if skip_step:
                     for output in proc.outputs.values():
@@ -224,7 +224,7 @@ class Engine:
             await self._resumed_event.wait()
             run_count, state_change_count, step_info = self.step()
             if state_change_count == 0:
-                now = blocks.MonotonicTime.current_time()
+                now = wirely.MonotonicTime.current_time()
                 # TODO: This probably is not really used or tested currently
                 if self.fake_monotonic_time_offset is not None:
                     now_monotonic += self.fake_monotonic_time_offset
@@ -237,7 +237,7 @@ class Engine:
                 if self.next_wakeup is None:
                     # Sleep without timeout
                     await self.triggered_procs_event.wait()
-                elif not blocks.MonotonicTime.is_comparable(now, self.next_wakeup):
+                elif not wirely.MonotonicTime.is_comparable(now, self.next_wakeup):
                     # Don't sleep
                     pass
                 else:
@@ -260,45 +260,45 @@ class Engine:
         # Handle triggers and wakeups that arrived while paused.
         self.triggered_procs_event.set()
 
-    def get_block_path_list(self, name_parts):
-        return self.get_block_path('.'.join(name_parts))
+    def get_node_path_list(self, name_parts):
+        return self.get_node_path('.'.join(name_parts))
 
-    def get_block_path(self, name):
+    def get_node_path(self, name):
         try:
             return self.program.node_aliases[name]
         except KeyError:
-            raise ValueError(f'Cannot find block {name!r}') from None
+            raise ValueError(f'Cannot find node {name!r}') from None
 
-    def get_block_path_singleton(self, name):
+    def get_node_path_singleton(self, name):
         try:
             return self.program.singleton_aliases[name]
         except KeyError:
             raise ValueError(f'Cannot find singleton {name!r}') from None
 
     def get_native_state(self, name):
-        return self.native_states[self.get_block_path(name)]
+        return self.native_states[self.get_node_path(name)]
 
     def get_native_state_singleton(self, name):
-        return self.native_states[self.get_block_path_singleton(name)]
+        return self.native_states[self.get_node_path_singleton(name)]
 
     def get_variable(self, name):
-        return self._get_binding(name).variable
+        return self._get_source(name).variable
 
-    def _get_binding(self, name):
+    def _get_source(self, name):
         try:
             return self.program.variables[name]
         except KeyError:
             raise ValueError(f'Could not find variable {name!r}') from None
 
     def get_value(self, name):
-        return self.get_bound_value(self._get_binding(name))
+        return self.get_source_value(self._get_source(name))
 
-    def get_bound_value(self, binding):
-        if binding.new_state is None:
-            return self.cache[binding.variable]
-        if binding.new_state:
-            return self.state[binding.variable]
-        return self.last_step_state[binding.variable]
+    def get_source_value(self, input_source):
+        if input_source.new_state is None:
+            return self.cache[input_source.variable]
+        if input_source.new_state:
+            return self.state[input_source.variable]
+        return self.last_step_state[input_source.variable]
 
     def assert_value_is(self, name, expected_value):
         actual_value = self.get_value(name)
@@ -313,5 +313,5 @@ class Engine:
     def advance_fake_monotonic_time(self, offset):
         if self.fake_monotonic_time_offset is None:
             print('Warning: Setting fake monotonic time offset', flush=True)
-            self.fake_monotonic_time_offset = blocks.Duration(duration_ns=0)
+            self.fake_monotonic_time_offset = wirely.Duration(duration_ns=0)
         self.fake_monotonic_time_offset += offset

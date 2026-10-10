@@ -103,7 +103,7 @@ ATTRIBUTE_REGISTRY = {
     'position': AttributeDefinition(frozenset({'node'}), _position),
     'internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
-        'resource_type', 'constant', 'parameter', 'connector', 'state',
+        'resource_type', 'constant', 'parameter', 'port', 'state',
         'temporary', 'struct_field', 'enum_member',
     }), _internal),
 }
@@ -119,10 +119,6 @@ def _immutable(value):
     return value
 
 
-# Target names in diagnostics, where they differ from the registry names.
-_TARGET_DESCRIPTIONS = {'connector': 'port'}
-
-
 def validate_attributes(attributes, target):
     result = []
     seen = set()
@@ -131,7 +127,7 @@ def validate_attributes(attributes, target):
         if definition is None:
             _error(attribute, f'Unknown attribute {attribute.name}')
         if target not in definition.targets:
-            _error(attribute, f'Attribute {attribute.name} is not permitted on {_TARGET_DESCRIPTIONS.get(target, target)}')
+            _error(attribute, f'Attribute {attribute.name} is not permitted on {target}')
         if attribute.name in seen and not definition.repeatable:
             _error(attribute, f'Duplicate attribute {attribute.name}')
         seen.add(attribute.name)
@@ -145,17 +141,17 @@ def validate_attributes(attributes, target):
 def validate_files(files):
     """Validate all metadata before the ordinary compilation passes."""
     from . import ast
-    from .block_type import BlockType
+    from .block_type import NodeType
 
     targets = {
-        BlockType: 'node_type', ast.DeclarationLibrary: 'namespace',
-        ast.DeclarationBlockInstantiation: 'node',
+        NodeType: 'node_type', ast.DeclarationLibrary: 'namespace',
+        ast.DeclarationInstance: 'node',
         ast.DeclarationStructType: 'struct', ast.DeclarationEnumType: 'enum',
         ast.DeclarationResourceType: 'resource_type',
         ast.DeclarationConnection: 'connection',
-        ast.DeclarationStateVariable: 'state',
-        ast.DeclarationTemporaryVariable: 'temporary',
-        ast.DeclarationConnector: 'connector',
+        ast.DeclarationState: 'state',
+        ast.DeclarationTemporary: 'temporary',
+        ast.DeclarationPort: 'port',
         ast.DeclarationParameter: 'parameter',
         ast.DeclarationConstant: 'constant',
         ast.DeclarationAssertion: 'assertion',
@@ -185,7 +181,7 @@ def validate_files(files):
                         _error(attribute, f'Duplicate attribute {attribute.name}')
                     seen.add(attribute.name)
                 previous.attributes = merged
-        elif isinstance(item, BlockType):
+        elif isinstance(item, NodeType):
             child_scope = scope + (item,)
         if isinstance(item, ast.DeclarationConnection):
             item.edge_attributes = tuple(validate_attributes(

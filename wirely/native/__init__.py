@@ -4,21 +4,21 @@ from wirely.util import check_parameters
 
 
 @check_parameters
-def native_block_type(namespace_dict, *, has_native_state: bool):
-    def native_block_type_impl(cls):
+def native_node_type(namespace_dict, *, has_native_state: bool):
+    def native_node_type_impl(cls):
         cls_name = cls.__name__
 
-        cls.native_block_has_native_state = has_native_state
+        cls.native_node_has_native_state = has_native_state
 
         if cls_name in namespace_dict:
-            raise Exception(f'Duplicate native block name {cls_name!r}')
+            raise Exception(f'Duplicate native node type name {cls_name!r}')
         namespace_dict[cls_name] = cls
 
         return cls
-    return native_block_type_impl
+    return native_node_type_impl
 
 
-native_block_pkgs = {
+native_node_pkgs = {
     ('Std',): 'std',
     ('Time',): 'time',
     ('KNX',): 'knx',
@@ -33,12 +33,12 @@ native_block_pkgs = {
 }
 
 
-def get_native_block_type_by_name(type_name: tuple[str, ...]):
-    pkg_name = native_block_pkgs.get(type_name[:-1])
+def get_native_node_type_by_name(type_name: tuple[str, ...]):
+    pkg_name = native_node_pkgs.get(type_name[:-1])
     if pkg_name is None:
         raise ValueError(f'No native namespace for node type {".".join(type_name)!r}')
     pkg = importlib.import_module('.' + pkg_name, __name__)
-    native_class = pkg.native_block_types.get(type_name[-1])
+    native_class = pkg.native_node_types.get(type_name[-1])
     if native_class is None:
         raise ValueError(f'Cannot find native class for node type {".".join(type_name)!r}')
     return native_class

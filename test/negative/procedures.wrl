@@ -184,7 +184,7 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: string binding alias
+// TEST: string port alias
 node type Probe {
   default output: value boolean;
   procedure run produces default output as "output" { // E: aliases must be identifiers
@@ -193,7 +193,7 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: colliding binding names
+// TEST: colliding port names
 node type Probe {
   default input: value boolean;
   default output: value boolean;

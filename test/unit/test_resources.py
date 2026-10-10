@@ -193,7 +193,7 @@ async def check_runner_cleanup():
             exec_module=lambda module: setattr(module, 'run_test', fail_assertions),
         ))
         with contextlib.ExitStack() as mocks:
-            mocks.enter_context(patch('wirely.test.blocks.compiler.compile_files', side_effect=compile_fixture))
+            mocks.enter_context(patch('wirely.test.model.compiler.compile_files', side_effect=compile_fixture))
             mocks.enter_context(patch('wirely.test.program_compiler.compile',
                                       return_value=None if mode == 'program' else MagicMock()))
             construct = mocks.enter_context(patch('wirely.test.Engine', return_value=SimpleNamespace()))

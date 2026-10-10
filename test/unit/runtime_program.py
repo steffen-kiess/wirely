@@ -8,7 +8,7 @@ import wirely
 import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
 
@@ -39,7 +39,7 @@ def check_compilation_without_native_implementations():
 }
 node example: Uninstalled.Example {}
 '''
-    with patch('wirely.native.get_native_block_type_by_name',
+    with patch('wirely.native.get_native_node_type_by_name',
                side_effect=AssertionError('Compilation looked up native code')):
         graph = wirely.compiler.compile_strs([('<uninstalled>', source)])
         assert graph is not None
@@ -74,11 +74,11 @@ def check_engine_isolation():
 def check_resource_isolation():
     registry = {}
 
-    @native_block_type(registry, has_native_state=True)
+    @native_node_type(registry, has_native_state=True)
     class Provider(NativeState):
         pass
 
-    @native_block_type(registry, has_native_state=True)
+    @native_node_type(registry, has_native_state=True)
     class Consumer(NativeState):
         def __init__(self, *, context):
             super().__init__(context=context)
@@ -105,7 +105,7 @@ node alias: TestLibrary.Provider {}
 node consumer: TestLibrary.Consumer {}
 connect alias -> consumer.Service;
 '''
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
         assert graph is not None
         program = replace(program_compiler.compile_nocatch(graph), graph=None)

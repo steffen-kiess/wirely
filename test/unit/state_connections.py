@@ -2,11 +2,10 @@ from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 
-import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.runtime.engine import Engine
 
 
@@ -16,14 +15,14 @@ list_inputs = []
 observations = {}
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Owner:
     @staticmethod
     def write(*, context):
         context.set_output('saved', context.inputs['input'])
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Forward:
     @staticmethod
     def run(*, context):
@@ -31,21 +30,21 @@ class Forward:
         context.set_output('output', context.inputs['input'])
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Feedback:
     @staticmethod
     def advance(*, context):
         context.set_output('saved', min(context.inputs['input'] + 1, 2))
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Shared:
     @staticmethod
     def advance(*, context):
         context.set_output('saved', min(context.inputs['old'] + 1, 2))
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Collect:
     @staticmethod
     def run(*, context):
@@ -128,7 +127,7 @@ std_source = Path('wirely/lib/std.wrl').read_text()
 
 
 def compile_graph(source):
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         return wirely.compiler.compile_strs([
             ('wirely/lib/std.wrl', std_source),
             ('<state-connections>', source),
@@ -140,7 +139,7 @@ def make_engine(source, *, declarations=definitions):
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         return Engine(program)
 
 
@@ -241,7 +240,7 @@ def check_old_snapshots():
     nested.assert_value_is('second.owner.reader', 9)
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Current(Owner):
     @staticmethod
     def write(*, context):
@@ -254,7 +253,7 @@ class Current(Owner):
         context.set_output('output', True)
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class Mixed(Collect):
     pass
 
@@ -333,7 +332,7 @@ def check_current_snapshots():
     write_calls = calls['owner.write']
 
     # A skipped writer still supplies .new when its reader is triggered.
-    observer_path = current.get_block_path('observer')
+    observer_path = current.get_node_path('observer')
     current.trigger(observer_path, 'run')
     current.step()
     assert calls['owner.write'] == write_calls

@@ -4,7 +4,7 @@ import functools
 import re
 from dataclasses import dataclass
 
-import wirely as blocks
+import wirely
 from wirely.util import check_parameters
 
 

@@ -1,9 +1,9 @@
 import enum
 
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 
-native_block_types = {}
+native_node_types = {}
 
 
 class JRAStatus(enum.IntFlag):
@@ -29,7 +29,7 @@ class JRAStatus(enum.IntFlag):
     # Unassigned14 = (1 << 14)
     # Unassigned15 = (1 << 15)
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class InterpretStatusInformation:
     @staticmethod
     def run(*, context):
@@ -41,7 +41,7 @@ class InterpretStatusInformation:
             res = bool(val & flag)
             context.set_output(name, res)
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class InterpretStatusInformationOption:
     @staticmethod
     def run(*, context):
@@ -54,5 +54,5 @@ class InterpretStatusInformationOption:
             if val is None:
                 res = None
             else:
-                res = blocks.Some(bool(val & flag))
+                res = wirely.Some(bool(val & flag))
             context.set_output(name, res)

@@ -36,9 +36,9 @@ def print_diagnostic(diagnostic, *, file=None, traceback_file=None):
 
 
 def error_diagnostics(error, *, always_print_stacktrace=False):
-    from . import model as blocks
+    from . import model
 
-    internal = isinstance(error, blocks.InternalCompilerError)
+    internal = isinstance(error, model.InternalCompilerError)
     source = error.source_element
     position = None if source is None else source.source_position
     stacktrace = None

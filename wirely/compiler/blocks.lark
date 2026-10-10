@@ -15,7 +15,7 @@ declaration: outer_attribute* bare_declaration -> attributed
 // Namespaces and node types
 bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
     // TODO: Can this be done in a nicer way?
-    | block_type_specifier* "node" "type" identifier "{" declaration_list "}" -> block_type__make
+    | node_type_specifier* "node" "type" identifier "{" declaration_list "}" -> node_type__make
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
     | "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type
@@ -29,13 +29,13 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "parameter" identifier ":" type "=" expression ";" -> declaration_parameter__with_default_value
     | "assert" expression ["," string_constant] ";" -> declaration_assertion
     // Node type interface
-    | block_connector_type identifier ":" connector_specification ";" -> declaration_connector__create
-    | "default" block_connector_type ":" connector_specification ";" -> declaration_connector__create_default
-    // Graph members
-    | "node" identifier ":" block_instantiation -> declaration_block_instantiation
+    | port_direction identifier ":" port_type_specification ";" -> declaration_port__create
+    | "default" port_direction ":" port_type_specification ";" -> declaration_port__create_default
+    // Nodes and connections
+    | "node" identifier ":" instantiation -> declaration_instance
     | "connect" connection_source_list "->" reference ";" -> declaration_connection
-    | "state" identifier ":" type "=" expression ";" -> declaration_state_variable
-    | "temporary" identifier ":" type ";" -> declaration_temporary_variable
+    | "state" identifier ":" type "=" expression ";" -> declaration_state
+    | "temporary" identifier ":" type ";" -> declaration_temporary
     // Procedures and initializers
     | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
     | "procedure" identifier _procedure_clauses procedure_body -> declaration_procedure__create_body
@@ -43,8 +43,8 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
 
 native_specifier: "native"
 optional_specifier: "optional"
-block_type_specifier: native_specifier -> copy
-    | "singleton" -> block_type_specifier__create_singleton
+node_type_specifier: native_specifier -> copy
+    | "singleton" -> node_type_specifier__create_singleton
 
 // ---------------------------------------------------------------------------
 // Types and native functions
@@ -62,21 +62,21 @@ function_argument_list: _list{function_argument} -> copy_list
 function_argument: identifier ":" type
 
 // ---------------------------------------------------------------------------
-// Connectors, nodes and connections
+// Ports, nodes and connections
 
-connector_specification: list_specifier connection_kind type -> connector_specification_data
-    | list_specifier "resource" reference -> connector_specification_resource
+port_type_specification: list_specifier connection_kind type -> port_type_specification_data
+    | list_specifier "resource" reference -> port_type_specification_resource
 list_specifier: "multi" -> list_specifier__create_list
     | () -> list_specifier__create_nolist
 connection_kind: "value" -> connection_kind_specifier__create_value
     | "event" -> connection_kind_specifier__create_event
-block_connector_type: "input" -> block_connector_type_specifier__create_input
-    | "output" -> block_connector_type_specifier__create_output
+port_direction: "input" -> port_direction_specifier__create_input
+    | "output" -> port_direction_specifier__create_output
 
-block_instantiation: reference "{" block_parameter_list "}"
-block_parameter_list: inner_attribute* _list{block_parameter} -> file_input
-block_parameter: identifier ":" expression
-    | identifier "?:" expression -> block_parameter__optional
+instantiation: reference "{" parameter_binding_list "}"
+parameter_binding_list: inner_attribute* _list{parameter_binding} -> file_input
+parameter_binding: identifier ":" expression
+    | identifier "?:" expression -> parameter_binding__optional
 
 connection_source_list: _list1{connection_source} -> copy_list
 connection_source: outer_attribute* reference -> attributed
@@ -90,14 +90,15 @@ stage_declaration: () -> stage_declaration__create_default
     | "stage" "input" -> stage_declaration__create_input
     | "stage" "output" -> stage_declaration__create_output
 depends_declaration: ()
-    | "depends" "on" _list{procedure_binding}
+    | "depends" "on" _list{procedure_port}
 produces_declaration: ()
-    | "produces" _list{procedure_binding}
+    | "produces" _list{procedure_port}
 uses_declaration: "uses" _list{static_binding}
 
-// A port bound to a graph member, or a typed port wired with connect.
-procedure_binding: reference ["as" identifier | "as" string_constant]
-    | identifier ":" connector_specification -> procedure_port
+// A reference port connected to what it references, or a typed port wired
+// with connect.
+procedure_port: reference ["as" identifier | "as" string_constant] -> reference_port
+    | identifier ":" port_type_specification -> typed_port
 static_binding: expression ["as" identifier | "as" string_constant]
 
 procedure_body: "{" procedure_statement* "}"
@@ -173,7 +174,7 @@ expression_block: "{" local_binding* expression "}"
 // Names and literals
 
 reference: identifier ("." identifier)* -> reference__from_list
-    | "default" block_connector_type -> reference__create_default
+    | "default" port_direction -> reference__create_default
 
 // https://doc.rust-lang.org/reference/identifiers.html
 // https://doc.rust-lang.org/rust-by-example/compatibility/raw_identifiers.html
@@ -254,7 +255,7 @@ RAW_STRING.2: /r\"[^\"]*\"|r#\"(\"*[^\"#]|#)*\"*\"#/s
 COMMENT: /\/\/[^\n]*/
 %ignore COMMENT
 
-// Block comments nest. The lexer handles COMMENT_START, COMMENT_NEST,
+// InstanceNode comments nest. The lexer handles COMMENT_START, COMMENT_NEST,
 // COMMENT_CONTENT and COMMENT_END specially; %ignore keeps them from being
 // dropped as unused.
 COMMENT_START: "/*"

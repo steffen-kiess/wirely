@@ -3,15 +3,15 @@ import sys
 import json
 import contextlib
 
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
-native_block_types = {}
+native_node_types = {}
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -41,7 +41,7 @@ class Connection(NativeState):
         print('Starting TwoN client done', flush=True)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class KeyEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -50,7 +50,7 @@ class KeyEvent(NativeState):
 
         print('Create TwoN KeyEvent', flush=True)
 
-        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
+        if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f"  Key: {self.values['Key']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
@@ -91,12 +91,12 @@ class KeyEvent(NativeState):
         if value is None:
             context.set_output('output', None)
         else:
-            context.set_output('output', blocks.Some(value))
+            context.set_output('output', wirely.Some(value))
             # Trigger to set value to None again
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class CodeEnteredEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -105,7 +105,7 @@ class CodeEnteredEvent(NativeState):
 
         print('Create TwoN CodeEnteredEvent', flush=True)
 
-        if blocks.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
+        if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f"  Code: {self.values['Code']!r}", flush=True)
 
         self.native_device = context.inputs['Device']
@@ -142,12 +142,12 @@ class CodeEnteredEvent(NativeState):
         if not value:
             context.set_output('output', None)
         else:
-            context.set_output('output', blocks.Some(blocks.Unit()))
+            context.set_output('output', wirely.Some(wirely.Unit()))
             # Trigger to set value to None again
             self.trigger('get_value')
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class KeyState(NativeState):
     @staticmethod
     def get_value(*, context):
@@ -156,12 +156,12 @@ class KeyState(NativeState):
         timeout_reached = context.inputs['timeout_reached']
         event = context.inputs['key_event']
 
-        if event == blocks.Some(True):
+        if event == wirely.Some(True):
             # KeyPressed
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             new_value = True
-            new_timeout_time = blocks.Some(now + context.values['Timeout'])
-        elif event == blocks.Some(False):
+            new_timeout_time = wirely.Some(now + context.values['Timeout'])
+        elif event == wirely.Some(False):
             # KeyReleased
             new_value = False
             new_timeout_time = None
@@ -170,7 +170,7 @@ class KeyState(NativeState):
             if not value:
                 new_value = False
                 new_timeout_time = None
-            elif timeout_reached != blocks.Some(False):
+            elif timeout_reached != wirely.Some(False):
                 # Old value was True, but timeout was reached or time was lost
                 print('Warning: TwoN.KeyState: Resetting key after timeout', flush=True)
                 # Change value to False, cancel timeout
@@ -186,7 +186,7 @@ class KeyState(NativeState):
         context.set_output('current_value', new_value)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class IOState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -259,7 +259,7 @@ class IOState(NativeState):
         context.set_output('output', value)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class SwitchState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -330,7 +330,7 @@ class SwitchState(NativeState):
         context.set_output('output', value)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class OutputControl(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

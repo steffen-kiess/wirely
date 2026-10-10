@@ -46,7 +46,7 @@ native procedure run depends on ,; // E: Syntax error
 // TEST: comma_only_results
 native procedure run produces ,; // E: Syntax error
 
-// TEST: doubled_binding_comma
+// TEST: doubled_port_comma
 native procedure run depends on First,, Second; // E: Syntax error
 
 // TEST: repeated_result_trailing_comma

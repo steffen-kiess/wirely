@@ -8,7 +8,6 @@ import ssl
 import sys
 import logging
 
-import wirely as blocks
 from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
 
@@ -74,11 +73,11 @@ async def async_run(args) -> None:
                 print(f'Error: {error}', file=sys.stderr)
                 return 1
 
-        global_block_type = blocks.compiler.compile_files(args.input_filename)
-        if global_block_type is None:
+        global_node_type = wirely.compiler.compile_files(args.input_filename)
+        if global_node_type is None:
             sys.exit(1)
 
-        prog = program_compiler.compile(global_block_type)
+        prog = program_compiler.compile(global_node_type)
         if prog is None:
             sys.exit(1)
 

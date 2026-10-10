@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 
-import wirely as blocks
+import wirely
 
 
 async def run_test():
@@ -30,7 +30,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', blocks.Some(True))
+        engine.assert_value_is('key2_event', wirely.Some(True))
         engine.assert_value_is('key2', True)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -43,7 +43,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', blocks.Some(False))
+        engine.assert_value_is('key2_event', wirely.Some(False))
         engine.assert_value_is('key2', False)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -65,7 +65,7 @@ async def run_test():
         engine.assert_value_is('key3', True)
         engine.assert_is_idle()
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(29))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(29))
         engine.assert_is_idle()
         engine.step()
         engine.assert_value_is('key2_event', None)
@@ -78,7 +78,7 @@ async def run_test():
         engine.assert_is_idle()
 
         # Timeout
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         engine.step()
         engine.assert_value_is('key2_event', None)
         engine.assert_value_is('key2', False)
@@ -93,7 +93,7 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('key2_event', blocks.Some(True))
+        engine.assert_value_is('key2_event', wirely.Some(True))
         engine.assert_value_is('key2', True)
         engine.assert_value_is('key3', False)
         engine.step()
@@ -102,7 +102,7 @@ async def run_test():
         engine.assert_value_is('key3', False)
         engine.assert_is_idle()
 
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(29))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(29))
         engine.assert_is_idle()
         engine.step()
         engine.assert_value_is('key2_event', None)
@@ -115,7 +115,7 @@ async def run_test():
         engine.assert_is_idle()
 
         # Still no timeout
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(15))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(15))
         engine.assert_is_idle()
         engine.step()
         engine.assert_value_is('key2_event', None)
@@ -128,7 +128,7 @@ async def run_test():
         engine.assert_is_idle()
 
         # Timeout
-        engine.advance_fake_monotonic_time(blocks.Duration.from_seconds(2))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         engine.step()
         engine.assert_value_is('key2_event', None)
         engine.assert_value_is('key2', False)
@@ -224,9 +224,9 @@ async def run_test():
         # Wait for the event to be read
         await asyncio.sleep(0.1)
         engine.step()
-        engine.assert_value_is('code_1', blocks.Some(blocks.Unit()))
+        engine.assert_value_is('code_1', wirely.Some(wirely.Unit()))
         engine.assert_value_is('code_2', None)
-        engine.assert_value_is('code_3', blocks.Some(blocks.Unit()))
+        engine.assert_value_is('code_3', wirely.Some(wirely.Unit()))
         engine.assert_value_is('switch1', True)
         engine.assert_value_is('switch2', False)
         engine.assert_value_is('tamper_input', True)
@@ -283,7 +283,7 @@ async def run_test():
         await asyncio.sleep(0.1)
         engine.step()
         engine.assert_value_is('code_1', None)
-        engine.assert_value_is('code_2', blocks.Some(blocks.Unit()))
+        engine.assert_value_is('code_2', wirely.Some(wirely.Unit()))
         engine.assert_value_is('code_3', None)
         engine.assert_value_is('switch1', True)
         engine.assert_value_is('switch2', False)
@@ -312,7 +312,7 @@ async def run_test():
         assert_port_is('led_secured', False)
         engine.assert_value_is('led_feedback', False)
 
-        engine.get_native_state('output_debug').send_event(blocks.Some(True))
+        engine.get_native_state('output_debug').send_event(wirely.Some(True))
 
         engine.step()
         # Run send_value() again
@@ -330,7 +330,7 @@ async def run_test():
         assert_port_is('led_secured', True)
         engine.assert_value_is('led_feedback', True)
 
-        engine.get_native_state('output_debug').send_event(blocks.Some(False))
+        engine.get_native_state('output_debug').send_event(wirely.Some(False))
 
         engine.step()
         # Run send_value() again

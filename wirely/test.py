@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import lark
 
 import wirely
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.compiler import program as program_compiler
 from wirely.compiler.diagnostics import print_diagnostic
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
@@ -195,7 +195,7 @@ def negative_test_libraries(lines, *, start_line):
         for name in names:
             if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
                 raise AssertionError(f'Malformed library name {name!r} on line {line_number}')
-            if name not in blocks.compiler._STANDARD_LIBRARY_NAMES:
+            if name not in model.compiler._STANDARD_LIBRARY_NAMES:
                 raise AssertionError(f'Unknown library {name!r} on line {line_number}')
         if len(set(names)) != len(names):
             raise AssertionError(f'Duplicate library name on line {line_number}')
@@ -224,7 +224,7 @@ def negative_test_cases(source):
             preamble = ''.join(lines[start:end])
             if not re.search(r'//\s*\^*[EHW]:', preamble):
                 try:
-                    declarations = blocks.parser.parse_str(preamble, filename='<preamble>')
+                    declarations = model.parser.parse_str(preamble, filename='<preamble>')
                 except (lark.UnexpectedInput, lark.exceptions.VisitError):
                     pass
                 else:
@@ -245,8 +245,8 @@ def compile_negative_case(full_fn, case):
         raise AssertionError('no expected diagnostics')
 
     diagnostics = []
-    sources = blocks.compiler._standard_library_sources(case.libraries)
-    result = blocks.compiler.compile_strs(
+    sources = model.compiler._standard_library_sources(case.libraries)
+    result = model.compiler.compile_strs(
         sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
     )
     if result is not None:
@@ -317,11 +317,11 @@ def compile_test(fn):
     print(f'Compiling {fn}')
 
     full_fn = os.path.dirname(__file__) + '/../' + fn
-    global_block_type = blocks.compiler.compile_files([full_fn])
-    if global_block_type is None:
+    global_node_type = model.compiler.compile_files([full_fn])
+    if global_node_type is None:
         sys.exit(1)
 
-    prog = program_compiler.compile(global_block_type)
+    prog = program_compiler.compile(global_node_type)
     if prog is None:
         sys.exit(1)
 
@@ -470,7 +470,7 @@ allow_anonymous true
             raise TimeoutError('Timed out waiting for mosquitto to start')
         print('mosquitto is running.', flush=True)
 
-        run_mqtt_sub = blocks.util.getEnvironmentBool('WIRELY_TEST_RUN_MQTT_SUB', False)
+        run_mqtt_sub = model.util.getEnvironmentBool('WIRELY_TEST_RUN_MQTT_SUB', False)
         if not run_mqtt_sub:
             yield socket_path
         else:
@@ -533,7 +533,7 @@ class TestResourceProvider:
 
     def get_output_path(self, default: str) -> str:
         if self.output_directory is None:
-            keep_directory = blocks.util.getEnvironmentBool('WIRELY_TEST_KEEP_TESTDIR', False)
+            keep_directory = model.util.getEnvironmentBool('WIRELY_TEST_KEEP_TESTDIR', False)
             if keep_directory:
                 self.output_directory = tempfile.mkdtemp(prefix='test_dir.')
                 print(f"Created test dir in {self.output_directory} (won't be deleted)", flush=True)
@@ -562,13 +562,13 @@ async def run_test(test_name):
         resources = TestResourceProvider(resource_stack)
         fn = os.path.dirname(__file__) + f'/../test/{test_name}.wrl'
         py_fn = os.path.dirname(__file__) + f'/../test/{test_name}.py'
-        global_block_type = blocks.compiler.compile_files(
+        global_node_type = model.compiler.compile_files(
             [fn], services={TEST_RESOURCES_SERVICE: resources},
         )
-        if global_block_type is None:
+        if global_node_type is None:
             sys.exit(1)
 
-        prog = program_compiler.compile(global_block_type)
+        prog = program_compiler.compile(global_node_type)
         if prog is None:
             sys.exit(1)
 

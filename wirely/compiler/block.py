@@ -1,60 +1,59 @@
 import abc
 
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.util import check_parameters
 from .attributes import copy_attributes
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
-from wirely.program import InputSourceBinding, Variable
+from wirely.program import InputSource, Variable
 
-# TODO: Rename this to BlockInstantiation or BlockUsage?
-# TODO: Probably Input, Output, StateVariable etc. should be moved out of this and only exist in BlockType
-class Block(blocks.Node):
-    def __init__(self, graph, *, name, block_type, par_values, instantiation, register=True):
+# TODO: Probably InputPort, OutputPort, StateVariable etc. should be moved out of this and only exist in NodeType
+class InstanceNode(model.GraphElement):
+    def __init__(self, graph, *, name, node_type, par_values, instantiation, register=True):
         super().__init__(graph=graph, name=name)
 
-        self.block_type = block_type
+        self.node_type = node_type
         self.par_values = par_values
         self.instantiation = instantiation
         copy_attributes(self, instantiation)
         # TODO: Clean up
         for par in self.par_values:
             val = self.par_values[par]
-            if not isinstance(val, blocks.ValueParameter) and not isinstance(val, blocks.Value) and not isinstance(val, blocks.Type):
+            if not isinstance(val, model.ValueParameter) and not isinstance(val, model.Value) and not isinstance(val, model.Type):
                raise Exception(f'Got invalid parameter value: {val}')
             # TODO: Also check for contains_parameters? When should this be done?
             # if val.contains_parameters:
             #    raise Exception(f'Got parameter value {val} contains parameters')
 
-        # TODO: A lot of this stuff should be moved to BlockType, instead the Block instance should only store the connections to the BlockType's inputs and from the BlockType's outputs
-        self.block_inputs = []
-        self.block_outputs = []
-        self.block_inputs_byname = {}
-        self.block_outputs_byname = {}
-        self.block_temporaries = []
-        self.block_statevars = []
-        self.block_procedures = []
+        # TODO: A lot of this stuff should be moved to NodeType, instead the InstanceNode should only store the connections to the NodeType's inputs and from the NodeType's outputs
+        self.input_ports = []
+        self.output_ports = []
+        self.input_ports_byname = {}
+        self.output_ports_byname = {}
+        self.temporaries = []
+        self.state_variables = []
+        self.procedures = []
         self.last_proc_id = 0
 
         if register:
-            if self.name in self.graph.blocks:
-                raise Exception(f'Duplicate block name {self.name!r}')
-            self.graph.blocks[self.name] = self
+            if self.name in self.graph.instance_nodes:
+                raise Exception(f'Duplicate node name {self.name!r}')
+            self.graph.instance_nodes[self.name] = self
 
     @property
     def is_root(self):
-        return self.block_type.parent_graph is None
+        return self.node_type.parent_graph is None
 
     @property
     def type_name(self):
-        name = self.block_type.name
+        name = self.node_type.name
         return name.id_str if name is not None else '<global>'
 
     @staticmethod
     def path_name(path, *, qualified=False):
         names = []
         for node in path:
-            if isinstance(node, Block):
+            if isinstance(node, InstanceNode):
                 if not node.is_root:
                     names.append(node.name)
             else:
@@ -75,29 +74,29 @@ class Block(blocks.Node):
 
     def validate(self, path):
         """Require a source for each single input and a producer for each output."""
-        name = Block.path_name(path, qualified=True)
-        for input in self.all_block_inputs:
-            if input.connected_source is None and not isinstance(input.block, blocks.BlockOutput):
-                connector = 'Default input' if input.name == '' else f'Input {input.name!r}'
-                raise blocks.ProgramError(self.instantiation, f'{connector} of node {name!r} is not connected',
-                                          hints=[blocks.CompilerHint(input.conn_spec, 'Input was declared here')])
+        name = InstanceNode.path_name(path, qualified=True)
+        for input in self.all_input_ports:
+            if input.connected_source is None and not isinstance(input.node, model.TypeOutputPort):
+                port = 'Default input' if input.name == '' else f'Input {input.name!r}'
+                raise model.ProgramError(self.instantiation, f'{port} of node {name!r} is not connected',
+                                          hints=[model.CompilerHint(input.port_spec, 'Input was declared here')])
 
-        for output in self.block_outputs:
-            if (isinstance(output.conn_spec, blocks.ConnectorSpecificationResource)
-                    or output.block_output.connected_source is not None):
+        for output in self.output_ports:
+            if (isinstance(output.port_spec, model.PortTypeSpecificationResource)
+                    or output.type_output_port.connected_source is not None):
                 continue
-            connector = 'Default output' if output.name == '' else f'Output {output.name!r}'
-            raise blocks.ProgramError(output.conn_spec, f'{connector} has no source', hints=[
-                blocks.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
+            port = 'Default output' if output.name == '' else f'Output {output.name!r}'
+            raise model.ProgramError(output.port_spec, f'{port} has no source', hints=[
+                model.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
             ])
 
     # TODO: Clean up
     @property
-    def all_block_inputs(self):
+    def all_input_ports(self):
         res = []
-        for input in self.block_inputs:
+        for input in self.input_ports:
             if input.is_list:
-                # TODO: Currently the individual entries of the list are already in block_inputs
+                # TODO: Currently the individual entries of the list are already in input_ports
                 # res += input.members
                 pass
             else:
@@ -105,28 +104,28 @@ class Block(blocks.Node):
         return res
 
     # TODO: Rename
-    # TODO: Must probably be cleaned up to allow multiple instantiations of the same block
-    # path: A tuple which contains the name of the block being instantiated
+    # TODO: Must probably be cleaned up to allow multiple instantiations of the same node
+    # path: A tuple which contains the name of the node being instantiated
     def instantiate(self, *, singletons, variable_map, all_variables, state_map, state_variables, instances, path, parent_instance):
-        if self.block_type.is_singleton:
-            if self.block_type in singletons:
+        if self.node_type.is_singleton:
+            if self.node_type in singletons:
                 return
 
-            # TODO: This probably should not need an instance of Block here
-            singletons[self.block_type] = self
+            # TODO: This probably should not need an instance of InstanceNode here
+            singletons[self.node_type] = self
 
             # TODO: This is an ugly hack, remove
-            if hasattr(self.block_type, 'singleton_instance'):
-                raise Exception("hasattr(self.block_type, 'singleton_instance')")
-            # print(f'Using {self} as instance for {self.block_type}')
-            self.block_type.singleton_instance = self
+            if hasattr(self.node_type, 'singleton_instance'):
+                raise Exception("hasattr(self.node_type, 'singleton_instance')")
+            # print(f'Using {self} as instance for {self.node_type}')
+            self.node_type.singleton_instance = self
 
-            path = (self.block_type,)
+            path = (self.node_type,)
 
-        if self.block_type.is_singleton:
-            instance = blocks.BlockInstance(self.block_type, parent_instance=None)
+        if self.node_type.is_singleton:
+            instance = model.NodeTypeInstance(self.node_type, parent_instance=None)
         else:
-            instance = blocks.BlockInstance(self, parent_instance=parent_instance)
+            instance = model.NodeTypeInstance(self, parent_instance=parent_instance)
 
         if path != instance.path:
             raise Exception(f'path {path} != instance.path {instance.path}')
@@ -137,103 +136,103 @@ class Block(blocks.Node):
         if not self.is_root:
             self.validate(path)
 
-        for name, child_block in self.block_type.blocks.items():
-            child_path = path + (child_block,)
-            child_block.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
+        for name, child_node in self.node_type.instance_nodes.items():
+            child_path = path + (child_node,)
+            child_node.instantiate(singletons=singletons, variable_map=variable_map, all_variables=all_variables, state_map=state_map, state_variables=state_variables, instances=instances, path=child_path, parent_instance=instance)
 
         # TODO: Clean up
-        # path_prefix = '.'.join([block.name for block in path])
+        # path_prefix = '.'.join([node.name for node in path])
         path_prefix = self.path_name(path)
         if path_prefix:
             path_prefix += '.'
-        for state_var in self.block_statevars:
+        for state_var in self.state_variables:
             var_type = resolve_type(state_var.var_type, instance.static_values)
-            source = (self.block_type.variables[state_var.name]
+            source = (self.node_type.value_nodes[state_var.name]
                       if self.is_root else self.instantiation)
             check_runtime_type(var_type, source)
             v = Variable(path_prefix + state_var.name, var_type)
             state_map[path, state_var] = v
-            variable_map[path, state_var.var_identifier] = InputSourceBinding(v, new_state=False)
+            variable_map[path, state_var.var_identifier] = InputSource(v, new_state=False)
             state_variables.append(v)
 
-    def bind_variables(self, *, path, variable_map, resolve_binding):
-        for var in self.all_block_inputs:
-            if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
+    def bind_variables(self, *, path, variable_map, resolve_source):
+        for var in self.all_input_ports:
+            if isinstance(var.port_spec, model.PortTypeSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = resolve_binding(path, var)
-        for var in self.block_outputs:
-            if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
+            variable_map[path, var.var_identifier] = resolve_source(path, var)
+        for var in self.output_ports:
+            if isinstance(var.port_spec, model.PortTypeSpecificationResource):
                 continue
-            variable_map[path, var.var_identifier] = resolve_binding(path, var)
-        for var in self.block_temporaries:
-            variable_map[path, var.var_identifier] = resolve_binding(path, var)
+            variable_map[path, var.var_identifier] = resolve_source(path, var)
+        for var in self.temporaries:
+            variable_map[path, var.var_identifier] = resolve_source(path, var)
 
     # TODO: Probably should be merged into instantiate()
-    def get_block_procedures_paths(self, prefix):
-        path = blocks.path_resolve_singleton(prefix + (self,))
-        res = [(path, proc) for proc in self.block_procedures]
-        for child_block in self.block_type.blocks.values():
-            res += child_block.get_block_procedures_paths(path)
+    def get_procedure_paths(self, prefix):
+        path = model.path_resolve_singleton(prefix + (self,))
+        res = [(path, proc) for proc in self.procedures]
+        for child_node in self.node_type.instance_nodes.values():
+            res += child_node.get_procedure_paths(path)
         return res
 
     # TODO: Probably should be merged into instantiate()
-    def get_all_block_paths(self, prefix):
-        path = blocks.path_resolve_singleton(prefix + (self,))
+    def get_all_node_paths(self, prefix):
+        path = model.path_resolve_singleton(prefix + (self,))
         res = [path]
-        for child_block in self.block_type.blocks.values():
-            res += child_block.get_all_block_paths(path)
+        for child_node in self.node_type.instance_nodes.values():
+            res += child_node.get_all_node_paths(path)
         return res
 
-    class Member(abc.ABC):
-        def __init__(self, block: 'Block', name: str):
-            if not isinstance(block, Block):
-                raise Exception('block parameter is not a Block')
+    class Port(abc.ABC):
+        def __init__(self, node: 'InstanceNode', name: str):
+            if not isinstance(node, InstanceNode):
+                raise Exception('node parameter is not an InstanceNode')
             if not isinstance(name, str):
                 raise Exception('name parameter is not a str')
             name = str(name)
 
-            self.block = block
+            self.node = node
             self.name = name
 
         def __repr__(self):
-            return f"{self.block}.{self.name}"
+            return f"{self.node}.{self.name}"
 
-    # TODO: Move out of block class / Remove Member parent?
-    class Source(Member, abc.ABC):
+    # TODO: Move out of InstanceNode / Remove Port parent?
+    class SourcePort(Port, abc.ABC):
         @property
         @abc.abstractmethod
         def temporary(self):
             ...
 
-    # TODO: Move out of block class / Remove Member parent?
-    class Target(Member, abc.ABC):
+    # TODO: Move out of InstanceNode / Remove Port parent?
+    class TargetPort(Port, abc.ABC):
         pass
 
     # TODO: Handle var_type == None better
-    # TODO: Clean up, move more functionality to BlockInput
-    class Input(Source):
-        def __init__(self, block: 'Block', name: str, is_list: bool, var_type: blocks.types.Type, *, block_input: blocks.BlockInput):
-            Block.Member.__init__(self, block, name)
+    # TODO: Clean up, move more functionality to TypeInputPort
+    class InputPort(SourcePort):
+        def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *, type_input_port: model.TypeInputPort):
+            InstanceNode.Port.__init__(self, node, name)
             if not isinstance(is_list, bool):
                 raise Exception('is_list parameter is not of type bool')
-            if var_type is not None and not isinstance(var_type, blocks.types.Type):
+            if var_type is not None and not isinstance(var_type, model.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
             self.is_list = bool(is_list)
             self.var_type = var_type
-            self.block_input = block_input
-            copy_attributes(self, block_input)
+            self.type_input_port = type_input_port
+            copy_attributes(self, type_input_port)
 
-            self.conn_spec = self.block_input.conn_spec
-            self.resource_type = self.block_input.resource_type
+            self.port_spec = self.type_input_port.port_spec
+            self.resource_type = self.type_input_port.resource_type
 
-            if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
-                if self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Value:
+            if isinstance(self.port_spec, model.PortTypeSpecificationData):
+                if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                     self.impl_var_type = self.var_type
-                elif self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Event:
-                    self.impl_var_type = blocks.types.TypeOption(self.var_type)
+                elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                    self.impl_var_type = model.types.TypeOption(self.var_type)
                 else:
-                    raise Exception(f'Unknown ConnectionKind: {self.conn_spec.kind_spec.kind}')
+                    raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
             else:
                 # TODO: ?
                 self.impl_var_type = None
@@ -243,13 +242,13 @@ class Block(blocks.Node):
             else:
                 self.connected_source = None
 
-            self.block.block_inputs.append(self)
-            if self.name in self.block.block_inputs_byname:
+            self.node.input_ports.append(self)
+            if self.name in self.node.input_ports_byname:
                 raise Exception(f'Duplicate input name {name!r}')
-            self.block.block_inputs_byname[self.name] = self
+            self.node.input_ports_byname[self.name] = self
 
         def __repr__(self):
-            return f"{self.block}.{self.name}"
+            return f"{self.node}.{self.name}"
 
         @property
         def temporary(self):
@@ -262,12 +261,12 @@ class Block(blocks.Node):
 
         def connect(self, output):
             # TODO: Clean up class structure for value sources / targets
-            if not isinstance(output, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, blocks.StateRead, blocks.ProcedureOutputPort)):
+            if not isinstance(output, (InstanceNode.OutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
                 raise Exception('output parameter value is not a data or resource source')
             if self.is_list:
                 # TODO: Clean up
-                # TODO: What should be used for block_input here?
-                input = Block.Input(self.block, f'{self.name}.{len(self.members)}', False, self.var_type, block_input=self)
+                # TODO: What should be used for type_input_port here?
+                input = InstanceNode.InputPort(self.node, f'{self.name}.{len(self.members)}', False, self.var_type, type_input_port=self)
                 input.connect(output)
                 self.members.append(input)
             else:
@@ -276,49 +275,49 @@ class Block(blocks.Node):
 
                 self.connected_source = output
 
-        # TODO: Remove and replace with self, Input should contains a reference to BlockType, not to Block
+        # TODO: Remove and replace with self, InputPort should contain a reference to NodeType, not to InstanceNode
         @property
         def var_identifier(self):
-            return 'INP ' + self.block.type_name + '.' + self.name
+            return 'INP ' + self.node.type_name + '.' + self.name
 
     # TODO: Handle var_type == None better
-    # TODO: Clean up, move more functionality to BlockOutput
-    class Output(Target):
-        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, input_dependencies=[], *, block_output: blocks.BlockOutput):
-            Block.Member.__init__(self, block, name)
-            if var_type is not None and not isinstance(var_type, blocks.types.Type):
+    # TODO: Clean up, move more functionality to TypeOutputPort
+    class OutputPort(TargetPort):
+        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, input_dependencies=[], *, type_output_port: model.TypeOutputPort):
+            InstanceNode.Port.__init__(self, node, name)
+            if var_type is not None and not isinstance(var_type, model.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
             self.var_type = var_type
-            self.block_output = block_output
-            copy_attributes(self, block_output)
+            self.type_output_port = type_output_port
+            copy_attributes(self, type_output_port)
 
-            self.conn_spec = self.block_output.conn_spec
-            self.resource_type = self.block_output.resource_type
+            self.port_spec = self.type_output_port.port_spec
+            self.resource_type = self.type_output_port.resource_type
 
-            if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
-                if self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Value:
+            if isinstance(self.port_spec, model.PortTypeSpecificationData):
+                if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                     self.impl_var_type = self.var_type
-                elif self.conn_spec.kind_spec.kind == blocks.ConnectionKind.Event:
-                    self.impl_var_type = blocks.types.TypeOption(self.var_type)
+                elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                    self.impl_var_type = model.types.TypeOption(self.var_type)
                 else:
-                    raise Exception(f'Unknown ConnectionKind: {self.conn_spec.kind_spec.kind}')
+                    raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
             else:
                 # TODO: ?
                 self.impl_var_type = None
 
             self.input_dependencies = []
             for dependency in input_dependencies:
-                if not isinstance(dependency, Block.Input):
+                if not isinstance(dependency, InstanceNode.InputPort):
                     raise Exception('input_dependencies parameter value is not an Input instance')
-                if dependency.block != self.block:
-                    raise Exception('input_dependencies parameter value is for another block')
+                if dependency.node != self.node:
+                    raise Exception('input_dependencies parameter value is for another node')
                 self.input_dependencies.append(dependency)
 
-            self.block.block_outputs.append(self)
-            if self.name in self.block.block_outputs_byname:
+            self.node.output_ports.append(self)
+            if self.name in self.node.output_ports_byname:
                 raise Exception(f'Duplicate output name {name!r}')
-            self.block.block_outputs_byname[self.name] = self
+            self.node.output_ports_byname[self.name] = self
 
         @property
         def name_desc(self):
@@ -328,22 +327,22 @@ class Block(blocks.Node):
                 return self.name
 
         def __repr__(self):
-            return f"{self.block}.{self.name}"
+            return f"{self.node}.{self.name}"
 
-        # TODO: Remove and replace with self, Output should contains a reference to BlockType, not to Block
+        # TODO: Remove and replace with self, OutputPort should contain a reference to NodeType, not to InstanceNode
         @property
         def var_identifier(self):
-            return 'OUT ' + self.block.type_name + '.' + self.name
+            return 'OUT ' + self.node.type_name + '.' + self.name
 
     # TODO: Allow both temporaries and output values to be references to other values
-    class Temporary(Source, Target):
-        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, *, impl_var_type, port=None):
-            Block.Member.__init__(self, block, name)
+    class Temporary(SourcePort, TargetPort):
+        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *, impl_var_type, port=None):
+            InstanceNode.Port.__init__(self, node, name)
             # The procedure output port stored here, or None for declared temporaries.
             self.port = port
             # The source a declared temporary refers to.
             self.alias_of = None
-            if not isinstance(var_type, blocks.types.Type):
+            if not isinstance(var_type, model.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
             self.var_type = var_type
@@ -352,38 +351,38 @@ class Block(blocks.Node):
 
             self.producer = None
 
-            self.block.block_temporaries.append(self)
+            self.node.temporaries.append(self)
 
         def __repr__(self):
-            return f"{self.block}.{self.name}"
+            return f"{self.node}.{self.name}"
 
         @property
         def temporary(self):
             return self
 
-        # TODO: Remove and replace with self, Temporary should contains a reference to BlockType, not to Block
+        # TODO: Remove and replace with self, Temporary should contains a reference to NodeType, not to InstanceNode
         @property
         def var_identifier(self):
             separator = '.' if self.port is None else ':'
-            return 'TEMP ' + self.block.type_name + separator + self.name
+            return 'TEMP ' + self.node.type_name + separator + self.name
 
-    class PortSources(Source):
+    class PortSources(SourcePort):
         """The sources connected to a multi procedure port."""
 
-        def __init__(self, block: 'Block', name: str, members, *, conn_spec):
-            Block.Member.__init__(self, block, name)
+        def __init__(self, node: 'InstanceNode', name: str, members, *, port_spec):
+            InstanceNode.Port.__init__(self, node, name)
             self.members = members
-            self.conn_spec = conn_spec
+            self.port_spec = port_spec
             self.is_list = True
 
         @property
         def temporary(self):
             raise Exception('Trying to get temporary for list')
 
-    class StateVariable(Source, Target):
-        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, initial_value):
-            Block.Member.__init__(self, block, name)
-            if not isinstance(var_type, blocks.types.Type):
+    class StateVariable(SourcePort, TargetPort):
+        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, initial_value):
+            InstanceNode.Port.__init__(self, node, name)
+            if not isinstance(var_type, model.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
             self.var_type = var_type
@@ -393,13 +392,13 @@ class Block(blocks.Node):
 
             self.producer = None
 
-            self.block.block_statevars.append(self)
+            self.node.state_variables.append(self)
 
         def __repr__(self):
             return f"StateVariable[{self}]"
 
         def __str__(self):
-            return f"{self.block}.{self.name}"
+            return f"{self.node}.{self.name}"
 
         # TODO
         @property
@@ -408,40 +407,40 @@ class Block(blocks.Node):
 
         @property
         def var_identifier(self):
-            return 'STATE ' + self.block.type_name + '.' + self.name
+            return 'STATE ' + self.node.type_name + '.' + self.name
 
     class Procedure:
         # TODO: Make name mandatory
-        def __init__(self, block: 'Block', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
-            if not isinstance(block, Block):
-                raise Exception('block parameter is not a Block')
+        def __init__(self, node: 'InstanceNode', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
+            if not isinstance(node, InstanceNode):
+                raise Exception('node parameter is not an InstanceNode')
 
-            self.block = block
+            self.node = node
             self.name = name
             self.declaration_procedure = declaration_procedure
             copy_attributes(self, declaration_procedure)
-            # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current block. Move this somewhere else?
+            # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current node. Move this somewhere else?
             self.static_context = static_context
 
-            self.block.last_proc_id += 1
-            self.id = self.block.last_proc_id
+            self.node.last_proc_id += 1
+            self.id = self.node.last_proc_id
 
             self.dependencies = []
             for dependency in dependencies:
-                if not isinstance(dependency, (Block.Source, Block.Output, blocks.StateRead)):
+                if not isinstance(dependency, (InstanceNode.SourcePort, InstanceNode.OutputPort, model.StateRead)):
                     raise Exception('dependencies parameter value is not an Input or Temporary instance')
                 # Old-state dependencies have no producer edge; new-state reads depend on the writer.
-                # TODO: Allow dependencies on other blocks? Probably yes. Maybe check where dependency.block is a child of the current block?
-                # if dependency.block != self.block:
-                #     raise Exception('dependencies parameter value is for another block')
+                # TODO: Allow dependencies on other nodes? Probably yes. Maybe check where dependency.node is a child of the current node?
+                # if dependency.node != self.node:
+                #     raise Exception('dependencies parameter value is for another node')
                 self.dependencies.append(dependency)
 
             self.outputs = []
             for output in outputs:
-                if not isinstance(output, Block.Target):
+                if not isinstance(output, InstanceNode.TargetPort):
                     raise Exception(f'outputs parameter value is not an Output or Temporary instance: {type(output)}')
-                if output.block != self.block:
-                    raise Exception('outputs parameter value is for another block')
+                if output.node != self.node:
+                    raise Exception('outputs parameter value is for another node')
                 self.outputs.append(output)
 
                 # TODO:  whether dependencies of output include required inputs as dependencies
@@ -450,55 +449,52 @@ class Block(blocks.Node):
                 previous = output.temporary.producer
                 if previous is not None:
                     target = f'Variable {output.name!r}'
-                    raise blocks.ProgramError(
+                    raise model.ProgramError(
                         declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
-                        hints=[blocks.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
+                        hints=[model.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
                 # print(f'Setting output for {output} / {output.temporary}')
                 output.temporary.producer = self
 
             self.can_trigger = can_trigger
 
-            self.block.block_procedures.append(self)
+            self.node.procedures.append(self)
 
         def __repr__(self):
             if self.name is not None:
-                return f"{self.block}.{self.name}"
+                return f"{self.node}.{self.name}"
             else:
-                return f"{self.block}.proc{self.id}"
+                return f"{self.node}.proc{self.id}"
 
-        # TODO: Remove and replace with self, Procedure should contains a reference to BlockType, not to Block
+        # TODO: Remove and replace with self, Procedure should contains a reference to NodeType, not to InstanceNode
         @property
         def proc_identifier(self):
-            return 'PROC ' + self.block.type_name + '.' + self.name
+            return 'PROC ' + self.node.type_name + '.' + self.name
 
-class BlockInstance(blocks.NodeInstance):
+class NodeTypeInstance(model.NodeInstance):
     @check_parameters
-    def __init__(self, block, parent_instance):
-        if isinstance(block, blocks.Block):
-            super().__init__(block, parent_instance=parent_instance)
-            # Alias for self.node
-            self.block = block
+    def __init__(self, node, parent_instance):
+        if isinstance(node, model.InstanceNode):
+            super().__init__(node, parent_instance=parent_instance)
 
             self.is_singleton = False
 
-            self.block_type = self.block.block_type
-        elif isinstance(block, blocks.BlockType):
+            self.node_type = self.node.node_type
+        elif isinstance(node, model.NodeType):
             if parent_instance != None:
                 raise Exception('parent_instance != None')
             # TODO: Clean up? Create separate type?
             super().__init__(None, parent_instance=None)
-            self.block = None
 
             self.is_singleton = True
 
-            self.block_type = block
+            self.node_type = node
         else:
-            raise Exception(f'Unknown value for block: {block}')
+            raise Exception(f'Unknown value for node: {node}')
 
         if self.is_singleton:
             self.parameter_values = {}
         else:
-            self.parameter_values = dict(self.block.par_values)
+            self.parameter_values = dict(self.node.par_values)
 
         all_par_values = {}
         next_parent = self.parent_instance
@@ -512,7 +508,7 @@ class BlockInstance(blocks.NodeInstance):
         parameter_values_resolved = {}
         parameter_keys = list(self.parameter_values)
         parameter_keys.extend(
-            parameter for parameter in self.block_type.parsed_parameters.values()
+            parameter for parameter in self.node_type.parsed_parameters.values()
             if parameter not in self.parameter_values and parameter.default_value is not None
         )
         for key in parameter_keys:
@@ -522,13 +518,13 @@ class BlockInstance(blocks.NodeInstance):
         try:
             self.constant_values = {
                 declaration: all_par_values[declaration]
-                for declaration in self.block_type.parsed_constants.values()
+                for declaration in self.node_type.parsed_constants.values()
             }
-        except blocks.ProgramError as error:
-            owner = self.block or self.block_type.singleton_instance
+        except model.ProgramError as error:
+            owner = self.node or self.node_type.singleton_instance
             if not owner.is_root:
-                name = Block.path_name(self.path, qualified=True)
-                error.hints = [*error.hints, blocks.CompilerHint(
+                name = InstanceNode.path_name(self.path, qualified=True)
+                error.hints = [*error.hints, model.CompilerHint(
                     owner.instantiation, f'While instantiating {name!r}',
                 )]
             raise
@@ -538,27 +534,27 @@ class BlockInstance(blocks.NodeInstance):
         self.static_values.update(self.parameter_values)
         self.static_values.update(self.constant_values)
 
-        for assertion in self.block_type.assertions:
+        for assertion in self.node_type.assertions:
             assertion.evaluate(self)
 
         from .static_bindings import evaluate_bindings
-        initializer = self.block_type.initializer
+        initializer = self.node_type.initializer
         self.initializer_values = evaluate_bindings(
             initializer.uses if initializer is not None else None, self,
         )
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)
-        name = Block.path_name(self.path, qualified=True) or '<global>'
-        self.static_context = blocks.StaticBlockContext(name=name, parameters=parameters)
+        name = InstanceNode.path_name(self.path, qualified=True) or '<global>'
+        self.static_context = model.StaticNodeContext(name=name, parameters=parameters)
 
     @property
     def path(self):
         if self.is_singleton:
-            return (self.block_type,)
+            return (self.node_type,)
 
         if self.parent_instance is None:
             base_path = ()
         else:
             base_path = self.parent_instance.path
-        return base_path + (self.block,)
+        return base_path + (self.node,)

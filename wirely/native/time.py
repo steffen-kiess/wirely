@@ -4,16 +4,15 @@ import contextlib
 import typing
 
 import wirely.misc.service
-import wirely as blocks
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.util import check_parameters
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
-native_block_types = {}
+native_node_types = {}
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class MonotonicTimeReached(NativeState):
     @staticmethod
     def run(*, context):
@@ -23,21 +22,21 @@ class MonotonicTimeReached(NativeState):
         # print('MonotonicTimeReached', time, now)
         if time is not None:
             time = time.value
-        if time is None or not blocks.MonotonicTime.is_comparable(time, now):
+        if time is None or not wirely.MonotonicTime.is_comparable(time, now):
             result = None
             context.set_wakeup_time(None)
-        elif blocks.MonotonicTime.compare(now, time) >= 0:
-            result = blocks.Some(True)
+        elif wirely.MonotonicTime.compare(now, time) >= 0:
+            result = wirely.Some(True)
             context.set_wakeup_time(None)
         else:
-            result = blocks.Some(False)
+            result = wirely.Some(False)
             context.set_wakeup_time(time)
         # print('MonotonicTimeReached', time, now, result)
 
         context.set_output('output', result)
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class DebounceStable(NativeState):
     @staticmethod
     def run(*, context):
@@ -48,25 +47,25 @@ class DebounceStable(NativeState):
         update_time = context.inputs['update_time_old']
 
         # print('TODO', inp, cur, new, update_time, reached)
-        if cur is None or (new is not None and reached is None) or cur == blocks.Some(inp):
+        if cur is None or (new is not None and reached is None) or cur == wirely.Some(inp):
             # Directly after startup or after time got lost.
             # Or: Input is current value. Cancel any changes.
-            n_cur = blocks.Some(inp)
+            n_cur = wirely.Some(inp)
             n_new = None
             n_update_time = None
             out = inp
-        elif new != blocks.Some(inp):
+        elif new != wirely.Some(inp):
             # Input is neither cur not new. Start a change to inp.
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
             n_cur = cur
-            n_new = blocks.Some(inp)
-            n_update_time = blocks.Some(now + context.values['Duration'])
+            n_new = wirely.Some(inp)
+            n_update_time = wirely.Some(now + context.values['Duration'])
             # Note: cur cannot be None because if the first if
             out = cur.value
         elif not reached.value:
             # Input is new (and != cur), but the time has not yet expired. Do nothing.
             # Some checks
-            if new != blocks.Some(inp):
+            if new != wirely.Some(inp):
                 raise Exception('new != Some(inp)')
 
             n_cur = cur
@@ -77,7 +76,7 @@ class DebounceStable(NativeState):
         else:
             # Input is new and Timeout has been reached. Change to new.
             # Some checks
-            if new != blocks.Some(inp):
+            if new != wirely.Some(inp):
                 raise Exception('new != Some(inp)')
 
             n_cur = new
@@ -91,7 +90,7 @@ class DebounceStable(NativeState):
         context.set_output('output', out)
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class TimeOfDayMinute(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -114,7 +113,7 @@ class TimeOfDayMinute(NativeState):
 
         now_time = datetime.datetime.now().time()
         # print(now_time, flush=True)
-        now_min = blocks.TimeOfDay.from_parts(now_time.hour, now_time.minute)
+        now_min = wirely.TimeOfDay.from_parts(now_time.hour, now_time.minute)
         wait_time_s = wait_time_s = 60 - (now_time.second + now_time.microsecond * 1e-6)
 
         self.current_value = now_min
@@ -152,7 +151,7 @@ class TimeOfDayMinute(NativeState):
         self.trigger('get_value')
 
     @check_parameters
-    def set_fake_time(self, fake_time: typing.Optional[blocks.TimeOfDay]):
+    def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]):
         self._fake_time = fake_time
 
         # TODO: Make sure that seconds/microseconds are 0?
@@ -170,7 +169,7 @@ class TimeOfDayMinute(NativeState):
             if parameters[1].lower() == 'none':
                 self.set_fake_time(None)
             else:
-                value = blocks.value_types.time_of_day.parse(parameters[1])
+                value = wirely.value_types.time_of_day.parse(parameters[1])
                 self.set_fake_time(value)
         elif cmd == 'get':
             if len(parameters) != 1:
@@ -180,7 +179,7 @@ class TimeOfDayMinute(NativeState):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class IsInDailyInterval:
     @staticmethod
     def run(*, context):
@@ -196,12 +195,12 @@ class IsInDailyInterval:
         context.set_output('output', res)
 
 
-@native_block_type(native_block_types, has_native_state=False)
+@native_node_type(native_node_types, has_native_state=False)
 class TriggerAt:
     @staticmethod
     def run(*, context):
         output_value = context.values['OutputValue']
-        value = blocks.Unit() if output_value is None else output_value.value
+        value = wirely.Unit() if output_value is None else output_value.value
 
         old_state = context.inputs['state_old']
         before = context.inputs['before']
@@ -249,5 +248,5 @@ class TriggerAt:
                 
         # print(f'TriggerAt.run(): {old_state} {before} {after} -> {new_state} {do_trigger}')
 
-        context.set_output('output', blocks.Some(value) if do_trigger else None)
+        context.set_output('output', wirely.Some(value) if do_trigger else None)
         context.set_output('trigger_state', new_state)

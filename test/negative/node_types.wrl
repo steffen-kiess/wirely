@@ -12,7 +12,7 @@ singleton node type QWE {
   parameter i: int8; // E: Singleton node type cannot have parameters
 }
 
-// TEST: duplicate_block_type_in_reopened_library
+// TEST: duplicate_node_type_in_reopened_library
 namespace Fixture {
   node type Duplicate { // H: Previous node type was here
   }

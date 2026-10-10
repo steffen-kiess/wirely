@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, replace
 
-from . import model as blocks
+from . import model
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .value import Value, check_value_type
@@ -88,7 +88,7 @@ class UnaryExpression(Expression):
     @staticmethod
     def negate(operand, *, source_position):
         # A negated literal stays a literal, so -128 can be an int8.
-        if isinstance(operand, blocks.IntNumber):
+        if isinstance(operand, model.IntNumber):
             return operand.negated(source_position=source_position)
         return UnaryExpression(operand, operator='neg', source_position=source_position)
 
@@ -102,16 +102,16 @@ class PropertyAccess(Expression):
 
 def property_reference(scope, expression, local_names=()):
     """Split value suffixes while preserving qualified declaration references."""
-    if not isinstance(expression, blocks.Reference) or expression.length < 2:
+    if not isinstance(expression, model.Reference) or expression.length < 2:
         return expression
     identifiers = expression.identifiers
-    enum_reference = blocks.Reference.from_list(*identifiers[:-1],
+    enum_reference = model.Reference.from_list(*identifiers[:-1],
                                                 source_position=expression.source_position)
     try:
         value_type = scope.resolve_type(enum_reference)
     except ProgramError:
         value_type = None
-    if isinstance(value_type, blocks.types.TypeEnum):
+    if isinstance(value_type, model.types.TypeEnum):
         return expression
     root = identifiers[0].id_str
     if (root in local_names or root in scope.static_declarations
@@ -120,17 +120,17 @@ def property_reference(scope, expression, local_names=()):
     else:
         # An enum member is a value, but the enum's namespace path is not.
         for split in range(2, expression.length):
-            enum_reference = blocks.Reference.from_list(
+            enum_reference = model.Reference.from_list(
                 *identifiers[:split - 1], source_position=expression.source_position)
             try:
                 value_type = scope.resolve_type(enum_reference)
             except ProgramError:
                 continue
-            if isinstance(value_type, blocks.types.TypeEnum):
+            if isinstance(value_type, model.types.TypeEnum):
                 break
         else:
             return expression
-    receiver = blocks.Reference.from_list(*identifiers[:split],
+    receiver = model.Reference.from_list(*identifiers[:split],
                                          source_position=expression.source_position)
     for name in identifiers[split:]:
         receiver = PropertyAccess(receiver, name, source_position=expression.source_position)
@@ -156,7 +156,7 @@ INTEGER_MEMBERS.update({
 
 def type_member(scope, reference, parameters, local_names=()):
     """Resolve Type.Member to (type, member), or None when the callee is not a type member."""
-    if not isinstance(reference, blocks.Reference) or reference.length < 2:
+    if not isinstance(reference, model.Reference) or reference.length < 2:
         return None
     root = reference.identifiers[0].id_str
     declaration = scope.static_declarations.get(root)
@@ -164,7 +164,7 @@ def type_member(scope, reference, parameters, local_names=()):
     if root in local_names or (reference.length == 2 and declaration is not None
                                and not is_type_declaration(declaration)):
         return None
-    prefix = blocks.Reference.from_list(*reference.identifiers[:-1],
+    prefix = model.Reference.from_list(*reference.identifiers[:-1],
                                         source_position=reference.source_position)
     try:
         value_type = scope.resolve_type(prefix, par_values=parameters)
@@ -172,7 +172,7 @@ def type_member(scope, reference, parameters, local_names=()):
         return None
     name = reference.identifiers[-1].id_str
     member = None
-    if value_type.contains_parameters or isinstance(value_type, blocks.types.TypeInt):
+    if value_type.contains_parameters or isinstance(value_type, model.types.TypeInt):
         member = INTEGER_MEMBERS.get(name)
     function = scope.resolve_function(reference, required=False)
     if member is None:
@@ -185,14 +185,14 @@ def type_member(scope, reference, parameters, local_names=()):
 
 
 def is_some_call(expression):
-    return (isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference)
+    return (isinstance(expression, model.FunctionCall) and isinstance(expression.fun, model.Reference)
             and expression.fun.length == 1 and expression.fun.identifiers[0].id_str == 'Some')
 
 
 def is_type_declaration(declaration):
     declared_type = getattr(declaration, 'type_resolved', None)
-    return (declared_type == blocks.types.ValueType
-            or (isinstance(declaration.ty, blocks.Reference) and declaration.ty.length == 1
+    return (declared_type == model.types.ValueType
+            or (isinstance(declaration.ty, model.Reference) and declaration.ty.length == 1
                 and declaration.ty.identifiers[0].id_str == 'ValueType'))
 
 
@@ -273,7 +273,7 @@ class TypedExpression:
     def check_types(self):
         if self.expected_type is not None:
             check_value_type(self.value_type, self.expected_type, self.source)
-        boolean = blocks.types.boolean
+        boolean = model.types.boolean
         if self.operation in ('not', 'and', 'or'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
@@ -291,13 +291,13 @@ class TypedExpression:
             check_value_type(then.value_type, self.value_type, then.source)
         elif self.operation == 'unwrap':
             option = self.arguments[0]
-            if not option.value_type.contains_parameters and not isinstance(option.value_type, blocks.types.TypeOption):
+            if not option.value_type.contains_parameters and not isinstance(option.value_type, model.types.TypeOption):
                 raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
         elif self.operation in ('unwrap_or', 'if_let'):
             option = self.arguments[0]
-            if option.value_type.contains_parameters and not isinstance(option.value_type, blocks.types.TypeOption):
+            if option.value_type.contains_parameters and not isinstance(option.value_type, model.types.TypeOption):
                 return
-            if not isinstance(option.value_type, blocks.types.TypeOption):
+            if not isinstance(option.value_type, model.types.TypeOption):
                 raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
             if self.operation == 'unwrap_or':
                 check_value_type(self.arguments[1].value_type, option.value_type.inner_type, self.arguments[1].source)
@@ -311,9 +311,9 @@ class TypedExpression:
             integer_type = self.arguments[0].value_type
             # The + and - operators also combine durations.
             duration_operator = (self.operation == 'arith' and self.payload in (('add', None), ('sub', None))
-                                 and isinstance(integer_type, blocks.types.TypeDuration))
+                                 and isinstance(integer_type, model.types.TypeDuration))
             if (not integer_type.contains_parameters and not duration_operator
-                    and not isinstance(integer_type, blocks.types.TypeInt)):
+                    and not isinstance(integer_type, model.types.TypeInt)):
                 raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
         elif self.operation == 'convert':
             source_type = self.arguments[0].value_type
@@ -321,12 +321,12 @@ class TypedExpression:
                            else self.value_type)
             if source_type.contains_parameters or target_type.contains_parameters:
                 return
-            if not isinstance(target_type, blocks.types.TypeInt):
+            if not isinstance(target_type, model.types.TypeInt):
                 raise ProgramError(self.source, f'Conversion requires an integer target, got {target_type}')
-            if not isinstance(source_type, (blocks.types.TypeInt, blocks.types.TypeEnum)):
+            if not isinstance(source_type, (model.types.TypeInt, model.types.TypeEnum)):
                 raise ProgramError(self.arguments[0].source,
                                    f'Conversion requires an integer or enum value, got {source_type}')
-            source_min, source_max = blocks.types.integer_range(source_type)
+            source_min, source_max = model.types.integer_range(source_type)
             if self.payload == 'lossless' and not (target_type.min_value <= source_min
                                                    and source_max <= target_type.max_value):
                 raise ProgramError(self.source, f'{target_type}.From cannot convert every {source_type} value; '
@@ -334,7 +334,7 @@ class TypedExpression:
         elif self.operation in ('is_some', 'is_none'):
             receiver = self.arguments[0]
             if (not receiver.value_type.contains_parameters
-                    and not isinstance(receiver.value_type, blocks.types.TypeOption)):
+                    and not isinstance(receiver.value_type, model.types.TypeOption)):
                 name = 'IsSome' if self.operation == 'is_some' else 'IsNone'
                 raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
 
@@ -351,13 +351,13 @@ class TypedExpression:
         if self.operation == 'list':
             return tuple(argument.evaluate(inputs, locals) for argument in self.arguments)
         if self.operation == 'some':
-            return blocks.Some(self.arguments[0].evaluate(inputs, locals))
+            return model.Some(self.arguments[0].evaluate(inputs, locals))
         if self.operation == 'field':
             return self.arguments[0].evaluate(inputs, locals)[self.payload]
         if self.operation == 'convert':
             # A lossless conversion always fits, so checking cannot fail.
             target_type = self.value_type.inner_type if self.payload == 'checked' else self.value_type
-            result = blocks.types.convert(self.arguments[0].value_type, target_type,
+            result = model.types.convert(self.arguments[0].value_type, target_type,
                                           'checked' if self.payload == 'lossless' else self.payload,
                                           self.arguments[0].evaluate(inputs, locals))
             return result.value if self.payload == 'lossless' else result
@@ -425,14 +425,14 @@ class TypedExpression:
             operation, overflow = self.payload
         if overflow is not None:
             return integer_type.arithmetic(operation, overflow, *operands)
-        if isinstance(integer_type, blocks.types.TypeDuration):
+        if isinstance(integer_type, model.types.TypeDuration):
             left, right = (operand.duration_ns for operand in operands)
             result = left + right if operation == 'add' else left - right
             if result < 0:
                 raise ProgramError(self.source, 'Negative duration')
-            if result > blocks.Duration.MAX_NS:
+            if result > model.Duration.MAX_NS:
                 raise ProgramError(self.source, 'Duration overflow: result exceeds the maximum duration')
-            return blocks.Duration(duration_ns=result)
+            return model.Duration(duration_ns=result)
         # Operators fail compilation instead of overflowing.
         if operation in ('div', 'rem') and operands[1] == 0:
             raise ProgramError(self.source, 'Division by zero')
@@ -546,7 +546,7 @@ class InstructionCompiler:
             self.compile(expression.arguments[2], destination)
             self.patch(skip_else)
         elif operation in ('unwrap_or', 'if_let'):
-            present = self.allocate(blocks.types.boolean)
+            present = self.allocate(model.types.boolean)
             self.emit(Opcode.IS_SOME, present, left)
             skip_some = self.emit(Opcode.JUMP_IF_FALSE, present, BranchTarget(0))
             if operation == 'unwrap_or':
@@ -621,7 +621,7 @@ class ExpressionCompiler:
 
     def record_static_usage(self, expression):
         expression = property_reference(self.scope, expression, self.names)
-        if isinstance(expression, blocks.Reference):
+        if isinstance(expression, model.Reference):
             if expression.length == 1:
                 declaration = self.scope.static_declarations.get(expression.identifiers[0].id_str)
                 if declaration is not None:
@@ -664,25 +664,25 @@ class ExpressionCompiler:
         return result
 
     def _compile(self, expression, expected):
-        boolean = blocks.types.boolean
+        boolean = model.types.boolean
         if isinstance(expression, PropertyAccess):
             name = expression.name.id_str
             receiver = self.compile(expression.receiver)
             receiver_type = receiver.value_type
-            if isinstance(receiver_type, blocks.types.TypeStruct) and name in receiver_type.fields:
+            if isinstance(receiver_type, model.types.TypeStruct) and name in receiver_type.fields:
                 return TypedExpression(receiver_type.fields[name], 'field', (receiver,), name)
-            if (name in ('IsSome', 'IsNone') and (isinstance(receiver_type, blocks.types.TypeOption)
+            if (name in ('IsSome', 'IsNone') and (isinstance(receiver_type, model.types.TypeOption)
                                                   or receiver_type.contains_parameters)):
                 return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
                                        (receiver,))
             if receiver_type.contains_parameters:
                 raise ProgramError(expression.name, 'Field access requires a known struct type')
             raise ProgramError(expression.name, f'Value of type {receiver_type} has no property {name!r}')
-        if isinstance(expression, blocks.FunctionCall):
+        if isinstance(expression, model.FunctionCall):
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
                 return self.member_call(expression, *member)
-        if isinstance(expression, blocks.FunctionCall):
+        if isinstance(expression, model.FunctionCall):
             method = property_reference(self.scope, expression.fun, self.names)
             if isinstance(method, PropertyAccess):
                 if method.name.id_str == 'UnwrapOr':
@@ -694,11 +694,11 @@ class ExpressionCompiler:
                 receiver = self.compile(method.receiver)
                 raise ProgramError(method.name,
                                    f'Value of type {receiver.value_type} has no method {method.name.id_str!r}')
-        if isinstance(expression, blocks.ParameterOption):
+        if isinstance(expression, model.ParameterOption):
             if self.runtime:
                 raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
             parameter = expression.declaration(self.scope, self.names)
-            value = blocks.value.ParameterOptionValue(parameter, ast_element=expression)
+            value = model.value.ParameterOptionValue(parameter, ast_element=expression)
             return TypedExpression(value.value_type, 'constant', payload=value)
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
             if self.runtime:
@@ -713,7 +713,7 @@ class ExpressionCompiler:
             if self.runtime:
                 name = expression.operator.capitalize()
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
-                if isinstance(operand_type, blocks.types.TypeDuration) and name in ('Add', 'Sub'):
+                if isinstance(operand_type, model.types.TypeDuration) and name in ('Add', 'Sub'):
                     alternatives = f'Duration.Saturating{name} or Duration.Checked{name}'
                 else:
                     alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
@@ -751,7 +751,7 @@ class ExpressionCompiler:
             return TypedExpression(result.value_type, 'block',
                                      tuple(value for slot, value in bindings) + (result,),
                                      tuple(slot for slot, value in bindings))
-        if isinstance(expression, blocks.Reference) and expression.length == 1:
+        if isinstance(expression, model.Reference) and expression.length == 1:
             name = expression.identifiers[0].id_str
             if name in self.names:
                 return self.names[name]
@@ -759,12 +759,12 @@ class ExpressionCompiler:
                 raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
         if self.runtime:
             self.check_runtime_syntax(expression)
-        if self.runtime and isinstance(expression, blocks.Reference):
+        if self.runtime and isinstance(expression, model.Reference):
             names = [identifier.id_str for identifier in expression.identifiers]
             if (names not in (['true'], ['false'], ['None'])
-                    and not isinstance(self.known_type(expression), blocks.types.TypeEnum)):
+                    and not isinstance(self.known_type(expression), model.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
-        if isinstance(expression, blocks.StructLiteral):
+        if isinstance(expression, model.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)
             fields = check_struct_literal(value_type, expression, self.scope)
@@ -773,8 +773,8 @@ class ExpressionCompiler:
             arguments = tuple(self.compile(field.value, value_type.fields[name])
                               for name, field in fields.items())
             return TypedExpression(value_type, 'struct', arguments, tuple(fields))
-        if not self.runtime and isinstance(expression, blocks.ListLiteral):
-            if isinstance(expected, blocks.types.TypeList):
+        if not self.runtime and isinstance(expression, model.ListLiteral):
+            if isinstance(expected, model.types.TypeList):
                 inner_type = expected.inner_type
             elif expected is not None and expected.contains_parameters:
                 inner_type = expected
@@ -785,18 +785,18 @@ class ExpressionCompiler:
         if is_some_call(expression):
             if len(expression.parameters) != 1:
                 raise ProgramError(expression, 'Some expects exactly one argument')
-            if isinstance(expected, blocks.types.TypeOption):
+            if isinstance(expected, model.types.TypeOption):
                 inner_type = expected.inner_type
             elif expected is not None and expected.contains_parameters:
                 inner_type = expected
             else:
                 # Without an expected Option type, the argument determines it, as in Rust.
                 argument = self.compile(expression.parameters[0])
-                return TypedExpression(blocks.types.TypeOption(argument.value_type), 'some', (argument,))
+                return TypedExpression(model.types.TypeOption(argument.value_type), 'some', (argument,))
             argument = self.compile(expression.parameters[0], inner_type)
             return TypedExpression(expected, 'some', (argument,))
-        if isinstance(expression, blocks.FunctionCall):
-            if not isinstance(expression.fun, blocks.Reference):
+        if isinstance(expression, model.FunctionCall):
+            if not isinstance(expression.fun, model.Reference):
                 raise ProgramError(expression.fun, 'Function is not a reference')
             name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
             function = self.scope.resolve_function(expression.fun, required=False)
@@ -816,7 +816,7 @@ class ExpressionCompiler:
             raise ProgramError(expression, 'Cannot infer expression type; add a type annotation')
         if self.runtime:
             check_runtime_type(value_type, expression)
-        if value_type == blocks.types.ValueType:
+        if value_type == model.types.ValueType:
             actual_type = self.known_type(expression)
             if actual_type is not None:
                 check_value_type(actual_type, value_type, expression)
@@ -825,7 +825,7 @@ class ExpressionCompiler:
 
     def member_call(self, call, value_type, member):
         operation, overflow = member
-        result_type = blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
+        result_type = model.types.TypeOption(value_type) if overflow == 'checked' else value_type
         if operation == 'convert':
             if len(call.parameters) != 1:
                 raise ProgramError(call, f'{call.fun} expects exactly one argument')
@@ -843,7 +843,7 @@ class ExpressionCompiler:
 
     def option_operand(self, expression, expected=None):
         option = self.compile(expression, expected)
-        if isinstance(option.value_type, blocks.types.TypeOption):
+        if isinstance(option.value_type, model.types.TypeOption):
             return option, option.value_type.inner_type
         raise ProgramError(expression, f'Expected an Option value, got {option.value_type}')
 
@@ -853,7 +853,7 @@ class ExpressionCompiler:
             raise ProgramError(call, 'Unwrap is compile-time only; use UnwrapOr or if let')
         if call.parameters:
             raise ProgramError(call, 'Unwrap expects no arguments')
-        option_type = (blocks.types.TypeOption(expected)
+        option_type = (model.types.TypeOption(expected)
                        if expected is not None and self.context_type(receiver) is None else None)
         option, inner_type = self.option_operand(receiver, option_type)
         return TypedExpression(inner_type, 'unwrap', (option,))
@@ -862,7 +862,7 @@ class ExpressionCompiler:
         if len(call.parameters) != 1:
             raise ProgramError(call, 'UnwrapOr expects exactly one argument')
         # An untyped receiver such as None takes its type from the expected result.
-        option_type = (blocks.types.TypeOption(expected)
+        option_type = (model.types.TypeOption(expected)
                        if expected is not None and self.context_type(receiver) is None else None)
         option, inner_type = self.option_operand(receiver, option_type)
         fallback = self.compile(call.parameters[0], inner_type)
@@ -895,35 +895,35 @@ class ExpressionCompiler:
         return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
 
     def check_runtime_syntax(self, expression):
-        if isinstance(expression, blocks.ParameterOption):
+        if isinstance(expression, model.ParameterOption):
             raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
         if is_some_call(expression):
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
-        if (isinstance(expression, blocks.FunctionCall)
+        if (isinstance(expression, model.FunctionCall)
                 and type_member(self.scope, expression.fun, self.parameters, self.names) is not None):
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
-        if (isinstance(expression, blocks.FunctionCall)
+        if (isinstance(expression, model.FunctionCall)
                 and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
             self.check_runtime_syntax(property_reference(self.scope, expression.fun, self.names).receiver)
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
-        if (isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference)
+        if (isinstance(expression, model.FunctionCall) and isinstance(expression.fun, model.Reference)
                 and self.scope.resolve_function(expression.fun, required=False) is not None):
             # Constant functions are rejected when the call is compiled.
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
-        if isinstance(expression, (blocks.FunctionCall, blocks.BracketOperator)):
+        if isinstance(expression, (model.FunctionCall, model.BracketOperator)):
             raise ProgramError(expression, 'Runtime calls and indexing are not supported in procedures')
-        if isinstance(expression, blocks.StructLiteral):
+        if isinstance(expression, model.StructLiteral):
             for field in expression.fields:
                 self.check_runtime_syntax(field.value)
-        elif isinstance(expression, blocks.ListLiteral):
+        elif isinstance(expression, model.ListLiteral):
             for value in expression.values:
                 self.check_runtime_syntax(value)
         elif isinstance(expression, BinaryExpression):
@@ -948,7 +948,7 @@ class ExpressionCompiler:
 
     def context_type(self, expression):
         # Unsuffixed literals accept context instead of imposing their default.
-        if isinstance(expression, (blocks.IntNumber, blocks.StringConstant)):
+        if isinstance(expression, (model.IntNumber, model.StringConstant)):
             return None
         if isinstance(expression, ExpressionBlock):
             return None if expression.bindings else self.context_type(expression.result)
@@ -959,59 +959,59 @@ class ExpressionCompiler:
         if is_some_call(expression):
             inner_type = (self.context_type(expression.parameters[0])
                           if len(expression.parameters) == 1 else None)
-            return blocks.types.TypeOption(inner_type) if inner_type is not None else None
+            return model.types.TypeOption(inner_type) if inner_type is not None else None
         return self.known_type(expression)
 
     def known_type(self, expression):
         expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, PropertyAccess):
             receiver_type = self.known_type(expression.receiver)
-            if isinstance(receiver_type, blocks.types.TypeStruct):
+            if isinstance(receiver_type, model.types.TypeStruct):
                 return receiver_type.fields.get(expression.name.id_str)
-            return blocks.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
-        if isinstance(expression, blocks.ParameterOption):
+            return model.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
+        if isinstance(expression, model.ParameterOption):
             parameter = expression.declaration(self.scope, self.names)
-            return blocks.types.TypeOption(parameter.type_resolved)
-        if isinstance(expression, blocks.Reference):
+            return model.types.TypeOption(parameter.type_resolved)
+        if isinstance(expression, model.Reference):
             if expression.length == 1:
                 name = expression.identifiers[0].id_str
                 if name in self.names:
                     return self.names[name].value_type
                 if name in ('true', 'false'):
-                    return blocks.types.boolean
+                    return model.types.boolean
                 parameter = self.scope.static_declarations.get(name)
                 if parameter is not None and not self.runtime:
                     return (resolve_type(parameter.type_resolved, self.parameters)
                             if self.parameters else parameter.type_resolved)
             elif expression.length >= 2:
-                reference = blocks.Reference.from_list(*expression.identifiers[:-1],
+                reference = model.Reference.from_list(*expression.identifiers[:-1],
                                                        source_position=expression.source_position)
                 try:
                     value_type = self.scope.resolve_type(reference, par_values=self.parameters)
                 except ProgramError:
                     value_type = None
-                if isinstance(value_type, blocks.types.TypeEnum):
+                if isinstance(value_type, model.types.TypeEnum):
                     return value_type
-        if isinstance(expression, (blocks.Reference, blocks.BracketOperator)):
+        if isinstance(expression, (model.Reference, model.BracketOperator)):
             try:
                 self.scope.resolve_type(expression, par_values=self.parameters)
             except ProgramError:
                 pass
             else:
-                return blocks.types.ValueType
-        if isinstance(expression, blocks.IntNumber):
-            return blocks.types.int32
-        if isinstance(expression, blocks.StringConstant):
-            return blocks.types.String
-        if isinstance(expression, blocks.UnitLiteral):
-            return blocks.types.unit
+                return model.types.ValueType
+        if isinstance(expression, model.IntNumber):
+            return model.types.int32
+        if isinstance(expression, model.StringConstant):
+            return model.types.String
+        if isinstance(expression, model.UnitLiteral):
+            return model.types.unit
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
             return (self.context_type(expression.left) or self.context_type(expression.right)
                     or self.known_type(expression.left))
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
-            return blocks.types.boolean
+            return model.types.boolean
         if isinstance(expression, ExpressionBlock) and not expression.bindings:
             return self.known_type(expression.result)
         if isinstance(expression, IfExpression):
@@ -1020,7 +1020,7 @@ class ExpressionCompiler:
                     or self.known_type(expression.then))
         if isinstance(expression, IfLetExpression):
             option_type = self.known_type(expression.scrutinee)
-            if isinstance(option_type, blocks.types.TypeOption):
+            if isinstance(option_type, model.types.TypeOption):
                 previous, next_slot = dict(self.names), self.next_slot
                 try:
                     self.bind_pattern(expression, option_type.inner_type)
@@ -1030,22 +1030,22 @@ class ExpressionCompiler:
                 if then_type is not None:
                     return then_type
             return self.context_type(expression.otherwise) or self.known_type(expression.otherwise)
-        if isinstance(expression, blocks.StructLiteral):
+        if isinstance(expression, model.StructLiteral):
             return self.scope.resolve_type(expression.struct_type, par_values=self.parameters)
         if is_some_call(expression):
             inner_type = self.known_type(expression.parameters[0]) if len(expression.parameters) == 1 else None
-            return blocks.types.TypeOption(inner_type) if inner_type is not None else None
-        if isinstance(expression, blocks.FunctionCall):
+            return model.types.TypeOption(inner_type) if inner_type is not None else None
+        if isinstance(expression, model.FunctionCall):
             # Type members take precedence over methods, as in _compile().
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
                 value_type, (operation, overflow) = member
-                return blocks.types.TypeOption(value_type) if overflow == 'checked' else value_type
+                return model.types.TypeOption(value_type) if overflow == 'checked' else value_type
             method = property_reference(self.scope, expression.fun, self.names)
             if isinstance(method, PropertyAccess):
                 option_type = self.known_type(method.receiver)
-                return option_type.inner_type if isinstance(option_type, blocks.types.TypeOption) else None
-        if isinstance(expression, blocks.FunctionCall) and isinstance(expression.fun, blocks.Reference):
+                return option_type.inner_type if isinstance(option_type, model.types.TypeOption) else None
+        if isinstance(expression, model.FunctionCall) and isinstance(expression.fun, model.Reference):
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is not None:
                 return function.return_type
@@ -1063,16 +1063,16 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
     parameters = instance.static_values
     names = {name: TypedExpression(value_type, 'input', payload=name)
              for name, value_type in source_types.items()}
-    protected = set(output_types) | set(instance.block_type.static_declarations)
+    protected = set(output_types) | set(instance.node_type.static_declarations)
     overlap = ((set(source_types) & protected)
-               | (set(output_types) & set(instance.block_type.static_declarations)))
+               | (set(output_types) & set(instance.node_type.static_declarations)))
     if overlap:
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
         if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
-    compiler = ExpressionCompiler(instance.block_type, parameters, runtime=True,
+    compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
                                   names=names, protected=protected | set(source_types))
     statements = []
     written = set()

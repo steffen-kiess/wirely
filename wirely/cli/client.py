@@ -83,16 +83,16 @@ async def _step(client, args):
 
 
 async def _dump(client, args):
-    variable_blocks = None
+    variable_tables = None
     if args.program is not None:
         from ..compiler import compile_files
         from ..compiler import program as program_compiler
 
-        global_block_type = compile_files(args.program)
-        program = None if global_block_type is None else program_compiler.compile(global_block_type)
+        global_node_type = compile_files(args.program)
+        program = None if global_node_type is None else program_compiler.compile(global_node_type)
         if program is None:
             return 1
-        variable_blocks = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
+        variable_tables = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
 
     banks = list(Bank) if args.bank == 'all' else [Bank[args.bank.upper()]]
     snapshot = await client.request(Op.SNAPSHOT)
@@ -109,17 +109,17 @@ async def _dump(client, args):
             data = b''.join(chunk[1] for chunk in chunks)
             print()
             print(f'{bank.name.lower()} ({size} bytes):')
-            if variable_blocks is None:
+            if variable_tables is None:
                 _print_hex(data)
                 continue
-            variable_block = variable_blocks[bank]
-            if variable_block.size != size:
-                print(f'Error: Program has {variable_block.size} bytes for this bank; '
+            variable_table = variable_tables[bank]
+            if variable_table.size != size:
+                print(f'Error: Program has {variable_table.size} bytes for this bank; '
                       'it does not match the running program', file=sys.stderr)
                 return 1
             # Without program identities, matching sizes are the only available check.
-            for name, variable in sorted(variable_block.variables.items()):
-                offset = variable_block.offsets[variable]
+            for name, variable in sorted(variable_table.variables.items()):
+                offset = variable_table.offsets[variable]
                 value = variable.var_type.deserialize(data[offset:offset + variable.var_type.data_size])
                 print(f'  {name}: {value!r}')
     finally:

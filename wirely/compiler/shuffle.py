@@ -2,26 +2,26 @@
 
 import random
 
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from .ast import SourceElement
 
 
 # Order-independent lists in each AST class. Arguments, statements, and
 # connection sources are positional, so these keep their order.
 _SHUFFLED_ATTRIBUTES = {
-    blocks.BlockType: ('declarations',),
-    blocks.DeclarationLibrary: ('declarations',),
-    blocks.BlockInstantiation: ('parameters',),
-    blocks.StructLiteral: ('fields',),
-    blocks.DependsDeclaration: ('dependencies',),
-    blocks.ProducesDeclaration: ('outputs',),
-    blocks.UsesDeclaration: ('bindings',),
+    model.NodeType: ('declarations',),
+    model.DeclarationLibrary: ('declarations',),
+    model.Instantiation: ('parameters',),
+    model.StructLiteral: ('fields',),
+    model.DependsDeclaration: ('dependencies',),
+    model.ProducesDeclaration: ('outputs',),
+    model.UsesDeclaration: ('bindings',),
 }
 
 # Lists whose order defines serialization or enum default values.
 _LAYOUT_ATTRIBUTES = {
-    blocks.DeclarationStructType: ('fields',),
-    blocks.DeclarationEnumType: ('members',),
+    model.DeclarationStructType: ('fields',),
+    model.DeclarationEnumType: ('members',),
 }
 
 
@@ -43,8 +43,8 @@ def shuffle_declarations(declarations, seed, *, layout=False):
 def _shuffled(rng, items):
     result = list(items)
     rng.shuffle(result)
-    connections = iter([item for item in items if isinstance(item, blocks.DeclarationConnection)])
-    return [next(connections) if isinstance(item, blocks.DeclarationConnection) else item
+    connections = iter([item for item in items if isinstance(item, model.DeclarationConnection)])
+    return [next(connections) if isinstance(item, model.DeclarationConnection) else item
             for item in result]
 
 

@@ -4,9 +4,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
-import wirely as blocks
+import wirely
 from ..types import value_types
-from ..program import RunStage, Variable, VariableBlock, InputSourceBinding
+from ..program import RunStage, Variable, VariableTable, InputSource
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 
@@ -77,44 +77,44 @@ class NativeState:
         return async_exit_stack.enter_context(NativeState.start_task_context(task_group, coroutine))
 
 
-class VariableBlockInstance:
+class VariableTableInstance:
     """Write-once runtime values stored in an aligned byte buffer."""
 
-    def __init__(self, variable_block):
+    def __init__(self, variable_table):
         """Allocate zeroed storage and track initialization separately."""
-        if not isinstance(variable_block, VariableBlock):
-            raise Exception('variable_block parameter is not a VariableBlock')
-        self.variable_block = variable_block
+        if not isinstance(variable_table, VariableTable):
+            raise Exception('variable_table parameter is not a VariableTable')
+        self.variable_table = variable_table
 
-        self.data = bytearray(variable_block.size)
+        self.data = bytearray(variable_table.size)
         self._initialized = set()  # Variable identities, including zero-sized units.
-        last = next(reversed(variable_block.offsets), None)
-        # Final block padding follows the last slot in layout order.
-        self._padding_start = 0 if last is None else variable_block.offsets[last] + last.var_type.size
+        last = next(reversed(variable_table.offsets), None)
+        # Final table padding follows the last slot in layout order.
+        self._padding_start = 0 if last is None else variable_table.offsets[last] + last.var_type.size
 
     def add(self, variable, value):
         """Serialize a value into its slot, allowing one successful write."""
-        if variable not in self.variable_block.variable_set:
-            raise Exception(f'Variable {variable!r} not in VariableBlock {self.variable_block.name}')
+        if variable not in self.variable_table.variable_set:
+            raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
         if variable in self._initialized:
             raise Exception(f'Variable {variable} already set')
         encoded = variable.var_type.serialize(value)
-        offset = self.variable_block.offsets[variable]
+        offset = self.variable_table.offsets[variable]
         self.data[offset:offset + variable.var_type.size] = (
             encoded + bytes(variable.var_type.size - len(encoded))
         )
         self._initialized.add(variable)
 
     def __getitem__(self, variable):
-        """Read an initialized value, validating its slot and block padding."""
-        if variable not in self.variable_block.variable_set:
-            raise Exception(f'Variable {variable!r} not in VariableBlock {self.variable_block.name}')
+        """Read an initialized value, validating its slot and table padding."""
+        if variable not in self.variable_table.variable_set:
+            raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
         if variable not in self._initialized:
             raise Exception(f'Variable {variable} not yet set')
-        offset = self.variable_block.offsets[variable]
+        offset = self.variable_table.offsets[variable]
         end = offset + variable.var_type.data_size
         if any(self.data[end:offset + variable.var_type.size]) or any(self.data[self._padding_start:]):
-            raise ValueError(f'Non-zero padding in VariableBlock {self.variable_block.name}')
+            raise ValueError(f'Non-zero padding in VariableTable {self.variable_table.name}')
         return variable.var_type.deserialize(memoryview(self.data)[offset:end])
 
 
@@ -190,7 +190,7 @@ class StepContext:
         if stage in self.stage_start_time:
             raise Exception(f'Stage {stage} already started')
 
-        now_monotonic = blocks.MonotonicTime.current_time()
+        now_monotonic = wirely.MonotonicTime.current_time()
         if engine.fake_monotonic_time_offset is not None:
             now_monotonic += engine.fake_monotonic_time_offset
         # print(f'StepContext for {stage} started at {now_monotonic}')

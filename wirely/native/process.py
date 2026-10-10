@@ -1,14 +1,14 @@
 import contextlib
 import asyncio
 
-import wirely as blocks
-from wirely.native import native_block_type
+import wirely
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 
-native_block_types = {}
+native_node_types = {}
 
 
-@native_block_type(native_block_types, has_native_state=True)
+@native_node_type(native_node_types, has_native_state=True)
 class LaunchOnEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)

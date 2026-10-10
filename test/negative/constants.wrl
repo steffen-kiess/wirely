@@ -85,7 +85,7 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: procedure binding collision
+// TEST: procedure port collision
 node type Probe {
   constant Flag: boolean = true;
   output Flag: value boolean;
@@ -175,7 +175,7 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: constant type in runtime connector
+// TEST: constant type in runtime port
 node type Probe {
   constant Type: ValueType = String;
   default output: value Type;

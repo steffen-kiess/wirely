@@ -2,8 +2,8 @@ import enum
 from unittest import TestCase
 
 import wirely
-from wirely.program import Variable, VariableBlock
-from wirely.runtime.contexts import VariableBlockInstance
+from wirely.program import Variable, VariableTable
+from wirely.runtime.contexts import VariableTableInstance
 
 
 checks = TestCase()
@@ -194,9 +194,9 @@ def check_variable_storage():
     second_unit = Variable('second_unit', wirely.types.unit)
     nested = Variable('nested', wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)))
     clock = Variable('clock', wirely.types.MonotonicTime)
-    block = VariableBlock([flag, small, first_unit, nested, clock, second_unit], 'storage')
-    values = VariableBlockInstance(block)
-    independent = VariableBlockInstance(block)
+    table = VariableTable([flag, small, first_unit, nested, clock, second_unit], 'storage')
+    values = VariableTableInstance(table)
+    independent = VariableTableInstance(table)
     expected = {flag: True, small: 65535, first_unit: wirely.Unit(),
                 nested: wirely.Some(None), clock: wirely.MonotonicTime(7, 123),
                 second_unit: wirely.Unit()}
@@ -212,9 +212,9 @@ def check_variable_storage():
         with checks.assertRaisesRegex(Exception, 'already set'):
             values.add(variable, expected[variable])
     foreign = Variable('flag', wirely.types.boolean)
-    with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
+    with checks.assertRaisesRegex(Exception, 'not in VariableTable'):
         values.add(foreign, True)
-    with checks.assertRaisesRegex(Exception, 'not in VariableBlock'):
+    with checks.assertRaisesRegex(Exception, 'not in VariableTable'):
         values[foreign]
     with checks.assertRaises(ValueError):
         independent.add(small, 65536)
@@ -224,8 +224,8 @@ def check_variable_storage():
     independent.add(nested, None)
     assert independent[small] == 7 and independent[nested] is None
     assert values[small] == 65535 and values[nested] == wirely.Some(None)
-    VariableBlockInstance(VariableBlock([], 'empty'))
-    units = VariableBlockInstance(VariableBlock([first_unit, second_unit], 'units'))
+    VariableTableInstance(VariableTable([], 'empty'))
+    units = VariableTableInstance(VariableTable([first_unit, second_unit], 'units'))
     units.add(first_unit, wirely.Unit())
     with checks.assertRaisesRegex(Exception, 'not yet set'):
         units[second_unit]

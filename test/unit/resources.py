@@ -4,11 +4,10 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-import wirely as blocks
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_block_type
+from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
 
@@ -19,7 +18,7 @@ procedure_calls = []
 startup_inputs = []
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class Provider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -28,12 +27,12 @@ class Provider(NativeState):
         self.value = 7
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class Shared(Provider):
     pass
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class Consumer(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
@@ -60,7 +59,7 @@ class Consumer(NativeState):
         procedure_calls.append(('poll', context.inputs['Service']))
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class ProcedureConsumer:
     @staticmethod
     def read(*, context):
@@ -69,18 +68,18 @@ class ProcedureConsumer:
         context.set_output('Count', context.inputs['Service'].value)
 
 
-@native_block_type(registry, has_native_state=False)
+@native_node_type(registry, has_native_state=False)
 class TypedProcedureConsumer(ProcedureConsumer):
     pass
 
 
-@native_block_type(registry, has_native_state=True)
+@native_node_type(registry, has_native_state=True)
 class Dependent(NativeState):
     pass
 
 
 def compile_resources(source):
-    with patch.dict(wirely.native.test_library.native_block_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = wirely.compiler.compile_strs([
             ('wirely/lib/std.wrl', Path('wirely/lib/std.wrl').read_text()),
             ('<native-resources>', source),
@@ -187,7 +186,7 @@ connect factory -> typed_consumer.Service;
 connect value_source -> typed_consumer.Value;
 '''
 native_resource_program = program_compiler.compile_nocatch(compile_resources(source))
-with patch.dict(wirely.native.test_library.native_block_types, registry):
+with patch.dict(wirely.native.test_library.native_node_types, registry):
     native_resource_engine = Engine(native_resource_program)
 consumer = native_resource_engine.get_native_state('consumer')
 provider = native_resource_engine.get_native_state('factory.source')
@@ -233,7 +232,7 @@ node sink: TestLibrary.Dependent {}
 node source: TestLibrary.Provider {}
 connect source -> sink.Service;
 ''')
-with patch.dict(wirely.native.test_library.native_block_types, registry):
+with patch.dict(wirely.native.test_library.native_node_types, registry):
     alias_engine = Engine(program_compiler.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')

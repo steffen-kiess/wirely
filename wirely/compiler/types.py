@@ -2,11 +2,11 @@
 
 from ..types import Type, TypeOption, TypeList
 from .. import types
-from . import model as blocks
+from . import model
 
 
 class ResourceType:
-    """Nominal connector type identifying an opaque service resource."""
+    """Nominal port type identifying an opaque service resource."""
 
     def __init__(self, name, declaration):
         self.name = name
@@ -21,8 +21,8 @@ class ResourceType:
 
 class TypeParameter(Type):
     def __init__(self, parameter, *, ast_element=None):
-        if not isinstance(parameter, blocks.DeclarationParameter):
-            raise Exception("not isinstance(parameter, blocks.DeclarationParameter)")
+        if not isinstance(parameter, model.DeclarationParameter):
+            raise Exception("not isinstance(parameter, model.DeclarationParameter)")
 
         self.parameter = parameter
         self.ast_element = ast_element or parameter
@@ -36,13 +36,13 @@ class TypeParameter(Type):
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             value = par_values[self.parameter]
-            return self if isinstance(value, blocks.Value) else value
+            return self if isinstance(value, model.Value) else value
         if (not isinstance(par_values, ParameterValues)
-                and isinstance(self.parameter, blocks.DeclarationConstant)):
+                and isinstance(self.parameter, model.DeclarationConstant)):
             return self
         if not isinstance(par_values, ParameterValues) and self.parameter.default_value is not None:
             from .expressions import Expression
-            if isinstance(self.parameter.default_value, (blocks.FunctionCall, Expression)):
+            if isinstance(self.parameter.default_value, (model.FunctionCall, Expression)):
                 return self
             return self.parameter.interface.resolve_type(self.parameter.default_value, par_values)
         if self.parameter in par_values or self.parameter.default_value is not None:
@@ -51,12 +51,12 @@ class TypeParameter(Type):
             # TODO
             hints = []
             for par in par_values:
-                if not isinstance(par, blocks.DeclarationParameter):
-                    raise Exception("not isinstance(par, blocks.DeclarationParameter)")
+                if not isinstance(par, model.DeclarationParameter):
+                    raise Exception("not isinstance(par, model.DeclarationParameter)")
                 hints += [
-                    blocks.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
+                    model.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
                 ]
-            raise blocks.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
+            raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
     def __repr__(self):
         # return f'TypeParameter({self.parameter})'
@@ -89,7 +89,7 @@ class TypeParameter(Type):
 def check_runtime_type(value_type, source):
     """Check runtime eligibility once any type parameters have resolved."""
     if not value_type.contains_parameters and not value_type.is_runtime_type:
-        raise blocks.ProgramError(source, f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
+        raise model.ProgramError(source, f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
 
 
 def resolve_type(value_type, par_values):
@@ -98,7 +98,7 @@ def resolve_type(value_type, par_values):
     if isinstance(value_type, TypeParameter):
         result = value_type.resolve_self(par_values)
         if not isinstance(result, Type):
-            raise blocks.ProgramError(value_type.parameter,
+            raise model.ProgramError(value_type.parameter,
                                       f'Expected ValueType for {value_type.parameter.name.id_str!r}')
         return result
     if isinstance(value_type, TypeOption):
@@ -109,47 +109,47 @@ def resolve_type(value_type, par_values):
 
 
 def _parse_option(self, value, *, scope=None):
-    if isinstance(value, blocks.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
+    if isinstance(value, model.Reference) and value.length == 1 and value.identifiers[0].id_str == 'None':
         return None
-    if (isinstance(value, blocks.FunctionCall)
-            and isinstance(value.fun, blocks.Reference)
+    if (isinstance(value, model.FunctionCall)
+            and isinstance(value.fun, model.Reference)
             and value.fun.length == 1
             and value.fun.identifiers[0].id_str == 'Some'):
         if len(value.parameters) != 1:
-            raise blocks.ProgramError(value, 'Some expects exactly one argument')
-        return blocks.Some(parse_value(self.inner_type, value.parameters[0], scope=scope))
-    raise blocks.ProgramError(value, f'Invalid Option value {value!r}')
+            raise model.ProgramError(value, 'Some expects exactly one argument')
+        return model.Some(parse_value(self.inner_type, value.parameters[0], scope=scope))
+    raise model.ProgramError(value, f'Invalid Option value {value!r}')
 
 
 def _parse_list(self, value, *, scope=None):
-    if not isinstance(value, blocks.ListLiteral):
-        raise blocks.ProgramError(value, f'Invalid List value {value!r}')
+    if not isinstance(value, model.ListLiteral):
+        raise model.ProgramError(value, f'Invalid List value {value!r}')
     return tuple(parse_value(self.inner_type, v, scope=scope) for v in value.values)
 
 
 def _parse_unit(self, value, *, scope=None):
-    if isinstance(value, blocks.UnitLiteral):
-        return blocks.Unit()
-    raise blocks.ProgramError(value, f'Invalid unit value {value!r}')
+    if isinstance(value, model.UnitLiteral):
+        return model.Unit()
+    raise model.ProgramError(value, f'Invalid unit value {value!r}')
 
 
 def _parse_boolean(self, value, *, scope=None):
-    if isinstance(value, blocks.Reference) and value.length == 1:
+    if isinstance(value, model.Reference) and value.length == 1:
         s = value.identifiers[0].id_str
         if s == 'false':
             return False
         elif s == 'true':
             return True
-    raise blocks.ProgramError(value, f'Invalid boolean value {value!r}')
+    raise model.ProgramError(value, f'Invalid boolean value {value!r}')
 
 
 def _parse_int(self, value, *, scope=None):
-    if isinstance(value, blocks.IntNumber):
+    if isinstance(value, model.IntNumber):
         i = value.value
         if i < self.min_value or i > self.max_value:
-            raise blocks.ProgramError(value, f'Int value out of range: {i!r}')
+            raise model.ProgramError(value, f'Int value out of range: {i!r}')
         return i
-    raise blocks.ProgramError(value, f'Invalid int value {value!r}')
+    raise model.ProgramError(value, f'Invalid int value {value!r}')
 
 
 def _parse_value_type(self, value, *, scope=None):
@@ -157,44 +157,44 @@ def _parse_value_type(self, value, *, scope=None):
 
 
 def _parse_monotonic_time(self, value, *, scope=None):
-    raise blocks.ProgramError(value, f'Invalid MonotonicTime value {value!r}')
+    raise model.ProgramError(value, f'Invalid MonotonicTime value {value!r}')
 
 
 def _parse_duration(self, expr, *, scope=None):
     # TODO
-    if isinstance(expr, blocks.StringConstant):
+    if isinstance(expr, model.StringConstant):
         s = expr.value
         try:
             return self.parse(s)
         except Exception:
-            raise blocks.ProgramError(expr, f'Invalid Duration value {s!r}')
-    raise blocks.ProgramError(expr, f'Invalid Duration value {expr!r}')
+            raise model.ProgramError(expr, f'Invalid Duration value {s!r}')
+    raise model.ProgramError(expr, f'Invalid Duration value {expr!r}')
 
 
 def _parse_time_of_day(self, expr, *, scope=None):
     # TODO
-    if isinstance(expr, blocks.StringConstant):
+    if isinstance(expr, model.StringConstant):
         s = expr.value
         try:
             return self.parse(s)
         except Exception:
-            raise blocks.ProgramError(expr, f'Invalid TimeOfDay value {s!r}')
-    raise blocks.ProgramError(expr, f'Invalid TimeOfDay value {expr!r}')
+            raise model.ProgramError(expr, f'Invalid TimeOfDay value {s!r}')
+    raise model.ProgramError(expr, f'Invalid TimeOfDay value {expr!r}')
 
 
 def _parse_string(self, value, *, scope=None):
-    if isinstance(value, blocks.StringConstant):
+    if isinstance(value, model.StringConstant):
         return value.value
-    raise blocks.ProgramError(value, f'Invalid string value {value!r}')
+    raise model.ProgramError(value, f'Invalid string value {value!r}')
 
 
 def _parse_enum(self, expr, *, scope=None):
-    if not isinstance(expr, blocks.Reference) or expr.length < 2:
-        raise blocks.ProgramError(expr, f'Expected enum literal {self.name}.Member')
+    if not isinstance(expr, model.Reference) or expr.length < 2:
+        raise model.ProgramError(expr, f'Expected enum literal {self.name}.Member')
     type_name = '.'.join(identifier.id_str for identifier in expr.identifiers[:-1])
     member_name = expr.identifiers[-1].id_str
     if scope is not None:
-        type_reference = blocks.Reference.from_list(
+        type_reference = model.Reference.from_list(
             *expr.identifiers[:-1], source_position=expr.source_position,
         )
         enum_type = scope.resolve_type(type_reference)
@@ -202,17 +202,17 @@ def _parse_enum(self, expr, *, scope=None):
     else:
         matches = type_name == self.name
     if not matches:
-        raise blocks.ProgramError(expr, f'Expected enum type {self.name}, got {type_name}')
+        raise model.ProgramError(expr, f'Expected enum type {self.name}, got {type_name}')
     try:
         return self._parse_impl(member_name)
     except ValueError as error:
-        raise blocks.ProgramError(expr, str(error)) from None
+        raise model.ProgramError(expr, str(error)) from None
 
 
 def _parse_struct(self, value, *, scope=None):
-    if not isinstance(value, blocks.StructLiteral):
-        raise blocks.ProgramError(value, f'Expected struct literal {self.name} {{ ... }}')
-    fields = blocks.ast.check_struct_literal(self, value, scope)
+    if not isinstance(value, model.StructLiteral):
+        raise model.ProgramError(value, f'Expected struct literal {self.name} {{ ... }}')
+    fields = model.ast.check_struct_literal(self, value, scope)
     return self.make_value({name: parse_value(self.fields[name], field.value, scope=scope)
                             for name, field in fields.items()})
 

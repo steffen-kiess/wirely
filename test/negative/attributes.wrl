@@ -159,7 +159,7 @@ node n: T { #[unknown] Value: 1 } // E: Unexpected token
 // TEST: literal field attributes deferred
 parameter V: S = S { #[unknown] f: 1 }; // E: Unexpected token
 
-// TEST: binding attributes deferred
+// TEST: port attributes deferred
 node type T {
   native procedure run depends on #[unknown] default input;
   // ^E: Unexpected token

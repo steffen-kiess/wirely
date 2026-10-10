@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 import wirely.compiler
-from wirely.compiler import model as blocks
+from wirely.compiler import model
 from wirely.compiler.parser import parse_str
 from wirely.compiler.shuffle import shuffle_declarations
 
@@ -42,17 +42,17 @@ def names(items):
 
 
 def order(declarations):
-    block_type = next(d for d in declarations if isinstance(d, blocks.BlockType))
-    procedure = next(d for d in block_type.declarations if isinstance(d, blocks.DeclarationProcedure))
-    nodes = [d for d in declarations if isinstance(d, blocks.DeclarationBlockInstantiation)]
-    return (names(declarations), names(block_type.declarations),
+    node_type = next(d for d in declarations if isinstance(d, model.NodeType))
+    procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
+    nodes = [d for d in declarations if isinstance(d, model.DeclarationInstance)]
+    return (names(declarations), names(node_type.declarations),
             names(procedure.depends.dependencies),
             [names(node.instantiation.parameters) for node in nodes])
 
 
 def layout_order(declarations):
-    struct = next(d for d in declarations if isinstance(d, blocks.DeclarationStructType))
-    enum = next(d for d in declarations if isinstance(d, blocks.DeclarationEnumType))
+    struct = next(d for d in declarations if isinstance(d, model.DeclarationStructType))
+    enum = next(d for d in declarations if isinstance(d, model.DeclarationEnumType))
     return names(struct.fields), names(enum.members)
 
 
@@ -75,13 +75,13 @@ for seed in range(20):
     declarations = parse()
     shuffle_declarations(declarations, seed)
     connections = [(names(d.sources), str(d.target)) for d in declarations
-                   if isinstance(d, blocks.DeclarationConnection)]
+                   if isinstance(d, model.DeclarationConnection)]
     checks.assertEqual(connections, [
         (['n1.d'], 'n2.c'), (['n2.d'], 'n1.c'),
         (['n1.d', 'n2.d'], 'n1.a'), (['n1.d'], 'n2.c'),
     ])
-    block_type = next(d for d in declarations if isinstance(d, blocks.BlockType))
-    procedure = next(d for d in block_type.declarations if isinstance(d, blocks.DeclarationProcedure))
+    node_type = next(d for d in declarations if isinstance(d, model.NodeType))
+    procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
     statements = procedure.body.statements
     checks.assertEqual([statement.name.id_str for statement in statements], ['x', 'd'])
     checks.assertEqual(names(statements[0].initializer.parameters), ['a', 'b'])
