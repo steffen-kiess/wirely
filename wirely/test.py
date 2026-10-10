@@ -120,7 +120,7 @@ negative_tests = [
     'test/negative/path.wrl',
     'test/negative/procedures.wrl',
     'test/negative/native_initializers.wrl',
-    'test/negative/procedure_bindings.wrl',
+    'test/negative/procedure_ports.wrl',
     'test/negative/resource_declarations.wrl',
     'test/negative/resource_value_types.wrl',
     'test/negative/resource_connections.wrl',

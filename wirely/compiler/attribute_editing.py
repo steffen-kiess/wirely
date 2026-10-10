@@ -13,7 +13,7 @@ import lark
 
 from . import ast
 from . import parser
-from .block_type import NodeType as _NodeType
+from .node_type import NodeType as _NodeType
 
 
 @dataclass(frozen=True)

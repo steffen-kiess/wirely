@@ -13,7 +13,7 @@ from .expressions import (
 )
 
 
-with open(os.path.dirname(__file__) + '/blocks.lark', 'r') as file:
+with open(os.path.dirname(__file__) + '/wirely.lark', 'r') as file:
     grammar = file.read()
 
 # TODO: Move somewhere else?

@@ -141,7 +141,7 @@ def validate_attributes(attributes, target):
 def validate_files(files):
     """Validate all metadata before the ordinary compilation passes."""
     from . import ast
-    from .block_type import NodeType
+    from .node_type import NodeType
 
     targets = {
         NodeType: 'node_type', ast.DeclarationLibrary: 'namespace',

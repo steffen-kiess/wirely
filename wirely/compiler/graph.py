@@ -1,4 +1,3 @@
-import typing
 from dataclasses import dataclass
 
 from wirely.compiler import model
@@ -47,7 +46,7 @@ class GraphElement:
     # TODO: Should 'name' be an attribute of GraphElement?
     @check_parameters
     def __init__(self, graph, *, name: str):
-        if not isinstance(graph, model.block_type.NodeType):
+        if not isinstance(graph, model.NodeType):
             raise Exception('graph is not a NodeType')
 
         self.graph = graph
@@ -55,19 +54,6 @@ class GraphElement:
         self.outer_attributes = ()
         self.inner_attributes = ()
         self.attributes = ()
-
-
-# A single instance of a node. A node might have multiple instances if the node
-# type containing it is instantiated multiple times.
-# TODO: Is this used for something except NodeTypeInstance?
-class NodeInstance:
-    @check_parameters
-    def __init__(self, node: typing.Optional[GraphElement], parent_instance):
-        self.node = node
-
-        if parent_instance is not None and not isinstance(parent_instance, model.NodeTypeInstance):
-            raise Exception('parent_instance is not None and not isinstance(parent_instance, model.NodeTypeInstance)')
-        self.parent_instance = parent_instance
 
 
 # TODO: Move TypeInputPort and TypeOutputPort somewhere else?

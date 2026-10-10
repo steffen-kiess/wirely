@@ -1,8 +1,8 @@
 from collections.abc import Mapping
 
 from . import model
-from .block import InstanceNode
-from .node import Connection, StateRead
+from .instance import InstanceNode
+from .graph import Connection, StateRead
 from .types import resolve_type
 
 
@@ -150,7 +150,7 @@ def resolve_variable(path, var):
     if isinstance(path[-1], model.InstanceNode) and path[-1].node_type.is_singleton:
         raise Exception('isinstance(path[-1], model.InstanceNode) and path[-1].node_type.is_singleton')
 
-    if isinstance(path[-1], (InstanceNode, model.block_type.NodeType)):
+    if isinstance(path[-1], (InstanceNode, model.NodeType)):
         current_node = path[-1]
         if not isinstance(current_node, InstanceNode):
             current_node = current_node.singleton_instance

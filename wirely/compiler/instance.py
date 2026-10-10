@@ -1,4 +1,5 @@
 import abc
+import typing
 
 from wirely.compiler import model
 from wirely.util import check_parameters
@@ -470,7 +471,21 @@ class InstanceNode(model.GraphElement):
         def proc_identifier(self):
             return 'PROC ' + self.node.type_name + '.' + self.name
 
-class NodeTypeInstance(model.NodeInstance):
+
+# A single instance of a node. A node might have multiple instances if the node
+# type containing it is instantiated multiple times.
+# TODO: Is this used for something except NodeTypeInstance?
+class NodeInstance:
+    @check_parameters
+    def __init__(self, node: typing.Optional[model.GraphElement], parent_instance):
+        self.node = node
+
+        if parent_instance is not None and not isinstance(parent_instance, NodeTypeInstance):
+            raise Exception('parent_instance is not None and not isinstance(parent_instance, NodeTypeInstance)')
+        self.parent_instance = parent_instance
+
+
+class NodeTypeInstance(NodeInstance):
     @check_parameters
     def __init__(self, node, parent_instance):
         if isinstance(node, model.InstanceNode):

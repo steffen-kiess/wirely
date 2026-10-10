@@ -42,4 +42,4 @@ include = ["wirely*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-wirely = ["compiler/blocks.lark", "lib/*.wrl"]
+wirely = ["compiler/wirely.lark", "lib/*.wrl"]
