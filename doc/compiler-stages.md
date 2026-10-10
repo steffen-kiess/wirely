@@ -88,7 +88,8 @@ checks for cycles in those references.
 `create_child_interfaces` to resolve the port and parameter types of
 programs that do not compile. It continues after an error in a
 declaration, instance, or parameter binding and reports all errors with
-their source offsets.
+their source offsets. Its connection checks apply the rules of
+`bind_bodies` to single connections without binding the program.
 
 ## Generate the runtime program
 

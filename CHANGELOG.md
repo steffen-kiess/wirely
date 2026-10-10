@@ -55,7 +55,9 @@ them to `apply_edits()` to get the new texts.
   temporaries, and procedures.
 - `wirely.compiler.analysis` resolves port and parameter types of programs
   with errors or unfinished connections and reports all errors in
-  declarations and instances. Compiler diagnostics carry source offsets.
+  declarations and instances. It also checks whether ports can be
+  connected and lists the node types and type names usable in a scope.
+  Compiler diagnostics carry source offsets.
 
 ## 0.1.2 - 2026-10-10
 

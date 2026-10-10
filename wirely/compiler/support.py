@@ -44,23 +44,6 @@ def connect(source, target, source_element, *, attributes=()):
         # TODO: Can this happen from program code? If yes, make error message clearer?
         raise model.ProgramError(source_element, f'source has graph {source.node.graph} but target has graph {target.node.graph}')
 
-    def declaration(port):
-        if isinstance(port, model.InstanceInputPort):
-            return port.type_input_port.port_spec
-        if isinstance(port, model.InstanceOutputPort):
-            return port.type_output_port.port_spec
-        if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
-            return port.port_spec
-        if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource)):
-            return port.declaration
-        return port.graph.value_nodes[port.name]
-
-    def incompatible(message):
-        raise model.ProgramError(source_element, message, hints=[
-            model.CompilerHint(declaration(source), 'Source was declared here'),
-            model.CompilerHint(declaration(target), 'Target was declared here'),
-        ])
-
     def previous_connection_hints():
         previous = next((connection.source_element for connection in source.node.graph.connections
                          if connection.target is target), None)
@@ -74,16 +57,51 @@ def connect(source, target, source_element, *, attributes=()):
         raise model.ProgramError(source_element, f'{describe_target(target)} cannot combine a multi input with other sources',
                                   hints=previous_connection_hints())
     if not is_multi and target.connected_source is not None:
-        message = f'{describe_target(target)} already has a source'
-        if isinstance(target, model.InstanceInputPort):
-            message += '; only multi inputs accept several'
-        raise model.ProgramError(source_element, message, hints=previous_connection_hints())
+        raise model.ProgramError(source_element, occupied_message(target), hints=previous_connection_hints())
 
-    def record(kind):
-        actual_target = target.members[-1] if isinstance(target, model.InstanceInputPort) and target.is_list else target
-        source.node.graph.connections.append(Connection(
-            source, actual_target, attributes, source_element, kind,
-        ))
+    is_resource = check_compatible(source, target, source_element)
+    target.connect(source)
+    # A procedure port stores its first state; later states copy it.
+    if (isinstance(target, model.StateNode) and isinstance(source, model.ProcedureOutputPort)
+            and source.state is None):
+        source.state = target
+    if is_resource:
+        kind = 'resource'
+    else:
+        kind = 'state' if isinstance(source, (model.StateNode, StateRead)) else 'data'
+    actual_target = target.members[-1] if isinstance(target, model.InstanceInputPort) and target.is_list else target
+    source.node.graph.connections.append(Connection(
+        source, actual_target, attributes, source_element, kind,
+    ))
+
+
+def occupied_message(target):
+    message = f'{describe_target(target)} already has a source'
+    if isinstance(target, model.InstanceInputPort):
+        message += '; only multi inputs accept several'
+    return message
+
+
+def port_declaration(port):
+    """Return the declaration of a connection end, for hints."""
+    if isinstance(port, model.InstanceInputPort):
+        return port.type_input_port.port_spec
+    if isinstance(port, model.InstanceOutputPort):
+        return port.type_output_port.port_spec
+    if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
+        return port.port_spec
+    if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource)):
+        return port.declaration
+    return port.graph.value_nodes[port.name]
+
+
+def check_compatible(source, target, source_element):
+    """Check the kinds and types of a connection; return whether it connects resources."""
+    def incompatible(message):
+        raise model.ProgramError(source_element, message, hints=[
+            model.CompilerHint(port_declaration(source), 'Source was declared here'),
+            model.CompilerHint(port_declaration(target), 'Target was declared here'),
+        ])
 
     source_resource = isinstance(getattr(source, 'port_spec', None), model.PortTypeSpecificationResource)
     target_resource = isinstance(getattr(target, 'port_spec', None), model.PortTypeSpecificationResource)
@@ -92,9 +110,7 @@ def connect(source, target, source_element, *, attributes=()):
             incompatible('Cannot connect resource and data ports')
         if source.resource_type is not target.resource_type:
             incompatible(f'source has resource type {source.resource_type} but target has resource type {target.resource_type}')
-        target.connect(source)
-        record('resource')
-        return
+        return True
 
     source_kind = connection_kind(source)
     target_kind = connection_kind(target)
@@ -109,13 +125,7 @@ def connect(source, target, source_element, *, attributes=()):
         target_type = resolve_type(target_type, target.node.par_values)
     if source_type != target_type:
         incompatible(f'source has type {source_type} but target has type {target_type}')
-
-    target.connect(source)
-    # A procedure port stores its first state; later states copy it.
-    if (isinstance(target, model.StateNode) and isinstance(source, model.ProcedureOutputPort)
-            and source.state is None):
-        source.state = target
-    record('state' if isinstance(source, (model.StateNode, StateRead)) else 'data')
+    return False
 
 
 def path_resolve_singleton(path):

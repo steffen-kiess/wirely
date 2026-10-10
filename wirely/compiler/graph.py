@@ -258,6 +258,10 @@ class ProcedurePort(GraphElement):
         try:
             counterpart = self._counterpart()
             if isinstance(counterpart, ProcedurePort):
+                if counterpart.reference_state is ResolutionState.FAILED:
+                    # Only reachable when continuing after the counterpart's error.
+                    self.reference_state = ResolutionState.FAILED
+                    return
                 counterpart.resolve_reference()
             specification = port_specification(counterpart)
             self._counterpart = counterpart

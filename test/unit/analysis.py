@@ -5,12 +5,14 @@ from unittest import TestCase
 from wirely import test as runner
 from wirely.compiler import _standard_library_sources, model
 from wirely.compiler import outline as outline_module
-from wirely.compiler.analysis import ResolvedParameter, ResolvedPort, analyze
+from wirely.compiler.analysis import ConnectionCheck, ResolvedParameter, ResolvedPort, analyze
 from wirely.compiler.attributes import validate_files
 from wirely.compiler.coordinator import CompilerCoordinator
 from wirely.compiler.diagnostics import error_diagnostics
 from wirely.compiler.native_functions import validate_collisions
-from wirely.compiler.outline import Constant, Node, NodeType, Parameter, Port, State, Temporary
+from wirely.compiler.outline import (
+    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Temporary,
+)
 
 
 checks = TestCase()
@@ -86,6 +88,91 @@ checks.assertEqual(messages[1:], [
     ('error', 'a.wrl', Port(('T', 'default output'), 'output'), 'Cannot find type Missing'),
 ])
 checks.assertEqual([port.type for port in result.ports(Node(('u',)))], [uint8])
+
+
+# Connection checks follow the compiler's rules and messages.
+source = '''namespace Lib {
+  struct type Point { x: int32, }
+  #[internal] struct type Secret { x: int32, }
+  #[internal] node type Hidden {}
+  node type Gate {
+    input enable: event boolean;
+    default output: value boolean;
+  }
+}
+enum type Mode: uint8 { Off = 0, }
+node type Box {
+  parameter Type: ValueType;
+  constant Zero: int32 = 0;
+  input value: value Type;
+  input many: multi value boolean;
+  default output: value Type;
+  state last: Type = Zero;
+  temporary current: Type;
+  node type Inner {}
+  procedure run depends on value as input, typed: value int32 produces current { current = input; }
+  connect Zero -> run.typed;
+  connect current -> default output;
+}
+node flag: Std.Constant { Type: boolean, Value: true }
+node number: Std.Constant { Type: uint8, Value: 1 }
+node box: Box { Type: uint8 }
+node printer: Std.DebugValuePrinter { Type: uint8 }
+node both: Std.And {}
+node gate: Lib.Gate {}
+node broken: Missing {}
+connect number -> box.value;
+'''
+result = analyze([('main.wrl', source)], add_std=True)
+allowed = ConnectionCheck(True, None)
+for scope, source_text, target_text, expected in (
+        ((), 'number', 'printer', allowed),
+        ((), 'flag', 'both', allowed),
+        ((), 'flag', 'box.many', allowed),
+        (('Box',), 'last.new', 'last', allowed),
+        ((), 'flag', 'printer', ConnectionCheck(False, 'source has type boolean but target has type uint8')),
+        ((), 'flag', 'gate.enable', ConnectionCheck(
+            False, 'source has kind ConnectionKind.Value but target has kind ConnectionKind.Event')),
+        ((), 'flag', 'box.missing', ConnectionCheck(False, 'Unable to find target input port box.missing')),
+        ((), 'printer', 'flag', ConnectionCheck(False, "Source node 'printer' does not have a default output")),
+        ((), 'number', 'box.value', ConnectionCheck(
+            False, "Input 'value' of node 'box' already has a source; only multi inputs accept several")),
+        (('Box',), 'last.new', 'default output', ConnectionCheck(False, 'Default output already has a source')),
+        (('Box',), 'value', 'run.input', ConnectionCheck(False, "Port 'input' of procedure 'run' already has a source")),
+        ((), 'broken', 'printer', ConnectionCheck(False, "Unable to find source node 'broken'"))):
+    checks.assertEqual(result.can_connect(scope, source_text, target_text), expected, (source_text, target_text))
+checks.assertEqual(result.can_connect((), 'number', 'box.value', replacing=Connection((), 'number', 'box.value')),
+                   allowed)
+with checks.assertRaises(ValueError):
+    result.can_connect((), 'a, b', 'c')
+checks.assertEqual(result.connection_candidates((), source='flag'), ('box.many', 'both'))
+checks.assertEqual(result.connection_candidates((), target='printer'), ('number', 'box'))
+checks.assertEqual(result.connection_candidates(('Box',), target='last'),
+                   ('value', 'last.old', 'last.new', 'current', 'run.current'))
+checks.assertEqual(result.value_type(ProcedurePort(Procedure(('Box', 'run')), 'input', 'input')),
+                   result.value_type(Port(('Box', 'value'), 'input')))
+checks.assertEqual(result.value_type(ProcedurePort(Procedure(('Box', 'run')), 'typed', 'input')), int32)
+
+# The palette lists instantiable node types as they are written in each scope.
+entries = {entry.type_text: entry for entry in result.node_types()}
+constant = entries['Std.Constant']
+checks.assertEqual([(parameter.name, parameter.type_text, parameter.optional) for parameter in constant.parameters],
+                   [('Type', 'ValueType', False), ('Value', 'Type', False)])
+checks.assertEqual([(port.name, port.direction, port.kind) for port in constant.ports], [(None, 'output', 'value')])
+checks.assertEqual(entries['Lib.Gate'].id, NodeType(('Lib', 'Gate')))
+checks.assertIn('Box', entries)
+checks.assertNotIn('Lib.Hidden', entries)
+checks.assertNotIn('Inner', entries)
+checks.assertIn('Lib.Hidden', [entry.type_text for entry in result.node_types(include_internal=True)])
+checks.assertIn('Inner', [entry.type_text for entry in result.node_types(('Box',))])
+
+# Type names include built-in, declared, and parameter types visible in a scope.
+names = result.type_names(('Box',))
+for name in ('boolean', 'uint8', 'Option', 'List', 'Lib.Point', 'Mode', 'Std.EdgeType', 'Type'):
+    checks.assertIn(name, names)
+for name in ('ValueType', 'Lib.Secret'):
+    checks.assertNotIn(name, names)
+checks.assertNotIn('Type', result.type_names())
 
 
 def strict_interface_error(sources):

@@ -4,6 +4,7 @@ import contextlib
 
 from . import model
 from .diagnostics import error_diagnostics
+from .stages import ResolutionState
 
 
 class CompilerCoordinator:
@@ -133,13 +134,19 @@ class CompilerCoordinator:
                 with self.contain(declaration), declaration.context:
                     declaration.create_instance_interface(node_type)
 
-    def bind_bodies(self):
+    def resolve_procedure_ports(self):
+        """Give reference procedure ports the specification of the port they reference."""
         for node_type in self.node_types:
-            ports = [port for procedure in node_type.procedures.values()
+            ports = [port for procedure in node_type.procedures.values() if not _failed(procedure)
                      for port in (*procedure.input_ports.values(), *procedure.output_ports.values())]
             for port in sorted(ports, key=lambda port: self.source_order(port.declaration)):
-                with port.declaration.context:
+                if port.reference_state is ResolutionState.FAILED:
+                    continue
+                with self.contain(port.declaration), port.declaration.context:
                     port.resolve_reference()
+
+    def bind_bodies(self):
+        self.resolve_procedure_ports()
         for node_type in self.node_types:
             node_type.bind_body()
 
