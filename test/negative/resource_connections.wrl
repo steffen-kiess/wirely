@@ -57,7 +57,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data connectors
+connect source -> target; // E: Cannot connect resource and data ports
 
 // TEST: data_to_resource_value
 resource type Handle;
@@ -71,7 +71,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data connectors
+connect source -> target; // E: Cannot connect resource and data ports
 
 // TEST: resource_to_data_event
 resource type Handle;
@@ -85,7 +85,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data connectors
+connect source -> target; // E: Cannot connect resource and data ports
 
 // TEST: data_to_resource_event
 resource type Handle;
@@ -99,7 +99,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data connectors
+connect source -> target; // E: Cannot connect resource and data ports
 
 // TEST: circular native initialization
 // LIBRARIES:
@@ -149,7 +149,7 @@ namespace Std {
   native node type DebugValueSource {
     input Service: resource Service;
     native initializer depends on Service;
-    // ^E: Resource binding has no native provider
+    // ^E: Resource input has no native provider
   }
 }
 node source: Missing {}

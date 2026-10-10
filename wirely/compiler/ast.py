@@ -517,9 +517,10 @@ class ResolvedReferenceBlockMember(SourceElement):
                 return
             variable = graph.variables.get(self.block_name_str)
             if variable is not None:
-                if self.member_name is not None:
-                    raise ProgramError(self.member_name, f'Cannot connect to a member of variable {self.block_name_str!r}')
                 is_state = isinstance(variable, DeclarationStateVariable)
+                if self.member_name is not None:
+                    kind = 'State' if is_state else 'Temporary'
+                    raise ProgramError(self.member_name, f'{kind} {self.block_name_str!r} has no input port {self.member_name_str!r}')
                 variables = graph.block_state_variables if is_state else graph.block_temporary_variables
                 self.member = variables[self.block_name_str]
                 return
@@ -537,7 +538,9 @@ class ResolvedReferenceBlockMember(SourceElement):
                 self.member = graph.block_inputs[self.block_name_str]
                 # TODO: This is a hack
                 return
-            if self.block_name_str in graph.block_temporary_variables and self.member_name_str == '':
+            if self.block_name_str in graph.block_temporary_variables:
+                if self.member_name_str != '':
+                    raise ProgramError(self.member_name_elem, f'Temporary {self.block_name_str!r} has no output port {self.member_name_str!r}')
                 self.member = graph.block_temporary_variables[self.block_name_str]
                 # TODO: This is a hack
                 return
@@ -548,16 +551,16 @@ class ResolvedReferenceBlockMember(SourceElement):
             return
 
         if self.block_name_str not in graph.blocks:
-            raise ProgramError(self.block_name, f'Unable to find {purpose} block {self.block_name_str!r}')
+            raise ProgramError(self.block_name, f'Unable to find {purpose} node {self.block_name_str!r}')
         self.block = graph.blocks[self.block_name_str]
         member_dict = member_dict_lambda(self.block)
         if self.member_name_str in member_dict:
             self.member = member_dict[self.member_name_str]
         else:
             if self.member_name_str == '':
-                raise ProgramError(self.block_name, f'{purpose} block {self.block_name_str} does not have a default {member_type}')
+                raise ProgramError(self.block_name, f'{purpose.capitalize()} node {self.block_name_str!r} does not have a default {member_type}')
             else:
-                raise ProgramError(self.member_name_elem, f'Unable to find {purpose} block {member_type} {self.block_name_str}.{self.member_name_str}')
+                raise ProgramError(self.member_name_elem, f'Unable to find {purpose} {member_type} port {self.block_name_str}.{self.member_name_str}')
 
 
 class Declaration(SourceElement, abc.ABC):
@@ -809,7 +812,7 @@ class Scope(Declaration):
                 return self.block_type_implementations[block_type_name_id.id_str]
 
         if self.parent_graph is None:
-            raise blocks.ProgramError(name, f'Cannot find block type {name}')
+            raise blocks.ProgramError(name, f'Cannot find node type {name}')
         return self.parent_graph.resolve_block_type(name, par_values=par_values)
 
 
@@ -1104,7 +1107,7 @@ class DeclarationConnector(Declaration):
         self.interface = interface
 
         if self.interface.is_singleton and self.conn_type_spec.conn_type == BlockConnectorType.BlockInput:
-            raise blocks.ProgramError(self, f'Singleton block cannot have inputs')
+            raise blocks.ProgramError(self, 'Singleton node type cannot have inputs')
 
     def create_io(self, new_graph):
         # TODO: Use self.kind ConnectionKind
@@ -1441,9 +1444,9 @@ class DeclarationStateVariable(Declaration):
         name = self.name.id_str
         if name in graph.variables:
             hints = [
-                CompilerHint(graph.variables[name], 'Previous variable was here'),
+                CompilerHint(graph.variables[name], 'Previous declaration was here'),
             ]
-            raise ProgramError(self, f'Duplicate variable name {name} in {graph}', hints=hints)
+            raise ProgramError(self, f'Duplicate name {name!r}', hints=hints)
         register_member(graph, self.name, self)
         graph.variables[name] = self
 
@@ -1500,9 +1503,9 @@ class DeclarationTemporaryVariable(Declaration):
         name = self.name.id_str
         if name in graph.variables:
             hints = [
-                CompilerHint(graph.variables[name], 'Previous variable was here'),
+                CompilerHint(graph.variables[name], 'Previous declaration was here'),
             ]
-            raise ProgramError(self, f'Duplicate variable name {name} in {graph}', hints=hints)
+            raise ProgramError(self, f'Duplicate name {name!r}', hints=hints)
         register_member(graph, self.name, self)
         graph.variables[name] = self
 
@@ -1556,7 +1559,7 @@ class ProcedureBinding(SourceElement):
                     else self.alias.value)
         names = [identifier.id_str for identifier in self.reference.identifiers]
         if len(names) != 1 or names[0] in ('default input', 'default output'):
-            raise ProgramError(self, 'Default connectors and complex references require an explicit alias')
+            raise ProgramError(self, 'Default ports and complex references require an explicit alias')
         return names[0]
 
 
@@ -1580,8 +1583,8 @@ def check_procedure_binding_keys(bindings):
     for binding in bindings:
         key = binding.key
         if key in keys:
-            raise ProgramError(binding, f'Duplicate procedure binding key {key!r}', hints=[
-                CompilerHint(keys[key], 'Previous binding was here'),
+            raise ProgramError(binding, f'Duplicate port name {key!r}', hints=[
+                CompilerHint(keys[key], 'Previous port was here'),
             ])
         keys[key] = binding
 

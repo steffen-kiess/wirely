@@ -73,9 +73,9 @@ class BlockType(blocks.Scope):
                 ])
             if self.name.id_str in graph.block_type_interfaces:
                 hints = [
-                    blocks.CompilerHint(graph.block_type_interfaces[self.name.id_str], 'Previous block type was here'),
+                    blocks.CompilerHint(graph.block_type_interfaces[self.name.id_str], 'Previous node type was here'),
                 ]
-                raise blocks.ProgramError(self, f'Duplicate block type {self.name!r}', hints=hints)
+                raise blocks.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
             graph.block_type_interfaces[self.name.id_str] = self
 
         # TODO: Merge parsed_parameters and parameters?
@@ -92,7 +92,7 @@ class BlockType(blocks.Scope):
                 is_constant = isinstance(decl, blocks.DeclarationConstant)
                 if self.is_singleton and not is_constant:
                     # TODO: Allow parameters for singleton blocks and create one instance for each parameter combination?
-                    raise blocks.ProgramError(decl, f'Singleton block cannot have parameters')
+                    raise blocks.ProgramError(decl, 'Singleton node type cannot have parameters')
 
                 name = decl.name.id_str
                 if name in static_declarations:
@@ -120,7 +120,7 @@ class BlockType(blocks.Scope):
                 hints = [
                     blocks.CompilerHint(graph.block_type_implementations[self.name.id_str], 'Previous implementation was here'),
                 ]
-                raise blocks.ProgramError(self, f'Duplicate block type implementation for {self.name!r}', hints=hints)
+                raise blocks.ProgramError(self, f'Duplicate node type implementation for {self.name!r}', hints=hints)
             self.parent_graph.block_type_implementations[self.name.id_str] = self
 
     def compile_pass1_5(self, graph):

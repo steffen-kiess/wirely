@@ -110,7 +110,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect temporary_value.old -> sink; // E: Unable to find source block
+  connect temporary_value.old -> sink; // E: Temporary 'temporary_value' has no output port 'old'
 }
 
 // TEST: unknown_state
@@ -132,7 +132,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect missing.old -> sink; // E: Unable to find source block
+  connect missing.old -> sink; // E: Unable to find source node
 }
 
 // TEST: state_to_resource
@@ -176,7 +176,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.old; // E: Cannot connect to a member of variable 'saved'
+  connect source -> saved.old; // E: State 'saved' has no input port
 }
 
 // TEST: nested_state_reference
@@ -220,7 +220,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.new; // E: Cannot connect to a member of variable 'saved'
+  connect source -> saved.new; // E: State 'saved' has no input port
 }
 
 // TEST: unknown_state_phase

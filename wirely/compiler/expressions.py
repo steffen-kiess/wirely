@@ -641,7 +641,7 @@ class ExpressionCompiler:
     def local(self, binding):
         name = binding.name.id_str
         if name in self.protected:
-            raise ProgramError(binding.name, f'Cannot shadow procedure binding or parameter {name!r}')
+            raise ProgramError(binding.name, f'Cannot shadow procedure port or parameter {name!r}')
         if self.runtime and binding.annotation is not None:
             self.record_static_usage(binding.annotation)
         expected = (self.scope.resolve_type(binding.annotation, par_values=self.parameters)
@@ -874,7 +874,7 @@ class ExpressionCompiler:
         if name == '_':
             return None
         if name in self.protected:
-            raise ProgramError(expression.name, f'Cannot shadow procedure binding or parameter {name!r}')
+            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
         slot = self.next_slot
         self.next_slot += 1
         self.names[name] = TypedExpression(inner_type, 'local', payload=slot)

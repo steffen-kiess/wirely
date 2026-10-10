@@ -36,7 +36,7 @@ native node type Invalid {
 resource type Handle;
 native node type Invalid {
   default input: resource Handle;
-  native initializer depends on default input; // E: Default connectors and complex references require an explicit alias
+  native initializer depends on default input; // E: Default ports and complex references require an explicit alias
 }
 
 // TEST: initializer_complex_alias
@@ -46,7 +46,7 @@ node type Source {
 }
 native node type Invalid {
   node source: Source {}
-  native initializer depends on source.Handle; // E: Default connectors and complex references require an explicit alias
+  native initializer depends on source.Handle; // E: Default ports and complex references require an explicit alias
 }
 
 // TEST: initializer_duplicate_key
@@ -54,8 +54,8 @@ resource type Handle;
 native node type Invalid {
   input Service: resource Handle;
   native initializer
-    depends on Service, // H: Previous binding was here
-      Service; // E: Duplicate procedure binding key
+    depends on Service, // H: Previous port was here
+      Service; // E: Duplicate port name
 }
 
 // TEST: initializer_duplicate_decoded_alias
@@ -64,8 +64,8 @@ native node type Invalid {
   input First: resource Handle;
   input Second: resource Handle;
   native initializer
-    depends on First as "Service", // H: Previous binding was here
-      Second as "\x53ervice"; // E: Duplicate procedure binding key
+    depends on First as "Service", // H: Previous port was here
+      Second as "\x53ervice"; // E: Duplicate port name
 }
 
 // TEST: initializer_produces

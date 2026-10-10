@@ -119,6 +119,10 @@ def _immutable(value):
     return value
 
 
+# Target names in diagnostics, where they differ from the registry names.
+_TARGET_DESCRIPTIONS = {'connector': 'port'}
+
+
 def validate_attributes(attributes, target):
     result = []
     seen = set()
@@ -127,7 +131,7 @@ def validate_attributes(attributes, target):
         if definition is None:
             _error(attribute, f'Unknown attribute {attribute.name}')
         if target not in definition.targets:
-            _error(attribute, f'Attribute {attribute.name} is not permitted on {target}')
+            _error(attribute, f'Attribute {attribute.name} is not permitted on {_TARGET_DESCRIPTIONS.get(target, target)}')
         if attribute.name in seen and not definition.repeatable:
             _error(attribute, f'Duplicate attribute {attribute.name}')
         seen.add(attribute.name)

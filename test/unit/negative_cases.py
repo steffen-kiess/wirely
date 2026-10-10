@@ -146,7 +146,7 @@ assert wirely.compiler.compile_strs([
 assert len(diagnostics) == 1
 assert diagnostics[0].kind == 'error'
 assert diagnostics[0].filename == '<no-libraries>' and diagnostics[0].line == 1
-assert 'Cannot find block type Std.Constant' in diagnostics[0].message
+assert 'Cannot find node type Std.Constant' in diagnostics[0].message
 compiled = wirely.compiler.compile_strs([
     ('<with-libraries>', 'node value: Std.Constant { Type: uint8, Value: 1 }'),
 ], add_std=True)
@@ -155,11 +155,11 @@ assert program_compiler.compile(compiled) is not None
 
 
 # Library availability is explicit, and built-in types need no library.
-run_fixture('node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find block type Std.Constant\n')
+run_fixture('node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find node type Std.Constant\n')
 run_fixture('enum type Mode: uint8 { Bad = -1 } // E: out of range\n')
 run_fixture('''// LIBRARIES: matter
 // TEST: std is absent
-node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find block type Std.Constant
+node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find node type Std.Constant
 // TEST: matter is available
 node type Holder {
   parameter Mode: ThermostatSystemModeEnum = ThermostatSystemModeEnum.Missing; // E: Unknown member
@@ -178,15 +178,15 @@ node bad: Std.Constant { Type: ThermostatSystemModeEnum, Value: ThermostatSystem
 run_fixture('// LIBRARIES: std\n' + legacy + '''
 // TEST: empty override
 // LIBRARIES:
-node bad: Std.Constant { Type: uint8, Value: -1 } // E: Cannot find block type Std.Constant
+node bad: Std.Constant { Type: uint8, Value: -1 } // E: Cannot find node type Std.Constant
 // TEST: override does not carry forward
 node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 ''')
-run_fixture('// LIBRARIES:\nnode bad: Missing {} // E: Cannot find block type Missing\n')
+run_fixture('// LIBRARIES:\nnode bad: Missing {} // E: Cannot find node type Missing\n')
 run_fixture('''// TEST: a directive in a string is ordinary content
 node type Holder { parameter Text: String = "// LIBRARIES: missing"; }
 // LIBRARIES_EXTRA is an ordinary comment.
-node bad: Missing {} // E: Cannot find block type Missing
+node bad: Missing {} // E: Cannot find node type Missing
 ''')
 
 for metadata, message in [

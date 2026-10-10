@@ -1,31 +1,31 @@
 // TEST: unknown_node_type
 // LIBRARIES: std
-node node2: Std.NonExisting { Type: Option[boolean] } // E: Cannot find block type Std.NonExisting
+node node2: Std.NonExisting { Type: Option[boolean] } // E: Cannot find node type Std.NonExisting
 
 // TEST: singleton_input
 singleton node type QWE {
-  input x1: value boolean; // E: Singleton block cannot have inputs
+  input x1: value boolean; // E: Singleton node type cannot have inputs
 }
 
 // TEST: singleton_parameter
 singleton node type QWE {
-  parameter i: int8; // E: Singleton block cannot have parameters
+  parameter i: int8; // E: Singleton node type cannot have parameters
 }
 
 // TEST: duplicate_block_type_in_reopened_library
 namespace Fixture {
-  node type Duplicate { // H: Previous block type was here
+  node type Duplicate { // H: Previous node type was here
   }
 }
 
 namespace Fixture {
-  node type Duplicate { // E: Duplicate block type Duplicate
+  node type Duplicate { // E: Duplicate node type Duplicate
   }
 }
 
 // TEST: unknown_abb_jra
 node status: ABB_JRA.InterpretStatusInformation {}
-// ^E: Cannot find block type ABB_JRA.InterpretStatusInformation
+// ^E: Cannot find node type ABB_JRA.InterpretStatusInformation
 
 // TEST: library_inside_node_type
 node type Enclosing {

@@ -95,7 +95,7 @@ def connect(source, target, source_element, *, attributes=()):
     target_resource = isinstance(getattr(target, 'conn_spec', None), blocks.ConnectorSpecificationResource)
     if source_resource or target_resource:
         if not (source_resource and target_resource):
-            incompatible('Cannot connect resource and data connectors')
+            incompatible('Cannot connect resource and data ports')
         if source.resource_type is not target.resource_type:
             incompatible(f'source has resource type {source.resource_type} but target has resource type {target.resource_type}')
         target.connect(source)

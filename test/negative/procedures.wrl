@@ -232,7 +232,7 @@ node probe: Probe {}
 node type Probe {
   default input: event boolean;
   default output: value boolean;
-  procedure run depends on default input as input // E: Event connectors
+  procedure run depends on default input as input // E: Event ports
     produces default output as output { output = true; }
 }
 node source: Std.DebugEventSource { Type: boolean }
@@ -242,7 +242,7 @@ connect source -> probe;
 // TEST: event output
 node type Probe {
   default output: event boolean;
-  procedure run produces default output as output { output = true; } // E: Event connectors
+  procedure run produces default output as output { output = true; } // E: Event ports
 }
 node probe: Probe {}
 

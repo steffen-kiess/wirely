@@ -188,7 +188,7 @@ def compile_nocatch(global_block_type):
             except RecursionError as exc:
                 raise blocks.ProgramError(binding, 'Circular resource connection') from exc
             if not instances[provider_path].block_type.is_native:
-                raise blocks.ProgramError(binding, 'Resource binding has no native provider', hints=[
+                raise blocks.ProgramError(binding, 'Resource input has no native provider', hints=[
                     blocks.CompilerHint(output.conn_spec, 'Resource output was declared here'),
                 ])
             paths.append(provider_path)
@@ -292,7 +292,7 @@ def compile_nocatch(global_block_type):
                     raise blocks.ProgramError(binding, 'Multi inputs are not supported in procedures')
                 spec = getattr(source, 'conn_spec', None)
                 if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
-                    raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
+                    raise blocks.ProgramError(binding, 'Event ports are not supported in procedures')
                 source_types[name] = resolve_binding(path, source).variable.var_type
             output_types = {}
             for name, target in proc.static_context._targets.items():
@@ -302,7 +302,7 @@ def compile_nocatch(global_block_type):
                 if isinstance(spec, blocks.ConnectorSpecificationResource):
                     raise blocks.ProgramError(binding, 'Procedures cannot produce resources')
                 if spec is not None and spec.kind_spec.kind == blocks.ConnectionKind.Event:
-                    raise blocks.ProgramError(binding, 'Event connectors are not supported in procedures')
+                    raise blocks.ProgramError(binding, 'Event ports are not supported in procedures')
                 variable = (state_map[path, target] if isinstance(target, blocks.Block.StateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type

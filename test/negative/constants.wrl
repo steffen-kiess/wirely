@@ -100,7 +100,7 @@ node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
   procedure run produces default output as output {
-    let Flag = false; // E: Cannot shadow procedure binding or parameter 'Flag'
+    let Flag = false; // E: Cannot shadow procedure port or parameter 'Flag'
     output = Flag;
   }
 }
@@ -121,7 +121,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run depends on Flag produces default output as output { // E: Unable to find dependency block 'Flag'
+  procedure run depends on Flag produces default output as output { // E: Unable to find dependency node 'Flag'
     output = Flag;
   }
 }

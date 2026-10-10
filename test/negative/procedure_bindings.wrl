@@ -10,7 +10,7 @@ node type Invalid {
   default input: value boolean;
 
   native procedure run depends on default input;
-  // ^E: Default connectors and complex references require an explicit alias
+  // ^E: Default ports and complex references require an explicit alias
 }
 
 // TEST: procedure_implicit_output_alias
@@ -18,7 +18,7 @@ node type Invalid {
   default output: value boolean;
 
   native procedure run produces default output;
-  // ^E: Default connectors and complex references require an explicit alias
+  // ^E: Default ports and complex references require an explicit alias
 }
 
 // TEST: procedure_state_alias
@@ -26,7 +26,7 @@ node type Invalid {
   state value: boolean = false;
   native procedure write produces value;
   native procedure run depends on value.old;
-  // ^E: Default connectors and complex references require an explicit alias
+  // ^E: Default ports and complex references require an explicit alias
 }
 
 // TEST: procedure_child_alias
@@ -41,7 +41,7 @@ node type Invalid {
   node child: Child {}
 
   native procedure run depends on child.Value;
-  // ^E: Default connectors and complex references require an explicit alias
+  // ^E: Default ports and complex references require an explicit alias
 }
 
 // TEST: procedure_duplicate_input_key
@@ -50,8 +50,8 @@ node type Invalid {
   input Other: value boolean;
 
   native procedure run
-    depends on Value, // H: Previous binding was here
-      Other as "Value"; // E: Duplicate procedure binding key 'Value'
+    depends on Value, // H: Previous port was here
+      Other as "Value"; // E: Duplicate port name 'Value'
 }
 
 // TEST: procedure_duplicate_result_key
@@ -60,8 +60,8 @@ node type Invalid {
   output Other: value boolean;
 
   native procedure run
-    produces Value, // H: Previous binding was here
-      Other as "Value"; // E: Duplicate procedure binding key 'Value'
+    produces Value, // H: Previous port was here
+      Other as "Value"; // E: Duplicate port name 'Value'
 }
 
 // TEST: procedure_duplicate_decoded_alias
@@ -70,8 +70,8 @@ node type Invalid {
   input Second: value boolean;
 
   native procedure run
-    depends on First as "\x61", // H: Previous binding was here
-      Second as r"a"; // E: Duplicate procedure binding key 'a'
+    depends on First as "\x61", // H: Previous port was here
+      Second as r"a"; // E: Duplicate port name 'a'
 }
 
 // TEST: procedure_unknown_child_output
@@ -86,7 +86,7 @@ node type Invalid {
   node child: Child {}
 
   native procedure run depends on child.Missing as "value";
-  // ^E: Unable to find dependency block output child.Missing
+  // ^E: Unable to find dependency output port child.Missing
 }
 
 // TEST: procedure_deep_dependency
@@ -108,7 +108,7 @@ node type Invalid {
   state value: boolean = false;
 
   native procedure run produces value.old as "value";
-  // ^E: Cannot connect to a member of variable 'value'
+  // ^E: State 'value' has no input port 'old'
 }
 
 // TEST: procedure_port_without_source
@@ -201,7 +201,7 @@ node type Invalid {
   input Flag: event boolean;
   default output: value boolean;
   procedure run
-    depends on value: event boolean // E: Event connectors are not supported in procedures
+    depends on value: event boolean // E: Event ports are not supported in procedures
     produces default output as output
   {
     output = true;

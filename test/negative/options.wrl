@@ -64,7 +64,7 @@ node type Shadow {
   default input: value Option[uint8];
   default output: value uint8;
   procedure run depends on default input as input produces default output as output {
-    output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure binding or parameter 'input'
+    output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure port or parameter 'input'
   }
 }
 node shadow: Shadow {}
@@ -78,7 +78,7 @@ node type Shadow {
   default input: value Option[uint8];
   default output: value uint8;
   procedure run depends on default input as input produces default output as output {
-    output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure binding or parameter 'Limit'
+    output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure port or parameter 'Limit'
   }
 }
 node shadow: Shadow { Limit: 1 }
