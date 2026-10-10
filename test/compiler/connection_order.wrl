@@ -47,3 +47,19 @@ node sink: Std.DebugValuePrinter { Type: boolean }
 
 connect procedure_forward, procedure_repeated -> procedure_sink;
 node procedure_sink: Std.And {}
+
+namespace InitializerOrder {
+  resource type Handle;
+
+  node type Source {
+    default output: resource Handle;
+    output Named: resource Handle;
+  }
+
+  native node type Consumer {
+    native initializer
+      depends on source as "default_source", source.Named as "named_source";
+
+    node source: Source {}
+  }
+}

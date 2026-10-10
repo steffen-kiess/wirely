@@ -165,11 +165,11 @@ class NodeType(model.Scope):
             self.pass2_in_progress = False
 
     def _compile_pass2(self):
-        procedures = []
+        reference_declarations = []
         connections = []
         for decl in self.declarations:
-            if isinstance(decl, model.DeclarationProcedure):
-                procedures.append(decl)
+            if isinstance(decl, (model.DeclarationProcedure, model.DeclarationInitializer)):
+                reference_declarations.append(decl)
                 continue
             if isinstance(decl, model.DeclarationConnection):
                 connections.append(decl)
@@ -177,8 +177,8 @@ class NodeType(model.Scope):
             if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
-        # Procedure references and connections can name nodes declared later.
-        for decl in procedures:
+        # Initializers, procedures, and connections can reference later nodes.
+        for decl in reference_declarations:
             with decl.context:
                 decl.compile_pass2(self)
         for decl in connections:
