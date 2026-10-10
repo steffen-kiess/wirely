@@ -92,7 +92,7 @@ def compile_nocatch(global_node_type):
         source_path, variable = model.resolve_variable(path, source)
         if isinstance(variable, model.StateRead):
             return InputSource(state_map[source_path, variable.state], new_state=variable.phase == 'new')
-        if isinstance(variable, model.InstanceNode.StateVariable):
+        if isinstance(variable, model.InstanceStateVariable):
             return InputSource(state_map[source_path, variable], new_state=False)
         return add_var(source_path, variable)
 
@@ -149,7 +149,7 @@ def compile_nocatch(global_node_type):
                         if variable.phase == 'new':
                             do(producer_path, variable.state.producer, variable.reference)
                         continue
-                    if not isinstance(variable, model.InstanceNode.StateVariable):
+                    if not isinstance(variable, model.InstanceStateVariable):
                         do(producer_path, variable.producer, proc.declaration_procedure.depends)
         if doing.pop() != (path, proc.proc_identifier):
             raise Exception('doing.pop() != (path, proc.proc_identifier)')
@@ -303,7 +303,7 @@ def compile_nocatch(global_node_type):
                     raise model.ProgramError(port, 'Procedures cannot produce resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     raise model.ProgramError(port, 'Event ports are not supported in procedures')
-                variable = (state_map[path, target] if isinstance(target, model.InstanceNode.StateVariable)
+                variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
@@ -328,7 +328,7 @@ def compile_nocatch(global_node_type):
                 members = source.members if is_list else (source,)
                 dependencies.append((name, tuple(resolve_source(path, member) for member in members), is_list))
             for name, target in proc.static_context._targets.items():
-                if isinstance(target, model.InstanceNode.StateVariable):
+                if isinstance(target, model.InstanceStateVariable):
                     outputs[name] = OutputTarget(state_map[path, target])
                 else:
                     outputs[name] = OutputTarget(variable_map[path, target.var_identifier].variable)

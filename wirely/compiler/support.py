@@ -9,14 +9,14 @@ from .types import resolve_type
 debug_variable_resolution = False
 
 
-SOURCE_TYPES = (InstanceNode.OutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
+SOURCE_TYPES = (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
                 StateRead, model.ProcedureOutputPort)
-TARGET_TYPES = (InstanceNode.InputPort, model.TypeOutputPort, model.ProcedureInputPort, model.TemporaryNode,
+TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureInputPort, model.TemporaryNode,
                 model.StateNode)
 
 
 def describe_target(target):
-    if isinstance(target, InstanceNode.InputPort):
+    if isinstance(target, model.InstanceInputPort):
         port = 'Default input' if target.name == '' else f'Input {target.name!r}'
         return f'{port} of node {target.node.name!r}'
     if isinstance(target, model.TypeOutputPort):
@@ -45,9 +45,9 @@ def connect(source, target, source_element, *, attributes=()):
         raise model.ProgramError(source_element, f'source has graph {source.node.graph} but target has graph {target.node.graph}')
 
     def declaration(port):
-        if isinstance(port, InstanceNode.InputPort):
+        if isinstance(port, model.InstanceInputPort):
             return port.type_input_port.port_spec
-        if isinstance(port, InstanceNode.OutputPort):
+        if isinstance(port, model.InstanceOutputPort):
             return port.type_output_port.port_spec
         if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
             return port.port_spec
@@ -67,7 +67,7 @@ def connect(source, target, source_element, *, attributes=()):
         return [] if previous is None else [model.CompilerHint(previous, 'Previous connection was here')]
 
     # Single inputs, ports, outputs, and variables take one source.
-    is_multi = getattr(target, 'is_list', False) and isinstance(target, (InstanceNode.InputPort, model.ProcedureInputPort))
+    is_multi = getattr(target, 'is_list', False) and isinstance(target, (model.InstanceInputPort, model.ProcedureInputPort))
     if is_multi and isinstance(target, model.ProcedureInputPort) and (
             target.connected_source is not None or (getattr(source, 'is_list', False) and target.sources)):
         # A forwarded multi input is the port's only source.
@@ -75,7 +75,7 @@ def connect(source, target, source_element, *, attributes=()):
                                   hints=previous_connection_hints())
     if not is_multi and target.connected_source is not None:
         message = f'{describe_target(target)} already has a source'
-        if isinstance(target, InstanceNode.InputPort):
+        if isinstance(target, model.InstanceInputPort):
             message += '; only multi inputs accept several'
         raise model.ProgramError(source_element, message, hints=previous_connection_hints())
     if isinstance(target, model.StateNode):
@@ -86,7 +86,7 @@ def connect(source, target, source_element, *, attributes=()):
                                       hints=previous_connection_hints())
 
     def record(kind):
-        actual_target = target.members[-1] if isinstance(target, InstanceNode.InputPort) and target.is_list else target
+        actual_target = target.members[-1] if isinstance(target, model.InstanceInputPort) and target.is_list else target
         source.node.graph.connections.append(Connection(
             source, actual_target, attributes, source_element, kind,
         ))
@@ -144,7 +144,7 @@ def resolve_variable(path, var):
             item = next(item for item in items if type(item) is type(var) and item.var_identifier == var.var_identifier)
             return resolve_variable((owner.node_type,), item)
 
-    if isinstance(var, model.InstanceNode.StateVariable):
+    if isinstance(var, model.InstanceStateVariable):
         return path, var
 
     if isinstance(path[-1], model.InstanceNode) and path[-1].node_type.is_singleton:
@@ -169,7 +169,7 @@ def resolve_variable(path, var):
         # print(type(var), type(var.node))
 
         # TODO: This is somewhat of a hack
-        if (isinstance(var, model.InstanceNode.OutputPort) or isinstance(var, model.InstanceNode.Temporary)) and isinstance(node, model.TypeInputPort):
+        if (isinstance(var, model.InstanceOutputPort) or isinstance(var, model.InstanceTemporary)) and isinstance(node, model.TypeInputPort):
             input_name = node.input_name
             new_path = path[:-1]
             parent_node = new_path[-1]
@@ -179,7 +179,7 @@ def resolve_variable(path, var):
             return resolve_variable(path_resolve_singleton(new_path), input_var)
 
         # TODO: This is somewhat of a hack
-        if (isinstance(var, model.InstanceNode.InputPort)) and isinstance(node, model.TypeOutputPort):
+        if (isinstance(var, model.InstanceInputPort)) and isinstance(node, model.TypeOutputPort):
             output_name = node.output_name
             new_path = path[:-1]
             parent_node = new_path[-1]
@@ -188,7 +188,7 @@ def resolve_variable(path, var):
             output_var = parent_node.output_ports_byname[output_name]
             return resolve_variable(path_resolve_singleton(new_path), output_var)
 
-    if isinstance(var, model.InstanceNode.InputPort):
+    if isinstance(var, model.InstanceInputPort):
         src = var.connected_source
         if src is None:
             raise Exception('src is None')
@@ -196,7 +196,7 @@ def resolve_variable(path, var):
         # print(src, type(src), src.node, new_path)
         return resolve_variable(path_resolve_singleton(new_path), src)
 
-    if isinstance(var, model.InstanceNode.OutputPort):
+    if isinstance(var, model.InstanceOutputPort):
         source = var.type_output_port.connected_source
         if source is not None:
             return resolve_variable(path_resolve_singleton(path + (source.node,)), source)
@@ -204,7 +204,7 @@ def resolve_variable(path, var):
             return path, var
         raise Exception(f'Output {var} is not connected')
 
-    if isinstance(var, model.InstanceNode.Temporary):
+    if isinstance(var, model.InstanceTemporary):
         temporary = var.temporary
         if temporary != var:
             raise Exception('temporary != var')
@@ -243,7 +243,7 @@ def resolve_variable(path, var):
         if not isinstance(node, InstanceNode):
             node = node.singleton_instance
         storage = node.port_storage[var]
-        if isinstance(storage, InstanceNode.StateVariable):
+        if isinstance(storage, model.InstanceStateVariable):
             # Other consumers of a port writing state read the new value.
             return path[:-1], StateRead(storage, 'new', var.declaration)
         return resolve_variable(path[:-1], storage)

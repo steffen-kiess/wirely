@@ -104,12 +104,12 @@ class TypeOutputPort(GraphElement):
 
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(source, (model.InstanceNode.OutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
+        if not isinstance(source, (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
             raise Exception('source parameter value is not a data or resource source')
         # if self.is_list:
         if False:
             # TODO: Clean up
-            input = InstanceNode.InputPort(self.node, f'{self.name}.{len(self.members)}', False, self.var_type, type_input_port=self)
+            input = model.InstanceInputPort(self.node, f'{self.name}.{len(self.members)}', False, self.var_type, type_input_port=self)
             input.connect(source)
             self.members.append(input)
         else:

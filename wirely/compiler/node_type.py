@@ -189,7 +189,7 @@ class NodeType(model.Scope):
             # TODO: Is the name of the node and the name of the input always the same?
             if input.var_type is not None:
                 check_runtime_type(resolve_type(input.var_type, node.par_values), instantiation)
-            new_input = model.InstanceNode.InputPort(node, input.input_name, input.is_list, input.var_type, type_input_port=input)
+            new_input = model.InstanceInputPort(node, input.input_name, input.is_list, input.var_type, type_input_port=input)
             node.custom_inputs[input] = new_input
         for output in self.output_ports.values():
             # TODO
@@ -198,7 +198,7 @@ class NodeType(model.Scope):
             # TODO: Is the name of the node and the name of the output always the same?
             if output.var_type is not None:
                 check_runtime_type(resolve_type(output.var_type, node.par_values), instantiation)
-            new_output = model.InstanceNode.OutputPort(node, output.output_name, output.var_type, type_output_port=output)
+            new_output = model.InstanceOutputPort(node, output.output_name, output.var_type, type_output_port=output)
             node.custom_outputs[output] = new_output
 
         # TODO: Probably more stuff should be done at an earlier stage
@@ -208,7 +208,7 @@ class NodeType(model.Scope):
             if isinstance(variable, model.ast.DeclarationState):
                 var_type = self.resolve_type(variable.var_type)
                 check_runtime_type(var_type, instantiation)
-                storage = model.InstanceNode.StateVariable(
+                storage = model.InstanceStateVariable(
                     node, variable.name.id_str, var_type, variable.initial_value,
                 )
                 copy_attributes(storage, variable)
@@ -217,7 +217,7 @@ class NodeType(model.Scope):
                 var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = var_type  # TODO: ?
-                storage = model.InstanceNode.Temporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
+                storage = model.InstanceTemporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
                 copy_attributes(storage, variable)
                 temporaries[variable.name.id_str] = storage
             else:
@@ -233,7 +233,7 @@ class NodeType(model.Scope):
                 impl_var_type = port.var_type
                 if model.connection_kind(port) == model.ConnectionKind.Event:
                     impl_var_type = model.types.TypeOption(port.var_type)
-                temporary = model.InstanceNode.Temporary(node, f'{procedure.name.id_str}.{key}', port.var_type,
+                temporary = model.InstanceTemporary(node, f'{procedure.name.id_str}.{key}', port.var_type,
                                                    impl_var_type=impl_var_type, port=port)
                 temporary.port_spec = port.port_spec
                 node.port_storage[port] = temporary
@@ -248,10 +248,10 @@ class NodeType(model.Scope):
                 return model.StateRead(state_variables[port.name], port.phase, port.reference)
             if isinstance(port, model.ProcedureOutputPort):
                 storage = node.port_storage[port]
-                if isinstance(storage, model.InstanceNode.StateVariable):
+                if isinstance(storage, model.InstanceStateVariable):
                     return model.StateRead(storage, 'new', port.declaration)
                 return storage
-            if isinstance(port, model.InstanceNode.OutputPort):
+            if isinstance(port, model.InstanceOutputPort):
                 return port
             raise Exception(f'Got unknown source: {port}')
 
@@ -277,7 +277,7 @@ class NodeType(model.Scope):
                 if port.connected_source is not None:
                     sources[key] = source(port.connected_source)
                 else:
-                    sources[key] = model.InstanceNode.PortSources(
+                    sources[key] = model.PortSources(
                         node, f'{procedure.name.id_str}.{key}',
                         [source(member) for member in port.sources], port_spec=port.port_spec,
                     )
@@ -285,7 +285,7 @@ class NodeType(model.Scope):
 
             static_context = model.StaticProcedureContext(sources=sources, targets=targets, name=node.name, node_parameter_values={key.name.id_str: value for key, value in node.par_values.items()})
 
-            model.InstanceNode.Procedure(
+            model.InstanceProcedure(
                 node, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
                 static_context=static_context, declaration_procedure=procedure,
             )

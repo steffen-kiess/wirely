@@ -8,7 +8,7 @@ from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
 from wirely.program import InputSource, Variable
 
-# TODO: Probably InputPort, OutputPort, StateVariable etc. should be moved out of this and only exist in NodeType
+# TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
     def __init__(self, graph, *, name, node_type, par_values, instantiation, register=True):
         super().__init__(graph=graph, name=name)
@@ -184,292 +184,299 @@ class InstanceNode(model.GraphElement):
             res += child_node.get_all_node_paths(path)
         return res
 
-    class Port(abc.ABC):
-        def __init__(self, node: 'InstanceNode', name: str):
-            if not isinstance(node, InstanceNode):
-                raise Exception('node parameter is not an InstanceNode')
-            if not isinstance(name, str):
-                raise Exception('name parameter is not a str')
-            name = str(name)
 
-            self.node = node
-            self.name = name
+class InstanceElement(abc.ABC):
+    def __init__(self, node: 'InstanceNode', name: str):
+        if not isinstance(node, InstanceNode):
+            raise Exception('node parameter is not an InstanceNode')
+        if not isinstance(name, str):
+            raise Exception('name parameter is not a str')
+        name = str(name)
 
-        def __repr__(self):
-            return f"{self.node}.{self.name}"
+        self.node = node
+        self.name = name
 
-    # TODO: Move out of InstanceNode / Remove Port parent?
-    class SourcePort(Port, abc.ABC):
-        @property
-        @abc.abstractmethod
-        def temporary(self):
-            ...
+    def __repr__(self):
+        return f"{self.node}.{self.name}"
 
-    # TODO: Move out of InstanceNode / Remove Port parent?
-    class TargetPort(Port, abc.ABC):
-        pass
 
-    # TODO: Handle var_type == None better
-    # TODO: Clean up, move more functionality to TypeInputPort
-    class InputPort(SourcePort):
-        def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *, type_input_port: model.TypeInputPort):
-            InstanceNode.Port.__init__(self, node, name)
-            if not isinstance(is_list, bool):
-                raise Exception('is_list parameter is not of type bool')
-            if var_type is not None and not isinstance(var_type, model.types.Type):
-                raise Exception('var_type parameter is not a Type')
+class InstanceSource(InstanceElement, abc.ABC):
+    @property
+    @abc.abstractmethod
+    def temporary(self):
+        ...
 
-            self.is_list = bool(is_list)
-            self.var_type = var_type
-            self.type_input_port = type_input_port
-            copy_attributes(self, type_input_port)
 
-            self.port_spec = self.type_input_port.port_spec
-            self.resource_type = self.type_input_port.resource_type
+class InstanceTarget(InstanceElement, abc.ABC):
+    pass
 
-            if isinstance(self.port_spec, model.PortTypeSpecificationData):
-                if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
-                    self.impl_var_type = self.var_type
-                elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
-                    self.impl_var_type = model.types.TypeOption(self.var_type)
-                else:
-                    raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
+
+# TODO: Handle var_type == None better
+# TODO: Clean up, move more functionality to TypeInputPort
+class InstanceInputPort(InstanceSource):
+    def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *, type_input_port: model.TypeInputPort):
+        super().__init__(node, name)
+        if not isinstance(is_list, bool):
+            raise Exception('is_list parameter is not of type bool')
+        if var_type is not None and not isinstance(var_type, model.types.Type):
+            raise Exception('var_type parameter is not a Type')
+
+        self.is_list = bool(is_list)
+        self.var_type = var_type
+        self.type_input_port = type_input_port
+        copy_attributes(self, type_input_port)
+
+        self.port_spec = self.type_input_port.port_spec
+        self.resource_type = self.type_input_port.resource_type
+
+        if isinstance(self.port_spec, model.PortTypeSpecificationData):
+            if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
+                self.impl_var_type = self.var_type
+            elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                self.impl_var_type = model.types.TypeOption(self.var_type)
             else:
-                # TODO: ?
-                self.impl_var_type = None
+                raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
+        else:
+            # TODO: ?
+            self.impl_var_type = None
 
-            if self.is_list:
-                self.members = []
-            else:
-                self.connected_source = None
+        if self.is_list:
+            self.members = []
+        else:
+            self.connected_source = None
 
-            self.node.input_ports.append(self)
-            if self.name in self.node.input_ports_byname:
-                raise Exception(f'Duplicate input name {name!r}')
-            self.node.input_ports_byname[self.name] = self
+        self.node.input_ports.append(self)
+        if self.name in self.node.input_ports_byname:
+            raise Exception(f'Duplicate input name {name!r}')
+        self.node.input_ports_byname[self.name] = self
 
-        def __repr__(self):
-            return f"{self.node}.{self.name}"
+    def __repr__(self):
+        return f"{self.node}.{self.name}"
 
-        @property
-        def temporary(self):
-            if self.is_list:
-                raise Exception('Trying to get temporary for list')
-            if self.connected_source is None:
-                raise Exception(f'{self} is not connected')
-            # TODO: Cache multiple follows?
-            return self.connected_source.temporary
-
-        def connect(self, output):
-            # TODO: Clean up class structure for value sources / targets
-            if not isinstance(output, (InstanceNode.OutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
-                raise Exception('output parameter value is not a data or resource source')
-            if self.is_list:
-                # TODO: Clean up
-                # TODO: What should be used for type_input_port here?
-                input = InstanceNode.InputPort(self.node, f'{self.name}.{len(self.members)}', False, self.var_type, type_input_port=self)
-                input.connect(output)
-                self.members.append(input)
-            else:
-                if self.connected_source is not None:
-                    raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {output}')
-
-                self.connected_source = output
-
-        # TODO: Remove and replace with self, InputPort should contain a reference to NodeType, not to InstanceNode
-        @property
-        def var_identifier(self):
-            return 'INP ' + self.node.type_name + '.' + self.name
-
-    # TODO: Handle var_type == None better
-    # TODO: Clean up, move more functionality to TypeOutputPort
-    class OutputPort(TargetPort):
-        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, input_dependencies=[], *, type_output_port: model.TypeOutputPort):
-            InstanceNode.Port.__init__(self, node, name)
-            if var_type is not None and not isinstance(var_type, model.types.Type):
-                raise Exception('var_type parameter is not a Type')
-
-            self.var_type = var_type
-            self.type_output_port = type_output_port
-            copy_attributes(self, type_output_port)
-
-            self.port_spec = self.type_output_port.port_spec
-            self.resource_type = self.type_output_port.resource_type
-
-            if isinstance(self.port_spec, model.PortTypeSpecificationData):
-                if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
-                    self.impl_var_type = self.var_type
-                elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
-                    self.impl_var_type = model.types.TypeOption(self.var_type)
-                else:
-                    raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
-            else:
-                # TODO: ?
-                self.impl_var_type = None
-
-            self.input_dependencies = []
-            for dependency in input_dependencies:
-                if not isinstance(dependency, InstanceNode.InputPort):
-                    raise Exception('input_dependencies parameter value is not an Input instance')
-                if dependency.node != self.node:
-                    raise Exception('input_dependencies parameter value is for another node')
-                self.input_dependencies.append(dependency)
-
-            self.node.output_ports.append(self)
-            if self.name in self.node.output_ports_byname:
-                raise Exception(f'Duplicate output name {name!r}')
-            self.node.output_ports_byname[self.name] = self
-
-        @property
-        def name_desc(self):
-            if self.name == '':
-                return 'default output'
-            else:
-                return self.name
-
-        def __repr__(self):
-            return f"{self.node}.{self.name}"
-
-        # TODO: Remove and replace with self, OutputPort should contain a reference to NodeType, not to InstanceNode
-        @property
-        def var_identifier(self):
-            return 'OUT ' + self.node.type_name + '.' + self.name
-
-    # TODO: Allow both temporaries and output values to be references to other values
-    class Temporary(SourcePort, TargetPort):
-        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *, impl_var_type, port=None):
-            InstanceNode.Port.__init__(self, node, name)
-            # The procedure output port stored here, or None for declared temporaries.
-            self.port = port
-            # The source a declared temporary refers to.
-            self.alias_of = None
-            if not isinstance(var_type, model.types.Type):
-                raise Exception('var_type parameter is not a Type')
-
-            self.var_type = var_type
-
-            self.impl_var_type = impl_var_type
-
-            self.producer = None
-
-            self.node.temporaries.append(self)
-
-        def __repr__(self):
-            return f"{self.node}.{self.name}"
-
-        @property
-        def temporary(self):
-            return self
-
-        # TODO: Remove and replace with self, Temporary should contains a reference to NodeType, not to InstanceNode
-        @property
-        def var_identifier(self):
-            separator = '.' if self.port is None else ':'
-            return 'TEMP ' + self.node.type_name + separator + self.name
-
-    class PortSources(SourcePort):
-        """The sources connected to a multi procedure port."""
-
-        def __init__(self, node: 'InstanceNode', name: str, members, *, port_spec):
-            InstanceNode.Port.__init__(self, node, name)
-            self.members = members
-            self.port_spec = port_spec
-            self.is_list = True
-
-        @property
-        def temporary(self):
+    @property
+    def temporary(self):
+        if self.is_list:
             raise Exception('Trying to get temporary for list')
+        if self.connected_source is None:
+            raise Exception(f'{self} is not connected')
+        # TODO: Cache multiple follows?
+        return self.connected_source.temporary
 
-    class StateVariable(SourcePort, TargetPort):
-        def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, initial_value):
-            InstanceNode.Port.__init__(self, node, name)
-            if not isinstance(var_type, model.types.Type):
-                raise Exception('var_type parameter is not a Type')
+    def connect(self, output):
+        # TODO: Clean up class structure for value sources / targets
+        if not isinstance(output, (InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
+            raise Exception('output parameter value is not a data or resource source')
+        if self.is_list:
+            # TODO: Clean up
+            # TODO: What should be used for type_input_port here?
+            input = InstanceInputPort(self.node, f'{self.name}.{len(self.members)}', False, self.var_type, type_input_port=self)
+            input.connect(output)
+            self.members.append(input)
+        else:
+            if self.connected_source is not None:
+                raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {output}')
 
-            self.var_type = var_type
-            self.initial_value = initial_value
+            self.connected_source = output
 
-            self.impl_var_type = self.var_type
+    # TODO: Remove and replace with self, InstanceInputPort should contain a reference to NodeType, not to InstanceNode
+    @property
+    def var_identifier(self):
+        return 'INP ' + self.node.type_name + '.' + self.name
 
-            self.producer = None
 
-            self.node.state_variables.append(self)
+# TODO: Handle var_type == None better
+# TODO: Clean up, move more functionality to TypeOutputPort
+class InstanceOutputPort(InstanceTarget):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, input_dependencies=[], *, type_output_port: model.TypeOutputPort):
+        super().__init__(node, name)
+        if var_type is not None and not isinstance(var_type, model.types.Type):
+            raise Exception('var_type parameter is not a Type')
 
-        def __repr__(self):
-            return f"StateVariable[{self}]"
+        self.var_type = var_type
+        self.type_output_port = type_output_port
+        copy_attributes(self, type_output_port)
 
-        def __str__(self):
-            return f"{self.node}.{self.name}"
+        self.port_spec = self.type_output_port.port_spec
+        self.resource_type = self.type_output_port.resource_type
 
-        # TODO
-        @property
-        def temporary(self):
-            return self
-
-        @property
-        def var_identifier(self):
-            return 'STATE ' + self.node.type_name + '.' + self.name
-
-    class Procedure:
-        # TODO: Make name mandatory
-        def __init__(self, node: 'InstanceNode', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
-            if not isinstance(node, InstanceNode):
-                raise Exception('node parameter is not an InstanceNode')
-
-            self.node = node
-            self.name = name
-            self.declaration_procedure = declaration_procedure
-            copy_attributes(self, declaration_procedure)
-            # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current node. Move this somewhere else?
-            self.static_context = static_context
-
-            self.node.last_proc_id += 1
-            self.id = self.node.last_proc_id
-
-            self.dependencies = []
-            for dependency in dependencies:
-                if not isinstance(dependency, (InstanceNode.SourcePort, InstanceNode.OutputPort, model.StateRead)):
-                    raise Exception('dependencies parameter value is not an Input or Temporary instance')
-                # Old-state dependencies have no producer edge; new-state reads depend on the writer.
-                # TODO: Allow dependencies on other nodes? Probably yes. Maybe check where dependency.node is a child of the current node?
-                # if dependency.node != self.node:
-                #     raise Exception('dependencies parameter value is for another node')
-                self.dependencies.append(dependency)
-
-            self.outputs = []
-            for output in outputs:
-                if not isinstance(output, InstanceNode.TargetPort):
-                    raise Exception(f'outputs parameter value is not an Output or Temporary instance: {type(output)}')
-                if output.node != self.node:
-                    raise Exception('outputs parameter value is for another node')
-                self.outputs.append(output)
-
-                # TODO:  whether dependencies of output include required inputs as dependencies
-
-                # TODO: Clean up temporary / output stuff
-                previous = output.temporary.producer
-                if previous is not None:
-                    target = f'Variable {output.name!r}'
-                    raise model.ProgramError(
-                        declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
-                        hints=[model.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
-                # print(f'Setting output for {output} / {output.temporary}')
-                output.temporary.producer = self
-
-            self.can_trigger = can_trigger
-
-            self.node.procedures.append(self)
-
-        def __repr__(self):
-            if self.name is not None:
-                return f"{self.node}.{self.name}"
+        if isinstance(self.port_spec, model.PortTypeSpecificationData):
+            if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
+                self.impl_var_type = self.var_type
+            elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                self.impl_var_type = model.types.TypeOption(self.var_type)
             else:
-                return f"{self.node}.proc{self.id}"
+                raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
+        else:
+            # TODO: ?
+            self.impl_var_type = None
 
-        # TODO: Remove and replace with self, Procedure should contains a reference to NodeType, not to InstanceNode
-        @property
-        def proc_identifier(self):
-            return 'PROC ' + self.node.type_name + '.' + self.name
+        self.input_dependencies = []
+        for dependency in input_dependencies:
+            if not isinstance(dependency, InstanceInputPort):
+                raise Exception('input_dependencies parameter value is not an Input instance')
+            if dependency.node != self.node:
+                raise Exception('input_dependencies parameter value is for another node')
+            self.input_dependencies.append(dependency)
+
+        self.node.output_ports.append(self)
+        if self.name in self.node.output_ports_byname:
+            raise Exception(f'Duplicate output name {name!r}')
+        self.node.output_ports_byname[self.name] = self
+
+    @property
+    def name_desc(self):
+        if self.name == '':
+            return 'default output'
+        else:
+            return self.name
+
+    def __repr__(self):
+        return f"{self.node}.{self.name}"
+
+    # TODO: Remove and replace with self, InstanceOutputPort should contain a reference to NodeType, not to InstanceNode
+    @property
+    def var_identifier(self):
+        return 'OUT ' + self.node.type_name + '.' + self.name
+
+
+# TODO: Allow both temporaries and output values to be references to other values
+class InstanceTemporary(InstanceSource, InstanceTarget):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *, impl_var_type, port=None):
+        super().__init__(node, name)
+        # The procedure output port stored here, or None for declared temporaries.
+        self.port = port
+        # The source a declared temporary refers to.
+        self.alias_of = None
+        if not isinstance(var_type, model.types.Type):
+            raise Exception('var_type parameter is not a Type')
+
+        self.var_type = var_type
+
+        self.impl_var_type = impl_var_type
+
+        self.producer = None
+
+        self.node.temporaries.append(self)
+
+    def __repr__(self):
+        return f"{self.node}.{self.name}"
+
+    @property
+    def temporary(self):
+        return self
+
+    # TODO: Remove and replace with self, InstanceTemporary should contain a reference to NodeType, not to InstanceNode
+    @property
+    def var_identifier(self):
+        separator = '.' if self.port is None else ':'
+        return 'TEMP ' + self.node.type_name + separator + self.name
+
+
+class PortSources(InstanceSource):
+    """The sources connected to a multi procedure port."""
+
+    def __init__(self, node: 'InstanceNode', name: str, members, *, port_spec):
+        super().__init__(node, name)
+        self.members = members
+        self.port_spec = port_spec
+        self.is_list = True
+
+    @property
+    def temporary(self):
+        raise Exception('Trying to get temporary for list')
+
+
+class InstanceStateVariable(InstanceSource, InstanceTarget):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, initial_value):
+        super().__init__(node, name)
+        if not isinstance(var_type, model.types.Type):
+            raise Exception('var_type parameter is not a Type')
+
+        self.var_type = var_type
+        self.initial_value = initial_value
+
+        self.impl_var_type = self.var_type
+
+        self.producer = None
+
+        self.node.state_variables.append(self)
+
+    def __repr__(self):
+        return f"StateVariable[{self}]"
+
+    def __str__(self):
+        return f"{self.node}.{self.name}"
+
+    # TODO
+    @property
+    def temporary(self):
+        return self
+
+    @property
+    def var_identifier(self):
+        return 'STATE ' + self.node.type_name + '.' + self.name
+
+
+class InstanceProcedure:
+    # TODO: Make name mandatory
+    def __init__(self, node: 'InstanceNode', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
+        if not isinstance(node, InstanceNode):
+            raise Exception('node parameter is not an InstanceNode')
+
+        self.node = node
+        self.name = name
+        self.declaration_procedure = declaration_procedure
+        copy_attributes(self, declaration_procedure)
+        # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current node. Move this somewhere else?
+        self.static_context = static_context
+
+        self.node.last_proc_id += 1
+        self.id = self.node.last_proc_id
+
+        self.dependencies = []
+        for dependency in dependencies:
+            if not isinstance(dependency, (InstanceSource, InstanceOutputPort, model.StateRead)):
+                raise Exception('dependencies parameter value is not an Input or Temporary instance')
+            # Old-state dependencies have no producer edge; new-state reads depend on the writer.
+            # TODO: Allow dependencies on other nodes? Probably yes. Maybe check where dependency.node is a child of the current node?
+            # if dependency.node != self.node:
+            #     raise Exception('dependencies parameter value is for another node')
+            self.dependencies.append(dependency)
+
+        self.outputs = []
+        for output in outputs:
+            if not isinstance(output, InstanceTarget):
+                raise Exception(f'outputs parameter value is not an Output or Temporary instance: {type(output)}')
+            if output.node != self.node:
+                raise Exception('outputs parameter value is for another node')
+            self.outputs.append(output)
+
+            # TODO:  whether dependencies of output include required inputs as dependencies
+
+            # TODO: Clean up temporary / output stuff
+            previous = output.temporary.producer
+            if previous is not None:
+                target = f'Variable {output.name!r}'
+                raise model.ProgramError(
+                    declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
+                    hints=[model.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
+            # print(f'Setting output for {output} / {output.temporary}')
+            output.temporary.producer = self
+
+        self.can_trigger = can_trigger
+
+        self.node.procedures.append(self)
+
+    def __repr__(self):
+        if self.name is not None:
+            return f"{self.node}.{self.name}"
+        else:
+            return f"{self.node}.proc{self.id}"
+
+    # TODO: Remove and replace with self, InstanceProcedure should contain a reference to NodeType, not to InstanceNode
+    @property
+    def proc_identifier(self):
+        return 'PROC ' + self.node.type_name + '.' + self.name
 
 
 # A single instance of a node. A node might have multiple instances if the node
