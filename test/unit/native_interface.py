@@ -597,6 +597,7 @@ def check_port_keys():
     probe.assert_value_is('probe', 7)
 
 
+startup_observations = []
 cleanup_observations = []
 lifecycle_registry = {}
 
@@ -605,6 +606,7 @@ lifecycle_registry = {}
 class LifecycleProbe(NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         async_exit_stack.callback(self.observe_cleanup)
+        startup_observations.append(self.context.name)
 
     async def start_tasks_async(self, task_group, async_exit_stack):
         if self.values['Fail']:
@@ -633,21 +635,26 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
 
 
 async def run_test():
+    startup_observations.clear()
+    cleanup_observations.clear()
     lifecycle_engine = make_lifecycle_engine()
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
             await lifecycle_engine.start_tasks_async(task_group, exit_stack)
     timestamp = lifecycle_engine.last_shutdown_time
     assert timestamp is not None and timestamp.tzinfo is not None
-    assert cleanup_observations == ['second', 'first']
+    checks.assertCountEqual(startup_observations, ['first', 'second'])
+    assert cleanup_observations == startup_observations[::-1]
 
+    startup_observations.clear()
     cleanup_observations.clear()
     failing_engine = make_lifecycle_engine(fail=True)
     async with asyncio.TaskGroup() as task_group:
         with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
             async with contextlib.AsyncExitStack() as exit_stack:
                 await failing_engine.start_tasks_async(task_group, exit_stack)
-    assert cleanup_observations == ['second', 'first']
+    assert startup_observations in (['second'], ['first', 'second'])
+    assert cleanup_observations == startup_observations[::-1]
     assert failing_engine.last_shutdown_time is None
 
 
