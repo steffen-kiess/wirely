@@ -23,6 +23,9 @@ node type Nested {
   node sink: Std.DebugValuePrinter { Type: boolean }
 }
 
+node procedure_forward: ProcedureForward {}
+node procedure_repeated: ProcedureForward {}
+
 node type ProcedureForward {
   default output: value boolean;
 
@@ -41,3 +44,6 @@ node type ProcedureForward {
 connect nested -> sink;
 node nested: Nested {}
 node sink: Std.DebugValuePrinter { Type: boolean }
+
+connect procedure_forward, procedure_repeated -> procedure_sink;
+node procedure_sink: Std.And {}

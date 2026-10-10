@@ -43,6 +43,8 @@ class NodeType(model.Scope):
         self.temporary_nodes = {}
         self.libraries = {}
         self.assertions = []
+        self.pass2_done = False
+        self.pass2_in_progress = False
 
     @staticmethod
     def make(*args, source_position: typing.Optional[model.SourcePosition]):
@@ -151,6 +153,18 @@ class NodeType(model.Scope):
         self.parameters_by_name = self.parsed_parameters
 
     def compile_pass2(self, graph):
+        if self.pass2_done:
+            return
+        if self.pass2_in_progress:
+            raise model.ProgramError(self, f'Recursive node type instantiation of {self.fullname!r}')
+        self.pass2_in_progress = True
+        try:
+            self._compile_pass2()
+            self.pass2_done = True
+        finally:
+            self.pass2_in_progress = False
+
+    def _compile_pass2(self):
         procedures = []
         connections = []
         for decl in self.declarations:
@@ -181,6 +195,9 @@ class NodeType(model.Scope):
         # TODO: Validate parameters
 
     def create(self, *, name, graph, par_values, instantiation, register=True):
+        if self.pass2_in_progress:
+            raise model.ProgramError(instantiation, f'Recursive node type instantiation of {self.fullname!r}')
+        self.compile_pass2(self.parent_graph)
         # print('create', name, graph, par_values)
         node = model.InstanceNode(name=name, graph=graph, node_type=self, par_values=par_values,
                              instantiation=instantiation, register=register)

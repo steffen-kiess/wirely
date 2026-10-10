@@ -77,3 +77,16 @@ node type Probe {
   parameter Type: ValueType;
 }
 node probe: Probe { Type: 5 } // E: Expected Reference or BracketOperator as type name, got 5
+
+// TEST: direct recursive instantiation
+node type Recursive {
+  node child: Recursive {} // E: Recursive node type instantiation of 'Recursive'
+}
+
+// TEST: indirect recursive instantiation
+node type First {
+  node type Second {
+    node child: First {} // E: Recursive node type instantiation of 'First'
+  }
+  node child: Second {}
+}
