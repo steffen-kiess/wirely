@@ -559,8 +559,17 @@ class GraphView(QGraphicsView):
         self.context_menu.emit(graphic, position)
 
     def fit(self):
+        origin = self.mapFromScene(QPointF())
         rect = self.scene().itemsBoundingRect().adjusted(-40, -40, 40, 40)
-        self.setSceneRect(rect.united(QRectF(self.mapToScene(self.viewport().rect()).boundingRect())))
+        # Leave room around the viewport so Qt uses scrollbars rather than
+        # centering a scene that is only just smaller than the viewport.
+        transform = self.transform()
+        margin = 40 / math.hypot(transform.m11(), transform.m12())
+        visible = self.mapToScene(self.viewport().rect()).boundingRect().adjusted(-margin, -margin, margin, margin)
+        self.setSceneRect(rect.united(visible))
+        delta = self.mapFromScene(QPointF()) - origin
+        self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() + delta.x())
+        self.verticalScrollBar().setValue(self.verticalScrollBar().value() + delta.y())
 
 
 class GraphTab(QWidget):

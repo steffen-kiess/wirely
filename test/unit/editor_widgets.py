@@ -59,6 +59,30 @@ with tempfile.TemporaryDirectory() as directory:
     def at(position):
         return view.mapFromScene(position)
 
+    # Refreshes and changes to the graph bounds preserve the viewport at
+    # different zoom levels, even when the scene is smaller than the view.
+    for zoom in (1, 0.15, 0.6, 1.8, 4):
+        view.resetTransform()
+        view.scale(zoom, zoom)
+        origin = at(QPointF())
+        for _ in range(3):
+            window.refresh_views()
+            application.processEvents()
+            checks.assertEqual(at(QPointF()), origin)
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() - 13)
+        view.verticalScrollBar().setValue(view.verticalScrollBar().value() + 11)
+        origin = at(QPointF())
+        for position in ((100, 100), (-100, -100), (16, 10)):
+            window.edit(lambda position=position: window.program.move({Node(('printer',)): position}))
+            application.processEvents()
+            checks.assertEqual(at(QPointF()), origin)
+            window.undo()
+            application.processEvents()
+            checks.assertEqual(at(QPointF()), origin)
+        checks.assertEqual(document.text(), source)
+    view.resetTransform()
+    view.centerOn(scene.itemsBoundingRect().center())
+
     # The wheel zooms; zooming in and out again restores the scale.
     scale = view.transform().m11()
     wheel(view, 1)
@@ -71,8 +95,10 @@ with tempfile.TemporaryDirectory() as directory:
     start = at(printer.mapToScene(20, 8))
     x, y = map(snap, from_pixels(printer.pos().x() + 40, printer.pos().y() + 60))
     expected = f'position(x = {x:g}, y = {y:g})'
+    origin = at(QPointF())
     drag(view, start, start + QPoint(40, 60))
     checks.assertIn(expected, document.text())
+    checks.assertEqual(at(QPointF()), origin)
     window.workspaces.activate(tab)
     window.undo()
     checks.assertEqual(document.text(), source)
@@ -100,7 +126,9 @@ with tempfile.TemporaryDirectory() as directory:
         start = at(printer.mapToScene(20, 8))
         scene_delta = view.mapToScene(start + delta) - view.mapToScene(start)
         dx, dy = map(snap, from_pixels(scene_delta.x(), scene_delta.y()))
+        origin = at(QPointF())
         drag(view, start, start + delta)
+        checks.assertEqual(at(QPointF()), origin)
         for item_id, position in before.items():
             graphic = scene.items_by_id[item_id]
             checks.assertEqual(graphic.pos(), position + QPointF(dx * STEP, dy * STEP))
