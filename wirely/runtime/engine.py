@@ -225,7 +225,6 @@ class Engine:
             run_count, state_change_count, step_info = self.step()
             if state_change_count == 0:
                 now = wirely.MonotonicTime.current_time()
-                # TODO: This probably is not really used or tested currently
                 if self.fake_monotonic_time_offset is not None:
                     now += self.fake_monotonic_time_offset
 
