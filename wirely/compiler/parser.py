@@ -61,6 +61,7 @@ ast_classes = [
     blocks.DependsDeclaration,
     blocks.ProducesDeclaration,
     blocks.ProcedureBinding,
+    blocks.ProcedurePort,
     blocks.UsesDeclaration,
     blocks.StaticBinding,
     blocks.DeclarationLibrary,

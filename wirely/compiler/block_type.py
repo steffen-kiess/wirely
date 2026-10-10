@@ -32,6 +32,8 @@ class BlockType(blocks.Scope):
         self.block_type_implementations = {}
         self.procedures = {}
         self.node_declarations = {}
+        # Nodes, procedures, variables, and named connectors share names.
+        self.member_declarations = {}
         self.initializer = None
         self.variables = {}
         # TODO: Clarify what is the key here (name or input_name)
@@ -153,6 +155,9 @@ class BlockType(blocks.Scope):
             if isinstance(decl, blocks.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
+        # The root graph binds its procedures when compiling the program.
+        if self.parent_graph is not None:
+            blocks.ast.validate_members(self)
 
         # TODO: Allow interfaces without implementations?
         # if self.name.id_str not in graph.block_type_implementations:
@@ -198,6 +203,7 @@ class BlockType(blocks.Scope):
 
         # TODO: Probably more stuff should be done at an earlier stage
         state_variables = {}
+        temporaries = {}
         for variable in self.variables.values():
             if isinstance(variable, blocks.ast.DeclarationStateVariable):
                 var_type = self.resolve_type(variable.var_type)
@@ -205,110 +211,84 @@ class BlockType(blocks.Scope):
                 block_var = blocks.Block.StateVariable(
                     block, variable.name.id_str, var_type, variable.initial_value,
                 )
-                if hasattr(var_type, 'block_var'):
-                    raise Exception("hasattr(var_type, 'block_var')")
                 copy_attributes(block_var, variable)
-                variable.block_var = block_var
                 state_variables[variable.name.id_str] = block_var
             elif isinstance(variable, blocks.ast.DeclarationTemporaryVariable):
                 var_type = self.resolve_type(variable.var_type, par_values=block.parameter_values)
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = var_type  # TODO: ?
                 block_var = blocks.Block.Temporary(block, variable.name.id_str, var_type, impl_var_type=impl_var_type)
-                if hasattr(var_type, 'block_var'):
-                    raise Exception("hasattr(var_type, 'block_var')")
                 copy_attributes(block_var, variable)
-                variable.block_var = block_var
+                temporaries[variable.name.id_str] = block_var
             else:
                 raise Exception(f'Got unexpected variable: {variable}')
+
+        # Each procedure output port writes its state, or else its own temporary.
+        block.port_storage = {}
+        for procedure in self.procedures.values():
+            for key, port in procedure.output_ports.items():
+                if port.state is not None:
+                    block.port_storage[port] = state_variables[port.state.name]
+                    continue
+                impl_var_type = port.var_type
+                if blocks.connection_kind(port) == blocks.ConnectionKind.Event:
+                    impl_var_type = blocks.types.TypeOption(port.var_type)
+                temporary = blocks.Block.Temporary(block, f'{procedure.name.id_str}.{key}', port.var_type,
+                                                   impl_var_type=impl_var_type, port=port)
+                temporary.conn_spec = port.conn_spec
+                block.port_storage[port] = temporary
+
+        def source(member):
+            """Map a connection source in this type to this instance."""
+            if isinstance(member, blocks.BlockInput):
+                return block.custom_inputs[member]
+            if isinstance(member, blocks.BlockTemporaryVariable):
+                return temporaries[member.name]
+            if isinstance(member, blocks.StateRead):
+                return blocks.StateRead(state_variables[member.name], member.phase, member.reference)
+            if isinstance(member, blocks.ProcedureOutputPort):
+                storage = block.port_storage[member]
+                if isinstance(storage, blocks.Block.StateVariable):
+                    return blocks.StateRead(storage, 'new', member.binding)
+                return storage
+            if isinstance(member, blocks.Block.Output):
+                return member
+            raise Exception(f'Got unknown source: {member}')
+
+        for name, temporary in temporaries.items():
+            temporary.alias_of = source(self.block_temporary_variables[name].connected_source)
 
         block.initializer_sources = {}
         if self.initializer is not None:
             depends = self.initializer.depends
             for binding, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
                 if isinstance(dep, blocks.BlockInput):
-                    source = block.custom_inputs[dep]
+                    source_member = block.custom_inputs[dep]
                 elif isinstance(dep, blocks.Block):
-                    source = dep.block_outputs_byname['']
+                    source_member = dep.block_outputs_byname['']
                 else:
-                    source = dep
-                block.initializer_sources[binding.key] = (source, binding)
+                    source_member = dep
+                block.initializer_sources[binding.key] = (source_member, binding)
 
         # TODO: Probably more stuff should be done at an earlier stage
         for procedure in self.procedures.values():
-            # print(procedure, procedure.depends.get_resolved_dependencies(), procedure.produces.get_resolved_outputs())
             sources = {}
-            targets = {}
-            inputs = []
-            procedures = {}
-            for binding, dep in zip(procedure.depends.dependencies, procedure.depends.get_resolved_dependencies()):
-                # print(type(dep))
-                # TODO: Clean up
-                if isinstance(dep, blocks.DeclarationTemporaryVariable):
-                    input = dep.block_var
-                    inputs.append(input)
-                    sources[binding.key] = input
-                elif isinstance(dep, blocks.BlockInput):
-                    input = block.custom_inputs[dep]
-                    inputs.append(input)
-                    sources[binding.key] = input
-                elif isinstance(dep, blocks.Block):
-                    input = dep.block_outputs_byname['']
-                    inputs.append(input)
-                    sources[binding.key] = input
-                elif isinstance(dep, blocks.StateRead):
-                    input = blocks.StateRead(state_variables[dep.state.name.id_str], dep.phase, dep.reference)
-                    inputs.append(input)
-                    sources[binding.key] = input
-                elif isinstance(dep, (blocks.Block.Temporary, blocks.Block.Output)):
-                    inputs.append(dep)
-                    sources[binding.key] = dep
+            for key, port in procedure.input_ports.items():
+                if port.connected_source is not None:
+                    sources[key] = source(port.connected_source)
                 else:
-                    raise Exception(f'Got unknown dependency: {dep}')
-            outputs = []
-            for binding, out in zip(procedure.produces.outputs, procedure.produces.get_resolved_outputs()):
-                # print(type(out))
-                if isinstance(out, blocks.ast.DeclarationStateVariable):
-                    output = out.block_var
-                    outputs.append(output)
-                    targets[binding.key] = output
-                elif isinstance(out, blocks.ast.DeclarationTemporaryVariable):
-                    output = out.block_var
-                    outputs.append(output)
-                    targets[binding.key] = output
-                elif isinstance(out, blocks.BlockOutput):
-                    if not procedure.is_native and isinstance(out.conn_spec, blocks.ConnectorSpecificationResource):
-                        raise blocks.ProgramError(binding, 'Procedures cannot produce resources')
-                    # TODO: Clean up
-                    output = block.custom_outputs[out]
-                    outputs.append(output)
-                    targets[binding.key] = output
-                    # print(type(out.inp))
-                    # print(out.inp)
-                    # # outputs.append(out.inp)
-                    # # targets[out.name] = out.inp
-                    # temp = blocks.Block.Temporary(block, procedure.name.id_str + '__' + out.name, out.inp.var_type, impl_var_type=...)
-                    # outputs.append(temp)
-                    # targets[out.name] = temp
-                    # # TODO: Remove this, connecting the different graphs should be done at instantiation time, not here
-                    # # out.inp.connect(temp)
-                    # # if out.inp.connected_source is not None:
-                    # #     raise Exception('out.inp.connected_source is not None')
-                    # # out.inp.connected_source = temp
-                    # # TODO: This is a hack to avoid a "Input graph1.Delay.default output. is not connected" exception, this should not be needed because graph1.Delay (without instantiation) should not be used for anything
-                    # out.inp.connected_source = temp
-                else:
-                    raise Exception(f'Unknown output: {out}')
+                    sources[key] = blocks.Block.PortSources(
+                        block, f'{procedure.name.id_str}.{key}',
+                        [source(member) for member in port.sources], conn_spec=port.conn_spec,
+                    )
+            targets = {key: block.port_storage[port] for key, port in procedure.output_ports.items()}
 
             static_context = blocks.StaticProcedureContext(sources=sources, targets=targets, name=block.name, block_parameter_values={key.name.id_str: value for key, value in block.par_values.items()})
 
-            block_procedure = blocks.Block.Procedure(
-                block, inputs, outputs, name=procedure.name.id_str,
+            blocks.Block.Procedure(
+                block, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
                 static_context=static_context, declaration_procedure=procedure,
             )
-            if procedure in procedures:
-                raise Exception('procedure in procedures')
-            procedures[procedure] = block_procedure
 
         # print(block)
         # print(block.block_inputs)

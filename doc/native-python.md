@@ -77,14 +77,14 @@ resource supplies a tuple of these objects in connection order. Resource
 identity is stable, and changes inside an object do not trigger a procedure
 rerun.
 
-`context.set_output(name, value)` writes a procedure output: an output
-connector, a temporary, or a state variable. Write every declared output
-once per invocation, including `None` for no event. To preserve a state
-variable, write its previous value again.
+`context.set_output(name, value)` writes a procedure output port. Write
+every declared output once per invocation, including `None` for no event.
+To preserve a state variable, write its previous value again.
 
-Input and output names come from the `.wrl` `depends on` and `produces`
-clauses. See [state and execution](language.md#state-and-execution) for
-aliases, dependencies, and state access.
+Input and output names are the port names or `as "key"` strings of the
+`.wrl` `depends on` and `produces` clauses. See
+[state and execution](language.md#state-and-execution) for ports and state
+access.
 
 ## Static values and prepared data
 

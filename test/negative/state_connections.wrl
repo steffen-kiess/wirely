@@ -22,7 +22,7 @@ node type Invalid {
   connect saved -> default output; // E: explicitly reference .old or .new
 }
 
-// TEST: unproduced_state
+// TEST: state_without_source
 resource type Handle;
 node type Sink {
   default input: value uint8;
@@ -34,7 +34,7 @@ node type ResourceSink {
   default input: resource Handle;
 }
 node type Invalid {
-  state saved: boolean = false; // E: State 'saved' has no producer
+  state saved: boolean = false; // E: State 'saved' has no source
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -176,7 +176,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.old; // E: Unable to find target block
+  connect source -> saved.old; // E: Cannot connect to a member of variable 'saved'
 }
 
 // TEST: nested_state_reference
@@ -220,7 +220,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.new; // E: Unable to find target block
+  connect source -> saved.new; // E: Cannot connect to a member of variable 'saved'
 }
 
 // TEST: unknown_state_phase

@@ -34,6 +34,38 @@ node type Probe {
   default output: value boolean; // E: Duplicate output 'default output'
 }
 
+// TEST: node and procedure share a name
+node type Inner {}
+node type Probe {
+  node value: Inner {} // H: Previous declaration was here
+  native procedure value; // E: Duplicate name 'value'
+}
+
+// TEST: procedure and state share a name
+node type Probe {
+  native procedure value; // H: Previous declaration was here
+  state value: boolean = false; // E: Duplicate name 'value'
+}
+
+// TEST: temporary and node share a name
+node type Inner {}
+node type Probe {
+  temporary value: boolean; // H: Previous declaration was here
+  node value: Inner {} // E: Duplicate name 'value'
+}
+
+// TEST: input and temporary share a name
+node type Probe {
+  input Value: value boolean; // H: Previous declaration was here
+  temporary Value: boolean; // E: Duplicate name 'Value'
+}
+
+// TEST: input and output share a name
+node type Probe {
+  input Value: value boolean; // H: Previous declaration was here
+  output Value: value boolean; // E: Duplicate name 'Value'
+}
+
 // TEST: literal of the wrong type
 node type Probe {
   parameter Flag: boolean;

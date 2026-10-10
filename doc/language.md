@@ -124,6 +124,8 @@ Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
 unique. Namespaces contain node, enum, struct, and resource types or other
 namespaces, not instances.
+Nodes, procedures, state and temporary variables, and named connectors in
+one node type, or at the top level, share one namespace.
 A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
@@ -319,11 +321,12 @@ Data connectors have a kind and a type: `value boolean` carries the current
 value, while `event boolean` carries an occurrence with a boolean payload.
 An event may be absent in a step. Source and target must have the same kind
 and type; Wirely does not automatically convert them. Ordinary inputs,
-including resource inputs, need exactly one source. A `multi value T` or
-`multi event T` input accepts any number of sources;
-`connect a, b -> target;` connects both. `Std.And` is an example of a multi
-input. Each output of a node type needs a producing procedure or a
-connection inside the type.
+including resource inputs, and the outputs of a node type need exactly one
+source. A `multi value T` or `multi event T` input accepts any number of
+sources; `connect a, b -> target;` connects both. `Std.And` is an example
+of a multi input. Inside a type, connections can also target temporaries,
+state, and procedure ports, as described in
+[State and execution](#state-and-execution).
 
 ### Opaque resource connectors
 
@@ -361,11 +364,10 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 ## State and execution
 
 Inside a node type, `state name: Type = value;` declares a persistent value
-with an initial value. `temporary name: Type;` holds a value calculated
-within a step. Each state and temporary variable needs exactly one
-producing procedure. Procedures declare which inputs or temporaries they
-`depend on` and which connectors or variables they `produce`. Procedures
-run in dependency order; dependencies must be acyclic.
+with an initial value. `temporary name: Type;` names a value calculated
+within a step. A procedure reads its input ports, declared with
+`depends on`, and writes its output ports, declared with `produces`.
+Procedures run in dependency order; dependencies must be acyclic.
 
 Native procedures accept `uses` after `produces`; native initializers accept
 it after `depends on`. Bind node parameters and constants by name, or use
@@ -374,11 +376,11 @@ it after `depends on`. Bind node parameters and constants by name, or use
 for binding syntax and Python access. Procedures with Wirely bodies refer
 to parameters and constants directly and do not accept `uses`.
 
-Use `reference as name` to name a procedure input or output. An unaliased
-simple identifier uses its own name. Default connectors and complex
-references require aliases. Names must be unique within each clause.
-Native procedures also accept `as "key"` for Python keys.
-For example:
+A port is either bound or typed. A bound port, `reference as name`, is
+connected to the reference: from a connection source in `depends on`, to a
+connection target in `produces`. An unaliased simple identifier uses its
+own name. Default connectors and complex references require aliases.
+Native procedures also accept `as "key"` for Python keys. For example:
 
 ```wirely
 procedure run
@@ -390,19 +392,42 @@ procedure run
 }
 ```
 
+A typed port, `name: value Type`, `name: event Type`, or
+`name: resource Type`, is wired with `connect`. Input ports can be `multi`.
+Refer to a port as `procedure.port`, in `connect` or in a bound port:
+
+```wirely
+procedure invert
+  depends on value: value boolean
+  produces inverted: value boolean
+{
+  inverted = !value;
+}
+procedure forward
+  depends on invert.inverted as value
+  produces default output as output
+{
+  output = value;
+}
+connect default input -> invert.value;
+```
+
+Port names must be unique within each clause. Each input port needs exactly
+one source unless it is `multi`. A temporary takes the value of its one
+source. State takes its new value from one procedure output port; other
+targets of that port receive the new value. Output ports may have any
+number of targets.
+
 `last_value.old` reads the previous step's state without depending on this
-step's writer. Dependencies can also name direct child outputs, such as
-`sensor.Value as value`. Output destinations are local output connectors,
-temporaries, or state variables. Arbitrary expressions and deeper paths
-are not supported.
+step's writer.
 
 Use `connect last_value.old -> target;` to feed local state into a
 `value Type` input or output. It reads the initial value on the first step
 and the previous step's state thereafter. Similarly, `connect name -> target;`
 feeds the value of a temporary calculated this step.
 
-`last_value.new` reads the value produced this step. Use it in procedure
-dependencies or as a connection source. Its writer must run in the same
+`last_value.new` reads the value produced this step. Use it as a
+connection source or bound input port. Its writer must run in the same
 or an earlier stage, and the reader depends on that writer. If the
 writer is skipped because its inputs are unchanged, it supplies the
 retained state value.
@@ -435,10 +460,10 @@ node type Select {
 }
 ```
 
-Inside the body, use input aliases and runtime-valued parameter and constant
-names as values. Assign each output exactly once; outputs cannot be read.
-Input, output, parameter, and constant names must be distinct. Alias state
-reads and writes separately when a procedure uses both.
+Inside the body, use input port names and runtime-valued parameter and
+constant names as values. Assign each output port exactly once; outputs
+cannot be read. Port, parameter, and constant names must be distinct. Use
+separate ports to read and write state.
 
 `let` creates an immutable local. A later `let` may reuse a local name;
 locals cannot shadow inputs, outputs, parameters, or constants. A block's

@@ -148,6 +148,69 @@ def check_temporary_connections():
     engine.assert_is_idle()
 
 
+def check_procedure_ports():
+    # Connections wire procedure ports to each other, variables, and children.
+    program = compile_program('''node type Copy {
+      default input: value boolean;
+      default output: value boolean;
+      procedure run depends on default input as input produces default output as output {
+        output = input;
+      }
+    }
+    node type Ports {
+      default input: value boolean;
+      output Inverted: value boolean;
+      output Twice: value boolean;
+      output Latest: value boolean;
+      output Previous: value boolean;
+      output Copied: value boolean;
+      output Fed: value boolean;
+      state last: boolean = false;
+      temporary named: boolean;
+      node copy: Copy {}
+      node fed: Copy {}
+
+      procedure invert depends on value: value boolean produces inverted: value boolean {
+        inverted = !value;
+      }
+      procedure again depends on invert.inverted as value produces result: value boolean {
+        result = !value;
+      }
+      procedure remember depends on value: value boolean produces next: value boolean {
+        next = value;
+      }
+      procedure feed depends on default input as value produces fed as copied {
+        copied = value;
+      }
+
+      connect default input -> invert.value;
+      connect invert.inverted -> Inverted;
+      connect invert.inverted -> copy;
+      connect copy -> Copied;
+      connect again.result -> named;
+      connect named -> Twice;
+      connect invert.inverted -> remember.value;
+      connect remember.next -> last;
+      connect remember.next -> Latest;
+      connect last.old -> Previous;
+      connect fed -> Fed;
+    }
+    node source: Std.DebugValueSource { Type: boolean }
+    node p: Ports {}
+    connect source -> p;
+    ''', add_std=True)
+    assert 'p:invert.inverted' in program.temporaries.variables
+    engine = Engine(program)
+    assert engine.get_variable('p.named') is engine.get_variable('p.Twice')
+    source = engine.get_native_state('source')
+    for value, previous in [(True, False), (False, False), (True, True)]:
+        source.set_value(value)
+        engine.step()
+        for name, expected in [('p.Inverted', not value), ('p.Copied', not value), ('p.Twice', value),
+                               ('p.Latest', not value), ('p.Previous', previous), ('p.Fed', value)]:
+            engine.assert_value_is(name, expected)
+
+
 def check_generic_copies():
     # Generic copies preserve options and structs without exposing their contents.
     for value_type, initial in [('Option[boolean]', 'Some(true)'),
@@ -520,6 +583,7 @@ check_main_program()
 check_pure_stages()
 check_output_storage()
 check_temporary_connections()
+check_procedure_ports()
 check_generic_copies()
 check_mixed_procedures()
 check_root_only()

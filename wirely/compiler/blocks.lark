@@ -55,6 +55,11 @@ static_binding: value ["as" identifier | "as" string_constant]
 procedure_binding: reference -> procedure_binding
                  | reference "as" string_constant -> procedure_binding
                  | reference "as" identifier -> procedure_binding
+                 | identifier ":" port_specification -> procedure_port
+
+// Port types use the condition grammar, so a struct type can precede a body.
+port_specification: list_specifier connection_kind condition -> connector_specification_data
+                  | list_specifier "resource" reference -> connector_specification_resource
 
 block_parameter_list: inner_attribute* _separated_empty{block_parameter, ","} -> file_input
 
@@ -151,6 +156,7 @@ _else_branch: expression_block | if_expression
                | string_constant -> copy
                | "(" value ")" -> copy
                | condition_atom "(" value_list ")" -> function_call__create
+               | condition_atom "[" value "]" -> bracket_operator
                | condition_postfix "." identifier -> property_access
                | expression_block
 

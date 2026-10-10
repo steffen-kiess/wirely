@@ -2,6 +2,43 @@
 
 ## 0.1.3 (Unreleased)
 
+### Breaking changes and migration
+
+#### Shared member names
+
+Nodes, procedures, state and temporary variables, and named connectors in
+a node type or at the top level share one namespace. Rename members that
+share a name, including an input and an output with the same name.
+
+#### Procedure outputs and temporaries
+
+Procedures cannot produce resource outputs.
+
+Values are stored per procedure output port, and a declared temporary is
+another name for its source. Temporary symbols are therefore always
+`<node>:<procedure>.<port>`; declared temporaries remain available by name
+as variable aliases.
+
+### Added
+
+- Procedure ports can be declared with a type and wired with `connect`.
+  Refer to a port as `procedure.port`, also in bound ports of other
+  procedures:
+
+  ```wirely
+  procedure invert
+    depends on value: value boolean
+    produces inverted: value boolean
+  {
+    inverted = !value;
+  }
+  connect default input -> invert.value;
+  connect invert.inverted -> default output;
+  ```
+- Connections can target temporaries and state; state takes its value from
+  a procedure output port. Bound output ports can target child inputs.
+- `if` conditions accept type arguments, as in `T == Option[uint8]`.
+
 ## 0.1.2 - 2026-10-10
 
 ### Breaking changes and migration

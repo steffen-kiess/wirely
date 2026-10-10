@@ -121,7 +121,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run depends on Flag produces default output as output { // E: Could not find dependency
+  procedure run depends on Flag produces default output as output { // E: Unable to find dependency block 'Flag'
     output = Flag;
   }
 }

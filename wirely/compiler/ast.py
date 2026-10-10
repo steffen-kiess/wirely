@@ -515,6 +515,14 @@ class ResolvedReferenceBlockMember(SourceElement):
                 self.member = graph.block_outputs[self.block_name_str]
                 # TODO: This is a hack
                 return
+            variable = graph.variables.get(self.block_name_str)
+            if variable is not None:
+                if self.member_name is not None:
+                    raise ProgramError(self.member_name, f'Cannot connect to a member of variable {self.block_name_str!r}')
+                is_state = isinstance(variable, DeclarationStateVariable)
+                variables = graph.block_state_variables if is_state else graph.block_temporary_variables
+                self.member = variables[self.block_name_str]
+                return
         if ref_type == RefType.BlockOutput:
             variable = graph.variables.get(self.block_name_str)
             if isinstance(variable, DeclarationStateVariable):
@@ -533,6 +541,11 @@ class ResolvedReferenceBlockMember(SourceElement):
                 self.member = graph.block_temporary_variables[self.block_name_str]
                 # TODO: This is a hack
                 return
+
+        procedure = graph.procedures.get(self.block_name_str)
+        if procedure is not None:
+            self.member = procedure.resolve_port(self.block_name, self.member_name, ref_type == RefType.BlockInput)
+            return
 
         if self.block_name_str not in graph.blocks:
             raise ProgramError(self.block_name, f'Unable to find {purpose} block {self.block_name_str!r}')
@@ -1132,7 +1145,12 @@ class DeclarationConnector(Declaration):
     # TODO: Clean up compilation passes
 
     def compile_pass1(self, graph):
-        pass
+        if self.name is None:
+            return
+        previous = graph.member_declarations.get(self.name.id_str)
+        # create_io reports duplicate connectors of the same kind.
+        if not (isinstance(previous, DeclarationConnector) and previous.conn_type == self.conn_type):
+            register_member(graph, self.name, self)
 
     def compile_pass1_5(self, graph):
         pass
@@ -1301,6 +1319,7 @@ class DeclarationBlockInstantiation(Declaration):
             raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
                 CompilerHint(graph.node_declarations[name], 'Previous node was here'),
             ])
+        register_member(graph, self.name, self)
         graph.node_declarations[name] = self
 
     def compile_pass1_5(self, graph):
@@ -1425,13 +1444,14 @@ class DeclarationStateVariable(Declaration):
                 CompilerHint(graph.variables[name], 'Previous variable was here'),
             ]
             raise ProgramError(self, f'Duplicate variable name {name} in {graph}', hints=hints)
+        register_member(graph, self.name, self)
         graph.variables[name] = self
 
     def compile_pass1_5(self, graph):
         pass
 
     def compile_pass2(self, graph):
-        check_producer(graph, self, 'State')
+        pass
 
     # TODO: Clean up compilation passes
 
@@ -1446,10 +1466,25 @@ class DeclarationStateVariable(Declaration):
         copy_attributes(variable, self)
 
 
-def check_producer(graph, variable, kind):
-    if not any(variable in procedure.produces.get_resolved_outputs()
-               for procedure in graph.procedures.values()):
-        raise ProgramError(variable, f'{kind} {variable.name_str!r} has no producer')
+def validate_members(graph):
+    """Require a source for each procedure input port and variable."""
+    for procedure in graph.procedures.values():
+        procedure.validate_ports()
+    for name, variable in graph.variables.items():
+        is_state = isinstance(variable, DeclarationStateVariable)
+        node = (graph.block_state_variables if is_state else graph.block_temporary_variables)[name]
+        if node.connected_source is None:
+            raise ProgramError(variable, f'{"State" if is_state else "Temporary"} {name!r} has no source')
+
+
+def register_member(graph, name, declaration):
+    """Give node, procedure, variable, and connector names one namespace."""
+    previous = graph.member_declarations.get(name.id_str)
+    if previous is not None:
+        raise ProgramError(name, f'Duplicate name {name.id_str!r}', hints=[
+            CompilerHint(previous, 'Previous declaration was here'),
+        ])
+    graph.member_declarations[name.id_str] = declaration
 
 
 class DeclarationTemporaryVariable(Declaration):
@@ -1468,13 +1503,14 @@ class DeclarationTemporaryVariable(Declaration):
                 CompilerHint(graph.variables[name], 'Previous variable was here'),
             ]
             raise ProgramError(self, f'Duplicate variable name {name} in {graph}', hints=hints)
+        register_member(graph, self.name, self)
         graph.variables[name] = self
 
     def compile_pass1_5(self, graph):
         pass
 
     def compile_pass2(self, graph):
-        check_producer(graph, self, 'Temporary')
+        pass
 
     # TODO: Clean up compilation passes
 
@@ -1524,6 +1560,21 @@ class ProcedureBinding(SourceElement):
         return names[0]
 
 
+class ProcedurePort(SourceElement):
+    """A typed procedure port, which connections supply or consume."""
+
+    def __init__(self, name: Identifier, conn_spec: ConnectorSpecification, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.conn_spec = conn_spec
+        self.reference = None
+        self.alias = None
+
+    @property
+    def key(self):
+        return self.name.id_str
+
+
 def check_procedure_binding_keys(bindings):
     keys = {}
     for binding in bindings:
@@ -1537,7 +1588,7 @@ def check_procedure_binding_keys(bindings):
 
 class DependsDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *dependencies: ProcedureBinding, source_position: SourcePosition):
+    def __init__(self, *dependencies: SourceElement, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.dependencies = dependencies
 
@@ -1600,47 +1651,13 @@ class DependsDeclaration(SourceElement):
 
 class ProducesDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *outputs: ProcedureBinding, source_position: SourcePosition):
+    def __init__(self, *outputs: SourceElement, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.outputs = outputs
-
-        self.resolved_outputs_value = None
-        self.resolved_outputs_value_in_process = False
 
     def compile_pass1(self, graph, proc):
         self.graph = graph
         self.proc = proc
-
-    def get_resolved_outputs(self):
-        if self.resolved_outputs_value is not None:
-            return self.resolved_outputs_value
-        if self.resolved_outputs_value_in_process:
-            raise Exception('self.resolved_outputs_value_in_process')
-        self.resolved_outputs_value_in_process = True
-
-        resolved = []
-        check_procedure_binding_keys(self.outputs)
-        for binding in self.outputs:
-            out = binding.reference
-            if out.length != 1:
-                raise ProgramError(out, f'Output does not have exactly one component')
-            identifier = out.identifiers[0]
-            name = identifier.id_str
-            # TODO: Should not be done using blocks
-            if name in self.graph.variables:
-                res = self.graph.variables[name]
-            elif name in self.graph.block_outputs:
-                res = self.graph.block_outputs[name]
-            else:
-                raise ProgramError(out, f'Could not find output')
-            resolved.append(res)
-
-        self.resolved_outputs_value = resolved
-        return self.resolved_outputs_value
-
-    def compile_pass2(self, graph, proc):
-        # Make sure get_resolved_outputs() is executed at some point
-        self.get_resolved_outputs()
 
 
 def dependency_is_resource(dependency):
@@ -1703,6 +1720,9 @@ class DeclarationInitializer(Declaration):
         self.depends.compile_pass1(graph, self)
 
     def compile_pass2(self, graph):
+        for binding in self.depends.dependencies:
+            if isinstance(binding, ProcedurePort):
+                raise ProgramError(binding, 'Initializer dependencies must reference resources')
         self.depends.compile_pass2(graph, self)
         if self.uses is not None:
             self.uses.check(graph)
@@ -1759,6 +1779,7 @@ class DeclarationProcedure(Declaration):
                 CompilerHint(graph.procedures[name], 'Previous procedure was here'),
             ]
             raise ProgramError(self, f'Duplicate procedure name {name} in {graph}', hints=hints)
+        register_member(graph, self.name, self)
         for previous in graph.procedures.values():
             if self.is_native and previous.is_native and previous.python_name == self.python_name:
                 raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name {self.python_name!r}', hints=[
@@ -1781,16 +1802,47 @@ class DeclarationProcedure(Declaration):
             self.compile_interface(graph)
 
     def compile_interface(self, graph):
-        self.depends.compile_pass2(graph, self)
-        self.produces.compile_pass2(graph, self)
+        # Bound ports connect to the endpoints their bindings reference.
+        for binding in self.depends.dependencies:
+            if isinstance(binding, ProcedureBinding):
+                port = self.input_ports[binding.key]
+                with binding.context:
+                    blocks.connect(port.counterpart, port, binding)
+        for binding in self.produces.outputs:
+            if isinstance(binding, ProcedureBinding):
+                port = self.output_ports[binding.key]
+                if isinstance(port.conn_spec, ConnectorSpecificationResource):
+                    raise ProgramError(binding, 'Procedures cannot produce resources')
+                with binding.context:
+                    blocks.connect(port, port.counterpart, binding)
         if self.uses is not None:
             self.uses.check(graph)
         if self.stage.stage == RunStage.INPUT:
-            for dep in self.depends.get_resolved_dependencies():
-                if not dependency_is_resource(dep):
+            for port in self.input_ports.values():
+                if not isinstance(port.conn_spec, ConnectorSpecificationResource):
                     raise ProgramError(self.stage, f'Procedure name {self.name} is declared as input stage but depends on something else', hints=[
                         CompilerHint(self.depends, 'Dependencies declared here'),
                     ])
+
+    def resolve_port(self, name, port_name, is_input):
+        """Resolve a reference to a port, given as procedure and port name."""
+        procedure = name.id_str
+        if port_name is None:
+            raise ProgramError(name, f'Procedure references require a port, as in {procedure}.port')
+        ports, others = ((self.input_ports, self.output_ports) if is_input
+                         else (self.output_ports, self.input_ports))
+        port = ports.get(port_name.id_str)
+        if port is None:
+            if port_name.id_str in others:
+                direction = 'output' if is_input else 'input'
+                raise ProgramError(port_name, f'Port {port_name.id_str!r} of procedure {procedure!r} is an {direction}')
+            raise ProgramError(port_name, f'Unable to find port {port_name.id_str!r} of procedure {procedure!r}')
+        return port
+
+    def validate_ports(self):
+        for port in self.input_ports.values():
+            if not port.is_list and port.connected_source is None:
+                raise ProgramError(port.binding, f'Input port {port.name!r} of procedure {self.name.id_str!r} has no source')
 
     # TODO: Clean up compilation passes
 
@@ -1798,7 +1850,42 @@ class DeclarationProcedure(Declaration):
         pass
 
     def create_io(self, new_graph):
-        pass
+        check_procedure_binding_keys(self.depends.dependencies)
+        check_procedure_binding_keys(self.produces.outputs)
+        self.input_ports = {
+            binding.key: self.create_port(new_graph, binding, is_input=True)
+            for binding in self.depends.dependencies
+        }
+        self.output_ports = {
+            binding.key: self.create_port(new_graph, binding, is_input=False)
+            for binding in self.produces.outputs
+        }
+
+    def create_port(self, graph, binding, *, is_input):
+        port_type = blocks.ProcedureInputPort if is_input else blocks.ProcedureOutputPort
+        if isinstance(binding, ProcedureBinding):
+            ref_type = RefType.BlockOutput if is_input else RefType.BlockInput
+            purpose = 'dependency' if is_input else 'destination'
+
+            def counterpart():
+                with binding.context:
+                    return binding.reference.resolve(graph, ref_type, purpose).member
+            return port_type(graph, self, binding, counterpart=counterpart)
+
+        spec = binding.conn_spec
+        if spec.list_spec.is_list and not is_input:
+            raise ProgramError(spec, 'Got multi specifier for non-input')
+        if isinstance(spec, ConnectorSpecificationData):
+            var_type = graph.resolve_type(spec.ty)
+            check_runtime_type(var_type, spec)
+            resource_type = None
+        else:
+            if not is_input:
+                raise ProgramError(binding, 'Procedures cannot produce resources')
+            var_type = None
+            resource_type = graph.resolve_resource_type(spec.ty)
+        specification = blocks.PortSpecification(var_type, spec, resource_type, spec.list_spec.is_list)
+        return port_type(graph, self, binding, specification=specification)
 
 
 # TODO: Should this to some extend be merged with BlockType? Should there be a common base class?

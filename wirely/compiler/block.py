@@ -86,11 +86,10 @@ class Block(blocks.Node):
             if (isinstance(output.conn_spec, blocks.ConnectorSpecificationResource)
                     or output.block_output.connected_source is not None):
                 continue
-            if output.orig_temporary.producer is None:
-                connector = 'Default output' if output.name == '' else f'Output {output.name!r}'
-                raise blocks.ProgramError(output.conn_spec, f'{connector} has no producer', hints=[
-                    blocks.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
-                ])
+            connector = 'Default output' if output.name == '' else f'Output {output.name!r}'
+            raise blocks.ProgramError(output.conn_spec, f'{connector} has no source', hints=[
+                blocks.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
+            ])
 
     # TODO: Clean up
     @property
@@ -263,7 +262,7 @@ class Block(blocks.Node):
 
         def connect(self, output):
             # TODO: Clean up class structure for value sources / targets
-            if not isinstance(output, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, blocks.StateRead)):
+            if not isinstance(output, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, blocks.StateRead, blocks.ProcedureOutputPort)):
                 raise Exception('output parameter value is not a data or resource source')
             if self.is_list:
                 # TODO: Clean up
@@ -285,7 +284,6 @@ class Block(blocks.Node):
     # TODO: Handle var_type == None better
     # TODO: Clean up, move more functionality to BlockOutput
     class Output(Target):
-        # TODO: Allow creating Output without Temporary?
         def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, input_dependencies=[], *, block_output: blocks.BlockOutput):
             Block.Member.__init__(self, block, name)
             if var_type is not None and not isinstance(var_type, blocks.types.Type):
@@ -317,12 +315,6 @@ class Block(blocks.Node):
                     raise Exception('input_dependencies parameter value is for another block')
                 self.input_dependencies.append(dependency)
 
-            if isinstance(self.conn_spec, blocks.ConnectorSpecificationData):
-                # The producing procedure renames this to <procedure>.<output key>.
-                self.temporary = Block.Temporary(block, name, var_type, impl_var_type=self.impl_var_type, output=self)
-                # TODO: Hack
-                self.orig_temporary = self.temporary
-
             self.block.block_outputs.append(self)
             if self.name in self.block.block_outputs_byname:
                 raise Exception(f'Duplicate output name {name!r}')
@@ -345,9 +337,12 @@ class Block(blocks.Node):
 
     # TODO: Allow both temporaries and output values to be references to other values
     class Temporary(Source, Target):
-        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, *, impl_var_type, output=None):
+        def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, *, impl_var_type, port=None):
             Block.Member.__init__(self, block, name)
-            self.output = output  # The output stored here, or None for declared temporaries.
+            # The procedure output port stored here, or None for declared temporaries.
+            self.port = port
+            # The source a declared temporary refers to.
+            self.alias_of = None
             if not isinstance(var_type, blocks.types.Type):
                 raise Exception('var_type parameter is not a Type')
 
@@ -369,8 +364,21 @@ class Block(blocks.Node):
         # TODO: Remove and replace with self, Temporary should contains a reference to BlockType, not to Block
         @property
         def var_identifier(self):
-            separator = '.' if self.output is None else ':'
+            separator = '.' if self.port is None else ':'
             return 'TEMP ' + self.block.type_name + separator + self.name
+
+    class PortSources(Source):
+        """The sources connected to a multi procedure port."""
+
+        def __init__(self, block: 'Block', name: str, members, *, conn_spec):
+            Block.Member.__init__(self, block, name)
+            self.members = members
+            self.conn_spec = conn_spec
+            self.is_list = True
+
+        @property
+        def temporary(self):
+            raise Exception('Trying to get temporary for list')
 
     class StateVariable(Source, Target):
         def __init__(self, block: 'Block', name: str, var_type: blocks.types.Type, initial_value):
@@ -441,19 +449,12 @@ class Block(blocks.Node):
                 # TODO: Clean up temporary / output stuff
                 previous = output.temporary.producer
                 if previous is not None:
-                    if isinstance(output, Block.Output):
-                        target = 'Default output' if output.name == '' else f'Output {output.name!r}'
-                    else:
-                        target = f'Variable {output.name!r}'
+                    target = f'Variable {output.name!r}'
                     raise blocks.ProgramError(
                         declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
                         hints=[blocks.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
                 # print(f'Setting output for {output} / {output.temporary}')
                 output.temporary.producer = self
-
-            for key, target in static_context._targets.items():
-                if isinstance(target, Block.Output):
-                    target.temporary.name = f'{name}.{key}'
 
             self.can_trigger = can_trigger
 

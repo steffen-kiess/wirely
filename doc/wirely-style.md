@@ -67,7 +67,11 @@ procedure run
 ```
 
 Break long lists after commas, adding another two spaces for their
-continuation. Keep a reference and its `as` alias together where practical.
+continuation. Keep a reference and its `as` alias, or a port name and its
+type, together where practical.
+
+Prefer bound ports in hand-written code. Put the connections of typed ports
+after the procedure.
 
 ```wirely
 native procedure run stage output

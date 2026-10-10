@@ -9,13 +9,36 @@ from .types import resolve_type
 debug_variable_resolution = False
 
 
+SOURCE_TYPES = (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable,
+                StateRead, blocks.ProcedureOutputPort)
+TARGET_TYPES = (Block.Input, blocks.BlockOutput, blocks.ProcedureInputPort, blocks.BlockTemporaryVariable,
+                blocks.BlockStateVariable)
+
+
+def describe_target(target):
+    if isinstance(target, Block.Input):
+        connector = 'Default input' if target.name == '' else f'Input {target.name!r}'
+        return f'{connector} of node {target.block.name!r}'
+    if isinstance(target, blocks.BlockOutput):
+        return 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
+    if isinstance(target, (blocks.ProcedureInputPort, blocks.ProcedureOutputPort)):
+        return target.description[0].upper() + target.description[1:]
+    kind = 'State' if isinstance(target, blocks.BlockStateVariable) else 'Temporary'
+    return f'{kind} {target.name!r}'
+
+
+def connection_kind(member):
+    spec = getattr(member, 'conn_spec', None)
+    return blocks.ConnectionKind.Value if spec is None else spec.kind_spec.kind
+
+
 def connect(source, target, source_element, *, attributes=()):
     # TODO: Clean up
-    if not isinstance(source, (Block.Output, blocks.BlockInput, blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
+    if not isinstance(source, SOURCE_TYPES):
         raise Exception('source parameter is not a data or resource source')
     # TODO: Clean up
-    if not isinstance(target, Block.Input) and not isinstance(target, blocks.BlockOutput):
-        raise Exception('target parameter is not a Block.Input and not a BlockOutput')
+    if not isinstance(target, TARGET_TYPES):
+        raise Exception(f'target parameter is not a connection target: {target!r}')
 
     if source.block.graph != target.block.graph:
         # TODO: Can this happen from program code? If yes, make error message clearer?
@@ -28,6 +51,8 @@ def connect(source, target, source_element, *, attributes=()):
             return member.block_output.conn_spec
         if isinstance(member, (blocks.BlockInput, blocks.BlockOutput)):
             return member.conn_spec
+        if isinstance(member, (blocks.ProcedureInputPort, blocks.ProcedureOutputPort)):
+            return member.binding
         return member.graph.variables[member.name]
 
     def incompatible(message):
@@ -36,26 +61,29 @@ def connect(source, target, source_element, *, attributes=()):
             blocks.CompilerHint(declaration(target), 'Target was declared here'),
         ])
 
-    # A single input or a type's output takes one source.
-    is_multi = isinstance(target, Block.Input) and target.is_list
-    if not is_multi and target.connected_source is not None:
-        if isinstance(target, Block.Input):
-            connector = 'Default input' if target.name == '' else f'Input {target.name!r}'
-            message = f'{connector} of node {target.block.name!r} already has a source; only multi inputs accept several'
-        else:
-            connector = 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
-            message = f'{connector} already has a source'
+    def previous_connection_hints():
         previous = next((connection.source_element for connection in source.block.graph.connections
                          if connection.target is target), None)
-        hints = [] if previous is None else [blocks.CompilerHint(previous, 'Previous connection was here')]
-        raise blocks.ProgramError(source_element, message, hints=hints)
-    # A type's output takes either a connection or a producing procedure.
-    if isinstance(target, blocks.BlockOutput):
-        for name, procedure in target.graph.procedures.items():
-            if target in procedure.produces.get_resolved_outputs():
-                connector = 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
-                raise blocks.ProgramError(source_element, f'{connector} is already produced by procedure {name!r}',
-                                          hints=[blocks.CompilerHint(procedure, 'Producer was here')])
+        return [] if previous is None else [blocks.CompilerHint(previous, 'Previous connection was here')]
+
+    # Single inputs, ports, outputs, and variables take one source.
+    is_multi = getattr(target, 'is_list', False) and isinstance(target, (Block.Input, blocks.ProcedureInputPort))
+    if is_multi and isinstance(target, blocks.ProcedureInputPort) and (
+            target.connected_source is not None or (getattr(source, 'is_list', False) and target.sources)):
+        # A forwarded multi input is the port's only source.
+        raise blocks.ProgramError(source_element, f'{describe_target(target)} cannot combine a multi input with other sources',
+                                  hints=previous_connection_hints())
+    if not is_multi and target.connected_source is not None:
+        message = f'{describe_target(target)} already has a source'
+        if isinstance(target, Block.Input):
+            message += '; only multi inputs accept several'
+        raise blocks.ProgramError(source_element, message, hints=previous_connection_hints())
+    if isinstance(target, blocks.BlockStateVariable):
+        if not isinstance(source, blocks.ProcedureOutputPort):
+            raise blocks.ProgramError(source_element, f'State {target.name!r} must be supplied by a procedure output')
+        if source.state is not None:
+            raise blocks.ProgramError(source_element, f'{describe_target(source)} already supplies state {source.state.name!r}',
+                                      hints=previous_connection_hints())
 
     def record(kind):
         actual_target = target.members[-1] if isinstance(target, Block.Input) and target.is_list else target
@@ -64,7 +92,7 @@ def connect(source, target, source_element, *, attributes=()):
         ))
 
     source_resource = isinstance(getattr(source, 'conn_spec', None), blocks.ConnectorSpecificationResource)
-    target_resource = isinstance(target.conn_spec, blocks.ConnectorSpecificationResource)
+    target_resource = isinstance(getattr(target, 'conn_spec', None), blocks.ConnectorSpecificationResource)
     if source_resource or target_resource:
         if not (source_resource and target_resource):
             incompatible('Cannot connect resource and data connectors')
@@ -74,11 +102,8 @@ def connect(source, target, source_element, *, attributes=()):
         record('resource')
         return
 
-    if isinstance(source, (blocks.BlockStateVariable, blocks.BlockTemporaryVariable, StateRead)):
-        source_kind = blocks.ConnectionKind.Value
-    else:
-        source_kind = source.conn_spec.kind_spec.kind
-    target_kind = target.conn_spec.kind_spec.kind
+    source_kind = connection_kind(source)
+    target_kind = connection_kind(target)
     if source_kind != target_kind:
         incompatible(f'source has kind {source_kind} but target has kind {target_kind}')
 
@@ -92,6 +117,8 @@ def connect(source, target, source_element, *, attributes=()):
         incompatible(f'source has type {source_type} but target has type {target_type}')
 
     target.connect(source)
+    if isinstance(target, blocks.BlockStateVariable):
+        source.state = target
     record('state' if isinstance(source, (blocks.BlockStateVariable, StateRead)) else 'data')
 
 
@@ -175,17 +202,7 @@ def resolve_variable(path, var):
             return resolve_variable(path_resolve_singleton(path + (source.block,)), source)
         if isinstance(var.conn_spec, blocks.ConnectorSpecificationResource):
             return path, var
-        # Normal output
-        # TODO: Hack, should use var.temporary, but that is overwritten somewhere in some cases
-        temporary = var.orig_temporary
-        if temporary.block != path[-1]:
-            if isinstance(path[-1], blocks.Block):  # TODO: Handle singletons here?
-                raise Exception(f'temporary.block {temporary.block} != path[-1] {path[-1]}')
-        if temporary.producer is None:
-            raise Exception(f'Temporary for output {var} does not have a producer')
-        if debug_variable_resolution:
-            print(f'resolve_variable: returning {path}, {temporary}')
-        return path, temporary
+        raise Exception(f'Output {var} is not connected')
 
     if isinstance(var, blocks.Block.Temporary):
         temporary = var.temporary
@@ -194,10 +211,10 @@ def resolve_variable(path, var):
         if temporary.block != path[-1]:
             if isinstance(path[-1], blocks.Block):  # TODO: Handle singletons here?
                 raise Exception(f'temporary.block {temporary.block} != path[-1] {path[-1]}')
+        # A declared temporary is another name for its source.
+        if temporary.alias_of is not None:
+            return resolve_variable(path, temporary.alias_of)
         if temporary.producer is None:
-            for output in temporary.block.block_outputs:
-                if getattr(output, 'orig_temporary', None) is temporary and output.block_output.connected_source is not None:
-                    return resolve_variable(path, output)
             raise Exception('temporary.producer is None')
         if debug_variable_resolution:
             print(f'resolve_variable: returning {path}, {temporary}')
@@ -208,24 +225,28 @@ def resolve_variable(path, var):
         if path[-1] != var:
             raise Exception('path[-1] != var')
         block = path[-2]
+        if not isinstance(block, Block):
+            block = block.singleton_instance
         var_inst = None
         for t in block.block_temporaries:
-            if t.output is None and t.name == var.name:
+            if t.port is None and t.name == var.name:
                 var_inst = t
                 break
         if var_inst is None:
             raise Exception(f'Cannot find temporary {var.name!r}')
-        temporary = var_inst.temporary
-        if temporary != var_inst:
-            raise Exception('temporary != var_inst')
-        if temporary.block != path[-2]:
-            if isinstance(path[-2], blocks.Block):  # TODO: Handle singletons here?
-                raise Exception(f'temporary.block {temporary.block} != path[-1] {path[-1]}')
-        if temporary.producer is None:
-            raise Exception('temporary.producer is None')
-        if debug_variable_resolution:
-            print(f'resolve_variable: returning {path[:-1]}, {temporary}')
-        return path[:-1], temporary
+        return resolve_variable(path[:-1], var_inst)
+
+    if isinstance(var, blocks.ProcedureOutputPort):
+        if path[-1] != var:
+            raise Exception('path[-1] != var')
+        block = path[-2]
+        if not isinstance(block, Block):
+            block = block.singleton_instance
+        storage = block.port_storage[var]
+        if isinstance(storage, Block.StateVariable):
+            # Other consumers of a port writing state read the new value.
+            return path[:-1], StateRead(storage, 'new', var.binding)
+        return resolve_variable(path[:-1], storage)
 
     # TODO: Clean up
     if isinstance(var, blocks.BlockInput):

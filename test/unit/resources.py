@@ -69,6 +69,11 @@ class ProcedureConsumer:
         context.set_output('Count', context.inputs['Service'].value)
 
 
+@native_block_type(registry, has_native_state=False)
+class TypedProcedureConsumer(ProcedureConsumer):
+    pass
+
+
 @native_block_type(registry, has_native_state=True)
 class Dependent(NativeState):
     pass
@@ -145,10 +150,28 @@ namespace TestLibrary {
       depends on Service, Value, forwarded.Named as "child"
       produces Count;
   }
+
+  node type TypedProcedureConsumer {
+    input Service: resource Service;
+    input Value: value uint8;
+    output Count: value uint8;
+
+    node forwarded: Forward {}
+    connect Service -> forwarded.Service;
+
+    native procedure read
+      depends on Service: resource Service, Value: value uint8, child: resource Service
+      produces Count: value uint8;
+    connect Service -> read.Service;
+    connect Value -> read.Value;
+    connect forwarded.Named -> read.child;
+    connect read.Count -> Count;
+  }
 }
 
 node consumer: TestLibrary.Consumer {}
 node procedure_consumer: TestLibrary.ProcedureConsumer {}
+node typed_consumer: TestLibrary.TypedProcedureConsumer {}
 node factory: TestLibrary.Factory {}
 node shared: TestLibrary.Shared {}
 node other_shared: TestLibrary.Shared {}
@@ -160,6 +183,8 @@ connect factory, shared, forward -> consumer.Services;
 connect other_shared -> consumer;
 connect factory -> procedure_consumer.Service;
 connect value_source -> procedure_consumer.Value;
+connect factory -> typed_consumer.Service;
+connect value_source -> typed_consumer.Value;
 '''
 native_resource_program = program_compiler.compile_nocatch(compile_resources(source))
 with patch.dict(wirely.native.test_library.native_block_types, registry):
@@ -175,6 +200,7 @@ value_source.set_value(7)
 native_resource_engine.step()
 native_resource_engine.assert_value_is('consumer.Count', 7)
 native_resource_engine.assert_value_is('procedure_consumer.Count', 7)
+native_resource_engine.assert_value_is('typed_consumer.Count', 7)
 assert [name for name, _ in procedure_calls] == ['poll', 'read']
 provider.value = 8
 native_resource_engine.step()
@@ -185,6 +211,7 @@ native_resource_engine.assert_is_idle()
 value_source.set_value(9)
 native_resource_engine.step()
 native_resource_engine.assert_value_is('procedure_consumer.Count', 8)
+native_resource_engine.assert_value_is('typed_consumer.Count', 8)
 assert len(procedure_calls) == 2
 
 # Explicit aliases and direct named resource outputs use the same key rules.

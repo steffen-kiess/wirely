@@ -41,15 +41,15 @@ node type Outer {
 }
 node outer: Outer {}
 
-// TEST: output without producer
+// TEST: output without source
 node type Probe {
-  default output: value boolean; // E: Default output has no producer
+  default output: value boolean; // E: Default output has no source
 }
 node probe: Probe {} // H: While instantiating 'probe'
 
-// TEST: named output without producer
+// TEST: named output without source
 node type Probe {
-  output Ready: value boolean; // E: Output 'Ready' has no producer
+  output Ready: value boolean; // E: Output 'Ready' has no source
 }
 node probe: Probe {} // H: While instantiating 'probe'
 
@@ -85,11 +85,11 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: second producer for an output
+// TEST: second procedure for an output
 node type Probe {
   default output: value boolean;
-  procedure first produces default output as output { output = true; } // H: Previous producer was here
-  procedure second produces default output as output { output = false; } // E: Default output is already produced by procedure 'first'
+  procedure first produces default output as output { output = true; } // H: Previous connection was here
+  procedure second produces default output as output { output = false; } // E: Default output already has a source
 }
 node probe: Probe {}
 
@@ -97,23 +97,23 @@ node probe: Probe {}
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure first depends on default input as input produces default output as output { // H: Producer was here
+  procedure first depends on default input as input produces default output as output { // H: Previous connection was here
     output = input;
   }
-  connect default input -> default output; // E: Default output is already produced by procedure 'first'
+  connect default input -> default output; // E: Default output already has a source
 }
 
-// TEST: second producer for a temporary
+// TEST: second procedure for a temporary
 node type Probe {
   temporary flag: boolean;
-  procedure first produces flag { flag = true; } // H: Previous producer was here
-  procedure second produces flag { flag = false; } // E: Variable 'flag' is already produced by procedure 'first'
+  procedure first produces flag { flag = true; } // H: Previous connection was here
+  procedure second produces flag { flag = false; } // E: Temporary 'flag' already has a source
 }
 node probe: Probe {}
 
-// TEST: temporary without producer
+// TEST: temporary without source
 node type Probe {
   default output: value boolean;
-  temporary flag: boolean; // E: Temporary 'flag' has no producer
+  temporary flag: boolean; // E: Temporary 'flag' has no source
   connect flag -> default output;
 }

@@ -411,6 +411,38 @@ def check_multi_inputs():
     probe.assert_is_idle()
 
 
+def check_typed_ports():
+    # Typed ports receive their sources through connections.
+    snapshots = []
+
+    def check_ports(context):
+        values, level = context.inputs['values'], context.inputs['level']
+        snapshots.append(values)
+        context.set_output('total', level + sum(value.value for value in values if value is not None))
+
+    probe = make_engine('''
+    default output: value uint8;
+    node first: Std.DebugEventSource { Type: uint8 }
+    node second: Std.DebugEventSource { Type: uint8 }
+    node level: Std.Constant { Type: uint8, Value: 7 }
+
+    native procedure run
+      depends on values: multi event uint8, level: value uint8
+      produces total: value uint8;
+    connect first, second -> run.values;
+    connect level -> run.level;
+    connect run.total -> default output;
+    ''', check_ports)
+    probe.step()
+    assert snapshots[-1] == (None, None)
+    probe.assert_value_is('probe', 7)
+    probe.get_native_state('probe.first').send_event(blocks.Some(1))
+    probe.get_native_state('probe.second').send_event(blocks.Some(3))
+    probe.step()
+    assert snapshots[-1] == (blocks.Some(1), blocks.Some(3))
+    probe.assert_value_is('probe', 11)
+
+
 def check_outputs():
     def check_output_errors(context):
         with checks.assertRaisesRegex(ValueError, f'Unknown output.*on {context.name}$'):
@@ -771,6 +803,7 @@ check_context_names()
 check_stage_times()
 check_triggers()
 check_multi_inputs()
+check_typed_ports()
 check_outputs()
 check_events()
 check_unit_outputs()

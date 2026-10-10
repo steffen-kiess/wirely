@@ -176,3 +176,33 @@ namespace TestLibrary {
   }
 }
 
+
+constant IsOption: boolean = if Option[uint8] == Option[uint8] { true } else { false };
+assert IsOption;
+
+struct type PortStruct { flag: boolean }
+node type TypedPorts {
+  default input: value boolean;
+  default output: value boolean;
+  constant Made: PortStruct = PortStruct { flag: true };
+  node none: Std.OptionNone { InnerType: uint8 }
+
+  procedure run
+    depends on input: value boolean, value: value Option[uint8], on: value PortStruct,
+    produces output: value boolean, stage: value PortStruct,
+  {
+    output = input;
+    stage = on;
+  }
+  procedure make produces made: value PortStruct { made = Made; }
+  procedure copy depends on fields: value PortStruct produces copied: value PortStruct {
+    copied = fields;
+  }
+  connect default input -> run.input;
+  connect none -> run.value;
+  connect make.made -> run.on;
+  connect run.stage -> copy.fields;
+  connect run.output -> default output;
+}
+node typed_ports: TypedPorts {}
+connect source -> typed_ports;

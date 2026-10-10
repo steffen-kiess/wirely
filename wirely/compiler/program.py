@@ -29,6 +29,7 @@ def compile_nocatch(global_block_type):
             if declaration.is_native:
                 raise blocks.ProgramError(declaration, 'Native procedures must belong to a node type')
             declaration.compile_interface(graph)
+        blocks.ast.validate_members(graph)
         root = graph.create(name='<global>', graph=graph, par_values={},
                             instantiation=graph, register=False)
 
@@ -56,14 +57,23 @@ def compile_nocatch(global_block_type):
             instance = instance.parent_instance
         var_type = resolve_type(var.impl_var_type, parameters)
         owner = instances[path].block or instances[path].block_type.singleton_instance
-        source = (owner.block_type.variables.get(var.name, owner.instantiation)
-                  if owner.is_root else owner.instantiation)
+        if not owner.is_root:
+            source = owner.instantiation
+        elif getattr(var, 'port', None) is not None:
+            # Report a variable fed by the port at its declaration.
+            target = next((connection.target for connection in owner.block_type.connections
+                           if connection.source is var.port
+                           and isinstance(connection.target, blocks.BlockTemporaryVariable)), None)
+            source = (var.port.binding if target is None
+                      else owner.block_type.variables[target.name])
+        else:
+            source = owner.block_type.variables.get(var.name, owner.instantiation)
         check_runtime_type(var_type, source)
         # TODO: Clean up name?
         # name = '.'.join([block.name for block in path])
         name = blocks.Block.path_name(path)
-        # Output storage is named after its producer: <path>:<procedure>.<output key>.
-        separator = ':' if getattr(var, 'output', None) is not None else '.'
+        # Port storage is named after its procedure: <path>:<procedure>.<port>.
+        separator = ':' if getattr(var, 'port', None) is not None else '.'
         variable_name = name + separator + var.name if name else var.name
         v = Variable(variable_name, var_type)
         # print(v.name)
@@ -132,7 +142,7 @@ def compile_nocatch(global_block_type):
             if blocks.ast.dependency_is_resource(dep):
                 continue
             else:
-                members = dep.members if isinstance(dep, blocks.Block.Input) and dep.is_list else (dep,)
+                members = dep.members if getattr(dep, 'is_list', False) else (dep,)
                 for member in members:
                     producer_path, variable = blocks.resolve_variable(path, member)
                     if isinstance(variable, blocks.StateRead):
@@ -169,7 +179,7 @@ def compile_nocatch(global_block_type):
                 for path, instance in instances.items()}
 
     def resource_paths(path, source, binding):
-        is_list = isinstance(source, blocks.Block.Input) and source.is_list
+        is_list = getattr(source, 'is_list', False)
         members = source.members if is_list else (source,)
         paths = []
         for member in members:
@@ -314,7 +324,7 @@ def compile_nocatch(global_block_type):
                     paths, is_list = resource_paths(path, source, binding)
                     resources.append((name, tuple(node_ids[provider] for provider in paths), is_list))
                     continue
-                is_list = isinstance(source, blocks.Block.Input) and source.is_list
+                is_list = getattr(source, 'is_list', False)
                 members = source.members if is_list else (source,)
                 dependencies.append((name, tuple(resolve_binding(path, member) for member in members), is_list))
             for name, target in proc.static_context._targets.items():
@@ -337,7 +347,7 @@ def compile_nocatch(global_block_type):
     def aliased_members(members):
         # Default outputs are aliased by their node, other outputs by their own name.
         return [member for member in members
-                if member.name != '' and getattr(member, 'output', None) is None]
+                if member.name != '' and getattr(member, 'port', None) is None]
 
     def add_aliases(scope, path=(), prefix=''):
         for name, block in scope.blocks.items():

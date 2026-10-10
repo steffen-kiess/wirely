@@ -86,13 +86,13 @@ node type Invalid {
   node child: Child {}
 
   native procedure run depends on child.Missing as "value";
-  // ^E: Cannot resolve procedure dependency child.Missing
+  // ^E: Unable to find dependency block output child.Missing
 }
 
 // TEST: procedure_deep_dependency
 node type Invalid {
   native procedure run depends on child.inner.Value as "value";
-  // ^E: Unsupported procedure dependency reference
+  // ^E: Got unexpected number of identifiers in dependency
 }
 
 // TEST: procedure_state_dependency
@@ -100,7 +100,7 @@ node type Invalid {
   state value: boolean = false;
   native procedure write produces value;
   native procedure run depends on value;
-  // ^E: State dependencies must explicitly reference .old or .new
+  // ^E: State connection sources must explicitly reference .old or .new
 }
 
 // TEST: procedure_complex_result
@@ -108,5 +108,146 @@ node type Invalid {
   state value: boolean = false;
 
   native procedure run produces value.old as "value";
-  // ^E: Output does not have exactly one component
+  // ^E: Cannot connect to a member of variable 'value'
+}
+
+// TEST: procedure_port_without_source
+node type Invalid {
+  native procedure run
+    depends on value: value boolean; // E: Input port 'value' of procedure 'run' has no source
+}
+
+// TEST: procedure_port_second_source
+node type Invalid {
+  default input: value boolean;
+  input Other: value boolean;
+  native procedure run
+    depends on default input as value; // H: Previous connection was here
+  connect Other -> run.value; // E: Port 'value' of procedure 'run' already has a source
+}
+
+// TEST: procedure_port_multi_forward
+node type Invalid {
+  input Values: multi value boolean;
+  input Other: value boolean;
+  native procedure run
+    depends on values: multi value boolean;
+  connect Values -> run.values; // H: Previous connection was here
+  connect Other -> run.values; // E: Port 'values' of procedure 'run' cannot combine a multi input with other sources
+}
+
+// TEST: procedure_port_unknown
+node type Invalid {
+  input Flag: value boolean;
+  native procedure run
+    depends on value: value boolean;
+  connect Flag -> run.missing; // E: Unable to find port 'missing' of procedure 'run'
+}
+
+// TEST: procedure_port_direction
+node type Invalid {
+  default output: value boolean;
+  native procedure run
+    depends on value: value boolean;
+  connect run.value -> default output; // E: Port 'value' of procedure 'run' is an input
+}
+
+// TEST: procedure_port_missing_name
+node type Invalid {
+  default output: value boolean;
+  native procedure run
+    produces value: value boolean;
+  connect run -> default output; // E: Procedure references require a port, as in run.port
+}
+
+// TEST: procedure_port_type_mismatch
+node type Invalid {
+  input Flag: value boolean; // H: Source was declared here
+  native procedure run
+    depends on value: value uint8; // H: Target was declared here
+  connect Flag -> run.value; // E: source has type boolean but target has type uint8
+}
+
+// TEST: procedure_port_kind_mismatch
+node type Invalid {
+  input Flag: event boolean; // H: Source was declared here
+  native procedure run
+    depends on value: value boolean; // H: Target was declared here
+  connect Flag -> run.value; // E: source has kind
+}
+
+// TEST: procedure_port_multi_output
+node type Invalid {
+  native procedure run
+    produces values: multi value boolean; // E: Got multi specifier for non-input
+}
+
+// TEST: procedure_port_resource_output
+resource type Handle;
+node type Invalid {
+  native procedure run
+    produces handle: resource Handle; // E: Procedures cannot produce resources
+}
+
+// TEST: procedure_port_input_stage
+node type Invalid {
+  native procedure run stage input // E: declared as input stage but depends on something else
+    depends on value: value boolean; // H: Dependencies declared here
+}
+
+// TEST: procedure_port_body_event
+// LIBRARIES: std
+node type Invalid {
+  input Flag: event boolean;
+  default output: value boolean;
+  procedure run
+    depends on value: event boolean // E: Event connectors are not supported in procedures
+    produces default output as output
+  {
+    output = true;
+  }
+  connect Flag -> run.value;
+}
+node source: Std.DebugEventSource { Type: boolean }
+node invalid: Invalid {}
+connect source -> invalid.Flag;
+
+// TEST: procedure_port_body_multi
+// LIBRARIES: std
+node type Invalid {
+  input Flag: value boolean;
+  default output: value boolean;
+  procedure run
+    depends on values: multi value boolean // E: Multi inputs are not supported in procedures
+    produces default output as output
+  {
+    output = true;
+  }
+  connect Flag -> run.values;
+}
+node source: Std.DebugValueSource { Type: boolean }
+node invalid: Invalid {}
+connect source -> invalid.Flag;
+
+// TEST: initializer_typed_port
+resource type Handle;
+native node type Invalid {
+  native initializer depends on handle: resource Handle; // E: Initializer dependencies must reference resources
+}
+
+// TEST: state_from_non_procedure
+node type Invalid {
+  input Flag: value boolean;
+  state saved: boolean = false;
+  connect Flag -> saved; // E: State 'saved' must be supplied by a procedure output
+}
+
+// TEST: state_port_twice
+node type Invalid {
+  state first: boolean = false;
+  state second: boolean = false;
+  native procedure run
+    produces next: value boolean;
+  connect run.next -> first;
+  connect run.next -> second; // E: Port 'next' of procedure 'run' already supplies state 'first'
 }
