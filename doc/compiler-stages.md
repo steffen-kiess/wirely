@@ -29,7 +29,7 @@ on an instance's parameters or a cycle in procedure execution dependencies.
 3. **Validate source metadata.** `validate_source_metadata()` checks file
    attributes and native function name collisions.
 
-The source outline and the attribute-editing helpers use
+The source outline and editing helpers use
 `parser.parse_str()` directly. They stop at parsing and syntax-tree
 construction, so they can read and edit files with errors that would be
 detected by later compiler stages.

@@ -8,6 +8,7 @@ in other files, stay unresolved instead of causing errors.
 Elements are identified by their enclosing namespaces/node types and name.
 Identical connections in a scope are distinguished by Connection.occurrence,
 their index in source order; it is None for a unique connection.
+wirely.compiler.editing changes sources using these IDs.
 """
 
 import dataclasses
@@ -230,6 +231,7 @@ class Edge:
     filename: str
     span: tuple[int, int]
     source_span: tuple[int, int] | None
+    target_span: tuple[int, int]
     attributes: tuple
     _declaration: object = field(default=None, compare=False, repr=False)
     _source: object = field(default=None, compare=False, repr=False)
@@ -249,6 +251,8 @@ class Scope:
     ports: tuple[PortInfo, ...]
     procedures: tuple[ProcedureInfo, ...]
     edges: tuple[Edge, ...]
+    # (filename, block) for each file, namespace block, or node type body.
+    _blocks: tuple = field(default=(), compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -294,6 +298,18 @@ class Outline:
                 return (edges[target.occurrence],)
             return ()
         return tuple(self._index.get(target, ()))
+
+    def find_scope(self, path):
+        """Return the scopes with the given path, several for duplicate node types."""
+        def visit(scope):
+            if scope.path == tuple(path):
+                yield scope
+            for node_type in scope.node_types:
+                yield from visit(node_type.scope)
+            for namespace in scope.namespaces:
+                yield from visit(namespace)
+
+        return tuple(visit(self.scope))
 
     @functools.cached_property
     def _index(self):
@@ -344,16 +360,11 @@ def outline(sources, *, add_std=False):
                 raise exception.orig_exc
             error = next(error_diagnostics(exception.orig_exc))
         files.append(SourceFile(filename, error))
-    return dataclasses.replace(outline_parsed(parsed_files), files=tuple(files))
-
-
-def outline_parsed(parsed_files):
-    """Outline (filename, declarations) pairs as returned by parser.parse_sources()."""
     root = _Builder('global', (), None)
-    for _, declarations in parsed_files:
+    for filename, declarations in parsed_files:
+        root.blocks.append((filename, declarations))
         _collect(root, declarations)
-    files = tuple(SourceFile(filename, None) for filename, _ in parsed_files)
-    return Outline(files, _build_scope(root))
+    return Outline(tuple(files), _build_scope(root))
 
 
 class _Builder:
@@ -364,6 +375,7 @@ class _Builder:
         self.items = []
         self.namespaces = {}
         self.node_types = []
+        self.blocks = []
         self.port_records = None
         self.name_table = None
 
@@ -375,9 +387,13 @@ def _collect(builder, declarations):
             child = builder.namespaces.get(name)
             if child is None:
                 child = builder.namespaces[name] = _Builder('namespace', builder.path + (name,), builder)
+            # A dotted namespace declaration only has a body in its innermost namespace.
+            if hasattr(item.declarations, 'inner_attributes'):
+                child.blocks.append((_filename(item), item))
             _collect(child, item.declarations)
         elif isinstance(item, _NodeType):
             child = _Builder('node_type', builder.path + (item.name.id_str,), builder)
+            child.blocks.append((_filename(item), item))
             builder.node_types.append((item, child))
             _collect(child, item.declarations)
         else:
@@ -571,7 +587,7 @@ def _edges(builder, item):
         for source in item.sources:
             connection = Connection(builder.path, _reference_text(source), target.text)
             yield Edge('connect', connection, _resolve_endpoint(builder, source, False), target,
-                       _filename(item), _span(item), _span(source),
+                       _filename(item), _span(item), _span(source), _span(item.target),
                        item.outer_attributes + source.outer_attributes, item, source)
     elif isinstance(item, ast.DeclarationProcedure):
         procedure_id = Procedure(builder.path + (item.name.id_str,))
@@ -579,13 +595,13 @@ def _edges(builder, item):
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, _resolve_endpoint(builder, port.reference, False),
-                           endpoint, _filename(port), _span(port), None, (), port)
+                           endpoint, _filename(port), _span(port), None, _span(port.reference), (), port)
         for port in item.produces.outputs:
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, endpoint,
                            _resolve_endpoint(builder, port.reference, True),
-                           _filename(port), _span(port), None, (), port)
+                           _filename(port), _span(port), None, _span(port.reference), (), port)
 
 
 def _with_occurrences(edges):
@@ -620,4 +636,5 @@ def _build_scope(builder):
         tuple(_build_scope(child) for child in builder.namespaces.values()),
         of_type(StateInfo), of_type(TemporaryInfo), of_type(ConstantInfo), of_type(ParameterInfo),
         _ports(builder), of_type(ProcedureInfo),
-        _with_occurrences([edge for item in builder.items for edge in _edges(builder, item)]))
+        _with_occurrences([edge for item in builder.items for edge in _edges(builder, item)]),
+        tuple(builder.blocks))

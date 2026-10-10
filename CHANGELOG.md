@@ -19,6 +19,13 @@ another name for its source. Temporary symbols are therefore always
 `<node>:<procedure>.<port>`; declared temporaries remain available by name
 as variable aliases.
 
+#### Source editing
+
+`wirely.compiler.attribute_editing` is replaced by
+`wirely.compiler.editing`. Its attribute functions take a list of
+`(filename, text)` pairs instead of one text and return `TextEdit`s; pass
+them to `apply_edits()` to get the new texts.
+
 ### Added
 
 - Procedure ports can be declared with a type and wired with `connect`.
@@ -39,6 +46,9 @@ as variable aliases.
   a procedure output port. Reference output ports can target child inputs.
 - `if` conditions accept indexing, `()`, list literals, and nested `if`, as
   in `T == Option[uint8]`.
+- `wirely.compiler.outline` lists the declarations, ports, and connections
+  of source files without compiling them. `wirely.compiler.editing` adds and
+  removes declarations and connects, disconnects, and reconnects ports.
 
 ## 0.1.2 - 2026-10-10
 

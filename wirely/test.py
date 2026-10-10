@@ -48,7 +48,7 @@ test_names = [
     'unit/resources',
     'unit/equality',
     'unit/negative_cases',
-    'unit/attribute_editing',
+    'unit/editing',
     'unit/outline',
     'unit/control',
     'unit/shuffle',
