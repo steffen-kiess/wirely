@@ -4,10 +4,10 @@
 
 ### Breaking changes and migration
 
-#### Shared member names
+#### Shared names
 
-Nodes, procedures, state and temporary variables, and named connectors in
-a node type or at the top level share one namespace. Rename members that
+Nodes, including procedures, state, and temporaries, and named ports in a
+node type or at the top level share one namespace. Rename declarations that
 share a name, including an input and an output with the same name.
 
 #### Procedure outputs and temporaries
@@ -22,7 +22,7 @@ as variable aliases.
 ### Added
 
 - Procedure ports can be declared with a type and wired with `connect`.
-  Refer to a port as `procedure.port`, also in bound ports of other
+  Refer to a port as `procedure.port`, also in reference ports of other
   procedures:
 
   ```wirely
@@ -36,7 +36,7 @@ as variable aliases.
   connect invert.inverted -> default output;
   ```
 - Connections can target temporaries and state; state takes its value from
-  a procedure output port. Bound output ports can target child inputs.
+  a procedure output port. Reference output ports can target child inputs.
 - `if` conditions accept indexing, `()`, list literals, and nested `if`, as
   in `T == Option[uint8]`.
 
@@ -211,7 +211,7 @@ Replace integration-specific connector kinds in custom node declarations:
 | `two_n_device` | `resource TwoN.Device` |
 
 Custom libraries can declare their own opaque resources with
-`resource type Name;`. See [resource connectors](doc/language.md#opaque-resource-connectors).
+`resource type Name;`. See [resource connectors](doc/language.md#opaque-resource-ports).
 
 #### Runtime types
 
