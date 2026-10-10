@@ -53,6 +53,7 @@ test_names = [
     'unit/analysis',
     'unit/editor',
     'unit/editor_widgets',
+    'unit/editor_workspace',
     'unit/control',
     'unit/shuffle',
     'unit/container',

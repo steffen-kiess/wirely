@@ -73,7 +73,7 @@ with tempfile.TemporaryDirectory() as directory:
     expected = f'position(x = {x}, y = {y})'
     drag(view, start, start + QPoint(40, 60))
     checks.assertIn(expected, document.text())
-    window.tabs.setCurrentWidget(tab)
+    window.workspaces.activate(tab)
     window.undo()
     checks.assertEqual(document.text(), source)
 

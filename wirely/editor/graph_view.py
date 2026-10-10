@@ -567,6 +567,7 @@ class GraphTab(QWidget):
         self.state = None
         self.graph_scene = GraphScene(self)
         self.view = GraphView(self.graph_scene, self)
+        self.setFocusProxy(self.view)
         self.banner = QLabel(self)
         self.banner.setWordWrap(True)
         self.banner.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)

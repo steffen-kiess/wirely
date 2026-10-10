@@ -10,7 +10,7 @@ import lark
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox, QTabWidget,
+    QApplication, QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
     QTreeWidget, QTreeWidgetItem,
 )
 
@@ -24,8 +24,9 @@ from .grid import from_pixels
 from .palette import DeclarationDialog, NodePalette
 from .program import renamed_path
 from .properties import PropertiesPanel
-from .sync import Session
+from .sync import Session, python_offset
 from .text_view import CodeEditor
+from .workspace import WorkspaceManager
 
 _EDIT_ERRORS = (ValueError, TypeError, KeyError, ast.ProgramError, lark.exceptions.LarkError)
 
@@ -50,13 +51,8 @@ class MainWindow(QMainWindow):
         self.text_tabs = {}
         self.graph_tabs = []
 
-        self.tabs = QTabWidget(self)
-        self.tabs.setTabsClosable(True)
-        self.tabs.setMovable(True)
-        self.tabs.setDocumentMode(True)
-        self.tabs.tabCloseRequested.connect(lambda index: self.close_tab(self.tabs.widget(index)))
-        self.tabs.currentChanged.connect(self._tab_changed)
-        self.setCentralWidget(self.tabs)
+        self.workspaces = WorkspaceManager(self)
+        self.workspaces.activated.connect(self._view_activated)
 
         self.tree = QTreeWidget(self)
         self.tree.setHeaderHidden(True)
@@ -89,51 +85,74 @@ class MainWindow(QMainWindow):
     def program(self):
         return self.session.program
 
-    def _create_menus(self):
-        file_menu = self.menuBar().addMenu('&File')
-        self._action(file_menu, '&Open…', QKeySequence.StandardKey.Open, self.open_file)
-        self._action(file_menu, '&Save', QKeySequence.StandardKey.Save, self.save_current)
+    def _create_menus(self, host=None):
+        host = host or self
+
+        def current():
+            return self.workspaces.current_widget(host)
+
+        file_menu = host.menuBar().addMenu('&File')
+        self._action(file_menu, '&Open…', QKeySequence.StandardKey.Open, lambda: self.open_file(host))
+        self._action(file_menu, '&Save', QKeySequence.StandardKey.Save, lambda: self.save_current(host))
         self._action(file_menu, 'Save &All', 'Ctrl+Shift+S', self.save_all)
         self._action(file_menu, '&Close Tab', QKeySequence.StandardKey.Close,
-                     lambda: self.close_tab(self.tabs.currentWidget()))
+                     lambda: self.close_tab(current()))
         file_menu.addSeparator()
         self._action(file_menu, '&Quit', QKeySequence.StandardKey.Quit, self.close)
-        edit_menu = self.menuBar().addMenu('&Edit')
-        self._action(edit_menu, '&Undo', QKeySequence.StandardKey.Undo, self.undo)
-        self._action(edit_menu, '&Redo', QKeySequence.StandardKey.Redo, self.redo)
-        view_menu = self.menuBar().addMenu('&View')
-        self._action(view_menu, 'Program &Graph', 'Ctrl+G', lambda: self.open_graph(()))
-        self._action(view_menu, '&Source of Selection', 'Ctrl+E', self.show_selection_source)
+        edit_menu = host.menuBar().addMenu('&Edit')
+        self._action(edit_menu, '&Undo', QKeySequence.StandardKey.Undo, lambda: self.undo(host))
+        self._action(edit_menu, '&Redo', QKeySequence.StandardKey.Redo, lambda: self.redo(host))
+        view_menu = host.menuBar().addMenu('&View')
+        self._action(view_menu, 'Program &Graph', 'Ctrl+G', lambda: self.open_graph((), host=host))
+        self._action(view_menu, '&Source of Selection', 'Ctrl+E', lambda: self.show_selection_source(host))
+        view_menu.addSeparator()
+        split_right = self._action(view_menu, 'Split Right', None, lambda: self.workspaces.split(current(), 'right'))
+        split_below = self._action(view_menu, 'Split Below', None, lambda: self.workspaces.split(current(), 'bottom'))
+        detach = self._action(view_menu, 'Detach Tab', None, lambda: self.workspaces.detach(current()))
+        return_tab = None
+        if host is not self:
+            return_tab = self._action(view_menu, 'Return to Main Window', None,
+                                      lambda: self.workspaces.return_tab(current()))
+
+        def update_actions():
+            has_tab = current() is not None
+            can_split = has_tab and host.workspace.active_group.count() > 1
+            split_right.setEnabled(can_split)
+            split_below.setEnabled(can_split)
+            detach.setEnabled(has_tab)
+            if return_tab is not None:
+                return_tab.setEnabled(has_tab)
+        view_menu.aboutToShow.connect(update_actions)
 
     def _action(self, menu, text, shortcut, slot):
-        action = QAction(text, self)
+        action = QAction(text, menu)
         if shortcut is not None:
             action.setShortcut(QKeySequence(shortcut))
-        action.triggered.connect(slot)
+        action.triggered.connect(lambda _checked=False: slot())
         menu.addAction(action)
         return action
 
     # Tabs
 
-    def open_text(self, filename, focus=False):
+    def open_text(self, filename, focus=False, host=None):
         editor = self.text_tabs.get(filename)
         if editor is None:
             editor = CodeEditor(self.session.documents[filename], self)
             editor.element_cursor.connect(lambda offset, filename=filename: self._text_cursor(filename, offset))
             self.text_tabs[filename] = editor
-            self.tabs.addTab(editor, '')
+            self.workspaces.add(editor, host)
             editor.set_diagnostics(self._file_diagnostics(filename))
             self._update_titles()
         if focus:
-            self.tabs.setCurrentWidget(editor)
+            self.workspaces.activate(editor)
         return editor
 
-    def open_graph(self, path, focus=True):
+    def open_graph(self, path, focus=True, host=None):
         path = tuple(path)
         for tab in self.graph_tabs:
             if tab.path == path:
                 if focus:
-                    self.tabs.setCurrentWidget(tab)
+                    self.workspaces.activate(tab)
                 return tab
         tab = GraphTab(path, self)
         scene = tab.graph_scene
@@ -146,7 +165,7 @@ class MainWindow(QMainWindow):
             lambda connection, target: self.edit(lambda: self.program.reconnect(connection, target=target)))
         scene.disconnect_requested.connect(lambda connection: self.edit(lambda: self.program.delete([connection])))
         scene.item_activated.connect(self._item_activated)
-        scene.status.connect(lambda message: self.statusBar().showMessage(message, 8000))
+        scene.status.connect(lambda message: self._status(message, 8000))
         scene.selectionChanged.connect(lambda tab=tab: self._graph_selection(tab))
         tab.view.context_menu.connect(lambda graphic, position, tab=tab: self._graph_menu(tab, graphic, position))
         tab.banner.linkActivated.connect(self._open_link)
@@ -158,11 +177,11 @@ class MainWindow(QMainWindow):
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
         self.graph_tabs.append(tab)
-        self.tabs.addTab(tab, '')
+        self.workspaces.add(tab, host)
         self._refresh_graph(tab)
         self._update_titles()
         if focus:
-            self.tabs.setCurrentWidget(tab)
+            self.workspaces.activate(tab)
         return tab
 
     def close_tab(self, widget):
@@ -172,51 +191,87 @@ class MainWindow(QMainWindow):
             self.graph_tabs.remove(widget)
         else:
             del self.text_tabs[widget.document_record.filename]
-        self.tabs.removeTab(self.tabs.indexOf(widget))
+        group = self.workspaces.group_of(widget)
+        group.removeTab(group.indexOf(widget))
+        widget.setParent(None)
         widget.deleteLater()
+        group.workspace.clean()
+        host = group.workspace.host
+        if host not in self.workspaces.hosts():
+            host = self
+        self.workspaces.select_group(host.workspace.active_group)
+        self._update_titles()
 
-    def _tab_changed(self, index):
-        widget = self.tabs.widget(index)
+    def _view_activated(self, widget):
+        target = None
+        editable = False
         if isinstance(widget, GraphTab):
-            self._graph_selection(widget)
+            targets = widget.graph_scene.selected_ids()
+            target = targets[0] if len(targets) == 1 else None
+            editable = widget.state == 'live'
+        elif isinstance(widget, CodeEditor):
+            filename = widget.document_record.filename
+            editable = filename not in self.program.parse_errors
+            found = self.program.element_at(filename,
+                                            python_offset(widget.document_record.text(), widget.textCursor().position()))
+            target = found[1] if editable and found is not None else None
+        self.properties.show_element(self.program, target, editable)
+        if widget is not None:
+            group = self.workspaces.group_of(widget)
+            host = group.workspace.host
+            if host is not self:
+                host.setWindowTitle(f'{group.tabText(group.indexOf(widget))} – Wirely (Window {host.number})')
 
     def _update_titles(self, *_):
+        if self.workspaces.shutting_down:
+            return
         for filename, editor in self.text_tabs.items():
             modified = '*' if self.session.documents[filename].is_modified else ''
-            index = self.tabs.indexOf(editor)
-            self.tabs.setTabText(index, os.path.basename(filename) + modified)
-            self.tabs.setTabToolTip(index, filename)
+            group = self.workspaces.group_of(editor)
+            index = group.indexOf(editor)
+            group.setTabText(index, os.path.basename(filename) + modified)
+            group.setTabToolTip(index, filename)
         for tab in self.graph_tabs:
-            index = self.tabs.indexOf(tab)
-            self.tabs.setTabText(index, f'◇ {_scope_label(tab.path)}')
-            self.tabs.setTabToolTip(index, f'Graph of {_scope_label(tab.path)}')
+            group = self.workspaces.group_of(tab)
+            index = group.indexOf(tab)
+            group.setTabText(index, f'◇ {_scope_label(tab.path)}')
+            group.setTabToolTip(index, f'Graph of {_scope_label(tab.path)}')
         modified = any(document.is_modified for document in self.session.documents.values())
         names = ', '.join(os.path.basename(filename) for filename in self.session.documents)
         self.setWindowTitle(f'{names}{" *" if modified else ""} – Wirely')
+        for host in self.workspaces.windows:
+            title = host.workspace.active_group.tabText(host.workspace.active_group.currentIndex())
+            host.setWindowTitle(f'{title} – Wirely (Window {host.number})')
         self._fill_tree()
+
+    def _status(self, message, timeout=0):
+        for host in self.workspaces.hosts():
+            host.statusBar().showMessage(message, timeout)
 
     # Refresh
 
     def refresh_views(self):
+        if self.workspaces.shutting_down:
+            return
         for filename, editor in self.text_tabs.items():
             editor.set_diagnostics(self._file_diagnostics(filename))
         for tab in self.graph_tabs:
             self._refresh_graph(tab)
         self._update_titles()
-        current = self.tabs.currentWidget()
+        current = self.workspaces.current_widget()
         if isinstance(current, GraphTab):
-            self._graph_selection(current)
+            self._view_activated(current)
         elif self.properties.target is not None:
             self.properties.show_element(self.program, self.properties.target, not self.program.parse_errors)
         errors = self.program.parse_errors
         if errors:
             filename, error = next(iter(errors.items()))
-            self.statusBar().showMessage(f'{os.path.basename(filename)}:{error.line}: syntax error')
+            self._status(f'{os.path.basename(filename)}:{error.line}: syntax error')
         else:
             count = sum(1 for entry in self.program.analysis.diagnostics
                         if entry.diagnostic.filename in self.session.documents
                         and entry.diagnostic.kind in ('error', 'internal_error'))
-            self.statusBar().showMessage(f'{count} error{"s" if count != 1 else ""}' if count else 'No errors')
+            self._status(f'{count} error{"s" if count != 1 else ""}' if count else 'No errors')
 
     def _refresh_graph(self, tab):
         program = self.program
@@ -263,9 +318,9 @@ class MainWindow(QMainWindow):
             return
         kind, value = data
         if kind == 'file':
-            self.open_text(value, focus=True)
+            self.open_text(value, focus=True, host=self)
         else:
-            self.open_graph(value)
+            self.open_graph(value, host=self)
 
     # Edits
 
@@ -274,7 +329,7 @@ class MainWindow(QMainWindow):
         try:
             edits = make_edits()
         except _EDIT_ERRORS as error:
-            self.statusBar().showMessage(f'Cannot edit: {error}', 10000)
+            self._status(f'Cannot edit: {error}', 10000)
             # Move dragged items back.
             for tab in self.graph_tabs:
                 self._refresh_graph(tab)
@@ -293,7 +348,7 @@ class MainWindow(QMainWindow):
         try:
             edits = self.program.rename(target, new_name)
         except _EDIT_ERRORS as error:
-            self.statusBar().showMessage(f'Cannot rename: {error}', 10000)
+            self._status(f'Cannot rename: {error}', 10000)
             self.refresh_views()
             return
         if isinstance(target, NodeType):
@@ -315,7 +370,7 @@ class MainWindow(QMainWindow):
         if tab.state != 'live' or len(targets) != 1:
             return
         target = targets[0]
-        new_name, accepted = QInputDialog.getText(self, 'Rename', 'New name:', text=target.path[-1])
+        new_name, accepted = QInputDialog.getText(tab.window(), 'Rename', 'New name:', text=target.path[-1])
         if accepted and new_name.strip() and new_name.strip() != target.path[-1]:
             self.rename(target, new_name)
 
@@ -324,7 +379,7 @@ class MainWindow(QMainWindow):
             return
         if position is None:
             position = tab.view.mapToScene(tab.view.viewport().rect().center())
-        palette = NodePalette(self.program.analysis.node_types(tab.path), self)
+        palette = NodePalette(self.program.analysis.node_types(tab.path), tab.window())
         if palette.exec() and palette.selected_type():
             type_text = palette.selected_type()
             self.edit(lambda: self.program.add_node(tab.path, type_text, from_pixels(position.x(), position.y())))
@@ -333,12 +388,12 @@ class MainWindow(QMainWindow):
         # Public parameters and ports use PascalCase, the others snake_case.
         base = {'parameter': 'NewParameter', 'input': 'NewInput', 'output': 'NewOutput'}.get(kind, f'new_{kind}')
         name = self.program.fresh_name(tab.path, base)
-        dialog = DeclarationDialog(kind, name, list(self.program.analysis.type_names(tab.path)), self)
+        dialog = DeclarationDialog(kind, name, list(self.program.analysis.type_names(tab.path)), tab.window())
         while dialog.exec():
             try:
                 declaration = dialog.declaration()
             except _EDIT_ERRORS as error:
-                QMessageBox.warning(self, f'Add {kind}', str(error))
+                QMessageBox.warning(tab.window(), f'Add {kind}', str(error))
                 continue
             self.edit(lambda: self.program.add_declaration(tab.path, declaration,
                                                           from_pixels(position.x(), position.y())))
@@ -347,19 +402,19 @@ class MainWindow(QMainWindow):
     def _refuse_while_broken(self, action):
         # These edits update references in all files, which must parse.
         if self.program.parse_errors:
-            self.statusBar().showMessage(f'{action} needs all files to parse.', 10000)
+            self._status(f'{action} needs all files to parse.', 10000)
             return True
         return False
 
-    def undo(self):
-        widget = self.tabs.currentWidget()
+    def undo(self, host=None):
+        widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             widget.undo()
         elif isinstance(widget, GraphTab):
             self.session.undo(self._graph_files(widget))
 
-    def redo(self):
-        widget = self.tabs.currentWidget()
+    def redo(self, host=None):
+        widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             widget.redo()
         elif isinstance(widget, GraphTab):
@@ -372,15 +427,15 @@ class MainWindow(QMainWindow):
 
     # Files
 
-    def open_file(self):
-        filename, _ = QFileDialog.getOpenFileName(self, 'Open', '', 'Wirely sources (*.wrl);;All files (*)')
+    def open_file(self, host=None):
+        filename, _ = QFileDialog.getOpenFileName(host or self, 'Open', '', 'Wirely sources (*.wrl);;All files (*)')
         if filename:
             document = self.session.add_file(filename)
             document.text_document.modificationChanged.connect(self._update_titles)
-            self.open_text(document.filename, focus=True)
+            self.open_text(document.filename, focus=True, host=host)
 
-    def save_current(self):
-        widget = self.tabs.currentWidget()
+    def save_current(self, host=None):
+        widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             self.session.save(widget.document_record)
         elif isinstance(widget, GraphTab):
@@ -409,6 +464,8 @@ class MainWindow(QMainWindow):
             if answer == QMessageBox.StandardButton.Save:
                 for document in modified:
                     self.session.save(document)
+        self.session.shutdown()
+        self.workspaces.shutdown()
         event.accept()
 
     def _external_change(self, document):
@@ -426,7 +483,7 @@ class MainWindow(QMainWindow):
             # The scene was deleted with its tab.
             return
         target = targets[0] if len(targets) == 1 else None
-        if self.tabs.currentWidget() is tab:
+        if self.workspaces.active_view is tab:
             self.properties.show_element(self.program, target, tab.state == 'live')
         if target is not None and tab.state == 'live':
             location = self.program.span_of(target)
@@ -445,7 +502,7 @@ class MainWindow(QMainWindow):
                 graphic = tab.graph_scene.select_id(target)
                 if graphic is not None:
                     tab.view.ensureVisible(graphic)
-        if self.tabs.currentWidget() is self.text_tabs.get(filename):
+        if self.workspaces.active_view is self.text_tabs.get(filename):
             self.properties.show_element(self.program, target, True)
 
     def _item_activated(self, model_item):
@@ -462,8 +519,8 @@ class MainWindow(QMainWindow):
         filename, span = location
         self.open_text(filename, focus=True).reveal(span)
 
-    def show_selection_source(self):
-        widget = self.tabs.currentWidget()
+    def show_selection_source(self, host=None):
+        widget = self.workspaces.current_widget(host)
         if isinstance(widget, GraphTab):
             targets = widget.graph_scene.selected_ids()
             if targets:

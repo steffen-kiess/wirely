@@ -48,6 +48,10 @@ python3 -m pip install 'wirely[editor]'        # graphical editor
 
 `wirely edit program.wrl` opens a program in a graphical editor with tabs
 for its source files and node graphs. Edits in either view update the other.
+Right-click a tab to split the view, move it to another pane, or detach it
+into a window. You can also drag tabs between panes, onto pane edges to
+split, or outside the editor to detach. Closing a detached window returns
+its tabs to the main window. Layouts last for the current session.
 A graph is read-only while its source has syntax errors. In a graph:
 
 - Drag a node to store its position in the source.

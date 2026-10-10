@@ -97,6 +97,11 @@ class Session(QObject):
         self.program.refresh(self.sources())
         self.refreshed.emit()
 
+    def shutdown(self):
+        """Stop pending analysis and file notifications when the editor closes."""
+        self._timer.stop()
+        self._watcher.blockSignals(True)
+
     def apply(self, edits):
         """Apply TextEdits to the documents, one undo step per file, and refresh."""
         by_file = {}
