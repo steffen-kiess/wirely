@@ -1,0 +1,360 @@
+"""Literals, references, calls, and resolved port references."""
+
+import typing
+import re
+
+import lark
+
+from wirely.compiler import model
+from wirely.util import check_parameters
+
+from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Value
+from .specifiers import PortDirection, PortDirectionSpecifier
+
+
+class UnitLiteral(Value):
+    def __repr__(self):
+        return 'UnitLiteral()'
+
+
+class IntNumber(Value):
+    @check_parameters
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.token = token
+        text = str(token)
+        if text.lower().startswith('0x'):
+            base = 16
+        elif text.lower().startswith('0o'):
+            base = 8
+        else:
+            base = 10
+        try:
+            self.value = int(text, base)
+        except ValueError:
+            raise ProgramError(self, f'Invalid integer literal: {text!r}') from None
+
+    @classmethod
+    def positive(cls, token, *, source_position):
+        return cls(token, source_position=source_position)
+
+    def negated(self, *, source_position):
+        result = IntNumber(self.token, source_position=source_position)
+        result.value = -self.value
+        return result
+
+
+class FloatNumber(Value):
+    @check_parameters
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.token = token
+        # TODO: Does this parse the value correctly?
+        self.value = float(token)
+
+
+class StringConstant(Value):
+    @check_parameters
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.token = token
+
+        val = token.value.replace('\r\n', '\n')
+        if '\r' in val:
+            raise ProgramError(self, 'Bare carriage return in string literal')
+        # https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
+        # https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw
+        if val.startswith('r"'):
+            if len(val) < 3 or val[-1] != '"':
+                raise ProgramError(self, 'Invalid raw string literal')
+            value = val[2:-1]
+            if '"' in value:
+                raise ProgramError(self, 'Invalid raw string literal')
+            self.value = value
+        elif val.startswith('r#"'):
+            if len(val) < 5 or val[-2:] != '"#':
+                raise ProgramError(self, 'Invalid raw string literal')
+            value = val[3:-2]
+            if '"#' in value:
+                raise ProgramError(self, 'Invalid raw string literal')
+            self.value = value
+        else:
+            if len(val) < 2 or val[0] != '"' or val[-1] != '"':
+                raise ProgramError(self, 'Invalid string literal')
+            self.value = self._decode_quoted(val[1:-1])
+
+    def _decode_quoted(self, value):
+        escapes = {
+            '0': '\0', 't': '\t', 'n': '\n', 'r': '\r',
+            '"': '"', "'": "'", '\\': '\\',
+        }
+        hex_digits = '0123456789abcdefABCDEF'
+        result = []
+        index = 0
+        while index < len(value):
+            char = value[index]
+            index += 1
+            if char != '\\':
+                result.append(char)
+                continue
+            if index == len(value):
+                raise ProgramError(self, 'Incomplete string escape')
+            escape = value[index]
+            index += 1
+            if escape in escapes:
+                result.append(escapes[escape])
+            elif escape == '\n':
+                while index < len(value) and value[index] in ' \t\r\n':
+                    index += 1
+            elif escape == 'x':
+                digits = value[index:index + 2]
+                if len(digits) != 2 or any(digit not in hex_digits for digit in digits):
+                    raise ProgramError(self, 'Hex escape requires two hexadecimal digits')
+                result.append(chr(int(digits, 16)))
+                index += 2
+            elif escape == 'u':
+                if index == len(value) or value[index] != '{':
+                    raise ProgramError(self, 'Unicode escape requires braces')
+                end = value.find('}', index + 1)
+                if end == -1:
+                    raise ProgramError(self, 'Unterminated Unicode escape')
+                digits = value[index + 1:end]
+                if not re.fullmatch(r'[0-9a-fA-F][0-9a-fA-F_]*', digits):
+                    raise ProgramError(self, 'Invalid Unicode escape digits')
+                digits = digits.replace('_', '')
+                if len(digits) > 6:
+                    raise ProgramError(self, 'Unicode escape allows at most six hexadecimal digits')
+                code_point = int(digits, 16)
+                if code_point > 0x10ffff or 0xd800 <= code_point <= 0xdfff:
+                    raise ProgramError(self, 'Unicode escape is not a Unicode scalar value')
+                result.append(chr(code_point))
+                index = end + 1
+            else:
+                escape_text = '\\' + escape
+                raise ProgramError(self, f'Unknown string escape: {escape_text!r}')
+        return ''.join(result)
+
+
+class Reference(Value):
+    @check_parameters
+    def __init__(self, identifiers: typing.List[Identifier], *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.identifiers = identifiers
+
+    @staticmethod
+    @check_parameters
+    def from_list(*identifiers, source_position: SourcePosition):
+        return Reference(list(identifiers), source_position=source_position)
+
+    @staticmethod
+    @check_parameters
+    def create_default(direction_spec: PortDirectionSpecifier, *, source_position: SourcePosition):
+        direction = direction_spec.direction
+        # TODO: Clean up
+        if direction == PortDirection.Input:
+            name = 'default input'
+        elif direction == PortDirection.Output:
+            name = 'default output'
+        else:
+            raise Exception(f'Unknown value for direction: {direction}')
+        identifier = Identifier(name, source_position=source_position)
+        return Reference([identifier], source_position=source_position)
+
+    def __repr__(self):
+        # TODO: Somehow show which enclosing node a parameter belongs to?
+        # return '.'.join([i.id_str for i in self.identifiers]) + f' [{self.source_position.start_line}]'
+        return '.'.join([i.id_str for i in self.identifiers])
+
+    @property
+    def length(self):
+        return len(self.identifiers)
+
+    @check_parameters
+    def resolve(self, graph, direction: PortDirection, purpose: str):
+        if direction in [PortDirection.Input, PortDirection.Output]:
+            if self.length == 1:
+                node_name_id = self.identifiers[0]
+                port_name_id = None
+            elif self.length == 2:
+                node_name_id = self.identifiers[0]
+                port_name_id = self.identifiers[1]
+            else:
+                raise ProgramError(self, f'Got unexpected number of identifiers in {purpose}: {self}')
+            return ResolvedPortReference(graph, direction, node_name_id, port_name_id, purpose)
+        else:
+            raise Exception(f'Unknown PortDirection: {direction!r}')
+
+
+class ListLiteral(Value):
+    @check_parameters
+    def __init__(self, values: list[Value], *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.values = values
+
+
+class FunctionCall(Value):
+    @check_parameters
+    def __init__(self, fun: Value, parameters: list[Value], *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.fun = fun
+        self.parameters = parameters
+
+    @staticmethod
+    def create(fun, parameters, *, source_position):
+        if (isinstance(fun, Reference) and fun.length == 1
+                and fun.identifiers[0].id_str == 'parameter_option'):
+            return ParameterOption(parameters, source_position=source_position)
+        return FunctionCall(fun, parameters, source_position=source_position)
+
+
+class ParameterOption(Value):
+    def __init__(self, parameters, *, source_position):
+        super().__init__(source_position=source_position)
+        self.parameters = parameters
+
+    def declaration(self, scope, local_names=()):
+        if len(self.parameters) != 1:
+            raise ProgramError(self, 'parameter_option expects exactly one argument')
+        reference = self.parameters[0]
+        if not isinstance(reference, Reference) or reference.length != 1:
+            raise ProgramError(reference, 'parameter_option requires an unqualified optional parameter reference')
+        name = reference.identifiers[0].id_str
+        parameter = scope.parsed_parameters.get(name)
+        if name in local_names or parameter is None or parameter.optional_specifier is None:
+            raise ProgramError(reference, 'parameter_option requires an optional parameter without a default')
+        return parameter
+
+
+class BracketOperator(Value):
+    @check_parameters
+    def __init__(self, base: Value, parameter: Value, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.base = base
+        self.parameter = parameter
+
+
+# TODO: Remove and merge into Reference?
+class ResolvedPortReference(SourceElement):
+    @check_parameters
+    # TODO: port_name should not be typing.Optional
+    def __init__(self, graph, direction: PortDirection, node_name: Identifier, port_name: typing.Optional[Identifier], purpose: str):
+        if direction == PortDirection.Input:
+            port_direction = 'input'
+            port_dict_lambda = lambda node: node.input_ports_byname
+        elif direction == PortDirection.Output:
+            port_direction = 'output'
+            port_dict_lambda = lambda node: node.output_ports_byname
+        else:
+            raise Exception(f'Unknown PortDirection: {direction!r}')
+
+        self.node_name = node_name
+        self.port_name = port_name
+
+        self.node_name_str = self.node_name.id_str
+        if self.port_name is None:
+            # TODO: Clean up
+            if direction == PortDirection.Input:
+                # self.port_name_str = 'default input'
+                self.port_name_str = ''
+            elif direction == PortDirection.Output:
+                # self.port_name_str = 'default output'
+                self.port_name_str = ''
+            else:
+                raise Exception(f'Unknown value for direction: {direction}')
+            # TODO: Remove port_name_elem (Hack)
+            self.port_name_elem = node_name
+        else:
+            self.port_name_str = self.port_name.id_str
+            self.port_name_elem = self.port_name
+
+        # print(direction, repr(self.node_name_str), repr(self.port_name_str))
+        # TODO: Should this be here?
+        if direction == PortDirection.Input:
+            if self.node_name_str in graph.output_ports and self.port_name_str == '':
+                self.port = graph.output_ports[self.node_name_str]
+                # TODO: This is a hack
+                return
+            variable = graph.value_nodes.get(self.node_name_str)
+            if variable is not None:
+                is_state = isinstance(variable, model.ast.DeclarationState)
+                if self.port_name is not None:
+                    kind = 'State' if is_state else 'Temporary'
+                    raise ProgramError(self.port_name, f'{kind} {self.node_name_str!r} has no input port {self.port_name_str!r}')
+                variables = graph.state_nodes if is_state else graph.temporary_nodes
+                self.port = variables[self.node_name_str]
+                return
+        if direction == PortDirection.Output:
+            variable = graph.value_nodes.get(self.node_name_str)
+            if isinstance(variable, model.ast.DeclarationState):
+                if self.port_name_str not in ('old', 'new'):
+                    raise ProgramError(self.port_name_elem, 'State connection sources must explicitly reference .old or .new')
+                self.port = model.StateRead(
+                    graph.state_nodes[self.node_name_str],
+                    self.port_name_str, self.port_name_elem,
+                )
+                return
+            if self.node_name_str in graph.input_ports and self.port_name_str == '':
+                self.port = graph.input_ports[self.node_name_str]
+                # TODO: This is a hack
+                return
+            if self.node_name_str in graph.temporary_nodes:
+                if self.port_name_str != '':
+                    raise ProgramError(self.port_name_elem, f'Temporary {self.node_name_str!r} has no output port {self.port_name_str!r}')
+                self.port = graph.temporary_nodes[self.node_name_str]
+                # TODO: This is a hack
+                return
+
+        procedure = graph.procedures.get(self.node_name_str)
+        if procedure is not None:
+            self.port = procedure.resolve_port(self.node_name, self.port_name, direction == PortDirection.Input)
+            return
+
+        if self.node_name_str not in graph.instance_nodes:
+            raise ProgramError(self.node_name, f'Unable to find {purpose} node {self.node_name_str!r}')
+        self.node = graph.instance_nodes[self.node_name_str]
+        port_dict = port_dict_lambda(self.node)
+        if self.port_name_str in port_dict:
+            self.port = port_dict[self.port_name_str]
+        else:
+            if self.port_name_str == '':
+                raise ProgramError(self.node_name, f'{purpose.capitalize()} node {self.node_name_str!r} does not have a default {port_direction}')
+            else:
+                raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
+
+
+class StructLiteralField(SourceElement):
+    @check_parameters
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.value = value
+
+
+class StructLiteral(Value):
+    @check_parameters
+    def __init__(self, struct_type: Reference, fields: typing.List[StructLiteralField],
+                 *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.struct_type = struct_type
+        self.fields = fields
+
+
+def check_struct_literal(value_type, literal, scope):
+    if not isinstance(value_type, model.types.TypeStruct):
+        raise ProgramError(literal, f'Expected {value_type}, got struct literal')
+    if scope is None or scope.resolve_type(literal.struct_type) is not value_type:
+        raise ProgramError(literal.struct_type, f'Expected struct type {value_type}, got {literal.struct_type}')
+    fields = {}
+    for field in literal.fields:
+        name = field.name.id_str
+        if name in fields:
+            raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
+                CompilerHint(fields[name].name, 'Previous field was here'),
+            ])
+        if name not in value_type.fields:
+            raise ProgramError(field.name, f'Unknown field {name!r} of {value_type}')
+        fields[name] = field
+    missing = value_type.fields.keys() - fields.keys()
+    if missing:
+        raise ProgramError(literal, f'Missing fields of {value_type}: {", ".join(sorted(missing))}')
+    return fields

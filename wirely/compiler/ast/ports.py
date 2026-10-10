@@ -1,0 +1,112 @@
+"""Port declarations of node types."""
+
+import typing
+
+from wirely.compiler.attributes import copy_attributes
+from wirely.compiler import model
+from wirely.util import check_parameters
+from wirely.compiler.types import check_runtime_type
+
+from .base import SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration
+from .specifiers import PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource
+
+
+class DeclarationPort(Declaration):
+    @check_parameters
+    def __init__(self, name: typing.Optional[Identifier], direction_spec: PortDirectionSpecifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.direction_spec = direction_spec
+        self.port_spec = port_spec
+
+        # TODO: Remove?
+        self.list_spec = self.port_spec.list_spec
+        if isinstance(self.port_spec, PortTypeSpecificationData):
+            self.ty = self.port_spec.ty
+            self.kind_spec = self.port_spec.kind_spec
+
+            self.kind = self.kind_spec.kind
+
+        self.direction = self.direction_spec.direction
+
+        if self.list_spec.is_list and self.direction != PortDirection.Input:
+            raise ProgramError(self, f'Got multi specifier for non-input')
+
+        if self.name is None:
+            if self.direction == PortDirection.Input:
+                self.name_str = 'default input'
+            elif self.direction == PortDirection.Output:
+                self.name_str = 'default output'
+            else:
+                raise Exception(f'Unknown value for direction: {self.direction}')
+        else:
+            self.name_str = self.name.id_str
+
+    @staticmethod
+    @check_parameters
+    def create(direction_spec: PortDirectionSpecifier, name: Identifier, port_spec : PortTypeSpecification, *, source_position: SourcePosition):
+        return DeclarationPort(name, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
+
+    @staticmethod
+    @check_parameters
+    def create_default(direction_spec: PortDirectionSpecifier, port_spec : PortTypeSpecification, *, source_position: SourcePosition):
+        return DeclarationPort(None, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
+
+    @check_parameters
+    def compile_pass1_btd(self, interface):
+        self.interface = interface
+
+        if self.interface.is_singleton and self.direction_spec.direction == PortDirection.Input:
+            raise model.ProgramError(self, 'Singleton node type cannot have inputs')
+
+    def create_io(self, new_graph):
+        # TODO: Use self.kind ConnectionKind
+        # TODO: Pass par_values to resolve_type?
+        # TODO: Should the entires port_spec instance be passed?
+        if isinstance(self.port_spec, PortTypeSpecificationData):
+            ty = self.interface.resolve_type(self.ty)
+            check_runtime_type(ty, self)
+            resource_type = None
+        elif isinstance(self.port_spec, PortTypeSpecificationResource):
+            ty = None
+            resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
+        else:
+            raise InternalCompilerError(self, Exception('Unknown port type specification'))
+        if self.direction == PortDirection.Input:
+            name = self.name_str
+            if name == '':
+                name = 'default input'
+            if name in new_graph.input_ports:
+                raise ProgramError(self, f'Duplicate input {name!r}', hints=[
+                    CompilerHint(new_graph.input_ports[name].port_spec, 'Previous input was here'),
+                ])
+            port = model.TypeInputPort(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, port_spec=self.port_spec, resource_type=resource_type)
+        elif self.direction == PortDirection.Output:
+            name = self.name_str
+            if name == '':
+                name = 'default output'
+            if name in new_graph.output_ports:
+                raise ProgramError(self, f'Duplicate output {name!r}', hints=[
+                    CompilerHint(new_graph.output_ports[name].port_spec, 'Previous output was here'),
+                ])
+            port = model.TypeOutputPort(new_graph, ty, name=name, output_name=self.name_str, port_spec=self.port_spec, resource_type=resource_type)
+        else:
+            raise Exception(f'Unknown direction: {self.direction!r}')
+
+        copy_attributes(port, self)
+
+    # TODO: Clean up compilation passes
+
+    def compile_pass1(self, graph):
+        if self.name is None:
+            return
+        previous = graph.name_declarations.get(self.name.id_str)
+        # create_io reports duplicate ports of the same kind.
+        if not (isinstance(previous, DeclarationPort) and previous.direction == self.direction):
+            model.ast.register_name(graph, self.name, self)
+
+    def compile_pass1_5(self, graph):
+        pass
+
+    def compile_pass2(self, graph):
+        pass
