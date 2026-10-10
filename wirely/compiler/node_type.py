@@ -2,6 +2,7 @@ import typing
 
 from .attributes import copy_attributes
 from .types import check_runtime_type, resolve_type
+from .stages import ResolutionState
 
 from wirely.compiler import model
 from wirely.util import check_parameters
@@ -43,6 +44,8 @@ class NodeType(model.Scope):
         self.temporary_nodes = {}
         self.libraries = {}
         self.assertions = []
+        self.interface_state = ResolutionState.PENDING
+        self.instance_declarations_state = ResolutionState.PENDING
         self.pass2_done = False
         self.pass2_in_progress = False
 
@@ -128,29 +131,42 @@ class NodeType(model.Scope):
     def compile_pass1_5(self, graph):
         self.compile_pass1_5_if_needed()
 
-    def compile_pass1_5_if_needed(self):
-        # TODO: Make this more generic, provide proper error messages on cycles
-        if hasattr(self, 'pass1_5_done'):
+    def prepare_interface(self):
+        if self.interface_state is ResolutionState.COMPLETE:
             return
-        self.pass1_5_done = True
+        if self.interface_state is not ResolutionState.PENDING:
+            raise model.ProgramError(self, f'Cannot resolve interface of {self.fullname!r}')
+        self.interface_state = ResolutionState.RESOLVING
+        try:
+            for declaration in self.static_declarations.values():
+                declaration.resolve_type()
+            for declaration in self.declarations:
+                with declaration.context:
+                    declaration.create_io(self)
+            self.parameters_by_name = self.parsed_parameters
+        except Exception:
+            self.interface_state = ResolutionState.FAILED
+            raise
+        self.interface_state = ResolutionState.COMPLETE
 
-        for declaration in self.static_declarations.values():
-            declaration.resolve_type()
+    def resolve_instance_declarations(self):
+        if self.instance_declarations_state is ResolutionState.COMPLETE:
+            return
+        if self.instance_declarations_state is not ResolutionState.PENDING:
+            raise model.ProgramError(self, f'Recursive node type instantiation of {self.fullname!r}')
+        self.prepare_interface()
+        self.instance_declarations_state = ResolutionState.RESOLVING
+        try:
+            for declaration in self.declarations:
+                with declaration.context:
+                    declaration.compile_pass1_5(self)
+        except Exception:
+            self.instance_declarations_state = ResolutionState.FAILED
+            raise
+        self.instance_declarations_state = ResolutionState.COMPLETE
 
-
-        # Former "implementation" part
-
-        for decl in self.declarations:
-            with decl.context:
-                decl.create_io(self)
-
-        for decl in self.declarations:
-            if isinstance(decl, model.Declaration):
-                with decl.context:
-                    decl.compile_pass1_5(self)
-
-        # TODO: Remove
-        self.parameters_by_name = self.parsed_parameters
+    def compile_pass1_5_if_needed(self):
+        self.resolve_instance_declarations()
 
     def compile_pass2(self, graph):
         if self.pass2_done:

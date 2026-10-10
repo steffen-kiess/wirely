@@ -110,3 +110,10 @@ node type First {
   }
   node child: Second {}
 }
+
+// TEST: parameterized recursive instantiation
+node type Recursive {
+  parameter P: uint8 = 1;
+  node child: Recursive { P: P } // E: Recursive node type instantiation of 'Recursive'
+}
+node root: Recursive {}

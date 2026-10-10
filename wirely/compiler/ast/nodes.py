@@ -69,7 +69,7 @@ class DeclarationInstance(Declaration):
         # print(self.node_name, self.node_type, parameter_bindings)
 
         # The node type may be declared after this node.
-        self.node_type.compile_pass1_5_if_needed()
+        self.node_type.prepare_interface()
 
         self.par_values = {}
         seen = set()
