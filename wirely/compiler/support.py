@@ -2,7 +2,7 @@ from collections.abc import Mapping
 
 from . import model
 from .instance import InstanceNode
-from .graph import Connection, StateRead
+from .graph import Connection, StateRead, StaticSource
 from .types import resolve_type
 
 
@@ -10,7 +10,7 @@ debug_variable_resolution = False
 
 
 SOURCE_TYPES = (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
-                StateRead, model.ProcedureOutputPort)
+                StateRead, model.ProcedureOutputPort, StaticSource)
 TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureInputPort, model.TemporaryNode,
                 model.StateNode)
 
@@ -51,7 +51,7 @@ def connect(source, target, source_element, *, attributes=()):
             return port.type_output_port.port_spec
         if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
             return port.port_spec
-        if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort)):
+        if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource)):
             return port.declaration
         return port.graph.value_nodes[port.name]
 
@@ -304,6 +304,12 @@ def resolve_variable(path, var, seen=None):
             parent_node = parent_node.singleton_instance
         input_var = parent_node.input_ports_byname[input_name]
         return resolve_variable(path_resolve_singleton(new_path), input_var, seen)
+
+    if isinstance(var, StaticSource):
+        # The instance owning the declaration supplies its value.
+        if path[-1] != var:
+            raise Exception('path[-1] != var')
+        return path[:-1], var
 
     # TODO: Clean up
     if isinstance(var, model.StateNode):

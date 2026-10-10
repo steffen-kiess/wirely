@@ -32,6 +32,31 @@ class StateRead:
 
 
 @dataclass(frozen=True)
+class StaticSource:
+    """A parameter or constant used as a connection source."""
+
+    declaration: object
+    reference: object
+
+    # TODO: Remove
+    @property
+    def node(self):
+        return self
+
+    @property
+    def graph(self):
+        return self.declaration.interface
+
+    @property
+    def name(self):
+        return self.declaration.name.id_str
+
+    @property
+    def var_type(self):
+        return self.declaration.type_resolved
+
+
+@dataclass(frozen=True)
 class Connection:
     """A compiler edge, whose target is the actual slot of a list input."""
 
@@ -105,7 +130,8 @@ class TypeOutputPort(GraphElement):
 
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(source, (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
+        if not isinstance(source, (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
+                                   StaticSource)):
             raise Exception('source parameter value is not a data or resource source')
         # if self.is_list:
         if False:
@@ -192,7 +218,7 @@ def port_specification(port):
     """Return the port specification of a connection source or target."""
     if isinstance(port, ProcedurePort):
         return port.specification
-    if isinstance(port, (TemporaryNode, StateNode, StateRead)):
+    if isinstance(port, (TemporaryNode, StateNode, StateRead, StaticSource)):
         return PortSpecification(port.var_type, None, None, False)
     var_type = port.var_type
     if isinstance(port.node, model.InstanceNode) and var_type is not None:

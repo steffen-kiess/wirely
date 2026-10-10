@@ -1,0 +1,33 @@
+constant Enabled: boolean = true;
+
+// A parameter typed by a type parameter, forwarded to an output.
+node type Source {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  default output: value Type;
+  connect Value -> default output;
+}
+
+// Constants feeding a temporary, a state, and a multi input.
+node type Combined {
+  parameter Other: boolean;
+  constant Inverted: boolean = !Other;
+  default output: value boolean;
+  temporary inverted: boolean;
+  state last: boolean = false;
+  node all: Std.And {}
+  connect Inverted -> inverted;
+  connect Inverted -> last;
+  connect inverted, Other, last.old -> all;
+  connect all -> default output;
+}
+
+node source: Source { Type: int16, Value: 5 }
+node printer: Std.DebugValuePrinter { Type: int16 }
+connect source -> printer;
+
+node combined: Combined { Other: true }
+node all: Std.And {}
+connect Enabled, combined -> all;
+node result: Std.DebugValuePrinter { Type: boolean }
+connect all -> result;

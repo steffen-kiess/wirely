@@ -3,6 +3,7 @@
 from wirely.compiler import model
 from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
+from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
@@ -122,8 +123,44 @@ def lower_program(global_node_type):
     specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
+    constants = []
+    constant_indices = {}
+
+    def intern_constant(value_type, value):
+        value = value_type.verify_value(value)
+        key = value_type, value_type.serialize(value)
+        if key not in constant_indices:
+            constant_indices[key] = len(constants)
+            constants.append(Constant(value_type, value))
+        return constant_indices[key]
+
+    def static_source(path, source):
+        """Return the constant supplying a parameter or constant connected as a source."""
+        instance = instances[path]
+        reference = source.reference
+        with reference.context:
+            try:
+                value_type = resolve_type(source.var_type, instance.static_values)
+                expression = model.Reference([reference], source_position=reference.source_position)
+                value = compile_constant(instance.node_type, expression, value_type, instance.static_values)
+                try:
+                    concrete = value.resolve_self(instance.static_values).evaluate()
+                except (ValueError, ArithmeticError) as error:
+                    raise model.ProgramError(reference, str(error)) from error
+            except model.ProgramError as error:
+                owner = instance.node or instance.node_type.singleton_instance
+                if not owner.is_root:
+                    name = model.InstanceNode.path_name(path, qualified=True)
+                    error.hints = [*error.hints, model.CompilerHint(
+                        owner.instantiation, f'While instantiating {name!r}',
+                    )]
+                raise
+        return InputSource(constant=constants[intern_constant(value_type, concrete)])
+
     def resolve_source(path, source):
         source_path, variable = model.resolve_variable(path, source)
+        if isinstance(variable, model.StaticSource):
+            return static_source(source_path, variable)
         if isinstance(variable, model.StateRead):
             return InputSource(state_map[source_path, variable.state], new_state=variable.phase == 'new')
         if isinstance(variable, model.InstanceStateVariable):
@@ -187,7 +224,7 @@ def lower_program(global_node_type):
                         if variable.phase == 'new':
                             do(producer_path, variable.state.producer, variable.reference, connections)
                         continue
-                    if not isinstance(variable, model.InstanceStateVariable):
+                    if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
                         do(producer_path, variable.producer, proc.declaration_procedure.depends, connections)
         if doing.pop()[0] != key:
             raise Exception('doing.pop()[0] != key')
@@ -297,10 +334,7 @@ def lower_program(global_node_type):
                     raise model.ProgramError(state.initial_value, str(error)) from error
 
     # Compile .wrl bodies after instance parameters and variable types resolve.
-    from .expressions import compile_procedure
     bodies = {}
-    constants = []
-    constant_indices = {}
 
     functions = []
     function_indices = {}
@@ -311,14 +345,6 @@ def lower_program(global_node_type):
             functions.append(Function(declaration.function_name, declaration.argument_names,
                                       declaration.parameter_types, declaration.return_type))
         return function_indices[declaration.function_name]
-
-    def intern_constant(value_type, value):
-        value = value_type.verify_value(value)
-        key = value_type, value_type.serialize(value)
-        if key not in constant_indices:
-            constant_indices[key] = len(constants)
-            constants.append(Constant(value_type, value))
-        return constant_indices[key]
 
     for stage_procs in procs.values():
         for path, proc in stage_procs:
@@ -336,7 +362,7 @@ def lower_program(global_node_type):
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     raise model.ProgramError(port, 'Event ports are not supported in procedures')
-                source_types[name] = resolve_source(path, source).variable.var_type
+                source_types[name] = resolve_source(path, source).value_type
             output_types = {}
             for name, target in proc.static_context._targets.items():
                 spec = getattr(target, 'port_spec', None)

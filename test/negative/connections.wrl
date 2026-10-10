@@ -156,3 +156,55 @@ node type Outer {
   connect second -> default output;
 }
 node outer: Outer {}
+
+// TEST: constant source type mismatch
+constant Count: int16 = 1; // H: Source was declared here
+temporary flag: boolean; // H: Target was declared here
+connect Count -> flag; // E: source has type int16 but target has type boolean
+
+// TEST: constant source to an event input
+node type Probe {
+  input Changed: event boolean; // H: Target was declared here
+}
+constant Flag: boolean = true; // H: Source was declared here
+node probe: Probe {}
+connect Flag -> probe.Changed; // E: source has kind
+
+// TEST: constant source to a resource input
+resource type Service;
+node type Probe {
+  input Service: resource Service; // H: Target was declared here
+}
+constant Flag: boolean = true; // H: Source was declared here
+node probe: Probe {}
+connect Flag -> probe.Service; // E: Cannot connect resource and data ports
+
+// TEST: type-valued constant source
+node type Probe {
+  parameter Type: ValueType;
+  input Value: value Type;
+}
+constant Selected: ValueType = boolean;
+node probe: Probe { Type: boolean }
+connect Selected -> probe.Value; // E: Type-valued constant 'Selected' cannot be a connection source
+
+// TEST: constant target
+constant Flag: boolean = true;
+temporary flag: boolean;
+connect flag -> Flag; // E: Cannot connect to constant 'Flag'
+
+// TEST: parameter output port
+node type Probe {
+  parameter Flag: boolean;
+  default output: value boolean;
+  connect Flag.Value -> default output; // E: Parameter 'Flag' has no output port 'Value'
+}
+node probe: Probe { Flag: true }
+
+// TEST: omitted parameter source
+node type Probe {
+  optional parameter Flag: boolean;
+  default output: value boolean;
+  connect Flag -> default output; // E: Unable to resolve value parameter Probe.Flag
+}
+node probe: Probe {} // H: While instantiating 'probe'

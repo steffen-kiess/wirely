@@ -19,6 +19,7 @@ _exports = {
     'TemporaryNode': 'compiler.graph',
     'StateNode': 'compiler.graph',
     'StateRead': 'compiler.graph',
+    'StaticSource': 'compiler.graph',
     'PortSpecification': 'compiler.graph',
     'ProcedureInputPort': 'compiler.graph',
     'ProcedureOutputPort': 'compiler.graph',

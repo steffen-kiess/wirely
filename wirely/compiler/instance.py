@@ -265,7 +265,8 @@ class InstanceInputPort(InstanceSource):
 
     def connect(self, output):
         # TODO: Clean up class structure for value sources / targets
-        if not isinstance(output, (InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort)):
+        if not isinstance(output, (InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
+                                   model.StaticSource)):
             raise Exception('output parameter value is not a data or resource source')
         if self.is_list:
             # TODO: Clean up

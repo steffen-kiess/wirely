@@ -86,6 +86,29 @@ node type Probe {
   output Value: value boolean; // E: Duplicate name 'Value'
 }
 
+// TEST: node and parameter share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'value'
+node type Inner {}
+node type Probe {
+  node value: Inner {} // E: Duplicate name 'value'
+  parameter value: boolean; // H: Previous declaration was here
+}
+
+// TEST: output and constant share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'Value'
+node type Probe {
+  output Value: value boolean; // E: Duplicate name 'Value'
+  constant Value: boolean = true; // H: Previous declaration was here
+}
+
+// TEST: root temporary and constant share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'value'
+constant value: boolean = true; // H: Previous declaration was here
+temporary value: boolean; // E: Duplicate name 'value'
+
 // TEST: literal of the wrong type
 node type Probe {
   parameter Flag: boolean;

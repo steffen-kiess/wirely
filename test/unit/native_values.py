@@ -96,12 +96,12 @@ def check_values():
     constant Span: Duration = "PT1S";
     constant Instant: Option[MonotonicTime] = None;
     constant Types: List[Option[ValueType]] = [Some(uint16), None];
-    input Number: resource Service;
+    input Connection: resource Service;
     output Result: value uint16;
-    native initializer depends on Number,
+    native initializer depends on Connection,
       uses Number, Seed as seed, Example.Identity(20) as "retained",
         parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
-    native procedure run depends on Number, produces Result as Number,
+    native procedure run depends on Connection, produces Result as Number,
       uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
         parameter_option(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
@@ -122,8 +122,8 @@ namespace Example {
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }
 node provider: TestLibrary.Provider {}
-connect provider -> first.Number;
-connect provider -> second.Number;
+connect provider -> first.Connection;
+connect provider -> second.Connection;
 '''
     with patch.dict(wirely.native.test_library.native_node_types, registry), \
             patch.dict(native_function_impls, {('Example', 'Identity'): identity}):

@@ -1,0 +1,25 @@
+constant Limit: int16 = 12;
+constant Enabled: boolean = true;
+
+node type Twice {
+  default input: value int16;
+  default output: value int16;
+  procedure run depends on default input as value produces default output as output {
+    output = int16.WrappingAdd(value, value);
+  }
+}
+
+node type Forward {
+  parameter Value: int16;
+  default output: value int16;
+  connect Value -> default output;
+}
+
+node limit_twice: Twice {}
+connect Limit -> limit_twice;
+node forward: Forward { Value: 12 }
+node forward_twice: Twice {}
+connect forward -> forward_twice;
+node other: Forward { Value: 5 }
+node all: Std.And {}
+connect Enabled -> all;

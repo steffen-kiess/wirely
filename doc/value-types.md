@@ -267,8 +267,7 @@ node type ConstantValue {
   parameter Type: ValueType;
   parameter Initial: Type;
   default output: value Type;
-  node constant: Std.Constant { Type: Type, Value: Initial }
-  connect constant -> default output;
+  connect Initial -> default output;
 }
 ```
 

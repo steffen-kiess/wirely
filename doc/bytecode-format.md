@@ -381,12 +381,12 @@ struct type Variable {
 ```
 
 Static values describe the resolved values bound by `uses` clauses of
-native procedures and initializers, and constants read by procedure
-bodies. Bindings and `const` operands reference these entries, which can
-be shared for equal typed values. Their data and referenced payloads are
-stored in `ProgramData`. Only values bound by `uses` clauses or read by
-procedure bodies are stored; node parameters, constants, and expressions
-supply those values.
+native procedures and initializers, constants read by procedure bodies,
+and parameters and constants connected to procedure inputs. Bindings,
+`const` operands, and static input sources reference these entries, which
+can be shared for equal typed values. Their data and referenced payloads
+are stored in `ProgramData`. Only values used in one of these ways are
+stored; node parameters, constants, and expressions supply those values.
 
 ### ProgramData
 
@@ -701,18 +701,21 @@ sources form an ordered sequence, which can be empty.
 ### InputSources
 
 ```wirely
-// One variable supplying a procedure input. InputSources table.
+// One variable or static value supplying a procedure input.
+// InputSources table.
 struct type InputSource {
-  // Old state, new state, or temporaries.
+  // Old state, new state, temporaries, or static values.
   Bank: uint8,
-  // Index into StateVariables or Temporaries, selected by Bank.
+  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Bank.
   Variable: Ref,
 }
 ```
 
 An old-state input reads the step's old-state snapshot. A new-state input
 reads the state value written earlier in the step. A temporary input reads
-a temporary computed during the step.
+a temporary computed during the step. A static input reads a value from
+`ProgramData`.
 
 Old-state inputs compare the step's old-state snapshot with the snapshot
 read by the previous step, using the variable's value-type equality.
@@ -720,8 +723,9 @@ New-state inputs compare this step's new state with the step's old state,
 which the previous step produced. Temporary inputs compare this step's
 values with the previous step's cached values. A difference requires
 procedure execution. On the first step, procedures execute without
-previous values. Triggers and wakeups also require execution. A skipped
-procedure preserves its state and temporary outputs.
+previous values. Static inputs never change and are not compared.
+Triggers and wakeups also require execution. A skipped procedure preserves
+its state and temporary outputs.
 
 ### Outputs
 
@@ -979,21 +983,22 @@ building [state transitions](#state-transitions).
 ### VariableAliases
 
 ```wirely
-// An alias referring to a state or temporary variable.
+// An alias referring to a state or temporary variable or a static value.
 // VariableAliases table.
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // Old state, new state, or temporaries.
+  // Old state, new state, temporaries, or static values.
   Bank: uint8,
-  // Index into StateVariables or Temporaries, selected by Bank.
+  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Bank.
   Variable: Ref,
 }
 ```
 
 Aliases map source names, including the inputs and outputs of nodes, to
-the variable that stores their value. They are sorted by UTF-8 name bytes.
-Multiple aliases can refer to one variable.
+the variable or static value that supplies their value. They are sorted by
+UTF-8 name bytes. Multiple aliases can refer to one variable.
 
 ### SymbolData
 
@@ -1096,7 +1101,8 @@ when lists share bytes.
 starts at or after the end of the previous one. Comparing each entry with
 its predecessor therefore shows that slots do not overlap and gives the
 buffer size. Their types, and those of locals, constant and immediate
-operands, and native function parameters and results, are runtime types.
+operands, static input sources and aliases, and native function
+parameters and results, are runtime types.
 
 ### Names and bindings
 

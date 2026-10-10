@@ -149,7 +149,10 @@ class Engine:
                     values = []
                     for input_source in input_sources:
                         variable = input_source.variable
-                        if input_source.new_state is None:
+                        if input_source.constant is not None:
+                            # Constants never change.
+                            value = input_source.constant.value
+                        elif input_source.new_state is None:
                             value = variables[variable]
                             if skip_step and not variable.var_type.equals(value, cache[variable]):
                                 skip_step = False
@@ -162,7 +165,7 @@ class Engine:
                             value = state_old[variable]
                             if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
                                 skip_step = False
-                        values.append(wirely.value_types._to_native(variable.var_type, value))
+                        values.append(wirely.value_types._to_native(input_source.value_type, value))
                     inputs[name] = tuple(values) if is_list else values[0]
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
@@ -282,7 +285,10 @@ class Engine:
         return self.native_states[self.get_node_path_singleton(name)]
 
     def get_variable(self, name):
-        return self._get_source(name).variable
+        variable = self._get_source(name).variable
+        if variable is None:
+            raise ValueError(f'Variable alias {name!r} refers to a constant')
+        return variable
 
     def _get_source(self, name):
         try:
@@ -294,6 +300,8 @@ class Engine:
         return self.get_source_value(self._get_source(name))
 
     def get_source_value(self, input_source):
+        if input_source.constant is not None:
+            return input_source.constant.value
         if input_source.new_state is None:
             return self.cache[input_source.variable]
         if input_source.new_state:

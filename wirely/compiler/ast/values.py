@@ -268,6 +268,11 @@ class ResolvedPortReference(SourceElement):
             self.port_name_elem = self.port_name
 
         # print(direction, repr(self.node_name_str), repr(self.port_name_str))
+        static = graph.static_declarations.get(self.node_name_str)
+        if static is not None:
+            self.port = static_source(static, self.node_name, self.port_name, direction, purpose)
+            return
+
         # TODO: Should this be here?
         if direction == PortDirection.Input:
             if self.node_name_str in graph.output_ports and self.port_name_str == '':
@@ -320,6 +325,21 @@ class ResolvedPortReference(SourceElement):
                 raise ProgramError(self.node_name, f'{purpose.capitalize()} node {self.node_name_str!r} does not have a default {port_direction}')
             else:
                 raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
+
+
+def static_source(declaration, name, port_name, direction, purpose):
+    """Return the connection source for a parameter or constant."""
+    kind = 'Constant' if isinstance(declaration, model.ast.DeclarationConstant) else 'Parameter'
+    if purpose in ('dependency', 'destination'):
+        raise ProgramError(name, f'{kind} {name.id_str!r} is not a port; read it directly or bind it with uses')
+    if direction == PortDirection.Input:
+        raise ProgramError(name, f'Cannot connect to {kind.lower()} {name.id_str!r}')
+    if port_name is not None:
+        raise ProgramError(port_name, f'{kind} {name.id_str!r} has no output port {port_name.id_str!r}')
+    declaration.resolve_type()
+    if declaration.type_resolved == model.types.ValueType:
+        raise ProgramError(name, f'Type-valued {kind.lower()} {name.id_str!r} cannot be a connection source')
+    return model.StaticSource(declaration, name)
 
 
 class StructLiteralField(SourceElement):

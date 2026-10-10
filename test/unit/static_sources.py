@@ -1,0 +1,36 @@
+import dataclasses
+import unittest
+
+from wirely.program import validate_program
+
+
+checks = unittest.TestCase()
+
+
+def check_static_sources():
+    program = engine.program
+    run_count, _, _ = engine.step()
+    assert run_count == 3, run_count
+    engine.assert_value_is('limit_twice', 24)
+    engine.assert_value_is('forward_twice', 24)
+    engine.assert_value_is('forward', 12)
+    engine.assert_value_is('other', 5)
+    engine.assert_value_is('all', True)
+    # Static sources never change, so later steps run nothing.
+    engine.assert_is_idle()
+
+    # Equal values share one constant.
+    limit = program.variables['forward'].constant
+    assert [constant.value for constant in program.constants].count(12) == 1
+    procedure = next(proc for schedule in program.procs.values() for proc in schedule
+                     if proc.node_id == 'limit_twice')
+    (_, (source,), _), = procedure.dependencies
+    assert source.constant is limit
+    with checks.assertRaises(ValueError):
+        engine.get_variable('forward')
+
+    with checks.assertRaisesRegex(ValueError, 'not an entry of the program constants'):
+        validate_program(dataclasses.replace(program, constants=()))
+
+
+check_static_sources()

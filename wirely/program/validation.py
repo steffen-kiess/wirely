@@ -57,7 +57,7 @@ def _validate_body(procedure, constant_types, functions):
     for name, input_sources, is_list in procedure.dependencies:
         if is_list or len(input_sources) != 1:
             raise ValueError(f'Bytecode input {name!r} must have exactly one source')
-        input_types.append(input_sources[0].variable.var_type)
+        input_types.append(input_sources[0].value_type)
     output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     tables = {
         OperandKind.INPUT: tuple(input_types),
@@ -154,7 +154,7 @@ def _validate_body(procedure, constant_types, functions):
 
 
 def validate_program(program):
-    """Reject invalid constants and procedure instructions with ValueError."""
+    """Reject invalid constants, sources, and procedure instructions with ValueError."""
     if not isinstance(program, Program):
         raise ValueError('Expected a Program')
     for index, constant in enumerate(program.constants):
@@ -179,10 +179,24 @@ def validate_program(program):
                 _runtime_type(value_type)
         except ValueError as error:
             raise ValueError(f'Function func.{index}: {error}') from error
+    constant_ids = {id(constant) for constant in program.constants}
+
+    def check_source(input_source):
+        if input_source.constant is not None and id(input_source.constant) not in constant_ids:
+            raise ValueError('Constant source is not an entry of the program constants')
+
     for schedule in program.procs.values():
         for procedure in schedule:
-            if procedure.body is not None:
-                try:
+            try:
+                for _, input_sources, _ in procedure.dependencies:
+                    for input_source in input_sources:
+                        check_source(input_source)
+                if procedure.body is not None:
                     _validate_body(procedure, constant_types, program.functions)
-                except ValueError as error:
-                    raise ValueError(f'Procedure {procedure.reference[1]!r}: {error}') from error
+            except ValueError as error:
+                raise ValueError(f'Procedure {procedure.reference[1]!r}: {error}') from error
+    for name, input_source in program.variables.items():
+        try:
+            check_source(input_source)
+        except ValueError as error:
+            raise ValueError(f'Variable {name!r}: {error}') from error

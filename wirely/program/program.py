@@ -78,10 +78,21 @@ class VariableTable:
 
 @dataclass(frozen=True, slots=True)
 class InputSource:
-    """A procedure input from a temporary or one of the step's state tables."""
+    """A procedure input from a temporary, one of the step's state tables, or a constant."""
 
-    variable: Variable  # Source in the temporaries or the state variables.
+    variable: Variable | None = None  # Source in the temporaries or the state variables.
     new_state: bool | None = None  # None for temporaries; else whether it reads this step's new state.
+    constant: Constant | None = None  # Entry of Program.constants, instead of a variable.
+
+    def __post_init__(self):
+        if (self.variable is None) == (self.constant is None):
+            raise ValueError('Expected either a variable or a constant')
+        if self.constant is not None and self.new_state is not None:
+            raise ValueError('Constant sources have no state phase')
+
+    @property
+    def value_type(self):
+        return self.variable.var_type if self.constant is None else self.constant.value_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +207,11 @@ class Program:
                     providers = '[' + providers + ']'
                 line(f'{name}: {providers}', indent)
 
+        constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
+
         def source(input_source):
+            if input_source.constant is not None:
+                return f'const.{constant_indices[id(input_source.constant)]}'
             if input_source.new_state is None:
                 return input_source.variable.name
             return f'{input_source.variable.name} ({"new" if input_source.new_state else "old"} state)'

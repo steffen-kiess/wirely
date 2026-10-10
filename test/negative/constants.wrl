@@ -100,8 +100,7 @@ node probe: Probe {}
 // TEST: procedure port collision
 node type Probe {
   constant Flag: boolean = true;
-  output Flag: value boolean;
-  procedure run produces Flag { // E: Procedure names must be distinct
+  procedure run produces Flag: value boolean { // E: Procedure names must be distinct
     Flag = true;
   }
 }
@@ -133,7 +132,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run depends on Flag produces default output as output { // E: Unable to find dependency node 'Flag'
+  procedure run depends on Flag produces default output as output { // E: Constant 'Flag' is not a port
     output = Flag;
   }
 }

@@ -180,8 +180,7 @@ node type Example {
   parameter Type: ValueType;
   parameter Initial: Type;
   default output: value Type;
-  node constant: Std.Constant { Type: Type, Value: Initial }
-  connect constant -> default output;
+  connect Initial -> default output;
 }
 ```
 
@@ -354,6 +353,20 @@ sources; `connect a, b -> target;` connects both. `Std.And` is an example
 of a multi input. Connections to and from temporaries, state, and
 procedures are described in
 [State and execution](#state-and-execution).
+
+A connection source can also name a parameter or constant of the same
+scope. It supplies a `value` of the declared type and cannot be a target:
+
+```wirely
+node type Fixed {
+  parameter Level: uint8;
+  default output: value uint8;
+  connect Level -> default output;
+}
+```
+
+Within a scope, parameters, constants, nodes, ports, state, temporaries,
+and procedures need distinct names.
 
 ### Opaque resource ports
 

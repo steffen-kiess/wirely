@@ -30,7 +30,7 @@ class NodeType(model.Scope):
         self.instance_nodes = {}
         self.procedures = {}
         self.node_declarations = {}
-        # Nodes and named ports share names.
+        # Nodes, named ports, parameters, and constants share names.
         self.name_declarations = {}
         self.initializer = None
         self.value_nodes = {}
@@ -105,6 +105,7 @@ class NodeType(model.Scope):
                         model.CompilerHint(previous, 'Previous declaration was here'),
                     ])
                 static_declarations[name] = decl
+                model.ast.register_name(self, decl.name, decl)
                 (parsed_constants if is_constant else parsed_parameters)[name] = decl
         if hasattr(self, 'parsed_parameters'):
             raise Exception("hasattr(self, 'parsed_parameters')")
@@ -302,7 +303,7 @@ class NodeType(model.Scope):
                 if isinstance(storage, model.InstanceStateVariable):
                     return model.StateRead(storage, 'new', port.declaration)
                 return storage
-            if isinstance(port, model.InstanceOutputPort):
+            if isinstance(port, (model.InstanceOutputPort, model.StaticSource)):
                 return port
             raise Exception(f'Got unknown source: {port}')
 
