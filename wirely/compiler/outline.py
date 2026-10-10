@@ -254,6 +254,11 @@ class Scope:
     # (filename, block) for each file, namespace block, or node type body.
     _blocks: tuple = field(default=(), compare=False, repr=False)
 
+    @property
+    def filenames(self):
+        """The files containing a part of the scope, in order."""
+        return tuple(dict.fromkeys(filename for filename, _ in self._blocks))
+
 
 @dataclass(frozen=True)
 class NodeTypeInfo:

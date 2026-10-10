@@ -51,6 +51,8 @@ test_names = [
     'unit/editing',
     'unit/outline',
     'unit/analysis',
+    'unit/editor',
+    'unit/editor_widgets',
     'unit/control',
     'unit/shuffle',
     'unit/container',

@@ -58,6 +58,8 @@ them to `apply_edits()` to get the new texts.
   declarations and instances. It also checks whether ports can be
   connected and lists the node types and type names usable in a scope.
   Compiler diagnostics carry source offsets.
+- `wirely edit` edits programs as source text and as node graphs, kept in
+  sync. Install the `editor` extra to use it.
 
 ## 0.1.2 - 2026-10-10
 

@@ -76,7 +76,9 @@ node source: Std.Constant {
 ```
 
 `position` requires one finite numeric literal for each of `x` and `y`, and
-can appear once per declaration. Coordinates are compiler metadata.
+can appear once per declaration. Coordinates are compiler metadata. Graph
+editors place the top-left corner of an element there, with `y` increasing
+downward.
 
 Tools can add, change, rename, and remove declarations, connect ports, and
 set attributes in source text with `wirely.compiler.editing`. Comments and

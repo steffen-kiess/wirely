@@ -43,7 +43,19 @@ python3 -m pip install 'wirely[two-n]'         # 2N devices
 python3 -m pip install 'wirely[graphviz]'      # show-graph
 python3 -m pip install 'wirely[gpio]'          # GPIO
 python3 -m pip install 'wirely[all]'           # all optional integrations
+python3 -m pip install 'wirely[editor]'        # graphical editor
 ```
+
+`wirely edit program.wrl` opens a program in a graphical editor with tabs
+for its source files and node graphs. Edits in either view update the other.
+A graph is read-only while its source has syntax errors. In a graph:
+
+- Drag a node to store its position in the source.
+- Drag from a port to another port to connect them. Drag a connection away
+  from an input to move or remove it.
+- Press Delete to remove the selection and F2 to rename it.
+- Right-click the background to add nodes and declarations.
+- Double-click a node to open the graph of its node type.
 
 The `test` extra adds dependencies used only by the test suite. Install
 `wirely[all,test]` to include both integrations and test dependencies.

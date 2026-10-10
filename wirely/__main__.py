@@ -37,6 +37,10 @@ def main():
     show_graph_parser.add_argument('input_filename')
     show_graph_parser.set_defaults(module_name='wirely.cli.graphviz')
 
+    edit_parser = subparsers.add_parser('edit', help='edit programs as source and graph')
+    edit_parser.add_argument('input_filename', nargs='+')
+    edit_parser.set_defaults(module_name='wirely.cli.edit')
+
     client_parser = subparsers.add_parser('client', help='control a running runtime')
     importlib.import_module('wirely.cli.client').add_arguments(client_parser)
     client_parser.set_defaults(module_name='wirely.cli.client')
