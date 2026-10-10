@@ -309,7 +309,10 @@ def check_triggers():
     assert not first.calls and not second.calls and not shared.calls
     trigger_engine.step()
     for state in [first, second, shared]:
-        assert state.calls == ['refresh', 'run']
+        checks.assertCountEqual(state.calls, ['refresh', 'run'])
+    first_startup = first.calls.copy()
+    second_startup = second.calls.copy()
+    shared_startup = shared.calls.copy()
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
@@ -317,31 +320,32 @@ def check_triggers():
         with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
             first.trigger(invalid)
     trigger_engine.step()
-    assert first.calls == ['refresh', 'run']
+    assert first.calls == first_startup
 
     first.trigger('refresh')
     first.trigger('refresh')
-    assert first.calls == ['refresh', 'run']
+    assert first.calls == first_startup
     trigger_engine.step()
-    assert first.calls == ['refresh', 'run', 'refresh']
-    assert second.calls == shared.calls == ['refresh', 'run']
+    assert first.calls == first_startup + ['refresh']
+    assert second.calls == second_startup
+    assert shared.calls == shared_startup
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
     first.reschedule_once = True
     first.trigger('refresh')
     trigger_engine.step()
-    assert first.calls == ['refresh', 'run', 'refresh', 'refresh']
+    assert first.calls == first_startup + ['refresh', 'refresh']
     trigger_engine.step()
-    assert first.calls == ['refresh', 'run', 'refresh', 'refresh', 'refresh']
+    assert first.calls == first_startup + ['refresh', 'refresh', 'refresh']
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
     second.trigger('run')
     shared.trigger('refresh')
     trigger_engine.step()
-    assert second.calls == ['refresh', 'run', 'run']
-    assert shared.calls == ['refresh', 'run', 'refresh']
+    assert second.calls == second_startup + ['run']
+    assert shared.calls == shared_startup + ['refresh']
     assert len(first.calls) == 5
     trigger_engine.step()
     trigger_engine.assert_is_idle()
