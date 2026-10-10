@@ -283,6 +283,10 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: cycle
+// SH: Cycle continues here
+// SH: Cycle continues here
+// SE: Circular procedure dependency
+// SH: Cycle continues here
 node type Probe {
   temporary first: boolean;
   temporary second: boolean;
@@ -364,12 +368,22 @@ temporary t: int8;
 procedure p1 produces t {} // E: did not assign outputs
 
 // TEST: top-level dependency cycle
+// SH: Cycle continues here
+// SH: Cycle continues here
+// SE: Circular procedure dependency
+// SH: Cycle continues here
 temporary first: boolean;
 temporary second: boolean;
 procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
 procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 
 // TEST: dependency cycle through a child node
+// SH: Cycle continues here
+// SH: Cycle continues here
+// SH: Cycle continues here
+// SH: Cycle continues here
+// SE: Circular procedure dependency
+// SH: Cycle continues here
 node type Relay {
   default input: value boolean;
   default output: value boolean;

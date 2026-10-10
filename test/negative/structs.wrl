@@ -5,6 +5,8 @@ struct type Bad {
 }
 
 // TEST: duplicate_declarations
+// SH: Previous
+// SE: Bad conflicts with
 struct type Bad {} // H: Previous declaration was here
 struct type Bad {} // E: conflicts with struct type
 
@@ -41,6 +43,7 @@ struct type Bad { // E: Recursive struct type
 }
 
 // TEST: indirect_recursive
+// SE: Recursive struct type
 struct type First { // E: Recursive struct type
   x: Second,
 }
@@ -183,34 +186,50 @@ namespace B { struct type Record {
 node n: Std.Constant { Type: A.Record, Value: B.Record { x: 1 } } // E: Expected struct type A.Record
 
 // TEST: struct_after_enum
+// SH: Previous
+// SE: Bad conflicts with
 enum type Bad: uint8 { One = 1, } // H: Previous declaration was here
 struct type Bad {} // E: conflicts with enum
 
 // TEST: enum_after_struct
+// SH: Previous
+// SE: Bad conflicts with
 struct type Bad {} // H: Previous declaration was here
 enum type Bad: uint8 { One = 1, } // E: conflicts with struct type
 
 // TEST: struct_after_resource
+// SH: Previous
+// SE: Bad conflicts with
 resource type Bad; // H: Previous declaration was here
 struct type Bad {} // E: conflicts with resource
 
 // TEST: resource_after_struct
+// SH: Previous
+// SE: Bad conflicts with
 struct type Bad {} // H: Previous declaration was here
 resource type Bad; // E: conflicts with struct type
 
 // TEST: struct_after_node
+// SH: Previous
+// SE: Bad conflicts with
 node type Bad {} // H: Previous declaration was here
 struct type Bad {} // E: conflicts with node
 
 // TEST: node_after_struct
+// SH: Previous
+// SE: Bad conflicts with
 struct type Bad {} // H: Previous declaration was here
 node type Bad {} // E: conflicts with struct type
 
 // TEST: struct_after_namespace
+// SH: Previous
+// SE: Bad conflicts with
 namespace Bad {} // H: Previous declaration was here
 struct type Bad {} // E: conflicts with namespace
 
 // TEST: namespace_after_struct
+// SH: Previous
+// SE: Bad conflicts with
 struct type Bad {} // H: Previous declaration was here
 namespace Bad {} // E: conflicts with struct type
 

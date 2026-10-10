@@ -89,6 +89,13 @@ fragment of the parser message. Start independent cases with a standalone
 compiles separately. Line numbers and caret annotations refer to the
 original file; declarations stay within their case.
 
+For cases with traversal-dependent diagnostics, add `// SE: message`,
+`// SH: message`, or `// SW: message` expectations. With
+`WIRELY_COMPILER_SHUFFLE_SEED` set, these replace that case's ordinary
+expectations and match anywhere within the case in the same file. Keep the
+ordinary annotations for exact matching without a seed. Both forms require
+matching diagnostic kinds and counts; use specific, stable message fragments.
+
 Negative cases load no libraries by default. Use `// LIBRARIES: std, matter`
 to select library filenames without `.wrl`, including any dependencies.
 A directive before the first `// TEST` sets the file default; one inside a

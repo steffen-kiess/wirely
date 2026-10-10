@@ -5,11 +5,15 @@ node type Probe {
 node probe: Probe {} // E: Missing value for parameter 'Value' of node 'probe'
 
 // TEST: duplicate node
+// SH: Previous node was here
+// SE: Duplicate node name 'probe'
 node type Probe {}
 node probe: Probe {} // H: Previous node was here
 node probe: Probe {} // E: Duplicate node name 'probe'
 
 // TEST: duplicate node in a node type
+// SH: Previous node was here
+// SE: Duplicate node name 'inner'
 node type Inner {}
 node type Outer {
   node inner: Inner {} // H: Previous node was here
@@ -17,24 +21,32 @@ node type Outer {
 }
 
 // TEST: duplicate input
+// SH: Previous input was here
+// SE: Duplicate input 'Value'
 node type Probe {
   input Value: value boolean; // H: Previous input was here
   input Value: value boolean; // E: Duplicate input 'Value'
 }
 
 // TEST: duplicate output
+// SH: Previous output was here
+// SE: Duplicate output 'Value'
 node type Probe {
   output Value: value boolean; // H: Previous output was here
   output Value: value boolean; // E: Duplicate output 'Value'
 }
 
 // TEST: duplicate default output
+// SH: Previous output was here
+// SE: Duplicate output 'default output'
 node type Probe {
   default output: value boolean; // H: Previous output was here
   default output: value boolean; // E: Duplicate output 'default output'
 }
 
 // TEST: node and procedure share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'value'
 node type Inner {}
 node type Probe {
   node value: Inner {} // H: Previous declaration was here
@@ -42,12 +54,16 @@ node type Probe {
 }
 
 // TEST: procedure and state share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'value'
 node type Probe {
   native procedure value; // H: Previous declaration was here
   state value: boolean = false; // E: Duplicate name 'value'
 }
 
 // TEST: temporary and node share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'value'
 node type Inner {}
 node type Probe {
   temporary value: boolean; // H: Previous declaration was here
@@ -55,12 +71,16 @@ node type Probe {
 }
 
 // TEST: input and temporary share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'Value'
 node type Probe {
   input Value: value boolean; // H: Previous declaration was here
   temporary Value: boolean; // E: Duplicate name 'Value'
 }
 
 // TEST: input and output share a name
+// SH: Previous declaration was here
+// SE: Duplicate name 'Value'
 node type Probe {
   input Value: value boolean; // H: Previous declaration was here
   output Value: value boolean; // E: Duplicate name 'Value'

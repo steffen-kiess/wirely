@@ -9,6 +9,8 @@ namespace Invalid { // H: In this namespace
 }
 
 // TEST: initializer_duplicate
+// SH: Previous initializer was here
+// SE: Duplicate native initializer
 native node type Invalid {
   native initializer; // H: Previous initializer was here
   native initializer; // E: Duplicate native initializer
@@ -50,6 +52,8 @@ native node type Invalid {
 }
 
 // TEST: initializer_duplicate_key
+// SH: Previous port was here
+// SE: Duplicate port name
 resource type Handle;
 native node type Invalid {
   input Service: resource Handle;
@@ -59,6 +63,8 @@ native node type Invalid {
 }
 
 // TEST: initializer_duplicate_decoded_alias
+// SH: Previous port was here
+// SE: Duplicate port name
 resource type Handle;
 native node type Invalid {
   input First: resource Handle;

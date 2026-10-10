@@ -18,6 +18,7 @@ namespace TimeOfDay {
 }
 
 // TEST: duplicate function
+// SE: conflicting function
 namespace TimeOfDay {
   native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
 }
@@ -26,12 +27,14 @@ namespace TimeOfDay {
 }
 
 // TEST: declaration collision
+// SE: conflicting function
 namespace TimeOfDay {
   native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
   struct type AddWrap {} // E: conflicting function
 }
 
 // TEST: reverse declaration collision
+// SE: conflicting function
 namespace TimeOfDay {
   node type AddWrap {}
   native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function

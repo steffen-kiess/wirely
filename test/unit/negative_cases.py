@@ -1,3 +1,4 @@
+import os
 import tempfile
 from pathlib import Path
 from unittest import TestCase
@@ -204,3 +205,90 @@ for metadata, message in [
 # A malformed case override is rejected too.
 with checks.assertRaises(AssertionError):
     run_fixture('// LIBRARIES: std\n' + legacy + '\n// TEST: override\n// LIBRARIES: missing\n' + legacy)
+
+
+# Alternate annotations match only within their case when a seed is set.
+def run_diagnostics(source, diagnostics):
+    def compile_case(sources, *, on_diagnostic, **kwargs):
+        filename = sources[-1][0]
+        for kind, line, message, other_file in diagnostics:
+            on_diagnostic(wirely.compiler.Diagnostic(
+                kind, message, filename=other_file or filename, line=line,
+            ))
+        return None
+
+    with patch('wirely.compiler.compile_strs', side_effect=compile_case):
+        run_fixture(source)
+
+
+alternate = '''// TEST: alternate
+first // E: original
+second
+// SE: shuffled
+'''
+original = [('error', 2, 'original', None)]
+relocated = [('error', 3, 'shuffled', None)]
+for seed in ('', '0', '1', '2', '3', '4', '5'):
+    with patch.dict(os.environ, {'WIRELY_COMPILER_SHUFFLE_SEED': seed}):
+        run_diagnostics(alternate, relocated if seed else original)
+        with checks.assertRaises(AssertionError):
+            run_diagnostics(alternate, original if seed else relocated)
+
+with patch.dict(os.environ, {'WIRELY_COMPILER_SHUFFLE_SEED': '1'}):
+    # Cases without alternate annotations retain exact location matching.
+    with checks.assertRaises(AssertionError):
+        run_diagnostics('first // E: original\nsecond\n', [('error', 2, 'original', None)])
+    # An opted-in case does not relax a later case.
+    with checks.assertRaises(AssertionError):
+        run_diagnostics(alternate + '''// TEST: strict
+first // E: original
+second
+''', relocated + [('error', 7, 'original', None)])
+
+    invalid_diagnostics = [
+        [],
+        [('hint', 3, 'shuffled', None)],
+        [('warning', 3, 'shuffled', None)],
+        [('error', 3, 'wrong message', None)],
+        relocated * 2,
+        relocated + [('hint', 3, 'extra hint', None)],
+        [('error', 1, 'shuffled', None)],
+        [('error', 5, 'shuffled', None)],
+        [('error', None, 'shuffled', None)],
+        [('error', 3, 'shuffled', '/tmp/other-negative-case.wrl')],
+        [('internal_error', 3, 'shuffled', None)],
+    ]
+    for diagnostics in invalid_diagnostics:
+        with checks.assertRaises(AssertionError):
+            run_diagnostics(alternate, diagnostics)
+
+    # Overlapping fragments still require distinct matching diagnostics.
+    overlapping = '''first // E: original
+// SE: conflict
+// SE: conflict named
+// SH: context
+// SW: warning
+'''
+    diagnostics = [('error', 1, 'conflict named', None),
+                   ('error', 1, 'conflict other', None),
+                   ('hint', 1, 'context', None),
+                   ('warning', 1, 'warning', None)]
+    run_diagnostics(overlapping, diagnostics)
+    with checks.assertRaises(AssertionError):
+        run_diagnostics(overlapping, diagnostics[:1] + diagnostics[2:])
+    with checks.assertRaisesRegex(AssertionError, 'compiled=True'):
+        run_fixture('node type Valid {} // E: wrong\n// SE: wrong\n')
+    # A hint alone cannot establish rejection, even with matching expectations.
+    with checks.assertRaises(AssertionError):
+        run_diagnostics('first // E: original\n// SH: context\n',
+                        [('hint', 1, 'context', None)])
+
+for seed in ('', '1'):
+    with patch.dict(os.environ, {'WIRELY_COMPILER_SHUFFLE_SEED': seed}):
+        for annotation in ('// SE:', '// SH:', '// SW:', '// ^SE: wrong', '// SE wrong'):
+            with checks.assertRaisesRegex(AssertionError, 'Malformed annotation'):
+                run_diagnostics('first // E: original\n' + annotation + '\n', original)
+        with checks.assertRaisesRegex(AssertionError, 'no expected diagnostics'):
+            run_diagnostics('first\n// SE: shuffled\n', relocated)
+        with checks.assertRaisesRegex(AssertionError, 'no expected diagnostics'):
+            run_diagnostics('// SE: shuffled\n// TEST: next\nfirst // E: original\n', original)

@@ -144,21 +144,28 @@ negative_tests = [
 ]
 
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
+shuffle_annotation_pattern = re.compile(r'\s*S([EHW]):\s*(.*?)\s*$')
 library_metadata_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES[ \t]*:[ \t]*(.*?)[ \t]*')
 library_metadata_prefix_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES\b')
 case_marker_pattern = re.compile(r'[ \t]*//[ \t]+TEST(?:[ \t]*:[ \t]*(.*?))?[ \t]*')
 
 
-def expected_diagnostics(source, *, start_line=1, end_line=None):
+def expected_diagnostics(source, *, start_line=1, end_line=None, shuffled=False):
     expected = []
+    pattern = shuffle_annotation_pattern if shuffled else annotation_pattern
+    prefix = r'\s*\^*S[EHW]\b' if shuffled else r'\s*\^*[EHW]:'
     for line_number, line in enumerate(source.splitlines(), 1):
         for comment in line.split('//')[1:]:
-            match = annotation_pattern.fullmatch(comment)
+            match = pattern.fullmatch(comment)
             if match is None:
-                if re.match(r'\s*\^*[EHW]:', comment):
+                if re.match(prefix, comment):
                     raise AssertionError(f'Malformed annotation on line {line_number}: //{comment}')
                 continue
-            carets, kind, message = match.groups()
+            if shuffled:
+                kind, message = match.groups()
+                carets = ''
+            else:
+                carets, kind, message = match.groups()
             target_line = line_number - len(carets)
             if (target_line < start_line
                     or (end_line is not None and target_line > end_line)
@@ -224,7 +231,7 @@ def negative_test_cases(source):
                 libraries = override
         if marker == -1 and markers:
             preamble = ''.join(lines[start:end])
-            if not re.search(r'//\s*\^*[EHW]:', preamble):
+            if not re.search(r'//\s*\^*S?[EHW]:', preamble):
                 try:
                     declarations = model.parser.parse_str(preamble, filename='<preamble>')
                 except (lark.UnexpectedInput, lark.exceptions.VisitError):
@@ -245,6 +252,12 @@ def compile_negative_case(full_fn, case):
     )
     if not expected:
         raise AssertionError('no expected diagnostics')
+    shuffled_expected = expected_diagnostics(
+        case.source, start_line=case.start_line, end_line=case.end_line, shuffled=True,
+    )
+    relaxed = bool(os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED') and shuffled_expected)
+    if relaxed:
+        expected = shuffled_expected
 
     diagnostics = []
     sources = model.compiler._standard_library_sources(case.libraries)
@@ -269,15 +282,19 @@ def compile_negative_case(full_fn, case):
         message = diagnostic.message
         if diagnostic.kind == 'syntax_error':
             message = 'Syntax error: ' + message.splitlines()[0]
-        actual.append((kind, os.path.abspath(diagnostic.filename), diagnostic.line, message))
+        filename = None if diagnostic.filename is None else os.path.abspath(diagnostic.filename)
+        actual.append((kind, filename, diagnostic.line, message))
 
     matched = {}
 
     def match_expectation(expected_index, seen):
         kind, line_number, fragment = expected[expected_index]
         for actual_index, item in enumerate(actual):
+            location_matches = (isinstance(item[2], int)
+                                and case.start_line <= item[2] <= case.end_line
+                                if relaxed else item[2] == line_number)
             if (actual_index in seen or item[0] != kind or item[1] != full_fn
-                    or item[2] != line_number or fragment not in item[3]):
+                    or not location_matches or fragment not in item[3]):
                 continue
             seen.add(actual_index)
             if (actual_index not in matched
@@ -289,7 +306,7 @@ def compile_negative_case(full_fn, case):
     missing = [item for index, item in enumerate(expected)
                if not match_expectation(index, set())]
     unexpected = [item for index, item in enumerate(actual) if index not in matched]
-    if result is not None or missing or unexpected:
+    if result is not None or missing or unexpected or not any(item[0] == 'E' for item in actual):
         raise AssertionError(
             f'diagnostic mismatch; missing={missing}, unexpected={unexpected}, '
             f'compiled={result is not None}\n{messages}'

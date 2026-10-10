@@ -18,6 +18,8 @@ node type Invalid {
 }
 
 // TEST: resource_duplicate
+// SH: Previous resource type was here
+// SE: Duplicate resource type Handle
 namespace Fixture {
   resource type Handle; // H: Previous resource type was here
 }
@@ -32,6 +34,8 @@ node type Container {
 }
 
 // TEST: resource_node_collision
+// SH: Previous
+// SE: Service conflicts with
 namespace Fixture {
   resource type Service; // H: Previous resource type was here
   node type Service {
@@ -39,6 +43,8 @@ namespace Fixture {
 }
 
 // TEST: node_resource_collision
+// SH: Previous
+// SE: Service conflicts with
 namespace Fixture {
   node type Service {
   } // ^H: Previous node type was here
@@ -46,6 +52,8 @@ namespace Fixture {
 }
 
 // TEST: resource_node_collision_reopened
+// SH: Previous
+// SE: Service conflicts with
 namespace Fixture.Deep {
   resource type Service; // H: Previous resource type was here
 }
@@ -58,6 +66,8 @@ namespace Fixture {
 }
 
 // TEST: node_resource_collision_reopened
+// SH: Previous
+// SE: Service conflicts with
 namespace Fixture {
   namespace Deep {
     node type Service {
@@ -70,11 +80,15 @@ namespace Fixture.Deep {
 }
 
 // TEST: resource_node_collision_global
+// SH: Previous
+// SE: Service conflicts with
 resource type Service; // H: Previous resource type was here
 node type Service {
 } // ^E: Node type Service conflicts with resource type
 
 // TEST: node_resource_collision_global
+// SH: Previous
+// SE: Service conflicts with
 node type Service {
 } // ^H: Previous node type was here
 resource type Service; // E: Resource type Service conflicts with node type

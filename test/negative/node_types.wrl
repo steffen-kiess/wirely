@@ -13,6 +13,8 @@ singleton node type QWE {
 }
 
 // TEST: duplicate_node_type_in_reopened_library
+// SH: Previous node type was here
+// SE: Duplicate node type Duplicate
 namespace Fixture {
   node type Duplicate { // H: Previous node type was here
   }

@@ -5,16 +5,22 @@ constant Missing = true; // E: Syntax error
 constant Missing: boolean; // E: Syntax error
 
 // TEST: duplicate constants
+// SH: Previous declaration was here
+// SE: Duplicate constant name 'Flag'
 constant Flag: boolean = true; // H: Previous declaration was here
 constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
 
 // TEST: parameter followed by constant
+// SH: Previous declaration was here
+// SE: name 'Flag'
 node type Unused {
   parameter Flag: boolean; // H: Previous declaration was here
   constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
 }
 
 // TEST: constant followed by parameter
+// SH: Previous declaration was here
+// SE: name 'Flag'
 node type Unused {
   constant Flag: boolean = false; // H: Previous declaration was here
   parameter Flag: boolean; // E: Duplicate parameter name 'Flag'
@@ -48,6 +54,8 @@ node type Unused {
 }
 
 // TEST: constant cycle
+// SE: Cyclic static value resolution
+// SH: While instantiating 'probe'
 node type Probe {
   constant First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
   constant Second: int16 = First;
@@ -62,6 +70,8 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: type cycle
+// SE: Cyclic static value resolution
+// SH: While instantiating 'probe'
 node type Probe {
   constant First: ValueType = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
   constant Second: ValueType = First;
@@ -69,6 +79,8 @@ node type Probe {
 node probe: Probe {} // H: While instantiating 'probe'
 
 // TEST: type and initializer cycle
+// SE: Cyclic static value resolution
+// SH: While instantiating 'probe'
 node type Probe {
   constant First: Second = 0;
   constant Second: ValueType = Second; // E: Cyclic static value resolution: First -> Second -> Second

@@ -61,6 +61,8 @@ enum type Bad: int8 {
 }
 
 // TEST: duplicate_global_enum
+// SH: Previous
+// SE: Bad conflicts with
 enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
@@ -69,6 +71,8 @@ enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
 }
 
 // TEST: duplicate_namespaced_enum
+// SH: Previous
+// SE: Bad conflicts with
 namespace A {
   enum type Bad: int8 { // H: Previous declaration was here
     One = 1,
@@ -91,6 +95,8 @@ enum type List: int8 { // E: Enum type List conflicts with built-in type
 }
 
 // TEST: enum_after_node
+// SH: Previous
+// SE: Bad conflicts with
 node type Bad { // H: Previous declaration was here
 }
 enum type Bad: int8 { // E: Enum type Bad conflicts with node type
@@ -98,6 +104,8 @@ enum type Bad: int8 { // E: Enum type Bad conflicts with node type
 }
 
 // TEST: node_after_enum
+// SH: Previous
+// SE: Bad conflicts with
 enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
@@ -105,18 +113,24 @@ node type Bad { // E: Node type Bad conflicts with enum type
 }
 
 // TEST: enum_after_resource
+// SH: Previous
+// SE: Bad conflicts with
 resource type Bad; // H: Previous declaration was here
 enum type Bad: int8 { // E: Enum type Bad conflicts with resource type
   One = 1,
 }
 
 // TEST: resource_after_enum
+// SH: Previous
+// SE: Bad conflicts with
 enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
 resource type Bad; // E: Resource type Bad conflicts with enum type
 
 // TEST: enum_after_namespace
+// SH: Previous
+// SE: Bad conflicts with
 namespace Bad { // H: Previous declaration was here
 }
 enum type Bad: int8 { // E: Enum type Bad conflicts with namespace
@@ -124,6 +138,8 @@ enum type Bad: int8 { // E: Enum type Bad conflicts with namespace
 }
 
 // TEST: namespace_after_enum
+// SH: Previous
+// SE: Bad conflicts with
 enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }

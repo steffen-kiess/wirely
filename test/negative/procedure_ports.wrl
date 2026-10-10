@@ -45,6 +45,8 @@ node type Invalid {
 }
 
 // TEST: procedure_duplicate_input_key
+// SH: Previous port was here
+// SE: Duplicate port name 'Value'
 node type Invalid {
   input Value: value boolean;
   input Other: value boolean;
@@ -55,6 +57,8 @@ node type Invalid {
 }
 
 // TEST: procedure_duplicate_result_key
+// SH: Previous port was here
+// SE: Duplicate port name 'Value'
 node type Invalid {
   output Value: value boolean;
   output Other: value boolean;
@@ -65,6 +69,8 @@ node type Invalid {
 }
 
 // TEST: procedure_duplicate_decoded_alias
+// SH: Previous port was here
+// SE: Duplicate port name 'a'
 node type Invalid {
   input First: value boolean;
   input Second: value boolean;

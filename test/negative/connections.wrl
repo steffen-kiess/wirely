@@ -86,6 +86,8 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: second procedure for an output
+// SH: Previous connection was here
+// SE: Default output already has a source
 node type Probe {
   default output: value boolean;
   procedure first produces default output as output { output = true; } // H: Previous connection was here
@@ -104,6 +106,8 @@ node type Probe {
 }
 
 // TEST: second procedure for a temporary
+// SH: Previous connection was here
+// SE: Temporary 'flag' already has a source
 node type Probe {
   temporary flag: boolean;
   procedure first produces flag { flag = true; } // H: Previous connection was here
@@ -119,6 +123,8 @@ node type Probe {
 }
 
 // TEST: temporary cycle
+// SH: Cycle continues here
+// SE: Circular connection
 temporary first: boolean;
 temporary second: boolean;
 connect first -> second; // H: Cycle continues here
