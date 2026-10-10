@@ -125,7 +125,35 @@ def path_resolve_singleton(path):
         return path
 
 
+def incoming_connection(var):
+    """Return the connection supplying var, or None for a lookup step of resolve_variable()."""
+    if isinstance(var, model.InstanceInputPort):
+        graph, target = var.node.graph, var
+    elif isinstance(var, model.InstanceOutputPort):
+        graph, target = var.node.node_type, var.type_output_port
+    elif isinstance(var, model.InstanceTemporary) and var.port is None:
+        graph = var.node.node_type
+        target = graph.temporary_nodes[var.name]
+    elif isinstance(var, model.TemporaryNode):
+        graph, target = var.graph, var
+    elif isinstance(var, StateRead) and var.phase == 'new' and var.state.copy_source is not None:
+        if isinstance(var.state, model.InstanceStateVariable):
+            graph = var.state.node.node_type
+            target = graph.state_nodes[var.state.name]
+        else:
+            graph, target = var.state.graph, var.state
+    else:
+        return None
+    return next((connection for connection in graph.connections if connection.target is target), None)
+
+
+def traced_connections(trace):
+    """Return the connections passed by resolve_variable() steps, in data-flow order."""
+    return [connection for connection in map(incoming_connection, reversed(trace)) if connection is not None]
+
+
 def resolve_variable(path, var, seen=None):
+    """Return the variable supplying var; seen collects the steps taken."""
     if debug_variable_resolution:
         print(f'resolve_variable({path}, {var})')
 
@@ -136,9 +164,15 @@ def resolve_variable(path, var, seen=None):
     if key in seen:
         cycle = list(seen.values())[list(seen).index(key):]
         port = next(item for item in cycle if isinstance(item, model.InstanceInputPort))
-        connection = next(connection for connection in port.node.graph.connections
-                          if connection.target is port)
-        raise model.ProgramError(connection.source_element, 'Circular connection')
+        # Data-flow order starting at the reported connection; a node type
+        # used several times in the cycle lists its connections once.
+        flow = traced_connections(cycle)
+        start = flow.index(incoming_connection(port))
+        connections = []
+        for connection in flow[start:] + flow[:start]:
+            if connection not in connections:
+                connections.append(connection)
+        raise model.ast.circular_connection(connections[0], connections[1:])
     seen[key] = var
 
     if isinstance(var, StateRead):

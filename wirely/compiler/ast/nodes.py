@@ -227,13 +227,21 @@ def passed_on_variable(source):
 def check_alias_cycle(graph, start):
     """Reject a variable whose value is passed back to it without a procedure."""
     node = start
-    seen = set()
+    seen = []
     while node is not None and node not in seen:
-        seen.add(node)
+        seen.append(node)
         node = passed_on_variable(node.copy_source if isinstance(node, model.StateNode) else node.connected_source)
         if node is start:
-            connection = next(connection for connection in graph.connections if connection.target is start)
-            raise ProgramError(connection.source_element, 'Circular connection')
+            connections = [next(connection for connection in graph.connections if connection.target is node)
+                           for node in seen]
+            raise circular_connection(connections[0], reversed(connections[1:]))
+
+
+def circular_connection(connection, others):
+    """Return the error for a cycle reported at connection, with the others in data-flow order."""
+    return ProgramError(connection.source_element, 'Circular connection', hints=[
+        CompilerHint(other.source_element, 'Cycle continues here') for other in others
+    ])
 
 
 def register_name(graph, name, declaration):

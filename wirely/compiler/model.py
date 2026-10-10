@@ -39,6 +39,7 @@ _exports = {
     'connection_kind': 'compiler.support',
     'path_resolve_singleton': 'compiler.support',
     'resolve_variable': 'compiler.support',
+    'traced_connections': 'compiler.support',
     'StaticNodeContext': 'compiler.support',
     'StaticProcedureContext': 'compiler.support',
     'UnitLiteral': 'compiler.ast',

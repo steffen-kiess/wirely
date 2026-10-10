@@ -15,6 +15,23 @@ COPY_BODY = ProcedureBody((
 ))
 
 
+def cycle_error(element, message, steps, via):
+    """Report a dependency cycle at element, with hints following the data around it.
+
+    steps are the (element, via) pairs from the start of the cycle to the
+    reader closing it; via holds the connections from a producer to element.
+    """
+    elements = []
+    for step_element, step_via in reversed(steps):
+        elements += [connection.source_element for connection in step_via] + [step_element]
+    elements += [connection.source_element for connection in via]
+    hints = []
+    for hint_element in elements:
+        if hint_element is not element and all(hint_element is not hint.source_element for hint in hints):
+            hints.append(model.CompilerHint(hint_element, 'Cycle continues here'))
+    return model.ProgramError(element, message, hints=hints)
+
+
 def compile(global_node_type, *, on_diagnostic=None):
     try:
         return compile_nocatch(global_node_type)
@@ -111,7 +128,8 @@ def compile_nocatch(global_node_type):
     procs = {}
     done = set()
     doing = []
-    def do(path, proc, reference=None):
+    def do(path, proc, reference=None, via=()):
+        """Schedule proc after its producers; via has the connections from proc to reference."""
         # TODO: Clean this up (this makes sure that the correct Procedure instance is used for singletons)
         if proc.node.node_type.is_singleton and proc.node.node_type.singleton_instance != proc.node:
             proc3 = None
@@ -138,27 +156,30 @@ def compile_nocatch(global_node_type):
             ])
 
         # print(f'Going to add {path} {proc}')
-        if (path, proc.proc_identifier) in doing:
-            raise model.ProgramError(reference or proc.declaration_procedure,
-                                      'Circular procedure dependency', hints=[
-                model.CompilerHint(proc.declaration_procedure, 'Producer was declared here'),
-            ])
-        doing.append((path, proc.proc_identifier))
+        key = path, proc.proc_identifier
+        keys = [entry[0] for entry in doing]
+        if key in keys:
+            steps = [entry[1:] for entry in doing[keys.index(key) + 1:]]
+            raise cycle_error(reference or proc.declaration_procedure, 'Circular procedure dependency',
+                              steps, via)
+        doing.append((key, reference, via))
         for dep in proc.dependencies:
             if model.ast.dependency_is_resource(dep):
                 continue
             else:
                 members = dep.members if getattr(dep, 'is_list', False) else (dep,)
                 for member in members:
-                    producer_path, variable = model.resolve_variable(path, member)
+                    trace = {}
+                    producer_path, variable = model.resolve_variable(path, member, trace)
+                    connections = model.traced_connections(list(trace.values()))
                     if isinstance(variable, model.StateRead):
                         if variable.phase == 'new':
-                            do(producer_path, variable.state.producer, variable.reference)
+                            do(producer_path, variable.state.producer, variable.reference, connections)
                         continue
                     if not isinstance(variable, model.InstanceStateVariable):
-                        do(producer_path, variable.producer, proc.declaration_procedure.depends)
-        if doing.pop() != (path, proc.proc_identifier):
-            raise Exception('doing.pop() != (path, proc.proc_identifier)')
+                        do(producer_path, variable.producer, proc.declaration_procedure.depends, connections)
+        if doing.pop()[0] != key:
+            raise Exception('doing.pop()[0] != key')
         # print(f'Adding {path} {proc}')
 
         procs[stage].append((path, proc))
@@ -184,12 +205,16 @@ def compile_nocatch(global_node_type):
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
-    def resource_paths(path, source, port):
+    def resource_paths(path, source, port, connections=None):
+        """Return the providers of a resource input; connections collects each provider's connections."""
         is_list = getattr(source, 'is_list', False)
         members = source.members if is_list else (source,)
         paths = []
         for member in members:
-            provider_path, output = model.resolve_variable(path, member)
+            trace = {}
+            provider_path, output = model.resolve_variable(path, member, trace)
+            if connections is not None:
+                connections.append(model.traced_connections(list(trace.values())))
             if not instances[provider_path].node_type.is_native:
                 raise model.ProgramError(port, 'Resource input has no native provider', hints=[
                     model.CompilerHint(output.port_spec, 'Resource output was declared here'),
@@ -204,9 +229,10 @@ def compile_nocatch(global_node_type):
         bindings = []
         dependencies = []
         for name, (source, port) in node.initializer_sources.items():
-            paths, is_list = resource_paths(path, source, port)
+            connections = []
+            paths, is_list = resource_paths(path, source, port, connections)
             bindings.append((name, paths, is_list))
-            dependencies.extend((provider, port) for provider in paths)
+            dependencies.extend((provider, port, via) for provider, via in zip(paths, connections))
         initializer_bindings[path] = tuple(
             (name, tuple(node_ids[provider] for provider in paths), is_list)
             for name, paths, is_list in bindings
@@ -215,17 +241,20 @@ def compile_nocatch(global_node_type):
 
     construction_order = []
     constructed = set()
-    constructing = set()
+    # (path, port, via) of each node being constructed and how it was reached.
+    constructing = []
 
-    def order_construction(path):
+    def order_construction(path, port=None, via=()):
         if path in constructed:
             return
-        constructing.add(path)
-        for provider, port in construction_dependencies[path]:
-            if provider in constructing:
-                raise model.ProgramError(port, 'Circular native initializer dependency')
-            order_construction(provider)
-        constructing.remove(path)
+        constructing.append((path, port, via))
+        for provider, provider_port, provider_via in construction_dependencies[path]:
+            paths = [entry[0] for entry in constructing]
+            if provider in paths:
+                steps = [entry[1:] for entry in constructing[paths.index(provider) + 1:]]
+                raise cycle_error(provider_port, 'Circular native initializer dependency', steps, provider_via)
+            order_construction(provider, provider_port, provider_via)
+        constructing.pop()
         constructed.add(path)
         construction_order.append(path)
 

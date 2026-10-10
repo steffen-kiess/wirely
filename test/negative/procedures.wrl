@@ -286,8 +286,8 @@ node probe: Probe {}
 node type Probe {
   temporary first: boolean;
   temporary second: boolean;
-  procedure one depends on second produces first { first = second; } // H: Producer was declared here
-  procedure two depends on first produces second { second = first; } // E: Circular procedure dependency
+  procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
+  procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 }
 node probe: Probe {}
 
@@ -366,8 +366,31 @@ procedure p1 produces t {} // E: did not assign outputs
 // TEST: top-level dependency cycle
 temporary first: boolean;
 temporary second: boolean;
-procedure one depends on second produces first { first = second; } // H: Producer was declared here
-procedure two depends on first produces second { second = first; } // E: Circular procedure dependency
+procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
+procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
+
+// TEST: dependency cycle through a child node
+node type Relay {
+  default input: value boolean;
+  default output: value boolean;
+  connect default input -> default output; // H: Cycle continues here
+}
+temporary first: boolean;
+temporary second: boolean;
+node relay: Relay {}
+procedure one
+  depends on second // H: Cycle continues here
+  produces first // H: Cycle continues here
+{
+  first = second;
+}
+connect first -> relay; // H: Cycle continues here
+procedure two
+  depends on relay as value // E: Circular procedure dependency
+  produces second // H: Cycle continues here
+{
+  second = value;
+}
 
 // TEST: top-level native procedure
 native procedure p1; // E: Native procedures must belong to a node type

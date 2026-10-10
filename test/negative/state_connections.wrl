@@ -248,9 +248,8 @@ node type Invalid {
 // TEST: same-step state cycle
 state saved: boolean = false;
 procedure advance depends on saved.new as current produces saved {
-  // ^H: Producer was declared here
   saved = current;
-} // ^^^E: Circular procedure dependency
+} // ^^E: Circular procedure dependency
 
 // TEST: later-stage state producer
 state saved: boolean = false;
@@ -268,21 +267,21 @@ connect saved.new -> saved; // E: Circular connection
 // TEST: state new value fed back through a temporary
 state saved: boolean = false;
 temporary current: boolean;
-connect saved.new -> current;
+connect saved.new -> current; // H: Cycle continues here
 connect current -> saved; // E: Circular connection
 
 // TEST: state new value fed back through a child node
 node type Relay {
   default input: value boolean;
   default output: value boolean;
-  connect default input -> default output;
+  connect default input -> default output; // H: Cycle continues here
 }
 node type Holder {
   default output: value boolean;
   state saved: boolean = false;
   node relay: Relay {}
   connect saved.new -> relay; // E: Circular connection
-  connect relay -> saved;
+  connect relay -> saved; // H: Cycle continues here
   connect saved.old -> default output;
 }
 node holder: Holder {}

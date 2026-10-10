@@ -114,8 +114,8 @@ namespace Std {
 }
 node first: Std.DebugValueSource {}
 node second: Std.DebugValueSource {}
-connect first -> second.Service;
-connect second -> first.Service;
+connect first -> second.Service; // H: Cycle continues here
+connect second -> first.Service; // H: Cycle continues here
 
 // TEST: circular resource forwarding
 // LIBRARIES:
@@ -123,7 +123,7 @@ resource type Service;
 node type Forward {
   input Service: resource Service;
   default output: resource Service;
-  connect Service -> default output;
+  connect Service -> default output; // H: Cycle continues here
 }
 namespace Std {
   native node type DebugValueSource {
@@ -134,7 +134,7 @@ namespace Std {
 node first: Forward {}
 node second: Forward {}
 node sink: Std.DebugValueSource {}
-connect first -> second.Service;
+connect first -> second.Service; // H: Cycle continues here
 connect second -> first.Service; // E: Circular connection
 connect first -> sink.Service;
 

@@ -64,6 +64,7 @@ from .nodes import (
     DeclarationConnection,
     DeclarationState,
     validate_nodes,
+    circular_connection,
     register_name,
     DeclarationTemporary,
 )
