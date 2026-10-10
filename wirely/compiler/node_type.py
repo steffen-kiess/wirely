@@ -151,15 +151,22 @@ class NodeType(model.Scope):
         self.parameters_by_name = self.parsed_parameters
 
     def compile_pass2(self, graph):
+        procedures = []
         connections = []
         for decl in self.declarations:
+            if isinstance(decl, model.DeclarationProcedure):
+                procedures.append(decl)
+                continue
             if isinstance(decl, model.DeclarationConnection):
                 connections.append(decl)
                 continue
             if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.compile_pass2(self)
-        # Connections can reference nodes declared later in this scope.
+        # Procedure references and connections can name nodes declared later.
+        for decl in procedures:
+            with decl.context:
+                decl.compile_pass2(self)
         for decl in connections:
             with decl.context:
                 decl.compile_pass2(self)

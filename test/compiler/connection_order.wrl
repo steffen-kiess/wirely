@@ -23,6 +23,21 @@ node type Nested {
   node sink: Std.DebugValuePrinter { Type: boolean }
 }
 
+node type ProcedureForward {
+  default output: value boolean;
+
+  procedure copy
+    depends on source as input
+    produces destination as output
+  {
+    output = input;
+  }
+
+  connect destination -> default output;
+  node source: Std.Constant { Type: boolean, Value: true }
+  node destination: Std.And {}
+}
+
 connect nested -> sink;
 node nested: Nested {}
 node sink: Std.DebugValuePrinter { Type: boolean }
