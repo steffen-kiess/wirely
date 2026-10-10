@@ -227,7 +227,7 @@ class Engine:
                 now = wirely.MonotonicTime.current_time()
                 # TODO: This probably is not really used or tested currently
                 if self.fake_monotonic_time_offset is not None:
-                    now_monotonic += self.fake_monotonic_time_offset
+                    now += self.fake_monotonic_time_offset
 
                 # TODO: If there is a "while True" here, the code will crash (instead of looping) because of EAGAIN when writing to the terminal, seems like NONBLOCK is set
                 # while True:
