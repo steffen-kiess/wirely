@@ -58,8 +58,8 @@ added sentence for practical value to the intended reader.
 Read the [test guide](doc/tests.md) for test structure, authoring conventions,
 and execution commands.
 
-Additions or substantive changes to `test/wrl/` require careful review to
-preserve coverage; routine import or path adjustments are exceptions.
+Additions or substantive changes to `test/wrl/` or `test/misc/` require careful
+review to preserve coverage; routine import or path adjustments are exceptions.
 
 Test compiler behavior with `.wrl` fixtures and Wirely `assert` statements.
 Keep `test/compiler/` free of Python files. Do not test compiler

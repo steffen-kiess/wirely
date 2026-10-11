@@ -17,6 +17,7 @@ first failure.
 | Location | Purpose | Registration in `wirely/test.py` |
 | --- | --- | --- |
 | `test/repo/` | Repository consistency checks | `python_only_tests` |
+| `test/misc/` | Miscellaneous checks | `python_only_tests` |
 | `test/unit/` | Python API, runtime, editor, and infrastructure checks | `python_only_tests` or `runtime_tests` |
 | `test/wrl/` | End-to-end behavior of compiled Wirely programs | `runtime_tests` |
 | `test/compiler/` | Accepted language forms and compile-time assertions | `to_compile` |

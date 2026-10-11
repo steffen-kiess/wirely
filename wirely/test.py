@@ -34,6 +34,7 @@ import wirely.compiler
 from wirely.runtime.engine import Engine
 
 python_only_tests = [
+    'misc/grammar',
     'unit/runtime_program',
     'unit/compiler_api',
     'unit/native_interface',
