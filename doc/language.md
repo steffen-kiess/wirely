@@ -435,7 +435,8 @@ procedure run
 ```
 
 A typed port, `name: value Type`, `name: event Type`, or
-`name: resource Type`, is wired with `connect`. Input ports can be `multi`.
+`name: resource Type`, is wired with `connect`. Value and event input ports
+can be `multi`; each resource input takes one provider.
 Refer to a port as `procedure.port`, in `connect` or in a reference port:
 
 ```wirely

@@ -81,6 +81,10 @@ class DependsDeclaration(SourceElement):
         super().__init__(source_position=source_position)
         self.dependencies = dependencies
 
+        for port in dependencies:
+            if isinstance(port, TypedPort) and isinstance(port.port_spec, PortTypeSpecificationResource):
+                port.port_spec.check_supported_input()
+
         self.resolved_dependencies_value = None
         self.resolved_dependencies_value_in_process = False
 

@@ -4,7 +4,7 @@ import enum
 
 from wirely.util import check_parameters
 
-from .base import SourcePosition, SourceElement, Value
+from .base import SourcePosition, SourceElement, Value, ProgramError
 
 
 class PortDirection(enum.Enum):
@@ -90,6 +90,10 @@ class PortTypeSpecificationResource(PortTypeSpecification):
     def __init__(self, list_spec: ListSpecifier, ty: Value, *, source_position: SourcePosition):
         super().__init__(list_spec=list_spec, source_position=source_position)
         self.ty = ty
+
+    def check_supported_input(self):
+        if self.list_spec.is_list:
+            raise ProgramError(self, 'Multi resource inputs are not supported')
 
 
 class NodeTypeSpecifier(SourceElement):

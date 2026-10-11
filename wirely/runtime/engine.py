@@ -67,11 +67,7 @@ class Engine:
             self.state.add(variable, value)
 
     def _resource_inputs(self, bindings):
-        inputs = {}
-        for name, paths, is_list in bindings:
-            values = tuple(self.native_states[path] for path in paths)
-            inputs[name] = values if is_list else values[0]
-        return inputs
+        return {name: self.native_states[node_id] for name, node_id in bindings}
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         def start_task_cleanup():

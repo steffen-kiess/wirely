@@ -73,8 +73,7 @@ value/event dependencies. Use a Wirely procedure to aggregate multi value
 inputs.
 A `value List[T]` input carries a single tuple-valued datum.
 
-A resource dependency supplies the provider's native object; a multi
-resource supplies a tuple of these objects in connection order. Resource
+A resource dependency supplies one provider's native object. Resource
 identity is stable, and changes inside an object do not trigger a procedure
 rerun.
 

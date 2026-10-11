@@ -114,3 +114,44 @@ node type Legacy {
 node type Legacy {
   default output: two_n_device; // E: Syntax error
 }
+
+// TEST: named_multi_resource_input_unused
+resource type Handle;
+node type Invalid {
+  input Handles: multi resource Handle; // E: Multi resource inputs are not supported
+}
+
+// TEST: default_multi_resource_input_unused
+resource type Handle;
+node type Invalid {
+  default input: multi resource Handle; // E: Multi resource inputs are not supported
+}
+
+// TEST: typed_multi_resource_procedure_unused
+resource type Handle;
+node type Invalid {
+  native procedure run
+    depends on handles: multi resource Handle; // E: Multi resource inputs are not supported
+}
+
+// TEST: typed_multi_resource_body_unused
+resource type Handle;
+node type Invalid {
+  procedure run
+    depends on handles: multi resource Handle // E: Multi resource inputs are not supported
+  {}
+}
+
+// TEST: typed_multi_resource_initializer_unused
+resource type Handle;
+native node type Invalid {
+  native initializer
+    depends on handles: multi resource Handle; // E: Multi resource inputs are not supported
+}
+
+// TEST: typed_multi_resource_output
+resource type Handle;
+node type Invalid {
+  native procedure run
+    produces handles: multi resource Handle; // E: Got multi specifier for non-input
+}

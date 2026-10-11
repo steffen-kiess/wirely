@@ -259,21 +259,15 @@ def lower_program(global_node_type):
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
-    def resource_paths(path, source, port, connections=None):
-        """Return the providers of a resource input; connections collects each provider's connections."""
-        is_list = getattr(source, 'is_list', False)
-        paths = []
-        for member_path, member, steps in members(path, source):
-            trace = {(step_path, id(step)): step for step_path, step in steps}
-            provider_path, output = model.resolve_variable(member_path, member, trace)
-            if connections is not None:
-                connections.append(model.traced_connections(list(trace.values())))
-            if not instances[provider_path].node_type.is_native:
-                raise model.ProgramError(port, 'Resource input has no native provider', hints=[
-                    model.CompilerHint(output.port_spec, 'Resource output was declared here'),
-                ])
-            paths.append(provider_path)
-        return tuple(paths), is_list
+    def resource_path(path, source, port):
+        """Return a resource provider and the connections leading to it."""
+        trace = {}
+        provider_path, output = model.resolve_variable(path, source, trace)
+        if not instances[provider_path].node_type.is_native:
+            raise model.ProgramError(port, 'Resource input has no native provider', hints=[
+                model.CompilerHint(output.port_spec, 'Resource output was declared here'),
+            ])
+        return provider_path, model.traced_connections(list(trace.values()))
 
     initializer_bindings = {}
     construction_dependencies = {}
@@ -282,14 +276,10 @@ def lower_program(global_node_type):
         bindings = []
         dependencies = []
         for name, (source, port) in node.initializer_sources.items():
-            connections = []
-            paths, is_list = resource_paths(path, source, port, connections)
-            bindings.append((name, paths, is_list))
-            dependencies.extend((provider, port, via) for provider, via in zip(paths, connections))
-        initializer_bindings[path] = tuple(
-            (name, tuple(node_ids[provider] for provider in paths), is_list)
-            for name, paths, is_list in bindings
-        )
+            provider, via = resource_path(path, source, port)
+            bindings.append((name, node_ids[provider]))
+            dependencies.append((provider, port, via))
+        initializer_bindings[path] = tuple(bindings)
         construction_dependencies[path] = dependencies
 
     construction_order = []
@@ -412,8 +402,8 @@ def lower_program(global_node_type):
                 if model.ast.dependency_is_resource(source):
                     port = next(port for port in proc.declaration_procedure.depends.dependencies
                                    if port.key == name)
-                    paths, is_list = resource_paths(path, source, port)
-                    resources.append((name, tuple(node_ids[provider] for provider in paths), is_list))
+                    provider, _ = resource_path(path, source, port)
+                    resources.append((name, node_ids[provider]))
                     continue
                 is_list = getattr(source, 'is_list', False)
                 for index, (member_path, member, _) in enumerate(members(path, source)):

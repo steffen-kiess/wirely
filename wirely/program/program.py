@@ -110,7 +110,7 @@ class NativeInstance:
     type_name: tuple[str, ...]  # Qualified node type name, split into components.
     has_native_state: bool  # Whether the engine creates a native state object.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
-    initializer_bindings: tuple  # (input name, provider node IDs, is_list) entries.
+    initializer_bindings: tuple  # (input name, provider node ID) entries.
     initializer_values: Mapping[str, object] = field(default_factory=dict)  # Lifetime static bindings.
 
     def __post_init__(self):
@@ -119,8 +119,7 @@ class NativeInstance:
         parameters = MappingProxyType(dict(self.parameters))
         object.__setattr__(self, 'parameters', parameters)
         object.__setattr__(self, 'initializer_bindings', tuple(
-            (name, tuple(node_ids), is_list)
-            for name, node_ids, is_list in self.initializer_bindings
+            (name, node_id) for name, node_id in self.initializer_bindings
         ))
 
 
@@ -132,7 +131,7 @@ class Procedure:
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
-    resources: tuple  # (input name, provider node IDs, is_list) entries.
+    resources: tuple  # (input name, provider node ID) entries.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, object] = field(default_factory=dict)  # Native static bindings.
@@ -143,7 +142,7 @@ class Procedure:
         object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
         object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
         object.__setattr__(self, 'resources', tuple(
-            (name, tuple(entries), is_list) for name, entries, is_list in self.resources
+            (name, node_id) for name, node_id in self.resources
         ))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
@@ -200,11 +199,8 @@ class Program:
                 line(part, indent + 2)
 
         def resources(bindings, indent):
-            for name, node_ids, is_list in bindings:
-                providers = ', '.join(node_ids)
-                if is_list:
-                    providers = '[' + providers + ']'
-                line(f'{name}: {providers}', indent)
+            for name, node_id in bindings:
+                line(f'{name}: {node_id}', indent)
 
         constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
 

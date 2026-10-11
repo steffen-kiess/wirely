@@ -31,6 +31,8 @@ class DeclarationPort(Declaration):
 
         if self.list_spec.is_list and self.direction != PortDirection.Input:
             raise ProgramError(self, f'Got multi specifier for non-input')
+        if isinstance(self.port_spec, PortTypeSpecificationResource) and self.direction == PortDirection.Input:
+            self.port_spec.check_supported_input()
 
         if self.name is None:
             if self.direction == PortDirection.Input:

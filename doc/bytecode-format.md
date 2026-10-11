@@ -95,7 +95,6 @@ their contents.
 | [`ResourceInterfaces`](#resourceinterfaces) | `ResourceInterface` | Table |
 | [`StaticBindings`](#staticbindings) | `StaticBinding` | Table |
 | [`ResourceInputs`](#resourceinputs) | `ResourceInput` | Table |
-| [`ResourceProviders`](#resourceproviders) | `ResourceProvider` | Table |
 | [`Stages`](#stages) | `Stage` | Table |
 | [`Procedures`](#procedures) | `Procedure` | Table |
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
@@ -524,14 +523,11 @@ struct type ResourceInterface {
   Name: StringRef,
   // Qualified resource type name in Names, such as KNX.Bus.
   Type: StringRef,
-  // 0 = one provider, 1 = ordered provider list.
-  IsList: uint8,
 }
 ```
 
-Each range contains unique names in UTF-8 bytewise lexical order. Resource
-outputs have `IsList = 0`. Until resource outputs are named in the
-language, a node type's default output is named `default`.
+Each range contains unique names in UTF-8 bytewise lexical order.
+A node type's default resource output is named `default`.
 
 ### StaticBindings
 
@@ -554,27 +550,11 @@ bound option value.
 ### ResourceInputs
 
 ```wirely
-// Binds native state providers to one resource interface.
+// Binds one native state provider to one resource interface.
 // ResourceInputs table.
 struct type ResourceInput {
   // Index into ResourceInterfaces; the resource input being bound.
   Interface: Ref,
-  // Range into ResourceProviders.
-  Providers: Range,
-}
-```
-
-The interface belongs to the native state type's
-`ResourceInputInterfaces` range for construction or the native
-procedure's `ResourceInputInterfaces` range for procedure calls. An
-interface with `IsList = 0` has one provider; with `IsList = 1`, the
-providers form an ordered sequence, which can be empty.
-
-### ResourceProviders
-
-```wirely
-// One resource provided by a native state. ResourceProviders table.
-struct type ResourceProvider {
   // Index into NativeStates.
   NativeState: Ref,
   // Index within the provider type's ResourceOutputInterfaces range.
@@ -582,8 +562,10 @@ struct type ResourceProvider {
 }
 ```
 
-The provided resource has the type of the resource interface it is bound
-to.
+The interface belongs to the native state type's
+`ResourceInputInterfaces` range for construction or the native
+procedure's `ResourceInputInterfaces` range for procedure calls.
+Each input binds one provider with the resource type of that interface.
 
 ## Execution
 
@@ -1074,8 +1056,8 @@ Bytes not referenced by any record are not checked. This includes bytes of
 
 Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
 `ByteRange` byte ranges, and `StringRef` byte ranges, whose bytes are valid
-UTF-8. Small enumerated fields such as `Bank` and `IsList` have listed
-values, and padding is zero.
+UTF-8. Small enumerated fields such as `Bank` have listed values, and
+padding is zero.
 
 ### Types and values
 
@@ -1107,11 +1089,10 @@ applies to ranges into `InterfaceNames`, `InputInterfaces`, and
 `ResourceInterfaces`, to `NativeStateTypes`, `NativeProcedures`, and
 `NativeFunctions`, and to aliases. Bindings refer to entries in the
 matching range of their native procedure or native state type.
-Each value input binds one source; resource provider counts match
-`IsList`. A resource provider's output lies within its type's
+Each value input binds one source, and each resource input binds one
+provider. A resource provider's output lies within its type's
 `ResourceOutputInterfaces` and has the resource type of the interface it
-is bound to. Each symbol table has as many
-entries as its target table.
+is bound to. Each symbol table has as many entries as its target table.
 
 ### Procedures and code
 

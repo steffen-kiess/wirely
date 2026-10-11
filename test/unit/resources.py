@@ -37,8 +37,8 @@ class Consumer(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
         inputs = context.inputs
-        assert inputs['Services'] == (inputs['Service'], inputs['implicit'], inputs['Service'])
-        assert inputs['Empty'] == ()
+        assert inputs['OtherService'] is inputs['implicit']
+        assert inputs['RepeatedService'] is inputs['Service']
         assert inputs['child'] is inputs['Service']
         assert inputs['Service'].value == 7
         with checks.assertRaises(TypeError):
@@ -118,8 +118,8 @@ namespace TestLibrary {
 
   native node type Consumer {
     input Service: resource Service;
-    input Services: multi resource Service;
-    input Empty: multi resource Service;
+    input OtherService: resource Service;
+    input RepeatedService: resource Service;
     default input: resource Service;
     output Count: value uint8;
 
@@ -127,12 +127,12 @@ namespace TestLibrary {
     connect Service -> forwarded.Service;
 
     native initializer
-      depends on Service, Services, Empty, default input as "implicit",
-        forwarded as "child";
+      depends on Service, OtherService, RepeatedService,
+        default input as "implicit", forwarded as "child";
 
     native procedure read
-      depends on Service, Services, Empty, default input as "implicit",
-        forwarded as "child"
+      depends on Service, OtherService, RepeatedService,
+        default input as "implicit", forwarded as "child"
       produces Count;
     native procedure poll stage input depends on Service;
   }
@@ -178,7 +178,8 @@ node forward: TestLibrary.Forward {}
 node value_source: Std.DebugValueSource { Type: uint8 }
 connect factory -> forward.Service;
 connect forward -> consumer.Service;
-connect factory, shared, forward -> consumer.Services;
+connect shared -> consumer.OtherService;
+connect forward -> consumer.RepeatedService;
 connect other_shared -> consumer;
 connect factory -> procedure_consumer.Service;
 connect value_source -> procedure_consumer.Value;
