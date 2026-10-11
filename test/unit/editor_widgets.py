@@ -133,7 +133,17 @@ with tempfile.TemporaryDirectory() as directory:
     drag(view, start, start + QPoint(40, 60))
     checks.assertIn(expected, document.text())
     checks.assertEqual(at(QPointF()), origin)
+    # Resetting the selection's positions applies to placed items only.
+    scene.clearSelection()
+    scene.items_by_id[Node(('source',))].setSelected(True)
+    checks.assertEqual(window._placed_selection(tab), [])
+    printer.setSelected(True)
+    checks.assertEqual(window._placed_selection(tab), [Node(('printer',))])
+    window.reset_selection_positions(tab)
+    checks.assertNotIn('Diagram.Position', document.text())
     window.workspaces.activate(tab)
+    window.undo()
+    checks.assertIn(expected, document.text())
     window.undo()
     checks.assertEqual(document.text(), source)
 

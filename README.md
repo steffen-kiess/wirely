@@ -54,7 +54,8 @@ split, or outside the editor to detach. Closing a detached window returns
 its tabs to the main window. Layouts last for the current session.
 A diagram is read-only while its source has syntax errors. In a diagram:
 
-- Drag a node to store its position in the source. Use View → Snap to Grid
+- Drag a node to store its position in the source; right-click it and choose
+  Reset to Automatic Position to remove it again. Use View → Snap to Grid
   to toggle snapping for all diagrams. A selected group snaps its movement
   while keeping its relative positions.
 - Drag from a port to another port to connect them. Drag a connection away

@@ -391,6 +391,17 @@ class MainWindow(QMainWindow):
         if targets:
             self.edit(lambda: self.program.delete(targets))
 
+    def _placed_selection(self, tab):
+        """Return the selected items with stored positions."""
+        scene = tab.graph_scene
+        return [target for target in scene.selected_ids()
+                if target in scene.items_by_id and scene.items_by_id[target].model.position is not None]
+
+    def reset_selection_positions(self, tab):
+        targets = self._placed_selection(tab)
+        if tab.state == 'live' and targets:
+            self.edit(lambda: self.program.reset_positions(targets))
+
     def rename_selection(self, tab):
         targets = [target for target in tab.graph_scene.selected_ids() if not isinstance(target, Connection)]
         if tab.state != 'live' or len(targets) != 1:
@@ -592,6 +603,8 @@ class MainWindow(QMainWindow):
                 menu.addAction('Open Node Type', lambda: self.open_graph(node_type.path))
             menu.addAction('Show Source', lambda: self.show_source(target))
             menu.addAction('Rename…', lambda: self.rename_selection(tab)).setEnabled(live)
+            menu.addAction('Reset to Automatic Position', lambda: self.reset_selection_positions(tab)).setEnabled(
+                live and bool(self._placed_selection(tab)))
             menu.addAction('Delete', lambda: self.delete_selection(tab)).setEnabled(live)
         elif isinstance(graphic, EdgeGraphic) and graphic.edge.id is not None:
             target = graphic.edge.id

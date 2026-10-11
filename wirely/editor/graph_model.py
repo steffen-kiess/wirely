@@ -65,6 +65,9 @@ class Item:
     width: float = DEFAULT_WIDTH
     # The requested height; the drawn height is at least minimum_height().
     height: float | None = None
+    # The width and requested height without the item's own size attributes.
+    default_width: float = DEFAULT_WIDTH
+    default_height: float | None = None
 
 
 def port_rows(item):
@@ -79,6 +82,11 @@ def minimum_height(item):
 
 def item_height(item):
     return max(item.height or 0, minimum_height(item))
+
+
+def default_size(item):
+    """Return the size of an item without its own Diagram.Width and Diagram.Height."""
+    return item.default_width, max(item.default_height or 0, minimum_height(item))
 
 
 def row_y(row):
@@ -139,8 +147,10 @@ def build(program, path):
             tuple(diagnostics[record.id]), node_type)
         width = attribute_value(record.attributes, 'Diagram.Width')
         height = attribute_value(record.attributes, 'Diagram.Height')
-        builder.width = width or attribute_value(defaults, 'Diagram.DefaultWidth') or DEFAULT_WIDTH
-        builder.height = height or attribute_value(defaults, 'Diagram.DefaultHeight')
+        builder.default_width = attribute_value(defaults, 'Diagram.DefaultWidth') or DEFAULT_WIDTH
+        builder.default_height = attribute_value(defaults, 'Diagram.DefaultHeight')
+        builder.width = width or builder.default_width
+        builder.height = height or builder.default_height
         return builder
 
     for node in scope.nodes:
@@ -231,8 +241,8 @@ class _ItemBuilder:
         self.node_type = node_type
         self.order = 0
         self.details = ()
-        self.width = DEFAULT_WIDTH
-        self.height = None
+        self.width = self.default_width = DEFAULT_WIDTH
+        self.height = self.default_height = None
 
     def socket(self, side, key, reference):
         """Return the socket for an endpoint port, adding an unresolved one if needed."""
@@ -248,7 +258,7 @@ class _ItemBuilder:
     def freeze(self):
         return Item(self.id, self.kind, self.title, self.subtitle, _assign_rows(self.inputs),
                     _assign_rows(self.outputs), self.position, self.diagnostics, self.node_type, self.order,
-                    self.details, self.width, self.height)
+                    self.details, self.width, self.height, self.default_width, self.default_height)
 
 
 def _assign_rows(sockets):

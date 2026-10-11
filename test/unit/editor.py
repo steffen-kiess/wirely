@@ -99,6 +99,13 @@ checks.assertIn('#[Diagram.Position(X = 5, Y = 5)]\n  state count', texts['lib.w
 texts = edited(program.move({Node(('source',)): (-3.0, -0.0)}))
 checks.assertIn('#![Diagram.Position(X = -3, Y = 0)]', texts['main.wrl'])
 
+# Resetting positions removes them; elements without one are unchanged.
+moved = Program([(filename, text) for filename, text in edited(edits).items()])
+texts = dict(apply_edits(moved.sources, moved.reset_positions([Node(('source',)), count, Node(('counter',))])))
+checks.assertNotIn('Diagram.Position', texts['lib.wrl'])
+checks.assertNotIn('Diagram.Position(X = 10.4', texts['main.wrl'])
+checks.assertIn('#![Diagram.Position(X = 300, Y = 0)]', texts['main.wrl'])
+
 # Deleting a node and a connection to it removes each once.
 texts = edited(program.delete([Connection((), 'counter', 'printer'), Node(('printer',))]))
 checks.assertNotIn('printer', texts['main.wrl'])
@@ -144,9 +151,14 @@ placed = layout(items, edges)
 checks.assertEqual(placed['a'], (2 * (6 + COLUMN_GAP), 1))
 checks.assertEqual(placed['b'], positions['b'])
 checks.assertGreater(placed['c'][1], 1 + 3)
+# A placed item takes its reserved size in the columns, so resizing it does
+# not move automatic items, but they still avoid its actual size.
+for width in (6, 7.5, 20):
+    items[0] = LayoutItem('a', width, 3, position=(0, 20), reserved=(6, 3))
+    checks.assertEqual(layout(items, edges)['b'], positions['b'])
+items[0] = LayoutItem('a', 20, 3, position=(0, 0), reserved=(6, 3))
+checks.assertGreater(layout(items, edges)['b'][1], 3)
 
-# Fractional sizes round up, stored positions remain exact, and automatic
-# positions avoid overlaps on the grid. Every coordinate remains a float.
 
 # Items rank in source order, unresolved ones last.
 ordered = graph_model.build(Program([('main.wrl', '''state s: int32 = 0;
@@ -200,6 +212,8 @@ checks.assertEqual([(item.width, graph_model.item_height(item)) for item in (fir
 checks.assertEqual([(item.width, item.height, graph_model.item_height(item))
                     for item in (items['plain'], items['count'])], [(8, None, 2), (8, None, 4)])
 
+# Fractional sizes round up, stored positions remain exact, and automatic
+# positions avoid overlaps on the grid. Every coordinate remains a float.
 placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
                  LayoutItem('auto', 6.2, 3.1)], [])
 checks.assertEqual(placed, {'fixed': (-0.4, -0.6), 'auto': (0.0, 6.0)})

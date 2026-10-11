@@ -108,6 +108,12 @@ class Program:
                 sources, target, editing.format_metadata('Diagram.Position', X=_coordinate(x), Y=_coordinate(y)))
             for target, (x, y) in positions.items())
 
+    def reset_positions(self, targets):
+        """Remove the stored positions of elements, so they are placed automatically."""
+        return self._combined(
+            lambda sources, target=target: editing.remove_attribute(sources, target, 'Diagram.Position')
+            for target in targets)
+
     def connect(self, scope, source, target, *, index=None):
         return editing.connect(self.sources, scope, source, target, index=index)
 

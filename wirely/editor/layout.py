@@ -1,7 +1,8 @@
-"""Left-to-right layered layout of graph items.
+"""Left-to-right layered layout of diagram items.
 
 Positions are top-left corners, x to the right and y downwards. The layered
-positions do not depend on stored positions, so moving one item leaves the
+positions do not depend on stored positions, and placed items take their
+reserved size there, so moving or resizing one placed item leaves the
 automatic positions of the others unchanged; only an unplaced item that would
 overlap a placed one moves below it.
 """
@@ -23,12 +24,15 @@ class LayoutItem:
     position: tuple[float, float] | None = None
     # 'first' or 'last' to force the first or last column.
     column: str | None = None
+    # (width, height) taken in the layered layout instead of the size.
+    reserved: tuple[float, float] | None = None
 
 
 def layout(items, edges):
     """Return grid coordinates; edges are (source ID, target ID) pairs."""
     items = [replace(item, width=size(item.width), height=size(item.height),
-                     position=None if item.position is None else tuple(map(float, item.position)))
+                     position=None if item.position is None else tuple(map(float, item.position)),
+                     reserved=None if item.reserved is None else tuple(map(size, item.reserved)))
              for item in items]
     if not items:
         return {}
@@ -158,9 +162,13 @@ def _coordinates(items, rows):
         y = 0.0
         for node in row:
             positions[node] = (x, y)
-            y += items[node].height + ROW_GAP
-        x += max((items[node].width for node in row), default=0) + COLUMN_GAP
+            y += _reserved(items[node])[1] + ROW_GAP
+        x += max((_reserved(items[node])[0] for node in row), default=0) + COLUMN_GAP
     return positions
+
+
+def _reserved(item):
+    return item.reserved or (item.width, item.height)
 
 
 def _avoid_placed(items, positions):

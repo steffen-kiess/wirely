@@ -397,10 +397,14 @@ class GraphScene(QGraphicsScene):
             self.edge_graphics.append(graphic)
 
         positions = _layout.layout(
-            [_layout.LayoutItem(model_item.id, graphic.width / STEP, graphic.height / STEP, model_item.position,
+            [_layout.LayoutItem(model_item.id, model_item.width, graph_model.item_height(model_item),
+                                model_item.position,
                                 'first' if model_item.kind == 'input' else
-                                'last' if model_item.kind == 'output' else None)
-             for model_item, graphic in ((item, self.items_by_id[item.id]) for item in model.items)],
+                                'last' if model_item.kind == 'output' else None,
+                                # Placed items reserve their default size, so
+                                # resizing them does not move automatic items.
+                                None if model_item.position is None else graph_model.default_size(model_item))
+             for model_item in model.items],
             layout_edges(model))
         for item_id, (x, y) in positions.items():
             self.items_by_id[item_id].setPos(x * STEP, y * STEP)
