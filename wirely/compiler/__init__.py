@@ -96,7 +96,7 @@ def validate_source_metadata(parsed_files, declarations):
 
 
 _STANDARD_LIBRARY_NAMES = (
-    'std', 'path', 'matter', 'time', 'knx', 'abb_jra', 'mqtt', 'csv',
+    'std', 'path', 'matter', 'schedule', 'timer', 'knx', 'abb_jra', 'mqtt', 'csv',
     'two_n', 'gpio', 'memory', 'process', 'test',
 )
 

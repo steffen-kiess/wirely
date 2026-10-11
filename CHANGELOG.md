@@ -4,6 +4,12 @@
 
 ### Breaking changes and migration
 
+#### Schedule and Timer namespaces
+
+Replace `Time` with `Schedule` for `IsInDailyInterval`, `TriggerAt`,
+`TimeOfDayMinute`, and `IsValidDailyInterval`, and with `Timer` for
+`DebounceStable` and `MonotonicTimeReached`.
+
 #### Shared names
 
 Nodes, including procedures, state, and temporaries, and named ports in a

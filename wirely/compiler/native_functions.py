@@ -33,8 +33,8 @@ native_function_impls = {
     ('CSV', 'SupportsType'): (
         'wirely.compiler.function_implementations.csv', 'supports_type',
     ),
-    ('Time', 'IsValidDailyInterval'): (
-        'wirely.compiler.function_implementations.time', 'is_valid_daily_interval',
+    ('Schedule', 'IsValidDailyInterval'): (
+        'wirely.compiler.function_implementations.schedule', 'is_valid_daily_interval',
     ),
     ('TwoN', 'IsValidCode'): (
         'wirely.compiler.function_implementations.two_n', 'is_valid_code',

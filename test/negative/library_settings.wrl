@@ -1,4 +1,4 @@
-// LIBRARIES: std, gpio, time, csv, two_n, knx, mqtt
+// LIBRARIES: std, gpio, schedule, timer, csv, two_n, knx, mqtt
 
 // TEST: edge type: string
 node checked: Std.DetectEdge {
@@ -118,7 +118,7 @@ node checked: MQTT.EventSender {
 assert CSV.SupportsType(unit); // E: Compile-time assertion failed
 
 // TEST: equal daily interval endpoints
-assert Time.IsValidDailyInterval("12:00", "12:00");
+assert Schedule.IsValidDailyInterval("12:00", "12:00");
 // ^E: Compile-time assertion failed
 
 

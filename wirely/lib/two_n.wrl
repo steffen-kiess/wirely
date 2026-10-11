@@ -68,7 +68,7 @@ namespace TwoN {
     // the state will be reset to False.
     state timeout_time: Option[MonotonicTime] = None;
 
-    node timeout_reached: Time.MonotonicTimeReached {}
+    node timeout_reached: Timer.MonotonicTimeReached {}
     connect timeout_time.old -> timeout_reached;
 
     native procedure get_value

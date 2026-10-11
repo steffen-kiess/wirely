@@ -243,8 +243,8 @@ Call `context.set_wakeup_time(deadline)` at most once per invocation with a
 `MonotonicTime` deadline to request another invocation. Passing `None` or
 leaving it unset cancels any previous deadline. An incomparable clock
 generation also causes a rerun; handle that case as
-`Time.MonotonicTimeReached` does in
-[`time.py`](../wirely/native/time.py).
+`Timer.MonotonicTimeReached` does in
+[`timer.py`](../wirely/native/timer.py).
 
 ## Native functions
 

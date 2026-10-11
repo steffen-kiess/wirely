@@ -1,7 +1,7 @@
-// LIBRARIES: std, time, memory
+// LIBRARIES: std, schedule, timer, memory
 
 // TEST: time boolean output value
-node trigger: Time.TriggerAt {
+node trigger: Schedule.TriggerAt {
   Time: "12:00",
   OutputType: boolean,
   OutputValue: 0, // E: Invalid boolean value
@@ -14,7 +14,7 @@ node trigger: Memory.ToggleFlipFlopTrigger {
 }
 
 // TEST: time option output value
-node trigger: Time.TriggerAt {
+node trigger: Schedule.TriggerAt {
   Time: "12:00",
   OutputType: Option[boolean],
   OutputValue: Some(1), // E: Invalid boolean value
@@ -29,7 +29,7 @@ node trigger: Memory.ToggleFlipFlopTrigger {
 // TEST: time forwarded output value type
 node type Forward {
   optional parameter Value: uint16;
-  node child: Time.TriggerAt {
+  node child: Schedule.TriggerAt {
     Time: "12:00",
     OutputType: boolean,
     OutputValue?: parameter_option(Value),

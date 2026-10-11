@@ -54,7 +54,7 @@ async def run_test():
         async with knx:
             print(engine.get_native_state('bus').knx.current_address, knx.current_address)
 
-            todm = engine.get_native_state_singleton('Time.TimeOfDayMinute')
+            todm = engine.get_native_state_singleton('Schedule.TimeOfDayMinute')
 
             todm.set_fake_time(wirely.TimeOfDay.parse('07:00'))
 

@@ -171,8 +171,8 @@ list literals, connection sources, and procedure ports.
 
 A node type declares parameters with `parameter Name: Type;`. A parameter
 may have a default (`= value`) or be marked `optional`. Instantiation passes
-named parameters, for example `Time.TriggerAt { Time: "08:00" }`. Type parameters
-use `ValueType`; a later parameter or port can refer to one:
+named parameters, for example `Schedule.TriggerAt { Time: "08:00" }`. Type
+parameters use `ValueType`; a later parameter or port can refer to one:
 
 ```wirely
 node type Example {

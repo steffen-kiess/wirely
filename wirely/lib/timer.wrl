@@ -1,0 +1,47 @@
+namespace Timer {
+  // Block which returns false if the current time is before input, true if the
+  // current time is at or after input, and None if the input is None or not
+  // comparable to the current time.
+  node type MonotonicTimeReached {
+    default input: value Option[MonotonicTime];
+    default output: value Option[boolean];
+
+    native procedure run
+      depends on default input as "input"
+      produces default output as "output";
+  }
+
+  // Output the initial value immediately, then accept changes after the input
+  // remains stable for Duration.
+  node type DebounceStable {
+    parameter Type: ValueType;
+    #[Diagram.ShowValue]
+    parameter Duration: Duration;
+
+    default input: value Type;
+    default output: value Type;
+
+    // The value which was last sent as output
+    state current_value: Option[Type] = None;
+    // The value which was the last input
+    state new_value: Option[Type] = None;
+    // The time when the output will change to new_value if there are no further
+    // changes
+    state update_time: Option[MonotonicTime] = None;
+
+    node reached: MonotonicTimeReached {}
+    connect update_time.old -> reached;
+
+    native procedure run
+      depends on current_value.old as "current_value_old",
+        new_value.old as "new_value_old", update_time.old as "update_time_old",
+        default input as "input", reached
+      produces default output as "output", current_value, new_value,
+        update_time uses Duration;
+  }
+
+  // TODO: Add DebounceLockout (first change is passed though, fixed lock-out
+  // interval after that) and/or DebouncePrompt (first change is passed
+  // through, then wait for stability before allowing the next change to pass)?
+  // See also: <https://github.com/thomasfredericks/Bounce2/blob/master/README.md#alternate-algorithms>
+}

@@ -1,24 +1,24 @@
-node t0: Time.IsInDailyInterval { Start: "00:00", End: "12:00" }
-node t1: Time.IsInDailyInterval { Start: "12:00", End: "24:00" }
-node all_day: Time.IsInDailyInterval { Start: "00:00", End: "24:00" }
-node never: Time.IsInDailyInterval { Start: "24:00", End: "00:00" }
+node t0: Schedule.IsInDailyInterval { Start: "00:00", End: "12:00" }
+node t1: Schedule.IsInDailyInterval { Start: "12:00", End: "24:00" }
+node all_day: Schedule.IsInDailyInterval { Start: "00:00", End: "24:00" }
+node never: Schedule.IsInDailyInterval { Start: "24:00", End: "00:00" }
 
-node trigger: Time.TriggerAt { Time: "12:34" }
-node trigger_value: Time.TriggerAt {
+node trigger: Schedule.TriggerAt { Time: "12:34" }
+node trigger_value: Schedule.TriggerAt {
   Time: "12:34",
   OutputType: boolean,
   OutputValue: true,
 }
 
 // TODO: Add tests
-node trigger2: Time.TriggerAt { Time: "03:10" }
+node trigger2: Schedule.TriggerAt { Time: "03:10" }
 
 node delay_input: Std.DebugValueSource { Type: int8 }
-node delay: Time.DebounceStable { Type: int8, Duration: "PT10S" }
+node delay: Timer.DebounceStable { Type: int8, Duration: "PT10S" }
 node delay_output: Std.DebugValuePrinter { Type: int8 }
 connect delay_input -> delay;
 connect delay -> delay_output;
 
 node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
-node reached: Time.MonotonicTimeReached {}
+node reached: Timer.MonotonicTimeReached {}
 connect reached_input -> reached;

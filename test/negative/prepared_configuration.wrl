@@ -1,4 +1,4 @@
-// LIBRARIES: std, knx, mqtt, path, time, two_n
+// LIBRARIES: std, knx, mqtt, path, schedule, timer, two_n
 
 // TEST: invalid KNX address
 constant Address: uint16 = KNX.ParseGroupAddress("invalid");

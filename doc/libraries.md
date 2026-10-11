@@ -76,17 +76,25 @@ input is supplied through the engine's debug interface, not a `.wrl`
 connection. `TwoStageValueForward` is primarily a demonstration of procedure
 dependencies.
 
-## Time
+## Schedule
 
-Time-based values and triggers. `TimeOfDay` parameters use strings such as
-`"08:00"`; `Duration` parameters use strings such as `"PT1S"`.
+Daily schedules use local clock time. `TimeOfDay` parameters use strings
+such as `"08:00"`.
+
+| Node type | Parameters | Ports and behavior |
+| --- | --- | --- |
+| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
+| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
+
+## Timer
+
+Timers use monotonic time. `Duration` parameters use strings such as
+`"PT1S"`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `MonotonicTimeReached` | None | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
 | `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. |
-| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
-| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## KNX
 

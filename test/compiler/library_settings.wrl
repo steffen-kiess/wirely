@@ -35,12 +35,12 @@ node gpio_pullup: GPIOSettings {
 assert CSV.SupportsType(boolean) && CSV.SupportsType(uint16);
 assert CSV.SupportsType(Option[boolean]);
 assert !CSV.SupportsType(List[uint8]) && !CSV.SupportsType(String);
-node interval: Time.IsInDailyInterval { Start: "08:00", End: "12:00" }
-node overnight: Time.IsInDailyInterval { Start: "22:00", End: "06:00" }
-node trigger_default: Time.TriggerAt { Time: "12:00" }
-node trigger_unit: Time.TriggerAt { Time: "12:00", OutputType: unit, OutputValue: () }
-node trigger_number: Time.TriggerAt { Time: "12:00", OutputType: uint16, OutputValue: 42 }
-node trigger_option: Time.TriggerAt {
+node interval: Schedule.IsInDailyInterval { Start: "08:00", End: "12:00" }
+node overnight: Schedule.IsInDailyInterval { Start: "22:00", End: "06:00" }
+node trigger_default: Schedule.TriggerAt { Time: "12:00" }
+node trigger_unit: Schedule.TriggerAt { Time: "12:00", OutputType: unit, OutputValue: () }
+node trigger_number: Schedule.TriggerAt { Time: "12:00", OutputType: uint16, OutputValue: 42 }
+node trigger_option: Schedule.TriggerAt {
   Time: "12:00", OutputType: Option[boolean], OutputValue: None,
 }
 

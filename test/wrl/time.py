@@ -21,7 +21,7 @@ async def run_test():
         val0 = engine.get_value('t0')
         val1 = engine.get_value('t1')
 
-        todm = engine.get_native_state_singleton('Time.TimeOfDayMinute')
+        todm = engine.get_native_state_singleton('Schedule.TimeOfDayMinute')
 
         now_time = datetime.datetime.now().time()
         hour = now_time.hour
@@ -292,7 +292,7 @@ async def run_test():
 
         # TODO: Tests for trigger2
 
-        # Tests for Time.DebounceStable
+        # Tests for Timer.DebounceStable
 
         engine.assert_value_is('delay', 4)
 

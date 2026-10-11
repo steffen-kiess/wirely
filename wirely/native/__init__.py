@@ -20,7 +20,8 @@ def native_node_type(namespace_dict, *, has_native_state: bool):
 
 native_node_pkgs = {
     ('Std',): 'std',
-    ('Time',): 'time',
+    ('Schedule',): 'schedule',
+    ('Timer',): 'timer',
     ('KNX',): 'knx',
     ('ABB', 'JRA'): 'abb_jra',
     ('MQTT',): 'mqtt',

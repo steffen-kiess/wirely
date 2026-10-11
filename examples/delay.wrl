@@ -1,6 +1,6 @@
 node in: Std.DebugValueSource { Type: boolean }
 
-node delay: Time.DebounceStable { Type: boolean, Duration: "PT1S" }
+node delay: Timer.DebounceStable { Type: boolean, Duration: "PT1S" }
 connect in -> delay;
 
 node prnt: Std.DebugValuePrinter { Type: boolean }

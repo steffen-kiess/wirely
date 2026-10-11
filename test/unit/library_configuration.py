@@ -16,7 +16,7 @@ from wirely.runtime.engine import Engine
 
 
 registry = {}
-libraries = _standard_library_sources(['std', 'time', 'memory', 'two_n', 'path'])
+libraries = _standard_library_sources(['std', 'schedule', 'timer', 'memory', 'two_n', 'path'])
 
 
 @native_node_type(registry, has_native_state=True)
@@ -43,7 +43,7 @@ def node_program(node_type, output_type, output_value, *, forward=False):
         settings.append('OutputType: ' + output_type)
     if output_value is not None:
         settings.append('OutputValue: ' + output_value)
-    child_settings = ['Time: "12:00"'] if node_type == 'Time.TriggerAt' else []
+    child_settings = ['Time: "12:00"'] if node_type == 'Schedule.TriggerAt' else []
     if node_type == 'Memory.ToggleFlipFlopTrigger':
         child_settings.append('MinimumDelay: "PT2S"')
     if forward:
@@ -79,14 +79,14 @@ def check_event_payloads():
     cases = [(None, None, wirely.Unit()), ('boolean', 'false', False),
              ('uint16', '0', 0), ('Option[boolean]', 'None', None),
              ('Option[boolean]', 'Some(false)', wirely.Some(False))]
-    for node_type in ('Time.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
+    for node_type in ('Schedule.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
         # A supplied false-like value must survive optional parameter forwarding.
         scenarios = [(False, case) for case in cases] + [(True, cases[1])]
         for forward, (output_type, output_value, expected) in scenarios:
             program, target = node_program(node_type, output_type, output_value, forward=forward)
             runtime = Engine(program)
-            if node_type == 'Time.TriggerAt':
-                clock = runtime.get_native_state_singleton('Time.TimeOfDayMinute')
+            if node_type == 'Schedule.TriggerAt':
+                clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
                 clock.set_fake_time(wirely.TimeOfDay.from_parts(11, 59))
                 runtime.step()
                 runtime.assert_value_is(target, None)
@@ -129,7 +129,7 @@ def check_debounce_duration():
   parameter Span: Duration;
   default input: value uint16;
   default output: value uint16;
-  node child: Time.DebounceStable { Type: uint16, Duration: Span }
+  node child: Timer.DebounceStable { Type: uint16, Duration: Span }
   connect default input -> child;
   connect child -> default output;
 }

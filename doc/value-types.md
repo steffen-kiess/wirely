@@ -55,8 +55,9 @@ value of type `T`; `event T` carries occurrences with payloads of type `T`.
 ### Unit and boolean
 
 `unit` is useful for events that only signal an occurrence. For example,
-`Time.TriggerAt { Time: "08:00" }` emits a unit event each day at the specified
-time. The default event type is `unit`, so no payload parameter is needed.
+`Schedule.TriggerAt { Time: "08:00" }` emits a unit event each day at the
+specified time. The default event type is `unit`, so no payload parameter
+is needed.
 
 The unit literal is `()`:
 
@@ -127,7 +128,7 @@ years).
 
 ```wirely
 node source: Std.Constant { Type: boolean, Value: true }
-node delay: Time.DebounceStable { Type: boolean, Duration: "PT1.5S" }
+node delay: Timer.DebounceStable { Type: boolean, Duration: "PT1.5S" }
 connect source -> delay;
 ```
 
@@ -167,7 +168,7 @@ seconds from 0 to 59.
 
 `"24:00"` is the end of the day. It differs from `"00:00"` and orders
 after every other time, so a pair of times can describe a whole day:
-`Time.IsInDailyInterval` with `Start: "00:00", End: "24:00"` is always
+`Schedule.IsInDailyInterval` with `Start: "00:00", End: "24:00"` is always
 true, and with `Start: "24:00", End: "00:00"` never.
 
 The `std` library declares these functions, which work in procedure bodies
@@ -188,10 +189,10 @@ equal times, 24 hours from `"00:00"` to `"24:00"`, and zero from `"24:00"`
 to `"00:00"`.
 
 ```wirely
-node type Schedule {
+node type DailySchedule {
   parameter Start: TimeOfDay = "22:00";
   constant End: TimeOfDay = TimeOfDay.WrappingAdd(Start, "PT8H");
-  node active: Time.IsInDailyInterval { Start: Start, End: End }
+  node active: Schedule.IsInDailyInterval { Start: Start, End: End }
 }
 ```
 
@@ -213,7 +214,7 @@ readings from different generations cannot. A later generation does not
 imply a later time: arithmetic can move a time into the future, so a time
 from an earlier generation may lie after the current time. Library nodes
 report such times as not comparable, for example
-`Time.MonotonicTimeReached` yields `None`.
+`Timer.MonotonicTimeReached` yields `None`.
 
 Monotonic times have no literals. Use `Option[MonotonicTime]` with `None`
 when there is no deadline, and decide at each use what an absent time
@@ -253,8 +254,8 @@ node type Deadline {
 }
 ```
 
-Time library nodes produce and work with monotonic times, including
-`Time.MonotonicTimeReached`.
+Timer library nodes produce and work with monotonic times, including
+`Timer.MonotonicTimeReached`.
 
 ### Type parameters
 
