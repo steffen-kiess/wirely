@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from unittest import TestCase
@@ -107,6 +108,17 @@ def wheel(view, steps):
         Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False))
 
 
+def scene_center(view):
+    return view.viewportTransform().inverted()[0].map(
+        QPointF(view.viewport().width() / 2, view.viewport().height() / 2))
+
+
+def check_center(view, expected):
+    delta = (scene_center(view) - expected) * math.exp(view.zoom)
+    checks.assertLessEqual(abs(delta.x()), 1)
+    checks.assertLessEqual(abs(delta.y()), 1)
+
+
 with tempfile.TemporaryDirectory() as directory:
     filename = os.path.join(directory, 'main.wrl')
     with open(filename, 'w', encoding='utf-8') as file:
@@ -119,15 +131,36 @@ with tempfile.TemporaryDirectory() as directory:
     scene = tab.graph_scene
     view = tab.view
     document = window.session.documents[filename]
+    checks.assertEqual(view.zoom, 0)
+    checks.assertEqual(tab.zoom_label.text(), '100%')
 
     def at(position):
         return view.mapFromScene(position)
 
+    # Resizing preserves a panned center even when a small scene fits in
+    # the enlarged viewport. Repeated cycles must not accumulate drift.
+    for factor in (0.15, 0.6, 1, 1.8, 4):
+        view.set_zoom(math.log(factor))
+        view.fit()
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().minimum() + 2)
+        view.verticalScrollBar().setValue(view.verticalScrollBar().maximum() - 2)
+        center = scene_center(view)
+        for _ in range(3):
+            for width, height in ((1600, 1000), (850, 600), (1200, 800)):
+                window.resize(width, height)
+                application.processEvents()
+                check_center(view, center)
+        for banner in ('Read-only graph', ''):
+            tab.update_graph(tab.model, 'live', banner)
+            application.processEvents()
+            check_center(view, center)
+        checks.assertEqual(tab.zoom_label.text(), f'{100 * factor:.0f}%')
+    view.set_zoom(0)
+
     # Refreshes and changes to the graph bounds preserve the viewport at
     # different zoom levels, even when the scene is smaller than the view.
     for zoom in (1, 0.15, 0.6, 1.8, 4):
-        view.resetTransform()
-        view.scale(zoom, zoom)
+        view.set_zoom(math.log(zoom))
         origin = at(QPointF())
         for _ in range(3):
             window.refresh_views()
@@ -144,7 +177,7 @@ with tempfile.TemporaryDirectory() as directory:
             application.processEvents()
             checks.assertEqual(at(QPointF()), origin)
         checks.assertEqual(document.text(), source)
-    view.resetTransform()
+    view.set_zoom(0)
     view.centerOn(scene.itemsBoundingRect().center())
 
     # User navigation in the active source tab highlights graph items
@@ -165,15 +198,35 @@ with tempfile.TemporaryDirectory() as directory:
         reveal.assert_called_with(scene.items_by_id[Node(('printer',))])
     checks.assertIs(window.workspaces.active_view, tab)
     scene.clearSelection()
-    view.resetTransform()
+    view.set_zoom(0)
     view.centerOn(scene.itemsBoundingRect().center())
 
     # The wheel zooms; zooming in and out again restores the scale.
     scale = view.transform().m11()
     wheel(view, 1)
     checks.assertGreater(view.transform().m11(), scale)
+    checks.assertAlmostEqual(view.zoom, 0.18)
+    checks.assertAlmostEqual(view.transform().m11(), math.exp(view.zoom))
+    checks.assertEqual(tab.zoom_label.text(), '120%')
     wheel(view, -1)
     checks.assertAlmostEqual(view.transform().m11(), scale)
+    checks.assertAlmostEqual(view.zoom, 0)
+    checks.assertEqual(tab.zoom_label.text(), '100%')
+    viewport = view.viewport()
+    position = QPointF(viewport.rect().center())
+    QApplication.sendEvent(viewport, QWheelEvent(
+        position, viewport.mapToGlobal(position), QPoint(0, -40), QPoint(), Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False))
+    checks.assertAlmostEqual(view.zoom, -0.06)
+    checks.assertAlmostEqual(view.transform().m11(), math.exp(-0.06))
+    checks.assertEqual(tab.zoom_label.text(), '94%')
+    for factor, steps in ((0.15, -1), (4, 1)):
+        view.set_zoom(math.log(factor))
+        wheel(view, steps)
+        checks.assertEqual(view.zoom, math.log(factor))
+        checks.assertAlmostEqual(view.transform().m11(), factor)
+        checks.assertEqual(tab.zoom_label.text(), f'{100 * factor:.0f}%')
+    view.set_zoom(0)
 
     # Dragging a node writes its position; one undo removes it again.
     printer = scene.items_by_id[Node(('printer',))]
@@ -208,8 +261,7 @@ with tempfile.TemporaryDirectory() as directory:
             checks.assertEqual(socket.scenePos().x() % STEP, 0)
             checks.assertEqual(socket.scenePos().y() % STEP, STEP / 2)
     for zoom, delta in ((0.6, QPoint(-37, 53)), (1.8, QPoint(-37, 53)), (2, QPoint(54, 0))):
-        view.resetTransform()
-        view.scale(zoom, zoom)
+        view.set_zoom(math.log(zoom))
         view.centerOn(scene.itemsBoundingRect().center())
         scene.clearSelection()
         if zoom == 2:
@@ -232,7 +284,7 @@ with tempfile.TemporaryDirectory() as directory:
             checks.assertIn(f'Diagram.Position(X = {x:g}, Y = {y:g})', document.text())
         window.undo()
         checks.assertEqual(document.text(), source)
-    view.resetTransform()
+    view.set_zoom(0)
     view.centerOn(scene.itemsBoundingRect().center())
     scene.clearSelection()
 
@@ -407,8 +459,7 @@ with tempfile.TemporaryDirectory() as directory:
     scene = tab.graph_scene
     view = tab.view
     for zoom in (0.15, 0.6, 1, 1.8, 4):
-        view.resetTransform()
-        view.scale(zoom, zoom)
+        view.set_zoom(math.log(zoom))
         printer = scene.items_by_id[Node(('printer',))]
         view.centerOn(printer.sceneBoundingRect().center())
         application.processEvents()

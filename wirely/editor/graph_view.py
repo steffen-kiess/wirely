@@ -9,7 +9,7 @@ import math
 from collections import defaultdict
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen, QTransform
 from PySide6.QtWidgets import (
     QGraphicsItem, QGraphicsObject, QGraphicsPathItem, QGraphicsScene, QGraphicsView, QLabel, QStyle,
     QVBoxLayout, QWidget,
@@ -653,22 +653,49 @@ class GraphView(QGraphicsView):
     """Zoom with the wheel, pan with the middle mouse button, select with a rubber band."""
 
     context_menu = Signal(object, QPointF)
+    zoom_changed = Signal(float)
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
         self.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
+        self.zoom = 0.0
         self._pan = None
+
+    def set_zoom(self, zoom):
+        """Set logarithmic zoom; zero is normal size."""
+        if not math.log(0.15) <= zoom <= math.log(4) or zoom == self.zoom:
+            return
+        self.zoom = zoom
+        factor = math.exp(zoom)
+        self.setTransform(QTransform.fromScale(factor, factor))
+        self.zoom_changed.emit(zoom)
 
     def wheelEvent(self, event):
         # Some touchpads only report pixel deltas.
         delta = event.angleDelta().y() or event.pixelDelta().y()
-        factor = math.exp(ZOOM_RATE * delta)
-        if 0.15 <= self.transform().m11() * factor <= 4:
-            self.scale(factor, factor)
+        self.set_zoom(self.zoom + ZOOM_RATE * delta)
         event.accept()
+
+    def resizeEvent(self, event):
+        old_size = event.oldSize()
+        center = None
+        if old_size.isValid():
+            center = self.viewportTransform().inverted()[0].map(
+                QPointF(old_size.width() / 2, old_size.height() / 2))
+        super().resizeEvent(event)
+        if center is not None:
+            # Qt cannot preserve the center when the new viewport exceeds
+            # the scroll bounds. Leave room around that center before restoring it.
+            factor = math.exp(self.zoom)
+            width = (self.viewport().width() + 80) / factor
+            height = (self.viewport().height() + 80) / factor
+            visible = QRectF(center.x() - width / 2, center.y() - height / 2, width, height)
+            self.setSceneRect(self.sceneRect().united(visible))
+            self.centerOn(center)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
@@ -721,7 +748,7 @@ class GraphView(QGraphicsView):
 
 
 class GraphTab(QWidget):
-    """A graph tab: the view and a banner explaining why it is read-only."""
+    """A graph tab with a read-only banner and zoom percentage."""
 
     def __init__(self, path, parent=None):
         super().__init__(parent)
@@ -736,11 +763,17 @@ class GraphTab(QWidget):
         self.banner.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
         self.banner.setStyleSheet('QLabel { background: #fff3cd; color: #5c4400; padding: 6px; }')
         self.banner.hide()
+        self.zoom_label = QLabel('100%', self)
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.zoom_label.setContentsMargins(6, 2, 6, 2)
+        self.view.zoom_changed.connect(
+            lambda zoom: self.zoom_label.setText(f'{100 * math.exp(zoom):.0f}%'))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         layout.addWidget(self.banner)
         layout.addWidget(self.view)
+        layout.addWidget(self.zoom_label)
         self._fitted = False
 
     def update_graph(self, model, state, banner_html=''):

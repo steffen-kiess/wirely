@@ -1,3 +1,4 @@
+import math
 import os
 import tempfile
 from unittest import TestCase
@@ -5,7 +6,7 @@ from unittest.mock import patch
 
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 
-from PySide6.QtCore import QEvent, QPoint, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QMouseEvent, QTextCursor
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLineEdit, QMessageBox, QSplitter
@@ -55,6 +56,17 @@ def drag_tab(manager, widget, destination, *, cancel=False):
     application.processEvents()
 
 
+def scene_center(view):
+    return view.viewportTransform().inverted()[0].map(
+        QPointF(view.viewport().width() / 2, view.viewport().height() / 2))
+
+
+def check_center(view, expected):
+    delta = (scene_center(view) - expected) * math.exp(view.zoom)
+    checks.assertLessEqual(abs(delta.x()), 1)
+    checks.assertLessEqual(abs(delta.y()), 1)
+
+
 with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as directory:
     filename = os.path.join(directory, 'main.wrl')
     other_filename = os.path.join(directory, 'other.wrl')
@@ -73,18 +85,29 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     first = window.workspace.active_group
 
     # Splits move the same widgets, support nesting, and collapse when emptied.
-    graph.view.scale(1.4, 1.4)
+    graph.view.set_zoom(math.log(1.4))
     graphic = graph.graph_scene.items_by_id[Node(('printer',))]
     graphic.setSelected(True)
     scale = graph.view.transform().m11()
+    center = scene_center(graph.view)
     action(window, '&View', 'Split Right').trigger()
     application.processEvents()
     right = manager.group_of(graph)
     checks.assertIsNot(right, first)
     checks.assertEqual(window.workspace.root.orientation(), Qt.Orientation.Horizontal)
     checks.assertEqual(graph.view.transform().m11(), scale)
+    checks.assertEqual(graph.zoom_label.text(), '140%')
+    check_center(graph.view, center)
+    center = scene_center(graph.view)
+    window.workspace.root.setSizes([700, 300])
+    application.processEvents()
+    check_center(graph.view, center)
     checks.assertEqual(graph.graph_scene.selected_ids(), [Node(('printer',))])
     inner = window.open_graph(('Inner',))
+    checks.assertEqual(inner.zoom_label.text(), '100%')
+    inner.view.set_zoom(math.log(0.6))
+    checks.assertEqual(inner.zoom_label.text(), '60%')
+    checks.assertEqual(graph.zoom_label.text(), '140%')
     action(window, '&View', 'Split Below').trigger()
     application.processEvents()
     below = manager.group_of(inner)
@@ -142,11 +165,18 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     drag_tab(manager, graph, outside, cancel=True)
     checks.assertEqual(manager.windows, [])
     checks.assertIs(manager.group_of(graph), right)
+    center = scene_center(graph.view)
     drag_tab(manager, graph, outside)
     checks.assertEqual(len(manager.windows), 1)
     detached = manager.windows[0]
     checks.assertIs(graph.window(), detached)
     checks.assertEqual(graph.view.transform().m11(), scale)
+    checks.assertEqual(graph.zoom_label.text(), '140%')
+    check_center(graph.view, center)
+    center = scene_center(graph.view)
+    detached.resize(1200, 900)
+    application.processEvents()
+    check_center(graph.view, center)
     checks.assertEqual(graph.graph_scene.selected_ids(), [Node(('printer',))])
     checks.assertIs(window.workspace.root, first)
     checks.assertIs(window.open_graph(()), graph)
@@ -240,6 +270,7 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     checks.assertGreater(scroll_position, 0)
     manager.split(other_editor, 'bottom')
     order = [group.widget(index) for group in detached.workspace.groups() for index in range(group.count())]
+    center = scene_center(graph.view)
     detached.close()
     application.processEvents()
     checks.assertEqual(manager.windows, [])
@@ -247,6 +278,9 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     checks.assertEqual(other_editor.textCursor().position(), cursor_position)
     checks.assertEqual(other_editor.verticalScrollBar().value(), scroll_position)
     checks.assertIs(graph.window(), window)
+    checks.assertEqual(graph.view.zoom, math.log(1.4))
+    checks.assertEqual(graph.zoom_label.text(), '140%')
+    check_center(graph.view, center)
 
     # Individual return and close actions clean up empty detached windows.
     detached = manager.detach(other_editor)
