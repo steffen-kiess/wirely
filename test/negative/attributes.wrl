@@ -307,3 +307,25 @@ node type T {
 #[Diagram.Row = 2] input A: value boolean;
 #[Diagram.Row = 2] input B: value boolean;
 // ^E: Port row 2 is already used by input A
+
+// TEST: Unordered single input
+node type T {
+  #[Unordered] input A: value boolean; // E: Unordered requires a multi input
+}
+
+// TEST: Unordered output
+node type T {
+  #[Unordered] output A: value boolean; // E: Unordered requires a multi input
+}
+
+// TEST: Unordered parameter
+node type T {
+  #[Unordered] parameter P: boolean;
+  // ^E: Attribute Unordered is not permitted on parameter
+}
+
+// TEST: Unordered arguments
+node type T {
+  #[Unordered(Always)] input A: multi value boolean;
+  // ^E: Unordered must be a flag without arguments or a value
+}

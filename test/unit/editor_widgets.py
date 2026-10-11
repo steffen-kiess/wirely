@@ -13,7 +13,10 @@ from PySide6.QtWidgets import QApplication
 from wirely.compiler.editing import apply_edits, set_parameter_binding
 from wirely.compiler.outline import Node, State
 from wirely.editor.app import MainWindow
+from wirely.editor import graph_model
+from wirely.editor.graph_view import GraphScene
 from wirely.editor.grid import STEP, from_pixels, snap
+from wirely.editor.program import Program
 from wirely.editor.sync import Document
 
 
@@ -29,6 +32,54 @@ document.apply(edits)
 checks.assertEqual(document.text(), apply_edits([('main.wrl', binding_source)], edits)[0][1])
 checks.assertEqual(document.text(),
                    'node receiver: KNX.EventReceiver {\n  GroupAddress: "1/2/3",\n  Type: boolean\n}\n')
+
+# Connections to a multi input end at separate points within its row. Ordered
+# inputs number them in source order; unordered ones sort them by source
+# position and refuse duplicates.
+fan_source = '''node type First {
+  input Values: multi value boolean;
+  default output: value boolean;
+  node constant: Std.Constant { Type: boolean, Value: false }
+  connect constant -> default output;
+}
+#[Diagram.Position(X = 0, Y = 0)]
+node a: Std.Constant { Type: boolean, Value: true }
+#[Diagram.Position(X = 0, Y = 4)]
+node b: Std.Constant { Type: boolean, Value: false }
+#[Diagram.Position(X = 0, Y = 8)]
+node c: Std.Constant { Type: boolean, Value: true }
+#[Diagram.Position(X = 14, Y = 0)]
+node first: First {}
+connect c, a, b -> first.Values;
+#[Diagram.Position(X = 14, Y = 6)]
+node all: Std.And {}
+connect c, a, b, a -> all;
+'''
+fan_scene = GraphScene()
+fan_scene.set_model(graph_model.build(Program([('main.wrl', fan_source)]), ()))
+fan_items = fan_scene.items_by_id
+
+
+ordered = [edge for edge in fan_scene.edge_graphics if edge.edge.target[0] == Node(('first',))]
+checks.assertEqual([(edge.edge.source[0].path[0], edge.number()) for edge in ordered],
+                   [('c', 1), ('a', 2), ('b', 3)])
+checks.assertEqual([edge.path().currentPosition().y() for edge in ordered],
+                   sorted(edge.path().currentPosition().y() for edge in ordered))
+values = fan_items[Node(('first',))].sockets[('inputs', 'Values')]
+checks.assertTrue(all(abs(edge.path().currentPosition().y() - values.scenePos().y()) < STEP / 2
+                      for edge in ordered))
+unordered = [edge for edge in fan_scene.edge_graphics if edge.edge.target[0] == Node(('all',))]
+checks.assertEqual([edge.number() for edge in unordered], [None] * 4)
+by_end = sorted(unordered, key=lambda edge: edge.path().currentPosition().y())
+checks.assertEqual([edge.edge.source[0].path[0] for edge in by_end], ['a', 'a', 'b', 'c'])
+checks.assertEqual(len({edge.path().currentPosition().y() for edge in unordered}), 4)
+all_input = fan_items[Node(('all',))].sockets[('inputs', None)]
+checks.assertTrue(fan_scene.duplicate(fan_items[Node(('b',))].sockets[('outputs', None)], all_input))
+checks.assertTrue(all_input.socket.unordered and not values.socket.unordered)
+# Moving a source reorders the ends at an unordered input.
+fan_items[Node(('c',))].setPos(0, -10 * STEP)
+by_end = sorted(unordered, key=lambda edge: edge.path().currentPosition().y())
+checks.assertEqual([edge.edge.source[0].path[0] for edge in by_end], ['c', 'a', 'a', 'b'])
 
 source = '''node source: Std.DebugEventSource { Type: boolean }
 node printer: Std.DebugEventPrinter { Type: boolean }

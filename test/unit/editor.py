@@ -205,6 +205,9 @@ checks.assertEqual([(socket.key, socket.row) for socket in first.outputs], [('Ou
 checks.assertEqual(first.details, (('Address', '"1/2/3"', 'bound'), ('Port', '3671', 'default'),
                                    ('Label', None, 'absent')))
 checks.assertEqual(second.details[0], ('Address', None, 'missing'))
+# Std.And's input is unordered; other multi inputs keep their order.
+checks.assertEqual([(socket.is_list, socket.unordered) for socket in items['plain'].inputs], [(True, True)])
+checks.assertEqual([socket.unordered for socket in first.inputs], [False] * 4)
 checks.assertEqual((graph_model.port_rows(first), graph_model.minimum_height(first)), (4, 9))
 # A requested height below the minimum is raised to it.
 checks.assertEqual([(item.width, graph_model.item_height(item)) for item in (first, second)],

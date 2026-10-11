@@ -132,6 +132,7 @@ ATTRIBUTE_REGISTRY = {
         'resource_type', 'constant', 'parameter', 'port', 'state',
         'temporary', 'struct_field', 'enum_member',
     }), _flag),
+    'Unordered': AttributeDefinition(frozenset({'port'}), _flag),
     # Diagram layout, see doc/diagram-layout.md.
     'Diagram.Position': AttributeDefinition(_DIAGRAM_ITEMS, _position),
     'Diagram.Width': AttributeDefinition(_DIAGRAM_ITEMS, _size),
@@ -242,6 +243,15 @@ def validate_files(files, *, contain=None):
             visit(child, child_scope)
         if isinstance(item, NodeType):
             check_rows(item.declarations)
+        if isinstance(item, ast.DeclarationPort):
+            check_unordered(item)
+
+    def check_unordered(port):
+        for attribute in getattr(port, 'attributes', ()):
+            if attribute.name == 'Unordered' and not (
+                    port.direction == ast.PortDirection.Input and port.port_spec.list_spec.is_list):
+                with contain(None):
+                    _error(attribute, 'Unordered requires a multi input')
 
     def check_rows(declarations):
         """Reject two ports on the same side of a diagram item with the same row."""

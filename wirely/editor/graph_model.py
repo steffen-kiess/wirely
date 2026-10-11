@@ -40,6 +40,8 @@ class Socket:
     resolved: bool = True
     # The row of the socket, or None for the header.
     row: int | None = None
+    # A multi input whose connections have no meaningful order.
+    unordered: bool = False
 
 
 @dataclass(frozen=True)
@@ -328,9 +330,12 @@ def _details(node, node_type):
 def _node_sockets(analysis, node):
     """Return the sockets of a node, with rows from its node type's port declarations."""
     rows = {}
+    unordered = set()
     for port in node.ports or ():
         row = attribute_value(port.attributes, 'Diagram.Row')
         rows[(port.direction, port.name)] = row if row is not None else None if port.name is None else _AUTO
+        if attribute_value(port.attributes, 'Unordered'):
+            unordered.add((port.direction, port.name))
     resolved = analysis.ports(node.id)
     if resolved is not None:
         ports = [(port.name, port.direction, port.kind, port.is_list,
@@ -346,7 +351,8 @@ def _node_sockets(analysis, node):
     for port_name, direction, kind, is_list, type_text, resolved_port in ports:
         reference = name if port_name is None else f'{name}.{_reference(port_name)}'
         row = rows.get((direction, port_name), None if port_name is None else _AUTO)
-        socket = Socket(port_name, port_name or '', reference, kind, type_text, is_list, resolved_port, row)
+        socket = Socket(port_name, port_name or '', reference, kind, type_text, is_list, resolved_port, row,
+                        (direction, port_name) in unordered)
         (inputs if direction == 'input' else outputs).append(socket)
     return inputs, outputs
 

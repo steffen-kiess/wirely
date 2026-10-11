@@ -16,6 +16,7 @@ namespace Std {
   }
 
   node type And {
+    #[Unordered]
     default input: multi value boolean;
     default output: value boolean;
 

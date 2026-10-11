@@ -84,6 +84,10 @@ temporary, struct field, or enum member. Eligible bodies also accept
 Internal declarations and contents of internal namespaces or types are
 omitted from the library reference.
 
+`#[Unordered]` on a `multi` input states that the order and number of its
+connections have no meaning, as for `Std.And`. The compiler still keeps
+their order.
+
 Attributes before `connect` apply to every connection in that statement;
 attributes before an individual source apply to that source's connection.
 Each connection combines statement attributes followed by source

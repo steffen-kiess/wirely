@@ -158,4 +158,6 @@ to 20 and `y` from 4 to 11:
 
 Items overlapping each other are drawn in source order, later items on top.
 Colours, fonts, text, and the routing of connection lines are up to each
-editor.
+editor. The graphical editor spreads the ends of connections to a `multi`
+input within its row and numbers them in order, unless the input is
+`#[Unordered]`.

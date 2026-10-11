@@ -36,6 +36,16 @@ node type Positioned {
 }
 node positioned_type: Positioned {}
 
+node type Inputs {
+  #[Unordered]
+  default input: multi value boolean;
+  default output: value boolean;
+  node constant: Std.Constant { Type: boolean, Value: false }
+  connect constant -> default output;
+}
+node inputs: Inputs {}
+connect source, source -> inputs;
+
 node type Sized {
   #![Diagram.DefaultWidth = 10]
   #![Diagram.DefaultHeight = 6.5]

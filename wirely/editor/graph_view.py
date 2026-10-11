@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QWidget,
 )
 
+from wirely.compiler.analysis import ConnectionCheck
 from wirely.compiler.outline import Connection
 
 from . import graph_model
@@ -35,6 +36,9 @@ FONT_FAMILY = 'DejaVu Sans'
 TITLE_SIZE = 13
 SUBTITLE_SIZE = 11
 LABEL_SIZE = 12
+NUMBER_SIZE = 9
+# Distance between the numbers of connections to a multi input, along their lines.
+NUMBER_DISTANCE = 18
 # Zoom per eighth of a degree of wheel rotation; one notch of 120 zooms by about 20%.
 ZOOM_RATE = 0.0015
 
@@ -233,7 +237,13 @@ class ItemGraphic(QGraphicsObject):
                 x, y = from_pixels(delta.x(), delta.y())
                 return origin + QPointF(snap(x) * STEP, snap(y) * STEP)
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            # The fan order at unordered inputs depends on source positions.
+            updated = []
             for edge in self.edges:
+                for member in edge.group or (edge,):
+                    if member not in updated:
+                        updated.append(member)
+            for edge in updated:
                 edge.update_path()
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
             self._update_z()
@@ -250,6 +260,8 @@ class EdgeGraphic(QGraphicsPathItem):
         self.source = source
         self.target = target
         self.linked = False
+        # The edges ending at the same multi input, in source order, or None.
+        self.group = None
         self.set_model(edge)
         self.setZValue(-1)
 
@@ -268,7 +280,37 @@ class EdgeGraphic(QGraphicsPathItem):
     def update_path(self):
         start = self.source.socket_position('outputs', self.edge.source[1])
         end = self.target.socket_position('inputs', self.edge.target[1])
+        if self.group is not None:
+            # Fan out the ends at a multi input within its row.
+            count = len(self.group)
+            spacing = min(6.0, (STEP - 4) / (count - 1))
+            end += QPointF(0, (self.fan_index() - (count - 1) / 2) * spacing)
         self.setPath(edge_path(start, end, self.source, self.target))
+
+    def target_socket(self):
+        return self.target.sockets.get(('inputs', self.edge.target[1]))
+
+    def fan_index(self):
+        """Return the position of this edge's end among the edges at its multi input.
+
+        Ends at an unordered input follow the positions of their sources, so
+        they do not cross; other ends follow source order.
+        """
+        group = self.group
+        socket = self.target_socket()
+        if socket is not None and socket.socket.unordered:
+            def key(edge):
+                position = edge.source.socket_position('outputs', edge.edge.source[1])
+                return position.y(), position.x(), self.group.index(edge)
+            group = sorted(group, key=key)
+        return group.index(self)
+
+    def number(self):
+        """Return the 1-based position of this connection at an ordered multi input, or None."""
+        socket = self.target_socket()
+        if self.group is None or socket is None or socket.socket.unordered:
+            return None
+        return self.group.index(self) + 1
 
     def paint(self, painter, option, widget=None):
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
@@ -290,9 +332,21 @@ class EdgeGraphic(QGraphicsPathItem):
             painter.drawPath(self.path())
         painter.setPen(pen)
         painter.drawPath(self.path())
+        number = self.number()
+        if number is not None:
+            # Stagger the labels along their lines, so they stay apart where the lines meet.
+            path = self.path()
+            distance = NUMBER_DISTANCE * number
+            center = path.pointAtPercent(path.percentAtLength(max(0.0, path.length() - distance)))
+            box = QRectF(center.x() - 7, center.y() - 7, 14, 14)
+            painter.setPen(QPen(color, 1))
+            painter.setBrush(self.scene().palette().color(QPalette.ColorRole.Base))
+            painter.drawEllipse(box)
+            painter.setFont(self.scene().number_font)
+            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, str(number))
 
     def boundingRect(self):
-        return super().boundingRect().adjusted(-4, -4, 4, 4)
+        return super().boundingRect().adjusted(-8, -8, 8, 8)
 
     def shape(self):
         from PySide6.QtGui import QPainterPathStroker
@@ -334,6 +388,7 @@ class GraphScene(QGraphicsScene):
         self.title_font = _font(TITLE_SIZE, bold=True)
         self.subtitle_font = _font(SUBTITLE_SIZE)
         self.label_font = _font(LABEL_SIZE)
+        self.number_font = _font(NUMBER_SIZE)
         self.fonts = (QFontMetricsF(self.title_font), QFontMetricsF(self.subtitle_font),
                       QFontMetricsF(self.label_font))
         self.items_by_id = {}
@@ -395,6 +450,17 @@ class GraphScene(QGraphicsScene):
             source.edges.append(graphic)
             target.edges.append(graphic)
             self.edge_graphics.append(graphic)
+        groups = defaultdict(list)
+        for graphic in self.edge_graphics:
+            socket = graphic.target_socket()
+            if socket is not None and socket.socket.is_list:
+                groups[(graphic.target, graphic.edge.target[1])].append(graphic)
+        for group in groups.values():
+            if len(group) > 1:
+                for index, graphic in enumerate(group):
+                    graphic.group = group
+                    # Earlier connections and their numbers lie on top, still below items.
+                    graphic.setZValue(-1 + 0.5 * (len(group) - index) / len(group))
 
         positions = _layout.layout(
             [_layout.LayoutItem(model_item.id, model_item.width, graph_model.item_height(model_item),
@@ -516,15 +582,22 @@ class GraphScene(QGraphicsScene):
         anchor = drag.anchor
         if socket is None or socket is anchor or socket.side == anchor.side:
             return None
-        if anchor.side == 'outputs':
-            source, target = anchor.socket.reference, socket.socket.reference
-        else:
-            source, target = socket.socket.reference, anchor.socket.reference
+        outputs, inputs = (anchor, socket) if anchor.side == 'outputs' else (socket, anchor)
+        source, target = outputs.socket.reference, inputs.socket.reference
+        if inputs.socket.unordered and self.duplicate(outputs, inputs, drag.picked):
+            return source, target, ConnectionCheck(False, 'Already connected; connections to this input are unordered')
         replacing = drag.picked.edge.id if drag.picked is not None else None
         key = (source, target, replacing)
         if key not in drag.checks:
             drag.checks[key] = self.check_connection(source, target, replacing)
         return source, target, drag.checks[key]
+
+    def duplicate(self, outputs, inputs, picked=None):
+        """Whether a connect statement already joins an output socket to an input socket."""
+        return any(edge is not picked and edge.edge.kind == 'connect' and edge.source is outputs.item
+                   and edge.edge.source[1] == outputs.socket.key and edge.target is inputs.item
+                   and edge.edge.target[1] == inputs.socket.key
+                   for edge in inputs.item.edges)
 
     def _update_drag(self, position):
         drag = self._drag
