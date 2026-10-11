@@ -100,6 +100,12 @@ assert {
   if true { Fields } else { Fields }.first
 };
 
+// Blocks can start a statement when followed by field access.
+assert {
+  { Some(Fields) }.Unwrap().first;
+  if true { Some(Fields) } else { None }.Unwrap().first
+};
+
 // UnwrapOr evaluates its fallback even when the option is present.
 assert {
   let mut fallback = false;

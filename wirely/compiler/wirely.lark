@@ -161,20 +161,30 @@ expression_list: _list{expression} -> copy_list
 
 // A dotted name is a reference; "." after anything else is a property access.
 ?primary{a}: reference -> copy
-    | postfix{a}
-?postfix{a}: a
-    | primary{a} "[" expression "]" -> bracket_operator
-    | primary{a} "(" expression_list ")" -> function_call__create
-    | postfix{a} "." identifier -> property_access
-
-?struct_atom: atom
-    | reference "{" struct_literal_field_list "}" -> struct_literal
-?nonblock_struct_atom: nonblock_atom
-    | reference "{" struct_literal_field_list "}" -> struct_literal
+    | a
+?struct_atom: atom | struct_postfix
+?nonblock_struct_atom: nonblock_postfix | struct_postfix
+?struct_postfix: reference "{" struct_literal_field_list "}" -> struct_literal
+    | struct_postfix "[" expression "]" -> bracket_operator
+    | struct_postfix "(" expression_list ")" -> function_call__create
+    | struct_postfix "." identifier -> property_access
+?nonblock_postfix: nonblock_atom
+    | reference "[" expression "]" -> bracket_operator
+    | reference "(" expression_list ")" -> function_call__create
+    | nonblock_postfix "[" expression "]" -> bracket_operator
+    | nonblock_postfix "(" expression_list ")" -> function_call__create
+    | nonblock_postfix "." identifier -> property_access
+// Bare blocks cannot take a field suffix here; nonblock_atom handles it.
+?block_postfix: block_expression | block_suffix_expression
+?block_suffix_expression: block_suffix_expression "[" expression "]" -> bracket_operator
+    | block_suffix_expression "(" expression_list ")" -> function_call__create
+    | block_suffix_expression "." identifier -> property_access
+    | block_expression "[" expression "]" -> bracket_operator
+    | block_expression "(" expression_list ")" -> function_call__create
 struct_literal_field_list: _list{struct_literal_field} -> copy_list
 struct_literal_field: identifier ":" expression
 
-?atom: nonblock_atom | block_expression
+?atom: nonblock_postfix | block_postfix
 ?block_expression: if_expression | expression_block | for_expression
 for_expression: "for" identifier "in" expression_no_struct expression_block
 ?nonblock_atom: int_number -> copy
