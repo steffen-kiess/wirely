@@ -213,3 +213,18 @@ native node type T {
   #[internal] native initializer;
   // ^E: Attribute internal is not permitted on initializer
 }
+
+// TEST: summary arguments
+node type T {
+  #[summary(always)] parameter P: boolean;
+  // ^E: summary must be a flag without arguments or a value
+}
+
+// TEST: summary node
+#[summary] node type T {} // E: Attribute summary is not permitted on node_type
+
+// TEST: summary state
+node type T {
+  #[summary] state s: boolean = true;
+  // ^E: Attribute summary is not permitted on state
+}

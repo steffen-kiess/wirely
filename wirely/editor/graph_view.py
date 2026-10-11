@@ -25,6 +25,12 @@ ROW_HEIGHT = STEP
 SOCKET_RADIUS = 5
 MIN_WIDTH = 110
 COLUMN_GAP = 24
+# Inset of the drawn body from the grid footprint, so neighbours stay apart.
+INSET = 2
+# Widest a node grows for its parameter values.
+DETAILS_MAX_WIDTH = 16 * STEP
+# Added to the source-order Z value of selected items.
+SELECTED_Z = 1_000_000
 # Zoom per eighth of a degree of wheel rotation; one notch of 120 zooms by about 20%.
 ZOOM_RATE = 0.0015
 
@@ -86,6 +92,7 @@ class ItemGraphic(QGraphicsObject):
         self.edges = []
         self.sockets = {}
         self.fonts = fonts
+        self.linked = False
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
                       | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.set_model(model_item)
@@ -95,28 +102,53 @@ class ItemGraphic(QGraphicsObject):
         self.model = model_item
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not isinstance(model_item.id, Unresolved))
         title, subtitle, label = self.fonts
-        rows = max(len(model_item.inputs), len(model_item.outputs))
-        left = max((label.horizontalAdvance(socket.label) for socket in model_item.inputs), default=0)
-        right = max((label.horizontalAdvance(socket.label) for socket in model_item.outputs), default=0)
+        # Default ports attach to the header; named ports and parameter values get rows.
+        named = {side: [socket for socket in sockets if socket.key is not None]
+                 for side, sockets in (('inputs', model_item.inputs), ('outputs', model_item.outputs))}
+        rows = len(model_item.details) + max(len(named['inputs']), len(named['outputs']))
+        left = max((label.horizontalAdvance(socket.label) for socket in named['inputs']), default=0)
+        right = max((label.horizontalAdvance(socket.label) for socket in named['outputs']), default=0)
+        details = max((label.horizontalAdvance(_detail_text(detail)) for detail in model_item.details), default=0)
         width = max(MIN_WIDTH, title.horizontalAdvance(model_item.title) + 2 * PADDING + 16,
                     subtitle.horizontalAdvance(model_item.subtitle) + 2 * PADDING,
-                    left + right + 2 * PADDING + COLUMN_GAP)
+                    left + right + 2 * PADDING + COLUMN_GAP,
+                    min(details + 2 * PADDING, DETAILS_MAX_WIDTH))
         self.width = size(width / STEP) * STEP
         self.header = size((PADDING + title.height() + subtitle.height() + 4) / STEP) * STEP
-        self.height = self.header + (rows + 1) * STEP
+        self.height = self.header + (rows + 1) * STEP if rows else self.header
         for socket in self.sockets.values():
             socket.setParentItem(None)
             if socket.scene() is not None:
                 socket.scene().removeItem(socket)
         self.sockets = {}
         for side, sockets, x in (('inputs', model_item.inputs, 0), ('outputs', model_item.outputs, self.width)):
-            for row, socket in enumerate(sockets):
-                graphic = SocketGraphic(self, socket, side, row)
-                graphic.setPos(x, self.header + (row + 1) * STEP)
+            row = 0
+            for socket in sockets:
+                if socket.key is None:
+                    graphic = SocketGraphic(self, socket, side, None)
+                    graphic.setPos(x, STEP)
+                else:
+                    graphic = SocketGraphic(self, socket, side, row)
+                    graphic.setPos(x, self._row_y(len(model_item.details) + row))
+                    row += 1
                 self.sockets[(side, socket.key)] = graphic
-        messages = [diagnostic.message for diagnostic in model_item.diagnostics]
-        self.setToolTip('\n\n'.join(messages) if messages else '')
+        parts = [diagnostic.message for diagnostic in model_item.diagnostics]
+        if model_item.details:
+            parts.append('\n'.join(map(_detail_text, model_item.details)))
+        self.setToolTip('\n\n'.join(parts))
+        self._update_z()
         self.update()
+
+    def _row_y(self, row):
+        return self.header + (row + 1) * STEP
+
+    def _update_z(self):
+        self.setZValue(self.model.order + (SELECTED_Z if self.isSelected() else 0))
+
+    def set_linked(self, linked):
+        if self.linked != linked:
+            self.linked = linked
+            self.update()
 
     def socket_position(self, side, key):
         socket = self.sockets.get((side, key))
@@ -131,7 +163,7 @@ class ItemGraphic(QGraphicsObject):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         palette = self.scene().palette()
         model_item = self.model
-        rect = QRectF(0, 0, self.width, self.height)
+        rect = QRectF(INSET, INSET, self.width - 2 * INSET, self.height - 2 * INSET)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         border = palette.color(QPalette.ColorRole.Highlight) if selected else QColor(
             _KIND_COLORS.get(model_item.kind, '#888888'))
@@ -141,7 +173,7 @@ class ItemGraphic(QGraphicsObject):
                             Qt.PenStyle.DashLine if model_item.kind == 'unresolved' else Qt.PenStyle.SolidLine))
         painter.setBrush(palette.color(QPalette.ColorRole.Base))
         painter.drawRoundedRect(rect, 6, 6)
-        header = QRectF(0, 0, self.width, self.header - 2)
+        header = QRectF(INSET, INSET, self.width - 2 * INSET, self.header - 2 - INSET)
         color = QColor(_KIND_COLORS.get(model_item.kind, '#888888'))
         color.setAlpha(45)
         path = QPainterPath()
@@ -160,14 +192,25 @@ class ItemGraphic(QGraphicsObject):
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          subtitle.elidedText(model_item.subtitle, Qt.TextElideMode.ElideRight,
                                              self.width - 2 * PADDING))
+        if self.linked and not selected:
+            pen = QPen(palette.color(QPalette.ColorRole.Highlight), 2, Qt.PenStyle.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(0, 0, self.width, self.height), 7, 7)
         painter.setFont(self.scene().label_font)
-        for side, sockets in (('inputs', model_item.inputs), ('outputs', model_item.outputs)):
-            for row, socket in enumerate(sockets):
-                painter.setPen(text_color if socket.resolved else _ERROR_COLOR)
-                top = self.header + (row + 1) * STEP - ROW_HEIGHT / 2
-                alignment = Qt.AlignmentFlag.AlignLeft if side == 'inputs' else Qt.AlignmentFlag.AlignRight
-                painter.drawText(QRectF(PADDING, top, self.width - 2 * PADDING, ROW_HEIGHT),
-                                 alignment | Qt.AlignmentFlag.AlignVCenter, socket.label)
+        painter.setPen(palette.color(QPalette.ColorRole.PlaceholderText))
+        for row, detail in enumerate(model_item.details):
+            painter.drawText(QRectF(PADDING, self._row_y(row) - ROW_HEIGHT / 2, self.width - 2 * PADDING, ROW_HEIGHT),
+                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                             label.elidedText(_detail_text(detail), Qt.TextElideMode.ElideRight,
+                                              self.width - 2 * PADDING))
+        for graphic in self.sockets.values():
+            if graphic.row is None:
+                continue
+            painter.setPen(text_color if graphic.socket.resolved else _ERROR_COLOR)
+            alignment = Qt.AlignmentFlag.AlignLeft if graphic.side == 'inputs' else Qt.AlignmentFlag.AlignRight
+            painter.drawText(QRectF(PADDING, graphic.y() - ROW_HEIGHT / 2, self.width - 2 * PADDING, ROW_HEIGHT),
+                             alignment | Qt.AlignmentFlag.AlignVCenter, graphic.socket.label)
         if model_item.diagnostics:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(_ERROR_COLOR)
@@ -189,6 +232,8 @@ class ItemGraphic(QGraphicsObject):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             for edge in self.edges:
                 edge.update_path()
+        if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            self._update_z()
         return super().itemChange(change, value)
 
     def mouseDoubleClickEvent(self, event):
@@ -201,8 +246,14 @@ class EdgeGraphic(QGraphicsPathItem):
         super().__init__()
         self.source = source
         self.target = target
+        self.linked = False
         self.set_model(edge)
         self.setZValue(-1)
+
+    def set_linked(self, linked):
+        if self.linked != linked:
+            self.linked = linked
+            self.update()
 
     def set_model(self, edge):
         self.edge = edge
@@ -228,9 +279,17 @@ class EdgeGraphic(QGraphicsPathItem):
         if self.edge.kind == 'reference':
             pen.setStyle(Qt.PenStyle.DashLine)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self.linked and not selected:
+            highlight = self.scene().palette().color(QPalette.ColorRole.Highlight)
+            highlight.setAlpha(90)
+            painter.setPen(QPen(highlight, 7))
+            painter.drawPath(self.path())
+        painter.setPen(pen)
         painter.drawPath(self.path())
+
+    def boundingRect(self):
+        return super().boundingRect().adjusted(-4, -4, 4, 4)
 
     def shape(self):
         from PySide6.QtGui import QPainterPathStroker
@@ -280,6 +339,7 @@ class GraphScene(QGraphicsScene):
         self.items_by_id = {}
         self.edge_graphics = []
         self.model = None
+        self.linked_id = None
         self.interactive = True
         self.snapping = True
         self.check_connection = None
@@ -343,6 +403,14 @@ class GraphScene(QGraphicsScene):
             self.items_by_id[item_id].setPos(x * STEP, y * STEP)
         for graphic in self.edge_graphics:
             graphic.update_path()
+        self.set_link_highlight(self.linked_id)
+
+    def set_link_highlight(self, element_id):
+        """Mark the item or edge with an ID as linked to the text cursor, or nothing for None."""
+        self.linked_id = element_id
+        for graphic in (*self.items_by_id.values(), *self.edge_graphics):
+            graphic_id = graphic.model.id if isinstance(graphic, ItemGraphic) else graphic.edge.id
+            graphic.set_linked(element_id is not None and graphic_id == element_id)
 
     def selected_ids(self):
         ids = []
@@ -394,7 +462,7 @@ class GraphScene(QGraphicsScene):
             return
         path = QGraphicsPathItem()
         path.setPen(QPen(self.palette().color(QPalette.ColorRole.Highlight), 2, Qt.PenStyle.DashLine))
-        path.setZValue(10)
+        path.setZValue(2 * SELECTED_Z)
         self.addItem(path)
         self._drag = _ConnectionDrag(anchor, picked, path)
         self._update_drag(position)
@@ -615,6 +683,11 @@ class GraphTab(QWidget):
         self.banner.setVisible(bool(banner_html))
         if self.model is not None:
             self.view.fit()
+
+
+def _detail_text(detail):
+    name, value = detail
+    return f'{name}: {value}'
 
 
 def _socket_tooltip(socket):

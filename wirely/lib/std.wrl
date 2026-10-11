@@ -7,6 +7,7 @@ namespace Std {
 
   node type Constant {
     parameter Type: ValueType;
+    #[summary]
     parameter Value: Type;
 
     default output: value Type;
@@ -25,6 +26,7 @@ namespace Std {
 
   node type DelayOneStep {
     parameter Type: ValueType;
+    #[summary]
     parameter InitialValue: Type;
 
     default input: value Type;
@@ -115,6 +117,7 @@ namespace Std {
     parameter InnerType: ValueType;
     // TODO: Should this be a parameter or an input? Use an input an allow
     // inputs to be specified as options?
+    #[summary]
     parameter Default: InnerType;
 
     default input: value Option[InnerType];
@@ -151,6 +154,7 @@ namespace Std {
   // TODO: Allow ignoring edges when the time is lost
   node type DetectEdge {
     // Currently only Falling is implemented.
+    #[summary]
     parameter EdgeType: Std.EdgeType;
 
     default input: value boolean;

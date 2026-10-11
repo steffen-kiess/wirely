@@ -36,6 +36,7 @@ namespace KNX {
 
   native node type ValueReceiver {
     parameter Type: ValueType;
+    #[summary]
     parameter GroupAddress: String;
     // TODO: Mores parameter with information about read-on-init etc.?
     // TODO: event input which can trigger read?
@@ -58,6 +59,7 @@ namespace KNX {
 
   native node type ValueOptionProvider {
     parameter Type: ValueType;
+    #[summary]
     parameter GroupAddress: String;
     // TODO: More parameter with information about transmitting behavior etc.?
     // TODO: event input which can trigger transmission?
@@ -80,6 +82,7 @@ namespace KNX {
 
   node type ValueProvider {
     parameter Type: ValueType;
+    #[summary]
     parameter GroupAddress: String;
 
     input Bus: resource Bus;
@@ -95,6 +98,7 @@ namespace KNX {
 
   native node type EventReceiver {
     parameter Type: ValueType;
+    #[summary]
     parameter GroupAddress: String;
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
@@ -111,6 +115,7 @@ namespace KNX {
 
   native node type EventSender {
     parameter Type: ValueType;
+    #[summary]
     parameter GroupAddress: String;
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);

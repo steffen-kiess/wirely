@@ -216,9 +216,13 @@ check_insert(('T',), format_state('s', 'int', '0'), body.replace(
     '  node x', '\n  state s: int = 0;\n\n  node x'))
 check_insert(('T',), format_constant('C', 'int', '1'), body.replace(
     '  input a', '\n  constant C: int = 1;\n\n  input a'))
+# Nodes take attributes as inner attributes, other declarations as outer ones.
 check_insert((), format_node('k', 'T'), body.replace(
-    '\nconnect s1', '\n\n#[position(x = 1, y = 2)]\nnode k: T {}\n\nconnect s1'),
+    '\nconnect s1', '\n\nnode k: T {\n  #![position(x = 1, y = 2)]\n}\n\nconnect s1'),
     attributes=[format_metadata('position', x=1, y=2)])
+check_insert(('T',), format_node('k', 'U', [('P', '1')]),
+             'node type T {\n\tnode x: U {}\n\n\tnode k: U {\n\t\t#![position(x = 1, y = 2)]\n\t\tP: 1\n\t}\n}\n',
+             source='node type T {\n\tnode x: U {}\n}\n', attributes=[format_metadata('position', x=1, y=2)])
 check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n\n' + body)
 check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n\n  node x: U {}\n}\n',
              source='node type T { node x: U {} }\n')

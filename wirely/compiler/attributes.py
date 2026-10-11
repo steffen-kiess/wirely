@@ -93,9 +93,9 @@ def _position(attribute):
     return coordinates['x'], coordinates['y']
 
 
-def _internal(attribute):
+def _flag(attribute):
     if attribute.metadata.kind != 'flag':
-        _error(attribute, 'internal must be a flag without arguments or a value')
+        _error(attribute, f'{attribute.name} must be a flag without arguments or a value')
     return True
 
 
@@ -108,7 +108,8 @@ ATTRIBUTE_REGISTRY = {
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
         'temporary', 'struct_field', 'enum_member',
-    }), _internal),
+    }), _flag),
+    'summary': AttributeDefinition(frozenset({'parameter'}), _flag),
 }
 
 

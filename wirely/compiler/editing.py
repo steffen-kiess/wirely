@@ -139,13 +139,17 @@ def fresh_name(sources, scope, base):
 
 
 def add_declaration(sources, scope, declaration, *, attributes=(), filename=None):
-    """Insert one declaration into a scope, with attributes as outer attributes.
+    """Insert one declaration into a scope with attributes.
+
+    Attributes are inner attributes of nodes and node types and outer
+    attributes of other declarations.
 
     It follows the last declaration of the same kind, or the last of an
     earlier kind in the order parameter, constant, port, state, temporary,
     node, procedure, node type; otherwise it starts the scope's body. With
     filename, it is inserted into that file's part of the scope.
     """
+    declaration = declaration.strip()
     item = _parse_declaration(declaration)
     if isinstance(item, ast.DeclarationConnection):
         raise ValueError('Use connect() to add connections')
@@ -162,8 +166,18 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
         if candidates:
             anchor = candidates[-1]
             break
-    lines = [f'#[{metadata}]' for metadata in attributes] + declaration.strip().split('\n')
     texts = dict(sources)
+    target = anchor.filename if anchor is not None else _block(record, filename)[0]
+    if attributes and isinstance(item, (ast.DeclarationInstance, _NodeType)):
+        if isinstance(item, _NodeType):
+            site = _body_site(declaration, item, item.inner_attributes, _end(item.name), _end(item) - 1)
+        else:
+            site = _body_site(declaration, item, item.instantiation.inner_attributes,
+                              _end(item.instantiation.type_name), _end(item.instantiation) - 1)
+        declaration = _insert_inner(declaration, site, [f'#![{metadata}]' for metadata in attributes],
+                                    indent_unit=_indent_unit(texts[target]))
+        attributes = ()
+    lines = [f'#[{metadata}]' for metadata in attributes] + declaration.split('\n')
     if anchor is not None:
         return [_insert_after(texts, anchor.filename, _outer_start(anchor._declaration),
                               anchor.span[1], lines, 'declaration')]
@@ -1055,12 +1069,13 @@ def _insert(text, site, metadata):
     return text[:anchor] + attribute + ' ' + text[anchor:]
 
 
-def _insert_inner(text, site, lines, *, blank_after=False):
+def _insert_inner(text, site, lines, *, blank_after=False, indent_unit=None):
     """Insert lines at the start of a body; with blank_after, a blank line separates them from its members."""
     open_brace, close_brace, anchor = site.open_brace, site.close_brace, site.anchor
     outer_indent = _indentation(text, site.declaration_start)
+    indent_unit = indent_unit or _indent_unit(text)
     if '\n' not in text[open_brace:close_brace]:
-        indent = outer_indent + _indent_unit(text)
+        indent = outer_indent + indent_unit
         parts = [part for part in (text[open_brace + 1:anchor].strip(), *lines) if part]
         following = text[anchor:close_brace].strip()
         if following:
@@ -1079,7 +1094,7 @@ def _insert_inner(text, site, lines, *, blank_after=False):
     if content < close_brace:
         indent = _indentation(text, content)
     else:
-        indent = outer_indent + _indent_unit(text)
+        indent = outer_indent + indent_unit
     blank = '\n' if blank_after and text[insert_at:_line_end(text, insert_at)].strip() else ''
     return text[:insert_at] + ''.join(f'{indent}{line}\n' for line in lines) + blank + text[insert_at:]
 

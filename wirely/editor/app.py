@@ -50,6 +50,7 @@ class MainWindow(QMainWindow):
         self.session.external_change.connect(self._external_change)
         self.text_tabs = {}
         self.graph_tabs = []
+        self._linked_target = None
         self.snapping = True
 
         self.workspaces = WorkspaceManager(self)
@@ -106,6 +107,7 @@ class MainWindow(QMainWindow):
         view_menu = host.menuBar().addMenu('&View')
         self._action(view_menu, 'Program &Graph', 'Ctrl+G', lambda: self.open_graph((), host=host))
         self._action(view_menu, '&Source of Selection', 'Ctrl+E', lambda: self.show_selection_source(host))
+        self._action(view_menu, 'Show &Cursor in Graph', 'Ctrl+Shift+E', lambda: self.show_cursor_in_graph(host))
         host.snap_action = QAction('Snap to Grid', host)
         host.snap_action.setCheckable(True)
         host.snap_action.setChecked(self.snapping)
@@ -159,9 +161,11 @@ class MainWindow(QMainWindow):
         if editor is None:
             editor = CodeEditor(self.session.documents[filename], self)
             editor.element_cursor.connect(lambda offset, filename=filename: self._text_cursor(filename, offset))
+            editor.graph_requested.connect(lambda filename=filename: self.show_in_graph(filename))
             self.text_tabs[filename] = editor
             self.workspaces.add(editor, host)
             editor.set_diagnostics(self._file_diagnostics(filename))
+            self._link_text(self._linked_target)
             self._update_titles()
         if focus:
             self.workspaces.activate(editor)
@@ -278,6 +282,7 @@ class MainWindow(QMainWindow):
             editor.set_diagnostics(self._file_diagnostics(filename))
         for tab in self.graph_tabs:
             self._refresh_graph(tab)
+        self._link_text(self._linked_target)
         self._update_titles()
         current = self.workspaces.current_widget()
         if isinstance(current, GraphTab):
@@ -506,28 +511,50 @@ class MainWindow(QMainWindow):
         target = targets[0] if len(targets) == 1 else None
         if self.workspaces.active_view is tab:
             self.properties.show_element(self.program, target, tab.state == 'live')
-        if target is not None and tab.state == 'live':
-            location = self.program.span_of(target)
-            if location is not None and location[0] in self.text_tabs:
-                self.text_tabs[location[0]].reveal(location[1])
+        self._link_text(target if tab.state == 'live' else None)
+
+    def _link_text(self, target):
+        """Highlight the source of a graph element in the text tabs, without moving them."""
+        self._linked_target = target
+        location = self.program.span_of(target) if target is not None else None
+        for filename, editor in self.text_tabs.items():
+            editor.set_link_highlight(location[1] if location is not None and location[0] == filename else None)
 
     def _text_cursor(self, filename, offset):
         # Source edits also move inactive text cursors. Only user navigation
-        # in the active source tab should select and scroll graph items.
+        # in the active source tab should highlight graph items.
         if self.workspaces.active_view is not self.text_tabs.get(filename) \
                 or filename in self.program.parse_errors:
             return
         found = self.program.element_at(filename, offset)
+        scope, target = found if found is not None else (None, None)
+        for tab in self.graph_tabs:
+            tab.graph_scene.set_link_highlight(target if tab.path == scope else None)
+        if target is not None:
+            self.properties.show_element(self.program, target, True)
+
+    def show_cursor_in_graph(self, host=None):
+        widget = self.workspaces.current_widget(host)
+        if isinstance(widget, CodeEditor):
+            self.show_in_graph(widget.document_record.filename)
+
+    def show_in_graph(self, filename):
+        """Select the element at the cursor of a text tab in the graph of its scope."""
+        editor = self.text_tabs[filename]
+        found = self.program.element_at(filename, python_offset(editor.document_record.text(),
+                                                                editor.textCursor().position()))
         if found is None:
+            self._status('No graph element at the cursor', 5000)
             return
         scope, target = found
-        for tab in self.graph_tabs:
-            if tab.path == scope and tab.state == 'live':
-                graphic = tab.graph_scene.select_id(target)
-                if graphic is not None:
-                    tab.view.ensureVisible(graphic)
-        if self.workspaces.active_view is self.text_tabs.get(filename):
-            self.properties.show_element(self.program, target, True)
+        if isinstance(target, NodeType):
+            self.open_graph(target.path)
+            return
+        tab = self.open_graph(scope)
+        graphic = tab.graph_scene.select_id(target)
+        if graphic is not None:
+            tab.view.ensureVisible(graphic)
+        self._graph_selection(tab)
 
     def _item_activated(self, model_item):
         node_type = model_item.node_type

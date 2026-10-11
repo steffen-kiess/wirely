@@ -189,7 +189,7 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     graphic.setSelected(True)
     checks.assertEqual(window.properties.target, Node(('printer',)))
     checks.assertIs(application.focusWidget(), graph.view)
-    checks.assertTrue(editor._reveal_selections)
+    checks.assertTrue(editor._link_selections)
 
     # Clicking Properties must retain the detached graph's inspected element.
     manager.activate(other_editor)

@@ -108,7 +108,7 @@ checks.assertEqual((node_name('Std.DebugValuePrinter'), node_name('Memory.Toggle
                     node_name('Std.Constant[int32]')),
                    ('debug_value_printer', 'toggle_flip_flop_trigger', 'constant'))
 texts = edited(program.add_node((), 'Std.DebugValuePrinter', (1, 2)))
-checks.assertIn('#[position(x = 1, y = 2)]\nnode debug_value_printer: Std.DebugValuePrinter {}',
+checks.assertIn('node debug_value_printer: Std.DebugValuePrinter {\n  #![position(x = 1, y = 2)]\n}',
                 texts['main.wrl'])
 
 checks.assertFalse(program.can_connect((), 'source', 'printer').allowed)
@@ -147,6 +147,21 @@ checks.assertGreater(placed['c'][1], 1 + 3)
 
 # Fractional sizes round up, stored positions remain exact, and automatic
 # positions avoid overlaps on the grid. Every coordinate remains a float.
+
+# Items rank in source order, unresolved ones last. Nodes show the bound
+# parameters marked #[summary].
+ordered = graph_model.build(Program([('main.wrl', '''state s: int32 = 0;
+node c: Std.Constant { Type: int32, Value: 1 }
+node p: Std.DebugValuePrinter { Type: int32 }
+connect c -> missing;
+''')]), ())
+checks.assertEqual([(item.title, item.order, item.details) for item in ordered.items], [
+    ('c', 1, (('Value', '1'),)),
+    ('p', 2, ()),
+    ('s', 0, ()),
+    ('missing', 3, ()),
+])
+
 placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
                  LayoutItem('auto', 6.2, 3.1)], [])
 checks.assertEqual(placed, {'fixed': (-0.4, -0.6), 'auto': (0.0, 6.0)})

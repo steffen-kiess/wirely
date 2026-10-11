@@ -4,7 +4,8 @@ import re
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QColor, QFontDatabase, QPainter, QPalette, QSyntaxHighlighter, QTextCharFormat, QTextCursor, QTextFormat,
+    QAction, QColor, QFontDatabase, QPainter, QPalette, QSyntaxHighlighter, QTextCharFormat, QTextCursor,
+    QTextFormat,
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QToolTip, QWidget
 
@@ -127,10 +128,12 @@ class CodeEditor(QPlainTextEdit):
     """Editor of one Document.
 
     element_cursor is emitted with the Python offset of the cursor when it
-    moves because of the user.
+    moves because of the user. graph_requested asks to show the element at
+    the cursor in its graph.
     """
 
     element_cursor = Signal(int)
+    graph_requested = Signal()
 
     def __init__(self, document, parent=None):
         super().__init__(parent)
@@ -143,6 +146,7 @@ class CodeEditor(QPlainTextEdit):
         self.diagnostics = ()
         self._diagnostic_selections = []
         self._reveal_selections = []
+        self._link_selections = []
         self._revealing = False
         self.line_numbers = _LineNumbers(self)
         self.blockCountChanged.connect(self._update_margin)
@@ -192,6 +196,26 @@ class CodeEditor(QPlainTextEdit):
         finally:
             self._revealing = False
 
+    def set_link_highlight(self, span):
+        """Mark a span given as Python offsets as linked to the graph selection, or nothing for None.
+
+        Neither the cursor nor the viewport moves.
+        """
+        self._link_selections = []
+        if span is not None:
+            text = self.document_record.text()
+            start, end = (qt_position(text, min(offset, len(text))) for offset in span)
+            selection = QTextEdit.ExtraSelection()
+            highlight = self.palette().color(QPalette.ColorRole.Highlight)
+            highlight.setAlpha(30)
+            selection.format.setBackground(highlight)
+            cursor = QTextCursor(self.document())
+            cursor.setPosition(start)
+            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+            selection.cursor = cursor
+            self._link_selections = [selection]
+        self._update_selections()
+
     def go_to(self, offset):
         text = self.document_record.text()
         cursor = QTextCursor(self.document())
@@ -199,6 +223,16 @@ class CodeEditor(QPlainTextEdit):
         self.setTextCursor(cursor)
         self.centerCursor()
         self.setFocus()
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu(event.pos())
+        first = menu.actions()[0] if menu.actions() else None
+        show = QAction('Show in Graph', menu)
+        show.triggered.connect(self.graph_requested)
+        menu.insertAction(first, show)
+        menu.insertSeparator(first)
+        menu.exec(event.globalPos())
+        menu.deleteLater()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Tab and not event.modifiers():
@@ -255,7 +289,7 @@ class CodeEditor(QPlainTextEdit):
             self.line_numbers.update(0, rect.y(), self.line_numbers.width(), rect.height())
 
     def _update_selections(self):
-        self.setExtraSelections(self._diagnostic_selections + self._reveal_selections)
+        self.setExtraSelections(self._link_selections + self._diagnostic_selections + self._reveal_selections)
 
     def _cursor_moved(self):
         if self._revealing:

@@ -96,6 +96,10 @@ temporary, struct field, or enum member. Eligible bodies also accept
 Internal declarations and contents of internal namespaces or types are
 omitted from the library reference.
 
+`#[summary]` on a node type parameter shows its bound value inside instances
+in the graphical editor. Use it for values that identify an instance, such as
+a KNX group address. It takes no arguments.
+
 Attributes before `connect` apply to every connection in that statement;
 attributes before an individual source apply to that source's connection.
 Each connection combines statement attributes followed by source

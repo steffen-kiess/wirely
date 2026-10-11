@@ -47,6 +47,10 @@ class Item:
     diagnostics: tuple
     # The node type a node instantiates, if declared in the sources.
     node_type: object = None
+    # Rank in source order; unresolved items come last.
+    order: int = 0
+    # (name, value text) of bound parameters marked #[summary].
+    details: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -103,6 +107,7 @@ def build(program, path):
     for node in scope.nodes:
         inputs, outputs = _node_sockets(analysis, node)
         add('node', node, node.name, node.type_text, inputs, outputs, node.node_type)
+        builders[node.id].details = _details(analysis, node)
     for port in scope.ports:
         name = port.name or f'default {port.direction}'
         socket = Socket(None, '', _reference(name), port.kind, port.type_text, port.is_list)
@@ -149,6 +154,12 @@ def build(program, path):
         edges.append(GraphEdge(edge.id, edge.kind, source, target,
                                tuple(diagnostics[edge.id]) if edge.id is not None else ()))
 
+    records = sorted((*scope.nodes, *scope.ports, *scope.parameters, *scope.constants,
+                      *scope.states, *scope.temporaries, *scope.procedures),
+                     key=lambda record: (_file_rank(scope.filenames, record.filename), record.span[0]))
+    unresolved = [builder for builder in builders.values() if isinstance(builder.id, Unresolved)]
+    for order, builder in enumerate([builders[record.id] for record in records] + unresolved):
+        builder.order = order
     return GraphModel(path, scope.kind, tuple(builder.freeze() for builder in builders.values()),
                       tuple(edges), scope.filenames)
 
@@ -175,6 +186,8 @@ class _ItemBuilder:
         self.position = position
         self.diagnostics = diagnostics
         self.node_type = node_type
+        self.order = 0
+        self.details = ()
 
     def socket(self, side, key, reference):
         """Return the socket for an endpoint port, adding an unresolved one if needed."""
@@ -188,7 +201,7 @@ class _ItemBuilder:
 
     def freeze(self):
         return Item(self.id, self.kind, self.title, self.subtitle, tuple(self.inputs), tuple(self.outputs),
-                    self.position, self.diagnostics, self.node_type)
+                    self.position, self.diagnostics, self.node_type, self.order, self.details)
 
 
 def _end(builders, path, endpoint, side):
@@ -207,6 +220,16 @@ def _end(builders, path, endpoint, side):
         key = None
     socket = builder.socket(side, key, endpoint.text)
     return builder.id, socket.key
+
+
+def _file_rank(filenames, filename):
+    return filenames.index(filename) if filename in filenames else len(filenames)
+
+
+def _details(analysis, node):
+    values = {binding.name: binding.value_text for binding in node.parameters}
+    return tuple((parameter.name, values[parameter.name]) for parameter in analysis.parameters(node.id) or ()
+                 if parameter.summary and parameter.name in values)
 
 
 def _node_sockets(analysis, node):

@@ -84,17 +84,23 @@ with tempfile.TemporaryDirectory() as directory:
     view.resetTransform()
     view.centerOn(scene.itemsBoundingRect().center())
 
-    # User navigation in the active source tab still reveals graph items.
+    # User navigation in the active source tab highlights graph items
+    # without selecting or scrolling to them; Show in Graph does both.
     editor = window.text_tabs[filename]
     window.workspaces.activate(editor)
+    scene.clearSelection()
     with patch.object(view, 'ensureVisible', wraps=view.ensureVisible) as reveal:
         editor.go_to(document.text().index('node source') + 5)
-        checks.assertEqual(scene.selected_ids(), [Node(('source',))])
-        reveal.assert_called_with(scene.items_by_id[Node(('source',))])
+        checks.assertTrue(scene.items_by_id[Node(('source',))].linked)
         editor.go_to(document.text().index('node printer') + 5)
+        checks.assertFalse(scene.items_by_id[Node(('source',))].linked)
+        checks.assertTrue(scene.items_by_id[Node(('printer',))].linked)
+        checks.assertEqual(scene.selected_ids(), [])
+        reveal.assert_not_called()
+        window.show_cursor_in_graph()
         checks.assertEqual(scene.selected_ids(), [Node(('printer',))])
         reveal.assert_called_with(scene.items_by_id[Node(('printer',))])
-    window.workspaces.activate(tab)
+    checks.assertIs(window.workspaces.active_view, tab)
     scene.clearSelection()
     view.resetTransform()
     view.centerOn(scene.itemsBoundingRect().center())
