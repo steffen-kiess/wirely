@@ -16,8 +16,6 @@ from wirely.compiler.outline import attribute_value
 
 DEFAULT_WIDTH = 8
 HEADER_HEIGHT = 2
-# Port rows and value rows start at this y offset.
-FIRST_ROW = 3
 # Requested row of a socket that fills the next free row on its side.
 _AUTO = 'auto'
 
@@ -76,8 +74,7 @@ def port_rows(item):
 
 
 def minimum_height(item):
-    rows = port_rows(item) + len(item.details)
-    return FIRST_ROW + rows if rows else HEADER_HEIGHT
+    return HEADER_HEIGHT + port_rows(item) + len(item.details)
 
 
 def item_height(item):
@@ -85,8 +82,8 @@ def item_height(item):
 
 
 def row_y(row):
-    """Return the y offset of a row within its item."""
-    return FIRST_ROW + row
+    """Return the y offset of the middle of a row within its item; row None is the header's type line."""
+    return HEADER_HEIGHT + 0.5 + (-1 if row is None else row)
 
 
 @dataclass(frozen=True)

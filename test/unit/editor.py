@@ -193,12 +193,12 @@ checks.assertEqual([(socket.key, socket.row) for socket in first.outputs], [('Ou
 checks.assertEqual(first.details, (('Address', '"1/2/3"', 'bound'), ('Port', '3671', 'default'),
                                    ('Label', None, 'absent')))
 checks.assertEqual(second.details[0], ('Address', None, 'missing'))
-checks.assertEqual((graph_model.port_rows(first), graph_model.minimum_height(first)), (4, 10))
+checks.assertEqual((graph_model.port_rows(first), graph_model.minimum_height(first)), (4, 9))
 # A requested height below the minimum is raised to it.
 checks.assertEqual([(item.width, graph_model.item_height(item)) for item in (first, second)],
-                   [(10, 10), (6.5, 20)])
+                   [(10, 9), (6.5, 20)])
 checks.assertEqual([(item.width, item.height, graph_model.item_height(item))
-                    for item in (items['plain'], items['count'])], [(8, None, 2), (8, None, 5)])
+                    for item in (items['plain'], items['count'])], [(8, None, 2), (8, None, 4)])
 
 placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
                  LayoutItem('auto', 6.2, 3.1)], [])

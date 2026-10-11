@@ -137,14 +137,15 @@ with tempfile.TemporaryDirectory() as directory:
     window.undo()
     checks.assertEqual(document.text(), source)
 
-    # Geometry and ports share the grid; moving a selection at different zoom
-    # levels preserves its relative placement and is one undoable edit.
+    # Geometry is on the grid and ports half a unit below grid lines; moving
+    # a selection at different zoom levels preserves its relative placement
+    # and is one undoable edit.
     for graphic in scene.items_by_id.values():
         for value in (graphic.width, graphic.height, graphic.header):
             checks.assertEqual(value % STEP, 0)
         for socket in graphic.sockets.values():
             checks.assertEqual(socket.scenePos().x() % STEP, 0)
-            checks.assertEqual(socket.scenePos().y() % STEP, 0)
+            checks.assertEqual(socket.scenePos().y() % STEP, STEP / 2)
     for zoom, delta in ((0.6, QPoint(-37, 53)), (1.8, QPoint(-37, 53)), (2, QPoint(54, 0))):
         view.resetTransform()
         view.scale(zoom, zoom)
@@ -191,7 +192,7 @@ with tempfile.TemporaryDirectory() as directory:
     old = state.sockets[('outputs', 'old')].scenePos()
     new = state.sockets[('outputs', 'new')].scenePos()
     checks.assertEqual(new - old, QPointF(0, STEP))
-    checks.assertEqual((old.x() % STEP, old.y() % STEP, new.y() % STEP), (0, 0, 0))
+    checks.assertEqual((old.x() % STEP, old.y() % STEP, new.y() % STEP), (0, STEP / 2, STEP / 2))
     window.undo()
     checks.assertEqual(document.text(), source)
 

@@ -118,7 +118,7 @@ class ItemGraphic(QGraphicsObject):
         for side, sockets, x in (('inputs', model_item.inputs, 0), ('outputs', model_item.outputs, self.width)):
             for socket in sockets:
                 graphic = SocketGraphic(self, socket, side, socket.row)
-                graphic.setPos(x, STEP if socket.row is None else self._row_y(socket.row))
+                graphic.setPos(x, self._row_y(socket.row))
                 self.sockets[(side, socket.key)] = graphic
         parts = [f'{model_item.title}\n{model_item.subtitle}']
         if model_item.details:
@@ -175,13 +175,13 @@ class ItemGraphic(QGraphicsObject):
         dimmed = palette.color(QPalette.ColorRole.PlaceholderText)
         painter.setPen(text_color)
         painter.setFont(self.scene().title_font)
-        top = (self.header - title.height() - subtitle.height()) / 2
-        painter.drawText(QRectF(PADDING, top, text_width, title.height()),
+        # The name fills the first grid cell, the type the second one with the header ports.
+        painter.drawText(QRectF(PADDING, INSET, text_width, STEP - INSET),
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          title.elidedText(model_item.title, Qt.TextElideMode.ElideRight, text_width))
         painter.setFont(self.scene().subtitle_font)
         painter.setPen(dimmed)
-        painter.drawText(QRectF(PADDING, top + title.height(), text_width, subtitle.height()),
+        painter.drawText(QRectF(PADDING, STEP, text_width, STEP),
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          subtitle.elidedText(model_item.subtitle, Qt.TextElideMode.ElideRight, text_width))
         if self.linked and not selected:

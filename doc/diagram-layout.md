@@ -9,8 +9,8 @@ different picture of the same program.
 
 ## Grid units
 
-All coordinates and sizes are in grid units. One grid unit is the distance
-between two rows of ports, roughly the height of a line of text. The
+All coordinates and sizes are in grid units. One grid unit is the height of
+a row of ports, roughly the height of a line of text. The
 graphical editor snaps to this grid. `x` grows to the right and `y`
 downward. Values can be fractional; editors write whole numbers as integers.
 
@@ -55,10 +55,11 @@ height is `m`.
 
 ## Header and rows
 
-Each item starts with a header of height 2 holding its name and type. Below
-the header follow rows, each one grid unit apart. Row `r` lies at
-`y + 3 + r`, where `y` is the item's top edge. First come the port rows,
-then the value rows:
+Each item starts with a header of height 2: its name in the first grid unit,
+its type in the second. Below the header follow rows, each one grid unit
+high. Row `r` covers `y + 2 + r` to `y + 3 + r`, where `y` is the item's top
+edge, and its ports lie in its middle. First come the port rows, then the
+value rows:
 
 - `P`, the number of port rows, is one more than the highest row used by a
   port on either side, or 0 if no port uses a row. Unused rows below the
@@ -66,9 +67,8 @@ then the value rows:
 - `V`, the number of value rows, is the number of parameters of the node
   type marked `Diagram.ShowValue`, whether or not the instance binds them.
   Value row `i` is row `P + i`.
-- With `R = P + V`, the minimum height is `m = 2` if `R = 0`, and
-  `m = 3 + R` otherwise. The last row lies at `y + 2 + R`, one unit above
-  the bottom edge.
+- With `R = P + V`, the minimum height is `m = 2 + R`, so the last row
+  ends at the bottom edge.
 
 The geometry of an item therefore depends only on its declarations and those
 of its node type, not on bound values, connections, or text.
@@ -79,10 +79,14 @@ For an item at `(x, y)` with width `w`:
 
 | Port | Position |
 |---|---|
-| Input on row `r` | `(x, y + 3 + r)` |
-| Output on row `r` | `(x + w, y + 3 + r)` |
-| Input on the header | `(x, y + 1)` |
-| Output on the header | `(x + w, y + 1)` |
+| Input on row `r` | `(x, y + 2.5 + r)` |
+| Output on row `r` | `(x + w, y + 2.5 + r)` |
+| Input on the header | `(x, y + 1.5)` |
+| Output on the header | `(x + w, y + 1.5)` |
+
+Header ports lie next to the type, one unit above row 0. Ports are half a
+unit off the grid lines, so ports of items placed at whole-number positions
+line up with each other.
 
 The ports of an instance come from its node type's `input` and `output`
 declarations:
@@ -99,12 +103,12 @@ Other items have fixed ports:
 
 | Item | Ports | `m` |
 |---|---|---|
-| State | input on the header; `old` on row 0, `new` on row 1 | 5 |
+| State | input on the header; `old` on row 0, `new` on row 1 | 4 |
 | Temporary | input and output on the header | 2 |
 | Constant, parameter | output on the header | 2 |
 | `input` declaration | output on the header | 2 |
 | `output` declaration | input on the header | 2 |
-| Procedure | its inputs and outputs fill rows from 0 in order | `3 + P`, or 2 |
+| Procedure | its inputs and outputs fill rows from 0 in order | `2 + P` |
 
 Programs with errors, such as an unknown node type or a connection to a
 missing port, have no defined layout; editors may add ports and rows.
@@ -140,15 +144,15 @@ node dimmer: Dimmer { GroupAddress: "1/2/3" }
 ```
 
 `Enable` fills row 0 and `Reset` uses row 2, so `P = 3` with row 1 empty.
-Two values give `V = 2`, so `m = 3 + 5 = 8`. The instance covers `x` from 10
-to 20 and `y` from 4 to 12:
+Two values give `V = 2`, so `m = 2 + 5 = 7`. The instance covers `x` from 10
+to 20 and `y` from 4 to 11:
 
 | Port or row | Position |
 |---|---|
-| `default input`, `default output` | `(10, 5)`, `(20, 5)` |
-| `Enable`, `Active` | `(10, 7)`, `(20, 7)` |
-| `Reset` | `(10, 9)` |
-| `GroupAddress`, `Label` values | rows 3 and 4, at `y` 10 and 11 |
+| `default input`, `default output` | `(10, 5.5)`, `(20, 5.5)` |
+| `Enable`, `Active` | `(10, 6.5)`, `(20, 6.5)` |
+| `Reset` | `(10, 8.5)` |
+| `GroupAddress`, `Label` values | rows 3 and 4, from `y` 9 to 11 |
 
 ## Editor choices
 
