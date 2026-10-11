@@ -1,4 +1,16 @@
 namespace Timer {
+  // Emits the start time of each step in which the input event is present.
+  node type MonotonicTimestamp {
+    parameter Type: ValueType = unit;
+
+    default input: event Type;
+    default output: event MonotonicTime;
+
+    native procedure run
+      depends on default input as "input"
+      produces default output as "output";
+  }
+
   // Block which returns false if the current time is before input, true if the
   // current time is at or after input, and None if the input is None or not
   // comparable to the current time.

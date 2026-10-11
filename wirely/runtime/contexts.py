@@ -121,21 +121,25 @@ class VariableTableInstance:
 class ProcedureContext:
     __slots__ = (
         '_inputs', '_outputs', '_written_outputs', '_static',
-        '_step_info', '_wakeup_time', '_wakeup_time_set',
+        '_step_info', '_wakeup_time', '_wakeup_time_set', '_engine',
     )
 
-    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info):
+    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info, engine):
         self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
         self._outputs = outputs
         self._written_outputs = set()
         self._static = static
         self._step_info = step_info
+        self._engine = engine
         self._wakeup_time = None
         self._wakeup_time_set = False
 
     @property
     def inputs(self) -> Mapping[str, object]:
         return self._inputs
+
+    def trigger_self(self) -> None:
+        self._engine._trigger_key(self._static.key)
 
     @property
     def wakeup_time(self) -> MonotonicTime | None:

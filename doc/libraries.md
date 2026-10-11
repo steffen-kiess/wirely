@@ -93,6 +93,7 @@ Timers use monotonic time. `Duration` parameters use strings such as
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
+| `MonotonicTimestamp` | `Type: ValueType = unit` | In: `event Type`; out: `event MonotonicTime`. Emits the step's monotonic time while the input event is present, keeping the engine stepping. |
 | `MonotonicTimeReached` | None | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
 | `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. |
 

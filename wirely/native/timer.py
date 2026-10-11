@@ -8,6 +8,17 @@ native_node_types = {}
 
 
 @native_node_type(native_node_types, has_native_state=False)
+class MonotonicTimestamp(NativeState):
+    @staticmethod
+    def run(*, context):
+        if context.inputs['input'] is None:
+            context.set_output('output', None)
+        else:
+            context.set_output('output', wirely.Some(context.start_time_for_stage(RunStage.DEFAULT).monotonic))
+            context.trigger_self()
+
+
+@native_node_type(native_node_types, has_native_state=False)
 class MonotonicTimeReached(NativeState):
     @staticmethod
     def run(*, context):

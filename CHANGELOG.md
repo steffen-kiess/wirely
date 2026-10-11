@@ -39,6 +39,8 @@ them to `apply_edits()` to get the new texts.
 
 ### Added
 
+- `Timer.MonotonicTimestamp` emits the step's monotonic time while an input
+  event is present.
 - Procedure ports can be declared with a type and wired with `connect`.
   Refer to a port as `procedure.port`, also in reference ports of other
   procedures:

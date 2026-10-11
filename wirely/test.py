@@ -60,6 +60,7 @@ test_names = [
     'unit/shuffle',
     'unit/container',
     'unit/engine_wakeup',
+    'unit/monotonic_timestamp',
     'wrl/delay',
     'wrl/std',
     'wrl/and',

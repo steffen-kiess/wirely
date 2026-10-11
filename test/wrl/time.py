@@ -3,6 +3,7 @@ import datetime
 import contextlib
 
 import wirely
+from wirely.program import RunStage
 
 
 async def run_test():
@@ -291,6 +292,20 @@ async def run_test():
         engine.assert_value_is('trigger_value', None)
 
         # TODO: Tests for trigger2
+
+        # Test MonotonicTimestamp before advancing fake time.
+        engine.assert_value_is('timestamp', None)
+        engine.get_native_state('timestamp_input').send_event(wirely.Some(wirely.Unit()))
+        _, _, step_info = engine.step()
+        timestamp = engine.get_value('timestamp')
+        assert isinstance(timestamp, wirely.Some)
+        now = wirely.MonotonicTime.current_time()
+        assert wirely.MonotonicTime.is_comparable(timestamp.value, now)
+        assert wirely.MonotonicTime.compare(timestamp.value, now) <= 0
+        assert timestamp.value == step_info.stage_start_time_monotonic[RunStage.DEFAULT]
+        engine.step()
+        engine.assert_value_is('timestamp', None)
+        engine.assert_is_idle()
 
         # Tests for Timer.DebounceStable
 

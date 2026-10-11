@@ -239,6 +239,9 @@ of `RunStage.INPUT`, `DEFAULT`, or `OUTPUT` (`RunStage` is defined in
 `utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Timestamps
 are available for stages that have started.
 
+Call `context.trigger_self()` to schedule the running procedure again in
+the next step.
+
 Call `context.set_wakeup_time(deadline)` at most once per invocation with a
 `MonotonicTime` deadline to request another invocation. Passing `None` or
 leaving it unset cancels any previous deadline. An incomparable clock

@@ -22,3 +22,7 @@ connect delay -> delay_output;
 node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
 node reached: Timer.MonotonicTimeReached {}
 connect reached_input -> reached;
+
+node timestamp_input: Std.DebugEventSource { Type: unit }
+node timestamp: Timer.MonotonicTimestamp {}
+connect timestamp_input -> timestamp;

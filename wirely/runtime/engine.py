@@ -106,6 +106,9 @@ class Engine:
             proc.key == key for schedule in self.program.procs.values() for proc in schedule
         ):
             raise ValueError(f'Unknown procedure name {proc_name!r} on {node_id}')
+        self._trigger_key(key)
+
+    def _trigger_key(self, key):
         self.triggered_procs.add(key)
         self.triggered_procs_event.set()
 
@@ -185,7 +188,7 @@ class Engine:
                 self.triggered_procs.discard(key)
                 outputs = {}
                 context = ProcedureContext(
-                    inputs=inputs, outputs=outputs, static=proc, step_info=step_info,
+                    inputs=inputs, outputs=outputs, static=proc, step_info=step_info, engine=self,
                 )
                 if proc.body is None:
                     native_state = self.native_states[proc.node_id]
