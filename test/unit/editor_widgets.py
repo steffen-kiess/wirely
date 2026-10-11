@@ -137,6 +137,37 @@ with tempfile.TemporaryDirectory() as directory:
     def at(position):
         return view.mapFromScene(position)
 
+    # Slow drags deliver subpixel mouse positions. Their movement must
+    # accumulate, including when reversing direction, at every zoom level.
+    for factor in (0.6, 1, math.exp(1.26)):
+        view.set_zoom(math.log(factor))
+        view.setSceneRect(QRectF(-10000, -10000, 20000, 20000))
+        view.centerOn(scene.itemsBoundingRect().center())
+        application.processEvents()
+        viewport = view.viewport()
+        start = QPointF(viewport.rect().center()) + QPointF(0.434, 0.652)
+        origin = at(QPointF())
+        QApplication.sendEvent(viewport, QMouseEvent(
+            QMouseEvent.Type.MouseButtonPress, start, viewport.mapToGlobal(start),
+            Qt.MouseButton.MiddleButton, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier))
+        total = QPointF()
+        for delta in (QPointF(-0.207, 0.418), QPointF(0.207, -0.418), QPointF(0, 0.207)):
+            for _ in range(80):
+                total += delta
+                position = start + total
+                QApplication.sendEvent(viewport, QMouseEvent(
+                    QMouseEvent.Type.MouseMove, position, viewport.mapToGlobal(position),
+                    Qt.MouseButton.NoButton, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier))
+                movement = at(QPointF()) - origin
+                checks.assertLessEqual(abs(movement.x() - total.x()), 1)
+                checks.assertLessEqual(abs(movement.y() - total.y()), 1)
+        QApplication.sendEvent(viewport, QMouseEvent(
+            QMouseEvent.Type.MouseButtonRelease, position, viewport.mapToGlobal(position),
+            Qt.MouseButton.MiddleButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        checks.assertEqual(document.text(), source)
+        checks.assertEqual(scene.selected_ids(), [])
+    view.set_zoom(0)
+
     # Resizing preserves a panned center even when a small scene fits in
     # the enlarged viewport. Repeated cycles must not accumulate drift.
     for factor in (0.15, 0.6, 1, 1.8, 4):

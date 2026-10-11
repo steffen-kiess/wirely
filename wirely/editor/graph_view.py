@@ -7,6 +7,7 @@ selection survives refreshes.
 
 import math
 from collections import defaultdict
+from datetime import datetime
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen, QTransform
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from wirely.compiler.analysis import ConnectionCheck
 from wirely.compiler.outline import Connection
+from wirely.util import getEnvironmentBool
 
 from . import graph_model
 from . import layout as _layout
@@ -664,6 +666,7 @@ class GraphView(QGraphicsView):
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
         self.zoom = 0.0
         self._pan = None
+        self._debug_mouse = getEnvironmentBool('WIRELY_EDITOR_DEBUG_MOUSE', False)
 
     def set_zoom(self, zoom):
         """Set logarithmic zoom; zero is normal size."""
@@ -697,7 +700,25 @@ class GraphView(QGraphicsView):
             self.setSceneRect(self.sceneRect().united(visible))
             self.centerOn(center)
 
+    def _debug_mouse_event(self, event):
+        if not self._debug_mouse:
+            return
+        position = event.position()
+        global_position = event.globalPosition()
+        item = self.itemAt(position.toPoint())
+        horizontal = self.horizontalScrollBar()
+        vertical = self.verticalScrollBar()
+        print(f'[{datetime.now().isoformat(timespec="microseconds")}] GraphView {event.type().name}: '
+              f'button={event.button().name}, '
+              f'pressed={event.buttons().name}, panning={self._pan is not None}, '
+              f'pos=({position.x():.3f}, {position.y():.3f}), '
+              f'global=({global_position.x():.3f}, {global_position.y():.3f}), '
+              f'item={type(item).__name__}, zoom={self.zoom:.3f}, '
+              f'h={horizontal.value()}[{horizontal.minimum()}..{horizontal.maximum()}], '
+              f'v={vertical.value()}[{vertical.minimum()}..{vertical.maximum()}]', flush=True)
+
     def mousePressEvent(self, event):
+        self._debug_mouse_event(event)
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan = event.position()
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -705,17 +726,42 @@ class GraphView(QGraphicsView):
             return
         super().mousePressEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        self._debug_mouse_event(event)
+        super().mouseDoubleClickEvent(event)
+
     def mouseMoveEvent(self, event):
+        if event.buttons() != Qt.MouseButton.NoButton or self._pan is not None:
+            self._debug_mouse_event(event)
         if self._pan is not None:
             delta = event.position() - self._pan
-            self._pan = event.position()
+            if self._debug_mouse:
+                previous = self._pan
+                origin = self.mapFromScene(QPointF())
+                horizontal = self.horizontalScrollBar()
+                vertical = self.verticalScrollBar()
+                before = (horizontal.value(), vertical.value())
+                requested = (before[0] - int(delta.x()), before[1] - int(delta.y()))
+            # Consume only whole pixels; retain fractional movement so
+            # slow drags accumulate rather than being discarded each event.
+            self._pan = self._pan + QPointF(int(delta.x()), int(delta.y()))
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - int(delta.x()))
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - int(delta.y()))
+            if self._debug_mouse:
+                movement = self.mapFromScene(QPointF()) - origin
+                print(f'[{datetime.now().isoformat(timespec="microseconds")}] GraphView pan: '
+                      f'previous=({previous.x():.3f}, {previous.y():.3f}), '
+                      f'delta=({delta.x():.3f}, {delta.y():.3f}), '
+                      f'step=({int(delta.x())}, {int(delta.y())}), '
+                      f'scroll_before={before}, requested={requested}, '
+                      f'scroll_after=({horizontal.value()}, {vertical.value()}), '
+                      f'graph_movement=({movement.x()}, {movement.y()})', flush=True)
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
+        self._debug_mouse_event(event)
         if event.button() == Qt.MouseButton.MiddleButton and self._pan is not None:
             self._pan = None
             self.unsetCursor()
