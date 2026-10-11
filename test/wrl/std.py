@@ -49,3 +49,7 @@ engine.assert_value_is('edge', None)
 engine.step()
 engine.assert_value_is('edge', None)
 engine.assert_is_idle()
+
+
+async def run_test():
+    pass

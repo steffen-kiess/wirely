@@ -17,3 +17,7 @@ for enabled, length in [(False, 7), (True, 9), (False, 0)]:
         engine.assert_value_is(name + '.ListCount', 3)
     engine.assert_value_is('fields', length)
     engine.assert_is_idle()
+
+
+async def run_test():
+    pass

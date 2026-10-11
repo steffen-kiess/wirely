@@ -342,3 +342,7 @@ with patch('sys.excepthook') as signal_errors, tempfile.TemporaryDirectory() as 
     application.processEvents()
     application.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     checks.assertEqual(signal_errors.call_args_list, [])
+
+
+async def run_test():
+    pass

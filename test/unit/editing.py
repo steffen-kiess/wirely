@@ -575,3 +575,7 @@ check_rename(Parameter(('Block', 'Type')), 'ElementType',
              ('Initial: Type', 'Initial: ElementType'),
              ('output: value Type', 'output: value ElementType'),
              ('next: Type', 'next: ElementType'), source=block_source)
+
+
+async def run_test():
+    pass

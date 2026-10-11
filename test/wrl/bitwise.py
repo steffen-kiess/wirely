@@ -45,3 +45,7 @@ for left in (False, True):
         for port, result in expected.items():
             engine.assert_value_is('booleans.' + port, result)
 engine.assert_is_idle()
+
+
+async def run_test():
+    pass

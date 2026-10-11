@@ -72,3 +72,7 @@ runtime.step()
 runtime.assert_value_is('timestamp', None)
 assert not runtime.triggered_procs
 runtime.assert_is_idle()
+
+
+async def run_test():
+    pass

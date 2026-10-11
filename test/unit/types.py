@@ -388,3 +388,7 @@ check_structs()
 check_default_values()
 
 check_runtime_limits()
+
+
+async def run_test():
+    pass

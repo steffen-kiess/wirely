@@ -35,3 +35,7 @@ def check_static_sources():
 
 
 check_static_sources()
+
+
+async def run_test():
+    pass

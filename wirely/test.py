@@ -14,6 +14,7 @@ import shlex
 import signal
 import argparse
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import lark
@@ -32,23 +33,19 @@ if TYPE_CHECKING:
 import wirely.compiler
 from wirely.runtime.engine import Engine
 
-test_names = [
+python_only_tests = [
     'unit/runtime_program',
     'unit/compiler_api',
     'unit/native_interface',
-    'unit/procedures',
-    'unit/length',
     'unit/instructions',
-    'unit/bitwise',
-    'unit/native_values',
     'unit/test_resources',
+    'unit/test_runner',
+    'repo/files',
     'unit/library_configuration',
     'unit/state_connections',
-    'unit/static_sources',
     'unit/types',
     'unit/serialization',
     'unit/resources',
-    'unit/equality',
     'unit/negative_cases',
     'unit/editing',
     'unit/outline',
@@ -57,11 +54,20 @@ test_names = [
     'unit/editor_widgets',
     'unit/editor_workspace',
     'unit/editor_export',
-    'unit/control',
     'unit/shuffle',
     'unit/container',
-    'unit/engine_wakeup',
     'unit/monotonic_timestamp',
+]
+
+runtime_tests = [
+    'unit/procedures',
+    'unit/native_values',
+    'unit/static_sources',
+    'unit/control',
+    'unit/engine_wakeup',
+    'wrl/bitwise',
+    'wrl/length',
+    'wrl/equality',
     'wrl/delay',
     'wrl/std',
     'wrl/and',
@@ -79,92 +85,94 @@ test_names = [
     'wrl/process',
 ]
 
+example_tests = [
+    'examples/test',
+    'examples/knx',
+    'examples/delay',
+    'examples/flipflop',
+    'examples/gpio',
+]
+
 to_compile = [
-    # 'wirely/lib/std.wrl',
-    'examples/test.wrl',
-    'examples/knx.wrl',
-    'examples/delay.wrl',
-    'examples/flipflop.wrl',
-    'examples/gpio.wrl',
-    'test/wrl/simple.wrl',
-    'test/compiler/assertions.wrl',
-    'test/compiler/attributes.wrl',
-    'test/compiler/constants.wrl',
-    'test/compiler/constant_expressions.wrl',
-    'test/compiler/connection_order.wrl',
-    'test/compiler/static_sources.wrl',
-    'test/compiler/type_stages.wrl',
-    'test/compiler/equality.wrl',
-    'test/compiler/ordering.wrl',
-    'test/compiler/arithmetic.wrl',
-    'test/compiler/bitwise.wrl',
-    'test/compiler/conversions.wrl',
-    'test/compiler/durations.wrl',
-    'test/compiler/options.wrl',
-    'test/compiler/structs.wrl',
-    'test/compiler/time_of_day.wrl',
-    'test/compiler/library_settings.wrl',
-    'test/compiler/literals.wrl',
-    'test/compiler/namespaces.wrl',
-    'test/compiler/native_functions.wrl',
-    'test/compiler/parameters.wrl',
-    'test/compiler/path.wrl',
-    'test/compiler/prepared_configuration.wrl',
-    'test/compiler/syntax.wrl',
-    'test/compiler/blocks.wrl',
-    'test/compiler/multi_procedures.wrl',
-    'test/compiler/length.wrl',
-    'test/compiler/types.wrl',
-    'test/compiler/runtime_limits.wrl',
+    'compiler/simple',
+    'compiler/assertions',
+    'compiler/attributes',
+    'compiler/constants',
+    'compiler/constant_expressions',
+    'compiler/connection_order',
+    'compiler/static_sources',
+    'compiler/type_stages',
+    'compiler/equality',
+    'compiler/ordering',
+    'compiler/arithmetic',
+    'compiler/bitwise',
+    'compiler/conversions',
+    'compiler/durations',
+    'compiler/options',
+    'compiler/structs',
+    'compiler/time_of_day',
+    'compiler/library_settings',
+    'compiler/literals',
+    'compiler/namespaces',
+    'compiler/native_functions',
+    'compiler/parameters',
+    'compiler/path',
+    'compiler/prepared_configuration',
+    'compiler/syntax',
+    'compiler/blocks',
+    'compiler/multi_procedures',
+    'compiler/length',
+    'compiler/types',
+    'compiler/runtime_limits',
 ]
 
 negative_tests = [
-    'test/negative/library_settings.wrl',
-    'test/negative/prepared_configuration.wrl',
-    'test/negative/runtime_types.wrl',
-    'test/negative/runtime_limits.wrl',
-    'test/negative/parameters.wrl',
-    'test/negative/optional_forwarding.wrl',
-    'test/negative/optional_outputs.wrl',
-    'test/negative/constants.wrl',
-    'test/negative/constant_expressions.wrl',
-    'test/negative/arithmetic.wrl',
-    'test/negative/bitwise.wrl',
-    'test/negative/connections.wrl',
-    'test/negative/conversions.wrl',
-    'test/negative/durations.wrl',
-    'test/negative/time_of_day.wrl',
-    'test/negative/options.wrl',
-    'test/negative/type_comparisons.wrl',
-    'test/negative/assertions.wrl',
-    'test/negative/native_procedures.wrl',
-    'test/negative/native_values.wrl',
-    'test/negative/native_functions.wrl',
-    'test/negative/path.wrl',
-    'test/negative/procedures.wrl',
-    'test/negative/blocks.wrl',
-    'test/negative/multi_procedures.wrl',
-    'test/negative/length.wrl',
-    'test/negative/native_initializers.wrl',
-    'test/negative/procedure_ports.wrl',
-    'test/negative/resource_declarations.wrl',
-    'test/negative/resource_value_types.wrl',
-    'test/negative/resource_connections.wrl',
-    'test/negative/monotonic_time.wrl',
-    'test/negative/node_declarations.wrl',
-    'test/negative/option_literals.wrl',
-    'test/negative/option_properties.wrl',
-    'test/negative/unit_literals.wrl',
-    'test/negative/integer_literals.wrl',
-    'test/negative/string_literals.wrl',
-    'test/negative/node_types.wrl',
-    'test/negative/enum_literals.wrl',
-    'test/negative/enum_declarations.wrl',
-    'test/negative/structs.wrl',
-    'test/negative/state_connections.wrl',
-    'test/negative/attributes.wrl',
-    'test/negative/syntax_lists.wrl',
-    'test/negative/weak_keywords.wrl',
+    'negative/library_settings',
+    'negative/prepared_configuration',
+    'negative/runtime_types',
+    'negative/runtime_limits',
+    'negative/parameters',
+    'negative/optional_forwarding',
+    'negative/optional_outputs',
+    'negative/constants',
+    'negative/constant_expressions',
+    'negative/arithmetic',
+    'negative/bitwise',
+    'negative/connections',
+    'negative/conversions',
+    'negative/durations',
+    'negative/time_of_day',
+    'negative/options',
+    'negative/type_comparisons',
+    'negative/assertions',
+    'negative/native_procedures',
+    'negative/native_values',
+    'negative/native_functions',
+    'negative/path',
+    'negative/procedures',
+    'negative/blocks',
+    'negative/multi_procedures',
+    'negative/length',
+    'negative/native_initializers',
+    'negative/procedure_ports',
+    'negative/resource_declarations',
+    'negative/resource_value_types',
+    'negative/resource_connections',
+    'negative/monotonic_time',
+    'negative/node_declarations',
+    'negative/option_literals',
+    'negative/option_properties',
+    'negative/unit_literals',
+    'negative/integer_literals',
+    'negative/string_literals',
+    'negative/node_types',
+    'negative/enum_literals',
+    'negative/enum_declarations',
+    'negative/structs',
+    'negative/state_connections',
+    'negative/attributes',
+    'negative/syntax_lists',
+    'negative/weak_keywords',
 ]
 
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
@@ -598,7 +606,25 @@ class TestResourceProvider:
         return self.twon_server.info
 
 
-async def run_test(test_name):
+async def run_python_test(filename, *, engine=None):
+    spec = importlib.util.spec_from_file_location('test', filename)
+    if spec is None or spec.loader is None:
+        raise ImportError(f'Unable to load Python test {filename!r}')
+    module = importlib.util.module_from_spec(spec)
+    if engine is not None:
+        module.engine = engine
+    spec.loader.exec_module(module)
+    await module.run_test()
+
+
+async def run_python_only_test(test_name):
+    print(f'Running test {test_name}')
+    filename = Path(__file__).resolve().parent.parent / 'test' / (test_name + '.py')
+    await run_python_test(str(filename))
+    print(f'Done running test {test_name}')
+
+
+async def run_runtime_test(test_name):
     print(f'Running test {test_name}')
 
     with contextlib.ExitStack() as resource_stack:
@@ -629,19 +655,7 @@ async def run_test(test_name):
 
             # eng.debug = True
 
-            # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
-            spec = importlib.util.spec_from_file_location('test', py_fn)
-            if spec is None:
-                raise Exception('Unable to load python file ' + repr(py_fn))
-            module = importlib.util.module_from_spec(spec)
-
-            module.engine = eng
-
-            # sys.modules['__main__'] = module
-            spec.loader.exec_module(module)
-            # TODO: Always require a run_test coroutine?
-            if 'run_test' in module.__dict__:
-                await module.run_test()
+            await run_python_test(py_fn, engine=eng)
 
     print(f'Done running test {test_name}')
 
@@ -651,11 +665,12 @@ def main():
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
     parser.add_argument('names', nargs='*', metavar='TEST',
-                        help='Test names or fixture paths (default: all tests)')
+                        help='Extensionless test names (default: all tests)')
     args = parser.parse_intermixed_args()
     names = args.names
     for name in names:
-        if name not in to_compile and name not in negative_tests and name not in test_names:
+        if (name not in example_tests and name not in to_compile and name not in negative_tests
+                and name not in python_only_tests and name not in runtime_tests):
             raise Exception(f'Unknown test name {name!r}')
     if len(names) == 0:
         names = None
@@ -663,8 +678,11 @@ def main():
         names = set(names)
 
     durations = []
-    groups = [(to_compile, compile_test), (negative_tests, compile_negative_test),
-              (test_names, lambda name: asyncio.run(run_test(name)))]
+    groups = [(example_tests, lambda name: compile_test(name + '.wrl')),
+              (to_compile, lambda name: compile_test('test/' + name + '.wrl')),
+              (negative_tests, lambda name: compile_negative_test('test/' + name + '.wrl')),
+              (python_only_tests, lambda name: asyncio.run(run_python_only_test(name))),
+              (runtime_tests, lambda name: asyncio.run(run_runtime_test(name)))]
     try:
         for group, run in groups:
             for name in group:

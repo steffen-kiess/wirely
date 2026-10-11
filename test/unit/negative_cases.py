@@ -292,3 +292,7 @@ for seed in ('', '1'):
             run_diagnostics('first\n// SE: shuffled\n', relocated)
         with checks.assertRaisesRegex(AssertionError, 'no expected diagnostics'):
             run_diagnostics('// SE: shuffled\n// TEST: next\nfirst // E: original\n', original)
+
+
+async def run_test():
+    pass

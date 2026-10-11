@@ -214,3 +214,7 @@ check_delayed_event()
 check_debounce_duration()
 check_codes_and_tracing()
 check_prepared_credentials()
+
+
+async def run_test():
+    pass

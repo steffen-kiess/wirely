@@ -83,7 +83,7 @@ checkout launchers:
 
 ```
 tools/setup-venv
-tools/wirely compile test/wrl/simple.wrl
+tools/wirely compile test/compiler/simple.wrl
 tools/run-tests
 ```
 
@@ -96,7 +96,7 @@ Pass test names to run a selection, and add `--timings` to list durations
 slowest first:
 
 ```
-tools/run-tests --timings unit/types unit/equality
+tools/run-tests --timings unit/types wrl/equality
 ```
 
 To check that compilation does not depend on declaration order, set

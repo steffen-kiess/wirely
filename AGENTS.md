@@ -55,53 +55,19 @@ added sentence for practical value to the intended reader.
 
 ## Tests
 
-Run the full test suite with `tools/run-tests`. This is the preferred local
-test command for most work.
+Read the [test guide](doc/tests.md) for test structure, authoring conventions,
+and execution commands.
 
-Run one named test with `venv/bin/python -m wirely.test unit/types`. Replace
-`unit/types` with a name in `test_names` in `wirely/test.py`. The runner also
-accepts paths from its `to_compile` and `negative_tests` lists, for example
-`venv/bin/python -m wirely.test test/compiler/syntax.wrl`.
+Additions or substantive changes to `test/wrl/` require careful review to
+preserve coverage; routine import or path adjustments are exceptions.
 
-Add end-to-end feature tests to `test/wrl/` and runtime, Python API, or
-infrastructure unit/component tests to `test/unit/`. Additions or substantive
-changes to `test/wrl/` require careful review to preserve coverage; routine
-import or path adjustments are exceptions.
-
-Test compiler behavior in `test/compiler/` with `.wrl` fixtures and Wirely
-`assert` statements. Register these fixtures in `to_compile` in
-`wirely/test.py`. Keep this group free of Python files. Add compiler
-rejection cases to `test/negative/`.
-Do not test compiler representations such as ASTs, graphs, or inferred usage,
-or compiler evaluation mechanics through Python callbacks. Consolidate
-cases that check the same behavior while preserving distinct boundaries.
-
-Runtime/component tests normally pair `.wrl` and `.py` files. The runner
-compiles the program, creates an engine, then loads the Python assertions.
-Register them in `test_names` using names such as `wrl/knx` or `unit/types`.
-Use compilation as setup when needed to test runtime or native Python APIs;
-keep language checks in compiler fixtures.
-
-Negative fixtures in `test/negative/` use `// E: message`, `// H: message`,
-and `// W: message` to match diagnostics on that line; each `^` before the
-letter targets one line above. For syntax errors, match `Syntax error` or a
-fragment of the parser message. Start independent cases with a standalone
-`// TEST` or `// TEST: label`. Each case needs expected diagnostics and
-compiles separately. Line numbers and caret annotations refer to the
-original file; declarations stay within their case.
-
-For cases with traversal-dependent diagnostics, add `// SE: message`,
-`// SH: message`, or `// SW: message` expectations. With
-`WIRELY_COMPILER_SHUFFLE_SEED` set, these replace that case's ordinary
-expectations and match anywhere within the case in the same file. Keep the
-ordinary annotations for exact matching without a seed. Both forms require
-matching diagnostic kinds and counts; use specific, stable message fragments.
-
-Negative cases load no libraries by default. Use `// LIBRARIES: std, matter`
-to select library filenames without `.wrl`, including any dependencies.
-A directive before the first `// TEST` sets the file default; one inside a
-case replaces it for that case only. `// LIBRARIES:` selects no libraries.
-In an unmarked file, the directive applies to its single case.
+Test compiler behavior with `.wrl` fixtures and Wirely `assert` statements.
+Keep `test/compiler/` free of Python files. Do not test compiler
+representations such as ASTs, graphs, or inferred usage, or compiler
+evaluation mechanics through Python callbacks. Use compilation as setup
+when needed to test runtime or native Python APIs; keep language checks in
+compiler fixtures. Consolidate cases that check the same behavior while
+preserving distinct boundaries.
 
 ## Working practices
 

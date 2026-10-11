@@ -195,7 +195,8 @@ def strict_interface_error(sources):
 
 
 # Every negative fixture is analyzed without internal errors, including the error stopping compilation.
-for filename in runner.negative_tests:
+for name in runner.negative_tests:
+    filename = 'test/' + name + '.wrl'
     with open(filename, encoding='utf-8') as file:
         text = file.read()
     for case in runner.negative_test_cases(text):
@@ -207,3 +208,7 @@ for filename in runner.negative_tests:
         if strict is not None:
             checks.assertIn((strict.filename, strict.line, strict.message),
                             [(item.filename, item.line, item.message) for item in diagnostics], label)
+
+
+async def run_test():
+    pass

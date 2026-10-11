@@ -80,3 +80,7 @@ def check_equality():
 
 
 check_equality()
+
+
+async def run_test():
+    pass

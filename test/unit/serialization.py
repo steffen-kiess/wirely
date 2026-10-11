@@ -236,3 +236,7 @@ def check_variable_storage():
 check_scalar_codecs()
 check_struct_codecs()
 check_variable_storage()
+
+
+async def run_test():
+    pass

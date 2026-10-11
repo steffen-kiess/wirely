@@ -68,3 +68,7 @@ with checks.assertRaises(CallbackFailure):
     compile_strs([('<root>', 'native procedure run;')], on_diagnostic=fail)
 with checks.assertRaises(CallbackFailure):
     compile_strs([('<root>', '')], on_diagnostic=fail, verbose_passes=True)
+
+
+async def run_test():
+    pass

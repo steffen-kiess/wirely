@@ -53,7 +53,29 @@ node example: Uninstalled.Example {}
 
 
 def check_engine_isolation():
-    program = replace(engine.program, graph=None)
+    graph = wirely.compiler.compile_strs([('<engine-isolation>', '''node type Envelope {
+  default input: value boolean;
+  default output: value boolean;
+
+  node delay: Std.DelayOneStep { Type: boolean, InitialValue: false }
+  connect default input -> delay;
+  connect delay -> default output;
+}
+
+singleton node type Shared {
+  default output: value boolean;
+  node constant: Std.Constant { Type: boolean, Value: true }
+  connect constant -> default output;
+}
+
+node source: Std.DebugValueSource { Type: boolean }
+node envelope: Envelope {}
+connect source -> envelope;
+node shared: Shared {}
+node shared_again: Shared {}
+''')], add_std=True)
+    assert graph is not None
+    program = replace(program_compiler.compile_nocatch(graph), graph=None)
     first = Engine(program)
     second = Engine(program)
     first.get_native_state('source').set_value(True)
@@ -127,3 +149,7 @@ connect alias -> consumer.Service;
 check_compilation_without_native_implementations()
 check_engine_isolation()
 check_resource_isolation()
+
+
+async def run_test():
+    pass

@@ -191,3 +191,7 @@ check_fixture()
 check_values()
 check_optional_values()
 check_type_member_collision()
+
+
+async def run_test():
+    pass

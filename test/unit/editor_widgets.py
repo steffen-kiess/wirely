@@ -505,3 +505,7 @@ with tempfile.TemporaryDirectory() as directory:
             scene.clearSelection()
     checks.assertEqual(window.session.documents[filename].text(), positioned_source)
     window.close()
+
+
+async def run_test():
+    pass

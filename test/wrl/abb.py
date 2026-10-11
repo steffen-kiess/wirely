@@ -37,3 +37,7 @@ for val in [None, 0x0000, 0xdda4, 0xa72c, 0xf1bf, 0x5c03, 0x9de5, 0xb34f, 0xa1d0
         else:
             engine.assert_value_is('val1.' + flag, None)
     engine.assert_is_idle()
+
+
+async def run_test():
+    pass

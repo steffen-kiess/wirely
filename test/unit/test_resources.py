@@ -15,7 +15,7 @@ from wirely.compiler.function_implementations.test import (
     TEST_RESOURCES_SERVICE, replace_twon_host, replace_twon_port, replace_twon_tlsa,
 )
 from wirely.test import (
-    TestResourceProvider, run_test as runner_run_test,
+    TestResourceProvider, run_runtime_test as runner_run_test,
     with_maybe_knxd, with_maybe_mqtt,
 )
 from wirely.two_n.fake_server import Server
@@ -205,7 +205,7 @@ async def check_runner_cleanup():
                 mocks.enter_context(patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=LifecycleFailure)))
             expected = SystemExit if mode in ('compilation', 'program') else LifecycleFailure
             with checks.assertRaises(expected):
-                await runner_run_test('unit/test_resources')
+                await runner_run_test('wrl/std')
             if mode != 'assertions':
                 construct.assert_not_called()
         assert sorted(started) == sorted(stopped)

@@ -470,3 +470,7 @@ check_branches()
 check_bitwise_and_shifts()
 check_validation()
 check_dump()
+
+
+async def run_test():
+    pass

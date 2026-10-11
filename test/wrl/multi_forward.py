@@ -11,3 +11,7 @@ for values in itertools.product((False, True), repeat=3):
     engine.assert_value_is('empty', True)
     engine.assert_value_is('empty_outer', values[2])
     engine.assert_is_idle()
+
+
+async def run_test():
+    pass

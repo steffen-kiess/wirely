@@ -27,3 +27,7 @@ check(True, False, False)
 check(True, False, True)
 check(True, True, False)
 check(True, True, True)
+
+
+async def run_test():
+    pass

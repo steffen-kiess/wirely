@@ -97,3 +97,7 @@ check(False, False, False, 42)
 check(True, False, True, 123)
 check(False, True, False, 0)
 check(True, True, True, 65535)
+
+
+async def run_test():
+    pass

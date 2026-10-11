@@ -155,3 +155,7 @@ for seed in range(5):
     for layout in (False, True):
         result = wirely.compiler.compile_strs(sources, shuffle_seed=seed, shuffle_layout=layout)
         checks.assertIsNotNone(result)
+
+
+async def run_test():
+    pass

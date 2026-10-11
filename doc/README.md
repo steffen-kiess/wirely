@@ -18,3 +18,4 @@ To implement nodes and procedures in Python, use the
 contributions, follow the [Python style guide](python-style.md).
 
 For compiler development, read the [compiler stages guide](compiler-stages.md).
+For test categories, execution, and authoring, read the [test guide](tests.md).

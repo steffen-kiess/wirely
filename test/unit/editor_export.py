@@ -50,3 +50,7 @@ with tempfile.TemporaryDirectory() as directory:
             ((), png, [('main.wrl', 'node broken')])):
         with checks.assertRaises(ExportError):
             export_image(sources_, scope, output)
+
+
+async def run_test():
+    pass

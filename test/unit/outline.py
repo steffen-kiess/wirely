@@ -115,3 +115,7 @@ checks.assertEqual(result.find(Node(('a',)))[0].node_type, NodeType(('N', 'T')))
 namespace, = result.scope.namespaces
 checks.assertEqual([item.name for item in namespace.node_types], ['T', 'V'])
 checks.assertEqual(result.find(NodeType(('U',))), ())
+
+
+async def run_test():
+    pass

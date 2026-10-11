@@ -1,0 +1,70 @@
+# Tests
+
+Run `tools/run-tests` from a checkout. Pass registered names to select tests;
+add `--timings` to list durations, slowest first:
+
+```sh
+tools/run-tests --timings repo/files unit/types wrl/equality
+tools/run-tests compiler/types negative/runtime_types examples/test
+```
+
+The launcher uses `venv/bin/python`, or the current interpreter when no venv
+exists. `--python PATH` selects another interpreter. The runner stops at the
+first failure.
+
+## Categories
+
+| Location | Purpose | Registration in `wirely/test.py` |
+| --- | --- | --- |
+| `test/repo/` | Repository consistency checks | `python_only_tests` |
+| `test/unit/` | Python API, runtime, editor, and infrastructure checks | `python_only_tests` or `runtime_tests` |
+| `test/wrl/` | End-to-end behavior of compiled Wirely programs | `runtime_tests` |
+| `test/compiler/` | Accepted language forms and compile-time assertions | `to_compile` |
+| `test/negative/` | Rejected language forms and expected diagnostics | `negative_tests` |
+| `examples/` | Example compilation and engine construction | `example_tests` |
+
+`repo/files` checks that existing Python and Wirely test files and Wirely
+examples match the registered files. It reports missing and unlisted files.
+
+Choose a category by what the assertions check. Tests of compiled program
+behavior belong in `wrl/`; tests of Python APIs or runtime internals belong
+in `unit/`, even when compilation provides their setup. Keep language checks
+in compiler fixtures rather than inspecting compiler representations in
+Python.
+
+## Compiler fixtures
+
+Accepted fixtures use Wirely `assert` statements. Register their
+paths relative to `test/`, without `.wrl`, in `to_compile`; use
+`negative_tests` for rejection fixtures.
+The runner compiles accepted fixtures and constructs an engine;
+it does not step the engine. Runtime behavior needs a Python test.
+
+Negative fixtures annotate expected diagnostics with `// E: fragment`,
+`// H: fragment`, and `// W: fragment`. Each `^` before the letter targets
+one line above. Start independent cases with `// TEST` or `// TEST: label`;
+each case compiles separately and must produce its expected errors.
+Keep declarations within their case. Line numbers and caret annotations
+refer to the original file. For syntax errors, match `Syntax error` or a
+fragment of the parser message; use specific, stable diagnostic fragments.
+
+Negative cases load no libraries by default. `// LIBRARIES: std, matter`
+selects library filenames without `.wrl`, including dependencies. A directive
+before the first case supplies the default; a case can override it.
+`// LIBRARIES:` selects no libraries. In a file without case markers, the
+directive applies to its single case.
+
+For declaration-order checks, set `WIRELY_COMPILER_SHUFFLE_SEED` to an
+integer. Cases with traversal-dependent diagnostics can add `// SE:`,
+`// SH:`, or `// SW:` expectations, which replace their ordinary expectations
+under a shuffle seed and match anywhere inside that case. Ordinary
+expectations match the annotated line; both forms require matching kinds
+and counts. See the [development checkout instructions](../README.md#development-checkout)
+for layout shuffling and dependency-version runs.
+
+## CI
+
+`.gitlab-ci.yml` runs the full suite on Debian with the checkout environment,
+minimum supported Python and direct dependencies, and latest supported
+Python and dependencies. A separate build job creates the wheel, source
+archive, and PEX, then checks the PEX's `--help` outside the checkout.

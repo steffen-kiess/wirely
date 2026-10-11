@@ -223,3 +223,7 @@ checks.assertEqual(placed, {'fixed': (-0.4, -0.6), 'auto': (0.0, 6.0)})
 checks.assertTrue(all(type(value) is float for position in placed.values() for value in position))
 texts = edited(program.add_declaration((), 'state extra: boolean = false;', (-2.5, 3.5)))
 checks.assertIn('#[Diagram.Position(X = -2.5, Y = 3.5)]', texts['main.wrl'])
+
+
+async def run_test():
+    pass

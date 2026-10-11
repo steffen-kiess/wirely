@@ -113,3 +113,7 @@ def check_objdump():
 check_round_trip()
 check_invalid_files()
 check_objdump()
+
+
+async def run_test():
+    pass

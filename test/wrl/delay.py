@@ -71,3 +71,7 @@ engine.assert_value_is('delay1', False)
 engine.assert_value_is('delay2', False)
 
 engine.assert_is_idle()
+
+
+async def run_test():
+    pass

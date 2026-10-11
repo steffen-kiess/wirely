@@ -481,3 +481,7 @@ def check_copied_states():
 check_old_snapshots()
 check_current_snapshots()
 check_copied_states()
+
+
+async def run_test():
+    pass

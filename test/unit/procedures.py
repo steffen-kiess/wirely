@@ -684,3 +684,7 @@ def check_multi_procedures():
 
 
 check_multi_procedures()
+
+
+async def run_test():
+    pass
