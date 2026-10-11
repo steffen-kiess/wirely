@@ -180,7 +180,7 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
     lines = [f'#[{metadata}]' for metadata in attributes] + declaration.split('\n')
     if anchor is not None:
         return [_insert_after(texts, anchor.filename, _outer_start(anchor._declaration),
-                              anchor.span[1], lines, 'declaration')]
+                              _attached_end(texts, record, anchor), lines, 'declaration')]
     return [_insert_at_body_start(texts, _block(record, filename), lines, 'declaration')]
 
 
@@ -206,8 +206,10 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
     """Add a connection from source to target, written as in a connect statement.
 
     It follows the target's last connection, or with index, precedes the
-    target's index-th source. Inside a connect statement with several
-    sources, attributes before connect also apply to the new connection.
+    target's index-th source. Without connections to the target, it goes
+    directly below the target's declaration and the connections to other
+    ports of it there. Inside a connect statement with several sources,
+    attributes before connect also apply to the new connection.
     """
     source, target = _parse_references(source, target)
     for metadata in attributes:
@@ -226,6 +228,10 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
             start = _outer_start(edge._source)
             return [TextEdit(edge.filename, start, start, f'{attribute_text}{source}, ')]
         return [_insert_before(texts, edge.filename, _outer_start(statement), lines)]
+    declaration = None if existing else _target_record(record, target)
+    if declaration is not None:
+        return [_insert_after(texts, declaration.filename, _outer_start(declaration._declaration),
+                              _attached_end(texts, record, declaration), lines, 'connect', attached=True)]
     if existing:
         anchor = existing[-1]
     else:
@@ -251,28 +257,24 @@ def disconnect(sources, connection):
 def reconnect(sources, connection, *, source=None, target=None):
     """Change the source or target of one connection.
 
-    A connection moved to another target follows that target's last connection.
+    A connection moved to another target is added to that target like a new
+    connection, see connect().
     """
     result = outline(sources)
     edge = _single(result.find(connection), connection)
     texts = dict(sources)
     new_source, new_target = _parse_references(source or edge.source.text, target or edge.target.text)
-    edits = []
-    statement = edge._declaration
     if target is None or _normalized(new_target) == edge.target.text:
-        if source is not None:
-            edits.append(TextEdit(edge.filename, *edge.source_span, new_source))
-        return edits
-    if len(statement.sources) == 1:
-        if source is not None:
-            edits.append(TextEdit(edge.filename, *edge.source_span, new_source))
-        edits.append(TextEdit(edge.filename, *edge.target_span, new_target))
-        return edits
+        return [TextEdit(edge.filename, *edge.source_span, new_source)] if source is not None else []
+    statement = edge._declaration
     text = texts[edge.filename]
     attributes = [text[_start(attribute) + 2:_end(attribute) - 1]
                   for attribute in (*statement.outer_attributes, *edge._source.outer_attributes)]
-    return (_disconnect_edges(texts, [edge])
-            + connect(sources, connection.scope, new_source, new_target, attributes=attributes))
+    # Remove first, then add to the new target, so nearby edits cannot overlap.
+    removed = apply_edits(sources, _disconnect_edges(texts, [edge]))
+    added = apply_edits(removed, connect(removed, connection.scope, new_source, new_target,
+                                         attributes=attributes))
+    return [edit for filename, new in added for edit in _diff_edit(filename, texts[filename], new)]
 
 
 def set_parameter_binding(sources, node, name, value_text, *, optional=False):
@@ -778,11 +780,12 @@ def _diff_edit(filename, old, new):
     return [TextEdit(filename, prefix, len(old) - suffix, new[prefix:len(new) - suffix])]
 
 
-def _insert_after(texts, filename, start, end, lines, kind=None):
+def _insert_after(texts, filename, start, end, lines, kind=None, *, attached=False):
     """Insert lines after the item at start:end, on new lines when possible.
 
     kind is the _item_kind() of the inserted item, which decides the blank lines
-    around it; without it, none are added.
+    around it; without it, none are added. With attached, no blank line
+    separates the lines from the item.
     """
     text = texts[filename]
     line_end = _line_end(text, end)
@@ -791,11 +794,47 @@ def _insert_after(texts, filename, start, end, lines, kind=None):
         return TextEdit(filename, end, end, ' ' + lines[0])
     indent = _indentation(text, start)
     inserted = ''.join(f'\n{indent}{line}' for line in lines)
-    if _blank_between(_item_kind(text, start), kind):
+    if not attached and _blank_between(_item_kind(text, start), kind):
         inserted = '\n' + inserted
     if _blank_between(kind, _item_kind(text, line_end)) and text[line_end + 1:_line_end(text, line_end + 1)].strip():
         inserted += '\n'
     return TextEdit(filename, line_end, line_end, inserted)
+
+
+def _target_record(scope, target):
+    """Return the declaration in scope that a connection target refers to, or None."""
+    reference = _parse_declaration(f'connect x -> {target};').target
+    name = reference.identifiers[0].id_str
+    if reference.length == 1:
+        for port in scope.ports:
+            if port.direction == 'output' and (port.name or 'default output') == name:
+                return port
+    if reference.length <= 2:
+        for records in (scope.states, scope.temporaries, scope.procedures, scope.nodes):
+            for record in records:
+                if record.name == name:
+                    return record
+    return None
+
+
+def _attached_end(texts, scope, record):
+    """Return the end of a declaration and the connect statements to it directly below.
+
+    The statements form a block without blank lines and target the
+    declaration or one of its ports.
+    """
+    text = texts[record.filename]
+    statements = {}
+    for edge in scope.edges:
+        if edge.kind == 'connect' and edge.filename == record.filename and edge.target.element == record.id:
+            statement = edge._declaration
+            statements[_outer_start(statement)] = _end(statement)
+    end = record.span[1]
+    while True:
+        following = _skip_trivia(text, end)
+        if following not in statements or re.search(r'\n[ \t]*\n', text[end:following]):
+            return end
+        end = statements[following]
 
 
 def _item_kind(text, position):

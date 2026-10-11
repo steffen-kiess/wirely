@@ -237,7 +237,7 @@ check_insert((), format_parameter('p', 'int'), '// header\nparameter p: int;\n',
 check_insert(('N',), format_node('b', 'T'), 'namespace N {}\nnamespace N {\n  node b: T {}\n}\n',
              source='namespace N {}\nnamespace N {}\n')
 
-# Consecutive connect statements stay together.
+# New connections go directly below their targets.
 sources = [('main.wrl', 'node type T {\n}\n')]
 for function, arguments, options in (
         (add_declaration, (format_port('input', 'In', 'value', 'int8'),), {'X': -298, 'Y': -85}),
@@ -253,11 +253,10 @@ checks.assertEqual(sources[0][1], '''node type T {
 
   #[Diagram.Position(X = 107, Y = -58)]
   output Out: value int8;
+  connect last.old -> Out;
 
   #[Diagram.Position(X = -85, Y = -162)]
   state last: int8 = 4;
-
-  connect last.old -> Out;
   connect In -> last;
 }
 ''')
@@ -298,6 +297,31 @@ for source, target in (('a, b', 'c'), ('#[x] a', 'c'), ('a', 'c;')):
 files = [('a.wrl', 'node a: T {}\nconnect a -> b.in;\n'), ('b.wrl', 'node b: T {}\n')]
 checks.assertEqual(connect(files, (), 'c', 'b.in'), [TextEdit('a.wrl', 31, 31, '\nconnect c -> b.in;')])
 checks.assertEqual(connect(files, (), 'c', 'd'), [TextEdit('b.wrl', 12, 12, '\n\nconnect c -> d;')])
+checks.assertEqual(connect(files, (), 'c', 'b'), [TextEdit('b.wrl', 12, 12, '\nconnect c -> b;')])
+
+# Without connections to the target, a connection joins the block directly
+# below the target's declaration; declarations added later go below it.
+nodes = 'node a: T {}\nnode b: T {}\n\nnode c: T {\n  P: 1,\n}\nconnect x -> c.in;\n'
+checks.assertEqual(edit(connect, nodes, (), 'x', 'a'),
+                   nodes.replace('node a: T {}\n', 'node a: T {}\nconnect x -> a;\n\n'))
+checks.assertEqual(edit(connect, nodes, (), 'y', 'c.other'),
+                   nodes + 'connect y -> c.other;\n')
+checks.assertEqual(edit(connect, nodes, (), 'y', 'c'), nodes + 'connect y -> c;\n')
+checks.assertEqual(edit(connect, nodes, (), 'x', 'b.in'),
+                   nodes.replace('node b: T {}\n', 'node b: T {}\nconnect x -> b.in;\n'))
+checks.assertEqual(edit(add_declaration, nodes, (), format_node('d', 'T')), nodes + '\nnode d: T {}\n')
+# A separated connection is not part of the block.
+checks.assertEqual(edit(add_declaration, 'node a: T {}\n\nconnect x -> a;\n', (), format_node('d', 'T')),
+                   'node a: T {}\n\nnode d: T {}\n\nconnect x -> a;\n')
+
+# Moving a connection to another target moves it to that target's block.
+moves = 'node a: T {}\nconnect x -> a;\nnode b: T {}\nconnect y, z -> b;\n'
+checks.assertEqual(edit(reconnect, moves, Connection((), 'x', 'a'), target='b.in'),
+                   'node a: T {}\nnode b: T {}\nconnect y, z -> b;\nconnect x -> b.in;\n')
+checks.assertEqual(edit(reconnect, moves, Connection((), 'y', 'b'), target='a.in'),
+                   'node a: T {}\nconnect x -> a;\nconnect y -> a.in;\n\nnode b: T {}\nconnect z -> b;\n')
+checks.assertEqual(edit(reconnect, moves, Connection((), 'x', 'a'), source='w'),
+                   moves.replace('connect x', 'connect w'))
 
 # Disconnecting removes a source with its comma, or the whole statement.
 checks.assertIn('connect s2 -> m.multi; // comment\n', edit(disconnect, body, Connection((), 's1', 'm.multi')))
