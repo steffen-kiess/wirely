@@ -41,6 +41,13 @@ def main():
     edit_parser.add_argument('input_filename', nargs='+')
     edit_parser.set_defaults(module_name='wirely.cli.edit')
 
+    export_parser = subparsers.add_parser('export-image', help='draw a graph as a PDF or PNG image')
+    export_parser.add_argument('-o', '--output', required=True, help='output file ending in .pdf or .png')
+    export_parser.add_argument('--scope', help='dot-separated node type or namespace; default: the program')
+    export_parser.add_argument('--scale', type=float, default=4, help='PNG pixels per graph unit (default: 4)')
+    export_parser.add_argument('input_filename', nargs='+')
+    export_parser.set_defaults(module_name='wirely.cli.export_image')
+
     client_parser = subparsers.add_parser('client', help='control a running runtime')
     importlib.import_module('wirely.cli.client').add_arguments(client_parser)
     client_parser.set_defaults(module_name='wirely.cli.client')

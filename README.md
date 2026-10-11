@@ -63,6 +63,11 @@ A graph is read-only while its source has syntax errors. In a graph:
 - Right-click the background to add nodes and declarations.
 - Double-click a node to open the graph of its node type.
 
+`wirely export-image program.wrl -o graph.pdf` draws the program graph as the
+editor shows it, as a PDF or PNG file. Use `--scope Name` for the graph of a
+node type and `--scale` for the PNG resolution. Images use the DejaVu Sans font;
+without it, a fallback font changes the layout.
+
 The `test` extra adds dependencies used only by the test suite. Install
 `wirely[all,test]` to include both integrations and test dependencies.
 

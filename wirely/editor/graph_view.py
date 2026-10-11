@@ -8,7 +8,7 @@ selection survives refreshes.
 import math
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen
 from PySide6.QtWidgets import (
     QGraphicsItem, QGraphicsObject, QGraphicsPathItem, QGraphicsScene, QGraphicsView, QLabel, QStyle,
     QVBoxLayout, QWidget,
@@ -31,6 +31,12 @@ INSET = 2
 DETAILS_MAX_WIDTH = 16 * STEP
 # Added to the source-order Z value of selected items.
 SELECTED_Z = 1_000_000
+# Graphs use a fixed font with pixel sizes, so their layout does not depend
+# on the system font or resolution.
+FONT_FAMILY = 'DejaVu Sans'
+TITLE_SIZE = 13
+SUBTITLE_SIZE = 11
+LABEL_SIZE = 12
 # Zoom per eighth of a degree of wheel rotation; one notch of 120 zooms by about 20%.
 ZOOM_RATE = 0.0015
 
@@ -328,12 +334,9 @@ class GraphScene(QGraphicsScene):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.title_font = QFont()
-        self.title_font.setBold(True)
-        self.subtitle_font = QFont()
-        self.subtitle_font.setPointSizeF(max(6.0, self.subtitle_font.pointSizeF() - 1.5))
-        self.label_font = QFont()
-        self.label_font.setPointSizeF(max(6.0, self.label_font.pointSizeF() - 1))
+        self.title_font = _font(TITLE_SIZE, bold=True)
+        self.subtitle_font = _font(SUBTITLE_SIZE)
+        self.label_font = _font(LABEL_SIZE)
         self.fonts = (QFontMetricsF(self.title_font), QFontMetricsF(self.subtitle_font),
                       QFontMetricsF(self.label_font))
         self.items_by_id = {}
@@ -341,6 +344,7 @@ class GraphScene(QGraphicsScene):
         self.model = None
         self.linked_id = None
         self.interactive = True
+        self.show_grid = True
         self.snapping = True
         self.check_connection = None
         self._drag = None
@@ -348,6 +352,8 @@ class GraphScene(QGraphicsScene):
 
     def drawBackground(self, painter, rect):
         super().drawBackground(painter, rect)
+        if not self.show_grid:
+            return
         painter.save()
         transform = painter.worldTransform()
         zoom = math.hypot(transform.m11(), transform.m12())
@@ -683,6 +689,19 @@ class GraphTab(QWidget):
         self.banner.setVisible(bool(banner_html))
         if self.model is not None:
             self.view.fit()
+
+
+def font_available():
+    """Whether the graph font is installed; otherwise a fallback is used."""
+    return FONT_FAMILY in QFontDatabase.families()
+
+
+def _font(pixel_size, bold=False):
+    font = QFont(FONT_FAMILY)
+    font.setPixelSize(pixel_size)
+    font.setBold(bold)
+    font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
+    return font
 
 
 def _detail_text(detail):
