@@ -318,7 +318,7 @@ def analyze(sources, *, add_std=False):
 
 
 def _is_internal(attributes):
-    return any(attribute.name == 'internal' for attribute in attributes)
+    return any(attribute.name == 'Internal' for attribute in attributes)
 
 
 def _block_attributes(block):

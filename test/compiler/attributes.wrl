@@ -23,7 +23,7 @@ node type Positioned {
   constant Inverted: boolean = !Initial;
   #[position(x = 1, y = 0)]
   default output: value boolean;
-  #[internal]
+  #[Internal]
   #[position(x = 2, y = 0)]
   state previous: boolean = Initial;
   #[position(x = 3, y = 0)]
@@ -36,29 +36,29 @@ node type Positioned {
 }
 node positioned_type: Positioned {}
 
-#[internal]
+#[Internal]
 namespace Implementation {
-  #[internal]
+  #[Internal]
   resource type Handle;
 
-  #[internal]
+  #[Internal]
   struct type Record {
-    #[internal]
+    #[Internal]
     enabled: boolean,
   }
 
   enum type Mode: uint8 {
-    #![internal]
-    #[internal]
+    #![Internal]
+    #[Internal]
     On = 1,
   }
 }
 
-#[internal]
+#[Internal]
 constant Enabled: Implementation.Record =
   Implementation.Record { enabled: true };
 namespace InnerImplementation {
-  #![internal]
+  #![Internal]
   node type Empty {}
 }
 node inner_namespace: InnerImplementation.Empty {}
@@ -67,17 +67,17 @@ assert Implementation.Mode.On == Implementation.Mode.On;
 assert KNX.ParseGroupAddress("1/2/3") == 2563;
 assert MQTT.SupportsType(boolean);
 
-#[internal]
+#[Internal]
 node type InternalForward {
-  #[internal]
+  #[Internal]
   parameter Initial: boolean = true;
-  #[internal]
+  #[Internal]
   default input: value boolean;
-  #[internal]
+  #[Internal]
   default output: value boolean;
-  #[internal]
+  #[Internal]
   state previous: boolean = Initial;
-  #[internal]
+  #[Internal]
   temporary forwarded: boolean;
 
   procedure forward
@@ -95,21 +95,21 @@ node type InternalForward {
   }
 }
 node type InnerType {
-  #![internal]
+  #![Internal]
   node impl: InternalForward {}
   node input: Std.Constant { Type: boolean, Value: true }
   connect input -> impl;
 }
-#[internal]
+#[Internal]
 node internal_forward: InternalForward {}
 connect source -> internal_forward;
-node inner_internal: InnerType { #![internal] }
+node inner_internal: InnerType { #![Internal] }
 
 struct type InnerRecord {
-  #![internal]
+  #![Internal]
   enabled: boolean,
 }
-#[internal]
+#[Internal]
 enum type OuterMode: uint8 {
   On = 1,
 }

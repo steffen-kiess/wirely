@@ -172,46 +172,49 @@ node type T {
 // TEST: target attributes deferred
 connect a -> #[unknown] b; // E: Unexpected token
 
-// TEST: internal empty arguments
-#[internal()] node type T {}
-// ^E: internal must be a flag without arguments or a value
+// TEST: lowercase internal
+#[internal] node type T {} // E: Unknown attribute internal
 
-// TEST: internal arguments
-#[internal(reason = "implementation")] node type T {}
-// ^E: internal must be a flag without arguments or a value
+// TEST: Internal empty arguments
+#[Internal()] node type T {}
+// ^E: Internal must be a flag without arguments or a value
 
-// TEST: internal assigned value
-#[internal = true] node type T {}
-// ^E: internal must be a flag without arguments or a value
+// TEST: Internal arguments
+#[Internal(reason = "implementation")] node type T {}
+// ^E: Internal must be a flag without arguments or a value
 
-// TEST: duplicate internal outer
-#[internal] #[internal] node type T {} // E: Duplicate attribute internal
+// TEST: Internal assigned value
+#[Internal = true] node type T {}
+// ^E: Internal must be a flag without arguments or a value
 
-// TEST: duplicate internal outer and inner
-#[internal]
+// TEST: duplicate Internal outer
+#[Internal] #[Internal] node type T {} // E: Duplicate attribute Internal
+
+// TEST: duplicate Internal outer and inner
+#[Internal]
 node type T {
-  #![internal] // E: Duplicate attribute internal
+  #![Internal] // E: Duplicate attribute Internal
 }
 
-// TEST: internal file
-#![internal] // E: Attribute internal is not permitted on file
+// TEST: Internal file
+#![Internal] // E: Attribute Internal is not permitted on file
 
-// TEST: internal connection
-#[internal] connect a -> b; // E: Attribute internal is not permitted on connection
+// TEST: Internal connection
+#[Internal] connect a -> b; // E: Attribute Internal is not permitted on connection
 
-// TEST: internal assertion
-#[internal] assert true; // E: Attribute internal is not permitted on assertion
+// TEST: Internal assertion
+#[Internal] assert true; // E: Attribute Internal is not permitted on assertion
 
-// TEST: internal procedure
+// TEST: Internal procedure
 node type T {
-  #[internal] native procedure run;
-  // ^E: Attribute internal is not permitted on procedure
+  #[Internal] native procedure run;
+  // ^E: Attribute Internal is not permitted on procedure
 }
 
-// TEST: internal initializer
+// TEST: Internal initializer
 native node type T {
-  #[internal] native initializer;
-  // ^E: Attribute internal is not permitted on initializer
+  #[Internal] native initializer;
+  // ^E: Attribute Internal is not permitted on initializer
 }
 
 // TEST: summary arguments

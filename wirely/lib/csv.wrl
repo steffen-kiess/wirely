@@ -1,5 +1,5 @@
 namespace CSV {
-  #[internal]
+  #[Internal]
   native constant function SupportsType(type: ValueType): boolean;
 
   // Writes lines with:

@@ -93,8 +93,8 @@ checks.assertEqual([port.type for port in result.ports(Node(('u',)))], [uint8])
 # Connection checks follow the compiler's rules and messages.
 source = '''namespace Lib {
   struct type Point { x: int32, }
-  #[internal] struct type Secret { x: int32, }
-  #[internal] node type Hidden {}
+  #[Internal] struct type Secret { x: int32, }
+  #[Internal] node type Hidden {}
   node type Gate {
     input enable: event boolean;
     default output: value boolean;

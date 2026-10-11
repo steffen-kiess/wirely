@@ -1,13 +1,13 @@
 namespace TwoN {
-  #[internal]
+  #[Internal]
   native constant function IsValidCode(code: String): boolean;
 
-  #[internal]
+  #[Internal]
   struct type Credentials {
     username: String,
     password: String,
   }
-  #[internal]
+  #[Internal]
   native constant function ReadCredentials(filename: String): Credentials;
 
   resource type Device;

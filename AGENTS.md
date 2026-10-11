@@ -37,7 +37,7 @@ Python implementation in `wirely/native/`, and any paired fixture in
 
 ## Documentation
 
-Omit declarations marked `#[internal]` (or `#![internal]`) and members of
+Omit declarations marked `#[Internal]` (or `#![Internal]`) and members of
 internal namespaces or types from `doc/libraries.md`.
 
 Always keep documentation as short as possible. Avoid duplicating

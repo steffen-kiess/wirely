@@ -100,11 +100,12 @@ def _flag(attribute):
 
 
 # Extensions must explicitly define qualified names as well as unqualified ones.
+# Attribute names, their namespaces, and their arguments use PascalCase.
 ATTRIBUTE_REGISTRY = {
     'position': AttributeDefinition(frozenset({
         'node', 'port', 'state', 'temporary', 'constant', 'parameter', 'procedure',
     }), _position),
-    'internal': AttributeDefinition(frozenset({
+    'Internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
         'temporary', 'struct_field', 'enum_member',

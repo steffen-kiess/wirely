@@ -64,6 +64,8 @@ combine their attributes.
 Attribute metadata supports dot-separated names, flags, `name = literal`,
 and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
+Attribute names, their namespaces, and their arguments use `PascalCase` and are
+case-sensitive.
 `position` supplies the coordinates of a node instance, or of a port,
 parameter, constant, state, temporary, or procedure in a node type body:
 
@@ -88,11 +90,11 @@ formatting are preserved, and only the edited files need to parse.
 `wirely.compiler.outline` reads the declarations, ports, and connections of
 such files; references to declarations in other files stay unresolved.
 
-`#[internal]` marks an implementation detail. It takes no arguments and can
+`#[Internal]` marks an implementation detail. It takes no arguments and can
 appear once on an instance, node type, function, namespace, value or
 resource type, constant, parameter, `input` or `output` declaration, state,
 temporary, struct field, or enum member. Eligible bodies also accept
-`#![internal]`. References to internal declarations remain unrestricted.
+`#![Internal]`. References to internal declarations remain unrestricted.
 Internal declarations and contents of internal namespaces or types are
 omitted from the library reference.
 

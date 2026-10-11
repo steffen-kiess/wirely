@@ -16,7 +16,7 @@ from wirely.compiler.outline import (
 checks = TestCase()
 position = format_metadata('position', x=1, y=-2.5)
 checks.assertEqual(position, 'position(x = 1, y = -2.5)')
-checks.assertEqual(format_metadata('internal'), 'internal')
+checks.assertEqual(format_metadata('Internal'), 'Internal')
 checks.assertEqual(format_metadata('flags', on=True, off=False, size=1e20),
                    'flags(on = true, off = false, size = 1e+20)')
 with checks.assertRaises(ValueError):
@@ -48,11 +48,11 @@ check(add_attribute, '''node a: Std.Constant { // comment
 }
 ''')
 check(add_attribute, '''node a: Std.Constant {
-  #![internal] // after
+  #![Internal] // after
   Type: boolean,
 }
 ''', Node(('a',)), position, '''node a: Std.Constant {
-  #![internal] // after
+  #![Internal] // after
   #![position(x = 1, y = -2.5)]
   Type: boolean,
 }
@@ -60,12 +60,12 @@ check(add_attribute, '''node a: Std.Constant {
 check(add_attribute, '''node a: Std.Constant { Type: boolean,
   Value: true,
 }
-''', Node(('a',)), 'internal', '''node a: Std.Constant { #![internal] Type: boolean,
+''', Node(('a',)), 'Internal', '''node a: Std.Constant { #![Internal] Type: boolean,
   Value: true,
 }
 ''')
-check(add_attribute, 'node a: T {\n}\n', Node(('a',)), 'internal',
-      'node a: T {\n  #![internal]\n}\n')
+check(add_attribute, 'node a: T {\n}\n', Node(('a',)), 'Internal',
+      'node a: T {\n  #![Internal]\n}\n')
 
 # One-line bodies are expanded using the file's indentation unit.
 check(add_attribute, '''namespace A.B {
@@ -86,8 +86,8 @@ check(add_attribute, '''namespace A.B {
 ''')
 check(add_attribute, 'node type T {\n\tnode b: U /* type */ {}\n}\n', Node(('T', 'b')), position,
       'node type T {\n\tnode b: U /* type */ {\n\t\t#![position(x = 1, y = -2.5)]\n\t}\n}\n')
-check(add_attribute, 'node a: T { #![internal] P: 1 }\n', Node(('a',)), position,
-      'node a: T {\n  #![internal]\n  #![position(x = 1, y = -2.5)]\n  P: 1\n}\n')
+check(add_attribute, 'node a: T { #![Internal] P: 1 }\n', Node(('a',)), position,
+      'node a: T {\n  #![Internal]\n  #![position(x = 1, y = -2.5)]\n  P: 1\n}\n')
 
 # Setting replaces attributes in place and removes duplicates.
 check(set_attribute, '''#[position(x = 0, y = 0)] // outer
@@ -106,15 +106,15 @@ check(set_attribute, 'node a: T {}\n', Node(('a',)), position,
 
 # Removal drops lines that only held the attribute.
 check(remove_attribute, '''node a: T {
-  #![internal]
+  #![Internal]
   P: 1,
 }
-''', Node(('a',)), 'internal', 'node a: T {\n  P: 1,\n}\n')
-check(remove_attribute, 'node a: T { #![internal] }\n', Node(('a',)), 'internal',
+''', Node(('a',)), 'Internal', 'node a: T {\n  P: 1,\n}\n')
+check(remove_attribute, 'node a: T { #![Internal] }\n', Node(('a',)), 'Internal',
       'node a: T { }\n')
-check(remove_attribute, 'connect b -> c; #[internal]\nnode a: T {}\n', Node(('a',)), 'internal',
+check(remove_attribute, 'connect b -> c; #[Internal]\nnode a: T {}\n', Node(('a',)), 'Internal',
       'connect b -> c;\nnode a: T {}\n')
-check(remove_attribute, 'node a: T {}\n', Node(('a',)), 'internal', 'node a: T {}\n')
+check(remove_attribute, 'node a: T {}\n', Node(('a',)), 'Internal', 'node a: T {}\n')
 
 # Node types and repeated namespaces.
 check(add_attribute, '''namespace N {
@@ -125,12 +125,12 @@ namespace N {
     node b: U {}
   }
 }
-''', NodeType(('N', 'T')), 'internal', '''namespace N {
+''', NodeType(('N', 'T')), 'Internal', '''namespace N {
   node a: T {}
 }
 namespace N {
   node type T {
-    #![internal]
+    #![Internal]
     node b: U {}
   }
 }
@@ -138,8 +138,8 @@ namespace N {
 
 # Connections use outer attributes for single sources and per-source ones otherwise.
 check(add_attribute, 'node type T {\n  connect a.out -> b;\n}\n',
-      Connection(('T',), 'a.out', 'b'), 'internal',
-      'node type T {\n  #[internal]\n  connect a.out -> b;\n}\n')
+      Connection(('T',), 'a.out', 'b'), 'Internal',
+      'node type T {\n  #[Internal]\n  connect a.out -> b;\n}\n')
 check(set_attribute, 'connect #[x = 1] a, b -> default output;\n',
       Connection((), 'a', 'default output'), 'x = 2',
       'connect #[x = 2] a, b -> default output;\n')
@@ -161,9 +161,9 @@ check(add_attribute, 'node a: Missing.Type { Unknown: 1 + true }\nconnect a -> n
       'connect a -> nowhere;\n')
 for target in (Node(('b',)), NodeType(('a',)), Connection((), 'a', 'b')):
     with checks.assertRaises(ValueError):
-        edit(add_attribute, 'node a: T {}\n', target, 'internal')
+        edit(add_attribute, 'node a: T {}\n', target, 'Internal')
 with checks.assertRaises(ValueError):
-    edit(add_attribute, 'node a: T {}\nnode a: T {}\n', Node(('a',)), 'internal')
+    edit(add_attribute, 'node a: T {}\nnode a: T {}\n', Node(('a',)), 'Internal')
 for metadata in ('', 'x = y', 'x] node b: T {} #![y', 'x // ]'):
     with checks.assertRaises(ValueError):
         edit(add_attribute, 'node a: T {}\n', Node(('a',)), metadata)
@@ -226,8 +226,8 @@ check_insert(('T',), format_node('k', 'U', [('P', '1')]),
 check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n\n' + body)
 check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n\n  node x: U {}\n}\n',
              source='node type T { node x: U {} }\n')
-check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  #![internal]\n  temporary t: int;\n}\n',
-             source='node type T { #![internal] }\n')
+check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  #![Internal]\n  temporary t: int;\n}\n',
+             source='node type T { #![Internal] }\n')
 check_insert(('T',), format_state('c', 'int', '0'),
              'node type T {\n  state a: int = 0; state b: int = 0;\n\n  state c: int = 0;\n}\n',
              source='node type T {\n  state a: int = 0; state b: int = 0;\n}\n')
@@ -284,8 +284,8 @@ for index, expected in ((0, 'connect q, s1, s2'), (1, 'connect s1, q, s2'),
     sources = ['s1', 's2', 's3']
     sources.insert(index, 'q')
     checks.assertEqual(multi_sources(result), sources)
-checks.assertEqual(edit(connect, body, ('T',), 'a', 'z', attributes=['internal']), body.replace(
-    '  connect x -> y.in;\n', '  connect x -> y.in;\n  #[internal]\n  connect a -> z;\n'))
+checks.assertEqual(edit(connect, body, ('T',), 'a', 'z', attributes=['Internal']), body.replace(
+    '  connect x -> y.in;\n', '  connect x -> y.in;\n  #[Internal]\n  connect a -> z;\n'))
 checks.assertEqual(edit(connect, 'node type T {\n  input a: value int;\n}\n', ('T',), 'a', 'x'),
                    'node type T {\n  input a: value int;\n\n  connect a -> x;\n}\n')
 checks.assertEqual(edit(connect, 'node type T {}\n', ('T',), 'a', 'x'),
@@ -368,7 +368,7 @@ for target, expected in (
 
 # Declarations in node type bodies take outer attributes.
 declarations = '''node type T {
-  #[internal]
+  #[Internal]
   state s: int = 0; // state
   input a: value int;
   procedure p produces s { s = 1; }
@@ -380,8 +380,8 @@ check(add_attribute, declarations, Port(('T', 'a'), 'input'), position, declarat
     '  input a', '  #[position(x = 1, y = -2.5)]\n  input a'))
 check(set_attribute, declarations, Procedure(('T', 'p')), position, declarations.replace(
     '  procedure p', '  #[position(x = 1, y = -2.5)]\n  procedure p'))
-check(remove_attribute, declarations, State(('T', 's')), 'internal',
-      declarations.replace('  #[internal]\n', ''))
+check(remove_attribute, declarations, State(('T', 's')), 'Internal',
+      declarations.replace('  #[Internal]\n', ''))
 
 # Parameter bindings follow the body's style.
 node = Node(('n',))
@@ -391,7 +391,7 @@ for source, expected in (
         ('node n: T { A: 1, }\n', 'node n: T { A: 1, B: 2, }\n'),
         ('node n: T {\n  A: 1,\n}\n', 'node n: T {\n  A: 1,\n  B: 2,\n}\n'),
         ('node n: T {\n  A: 1 // a\n}\n', 'node n: T {\n  A: 1, // a\n  B: 2\n}\n'),
-        ('node n: T { #![internal] }\n', 'node n: T {\n  #![internal]\n  B: 2\n}\n')):
+        ('node n: T { #![Internal] }\n', 'node n: T {\n  #![Internal]\n  B: 2\n}\n')):
     check(set_parameter_binding, source, node, 'B', '2', expected)
 checks.assertEqual(edit(set_parameter_binding, 'node n: T { A: 1, B: 2, A: 3 }\n', node, 'A', '5', optional=True),
                    'node n: T { A?: 5, B: 2 }\n')
@@ -424,7 +424,7 @@ check(replace_declaration, 'parameter P: int;\n', Parameter(('P',)), format_para
 for target, declaration in ((Port(('T', 'a'), 'input'), 'output a: value int;'),
                             (State(('T', 's')), 'state t: int = 0;'),
                             (State(('T', 's')), 'temporary s: int;'),
-                            (State(('T', 's')), '#[internal] state s: int = 0;'),
+                            (State(('T', 's')), '#[Internal] state s: int = 0;'),
                             (State(('T', 's')), 'state s: int ='),
                             (Procedure(('T', 'p')), 'procedure p produces s { s = 2; }')):
     with checks.assertRaises((ValueError, TypeError)):
