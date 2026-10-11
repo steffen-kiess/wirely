@@ -11,7 +11,6 @@ from wirely.runtime.engine import Engine
 
 registry = {}
 calls = Counter()
-list_inputs = []
 observations = {}
 
 
@@ -42,17 +41,6 @@ class Shared:
     @staticmethod
     def advance(*, context):
         context.set_output('saved', min(context.inputs['old'] + 1, 2))
-
-
-@native_node_type(registry, has_native_state=False)
-class Collect:
-    @staticmethod
-    def run(*, context):
-        calls[context.name] += 1
-        values = context.inputs['input']
-        list_inputs.append(values)
-        observations[context.name] = values
-        context.set_output('output', True)
 
 
 definitions = '''
@@ -116,10 +104,18 @@ namespace TestLibrary {
 
   node type Collect {
     default input: multi value boolean;
-    default output: value boolean;
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    default output: value uint8;
+    procedure run
+      depends on default input as values
+      produces default output as output
+    {
+      let mut packed: uint8 = 0;
+      for value in values {
+        packed = uint8.WrappingAdd(uint8.WrappingMul(packed, 2),
+          if value { 1 } else { 0 });
+      }
+      output = packed;
+    }
   }
 }
 '''
@@ -159,25 +155,23 @@ def check_old_snapshots():
     probe.assert_value_is('owner', False)
     probe.assert_value_is('owner.reader', False)
     probe.assert_value_is('second', True)
-    assert list_inputs[-1] == (False, True, True)
+    probe.assert_value_is('collector', 3)
 
     probe.step()
     probe.assert_value_is('owner.reader', True)
     probe.assert_value_is('second.reader', False)
-    assert list_inputs[-1] == (True, True, False)
+    probe.assert_value_is('collector', 6)
     assert calls['owner.reader'] == 2
     assert calls['second.reader'] == 2
-    assert calls['collector'] == 2
     probe.step()
     probe.assert_is_idle()
     assert calls['owner.reader'] == 2
-    assert calls['collector'] == 2
 
     probe.get_native_state('source').set_value(False)
     probe.step()
-    assert list_inputs[-1] == (True, False, False)
+    probe.assert_value_is('collector', 4)
     probe.step()
-    assert list_inputs[-1] == (False, False, False)
+    probe.assert_value_is('collector', 0)
     probe.step()
     probe.assert_is_idle()
 
@@ -253,20 +247,23 @@ class Current(Owner):
         context.set_output('output', True)
 
 
-@native_node_type(registry, has_native_state=False)
-class Mixed(Collect):
-    pass
-
-
 current_definitions = definitions + '''
 namespace TestLibrary {
   node type Mixed {
     parameter Type: ValueType;
     default input: multi value Type;
-    default output: value boolean;
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    default output: value uint32;
+    procedure run
+      depends on default input as values
+      produces default output as output
+    {
+      let mut packed: uint32 = 0;
+      for value in values {
+        packed = uint32.WrappingAdd(uint32.WrappingMul(packed, 256),
+          uint32.From(value));
+      }
+      output = packed;
+    }
   }
 
   node type Current {
@@ -317,14 +314,14 @@ def check_current_snapshots():
     current.assert_value_is('owner.New', 5)
     current.assert_value_is('owner.old_reader', 0)
     current.assert_value_is('owner.new_reader', 5)
-    assert observations['owner.mixed'] == (0, 5, 5)
+    current.assert_value_is('owner.mixed', 1285)
     current.assert_value_is('observer', 5)
     new_reader_calls = calls['owner.new_reader']
     observer_calls = calls['observer']
 
     current.step()
     assert observations['owner'] == (5, 5)
-    assert observations['owner.mixed'] == (5, 5, 5)
+    current.assert_value_is('owner.mixed', 328965)
     assert calls['owner.new_reader'] == new_reader_calls
     assert calls['observer'] == observer_calls
     current.step()
@@ -343,7 +340,7 @@ def check_current_snapshots():
     current.get_native_state('source').set_value(9)
     current.step()
     assert observations['owner'] == (5, 9)
-    assert observations['owner.mixed'] == (5, 9, 9)
+    current.assert_value_is('owner.mixed', 329993)
     current.assert_value_is('owner.new_reader', 9)
     current.assert_value_is('observer', 9)
     assert calls['owner.new_reader'] == new_reader_calls + 1

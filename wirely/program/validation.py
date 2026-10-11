@@ -53,11 +53,7 @@ def _validate_body(procedure, constant_types, functions):
         raise ValueError('Expected a ProcedureBody')
     if procedure.resources:
         raise ValueError('Bytecode procedures cannot access resources')
-    input_types = []
-    for name, input_sources, is_list in procedure.dependencies:
-        if is_list or len(input_sources) != 1:
-            raise ValueError(f'Bytecode input {name!r} must have exactly one source')
-        input_types.append(input_sources[0].value_type)
+    input_types = [source.value_type for _, source in procedure.dependencies]
     output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     tables = {
         OperandKind.INPUT: tuple(input_types),
@@ -188,9 +184,8 @@ def validate_program(program):
     for schedule in program.procs.values():
         for procedure in schedule:
             try:
-                for _, input_sources, _ in procedure.dependencies:
-                    for input_source in input_sources:
-                        check_source(input_source)
+                for _, input_source in procedure.dependencies:
+                    check_source(input_source)
                 if procedure.body is not None:
                     _validate_body(procedure, constant_types, program.functions)
             except ValueError as error:

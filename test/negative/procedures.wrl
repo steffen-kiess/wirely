@@ -219,16 +219,6 @@ node source: Std.Constant { Type: boolean, Value: true }
 node probe: Probe {}
 connect source -> probe;
 
-// TEST: unsupported multi value
-node type Probe {
-  default input: multi value boolean;
-  default output: value boolean;
-  procedure run depends on default input as input // E: Multi inputs
-    produces default output as output { output = true; }
-}
-node source: Std.DebugEventSource { Type: boolean }
-node probe: Probe {}
-
 // TEST: unsupported event
 node type Probe {
   default input: event boolean;

@@ -101,7 +101,6 @@ their contents.
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
 | [`InputInterfaces`](#inputinterfaces) | `InputInterface` | Table |
 | [`ValueInputs`](#valueinputs) | `ValueInput` | Table |
-| [`InputSources`](#inputsources) | `InputSource` | Table |
 | [`Outputs`](#outputs) | `Output` | Table |
 | [`ProcedureBodies`](#procedurebodies) | `ProcedureBody` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
@@ -674,8 +673,6 @@ duplicates.
 struct type InputInterface {
   // Input name in Names.
   Name: StringRef,
-  // 0 = one connection, 1 = ordered connection list.
-  IsList: uint8,
 }
 ```
 
@@ -684,26 +681,12 @@ Each range contains unique names in UTF-8 bytewise lexical order.
 ### ValueInputs
 
 ```wirely
-// Binds variable sources to one procedure input. ValueInputs table.
+// Binds one variable or static value to a procedure input.
+// ValueInputs table.
 struct type ValueInput {
   // Index into InputInterfaces; the input being bound. No entry for
   // procedure bodies.
   Interface: OptionalRef,
-  // Range into InputSources.
-  Sources: Range,
-}
-```
-
-The interface belongs to the native procedure's `InputInterfaces` range.
-An interface with `IsList = 0` has one source; with `IsList = 1`, the
-sources form an ordered sequence, which can be empty.
-
-### InputSources
-
-```wirely
-// One variable or static value supplying a procedure input.
-// InputSources table.
-struct type InputSource {
   // Old state, new state, temporaries, or static values.
   Bank: uint8,
   // Index into StateVariables, Temporaries, or StaticValues, selected by
@@ -711,6 +694,11 @@ struct type InputSource {
   Variable: Ref,
 }
 ```
+
+For native calls, the interface belongs to the native procedure's
+`InputInterfaces` range. Each value input binds exactly one source.
+Procedure body inputs follow dependency declaration order; multi value
+inputs expand into scalar inputs in connection order.
 
 An old-state input reads the step's old-state snapshot. A new-state input
 reads the state value written earlier in the step. A temporary input reads
@@ -781,6 +769,14 @@ The runtime matches the qualified names of native state types, native
 procedures, and native functions to native code, and binds interface names
 to static values, inputs, outputs, and resources. Linking also checks that
 each procedure's native state has the type its native procedure expects.
+
+The reserved linking name for a native procedure with multi value/event
+dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes
+are member counts in dependency declaration order, including zero counts;
+scalar and resource dependencies contribute no suffix. Native multi
+value/event specialization is not currently supported. Procedure debug
+symbols remain instance names such as `someblock:procedure`.
+
 Embedded adapters can retain numeric bindings and function pointers after
 linking. Native trigger names resolve to the same native procedure indices.
 
@@ -1110,10 +1106,11 @@ Sorting turns uniqueness into a comparison with the predecessor. This
 applies to ranges into `InterfaceNames`, `InputInterfaces`, and
 `ResourceInterfaces`, to `NativeStateTypes`, `NativeProcedures`, and
 `NativeFunctions`, and to aliases. Bindings refer to entries in the
-matching range of their native procedure or native state type, and their
-source and provider counts match `IsList`. A resource provider's output
-lies within its type's `ResourceOutputInterfaces` and has the resource
-type of the interface it is bound to. Each symbol table has as many
+matching range of their native procedure or native state type.
+Each value input binds one source; resource provider counts match
+`IsList`. A resource provider's output lies within its type's
+`ResourceOutputInterfaces` and has the resource type of the interface it
+is bound to. Each symbol table has as many
 entries as its target table.
 
 ### Procedures and code

@@ -15,21 +15,6 @@ class Constant:
 
 
 @native_node_type(native_node_types, has_native_state=False)
-class And:
-    @staticmethod
-    def run(*, context):
-        res = True
-
-        for val in context.inputs['input']:
-            if not isinstance(val, bool):
-                raise Exception(f'{val!r} is not a bool')
-            if not val:
-                res = False
-
-        context.set_output('output', res)
-
-
-@native_node_type(native_node_types, has_native_state=False)
 class DelayOneStep:
     @staticmethod
     def copy_from_input(*, context):

@@ -353,21 +353,38 @@ def lower_program(global_node_type):
 
     for stage_procs in procs.values():
         for path, proc in stage_procs:
+            # Native multi value/event specialization is not implemented by the runtime.
+            if proc.declaration_procedure.is_native and any(
+                    getattr(source, 'is_list', False) and not model.ast.dependency_is_resource(source)
+                    for source in proc.static_context._sources.values()):
+                raise model.ProgramError(proc.declaration_procedure,
+                                         'Native runtime does not support multi value or event dependencies')
             if proc.declaration_procedure.is_native:
                 continue
             source_types = {}
+            multi_sources = {}
             for name, source in proc.static_context._sources.items():
                 declaration = proc.declaration_procedure
                 port = next(port for port in declaration.depends.dependencies
                                if port.key == name)
                 if model.ast.dependency_is_resource(source):
                     raise model.ProgramError(port, 'Procedures cannot access resources')
-                if getattr(source, 'is_list', False):
-                    raise model.ProgramError(port, 'Multi inputs are not supported in procedures')
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     raise model.ProgramError(port, 'Event ports are not supported in procedures')
-                source_types[name] = resolve_source(path, source).value_type
+                if getattr(source, 'is_list', False):
+                    value_type = (resolve_type(source.var_type, instances[path].static_values)
+                                  if hasattr(source, 'var_type') else
+                                  instances[path].node_type.resolve_type(
+                                      spec.ty, par_values=instances[path].static_values))
+                    keys = []
+                    for index, (member_path, member, _) in enumerate(members(path, source)):
+                        key = name, index
+                        source_types[key] = resolve_source(member_path, member).value_type
+                        keys.append(key)
+                    multi_sources[name] = value_type, tuple(keys)
+                else:
+                    source_types[name] = resolve_source(path, source).value_type
             output_types = {}
             for name, target in proc.static_context._targets.items():
                 spec = getattr(target, 'port_spec', None)
@@ -381,7 +398,7 @@ def lower_program(global_node_type):
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
-                                                 intern_constant, intern_function)
+                                                 intern_constant, intern_function, multi_sources)
 
     from .static_bindings import evaluate_bindings
     schedules = {}
@@ -399,8 +416,9 @@ def lower_program(global_node_type):
                     resources.append((name, tuple(node_ids[provider] for provider in paths), is_list))
                     continue
                 is_list = getattr(source, 'is_list', False)
-                dependencies.append((name, tuple(resolve_source(member_path, member)
-                                                 for member_path, member, _ in members(path, source)), is_list))
+                for index, (member_path, member, _) in enumerate(members(path, source)):
+                    debug_name = f'{name}[{index}]' if is_list else name
+                    dependencies.append((debug_name, resolve_source(member_path, member)))
             for name, target in proc.static_context._targets.items():
                 if isinstance(target, model.InstanceStateVariable):
                     outputs[name] = OutputTarget(state_map[path, target])
@@ -428,7 +446,7 @@ def lower_program(global_node_type):
                 node_id=node_ids[path],
                 reference=(instance.node_type.fullname_tuple, f'<state {state.name}>'),
                 node_context=native_instances[node_ids[path]],
-                dependencies=(('value', (resolve_source(path, state.copy_source),), False),),
+                dependencies=(('value', resolve_source(path, state.copy_source)),),
                 resources=(), outputs={'value': OutputTarget(state_map[path, state])},
                 body=COPY_BODY,
             ))

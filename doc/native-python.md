@@ -68,9 +68,10 @@ return values are ignored. Use native node tasks for asynchronous I/O.
 [native objects](#native-objects-resources-and-tasks).
 
 `context.inputs` is a read-only mapping of dependency names to values for
-this invocation. A `multi value T` input provides a tuple of connected
-values in connection order, or `()` when unconnected. A `value List[T]`
-input carries a single tuple-valued datum.
+this invocation. Native procedures currently accept only single
+value/event dependencies. Use a Wirely procedure to aggregate multi value
+inputs.
+A `value List[T]` input carries a single tuple-valued datum.
 
 A resource dependency supplies the provider's native object; a multi
 resource supplies a tuple of these objects in connection order. Resource

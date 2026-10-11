@@ -39,7 +39,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
     instance = NativeInstance('test', ('Test',), False, {}, ())
     procedure = Procedure(
         node_id='test', reference=(('Test',), 'run'), node_context=instance,
-        dependencies=tuple((variable.name, (InputSource(variable, new_state=False),), False)
+        dependencies=tuple((variable.name, InputSource(variable, new_state=False))
                            for variable in state),
         resources=(), outputs={variable.name: OutputTarget(variable) for variable in outputs},
         body=ProcedureBody(instructions, local_types),
@@ -270,7 +270,7 @@ def check_arithmetic():
     validate_program(program)
     procedure = program.procs[RunStage.DEFAULT][0]
     for _ in range(3):
-        assert execute_procedure(program, procedure, {}) == {'output0': True}
+        assert execute_procedure(program, procedure, ()) == {'output0': True}
 
 
 def check_branches():

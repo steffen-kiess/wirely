@@ -214,6 +214,14 @@ class IfLetExpression(Expression):
         self.otherwise = otherwise
 
 
+class ForExpression(Expression):
+    def __init__(self, name, iterable, body, *, source_position):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.iterable = iterable
+        self.body = body
+
+
 class ExpressionBlock(Expression):
     def __init__(self, *statements, source_position):
         super().__init__(source_position=source_position)
@@ -541,6 +549,13 @@ class InstructionCompiler:
                 return source
             self.emit(Opcode.COPY, destination, source)
             return destination
+        if operation == 'for':
+            slot, members = expression.payload
+            for member in members:
+                self.locals[slot] = self.inputs[member]
+                self.compile(expression.arguments[0])
+            self.locals.pop(slot, None)
+            return self.compile(TypedExpression(model.types.unit, 'unit'), destination)
         if operation == 'block':
             for value in expression.arguments[:-1]:
                 self.compile(value)
@@ -662,6 +677,7 @@ class ExpressionCompiler:
         self.static_usage = set()
         self.bindings = {}
         self.initialization = {}
+        self.loop_outer_keys = None
 
     def record_static_usage(self, expression):
         expression = property_reference(self.scope, expression, self.names)
@@ -728,11 +744,42 @@ class ExpressionCompiler:
         binding = self.bindings.get(key)
         if binding is None:
             raise ProgramError(target, f'Cannot assign to {name!r}; expected a local variable or output')
+        if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
+            raise ProgramError(target, f'Cannot assign outer immutable binding {name!r} inside a loop')
         rhs = self.compile(expression.expression, binding.value.value_type)
         if not binding.mutable and self.initialization[key][0]:
             raise ProgramError(target, f'Immutable binding {name!r} may be assigned more than once')
         self.initialization[key] = True, True
         return TypedExpression(model.types.unit, 'assign', (rhs,), key)
+
+    def for_expression(self, expression):
+        if not self.runtime:
+            raise ProgramError(expression, 'For loops are only allowed in procedure bodies')
+        if self.loop_outer_keys is not None:
+            raise ProgramError(expression, 'Nested for loops are not supported')
+        iterable = expression.iterable
+        value = (self.names.get(iterable.identifiers[0].id_str)
+                 if isinstance(iterable, model.Reference) and iterable.length == 1 else None)
+        if value is None or value.operation != 'multi_input':
+            raise ProgramError(iterable, 'For loops require a multi value input name')
+        name = expression.name.id_str
+        if name in self.protected:
+            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
+        previous_names = dict(self.names)
+        before = dict(self.initialization)
+        slot = self.next_slot
+        self.next_slot += 1
+        self.loop_outer_keys = set(before)
+        self.bind(name, TypedExpression(value.value_type, 'local', payload=slot), initialized=True)
+        try:
+            body = self.compile(expression.body, model.types.unit)
+            # A loop may execute zero times, regardless of its specialized arity.
+            self.merge_initialization(before, before, self.initialization)
+        finally:
+            self.names = previous_names
+            self.loop_outer_keys = None
+            self.initialization = {key: state for key, state in self.initialization.items() if key in before}
+        return TypedExpression(model.types.unit, 'for', (body,), (slot, value.payload))
 
     def block(self, expression, expected):
         previous_names = dict(self.names)
@@ -771,6 +818,8 @@ class ExpressionCompiler:
 
     def _compile(self, expression, expected):
         boolean = model.types.boolean
+        if isinstance(expression, ForExpression):
+            return self.for_expression(expression)
         if isinstance(expression, AssignmentExpression):
             return self.assignment(expression)
         if isinstance(expression, PropertyAccess):
@@ -863,6 +912,8 @@ class ExpressionCompiler:
             name = expression.identifiers[0].id_str
             if name in self.names:
                 value = self.names[name]
+                if value.operation == 'multi_input':
+                    raise ProgramError(expression, 'Multi inputs can only be used as for-loop sources')
                 key = value.operation, value.payload
                 if key in self.initialization and not self.initialization[key][1]:
                     raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
@@ -1137,6 +1188,8 @@ class ExpressionCompiler:
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return model.types.boolean
+        if isinstance(expression, ForExpression):
+            return model.types.unit
         if isinstance(expression, AssignmentExpression):
             return model.types.unit
         if isinstance(expression, ExpressionBlock):
@@ -1197,13 +1250,18 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
-def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function):
+def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
+                      multi_sources=None):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
+    multi_sources = multi_sources or {}
     names = {name: TypedExpression(value_type, 'input', payload=name)
-             for name, value_type in source_types.items()}
+             for name, value_type in source_types.items() if isinstance(name, str)}
+    names.update({name: TypedExpression(value_type, 'multi_input', payload=members)
+                  for name, (value_type, members) in multi_sources.items()})
+    input_names = set(names)
     protected = set(output_types) | set(instance.node_type.static_declarations)
-    overlap = ((set(source_types) & protected)
+    overlap = ((input_names & protected)
                | (set(output_types) & set(instance.node_type.static_declarations)))
     if overlap:
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
@@ -1212,7 +1270,7 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
         if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
-                                  names=names, protected=protected | set(source_types))
+                                  names=names, protected=protected | input_names)
     for name, value_type in output_types.items():
         compiler.bind(name, TypedExpression(value_type, 'output', payload=name))
     body = compiler.compile(declaration.body, model.types.unit)

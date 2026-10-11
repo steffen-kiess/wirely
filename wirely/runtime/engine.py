@@ -145,28 +145,30 @@ class Engine:
                 key = proc.key
                 inputs = self._resource_inputs(proc.resources)
                 skip_step = cache is not None and key not in self.triggered_procs
-                for name, input_sources, is_list in proc.dependencies:
-                    values = []
-                    for input_source in input_sources:
-                        variable = input_source.variable
-                        if input_source.constant is not None:
-                            # Constants never change.
-                            value = input_source.constant.value
-                        elif input_source.new_state is None:
-                            value = variables[variable]
-                            if skip_step and not variable.var_type.equals(value, cache[variable]):
-                                skip_step = False
-                        elif input_source.new_state:
-                            value = state_new[variable]
-                            # The old state is the previous step's new state.
-                            if skip_step and not variable.var_type.equals(value, state_old[variable]):
-                                skip_step = False
-                        else:
-                            value = state_old[variable]
-                            if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
-                                skip_step = False
-                        values.append(wirely.value_types._to_native(input_source.value_type, value))
-                    inputs[name] = tuple(values) if is_list else values[0]
+                body_inputs = []
+                for name, input_source in proc.dependencies:
+                    variable = input_source.variable
+                    if input_source.constant is not None:
+                        # Constants never change.
+                        value = input_source.constant.value
+                    elif input_source.new_state is None:
+                        value = variables[variable]
+                        if skip_step and not variable.var_type.equals(value, cache[variable]):
+                            skip_step = False
+                    elif input_source.new_state:
+                        value = state_new[variable]
+                        # The old state is the previous step's new state.
+                        if skip_step and not variable.var_type.equals(value, state_old[variable]):
+                            skip_step = False
+                    else:
+                        value = state_old[variable]
+                        if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
+                            skip_step = False
+                    native_value = wirely.value_types._to_native(input_source.value_type, value)
+                    if proc.body is None:
+                        inputs[name] = native_value
+                    else:
+                        body_inputs.append(native_value)
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
                     if not wirely.MonotonicTime.is_comparable(now, deadline) or wirely.MonotonicTime.compare(now, deadline) >= 0:
@@ -194,7 +196,7 @@ class Engine:
                     target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
                     getattr(target, proc.reference[1])(context=context)
                 else:
-                    for name, value in execute_procedure(self.program, proc, inputs, self.native_functions).items():
+                    for name, value in execute_procedure(self.program, proc, body_inputs, self.native_functions).items():
                         context.set_output(name, value)
                 missing = set(proc.outputs) - context._written_outputs
                 if missing:

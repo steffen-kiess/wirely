@@ -157,11 +157,11 @@ parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
 Identifiers are case-sensitive. Weak keywords `constant`, `default`,
-`event`, `input`, `multi`, `on`, `output`, `resource`, `stage`, `state`, `type`,
-and `value` can also be used as identifiers. Other keywords require the `r#`
-prefix when used as names, for example `node r#node: Std.And {}`. Declarations
-end with `;`, except node instances and type and namespace bodies, which end
-at `}`.
+`event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
+`state`, `type`, and `value` can also be used as identifiers. Other keywords
+require the `r#` prefix when used as names, for example
+`node r#node: Std.And {}`. Declarations end with `;`, except node instances
+and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
@@ -632,8 +632,8 @@ or `||` without parentheses.
 Procedures can copy any runtime value, including options and structs, read
 struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
-Their ports are currently limited to single `value` ports, not events
-or multi inputs. State reads must be listed in
+Their ports support single and multi `value` inputs and single `value`
+outputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
@@ -642,7 +642,30 @@ The engine runs them initially and when dependencies change, retaining
 outputs while dependencies are unchanged. Local mutation is confined to
 one invocation.
 
-Bodies have no loops or recursion. This keeps an unrelated computation
+Iterate over a multi value dependency with `for`:
+
+```wirely
+let mut result = true;
+for value in inputs {
+  result = result && value;
+}
+output = result;
+```
+
+The source directly names a multi value dependency, declared as a typed
+port or referenced through `depends on`. Multi inputs support iteration
+only. Iteration follows connection order, and an empty input executes no
+iterations. The loop variable is immutable and scoped to the unit-valued
+body. Loops yield unit and can omit a trailing semicolon.
+
+Loops are available only in procedure bodies and cannot nest. Initialize
+outer locals before reading them in a loop, and use mutable locals for
+accumulation. Initialization after a loop is checked as if the loop could
+be empty, regardless of its connected sources. Assign outputs after the
+loop; outer immutable bindings cannot be assigned inside it.
+
+Loops are expanded during compilation; bodies have no runtime loops or
+recursion. This keeps an unrelated computation
 from holding up actions such as switching on a light. The goal is prompt,
 predictable home automation, rather than a hard real-time guarantee;
 execution cost still depends on the body and the size of its values.

@@ -20,9 +20,16 @@ namespace Std {
     default input: multi value boolean;
     default output: value boolean;
 
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      let mut result = true;
+      for value in input {
+        result = result && value;
+      }
+      output = result;
+    }
   }
 
   node type DelayOneStep {

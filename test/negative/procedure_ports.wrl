@@ -218,23 +218,6 @@ node source: Std.DebugEventSource { Type: boolean }
 node invalid: Invalid {}
 connect source -> invalid.Flag;
 
-// TEST: procedure_port_body_multi
-// LIBRARIES: std
-node type Invalid {
-  input Flag: value boolean;
-  default output: value boolean;
-  procedure run
-    depends on values: multi value boolean // E: Multi inputs are not supported in procedures
-    produces default output as output
-  {
-    output = true;
-  }
-  connect Flag -> run.values;
-}
-node source: Std.DebugValueSource { Type: boolean }
-node invalid: Invalid {}
-connect source -> invalid.Flag;
-
 // TEST: initializer_typed_port
 resource type Handle;
 native node type Invalid {

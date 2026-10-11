@@ -25,7 +25,7 @@ def check_static_sources():
     assert [constant.value for constant in program.constants].count(12) == 1
     procedure = next(proc for schedule in program.procs.values() for proc in schedule
                      if proc.node_id == 'limit_twice')
-    (_, (source,), _), = procedure.dependencies
+    (_, source), = procedure.dependencies
     assert source.constant is limit
     with checks.assertRaises(ValueError):
         engine.get_variable('forward')

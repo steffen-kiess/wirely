@@ -623,3 +623,45 @@ check_duration_functions()
 check_time_of_day_functions()
 check_monotonic_time_functions()
 check_mutation()
+
+
+def check_multi_procedures():
+    # Compile the accepted language fixture as setup for runtime checks.
+    graph = wirely.compiler.compile_files(['test/compiler/multi_procedures.wrl'])
+    machine = Engine(program_compiler.compile(graph))
+    machine.step()
+    for name, expected in {'digits': 21354, 'sum': 12, 'empty': 0, 'single': 6}.items():
+        machine.assert_value_is(name, expected)
+    machine.assert_is_idle()
+    procedure = next(proc for schedule in machine.program.procs.values() for proc in schedule
+                     if proc.node_id == 'digits')
+    assert procedure.reference[1] == 'run'
+    assert [name for name, _ in procedure.dependencies] == ['z[0]', 'z[1]', 'middle', 'a[0]', 'a[1]']
+    assert all(isinstance(source, wirely.program.InputSource) for _, source in procedure.dependencies)
+
+    # A short-circuited member still schedules a new invocation when it changes.
+    program = compile_program('''
+    node first: Std.DebugValueSource { Type: boolean }
+    node second: Std.DebugValueSource { Type: boolean }
+    node combined: Std.And {}
+    connect first, second -> combined;
+    ''', add_std=True)
+    machine = Engine(program)
+    first = machine.get_native_state('first')
+    second = machine.get_native_state('second')
+    first.set_value(False)
+    second.set_value(False)
+    machine.step()
+    machine.assert_value_is('combined', False)
+    machine.assert_is_idle()
+    second.set_value(True)
+    run_count, _, _ = machine.step()
+    assert run_count == 2
+    machine.assert_value_is('combined', False)
+    first.set_value(True)
+    machine.step()
+    machine.assert_value_is('combined', True)
+    machine.assert_is_idle()
+
+
+check_multi_procedures()

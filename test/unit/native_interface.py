@@ -351,75 +351,13 @@ def check_triggers():
     trigger_engine.assert_is_idle()
 
 
-def check_multi_inputs():
-    def check_list(context):
-        assert context.inputs['values'] == (7, 2)
-        context.set_output('output', sum(context.inputs['values']))
-
-    probe = make_engine('''
-    default input: multi value uint8;
-    default output: value uint8;
-
-    native procedure run
-      depends on default input as "values"
-      produces default output as "output";
-    ''', check_list, extra='''
-    node first: Std.Constant { Type: uint8, Value: 7 }
-    node second: Std.Constant { Type: uint8, Value: 2 }
-    connect first, second -> probe;
-    ''')
-    probe.step()
-    probe.assert_value_is('probe', 9)
-
-    def check_empty_list(context):
-        assert context.inputs['values'] == ()
-        context.set_output('output', 0)
-
-    probe = make_engine('''
-    default input: multi value uint8;
-    default output: value uint8;
-
-    native procedure run
-      depends on default input as "values"
-      produces default output as "output";
-    ''', check_empty_list)
-    probe.step()
-    probe.assert_value_is('probe', 0)
-
-    event_snapshots = []
-
-    def check_event_connections(context):
-        values = context.inputs['values']
-        assert type(values) is tuple
-        event_snapshots.append(values)
-
-    probe = make_engine('''
-    default input: multi event uint8;
-
-    native procedure run
-      depends on default input as "values";
-    ''', check_event_connections, extra='''
-    node first: Std.DebugEventSource { Type: uint8 }
-    node second: Std.DebugEventSource { Type: uint8 }
-    connect first, second -> probe;
-    ''')
-    probe.step()
-    assert event_snapshots[-1] == (None, None)
-    probe.get_native_state('first').send_event(wirely.Some(1))
-    probe.get_native_state('second').send_event(wirely.Some(3))
-    probe.step()
-    assert event_snapshots[-1] == (wirely.Some(1), wirely.Some(3))
-    probe.step()
-    assert event_snapshots[-1] == (None, None)
-    probe.assert_is_idle()
-
-
 def check_typed_ports():
     # Typed ports receive their sources through connections.
     snapshots = []
 
     def check_ports(context):
-        values, level = context.inputs['values'], context.inputs['level']
+        values = context.inputs['values'], context.inputs['other']
+        level = context.inputs['level']
         snapshots.append(values)
         context.set_output('total', level + sum(value.value for value in values if value is not None))
 
@@ -430,9 +368,10 @@ def check_typed_ports():
     node level: Std.Constant { Type: uint8, Value: 7 }
 
     native procedure run
-      depends on values: multi event uint8, level: value uint8
+      depends on values: event uint8, other: event uint8, level: value uint8
       produces total: value uint8;
-    connect first, second -> run.values;
+    connect first -> run.values;
+    connect second -> run.other;
     connect level -> run.level;
     connect run.total -> default output;
     ''', check_ports)
@@ -812,7 +751,6 @@ check_wakeups()
 check_context_names()
 check_stage_times()
 check_triggers()
-check_multi_inputs()
 check_typed_ports()
 check_outputs()
 check_events()

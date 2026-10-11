@@ -131,7 +131,7 @@ class Procedure:
     node_id: str  # Owning node's key in Program.instances.
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
     node_context: NativeInstance  # Stored context for this node.
-    dependencies: tuple  # (input name, InputSource tuple, is_list) entries.
+    dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
     resources: tuple  # (input name, provider node IDs, is_list) entries.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
@@ -141,11 +141,10 @@ class Procedure:
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
         type_name, proc_name = self.reference
         object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
-        for field in ('dependencies', 'resources'):
-            object.__setattr__(self, field, tuple(
-                (name, tuple(entries), is_list)
-                for name, entries, is_list in getattr(self, field)
-            ))
+        object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
+        object.__setattr__(self, 'resources', tuple(
+            (name, tuple(entries), is_list) for name, entries, is_list in self.resources
+        ))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
     @property
@@ -267,11 +266,8 @@ class Program:
                 line(f'node context: {proc.node_context.name}', 6)
                 value('values', dict(proc.values), 6)
                 line('dependencies:', 6)
-                for name, input_sources, is_list in proc.dependencies:
-                    sources = ', '.join(source(input_source) for input_source in input_sources)
-                    if is_list:
-                        sources = '[' + sources + ']'
-                    line(f'{name}: {sources}', 8)
+                for name, input_source in proc.dependencies:
+                    line(f'{name}: {source(input_source)}', 8)
                 line('resources:', 6)
                 resources(proc.resources, 8)
                 line('outputs:', 6)

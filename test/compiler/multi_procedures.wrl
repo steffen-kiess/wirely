@@ -1,0 +1,102 @@
+// Explicit dependencies flatten in declaration order, not lexical order.
+node type Digits {
+  input Z: multi value uint16;
+  input Middle: value uint16;
+  input A: multi value uint16;
+  default output: value uint16;
+  procedure run
+    depends on z: multi value uint16, middle: value uint16,
+      a: multi value uint16, empty: multi value uint16
+    produces default output as output
+  {
+    let mut number: uint16 = 0;
+    for digit in z {
+      let saved = digit;
+      let mut digit = saved;
+      digit = uint16.WrappingAdd(digit, 0);
+      number = uint16.WrappingAdd(uint16.WrappingMul(number, 10), digit);
+    }
+    number = uint16.WrappingAdd(uint16.WrappingMul(number, 10), middle);
+    for digit in a {
+      number = uint16.WrappingAdd(uint16.WrappingMul(number, 10), digit);
+    }
+    for digit in empty {
+      number = uint16.WrappingAdd(number, digit);
+    }
+    output = number;
+  }
+  connect Z -> run.z;
+  connect Middle -> run.middle;
+  connect A -> run.a;
+}
+node digit_one: Std.Constant { Type: uint16, Value: 1 }
+node digit_two: Std.Constant { Type: uint16, Value: 2 }
+node digit_three: Std.Constant { Type: uint16, Value: 3 }
+node four: Std.Constant { Type: uint16, Value: 4 }
+node five: Std.Constant { Type: uint16, Value: 5 }
+node digits: Digits {}
+connect digit_two, digit_one -> digits.Z;
+connect digit_three -> digits.Middle;
+connect five, four -> digits.A;
+
+node one: Std.Constant { Type: uint8, Value: 1 }
+node two: Std.Constant { Type: uint8, Value: 2 }
+node three: Std.Constant { Type: uint8, Value: 3 }
+
+// Forwarded, parameterized multi inputs and per-iteration locals.
+node type Sum {
+  parameter Type: ValueType = uint8;
+  default input: multi value Type;
+  default output: value Type;
+  procedure run
+    depends on default input as values
+    produces default output as output
+  {
+    let mut total: Type = 0;
+    for value in values {
+      let copy: Type;
+      copy = value;
+      total = Type.WrappingAdd(total, copy);
+    }
+    if true {
+      for value in values {
+        total = Type.WrappingAdd(total, value);
+      }
+    }
+    output = total;
+  }
+}
+node type Forward {
+  default input: multi value uint8;
+  default output: value uint8;
+  node child: Sum {}
+  connect default input -> child;
+  connect child -> default output;
+}
+node sum: Forward {}
+connect one, two, three -> sum;
+node empty: Sum {}
+node single: Sum {}
+connect three -> single;
+
+// Unit-valued loops also work in expression positions and as block tails.
+node type UnitLoops {
+  default input: multi value boolean;
+  procedure run depends on values: multi value boolean {
+    let mut delayed: boolean;
+    for value in values { delayed = value; }
+    delayed = true;
+    delayed;
+    let nothing = for value in values { value; };
+    nothing;
+    let compared = (for value in values {}) == ();
+    let selected = if true { for value in values {} } else {};
+    compared;
+    selected;
+    for value in values { value; }
+  }
+  connect default input -> run.values;
+}
+node unit: UnitLoops {}
+node enabled: Std.Constant { Type: boolean, Value: true }
+connect enabled -> unit;

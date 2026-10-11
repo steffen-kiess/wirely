@@ -165,7 +165,8 @@ struct_literal_field_list: _list{struct_literal_field} -> copy_list
 struct_literal_field: identifier ":" expression
 
 ?atom: nonblock_atom | block_expression
-?block_expression: if_expression | expression_block
+?block_expression: if_expression | expression_block | for_expression
+for_expression: "for" identifier "in" expression_no_struct expression_block
 ?nonblock_atom: int_number -> copy
     | float_number -> copy
     | string_constant -> copy
@@ -198,6 +199,7 @@ reference: identifier ("." identifier)* -> reference__from_list
     | "default"
     | "event"
     | "input"
+    | "in"
     | "multi"
     | "on"
     | "output"
