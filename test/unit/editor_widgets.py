@@ -115,8 +115,9 @@ def scene_center(view):
 
 def check_center(view, expected):
     delta = (scene_center(view) - expected) * math.exp(view.zoom)
-    checks.assertLessEqual(abs(delta.x()), 1)
-    checks.assertLessEqual(abs(delta.y()), 1)
+    # Allow floating-point roundoff at the one-pixel boundary.
+    checks.assertLessEqual(abs(delta.x()), 1 + 1e-9)
+    checks.assertLessEqual(abs(delta.y()), 1 + 1e-9)
 
 
 with tempfile.TemporaryDirectory() as directory:
