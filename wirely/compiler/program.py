@@ -60,6 +60,13 @@ def specialize_instances(graph, root, *, variable_map, all_variables, state_map,
                         path=(node,), parent_instance=None)
 
 
+def members(path, source):
+    """Return (path, port, steps) for each source of a dependency, see list_members()."""
+    if getattr(source, 'is_list', False):
+        return model.list_members(path, source)
+    return [(path, source, ())]
+
+
 def lower_program(global_node_type):
     # TODO: More checks, e.g. that global_node_type has not parameters or inputs / outputs
     graph = global_node_type
@@ -215,10 +222,9 @@ def lower_program(global_node_type):
             if model.ast.dependency_is_resource(dep):
                 continue
             else:
-                members = dep.members if getattr(dep, 'is_list', False) else (dep,)
-                for member in members:
-                    trace = {}
-                    producer_path, variable = model.resolve_variable(path, member, trace)
+                for member_path, member, steps in members(path, dep):
+                    trace = {(step_path, id(step)): step for step_path, step in steps}
+                    producer_path, variable = model.resolve_variable(member_path, member, trace)
                     connections = model.traced_connections(list(trace.values()))
                     if isinstance(variable, model.StateRead):
                         if variable.phase == 'new':
@@ -256,11 +262,10 @@ def lower_program(global_node_type):
     def resource_paths(path, source, port, connections=None):
         """Return the providers of a resource input; connections collects each provider's connections."""
         is_list = getattr(source, 'is_list', False)
-        members = source.members if is_list else (source,)
         paths = []
-        for member in members:
-            trace = {}
-            provider_path, output = model.resolve_variable(path, member, trace)
+        for member_path, member, steps in members(path, source):
+            trace = {(step_path, id(step)): step for step_path, step in steps}
+            provider_path, output = model.resolve_variable(member_path, member, trace)
             if connections is not None:
                 connections.append(model.traced_connections(list(trace.values())))
             if not instances[provider_path].node_type.is_native:
@@ -394,8 +399,8 @@ def lower_program(global_node_type):
                     resources.append((name, tuple(node_ids[provider] for provider in paths), is_list))
                     continue
                 is_list = getattr(source, 'is_list', False)
-                members = source.members if is_list else (source,)
-                dependencies.append((name, tuple(resolve_source(path, member) for member in members), is_list))
+                dependencies.append((name, tuple(resolve_source(member_path, member)
+                                                 for member_path, member, _ in members(path, source)), is_list))
             for name, target in proc.static_context._targets.items():
                 if isinstance(target, model.InstanceStateVariable):
                     outputs[name] = OutputTarget(state_map[path, target])

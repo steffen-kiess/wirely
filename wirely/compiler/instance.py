@@ -159,7 +159,8 @@ class InstanceNode(model.GraphElement):
 
     def bind_variables(self, *, path, variable_map, resolve_source):
         for var in self.all_input_ports:
-            if isinstance(var.port_spec, model.PortTypeSpecificationResource):
+            # A member forwarding a whole multi input is resolved through its members.
+            if isinstance(var.port_spec, model.PortTypeSpecificationResource) or model.forwards_multi_input(var):
                 continue
             variable_map[path, var.var_identifier] = resolve_source(path, var)
         for var in self.output_ports:

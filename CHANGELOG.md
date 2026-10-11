@@ -65,6 +65,8 @@ them to `apply_edits()` to get the new texts.
   declarations and instances. It also checks whether ports can be
   connected and lists the node types and type names usable in a scope.
   Compiler diagnostics carry source offsets.
+- A node type can connect its own `multi` input to a multi input of a
+  child node, which receives all of its sources.
 - `#[Unordered]` marks `multi` inputs whose connection order has no
   meaning, such as the input of `Std.And`.
 - `wirely edit` edits programs as source text and as diagrams, kept in

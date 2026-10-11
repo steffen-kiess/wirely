@@ -62,6 +62,7 @@ test_names = [
     'wrl/delay',
     'wrl/std',
     'wrl/and',
+    'wrl/multi_forward',
     'wrl/option',
     'wrl/gpio',
     'wrl/knx',

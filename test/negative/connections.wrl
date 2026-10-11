@@ -208,3 +208,27 @@ node type Probe {
   connect Flag -> default output; // E: Unable to resolve value parameter Probe.Flag
 }
 node probe: Probe {} // H: While instantiating 'probe'
+
+// TEST: multi input to a single child input
+node type Inner {
+  default input: value boolean; // H: Target was declared here
+}
+node type Outer {
+  default input: multi value boolean; // H: Source was declared here
+  node inner: Inner {}
+  connect default input -> inner; // E: A multi input can only be connected to a multi input
+}
+
+// TEST: multi input to an output
+node type Probe {
+  default input: multi value boolean; // H: Source was declared here
+  default output: value boolean; // H: Target was declared here
+  connect default input -> default output; // E: A multi input can only be connected to a multi input
+}
+
+// TEST: multi input to a temporary
+node type Probe {
+  input Values: multi value boolean; // H: Source was declared here
+  temporary values: boolean; // H: Target was declared here
+  connect Values -> values; // E: A multi input can only be connected to a multi input
+}

@@ -38,6 +38,8 @@ _exports = {
     'NodeTypeInstance': 'compiler.instance',
     'connect': 'compiler.support',
     'connection_kind': 'compiler.support',
+    'forwards_multi_input': 'compiler.support',
+    'list_members': 'compiler.support',
     'path_resolve_singleton': 'compiler.support',
     'resolve_variable': 'compiler.support',
     'traced_connections': 'compiler.support',

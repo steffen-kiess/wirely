@@ -60,6 +60,11 @@ def connect(source, target, source_element, *, attributes=()):
         raise model.ProgramError(source_element, occupied_message(target), hints=previous_connection_hints())
 
     is_resource = check_compatible(source, target, source_element)
+    if getattr(source, 'is_list', False) and not getattr(target, 'is_list', False):
+        raise model.ProgramError(source_element, 'A multi input can only be connected to a multi input', hints=[
+            model.CompilerHint(port_declaration(source), 'Source was declared here'),
+            model.CompilerHint(port_declaration(target), 'Target was declared here'),
+        ])
     target.connect(source)
     # A procedure port stores its first state; later states copy it.
     if (isinstance(target, model.StateNode) and isinstance(source, model.ProcedureOutputPort)
@@ -160,6 +165,32 @@ def incoming_connection(var):
 def traced_connections(trace):
     """Return the connections passed by resolve_variable() steps, in data-flow order."""
     return [connection for connection in map(incoming_connection, reversed(trace)) if connection is not None]
+
+
+def forwards_multi_input(port):
+    """Whether a member of a multi input is connected to a whole multi input of its parent."""
+    source = getattr(port, 'connected_source', None)
+    return isinstance(source, model.TypeInputPort) and source.is_list
+
+
+def list_members(path, port, steps=()):
+    """Return (path, member, steps) for each source of a multi input, in order.
+
+    A member forwarding a multi input of the parent node is replaced by the
+    members of that input; steps holds the (path, member) pairs passed so.
+    """
+    result = []
+    for member in port.members:
+        if not forwards_multi_input(member):
+            result.append((path, member, steps))
+            continue
+        parent_path = path[:-1]
+        parent = parent_path[-1]
+        if not isinstance(parent, InstanceNode):
+            parent = parent.singleton_instance
+        forwarded = parent.input_ports_byname[member.connected_source.input_name]
+        result += list_members(path_resolve_singleton(parent_path), forwarded, (*steps, (path, member)))
+    return result
 
 
 def resolve_variable(path, var, seen=None):

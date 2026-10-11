@@ -36,15 +36,16 @@ node type Positioned {
 }
 node positioned_type: Positioned {}
 
-node type Inputs {
+node type AllOf {
   #[Unordered]
   default input: multi value boolean;
   default output: value boolean;
-  node constant: Std.Constant { Type: boolean, Value: false }
-  connect constant -> default output;
+  node all: Std.And {}
+  connect default input -> all;
+  connect all -> default output;
 }
-node inputs: Inputs {}
-connect source, source -> inputs;
+node all_of: AllOf {}
+connect source, source -> all_of;
 
 node type Sized {
   #![Diagram.DefaultWidth = 10]

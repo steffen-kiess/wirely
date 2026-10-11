@@ -1,0 +1,34 @@
+// A node type passes its multi input on to a child's multi input, alone or
+// after other sources.
+node type Inner {
+  default input: multi value boolean;
+  default output: value boolean;
+  node all: Std.And {}
+  connect default input -> all;
+  connect all -> default output;
+}
+
+node type Outer {
+  default input: multi value boolean;
+  input Extra: value boolean;
+  default output: value boolean;
+  node inner: Inner {}
+  connect Extra, default input -> inner;
+  connect inner -> default output;
+}
+
+node inp0: Std.DebugValueSource { Type: boolean }
+node inp1: Std.DebugValueSource { Type: boolean }
+node inp2: Std.DebugValueSource { Type: boolean }
+
+node inner: Inner {}
+connect inp0, inp1 -> inner;
+
+node outer: Outer {}
+connect inp0 -> outer.Extra;
+connect inp1, inp2 -> outer;
+
+node empty: Inner {}
+
+node empty_outer: Outer {}
+connect inp2 -> empty_outer.Extra;

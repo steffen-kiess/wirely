@@ -349,7 +349,9 @@ and type; Wirely does not automatically convert them. Ordinary inputs,
 including resource inputs, and the outputs of a node type need exactly one
 source. A `multi value T` or `multi event T` input accepts any number of
 sources; `connect a, b -> target;` connects both. `Std.And` is an example
-of a multi input. Connections to and from temporaries, state, and
+of a multi input. A node type can connect its own multi input to a child's
+multi input, which then receives all of its sources at that place, in
+order; a multi input cannot be connected to other targets. Connections to and from temporaries, state, and
 procedures are described in
 [State and execution](#state-and-execution).
 
