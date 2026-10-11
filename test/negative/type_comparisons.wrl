@@ -23,35 +23,6 @@ enum type Mode: uint8 {
 }
 assert Mode == Mode.On; // E: Expected value of type ValueType, got Mode
 
-// TEST: runtime direct types
-temporary result: boolean;
-procedure run produces result {
-  result = int16 == int16; // E: Unknown procedure value int16
-}
-
-// TEST: runtime generic types
-temporary result: boolean;
-procedure run produces result {
-  result = Option[int16] == Option[int16]; // E: Runtime calls and indexing
-}
-
-// TEST: runtime type parameter
-node type Compare {
-  parameter Type: ValueType;
-  default output: value boolean;
-  procedure run produces default output as output {
-    output = Type == Type; // E: unavailable parameter 'Type'
-  }
-}
-node compare: Compare { Type: int16 }
-
-// TEST: runtime type constant
-constant Type: ValueType = unit;
-temporary result: boolean;
-procedure run produces result {
-  result = Type != Type; // E: unavailable parameter 'Type'
-}
-
 // TEST: optional output required
 node type OptionalOutput {
   parameter OutputType: ValueType = unit;
@@ -99,25 +70,11 @@ node type Compare {
 node compare: Compare { Type: List[int8], Left: [], Right: [] }
 // ^H: While instantiating 'compare'
 
-// TEST: procedure string operand
-temporary result: boolean;
-procedure run produces result {
-  result = "text" == "text"; // E: Type String is not a runtime type: String is parameter-only
-}
-
 // TEST: procedure list operand
 temporary result: boolean;
 procedure run produces result {
   let items: List[uint8] = []; // E: Type List[uint8] is not a runtime type: List[uint8] is parameter-only
   result = items == items;
-}
-
-// TEST: procedure parameter-only struct operand
-struct type Settings { text: String, }
-temporary result: boolean;
-procedure run produces result {
-  result = Settings { text: "a" } != Settings { text: "b" };
-  // ^E: Type Settings is not a runtime type: field text: String is parameter-only
 }
 
 // TEST: procedure parameter-only option operand

@@ -1,0 +1,79 @@
+struct type Settings {
+  text: String,
+}
+constant Text: String = "hello";
+constant Items: List[uint8] = [1, 2];
+constant InputValue: boolean = true;
+constant Type: ValueType = unit;
+assert Text == "hello" && Items == [1, 2];
+
+// Bodies without runtime dependencies support compile-time locals and mutation.
+procedure compile_only {
+  let mut text: String;
+  text = "before";
+  { text = "after"; }
+  let saved = text;
+  let text = Path.Parent("folder/file");
+  saved == "after" && text == "folder";
+  let items: List[uint8] = [1, 2];
+  items == Items;
+  if let Some(value) = Some(saved) { value == "after"; }
+  false && { let invalid: uint8 = 1 / 0; true };
+  true || { let invalid: uint8 = 1 / 0; false };
+  if true {} else { let invalid: uint8 = 1 / 0; }
+}
+
+// An unused dependency does not make the body runtime.
+procedure unused_input depends on ignored: value boolean {
+  let text: String = "hello";
+  text == Text;
+}
+connect InputValue -> unused_input.ignored;
+
+node type Generic {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  procedure compile_only {
+    let value: Type = Value;
+    value == Value;
+    Type == Type;
+  }
+}
+node text: Generic { Type: String, Value: "hello" }
+node list: Generic { Type: List[uint8], Value: [1, 2] }
+node option: Generic { Type: Option[String], Value: Some("hello") }
+node settings: Generic { Type: Settings, Value: Settings { text: "hello" } }
+
+node type OptionalValue {
+  parameter Type: ValueType;
+  optional parameter Value: Type;
+  procedure compile_only {
+    let option = parameter_option(Value);
+    option.IsSome;
+  }
+}
+node absent: OptionalValue { Type: String }
+node present: OptionalValue { Type: String, Value: "hello" }
+node type_value: OptionalValue { Type: ValueType, Value: uint8 }
+
+temporary comparison: boolean;
+temporary selected: uint8;
+procedure constants produces comparison, selected {
+  comparison = Text == Text && "text" == "text"
+    && Settings { text: "a" } != Settings { text: "b" }
+    && { let items: List[uint8] = [1, 2]; items == Items }
+    && { let value: Option[String] = Some("hello"); value.Unwrap() == Text }
+    && (if let Some(value) = Some("hello") { value == Text } else { false })
+    && int16 == int16 && Option[int16] == Option[int16] && Type == unit
+    && Path.SourceFile() != "" && Path.Join("base", "file") == "base/file"
+    && Path.Parent("folder/file") == "folder";
+  selected = if true { { let value: uint8 = 2; value + 1 } } else { 1 / 0 };
+}
+
+struct type Address {
+  address: uint16,
+}
+temporary parsed: Address;
+procedure parse produces parsed {
+  parsed = Address { address: KNX.ParseGroupAddress("1/2/3") };
+}

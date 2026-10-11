@@ -87,16 +87,6 @@ node type Probe {
 }
 node probe: Probe {} // H: While instantiating 'probe'
 
-// TEST: parameter only constant in runtime body
-node type Probe {
-  constant Text: String = "hello";
-  default output: value boolean;
-  procedure run produces default output as output {
-    output = Text == Text; // E: String is parameter-only
-  }
-}
-node probe: Probe {}
-
 // TEST: procedure port collision
 node type Probe {
   constant Flag: boolean = true;

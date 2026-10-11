@@ -120,13 +120,13 @@ node type Probe {
 }
 node probe: Probe {  }
 
-// TEST: runtime function
+// TEST: compile-time function result in a runtime local
 // LIBRARIES: std, path
 node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    let path: String = Path.Parent("file"); // E: is a compile-time function and cannot be called in procedure bodies
+    let path: String = Path.Parent("file"); // E: String is parameter-only
     output = true;
   }
 }
@@ -291,19 +291,6 @@ resource type Service;
 node type Probe {
   output ServiceOutput: resource Service;
   procedure run produces ServiceOutput {} // E: cannot produce resources
-}
-node probe: Probe {}
-
-// TEST: call hidden in a struct literal
-// LIBRARIES: std, knx
-struct type Settings { address: uint16 }
-node type Probe {
-  default output: value Settings;
-  procedure run produces default output as output {
-    output = Settings {
-      address: KNX.ParseGroupAddress("1/2/3"), // E: is a compile-time function and cannot be called in procedure bodies
-    };
-  }
 }
 node probe: Probe {}
 

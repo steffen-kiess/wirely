@@ -85,14 +85,6 @@ node type Forward {
 }
 node parent: Forward {} // H: While instantiating 'parent'
 
-// TEST: runtime_invocation
-node type Forward {
-  optional parameter Foo: boolean;
-  output Value: value Option[boolean];
-  procedure run produces Value { Value = parameter_option(Foo); } // E: parameter_option is only available in compile-time expressions
-}
-node parent: Forward {}
-
 // TEST: presence_type_cycle
 node type Forward {
   optional parameter Foo: Type;
@@ -105,17 +97,6 @@ node type Forward {
   parameter Foo: boolean;
   parameter Default: Option[boolean] = parameter_option(Foo); // E: parameter_option requires an optional parameter without a default
 }
-
-// TEST: runtime_intrinsic_in_struct
-struct type Pair { Value: Option[boolean], }
-node type Forward {
-  optional parameter Foo: boolean;
-  default output: value Pair;
-  procedure run produces default output as output {
-    output = Pair { Value: parameter_option(Foo) }; // E: parameter_option is only available in compile-time expressions
-  }
-}
-node parent: Forward {}
 
 // TEST: intrinsic_nested_namespace_name
 namespace Example.parameter_option {} // E: parameter_option is reserved for the intrinsic

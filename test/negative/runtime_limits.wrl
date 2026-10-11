@@ -426,5 +426,6 @@ struct type Wide16 {
 constant Large: Option[Wide16] = None;
 temporary result: boolean;
 procedure run produces result {
-  result = Large == Large; // E: storage size 136 bytes exceeds 128 bytes
+  let value = Large; // E: storage size 136 bytes exceeds 128 bytes
+  result = value == value;
 }

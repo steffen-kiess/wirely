@@ -145,6 +145,12 @@ constant AboveMembers: Option[Member128] = None;
 constant AboveDepth: Option[Depth16] = None;
 assert AboveStorage.IsNone && AboveMembers.IsNone && AboveDepth.IsNone;
 
+temporary constant_comparisons: boolean;
+procedure compare_constants produces constant_comparisons {
+  constant_comparisons = AboveStorage == AboveStorage
+    && AboveMembers == AboveMembers && AboveDepth == AboveDepth;
+}
+
 node type Destination {
   parameter Type: ValueType;
   optional parameter Value: Type;

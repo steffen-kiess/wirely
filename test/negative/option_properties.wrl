@@ -122,24 +122,24 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: runtime calls remain unsupported
+// TEST: property on a constant function result
 // LIBRARIES: std, path
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = Path.Parent("file").IsSome; // E: is a compile-time function and cannot be called in procedure bodies
+    output = Path.Parent("file").IsSome; // E: Value of type String has no property 'IsSome'
   }
 }
 node probe: Probe {}
 
-// TEST: runtime call hidden in property receiver
+// TEST: property on a constant function result in a struct
 // LIBRARIES: std, path
 struct type Settings { flag: boolean }
 node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      flag: Path.Parent("file").IsSome, // E: is a compile-time function and cannot be called in procedure bodies
+      flag: Path.Parent("file").IsSome, // E: Value of type String has no property 'IsSome'
     };
   }
 }

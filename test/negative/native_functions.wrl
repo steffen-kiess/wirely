@@ -71,12 +71,12 @@ constant Invalid: boolean = TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expect
 // TEST: function bodies
 native constant function Missing(): boolean { true } // E: Syntax error
 
-// TEST: constant function in a procedure
+// TEST: constant function expression with mismatched result type
 // LIBRARIES: std, path
 node type Invalid {
   default output: value TimeOfDay;
   procedure run produces default output as output {
-    output = Path.Parent("file") == ""; // E: Path.Parent is a compile-time function and cannot be called in procedure bodies
+    output = Path.Parent("file") == ""; // E: Expected value of type TimeOfDay, got boolean
   }
 }
 node invalid: Invalid {}

@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from . import model
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
-from .value import Value, check_value_type
+from .value import Value, ConstantValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
     BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
@@ -183,8 +183,11 @@ def type_member(scope, reference, parameters, local_names=()):
     root = reference.identifiers[0].id_str
     declaration = scope.static_declarations.get(root)
     # Value names shadow type names.
-    if root in local_names or (reference.length == 2 and declaration is not None
-                               and not is_type_declaration(declaration)):
+    static_type = (isinstance(local_names, dict) and root in local_names
+                   and local_names[root].operation == 'constant'
+                   and local_names[root].value_type == model.types.ValueType)
+    if ((root in local_names and not static_type)
+            or (reference.length == 2 and declaration is not None and not is_type_declaration(declaration))):
         return None
     prefix = model.Reference.from_list(*reference.identifiers[:-1],
                                         source_position=reference.source_position)
@@ -287,6 +290,76 @@ class Binding:
     mutable: bool = False
 
 
+class ExpressionClassification:
+    """Resolve runtime dependencies, including cycles through block locals."""
+
+    def __init__(self, expression, names):
+        self.dependencies = {}
+        self.runtime = set()
+        self.visit(expression, names)
+        dependents = {}
+        for source, dependencies in self.dependencies.items():
+            for dependency in dependencies:
+                dependents.setdefault(dependency, set()).add(source)
+        pending = list(self.runtime)
+        while pending:
+            for dependent in dependents.get(pending.pop(), ()):
+                if dependent not in self.runtime:
+                    self.runtime.add(dependent)
+                    pending.append(dependent)
+
+    def visit(self, expression, names):
+        """Names map to runtime flags or the syntax node owning a local."""
+        if not isinstance(expression, SourceElement):
+            return
+        dependencies = self.dependencies.setdefault(expression, set())
+        if isinstance(expression, model.Reference):
+            binding = names.get(expression.identifiers[0].id_str, False)
+            if binding is True:
+                self.runtime.add(expression)
+            elif binding is not False:
+                dependencies.add(binding)
+            return
+        if isinstance(expression, ExpressionBlock):
+            names = dict(names)
+            for statement in expression.statements:
+                if isinstance(statement, LocalBinding):
+                    if statement.initializer is not None:
+                        self.visit(statement.initializer, names)
+                        self.dependencies[statement] = {expression, statement.initializer}
+                    else:
+                        self.dependencies[statement] = {expression}
+                    names[statement.name.id_str] = expression
+                else:
+                    self.visit(statement, names)
+                dependencies.add(statement)
+            return
+        if isinstance(expression, IfLetExpression):
+            self.visit(expression.scrutinee, names)
+            inner_names = {**names, expression.name.id_str: expression}
+            self.visit(expression.then, inner_names)
+            self.visit(expression.otherwise, names)
+            dependencies.update(child for child in (
+                expression.scrutinee, expression.then, expression.otherwise,
+            ) if child is not None)
+            return
+        if isinstance(expression, ForExpression):
+            self.runtime.add(expression)
+            self.visit(expression.iterable, names)
+            self.visit(expression.body, {**names, expression.name.id_str: True})
+            dependencies.update((expression.iterable, expression.body))
+            return
+        # Walk syntax only; declaration names and annotations are not values.
+        for name, child in vars(expression).items():
+            if name in ('source_position', 'outer_attributes', 'attributes'):
+                continue
+            children = child if isinstance(child, (tuple, list)) else (child,)
+            for item in children:
+                if isinstance(item, SourceElement):
+                    self.visit(item, names)
+                    dependencies.add(item)
+
+
 @dataclass(frozen=True, slots=True)
 class TypedExpression:
     value_type: object
@@ -295,6 +368,7 @@ class TypedExpression:
     payload: object = None
     source: object = None
     expected_type: object = None
+    runtime: bool = False
 
     @property
     def contains_parameters(self):
@@ -603,7 +677,8 @@ class InstructionCompiler:
             return self.compile(TypedExpression(model.types.unit, 'unit'), destination)
         if operation == 'block':
             for value in expression.arguments[:-1]:
-                self.compile(value)
+                if value.runtime:
+                    self.compile(value)
             return self.compile(expression.arguments[-1], destination)
         if operation == 'assign':
             value = expression.arguments[0]
@@ -716,27 +791,43 @@ class InstructionCompiler:
         return source
 
     def body(self, expression):
-        self.compile(expression)
+        if expression.runtime:
+            self.compile(expression)
         self.emit(Opcode.RETURN)
         return ProgramBody(tuple(self.instructions), tuple(self.local_types))
 
 
 class ExpressionCompiler:
-    def __init__(self, scope, parameters, *, runtime=False, names=None, protected=(), unavailable=()):
+    def __init__(self, scope, parameters, *, runtime=False, names=None, protected=()):
         self.scope = scope
         self.parameters = parameters
         self.runtime = runtime
         self.names = dict(names or {})
         self.protected = set(protected)
-        self.unavailable = set(unavailable)
         self.next_slot = 0
         self.static_usage = set()
         self.bindings = {}
         self.initialization = {}
         self.loop_outer_keys = None
+        self.classification = None
+
+    def is_runtime(self, expression):
+        if self.classification is not None and expression in self.classification.dependencies:
+            return expression in self.classification.runtime
+        # Property references are split into fresh syntax nodes during compilation.
+        if isinstance(expression, PropertyAccess):
+            return self.is_runtime(expression.receiver)
+        if isinstance(expression, model.Reference):
+            value = self.names.get(expression.identifiers[0].id_str)
+            return value is not None and value.runtime
+        return False
+
+    def parameter_option_declaration(self, expression):
+        local_names = {name for name, value in self.names.items() if value.operation != 'constant'}
+        return expression.declaration(self.scope, local_names)
 
     def record_static_usage(self, expression):
-        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
+        expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, model.Reference):
             if expression.length == 1:
                 declaration = self.scope.static_declarations.get(expression.identifiers[0].id_str)
@@ -773,13 +864,14 @@ class ExpressionCompiler:
         expression = (self.compile(binding.initializer, expected)
                       if binding.initializer is not None else None)
         value_type = expected or expression.value_type
-        if self.runtime:
+        if self.is_runtime(binding):
             check_runtime_type(value_type, binding)
         slot = self.next_slot
         self.next_slot += 1
-        self.bind(name, TypedExpression(value_type, 'local', payload=slot),
+        self.bind(name, TypedExpression(value_type, 'local', payload=slot, runtime=self.is_runtime(binding)),
                   mutable=binding.is_mutable, initialized=expression is not None)
-        return (TypedExpression(model.types.unit, 'assign', (expression,), ('local', slot))
+        return (TypedExpression(model.types.unit, 'assign', (expression,), ('local', slot),
+                                runtime=self.is_runtime(binding))
                 if expression is not None else TypedExpression(model.types.unit, 'unit'))
 
     def merge_initialization(self, before, *branches):
@@ -826,7 +918,7 @@ class ExpressionCompiler:
         slot = self.next_slot
         self.next_slot += 1
         self.loop_outer_keys = set(before)
-        self.bind(name, TypedExpression(value.value_type, 'local', payload=slot), initialized=True)
+        self.bind(name, TypedExpression(value.value_type, 'local', payload=slot, runtime=True), initialized=True)
         try:
             body = self.compile(expression.body, model.types.unit)
             # A loop may execute zero times, regardless of its specialized arity.
@@ -862,16 +954,19 @@ class ExpressionCompiler:
         return TypedExpression(result.value_type, 'block', (*statements, result))
 
     def compile(self, expression, expected=None):
-        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
+        if self.runtime and self.classification is None:
+            self.classification = ExpressionClassification(
+                expression, {name: value.runtime for name, value in self.names.items()},
+            )
+        runtime = self.is_runtime(expression)
+        expression = property_reference(self.scope, expression, self.names)
         if self.runtime:
             self.record_static_usage(expression)
         result = replace(self._compile(expression, expected), source=expression,
-                         expected_type=expected)
+                         expected_type=expected, runtime=runtime)
         result.check_types()
-        if self.runtime:
+        if runtime:
             check_runtime_type(result.value_type, expression)
-            if result.operation in SHIFT_OPERATORS:
-                result.check_shift_count(result.arguments[1].evaluate({}, {}))
         return result
 
     def _compile(self, expression, expected):
@@ -910,13 +1005,15 @@ class ExpressionCompiler:
                 raise ProgramError(method.name,
                                    f'Value of type {receiver.value_type} has no method {method.name.id_str!r}')
         if isinstance(expression, model.ParameterOption):
-            if self.runtime:
+            if self.is_runtime(expression):
                 raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
-            parameter = expression.declaration(self.scope, self.names)
+            parameter = self.parameter_option_declaration(expression)
             value = model.value.ParameterOptionValue(parameter, ast_element=expression)
+            if self.runtime:
+                value = value.resolve_self(self.parameters)
             return TypedExpression(value.value_type, 'constant', payload=value)
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
-            if self.runtime:
+            if self.is_runtime(expression):
                 raise ProgramError(expression, 'Negation is compile-time only; use T.WrappingSub(0, value), '
                                    'T.SaturatingSub(0, value), or T.CheckedSub(0, value)')
             operand = self.compile(expression.operand, expected)
@@ -926,13 +1023,9 @@ class ExpressionCompiler:
             return TypedExpression(operand.value_type, 'not', (operand,))
         if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
             left = self.compile(expression.left, expected or self.context_type(expression.left))
-            if self.runtime:
-                static_names = {name: value for name, value in self.names.items() if value.operation == 'constant'}
-                count_compiler = ExpressionCompiler(self.scope, self.parameters, names=static_names,
-                                                    unavailable=set(self.names) - set(static_names))
-                right = count_compiler.compile(expression.right)
-            else:
-                right = self.compile(expression.right)
+            if self.is_runtime(expression.right):
+                raise ProgramError(expression.right, 'Shift count must be a compile-time value')
+            right = self.compile(expression.right)
             return TypedExpression(left.value_type, expression.operator, (left, right))
         if isinstance(expression, BinaryExpression) and expression.operator in BITWISE_OPERATORS:
             operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
@@ -940,7 +1033,7 @@ class ExpressionCompiler:
             right = self.compile(expression.right, left.value_type)
             return TypedExpression(left.value_type, expression.operator, (left, right))
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
-            if self.runtime:
+            if self.is_runtime(expression):
                 name = expression.operator.capitalize()
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
                 if isinstance(operand_type, model.types.TypeDuration) and name in ('Add', 'Sub'):
@@ -991,27 +1084,26 @@ class ExpressionCompiler:
                 if key in self.initialization and not self.initialization[key][1]:
                     raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
                 return value
-            if name in self.unavailable:
-                raise ProgramError(expression, 'Shift count must be a compile-time value')
             if self.runtime and name in self.protected:
                 raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
-        if self.runtime:
+        if self.is_runtime(expression):
             self.check_runtime_syntax(expression)
         if self.runtime and isinstance(expression, model.Reference):
             names = [identifier.id_str for identifier in expression.identifiers]
             if (names not in (['true'], ['false'], ['None'])
+                    and self.known_type(expression) != model.types.ValueType
                     and not isinstance(self.known_type(expression), model.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
         if isinstance(expression, model.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)
             fields = check_struct_literal(value_type, expression, self.scope)
-            if self.runtime:
+            if self.is_runtime(expression):
                 check_runtime_type(value_type, expression)
             arguments = tuple(self.compile(field.value, value_type.fields[name])
                               for name, field in fields.items())
             return TypedExpression(value_type, 'struct', arguments, tuple(fields))
-        if not self.runtime and isinstance(expression, model.ListLiteral):
+        if isinstance(expression, model.ListLiteral):
             if isinstance(expected, model.types.TypeList):
                 inner_type = expected.inner_type
             elif expected is not None and expected.contains_parameters:
@@ -1040,9 +1132,9 @@ class ExpressionCompiler:
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is None:
                 raise ProgramError(expression.fun, f'Cannot find function {name!r}')
-            if self.runtime and function.is_constant:
+            if self.is_runtime(expression) and function.is_constant:
                 raise ProgramError(expression.fun,
-                                   f'{name} is a compile-time function and cannot be called in procedure bodies')
+                                   f'{name} is a compile-time function and requires constant arguments')
             if len(expression.parameters) != len(function.parameter_types):
                 raise ProgramError(expression, f'Function {name!r} expected {len(function.parameter_types)} parameters')
             arguments = tuple(self.compile(argument, value_type)
@@ -1052,7 +1144,7 @@ class ExpressionCompiler:
         value_type = expected or self.known_type(expression)
         if value_type is None:
             raise ProgramError(expression, 'Cannot infer expression type; add a type annotation')
-        if self.runtime:
+        if self.is_runtime(expression):
             check_runtime_type(value_type, expression)
         if value_type == model.types.ValueType:
             actual_type = self.known_type(expression)
@@ -1087,7 +1179,7 @@ class ExpressionCompiler:
 
     def unwrap(self, call, receiver, expected):
         # Programs must not fail at runtime, so Unwrap is compile-time only.
-        if self.runtime:
+        if self.is_runtime(call):
             raise ProgramError(call, 'Unwrap is compile-time only; use UnwrapOr or if let')
         if call.parameters:
             raise ProgramError(call, 'Unwrap expects no arguments')
@@ -1115,7 +1207,8 @@ class ExpressionCompiler:
             raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
         slot = self.next_slot
         self.next_slot += 1
-        self.bind(name, TypedExpression(inner_type, 'local', payload=slot), initialized=True)
+        self.bind(name, TypedExpression(inner_type, 'local', payload=slot, runtime=self.is_runtime(expression)),
+                  initialized=True)
         return slot
 
     def if_let(self, expression, expected):
@@ -1139,6 +1232,8 @@ class ExpressionCompiler:
         return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
 
     def check_runtime_syntax(self, expression):
+        if not self.is_runtime(expression):
+            return
         if isinstance(expression, model.ParameterOption):
             raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
         if is_some_call(expression):
@@ -1158,7 +1253,7 @@ class ExpressionCompiler:
             return
         if (isinstance(expression, model.FunctionCall) and isinstance(expression.fun, model.Reference)
                 and self.scope.resolve_function(expression.fun, required=False) is not None):
-            # Constant functions are rejected when the call is compiled.
+            # Calls with runtime arguments are checked when the call is compiled.
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
@@ -1217,15 +1312,16 @@ class ExpressionCompiler:
         return self.known_type(expression)
 
     def known_type(self, expression):
-        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
+        expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, PropertyAccess):
             receiver_type = self.known_type(expression.receiver)
             if isinstance(receiver_type, model.types.TypeStruct):
                 return receiver_type.fields.get(expression.name.id_str)
             return model.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
         if isinstance(expression, model.ParameterOption):
-            parameter = expression.declaration(self.scope, self.names)
-            return model.types.TypeOption(parameter.type_resolved)
+            parameter = self.parameter_option_declaration(expression)
+            value_type = model.types.TypeOption(parameter.type_resolved)
+            return resolve_type(value_type, self.parameters) if self.runtime else value_type
         if isinstance(expression, model.Reference):
             if expression.length == 1:
                 name = expression.identifiers[0].id_str
@@ -1330,14 +1426,26 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
+def fold_constants(expression):
+    """Evaluate constant islands without evaluating runtime control flow."""
+    if not expression.runtime:
+        value = expression.value_type.verify_value(expression.evaluate({}, {}))
+        return TypedExpression(expression.value_type, 'constant', source=expression.source,
+                               payload=ConstantValue(expression.value_type, value, ast_element=expression.source))
+    folded = replace(expression, arguments=tuple(fold_constants(argument) for argument in expression.arguments))
+    if folded.operation in SHIFT_OPERATORS:
+        folded.check_shift_count(folded.arguments[1].evaluate({}, {}))
+    return folded
+
+
 def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
                       multi_sources=None):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     multi_sources = multi_sources or {}
-    names = {name: TypedExpression(value_type, 'input', payload=name)
+    names = {name: TypedExpression(value_type, 'input', payload=name, runtime=True)
              for name, value_type in source_types.items() if isinstance(name, str)}
-    names.update({name: TypedExpression(value_type, 'multi_input', payload=members)
+    names.update({name: TypedExpression(value_type, 'multi_input', payload=members, runtime=True)
                   for name, (value_type, members) in multi_sources.items()})
     input_names = set(names)
     protected = set(output_types) | set(instance.node_type.static_declarations)
@@ -1347,15 +1455,18 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
         raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
+        if isinstance(value, model.types.Type):
+            value = ConstantValue(model.types.ValueType, value, ast_element=parameter)
         if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
                                   names=names, protected=protected | input_names)
     for name, value_type in output_types.items():
-        compiler.bind(name, TypedExpression(value_type, 'output', payload=name))
+        compiler.bind(name, TypedExpression(value_type, 'output', payload=name, runtime=True))
     body = compiler.compile(declaration.body, model.types.unit)
     missing = [name for name in output_types if not compiler.initialization['output', name][1]]
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
+    body = fold_constants(body)
     return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body)

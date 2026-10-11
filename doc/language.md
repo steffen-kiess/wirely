@@ -202,9 +202,8 @@ node type Forward {
 
 Ordinary `Name: expression` bindings require `T`, and reading an omitted
 parameter fails compilation. The intrinsic is available in compile-time
-expressions, including constants, assertions, parameter defaults and
-arguments, and native `uses` bindings. Procedure bodies can read constants
-computed with it. Its name is reserved for the intrinsic.
+expressions, including inside procedure bodies. Its name is reserved for
+the intrinsic.
 
 Declare a constant in a node type or at the program root with
 `constant Name: Type = expression;`. Constants use the same types as
@@ -319,8 +318,8 @@ constant Address: uint16 = Example.Parse("1/2/3");
 ```
 
 Calls take positional arguments and may appear in constants, parameter
-values and defaults, assertions, and, for functions that are not
-constant, procedure bodies. Within a namespace, an unqualified name
+values and defaults, assertions, and procedure bodies. Constant functions
+require compile-time arguments. Within a namespace, an unqualified name
 searches enclosing scopes. Declarations may follow their calls.
 A `ValueType` result can initialize a type-valued constant or parameter.
 See [native Python implementations](native-python.md#native-functions)
@@ -502,10 +501,10 @@ node type Select {
 }
 ```
 
-Inside the body, use input port names and runtime-valued parameter and
-constant names as values. Assign each output port exactly once on every
-path through the body. An output can be read after it has been assigned on
-every path reaching the read. Port, parameter, and constant names must be
+Inside the body, use input port names, parameters, and constants as values.
+Assign each output port exactly once on every path through the body. An
+output can be read after it has been assigned on every path reaching the
+read. Port, parameter, and constant names must be
 distinct. Use separate ports to read and write state.
 
 `let` creates an immutable local; `let mut` permits reassignment. A later
@@ -535,9 +534,28 @@ let mut current = chosen;
 current = !current;
 ```
 
-Procedure locals must have runtime types. A string literal needs a runtime
-destination such as `TimeOfDay` or `Duration`; `String` itself is
-parameter-only.
+An expression is runtime when it reads a procedure input, output, state
+dependency, or runtime local, or assigns a runtime binding. Other
+expressions evaluate during compilation and can use parameter-only types
+such as `String`.
+
+A block's locals are runtime if any statement or branch in that block has
+a runtime dependency. Runtime locals must have runtime types, even when
+initialized with constants. Independent nested blocks can use
+compile-time locals, including inside runtime-controlled branches:
+
+```wirely
+output = {
+  let text: String = "hello";
+  text == "hello"
+};
+```
+
+Procedure bodies follow the same block rules. An unused input does not
+make a body runtime. Constant expressions inside runtime expressions
+evaluate during compilation even if runtime control skips them. Wholly
+constant conditionals and short-circuit expressions evaluate only the
+selected branches or operands.
 
 Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
 `==` and `!=` for matching value types. Options compare presence and payload;
@@ -558,10 +576,9 @@ For example, `input & 0x0008 != 0` tests bit 3.
 
 `<<` and `>>` shift an integer, returning the same type. The count is an
 integer compile-time expression, from zero through the value's width
-minus one. In procedures, it can use parameters and constants, but not
-procedure inputs, outputs, state bindings, or locals. Left shifts discard
-outgoing bits; right shifts extend the sign for signed integers and fill
-with zeros for unsigned integers.
+minus one. It can use parameters, constants, and compile-time block locals.
+Left shifts discard outgoing bits; right shifts extend the sign for signed
+integers and fill with zeros for unsigned integers.
 
 Integer arithmetic uses `+`, `-`, `*`, `/`, `%`, and unary `-` on operands
 of the same integer type. Precedence follows Rust: unary operators, then
@@ -572,9 +589,9 @@ remainder has the dividend's sign. Arithmetic operators are compile-time
 only; each operation must produce a value of its type, so
 `200 + 100 - 150` fails as `uint8`, as does division by zero. `+` and `-`
 also combine two durations; see [Duration](value-types.md#duration) for
-the functions to use in procedure bodies.
+runtime arithmetic functions.
 
-Procedures, which must not fail, use members of integer types instead.
+Runtime arithmetic uses members of integer types instead.
 Write a type, a dot, and the member name, as in `uint8.WrappingAdd(a, b)`
 or `Type.CheckedDiv(a, b)` for a `ValueType` parameter. Both arguments have
 that type:
@@ -604,8 +621,8 @@ every value of its underlying integer type fits `T`, for example
 argument has type `T` for `From`, as in `int8.From(5)`, and `int32`
 otherwise.
 
-All concrete value types support equality at compile time. Procedures can
-compare runtime types, including times, options, and structs; strings,
+All concrete value types support equality at compile time. Runtime
+expressions can compare times, options, and structs; strings,
 lists, and aggregates containing parameter-only types are compile-time-only.
 For `ValueType` values, built-in types compare by type, `Option` and `List`
 compare their inner types, and structs and enums compare by declaration.
@@ -620,7 +637,7 @@ can omit `;` when they yield unit. Procedure bodies yield unit. These rules
 also apply to blocks in parameter values and other compile-time expressions.
 
 `if` requires a Boolean condition; both branches yield the same type.
-Omit `else` when the branch yields unit. Procedure bodies can call native
+Omit `else` when the branch yields unit. Runtime calls require native
 functions that are not declared `constant`.
 
 For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
@@ -629,8 +646,8 @@ when absent. `value.UnwrapOr(fallback)` returns the contained value, or
 even when unused, so a compile-time error in it fails compilation.
 `value.Unwrap()` returns the contained value and fails compilation when
 the value is `None`. It is compile-time only, for example
-`constant Small: int8 = int8.CheckedFrom(Large).Unwrap();`; procedure
-bodies use `UnwrapOr` or `if let`.
+`constant Small: int8 = int8.CheckedFrom(Large).Unwrap();`; runtime values
+use `UnwrapOr` or `if let`.
 
 `if let Some(name) = value { … } else { … }` binds the contained value to
 `name` within the first block and evaluates the `else` block when absent:

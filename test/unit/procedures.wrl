@@ -1,6 +1,58 @@
 namespace ProcedureTests {
   enum type Mode: uint8 { Off = 0, On = 1 }
   struct type Pair { enabled: boolean, number: uint8 }
+  struct type Presence { value: Option[boolean] }
+
+  node type OptionalConstant {
+    optional parameter Enabled: boolean;
+    default output: value Option[boolean];
+    output Wrapped: value Presence;
+    procedure run produces default output as output, Wrapped {
+      output = parameter_option(Enabled);
+      Wrapped = Presence { value: parameter_option(Enabled) };
+    }
+  }
+
+  node type ConstantBlocks {
+    parameter Text: String = "hello";
+    default input: value boolean;
+    default output: value boolean;
+    output Number: value uint8;
+    output Shifted: value uint8;
+    output Saved: value uint8;
+    output ReadBack: value uint8;
+    output Matched: value uint8;
+    output Selected: value uint8;
+
+    procedure run
+      depends on default input as input
+      produces default output as output, Number, Shifted, Saved, ReadBack,
+        Matched, Selected
+    {
+      "discarded";
+      { let items: List[String] = ["discarded"]; }
+      output = if input {
+        let mut text: String = "before";
+        { text = Text; }
+        let text = text;
+        text == "hello" && Path.Parent("folder/file") == "folder"
+      } else {
+        let items: List[uint8] = [1, 2];
+        items == [2, 1]
+      };
+      Number = if input { 1 + 2 } else { 4 + 5 };
+      let mut value: uint8 = Number;
+      let saved = value;
+      value = 10;
+      Saved = saved;
+      ReadBack = Number;
+      Shifted = saved << { let count: uint8 = 1; count + 1 };
+      Matched = if let Some(number) = Some(uint8.From(2)) {
+        uint8.WrappingAdd(number, saved)
+      } else { 0 };
+      Selected = if true { uint8.CheckedFrom(3).Unwrap() } else { 1 / 0 };
+    }
+  }
 
   node type Select {
     parameter Enabled: boolean = true;
@@ -93,6 +145,11 @@ node selected: ProcedureTests.Select {}
 node fallback: ProcedureTests.Select { Enabled: false, Fallback: true }
 node delayed: ProcedureTests.Delay {}
 node constants: ProcedureTests.Constants {}
+node constant_blocks: ProcedureTests.ConstantBlocks {}
+node constant_source: Std.DebugValueSource { Type: boolean }
+connect constant_source -> constant_blocks;
+node optional_absent: ProcedureTests.OptionalConstant {}
+node optional_present: ProcedureTests.OptionalConstant { Enabled: true }
 node forwarded: ProcedureTests.Forward { Type: boolean }
 node shared: ProcedureTests.Shared {}
 node shared_again: ProcedureTests.Shared {}

@@ -11,6 +11,7 @@ from wirely.runtime import procedures as runtime_procedures
 def check_main_program():
     source = engine.get_native_state('source')
     source.set_value(False)
+    engine.get_native_state('constant_source').set_value(False)
     engine.get_native_state('option_source').set_value(None)
     engine.get_native_state('nested_source').set_value(None)
     engine.get_native_state('int_source').set_value(0)
@@ -62,6 +63,24 @@ def compile_program(source, *, add_std=False):
     program = program_compiler.compile(graph)
     assert program is not None
     return program
+
+
+def check_constant_blocks():
+    for name, expected in [('optional_absent', None), ('optional_present', wirely.Some(True))]:
+        engine.assert_value_is(name, expected)
+        value_type = wirely.ValueType(engine.get_variable(name + '.Wrapped').var_type)
+        engine.assert_value_is(name + '.Wrapped', value_type.make_struct({'value': expected}))
+    source = engine.get_native_state('constant_source')
+    for enabled in (False, True, False):
+        source.set_value(enabled)
+        engine.step()
+        number = 3 if enabled else 9
+        for port, value in {
+                '': enabled, '.Number': number, '.Saved': number,
+                '.ReadBack': number, '.Shifted': number << 2,
+                '.Matched': number + 2, '.Selected': 3}.items():
+            engine.assert_value_is('constant_blocks' + port, value)
+        engine.assert_is_idle()
 
 
 def check_pure_stages():
@@ -498,8 +517,7 @@ def check_native_functions():
         with patch.object(runtime_procedures, 'call_native_function',
                           wraps=runtime_procedures.call_native_function) as calls:
             function_engine.step()
-        assert [call.args[1] for call in calls.call_args_list] == [
-            ('TestLibrary', 'Nothing'), ('TestLibrary', 'Clamp'), ('TestLibrary', 'Nothing')]
+        assert [call.args[1] for call in calls.call_args_list] == [('TestLibrary', 'Clamp')]
         function_engine.assert_value_is('clamped', expected)
         function_engine.assert_value_is('clamped.Done', wirely.Unit())
     function_engine.assert_is_idle()
@@ -604,6 +622,7 @@ def check_mutation():
 
 
 check_main_program()
+check_constant_blocks()
 check_pure_stages()
 check_output_storage()
 check_temporary_connections()
