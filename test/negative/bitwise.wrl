@@ -1,0 +1,135 @@
+// LIBRARIES: std
+
+// TEST: mismatched operands
+constant Small: uint8 = 1;
+constant Large: uint16 = 1;
+assert Small & Large == 0; // E: Expected value of type uint8, got uint16
+
+// TEST: mixed Boolean and integer
+assert true | 1; // E: Invalid boolean value 1
+
+// TEST: unsupported complement
+constant Value: Duration = !"PT1S"; // E: Bitwise operation requires an integer or boolean
+
+// TEST: unsupported enum
+enum type Mode: uint8 {
+  Off = 0,
+}
+constant Value: Mode = Mode.Off ^ Mode.Off; // E: Bitwise operation requires an integer or boolean
+
+// TEST: non-integer count
+constant Value: uint8 = 1 << true; // E: Shift requires an integer
+
+// TEST: non-integer value
+constant Value: boolean = true >> 1; // E: Shift requires an integer
+
+// TEST: negative count
+constant Value: uint8 = 1 << -1; // E: Shift count must be between 0 and 7
+
+// TEST: count at width
+constant Value: uint8 = 1 >> 8; // E: Shift count must be between 0 and 7
+
+// TEST: large count
+constant Count: uint64 = 18446744073709551615;
+constant Value: uint8 = 1 << Count; // E: Shift count must be between 0 and 7
+
+// TEST: invalid generic width
+node type Generic {
+  parameter Type: ValueType;
+  constant Value: Type = 1 << 8; // E: Shift count must be between 0 and 7
+}
+node generic: Generic { Type: uint8 } // H: While instantiating 'generic'
+
+// TEST: invalid generic operand
+node type Generic {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  constant Result: Type = !Value; // E: Bitwise operation requires an integer or boolean
+}
+node generic: Generic { Type: Duration, Value: "PT1S" } // H: While instantiating 'generic'
+
+// TEST: procedure input count
+node source: Std.Constant { Type: uint32, Value: 1 }
+connect source -> run.count;
+temporary result: uint8;
+procedure run depends on count: value uint32 produces result {
+  result = 1 << count; // E: Shift count must be a compile-time value
+}
+
+// TEST: procedure local count
+temporary result: uint8;
+procedure run produces result {
+  let count = 1;
+  result = 1 >> count; // E: Shift count must be a compile-time value
+}
+
+// TEST: procedure output count
+temporary result: uint8;
+procedure run produces result {
+  result = 1;
+  let shifted = 1 << result; // E: Shift count must be a compile-time value
+}
+
+// TEST: procedure state count
+state count: uint32 = 1;
+procedure write produces count { count = 1; }
+temporary result: uint8;
+procedure run depends on count.old as previous produces result {
+  result = 1 >> previous; // E: Shift count must be a compile-time value
+}
+
+// TEST: procedure invalid constant count
+temporary result: int8;
+procedure run produces result {
+  result = 1 << 8; // E: Shift count must be between 0 and 7
+}
+
+// TEST: mismatched procedure operands
+node source: Std.Constant { Type: uint8, Value: 1 }
+node other_source: Std.Constant { Type: uint16, Value: 1 }
+connect source -> run.input;
+connect other_source -> run.other;
+temporary result: uint8;
+procedure run depends on input: value uint8, other: value uint16
+  produces result
+{
+  result = input ^ other; // E: Expected value of type uint8, got uint16
+}
+
+// TEST: invalid count in empty loop
+node type Empty {
+  default input: multi value uint8;
+  default output: value uint8;
+  procedure run depends on default input as input
+    produces default output as output
+  {
+    let mut total: uint8 = 0;
+    for value in input {
+      total = value << 8; // E: Shift count must be between 0 and 7
+    }
+    output = total;
+  }
+}
+node empty: Empty {}
+
+// TEST: invalid specialized procedure count
+node type Generic {
+  parameter Type: ValueType;
+  parameter Count: int64;
+  default output: value Type;
+  procedure run produces default output as output {
+    output = 1 >> Count; // E: Shift count must be between 0 and 7
+  }
+}
+node generic: Generic { Type: int8, Count: -1 }
+
+// TEST: count from runtime struct field
+struct type Counts {
+  amount: uint32,
+}
+node source: Std.Constant { Type: Counts, Value: Counts { amount: 1 } }
+connect source -> run.input;
+temporary result: uint8;
+procedure run depends on input: value Counts produces result {
+  result = 1 << input.amount; // E: Shift count must be a compile-time value
+}

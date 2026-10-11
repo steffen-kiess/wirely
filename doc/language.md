@@ -551,11 +551,25 @@ condition.
 of the same type. Times of day compare within one day, so `"23:00"` is
 after `"01:00"`. Comparisons do not chain: write `a < b && b < c`.
 
+`&`, `|`, and `^` combine same-type integers bit by bit, or booleans
+without short-circuiting. `!` complements an integer within its type's
+width, or negates a boolean. Signed integers use two's-complement bits.
+For example, `input & 0x0008 != 0` tests bit 3.
+
+`<<` and `>>` shift an integer, returning the same type. The count is an
+integer compile-time expression, from zero through the value's width
+minus one. In procedures, it can use parameters and constants, but not
+procedure inputs, outputs, state bindings, or locals. Left shifts discard
+outgoing bits; right shifts extend the sign for signed integers and fill
+with zeros for unsigned integers.
+
 Integer arithmetic uses `+`, `-`, `*`, `/`, `%`, and unary `-` on operands
 of the same integer type. Precedence follows Rust: unary operators, then
-`*`, `/`, and `%`, then `+` and `-`, then comparisons. Division truncates
-toward zero, and the remainder has the dividend's sign. These operators
-are compile-time only; each operation must produce a value of its type, so
+`*`, `/`, and `%`, then `+` and `-`, shifts, `&`, `^`, `|`, comparisons,
+`&&`, and `||`. Binary operators associate left to right, except assignment
+which associates right to left. Division truncates toward zero, and the
+remainder has the dividend's sign. Arithmetic operators are compile-time
+only; each operation must produce a value of its type, so
 `200 + 100 - 150` fails as `uint8`, as does division by zero. `+` and `-`
 also combine two durations; see [Duration](value-types.md#duration) for
 the functions to use in procedure bodies.

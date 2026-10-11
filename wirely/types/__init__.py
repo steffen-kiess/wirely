@@ -374,6 +374,19 @@ class TypeUnit(TypeConcrete):
 
 
 class TypeBoolean(TypeConcrete):
+    def bitwise(self, operation, left, right=None):
+        left = self.verify_value(left)
+        if operation == 'not':
+            return not left
+        right = self.verify_value(right)
+        if operation == 'and':
+            return left & right
+        if operation == 'or':
+            return left | right
+        if operation == 'xor':
+            return left ^ right
+        raise ValueError(f'Unknown bitwise operation {operation!r}')
+
     def __init__(self):
         super().__init__(name='boolean', python_type=bool, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=True)
 
@@ -430,6 +443,32 @@ class TypeInt(TypeConcrete):
 
     def default_value(self):
         return 0
+
+    def bitwise(self, operation, left, right=None):
+        left = self.verify_value(left)
+        if operation == 'not':
+            result = ~left
+        else:
+            right = self.verify_value(right)
+            if operation == 'and':
+                result = left & right
+            elif operation == 'or':
+                result = left | right
+            elif operation == 'xor':
+                result = left ^ right
+            else:
+                raise ValueError(f'Unknown bitwise operation {operation!r}')
+        return _fit_integer(result, self.min_value, self.max_value, 'wrapping')
+
+    def shift(self, direction, value, count):
+        value = self.verify_value(value)
+        count = uint32.verify_value(count)
+        if direction not in ('left', 'right'):
+            raise ValueError(f'Unknown shift direction {direction!r}')
+        if count >= self.bits:
+            return -1 if direction == 'right' and value < 0 else 0
+        result = value << count if direction == 'left' else value >> count
+        return _fit_integer(result, self.min_value, self.max_value, 'wrapping')
 
     def arithmetic(self, operation, overflow, left, right):
         """Apply 'add', 'sub', 'mul', 'div' or 'rem' with 'wrapping', 'saturating' or 'checked' overflow.

@@ -75,7 +75,29 @@ class BinaryExpression(Expression):
     def remainder(left, right, *, source_position):
         return BinaryExpression(left, right, operator='rem', source_position=source_position)
 
+    @staticmethod
+    def bitwise_and(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='bit_and', source_position=source_position)
 
+    @staticmethod
+    def bitwise_or(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='bit_or', source_position=source_position)
+
+    @staticmethod
+    def bitwise_xor(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='bit_xor', source_position=source_position)
+
+    @staticmethod
+    def shift_left(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='shift_left', source_position=source_position)
+
+    @staticmethod
+    def shift_right(left, right, *, source_position):
+        return BinaryExpression(left, right, operator='shift_right', source_position=source_position)
+
+
+BITWISE_OPERATORS = ('bit_and', 'bit_or', 'bit_xor')
+SHIFT_OPERATORS = ('shift_left', 'shift_right')
 ARITHMETIC_OPERATORS = ('add', 'sub', 'mul', 'div', 'rem')
 
 
@@ -297,9 +319,22 @@ class TypedExpression:
         if self.expected_type is not None:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
-        if self.operation in ('not', 'and', 'or'):
+        if self.operation in ('and', 'or'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
+        elif self.operation in (*BITWISE_OPERATORS, 'not'):
+            operand_type = self.arguments[0].value_type
+            for argument in self.arguments[1:]:
+                check_value_type(argument.value_type, operand_type, argument.source)
+            if (not operand_type.contains_parameters
+                    and not isinstance(operand_type, (model.types.TypeInt, model.types.TypeBoolean))):
+                raise ProgramError(self.source, f'Bitwise operation requires an integer or boolean, got {operand_type}')
+        elif self.operation in SHIFT_OPERATORS:
+            value, count = self.arguments
+            for argument in (value, count):
+                if (not argument.value_type.contains_parameters
+                        and not isinstance(argument.value_type, model.types.TypeInt)):
+                    raise ProgramError(argument.source, f'Shift requires an integer, got {argument.value_type}')
         elif self.operation in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
@@ -361,6 +396,11 @@ class TypedExpression:
                 name = 'IsSome' if self.operation == 'is_some' else 'IsNone'
                 raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
 
+    def check_shift_count(self, count):
+        width = self.arguments[0].value_type.bits
+        if not 0 <= count < width:
+            raise ProgramError(self.arguments[1].source, f'Shift count must be between 0 and {width - 1}')
+
     def evaluate(self, inputs, locals):
         if self.operation == 'unit':
             return model.types.unit.default_value()
@@ -407,7 +447,7 @@ class TypedExpression:
                 raise ProgramError(self.source, 'Called Unwrap on a None value')
             return left.value
         if operation == 'not':
-            return not left
+            return self.value_type.bitwise('not', left)
         if operation == 'is_some':
             return left is not None
         if operation == 'is_none':
@@ -426,6 +466,11 @@ class TypedExpression:
                 locals['local', self.payload] = left.value
             return self.arguments[1].evaluate(inputs, locals)
         right = self.arguments[1].evaluate(inputs, locals)
+        if operation in BITWISE_OPERATORS:
+            return self.value_type.bitwise(operation.removeprefix('bit_'), left, right)
+        if operation in SHIFT_OPERATORS:
+            self.check_shift_count(right)
+            return self.value_type.shift(operation.removeprefix('shift_'), left, right)
         if operation == 'unwrap_or':
             # The fallback is evaluated eagerly, as in Rust.
             return right if left is None else left.value
@@ -636,6 +681,16 @@ class InstructionCompiler:
             self.emit(Opcode.EQUAL, destination, left, right)
             if operation == 'ne':
                 self.emit(Opcode.NOT, destination, destination)
+        elif operation in BITWISE_OPERATORS:
+            right = self.compile(expression.arguments[1])
+            opcode = {'bit_and': Opcode.AND, 'bit_or': Opcode.OR, 'bit_xor': Opcode.XOR}[operation]
+            self.emit(opcode, destination, left, right)
+        elif operation in SHIFT_OPERATORS:
+            count = expression.arguments[1].evaluate({}, {})
+            expression.check_shift_count(count)
+            right = Operand(OperandKind.CONST, self.intern_constant(model.types.uint32, count))
+            self.emit(Opcode.SHIFT_LEFT if operation == 'shift_left' else Opcode.SHIFT_RIGHT,
+                      destination, left, right)
         elif operation == 'arith':
             right = self.compile(expression.arguments[1])
             self.emit(OPCODES_BY_MEMBER[expression.payload], destination, left, right)
@@ -667,12 +722,13 @@ class InstructionCompiler:
 
 
 class ExpressionCompiler:
-    def __init__(self, scope, parameters, *, runtime=False, names=None, protected=()):
+    def __init__(self, scope, parameters, *, runtime=False, names=None, protected=(), unavailable=()):
         self.scope = scope
         self.parameters = parameters
         self.runtime = runtime
         self.names = dict(names or {})
         self.protected = set(protected)
+        self.unavailable = set(unavailable)
         self.next_slot = 0
         self.static_usage = set()
         self.bindings = {}
@@ -680,7 +736,7 @@ class ExpressionCompiler:
         self.loop_outer_keys = None
 
     def record_static_usage(self, expression):
-        expression = property_reference(self.scope, expression, self.names)
+        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
         if isinstance(expression, model.Reference):
             if expression.length == 1:
                 declaration = self.scope.static_declarations.get(expression.identifiers[0].id_str)
@@ -806,7 +862,7 @@ class ExpressionCompiler:
         return TypedExpression(result.value_type, 'block', (*statements, result))
 
     def compile(self, expression, expected=None):
-        expression = property_reference(self.scope, expression, self.names)
+        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
         if self.runtime:
             self.record_static_usage(expression)
         result = replace(self._compile(expression, expected), source=expression,
@@ -814,6 +870,8 @@ class ExpressionCompiler:
         result.check_types()
         if self.runtime:
             check_runtime_type(result.value_type, expression)
+            if result.operation in SHIFT_OPERATORS:
+                result.check_shift_count(result.arguments[1].evaluate({}, {}))
         return result
 
     def _compile(self, expression, expected):
@@ -864,8 +922,23 @@ class ExpressionCompiler:
             operand = self.compile(expression.operand, expected)
             return TypedExpression(operand.value_type, 'neg', (operand,))
         if isinstance(expression, UnaryExpression):
-            operand = self.compile(expression.operand, boolean)
-            return TypedExpression(boolean, 'not', (operand,))
+            operand = self.compile(expression.operand, expected or self.context_type(expression.operand))
+            return TypedExpression(operand.value_type, 'not', (operand,))
+        if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
+            left = self.compile(expression.left, expected or self.context_type(expression.left))
+            if self.runtime:
+                static_names = {name: value for name, value in self.names.items() if value.operation == 'constant'}
+                count_compiler = ExpressionCompiler(self.scope, self.parameters, names=static_names,
+                                                    unavailable=set(self.names) - set(static_names))
+                right = count_compiler.compile(expression.right)
+            else:
+                right = self.compile(expression.right)
+            return TypedExpression(left.value_type, expression.operator, (left, right))
+        if isinstance(expression, BinaryExpression) and expression.operator in BITWISE_OPERATORS:
+            operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
+            left = self.compile(expression.left, operand_type)
+            right = self.compile(expression.right, left.value_type)
+            return TypedExpression(left.value_type, expression.operator, (left, right))
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
             if self.runtime:
                 name = expression.operator.capitalize()
@@ -918,6 +991,8 @@ class ExpressionCompiler:
                 if key in self.initialization and not self.initialization[key][1]:
                     raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
                 return value
+            if name in self.unavailable:
+                raise ProgramError(expression, 'Shift count must be a compile-time value')
             if self.runtime and name in self.protected:
                 raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
         if self.runtime:
@@ -1097,7 +1172,8 @@ class ExpressionCompiler:
                 self.check_runtime_syntax(value)
         elif isinstance(expression, BinaryExpression):
             self.check_runtime_syntax(expression.left)
-            self.check_runtime_syntax(expression.right)
+            if expression.operator not in SHIFT_OPERATORS:
+                self.check_runtime_syntax(expression.right)
         elif isinstance(expression, UnaryExpression):
             self.check_runtime_syntax(expression.operand)
         elif isinstance(expression, PropertyAccess):
@@ -1128,9 +1204,11 @@ class ExpressionCompiler:
             if isinstance(tail, LocalBinding) or tail.terminated:
                 return model.types.unit
             return self.context_type(tail.expression) if len(expression.statements) == 1 else None
-        if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
+        if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
+            return self.context_type(expression.left)
+        if isinstance(expression, BinaryExpression) and expression.operator in (*ARITHMETIC_OPERATORS, *BITWISE_OPERATORS):
             return self.context_type(expression.left) or self.context_type(expression.right)
-        if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
+        if isinstance(expression, UnaryExpression):
             return self.context_type(expression.operand)
         if is_some_call(expression):
             inner_type = (self.context_type(expression.parameters[0])
@@ -1139,7 +1217,7 @@ class ExpressionCompiler:
         return self.known_type(expression)
 
     def known_type(self, expression):
-        expression = property_reference(self.scope, expression, self.names)
+        expression = property_reference(self.scope, expression, self.names.keys() | self.unavailable)
         if isinstance(expression, PropertyAccess):
             receiver_type = self.known_type(expression.receiver)
             if isinstance(receiver_type, model.types.TypeStruct):
@@ -1181,10 +1259,12 @@ class ExpressionCompiler:
             return model.types.String
         if isinstance(expression, model.UnitLiteral):
             return model.types.unit
-        if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
+        if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
+            return self.known_type(expression.left)
+        if isinstance(expression, BinaryExpression) and expression.operator in (*ARITHMETIC_OPERATORS, *BITWISE_OPERATORS):
             return (self.context_type(expression.left) or self.context_type(expression.right)
                     or self.known_type(expression.left))
-        if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
+        if isinstance(expression, UnaryExpression):
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return model.types.boolean

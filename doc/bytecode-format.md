@@ -850,9 +850,12 @@ Each name below denotes a value operand except `field`, `offset`,
 | `MAKE_SOME destination, source` | Copy a value of type `T` into a destination of type `Option[T]` as `Some`. |
 | `GET_OPTION_VALUE destination, source` | Copy the value of `Some`, or assign the contained type's default for `None`. The destination has that contained type. |
 | `IS_SOME destination, source` | Assign a boolean indicating whether the option is `Some`. |
-| `NOT destination, source` | Negate a boolean. |
-| `AND destination, left, right` | Compute boolean conjunction. |
-| `OR destination, left, right` | Compute boolean disjunction. |
+| `NOT destination, source` | Complement an integer within its width, or negate a boolean. |
+| `AND destination, left, right` | Compute bitwise or Boolean conjunction. |
+| `OR destination, left, right` | Compute bitwise or Boolean disjunction. |
+| `XOR destination, left, right` | Compute bitwise or Boolean exclusive disjunction. |
+| `SHIFT_LEFT destination, value, shift_count` | Shift left, discarding outgoing bits and filling with zeros. |
+| `SHIFT_RIGHT destination, value, shift_count` | Shift right, extending the sign for signed integers and filling with zeros for unsigned integers. |
 | `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
 | `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type, or the same ordered built-in type. |
 | `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
@@ -867,7 +870,12 @@ Each name below denotes a value operand except `field`, `offset`,
 | `CALL destination, function, count, arguments…` | Call a native function with `count` argument operands and assign its result. |
 | `RETURN` | End the procedure with its current output values. |
 
-`NOT`, `AND`, and `OR` require boolean operands and destinations.
+`NOT`, `AND`, `OR`, and `XOR` require matching integer or boolean sources
+and destinations. Binary operations evaluate both sources.
+For shifts, `value` and the destination share one integer type;
+`shift_count` is an ordinary `uint32` value operand. Counts at least the
+value's width produce zero, except that right-shifting a negative signed
+value produces minus one. Counts are not masked.
 Arithmetic sources share one integer type `T`. The destination has type
 `T`, or `Option[T]` for `_CHECKED` instructions. Division truncates toward
 zero, and the remainder has the dividend's sign.

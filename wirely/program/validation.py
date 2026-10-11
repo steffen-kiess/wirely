@@ -1,6 +1,6 @@
 """Validation of typed procedure instructions before execution."""
 
-from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, boolean
+from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, boolean, uint32
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
@@ -19,6 +19,9 @@ _SIGNATURES = {
     Opcode.NOT: (Operand, Operand),
     Opcode.AND: (Operand, Operand, Operand),
     Opcode.OR: (Operand, Operand, Operand),
+    Opcode.XOR: (Operand, Operand, Operand),
+    Opcode.SHIFT_LEFT: (Operand, Operand, Operand),
+    Opcode.SHIFT_RIGHT: (Operand, Operand, Operand),
     Opcode.EQUAL: (Operand, Operand, Operand),
     Opcode.LESS: (Operand, Operand, Operand),
     **{opcode: (Operand, Operand, Operand) for opcode in ARITHMETIC_OPCODES},
@@ -109,7 +112,18 @@ def _validate_body(procedure, constant_types, functions):
                     _same_type(operand_types[1], option_type.inner_type)
                 else:
                     _same_type(operand_types[0], boolean if opcode == Opcode.IS_SOME else option_type.inner_type)
-            elif opcode in (Opcode.NOT, Opcode.AND, Opcode.OR, Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
+            elif opcode in (Opcode.NOT, Opcode.AND, Opcode.OR, Opcode.XOR):
+                value_type = operand_types[0]
+                if not isinstance(value_type, (TypeInt, TypeBoolean)):
+                    raise ValueError('Bitwise operation requires an integer or boolean type')
+                for source_type in operand_types[1:]:
+                    _same_type(source_type, value_type)
+            elif opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT):
+                if not isinstance(operand_types[1], TypeInt):
+                    raise ValueError('Shift requires an integer type')
+                _same_type(operand_types[0], operand_types[1])
+                _same_type(operand_types[2], uint32)
+            elif opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
                 for value_type in operand_types:
                     _same_type(value_type, boolean)
             elif opcode in (Opcode.EQUAL, Opcode.LESS):

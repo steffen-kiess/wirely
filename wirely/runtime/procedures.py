@@ -69,13 +69,14 @@ def execute_procedure(program, procedure, inputs, functions=()):
             elif opcode == Opcode.IS_SOME:
                 result = read(operands[1]) is not None
             elif opcode == Opcode.NOT:
-                result = not read(operands[1])
-            elif opcode == Opcode.AND:
+                result = value_type(destination).bitwise('not', read(operands[1]))
+            elif opcode in (Opcode.AND, Opcode.OR, Opcode.XOR):
                 left, right = read(operands[1]), read(operands[2])
-                result = left and right
-            elif opcode == Opcode.OR:
-                left, right = read(operands[1]), read(operands[2])
-                result = left or right
+                result = value_type(destination).bitwise(opcode.name.lower(), left, right)
+            elif opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT):
+                value, count = read(operands[1]), read(operands[2])
+                direction = 'left' if opcode == Opcode.SHIFT_LEFT else 'right'
+                result = value_type(destination).shift(direction, value, count)
             elif opcode == Opcode.EQUAL:
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)

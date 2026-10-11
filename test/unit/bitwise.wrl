@@ -1,0 +1,99 @@
+node type Operations {
+  parameter Type: ValueType;
+  parameter Count: uint64 = 3;
+  constant RightCount: uint8 = 2;
+
+  default input: value Type;
+  output Left: value Type;
+  output Right: value Type;
+  output Complement: value Type;
+  output And: value Type;
+  output Or: value Type;
+  output Xor: value Type;
+  output Preserved: value Type;
+  output BitSet: value boolean;
+
+  procedure run depends on default input as input
+    produces Left, Right, Complement, And, Or, Xor, Preserved, BitSet
+  {
+    Left = input << (Count + 0);
+    Right = input >> RightCount;
+    Complement = !input;
+    And = input & 5;
+    Or = input | 5;
+    Xor = input ^ 5;
+    let mut value: Type = 3;
+    Preserved = value & { value = 0; 1 };
+    BitSet = input & 8 != 0;
+  }
+}
+
+node type Booleans {
+  default input: value boolean;
+  input Other: value boolean;
+  output And: value boolean;
+  output Or: value boolean;
+  output Xor: value boolean;
+  output Complement: value boolean;
+  output AndRan: value boolean;
+  output OrRan: value boolean;
+  output XorRan: value boolean;
+  output Mask: value uint8;
+
+  procedure run depends on default input as input, Other
+    produces And, Or, Xor, Complement, AndRan, OrRan, XorRan, Mask
+  {
+    And = input & Other;
+    Or = input | Other;
+    Xor = input ^ Other;
+    Complement = !input;
+    let mut ran = false;
+    false & { ran = true; true };
+    AndRan = ran;
+    ran = false;
+    true | { ran = true; false };
+    OrRan = ran;
+    ran = false;
+    false ^ { ran = true; true };
+    XorRan = ran;
+    Mask = 1 << { let count: int8 = 1; count + 2 };
+  }
+}
+
+node boolean_source: Std.DebugValueSource { Type: boolean }
+node other_source: Std.DebugValueSource { Type: boolean }
+node booleans: Booleans {}
+connect boolean_source -> booleans;
+connect other_source -> booleans.Other;
+
+node int8_source: Std.DebugValueSource { Type: int8 }
+node int8_ops: Operations { Type: int8 }
+connect int8_source -> int8_ops;
+
+node uint8_source: Std.DebugValueSource { Type: uint8 }
+node uint8_ops: Operations { Type: uint8 }
+connect uint8_source -> uint8_ops;
+
+node int16_source: Std.DebugValueSource { Type: int16 }
+node int16_ops: Operations { Type: int16 }
+connect int16_source -> int16_ops;
+
+node uint16_source: Std.DebugValueSource { Type: uint16 }
+node uint16_ops: Operations { Type: uint16 }
+connect uint16_source -> uint16_ops;
+
+node int32_source: Std.DebugValueSource { Type: int32 }
+node int32_ops: Operations { Type: int32 }
+connect int32_source -> int32_ops;
+
+node uint32_source: Std.DebugValueSource { Type: uint32 }
+node uint32_ops: Operations { Type: uint32 }
+connect uint32_source -> uint32_ops;
+
+node int64_source: Std.DebugValueSource { Type: int64 }
+node int64_ops: Operations { Type: int64 }
+connect int64_source -> int64_ops;
+
+node uint64_source: Std.DebugValueSource { Type: uint64 }
+node uint64_ops: Operations { Type: uint64 }
+connect uint64_source -> uint64_ops;

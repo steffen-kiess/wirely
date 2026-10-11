@@ -131,13 +131,22 @@ expression_list: _list{expression} -> copy_list
 ?conjunction{a, b}: comparison{a, b}
     | conjunction{a, b} "&&" comparison{b, b} -> binary_expression__logical_and
 // Comparisons do not chain.
-?comparison{a, b}: sum{a, b}
-    | sum{a, b} "==" sum{b, b} -> binary_expression__equal
-    | sum{a, b} "!=" sum{b, b} -> binary_expression__not_equal
-    | sum{a, b} "<" sum{b, b} -> binary_expression__less
-    | sum{a, b} "<=" sum{b, b} -> binary_expression__less_equal
-    | sum{a, b} ">" sum{b, b} -> binary_expression__greater
-    | sum{a, b} ">=" sum{b, b} -> binary_expression__greater_equal
+?comparison{a, b}: bitwise_or{a, b}
+    | bitwise_or{a, b} "==" bitwise_or{b, b} -> binary_expression__equal
+    | bitwise_or{a, b} "!=" bitwise_or{b, b} -> binary_expression__not_equal
+    | bitwise_or{a, b} "<" bitwise_or{b, b} -> binary_expression__less
+    | bitwise_or{a, b} "<=" bitwise_or{b, b} -> binary_expression__less_equal
+    | bitwise_or{a, b} ">" bitwise_or{b, b} -> binary_expression__greater
+    | bitwise_or{a, b} ">=" bitwise_or{b, b} -> binary_expression__greater_equal
+?bitwise_or{a, b}: bitwise_xor{a, b}
+    | bitwise_or{a, b} "|" bitwise_xor{b, b} -> binary_expression__bitwise_or
+?bitwise_xor{a, b}: bitwise_and{a, b}
+    | bitwise_xor{a, b} "^" bitwise_and{b, b} -> binary_expression__bitwise_xor
+?bitwise_and{a, b}: shift{a, b}
+    | bitwise_and{a, b} "&" shift{b, b} -> binary_expression__bitwise_and
+?shift{a, b}: sum{a, b}
+    | shift{a, b} "<<" sum{b, b} -> binary_expression__shift_left
+    | shift{a, b} ">>" sum{b, b} -> binary_expression__shift_right
 ?sum{a, b}: product{a, b}
     | sum{a, b} "+" product{b, b} -> binary_expression__add
     | sum{a, b} "-" product{b, b} -> binary_expression__subtract

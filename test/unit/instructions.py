@@ -273,6 +273,66 @@ def check_arithmetic():
         assert execute_procedure(program, procedure, ()) == {'output0': True}
 
 
+def check_bitwise_and_shifts():
+    source = Operand(OperandKind.INPUT, 0)
+    count_input = Operand(OperandKind.INPUT, 1)
+    ret = instruction(Opcode.RETURN)
+    for bits in (8, 16, 32, 64):
+        for signed in (True, False):
+            value_type = getattr(types, ('int' if signed else 'uint') + str(bits))
+            mask = (1 << bits) - 1
+
+            def normalized(value):
+                value &= mask
+                return value - (1 << bits) if signed and value >= (1 << (bits - 1)) else value
+
+            for value in (0, value_type.min_value, value_type.max_value):
+                outcome = execute([
+                    instruction(Opcode.NOT, output(0), source),
+                    instruction(Opcode.AND, output(1), source, const(0)),
+                    instruction(Opcode.OR, output(2), source, const(0)),
+                    instruction(Opcode.XOR, output(3), source, const(0)),
+                    ret,
+                ], output_types=(value_type,) * 4, inputs=((value_type, value),),
+                   constants=(Constant(value_type, 5),))
+                assert outcome == (normalized(~value), value & 5, value | 5, value ^ 5)
+
+                for count in (0, 1, bits - 1, bits, bits + 1, 0xffffffff):
+                    left = normalized(value << count) if count < bits else 0
+                    right = value >> count if count < bits else (-1 if value < 0 else 0)
+                    outcome = execute([
+                        instruction(Opcode.COPY, output(0), source),
+                        instruction(Opcode.SHIFT_LEFT, output(0), output(0), count_input),
+                        instruction(Opcode.COPY, output(1), source),
+                        instruction(Opcode.SHIFT_RIGHT, output(1), output(1), count_input),
+                        ret,
+                    ], output_types=(value_type,) * 2,
+                       inputs=((value_type, value), (types.uint32, count)))
+                    assert outcome == (left, right), (value_type, value, count, outcome)
+
+    for left in (False, True):
+        for right in (False, True):
+            assert execute([
+                instruction(Opcode.XOR, output(0), source, count_input), ret,
+            ], inputs=((types.boolean, left), (types.boolean, right))) == (left != right,)
+
+    for opcode in (Opcode.NOT, Opcode.AND, Opcode.OR, Opcode.XOR):
+        operands = (output(0), local(0)) if opcode == Opcode.NOT else (output(0), local(0), local(0))
+        expect_invalid([instruction(opcode, *operands), ret], 'integer or boolean',
+                       output_types=(types.Duration,), local_types=(types.Duration,))
+        expect_invalid([instruction(opcode, *operands), ret], 'Expected type',
+                       output_types=(types.uint8,), local_types=(types.boolean,))
+    for opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT):
+        for count_type in (types.int32, types.uint8, types.uint64, types.boolean):
+            expect_invalid([instruction(opcode, output(0), local(0), local(1)), ret], 'Expected type',
+                           output_types=(types.uint8,), local_types=(types.uint8, count_type))
+        expect_invalid([instruction(opcode, output(0), local(0), local(1)), ret], 'integer type',
+                       local_types=(types.boolean, types.uint32))
+        expect_invalid([instruction(opcode, output(0), local(0), local(1)), ret], 'Expected type',
+                       output_types=(types.uint16,), local_types=(types.uint8, types.uint32))
+        expect_invalid([instruction(opcode, output(0), local(0), 1), ret], 'Invalid operands',
+                       output_types=(types.uint8,), local_types=(types.uint8,))
+
 def check_branches():
     assert execute([
         instruction(Opcode.COPY, output(0), const(0)),
@@ -326,8 +386,6 @@ def check_validation():
                    inputs=((types.boolean, False),))
     expect_invalid([instruction(Opcode.COPY, output(0), const(0)), ret], 'Expected type',
                    constants=(Constant(types.uint8, 0),))
-    expect_invalid([instruction(Opcode.NOT, output(0), output(0)), ret], 'Expected type',
-                   output_types=(types.uint8,))
     expect_invalid([instruction(Opcode.EQUAL, output(0), output(0), const(0)), ret], 'Expected type',
                    constants=(Constant(types.uint8, 0),))
     for value_type in (types.boolean, types.MonotonicTime, types.TypeOption(types.uint8)):
@@ -409,5 +467,6 @@ check_arithmetic()
 check_conversions()
 check_calls()
 check_branches()
+check_bitwise_and_shifts()
 check_validation()
 check_dump()

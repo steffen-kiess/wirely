@@ -1,0 +1,106 @@
+// Precedence and associativity follow Rust.
+assert 1 | 2 ^ 3 & 1 == 3;
+assert 1 << 2 + 1 == 8 && 16 >> 1 + 1 == 4;
+assert 1 + 2 << 1 == 6 && 32 >> 1 >> 2 == 4;
+assert 7 & 3 != 0 && 1 | 2 == 3 || false;
+assert !5 == -6 && !!5 == 5 && !0 == -1;
+constant Mask: uint16 = 1 << 12;
+assert Mask == 4096 && Mask & 0x1000 != 0;
+assert 0x1000 & Mask != 0 && Mask ^ 0x1000 == 0;
+constant Complement: uint8 = !5;
+assert Complement == 250;
+constant Top: int8 = 1 << 7;
+assert Top == -128 && Top >> 7 == -1;
+constant Lost: uint8 = 128 << 1;
+assert Lost == 0;
+constant Count: uint64 = 3;
+constant Shifted: uint8 = 1 << Count;
+assert Shifted == 8;
+assert { let count: int8 = 2; 1 << count } == 4;
+
+// Eager Boolean operators and local mutation at compile time.
+assert true & true && !(true & false) && !(false & true) && !(false & false);
+assert true | true && true | false && false | true && !(false | false);
+assert !(true ^ true) && true ^ false && false ^ true && !(false ^ false);
+assert { let mut ran = false; false & { ran = true; true }; ran };
+assert { let mut ran = false; true | { ran = true; false }; ran };
+assert { let mut value = 3; value & { value = 0; 1 } } == 1;
+
+// Generic expressions resolve the operand width and signedness.
+node type Bits {
+  parameter Type: ValueType;
+  parameter Width: uint8;
+  parameter Maximum: Type;
+  parameter Minimum: Type;
+  parameter Signed: boolean;
+
+  constant Zero: Type = 0;
+  constant One: Type = 1;
+  constant All: Type = !Zero;
+  constant TopBit: Type = One << (Width - 1);
+  constant Doubled: Type = Maximum << 1;
+  assert !!Maximum == Maximum && Maximum & Zero == Zero;
+  assert Maximum | Zero == Maximum && Maximum ^ Maximum == Zero;
+  assert All == if Signed { Type.WrappingSub(0, 1) } else { Maximum };
+  assert TopBit == if Signed { Minimum } else {
+    Type.WrappingAdd(Maximum >> 1, One)
+  };
+  assert Doubled == if Signed { Type.WrappingSub(0, 2) } else { Type.WrappingSub(Maximum, One) };
+  assert Minimum >> (Width - 1) == if Signed { Type.WrappingSub(0, 1) } else { Zero };
+}
+node int8_bits: Bits {
+  Type: int8,
+  Width: 8,
+  Maximum: 127,
+  Minimum: -128,
+  Signed: true,
+}
+node uint8_bits: Bits {
+  Type: uint8,
+  Width: 8,
+  Maximum: 255,
+  Minimum: 0,
+  Signed: false,
+}
+node int16_bits: Bits {
+  Type: int16,
+  Width: 16,
+  Maximum: 32767,
+  Minimum: -32768,
+  Signed: true,
+}
+node uint16_bits: Bits {
+  Type: uint16,
+  Width: 16,
+  Maximum: 65535,
+  Minimum: 0,
+  Signed: false,
+}
+node int32_bits: Bits {
+  Type: int32,
+  Width: 32,
+  Maximum: 2147483647,
+  Minimum: -2147483648,
+  Signed: true,
+}
+node uint32_bits: Bits {
+  Type: uint32,
+  Width: 32,
+  Maximum: 4294967295,
+  Minimum: 0,
+  Signed: false,
+}
+node int64_bits: Bits {
+  Type: int64,
+  Width: 64,
+  Maximum: 9223372036854775807,
+  Minimum: -9223372036854775808,
+  Signed: true,
+}
+node uint64_bits: Bits {
+  Type: uint64,
+  Width: 64,
+  Maximum: 18446744073709551615,
+  Minimum: 0,
+  Signed: false,
+}
