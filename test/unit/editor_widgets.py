@@ -10,13 +10,25 @@ from PySide6.QtGui import QColor, QImage, QMouseEvent, QPainter, QTextCursor, QW
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
+from wirely.compiler.editing import apply_edits, set_parameter_binding
 from wirely.compiler.outline import Node, State
 from wirely.editor.app import MainWindow
 from wirely.editor.grid import STEP, from_pixels, snap
+from wirely.editor.sync import Document
 
 
 checks = TestCase()
 application = QApplication.instance() or QApplication([])
+
+# Source edits keep the order of insertions at the same offset, as
+# apply_edits() does: binding a parameter after one without a comma.
+binding_source = 'node receiver: KNX.EventReceiver {\n  GroupAddress: "1/2/3"\n}\n'
+document = Document('main.wrl', binding_source)
+edits = set_parameter_binding([('main.wrl', binding_source)], Node(('receiver',)), 'Type', 'boolean')
+document.apply(edits)
+checks.assertEqual(document.text(), apply_edits([('main.wrl', binding_source)], edits)[0][1])
+checks.assertEqual(document.text(),
+                   'node receiver: KNX.EventReceiver {\n  GroupAddress: "1/2/3",\n  Type: boolean\n}\n')
 
 source = '''node source: Std.DebugEventSource { Type: boolean }
 node printer: Std.DebugEventPrinter { Type: boolean }

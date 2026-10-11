@@ -45,11 +45,17 @@ class Document(QObject):
         cursor.insertText(text.replace('\r\n', '\n'))
 
     def apply(self, edits):
-        """Apply TextEdits of this file as one undoable step."""
+        """Apply TextEdits of this file as one undoable step.
+
+        Insertions at the same offset keep their order in edits, as in
+        apply_edits().
+        """
         text = self.text()
         cursor = QTextCursor(self.text_document)
         cursor.beginEditBlock()
-        for edit in sorted(edits, key=lambda edit: (edit.start, edit.end), reverse=True):
+        # Applying from the end keeps earlier offsets valid; reversing the
+        # stable ascending sort puts earlier same-offset insertions first.
+        for edit in reversed(sorted(edits, key=lambda edit: (edit.start, edit.end))):
             cursor.setPosition(qt_position(text, edit.start))
             cursor.setPosition(qt_position(text, edit.end), QTextCursor.MoveMode.KeepAnchor)
             cursor.insertText(edit.text)

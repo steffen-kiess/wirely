@@ -391,7 +391,8 @@ for source, expected in (
         ('node n: T { A: 1, }\n', 'node n: T { A: 1, B: 2, }\n'),
         ('node n: T {\n  A: 1,\n}\n', 'node n: T {\n  A: 1,\n  B: 2,\n}\n'),
         ('node n: T {\n  A: 1 // a\n}\n', 'node n: T {\n  A: 1, // a\n  B: 2\n}\n'),
-        ('node n: T { #![Internal] }\n', 'node n: T {\n  #![Internal]\n  B: 2\n}\n')):
+        ('node n: T {\n}\n', 'node n: T {\n  B: 2,\n}\n'),
+        ('node n: T { #![Internal] }\n', 'node n: T {\n  #![Internal]\n  B: 2,\n}\n')):
     check(set_parameter_binding, source, node, 'B', '2', expected)
 checks.assertEqual(edit(set_parameter_binding, 'node n: T { A: 1, B: 2, A: 3 }\n', node, 'A', '5', optional=True),
                    'node n: T { A?: 5, B: 2 }\n')

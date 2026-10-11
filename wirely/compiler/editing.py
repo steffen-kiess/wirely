@@ -276,7 +276,11 @@ def reconnect(sources, connection, *, source=None, target=None):
 
 
 def set_parameter_binding(sources, node, name, value_text, *, optional=False):
-    """Set a parameter binding of a node, replacing bindings with the same name."""
+    """Set a parameter binding of a node, replacing bindings with the same name.
+
+    A new binding follows the style of the existing ones; in a multi-line
+    body without bindings, it ends with a comma.
+    """
     binding = f'{format_identifier(name)}{"?:" if optional else ":"} {value_text.strip()}'
     _parse_declaration(f'node x: T {{ {binding} }}')
     record = _single(outline(sources).find(node), node)
@@ -309,7 +313,8 @@ def set_parameter_binding(sources, node, name, value_text, *, optional=False):
         return [TextEdit(filename, open_brace, close_brace + 1, f'{{ {binding} }}')]
     site = _body_site(text, record._declaration, instantiation.inner_attributes,
                       _end(instantiation.type_name), close_brace)
-    return _diff_edit(filename, text, _insert_inner(text, site, [binding]))
+    # A binding on its own line ends with a comma, like further ones will.
+    return _diff_edit(filename, text, _insert_inner(text, site, [binding + ',']))
 
 
 def remove_parameter_binding(sources, node, name):
