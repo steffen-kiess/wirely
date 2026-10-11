@@ -512,7 +512,10 @@ class MainWindow(QMainWindow):
                 self.text_tabs[location[0]].reveal(location[1])
 
     def _text_cursor(self, filename, offset):
-        if filename in self.program.parse_errors:
+        # Source edits also move inactive text cursors. Only user navigation
+        # in the active source tab should select and scroll graph items.
+        if self.workspaces.active_view is not self.text_tabs.get(filename) \
+                or filename in self.program.parse_errors:
             return
         found = self.program.element_at(filename, offset)
         if found is None:

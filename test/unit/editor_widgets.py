@@ -31,6 +31,7 @@ def drag(view, start, end):
         QApplication.sendEvent(viewport, QMouseEvent(
             QMouseEvent.Type.MouseMove, position, viewport.mapToGlobal(position), Qt.MouseButton.NoButton,
             Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        application.processEvents()
     QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, end)
     application.processEvents()
 
@@ -80,6 +81,21 @@ with tempfile.TemporaryDirectory() as directory:
             application.processEvents()
             checks.assertEqual(at(QPointF()), origin)
         checks.assertEqual(document.text(), source)
+    view.resetTransform()
+    view.centerOn(scene.itemsBoundingRect().center())
+
+    # User navigation in the active source tab still reveals graph items.
+    editor = window.text_tabs[filename]
+    window.workspaces.activate(editor)
+    with patch.object(view, 'ensureVisible', wraps=view.ensureVisible) as reveal:
+        editor.go_to(document.text().index('node source') + 5)
+        checks.assertEqual(scene.selected_ids(), [Node(('source',))])
+        reveal.assert_called_with(scene.items_by_id[Node(('source',))])
+        editor.go_to(document.text().index('node printer') + 5)
+        checks.assertEqual(scene.selected_ids(), [Node(('printer',))])
+        reveal.assert_called_with(scene.items_by_id[Node(('printer',))])
+    window.workspaces.activate(tab)
+    scene.clearSelection()
     view.resetTransform()
     view.centerOn(scene.itemsBoundingRect().center())
 
@@ -296,4 +312,33 @@ with tempfile.TemporaryDirectory() as directory:
     window.save_all()
     with open(filename, encoding='utf-8') as file:
         checks.assertEqual(file.read(), document.text())
+    window.close()
+
+    # A file loaded with stored positions exercises source cursor changes
+    # inside existing metadata, including dragging past the viewport edge.
+    positioned_source = ('#[position(x = 0, y = 0)]\n' + source.replace(
+        'node printer:', '#[position(x = 10, y = 7)]\nnode printer:'))
+    with open(filename, 'w', encoding='utf-8') as file:
+        file.write(positioned_source)
+    window = MainWindow([filename])
+    window.show()
+    application.processEvents()
+    tab = window.graph_tabs[0]
+    scene = tab.graph_scene
+    view = tab.view
+    for zoom in (0.15, 0.6, 1, 1.8, 4):
+        view.resetTransform()
+        view.scale(zoom, zoom)
+        printer = scene.items_by_id[Node(('printer',))]
+        view.centerOn(printer.sceneBoundingRect().center())
+        application.processEvents()
+        for destination in (QPoint(5, 5), QPoint(-40, -40)):
+            start = view.mapFromScene(printer.mapToScene(20, 8))
+            origin = view.viewportTransform().map(QPointF())
+            drag(view, start, destination)
+            checks.assertEqual(view.viewportTransform().map(QPointF()), origin)
+            window.undo()
+            checks.assertEqual(view.viewportTransform().map(QPointF()), origin)
+            scene.clearSelection()
+    checks.assertEqual(window.session.documents[filename].text(), positioned_source)
     window.close()
