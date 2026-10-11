@@ -31,9 +31,9 @@ node type T {
   connect run.out -> t;
 }
 
-#[position(x = 1, y = 2.5)]
+#[Diagram.Position(X = 1, Y = 2.5)]
 node n: T { P: int }
-node m: Missing.T { #![position(x = 1)] Q?: 2 }
+node m: Missing.T { #![Diagram.Position(X = 1)] Q?: 2 }
 connect n -> m.in;
 connect n -> m.in;
 connect elsewhere -> n.a;

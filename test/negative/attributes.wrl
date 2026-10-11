@@ -27,98 +27,98 @@ enum type E: uint8 {
 connect #[unknown] a -> b; // E: Unknown attribute unknown
 
 // TEST: wrong target
-#[position(x = 1, y = 2)] node type T {}
-// ^E: Attribute position is not permitted on node_type
+#[Diagram.Position(X = 1, Y = 2)] node type T {}
+// ^E: Attribute Diagram.Position is not permitted on node_type
 
 // TEST: wrong inner target
 struct type S {
-  #![position(x = 1, y = 2)] // E: Attribute position is not permitted on struct
+  #![Diagram.Position(X = 1, Y = 2)] // E: Attribute Diagram.Position is not permitted on struct
 }
 
 // TEST: wrong connection target
-#[position(x = 1, y = 2)] connect a -> b;
-// ^E: Attribute position is not permitted on connection
+#[Diagram.Position(X = 1, Y = 2)] connect a -> b;
+// ^E: Attribute Diagram.Position is not permitted on connection
 
 // TEST: wrong assertion target
-#[position(x = 1, y = 2)] assert true;
-// ^E: Attribute position is not permitted on assertion
+#[Diagram.Position(X = 1, Y = 2)] assert true;
+// ^E: Attribute Diagram.Position is not permitted on assertion
 
 // TEST: missing arguments
-node n: Missing { #![position] } // E: position requires x and y arguments
+node n: Missing { #![Diagram.Position] } // E: Diagram.Position requires X and Y arguments
 
 // TEST: empty arguments
-#[position()] node n: Missing {} // E: position requires x and y arguments
+#[Diagram.Position()] node n: Missing {} // E: Diagram.Position requires X and Y arguments
 
 // TEST: missing y
-#[position(x = 1)] node n: Missing {} // E: position requires x and y arguments
+#[Diagram.Position(X = 1)] node n: Missing {} // E: Diagram.Position requires X and Y arguments
 
 // TEST: missing x
-#[position(y = 1)] node n: Missing {} // E: position requires x and y arguments
+#[Diagram.Position(Y = 1)] node n: Missing {} // E: Diagram.Position requires X and Y arguments
 
 // TEST: duplicate argument
-#[position(x = 1, x = 2, y = 0)] node n: Missing {}
-// ^E: Duplicate position argument x
+#[Diagram.Position(X = 1, X = 2, Y = 0)] node n: Missing {}
+// ^E: Duplicate Diagram.Position argument X
 
 // TEST: unknown argument
-#[position(x = 1, y = 2, z = 3)] node n: Missing {}
-// ^E: Unknown position argument
+#[Diagram.Position(X = 1, Y = 2, z = 3)] node n: Missing {}
+// ^E: Unknown Diagram.Position argument
 
 // TEST: qualified argument
-#[position(point.x = 1, y = 2)] node n: Missing {}
-// ^E: Unknown position argument
+#[Diagram.Position(point.X = 1, Y = 2)] node n: Missing {}
+// ^E: Unknown Diagram.Position argument
 
 // TEST: boolean argument
-#[position(x = true, y = 2)] node n: Missing {}
-// ^E: position x requires a finite numeric literal
+#[Diagram.Position(X = true, Y = 2)] node n: Missing {}
+// ^E: Diagram.Position X requires a finite numeric literal
 
 // TEST: string argument
-#[position(x = "1", y = 2)] node n: Missing {}
-// ^E: position x requires a finite numeric literal
+#[Diagram.Position(X = "1", Y = 2)] node n: Missing {}
+// ^E: Diagram.Position X requires a finite numeric literal
 
 // TEST: flag argument
-#[position(x, y = 2)] node n: Missing {}
-// ^E: position x requires a finite numeric literal
+#[Diagram.Position(X, Y = 2)] node n: Missing {}
+// ^E: Diagram.Position X requires a finite numeric literal
 
 // TEST: nested argument
-#[position(x(1), y = 2)] node n: Missing {}
-// ^E: position x requires a finite numeric literal
+#[Diagram.Position(X(1), Y = 2)] node n: Missing {}
+// ^E: Diagram.Position X requires a finite numeric literal
 
 // TEST: literal argument
-#[position(1, y = 2)] node n: Missing {}
-// ^E: Unknown position argument
+#[Diagram.Position(1, Y = 2)] node n: Missing {}
+// ^E: Unknown Diagram.Position argument
 
 // TEST: nonfinite argument
-#[position(x = 1e999, y = 2)] node n: Missing {}
-// ^E: position x requires a finite numeric literal
+#[Diagram.Position(X = 1e999, Y = 2)] node n: Missing {}
+// ^E: Diagram.Position X requires a finite numeric literal
 
 // TEST: name value attribute
-#[position = 1] node n: Missing {}
-// ^E: position requires x and y arguments
+#[Diagram.Position = 1] node n: Missing {}
+// ^E: Diagram.Position requires X and Y arguments
 
 // TEST: reference value
-#[position(x = Something, y = 2)] node n: Missing {}
+#[Diagram.Position(X = Something, Y = 2)] node n: Missing {}
 // ^E: Attribute values must be literals
 
 // TEST: duplicate attribute
-#[position(x = 1, y = 2)]
-node n: Missing { #![position(x = 3, y = 4)] } // E: Duplicate attribute position
+#[Diagram.Position(X = 1, Y = 2)]
+node n: Missing { #![Diagram.Position(X = 3, Y = 4)] } // E: Duplicate attribute Diagram.Position
 
 // TEST: dangling outer file
-#[position(x = 1, y = 2)] // E: Unexpected token
+#[Diagram.Position(X = 1, Y = 2)] // E: Unexpected token
 
 // TEST: dangling outer body
 node type T {
-  #[position(x = 1, y = 2)]
+  #[Diagram.Position(X = 1, Y = 2)]
 } // E: Unexpected token
 
 // TEST: dangling outer field
 struct type S {
-  #[position(x = 1, y = 2)]
+  #[Diagram.Position(X = 1, Y = 2)]
 } // E: Unexpected token
 
 // TEST: dangling outer member
 enum type E: uint8 {
-  #[position(x = 1, y = 2)]
+  #[Diagram.Position(X = 1, Y = 2)]
 } // E: Unexpected token
 
 // TEST: misplaced inner file
@@ -217,17 +217,93 @@ native node type T {
   // ^E: Attribute Internal is not permitted on initializer
 }
 
-// TEST: summary arguments
+// TEST: old position name
+#[position(x = 1, y = 2)] node n: Missing {} // E: Unknown attribute position
+
+// TEST: old summary name
 node type T {
-  #[summary(always)] parameter P: boolean;
-  // ^E: summary must be a flag without arguments or a value
+  #[summary] parameter P: boolean; // E: Unknown attribute summary
 }
 
-// TEST: summary node
-#[summary] node type T {} // E: Attribute summary is not permitted on node_type
-
-// TEST: summary state
+// TEST: ShowValue arguments
 node type T {
-  #[summary] state s: boolean = true;
-  // ^E: Attribute summary is not permitted on state
+  #[Diagram.ShowValue(Always)] parameter P: boolean;
+  // ^E: Diagram.ShowValue must be a flag without arguments or a value
 }
+
+// TEST: ShowValue node type
+#[Diagram.ShowValue] node type T {}
+// ^E: Attribute Diagram.ShowValue is not permitted on node_type
+
+// TEST: ShowValue state
+node type T {
+  #[Diagram.ShowValue] state s: boolean = true;
+  // ^E: Attribute Diagram.ShowValue is not permitted on state
+}
+
+// TEST: zero width
+#[Diagram.Width = 0] node n: Missing {}
+// ^E: Diagram.Width requires a positive finite number
+
+// TEST: negative height
+node n: Missing { #![Diagram.Height = -1] }
+// ^E: Diagram.Height requires a positive finite number
+
+// TEST: nonfinite width
+#[Diagram.Width = 1e999] node n: Missing {}
+// ^E: Diagram.Width requires a positive finite number
+
+// TEST: width arguments
+#[Diagram.Width(8)] node n: Missing {}
+// ^E: Diagram.Width requires a positive finite number
+
+// TEST: width on node type
+#[Diagram.Width = 8] node type T {}
+// ^E: Attribute Diagram.Width is not permitted on node_type
+
+// TEST: default width on node
+#[Diagram.DefaultWidth = 8] node n: Missing {}
+// ^E: Attribute Diagram.DefaultWidth is not permitted on node
+
+// TEST: zero default height
+node type T {
+  #![Diagram.DefaultHeight = 0] // E: Diagram.DefaultHeight requires a positive finite number
+}
+
+// TEST: fractional row
+node type T {
+  #[Diagram.Row = 1.5] input A: value boolean;
+  // ^E: Diagram.Row requires a non-negative integer
+}
+
+// TEST: negative row
+node type T {
+  #[Diagram.Row = -1] input A: value boolean;
+  // ^E: Diagram.Row requires a non-negative integer
+}
+
+// TEST: row on state
+node type T {
+  #[Diagram.Row = 0] state s: boolean = true;
+  // ^E: Attribute Diagram.Row is not permitted on state
+}
+
+// TEST: duplicate row
+node type T {
+  #[Diagram.Row = 1] input A: value boolean;
+  #[Diagram.Row = 1] output B: value boolean;
+  #[Diagram.Row = 1] input C: value boolean;
+  // ^E: Port row 1 is already used by input A
+}
+
+// TEST: duplicate default port row
+node type T {
+  #[Diagram.Row = 0] default output: value boolean;
+  #[Diagram.Row = 0] output B: value boolean;
+  // ^E: Port row 0 is already used by default output
+}
+
+// TEST: duplicate top-level row
+#[Diagram.Row = 2] input A: value boolean;
+#[Diagram.Row = 2] input B: value boolean;
+// ^E: Port row 2 is already used by input A

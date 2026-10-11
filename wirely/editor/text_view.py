@@ -197,7 +197,7 @@ class CodeEditor(QPlainTextEdit):
             self._revealing = False
 
     def set_link_highlight(self, span):
-        """Mark a span given as Python offsets as linked to the graph selection, or nothing for None.
+        """Mark a span given as Python offsets as linked to the diagram selection, or nothing for None.
 
         Neither the cursor nor the viewport moves.
         """
@@ -227,7 +227,7 @@ class CodeEditor(QPlainTextEdit):
     def contextMenuEvent(self, event):
         menu = self.createStandardContextMenu(event.pos())
         first = menu.actions()[0] if menu.actions() else None
-        show = QAction('Show in Graph', menu)
+        show = QAction('Show in Diagram', menu)
         show.triggered.connect(self.graph_requested)
         menu.insertAction(first, show)
         menu.insertSeparator(first)

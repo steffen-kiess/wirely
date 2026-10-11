@@ -37,8 +37,8 @@ checks.assertEqual(result.ports(Node(('constant',))),
                    (ResolvedPort(None, 'output', 'value', False, boolean, None),))
 checks.assertEqual([port.type for port in result.ports(Node(('box',)))], [uint8, uint8])
 checks.assertEqual(result.parameters(Node(('constant',))), (
-    ResolvedParameter('Type', model.types.ValueType, False, True, False),
-    ResolvedParameter('Value', boolean, False, True, True)))
+    ResolvedParameter('Type', model.types.ValueType, False, True),
+    ResolvedParameter('Value', boolean, False, True)))
 declared = result.ports(NodeType(('Box',)))
 checks.assertEqual([(port.name, port.direction) for port in declared], [('value', 'input'), (None, 'output')])
 checks.assertIsInstance(declared[0].type, model.TypeParameter)

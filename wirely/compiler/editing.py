@@ -64,7 +64,7 @@ def apply_edits(sources, edits):
 
 
 def format_metadata(name, **arguments):
-    """Return attribute metadata such as 'position(x = 1, y = 2.5)'.
+    """Return attribute metadata such as 'Diagram.Position(X = 1, Y = 2.5)'.
 
     Argument values must be integers, finite floats, or booleans.
     """

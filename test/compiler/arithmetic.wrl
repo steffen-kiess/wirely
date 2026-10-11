@@ -24,7 +24,7 @@ enum type Level: int8 {
   High = 127,
 }
 node source: Std.Constant {
-  #![position(x = -3, y = -4.5)]
+  #![Diagram.Position(X = -3, Y = -4.5)]
   Type: boolean,
   Value: true,
 }

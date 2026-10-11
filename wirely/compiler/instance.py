@@ -72,7 +72,7 @@ class InstanceNode(model.GraphElement):
     @property
     def position(self):
         return next((attribute.value for attribute in self.attributes
-                     if attribute.name == 'position'), None)
+                     if attribute.name == 'Diagram.Position'), None)
 
     def validate(self, path):
         """Require a source for each single input and a producer for each output."""

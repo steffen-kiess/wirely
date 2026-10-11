@@ -66,23 +66,9 @@ and nested comma-separated argument lists with optional trailing commas.
 The compiler defines the available attributes and their permitted targets.
 Attribute names, their namespaces, and their arguments use `PascalCase` and are
 case-sensitive.
-`position` supplies the coordinates of a node instance, or of a port,
-parameter, constant, state, temporary, or procedure in a node type body:
-
-```wirely
-node source: Std.Constant {
-  #![position(x = 12.0, y = -4.0)]
-  Type: boolean,
-  Value: true,
-}
-```
-
-`position` requires one finite numeric literal for each of `x` and `y`, and
-can appear once per declaration. Coordinates are compiler metadata. Graph
-editors place the top-left corner of an element there, with `y` increasing
-downward. The graphical editor uses grid units, each equal to the distance
-between adjacent ports. Stored positions can be fractional; whole-number
-coordinates are written as integers.
+`Diagram.*` attributes such as `Diagram.Position(X = 12, Y = -4)` store the
+layout of diagrams and do not affect compilation; see
+[diagram layout](diagram-layout.md).
 
 Tools can add, change, rename, and remove declarations, connect ports, and
 set attributes in source text with `wirely.compiler.editing`. Comments and
@@ -97,10 +83,6 @@ temporary, struct field, or enum member. Eligible bodies also accept
 `#![Internal]`. References to internal declarations remain unrestricted.
 Internal declarations and contents of internal namespaces or types are
 omitted from the library reference.
-
-`#[summary]` on a node type parameter shows its bound value inside instances
-in the graphical editor. Use it for values that identify an instance, such as
-a KNX group address. It takes no arguments.
 
 Attributes before `connect` apply to every connection in that statement;
 attributes before an individual source apply to that source's connection.

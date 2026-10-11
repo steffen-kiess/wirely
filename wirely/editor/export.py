@@ -1,7 +1,7 @@
-"""Export of graphs as PDF or PNG images, as the editor draws them.
+"""Export of diagrams as PDF or PNG images, as the editor draws them.
 
 The output does not depend on UI settings: it uses a fixed light palette, the
-fixed graph font, and no grid.
+fixed diagram font, and no grid.
 """
 
 import os
@@ -31,7 +31,7 @@ class ExportError(Exception):
 
 
 def export_image(sources, scope, output, *, scale=4):
-    """Write the graph of a scope to output, a .pdf or .png file.
+    """Write the diagram of a scope to output, a .pdf or .png file.
 
     sources are (filename, text) pairs; scale is the PNG pixels per scene unit.
     """

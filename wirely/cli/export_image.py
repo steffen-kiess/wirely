@@ -1,4 +1,4 @@
-"""Graph image export command."""
+"""Diagram image export command."""
 
 import importlib.util
 import os

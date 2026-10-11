@@ -47,26 +47,29 @@ python3 -m pip install 'wirely[editor]'        # graphical editor
 ```
 
 `wirely edit program.wrl` opens a program in a graphical editor with tabs
-for its source files and node graphs. Edits in either view update the other.
+for its source files and diagrams. Edits in either view update the other.
 Right-click a tab to split the view, move it to another pane, or detach it
 into a window. You can also drag tabs between panes, onto pane edges to
 split, or outside the editor to detach. Closing a detached window returns
 its tabs to the main window. Layouts last for the current session.
-A graph is read-only while its source has syntax errors. In a graph:
+A diagram is read-only while its source has syntax errors. In a diagram:
 
 - Drag a node to store its position in the source. Use View → Snap to Grid
-  to toggle snapping for all graphs. A selected group snaps its movement
+  to toggle snapping for all diagrams. A selected group snaps its movement
   while keeping its relative positions.
 - Drag from a port to another port to connect them. Drag a connection away
   from an input to move or remove it.
 - Press Delete to remove the selection and F2 to rename it.
 - Right-click the background to add nodes and declarations.
-- Double-click a node to open the graph of its node type.
+- Double-click a node to open the diagram of its node type.
+- Press Ctrl+E to show the source of the selection, and Ctrl+Shift+E in the
+  source to show the element at the cursor in its diagram.
 
-`wirely export-image program.wrl -o graph.pdf` draws the program graph as the
-editor shows it, as a PDF or PNG file. Use `--scope Name` for the graph of a
-node type and `--scale` for the PNG resolution. Images use the DejaVu Sans font;
-without it, a fallback font changes the layout.
+`wirely export-image program.wrl -o diagram.pdf` draws the program diagram as
+the editor shows it, as a PDF or PNG file. Use `--scope Name` for the diagram
+of a node type and `--scale` for the PNG resolution. Diagrams use the DejaVu
+Sans font, or a fallback font if it is not installed. See
+[diagram layout](doc/diagram-layout.md) for how layouts are stored.
 
 The `test` extra adds dependencies used only by the test suite. Install
 `wirely[all,test]` to include both integrations and test dependencies.

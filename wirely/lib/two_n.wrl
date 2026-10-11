@@ -27,7 +27,7 @@ namespace TwoN {
 
   // Get an event whenever a key is pressed or released
   native node type KeyEvent {
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Key: String;
 
     input Device: resource Device;
@@ -45,7 +45,7 @@ namespace TwoN {
   // TODO: When the connection is lost, this also should reset the value to
   // "False"
   node type KeyState {
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Key: String;
     // Timeout after which the key will be assumed to be released (because "2N
     // -> Calling -> Dialing -> Quick dial button functionality test" will
@@ -81,7 +81,7 @@ namespace TwoN {
   // Get the current state of an input or output
   // TODO: Regularly get the current value?
   native node type IOState {
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Port: String;
 
     input Device: resource Device;
@@ -97,7 +97,7 @@ namespace TwoN {
   // Get the current state of a switch
   // TODO: Regularly get the current value?
   native node type SwitchState {
-    #[summary]
+    #[Diagram.ShowValue]
     parameter SwitchNumber: int32;
 
     input Device: resource Device;
@@ -126,7 +126,7 @@ namespace TwoN {
   }
 
   native node type OutputControl {
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Port: String;
 
     input Device: resource Device;

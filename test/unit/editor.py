@@ -93,11 +93,11 @@ edits = program.move({Node(('source',)): (10.4, -20.6), Node(('printer',)): (300
                       count: (5, 5)})
 checks.assertEqual(sorted(edit.filename for edit in edits), ['lib.wrl', 'main.wrl'])
 texts = edited(edits)
-checks.assertIn('#![position(x = 10.4, y = -20.6)]', texts['main.wrl'])
-checks.assertIn('#![position(x = 300, y = 0)]', texts['main.wrl'])
-checks.assertIn('#[position(x = 5, y = 5)]\n  state count', texts['lib.wrl'])
+checks.assertIn('#![Diagram.Position(X = 10.4, Y = -20.6)]', texts['main.wrl'])
+checks.assertIn('#![Diagram.Position(X = 300, Y = 0)]', texts['main.wrl'])
+checks.assertIn('#[Diagram.Position(X = 5, Y = 5)]\n  state count', texts['lib.wrl'])
 texts = edited(program.move({Node(('source',)): (-3.0, -0.0)}))
-checks.assertIn('#![position(x = -3, y = 0)]', texts['main.wrl'])
+checks.assertIn('#![Diagram.Position(X = -3, Y = 0)]', texts['main.wrl'])
 
 # Deleting a node and a connection to it removes each once.
 texts = edited(program.delete([Connection((), 'counter', 'printer'), Node(('printer',))]))
@@ -108,7 +108,7 @@ checks.assertEqual((node_name('Std.DebugValuePrinter'), node_name('Memory.Toggle
                     node_name('Std.Constant[int32]')),
                    ('debug_value_printer', 'toggle_flip_flop_trigger', 'constant'))
 texts = edited(program.add_node((), 'Std.DebugValuePrinter', (1, 2)))
-checks.assertIn('node debug_value_printer: Std.DebugValuePrinter {\n  #![position(x = 1, y = 2)]\n}',
+checks.assertIn('node debug_value_printer: Std.DebugValuePrinter {\n  #![Diagram.Position(X = 1, Y = 2)]\n}',
                 texts['main.wrl'])
 
 checks.assertFalse(program.can_connect((), 'source', 'printer').allowed)
@@ -148,23 +148,61 @@ checks.assertGreater(placed['c'][1], 1 + 3)
 # Fractional sizes round up, stored positions remain exact, and automatic
 # positions avoid overlaps on the grid. Every coordinate remains a float.
 
-# Items rank in source order, unresolved ones last. Nodes show the bound
-# parameters marked #[summary].
+# Items rank in source order, unresolved ones last.
 ordered = graph_model.build(Program([('main.wrl', '''state s: int32 = 0;
 node c: Std.Constant { Type: int32, Value: 1 }
 node p: Std.DebugValuePrinter { Type: int32 }
 connect c -> missing;
 ''')]), ())
-checks.assertEqual([(item.title, item.order, item.details) for item in ordered.items], [
-    ('c', 1, (('Value', '1'),)),
-    ('p', 2, ()),
-    ('s', 0, ()),
-    ('missing', 3, ()),
-])
+checks.assertEqual([(item.title, item.order) for item in ordered.items],
+                   [('c', 1), ('p', 2), ('s', 0), ('missing', 3)])
+
+# Diagram geometry: port rows, value rows, and sizes in grid units.
+layout_source = '''node type Device {
+  #![Diagram.DefaultWidth = 10]
+  #[Diagram.ShowValue]
+  parameter Address: String;
+  #[Diagram.ShowValue]
+  parameter Port: uint16 = 3671;
+  #[Diagram.ShowValue]
+  optional parameter Label: String;
+  parameter Hidden: boolean = false;
+  default input: value boolean;
+  input A: value boolean;
+  #[Diagram.Row = 3]
+  input B: value boolean;
+  input C: value boolean;
+  #[Diagram.Row = 1]
+  output Out: value boolean;
+  output Next: value boolean;
+  connect default input -> Out;
+  connect A -> Next;
+}
+node first: Device { #![Diagram.Height = 4] Address: "1/2/3" }
+#[Diagram.Width = 6.5]
+node second: Device { #![Diagram.Height = 20] Label: "x" }
+node plain: Std.And {}
+state count: int32 = 0;
+'''
+items = {item.title: item for item in graph_model.build(Program([('main.wrl', layout_source)]), ()).items}
+first, second = items['first'], items['second']
+checks.assertEqual([(socket.key, socket.row) for socket in first.inputs],
+                   [(None, None), ('A', 0), ('B', 3), ('C', 1)])
+checks.assertEqual([(socket.key, socket.row) for socket in first.outputs], [('Out', 1), ('Next', 0)])
+# Unbound values still take their rows.
+checks.assertEqual(first.details, (('Address', '"1/2/3"', 'bound'), ('Port', '3671', 'default'),
+                                   ('Label', None, 'absent')))
+checks.assertEqual(second.details[0], ('Address', None, 'missing'))
+checks.assertEqual((graph_model.port_rows(first), graph_model.minimum_height(first)), (4, 10))
+# A requested height below the minimum is raised to it.
+checks.assertEqual([(item.width, graph_model.item_height(item)) for item in (first, second)],
+                   [(10, 10), (6.5, 20)])
+checks.assertEqual([(item.width, item.height, graph_model.item_height(item))
+                    for item in (items['plain'], items['count'])], [(8, None, 2), (8, None, 5)])
 
 placed = layout([LayoutItem('fixed', 6.2, 3.1, position=(-0.4, -0.6)),
                  LayoutItem('auto', 6.2, 3.1)], [])
 checks.assertEqual(placed, {'fixed': (-0.4, -0.6), 'auto': (0.0, 6.0)})
 checks.assertTrue(all(type(value) is float for position in placed.values() for value in position))
 texts = edited(program.add_declaration((), 'state extra: boolean = false;', (-2.5, 3.5)))
-checks.assertIn('#[position(x = -2.5, y = 3.5)]', texts['main.wrl'])
+checks.assertIn('#[Diagram.Position(X = -2.5, Y = 3.5)]', texts['main.wrl'])

@@ -434,14 +434,19 @@ def _reference_text(reference):
     return '.'.join(identifier.id_str for identifier in reference.identifiers)
 
 
-def _position(attributes):
+def attribute_value(attributes, name):
+    """Return the validated value of the first attribute called name, or None if missing or invalid."""
     for attribute in attributes:
-        if attribute.name == 'position':
+        if attribute.name == name:
             try:
-                return _attributes._position(attribute)
+                return _attributes.ATTRIBUTE_REGISTRY[name].validate(attribute)
             except ast.ProgramError:
                 return None
     return None
+
+
+def _position(attributes):
+    return attribute_value(attributes, 'Diagram.Position')
 
 
 def _direction(direction):

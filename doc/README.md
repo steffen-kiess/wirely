@@ -10,7 +10,8 @@ The [binary program format proposal](bytecode-format.md) describes program
 tables, value encodings, and optional debugging information.
 
 For `.wrl` formatting and naming, follow the
-[Wirely style guide](wirely-style.md).
+[Wirely style guide](wirely-style.md). The [diagram layout](diagram-layout.md)
+document defines how diagrams of programs are laid out and stored.
 
 To implement nodes and procedures in Python, use the
 [native Python implementation guide](native-python.md). For Python

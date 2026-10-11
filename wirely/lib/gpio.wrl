@@ -20,7 +20,7 @@ namespace GPIO {
   // Set a GPIO based on a boolean value
   native node type Output {
     parameter ChipDeviceFile: String;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Name: String;
 
     parameter ActiveState: GPIO.ActiveState = GPIO.ActiveState.High;

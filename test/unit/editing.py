@@ -14,13 +14,13 @@ from wirely.compiler.outline import (
 
 
 checks = TestCase()
-position = format_metadata('position', x=1, y=-2.5)
-checks.assertEqual(position, 'position(x = 1, y = -2.5)')
+position = format_metadata('Diagram.Position', X=1, Y=-2.5)
+checks.assertEqual(position, 'Diagram.Position(X = 1, Y = -2.5)')
 checks.assertEqual(format_metadata('Internal'), 'Internal')
 checks.assertEqual(format_metadata('flags', on=True, off=False, size=1e20),
                    'flags(on = true, off = false, size = 1e+20)')
 with checks.assertRaises(ValueError):
-    format_metadata('position', x=float('nan'), y=0)
+    format_metadata('Diagram.Position', X=float('nan'), Y=0)
 
 
 def edit(function, text, *arguments, **options):
@@ -42,7 +42,7 @@ check(add_attribute, '''node a: Std.Constant { // comment
     Value: true,
 }
 ''', Node(('a',)), position, '''node a: Std.Constant { // comment
-    #![position(x = 1, y = -2.5)]
+    #![Diagram.Position(X = 1, Y = -2.5)]
     Type: boolean, // type
     Value: true,
 }
@@ -53,7 +53,7 @@ check(add_attribute, '''node a: Std.Constant {
 }
 ''', Node(('a',)), position, '''node a: Std.Constant {
   #![Internal] // after
-  #![position(x = 1, y = -2.5)]
+  #![Diagram.Position(X = 1, Y = -2.5)]
   Type: boolean,
 }
 ''')
@@ -77,7 +77,7 @@ check(add_attribute, '''namespace A.B {
 ''', Node(('A', 'B', 'T', 'a')), position, '''namespace A.B {
     node type T {
         node a: Std.Constant {
-            #![position(x = 1, y = -2.5)]
+            #![Diagram.Position(X = 1, Y = -2.5)]
             Type: boolean, Value: true
         }
         node b: U /* type */ {}
@@ -85,24 +85,24 @@ check(add_attribute, '''namespace A.B {
 }
 ''')
 check(add_attribute, 'node type T {\n\tnode b: U /* type */ {}\n}\n', Node(('T', 'b')), position,
-      'node type T {\n\tnode b: U /* type */ {\n\t\t#![position(x = 1, y = -2.5)]\n\t}\n}\n')
+      'node type T {\n\tnode b: U /* type */ {\n\t\t#![Diagram.Position(X = 1, Y = -2.5)]\n\t}\n}\n')
 check(add_attribute, 'node a: T { #![Internal] P: 1 }\n', Node(('a',)), position,
-      'node a: T {\n  #![Internal]\n  #![position(x = 1, y = -2.5)]\n  P: 1\n}\n')
+      'node a: T {\n  #![Internal]\n  #![Diagram.Position(X = 1, Y = -2.5)]\n  P: 1\n}\n')
 
 # Setting replaces attributes in place and removes duplicates.
-check(set_attribute, '''#[position(x = 0, y = 0)] // outer
+check(set_attribute, '''#[Diagram.Position(X = 0, Y = 0)] // outer
 node a: T {
-  #![position(x = 5, y = 5)] // inner
+  #![Diagram.Position(X = 5, Y = 5)] // inner
 }
-''', Node(('a',)), position, '''#[position(x = 1, y = -2.5)] // outer
+''', Node(('a',)), position, '''#[Diagram.Position(X = 1, Y = -2.5)] // outer
 node a: T {
   // inner
 }
 ''')
-check(set_attribute, 'node a: T { #![position(x = 0, y = 0)] }\n', Node(('a',)), position,
-      'node a: T { #![position(x = 1, y = -2.5)] }\n')
+check(set_attribute, 'node a: T { #![Diagram.Position(X = 0, Y = 0)] }\n', Node(('a',)), position,
+      'node a: T { #![Diagram.Position(X = 1, Y = -2.5)] }\n')
 check(set_attribute, 'node a: T {}\n', Node(('a',)), position,
-      'node a: T {\n  #![position(x = 1, y = -2.5)]\n}\n')
+      'node a: T {\n  #![Diagram.Position(X = 1, Y = -2.5)]\n}\n')
 
 # Removal drops lines that only held the attribute.
 check(remove_attribute, '''node a: T {
@@ -157,7 +157,7 @@ with checks.assertRaises(ValueError):
 # Files with semantic errors are edited, but targets and metadata are checked.
 check(add_attribute, 'node a: Missing.Type { Unknown: 1 + true }\nconnect a -> nowhere;\n',
       Node(('a',)), position,
-      'node a: Missing.Type {\n  #![position(x = 1, y = -2.5)]\n  Unknown: 1 + true\n}\n'
+      'node a: Missing.Type {\n  #![Diagram.Position(X = 1, Y = -2.5)]\n  Unknown: 1 + true\n}\n'
       'connect a -> nowhere;\n')
 for target in (Node(('b',)), NodeType(('a',)), Connection((), 'a', 'b')):
     with checks.assertRaises(ValueError):
@@ -218,11 +218,11 @@ check_insert(('T',), format_constant('C', 'int', '1'), body.replace(
     '  input a', '\n  constant C: int = 1;\n\n  input a'))
 # Nodes take attributes as inner attributes, other declarations as outer ones.
 check_insert((), format_node('k', 'T'), body.replace(
-    '\nconnect s1', '\n\nnode k: T {\n  #![position(x = 1, y = 2)]\n}\n\nconnect s1'),
-    attributes=[format_metadata('position', x=1, y=2)])
+    '\nconnect s1', '\n\nnode k: T {\n  #![Diagram.Position(X = 1, Y = 2)]\n}\n\nconnect s1'),
+    attributes=[format_metadata('Diagram.Position', X=1, Y=2)])
 check_insert(('T',), format_node('k', 'U', [('P', '1')]),
-             'node type T {\n\tnode x: U {}\n\n\tnode k: U {\n\t\t#![position(x = 1, y = 2)]\n\t\tP: 1\n\t}\n}\n',
-             source='node type T {\n\tnode x: U {}\n}\n', attributes=[format_metadata('position', x=1, y=2)])
+             'node type T {\n\tnode x: U {}\n\n\tnode k: U {\n\t\t#![Diagram.Position(X = 1, Y = 2)]\n\t\tP: 1\n\t}\n}\n',
+             source='node type T {\n\tnode x: U {}\n}\n', attributes=[format_metadata('Diagram.Position', X=1, Y=2)])
 check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n\n' + body)
 check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n\n  node x: U {}\n}\n',
              source='node type T { node x: U {} }\n')
@@ -240,21 +240,21 @@ check_insert(('N',), format_node('b', 'T'), 'namespace N {}\nnamespace N {\n  no
 # Consecutive connect statements stay together.
 sources = [('main.wrl', 'node type T {\n}\n')]
 for function, arguments, options in (
-        (add_declaration, (format_port('input', 'In', 'value', 'int8'),), {'x': -298, 'y': -85}),
-        (add_declaration, (format_port('output', 'Out', 'value', 'int8'),), {'x': 107, 'y': -58}),
-        (add_declaration, (format_state('last', 'int8', '4'),), {'x': -85, 'y': -162}),
+        (add_declaration, (format_port('input', 'In', 'value', 'int8'),), {'X': -298, 'Y': -85}),
+        (add_declaration, (format_port('output', 'Out', 'value', 'int8'),), {'X': 107, 'Y': -58}),
+        (add_declaration, (format_state('last', 'int8', '4'),), {'X': -85, 'Y': -162}),
         (connect, ('last.old', 'Out'), None),
         (connect, ('In', 'last'), None)):
-    attributes = [format_metadata('position', **options)] if options else []
+    attributes = [format_metadata('Diagram.Position', **options)] if options else []
     sources = apply_edits(sources, function(sources, ('T',), *arguments, attributes=attributes))
 checks.assertEqual(sources[0][1], '''node type T {
-  #[position(x = -298, y = -85)]
+  #[Diagram.Position(X = -298, Y = -85)]
   input In: value int8;
 
-  #[position(x = 107, y = -58)]
+  #[Diagram.Position(X = 107, Y = -58)]
   output Out: value int8;
 
-  #[position(x = -85, y = -162)]
+  #[Diagram.Position(X = -85, Y = -162)]
   state last: int8 = 4;
 
   connect last.old -> Out;
@@ -334,7 +334,7 @@ checks.assertEqual(apply_edits(files, remove_declaration(files, Node(('n',)))), 
     ('b.wrl', ''),
 ])
 checks.assertEqual(apply_edits(files, remove_declaration(files, Node(('n',)), cascade=False))[1], files[1])
-checks.assertEqual(edit(remove_declaration, '#[position(x = 0, y = 0)]\nstate s: int = 0;\nconnect s.old -> s;\n',
+checks.assertEqual(edit(remove_declaration, '#[Diagram.Position(X = 0, Y = 0)]\nstate s: int = 0;\nconnect s.old -> s;\n',
                         State(('s',))), '')
 checks.assertEqual(edit(remove_declaration, '''node type T {
   temporary t: int;
@@ -375,11 +375,11 @@ declarations = '''node type T {
 }
 '''
 check(set_attribute, declarations, State(('T', 's')), position, declarations.replace(
-    '  state s', '  #[position(x = 1, y = -2.5)]\n  state s'))
+    '  state s', '  #[Diagram.Position(X = 1, Y = -2.5)]\n  state s'))
 check(add_attribute, declarations, Port(('T', 'a'), 'input'), position, declarations.replace(
-    '  input a', '  #[position(x = 1, y = -2.5)]\n  input a'))
+    '  input a', '  #[Diagram.Position(X = 1, Y = -2.5)]\n  input a'))
 check(set_attribute, declarations, Procedure(('T', 'p')), position, declarations.replace(
-    '  procedure p', '  #[position(x = 1, y = -2.5)]\n  procedure p'))
+    '  procedure p', '  #[Diagram.Position(X = 1, Y = -2.5)]\n  procedure p'))
 check(remove_attribute, declarations, State(('T', 's')), 'Internal',
       declarations.replace('  #[Internal]\n', ''))
 

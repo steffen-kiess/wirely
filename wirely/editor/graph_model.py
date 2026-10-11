@@ -1,16 +1,25 @@
-"""The graph of one scope as plain data for drawing.
+"""The diagram of one scope as plain data for drawing.
 
 Items are the nodes, states, temporaries, constants, parameters, ports, and
 procedures of a scope, keyed by their outline IDs. Inputs are drawn on the
 left of an item and outputs on the right; a node type body's own input
-declarations are sources and its output declarations targets.
+declarations are sources and its output declarations targets. Geometry is in
+grid units as specified in doc/diagram-layout.md.
 """
 
 import functools
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from wirely.compiler.editing import format_identifier
+from wirely.compiler.outline import attribute_value
+
+DEFAULT_WIDTH = 8
+HEADER_HEIGHT = 2
+# Port rows and value rows start at this y offset.
+FIRST_ROW = 3
+# Requested row of a socket that fills the next free row on its side.
+_AUTO = 'auto'
 
 
 @dataclass(frozen=True)
@@ -31,6 +40,8 @@ class Socket:
     type_text: str | None
     is_list: bool
     resolved: bool = True
+    # The row of the socket, or None for the header.
+    row: int | None = None
 
 
 @dataclass(frozen=True)
@@ -49,8 +60,33 @@ class Item:
     node_type: object = None
     # Rank in source order; unresolved items come last.
     order: int = 0
-    # (name, value text) of bound parameters marked #[summary].
-    details: tuple[tuple[str, str], ...] = ()
+    # Parameters marked Diagram.ShowValue as (name, value text, state), with
+    # state 'bound', 'default', 'absent' (optional without default), or
+    # 'missing'; the text is None unless bound or defaulted.
+    details: tuple[tuple[str, str | None, str], ...] = ()
+    width: float = DEFAULT_WIDTH
+    # The requested height; the drawn height is at least minimum_height().
+    height: float | None = None
+
+
+def port_rows(item):
+    """Return the number of port rows, including skipped ones."""
+    rows = [socket.row for socket in (*item.inputs, *item.outputs) if socket.row is not None]
+    return max(rows) + 1 if rows else 0
+
+
+def minimum_height(item):
+    rows = port_rows(item) + len(item.details)
+    return FIRST_ROW + rows if rows else HEADER_HEIGHT
+
+
+def item_height(item):
+    return max(item.height or 0, minimum_height(item))
+
+
+def row_y(row):
+    """Return the y offset of a row within its item."""
+    return FIRST_ROW + row
 
 
 @dataclass(frozen=True)
@@ -99,15 +135,25 @@ def build(program, path):
 
     builders = {}
 
-    def add(kind, record, title, subtitle, inputs, outputs, node_type=None):
-        builders[record.id] = _ItemBuilder(record.id, kind, title, subtitle, list(inputs), list(outputs),
-                                           None if record.position is None else tuple(map(float, record.position)),
-                                           tuple(diagnostics[record.id]), node_type)
+    def add(kind, record, title, subtitle, inputs, outputs, node_type=None, defaults=()):
+        builder = builders[record.id] = _ItemBuilder(
+            record.id, kind, title, subtitle, list(inputs), list(outputs),
+            None if record.position is None else tuple(map(float, record.position)),
+            tuple(diagnostics[record.id]), node_type)
+        width = attribute_value(record.attributes, 'Diagram.Width')
+        height = attribute_value(record.attributes, 'Diagram.Height')
+        builder.width = width or attribute_value(defaults, 'Diagram.DefaultWidth') or DEFAULT_WIDTH
+        builder.height = height or attribute_value(defaults, 'Diagram.DefaultHeight')
+        return builder
 
     for node in scope.nodes:
+        node_types = program.outline.find(node.node_type) if node.node_type is not None else []
+        node_type = node_types[0] if len(node_types) == 1 else None
         inputs, outputs = _node_sockets(analysis, node)
-        add('node', node, node.name, node.type_text, inputs, outputs, node.node_type)
-        builders[node.id].details = _details(analysis, node)
+        builder = add('node', node, node.name, node.type_text, inputs, outputs, node.node_type,
+                      node_type.attributes if node_type is not None else ())
+        if node_type is not None:
+            builder.details = _details(node, node_type)
     for port in scope.ports:
         name = port.name or f'default {port.direction}'
         socket = Socket(None, '', _reference(name), port.kind, port.type_text, port.is_list)
@@ -126,8 +172,8 @@ def build(program, path):
         name = _reference(record.name)
         add('state', record, record.name, f'{record.type_text} = {record.initial_text}',
             (Socket(None, '', name, 'value', record.type_text, False),),
-            (Socket('old', 'old', f'{name}.old', 'value', record.type_text, False),
-             Socket('new', 'new', f'{name}.new', 'value', record.type_text, False)))
+            (Socket('old', 'old', f'{name}.old', 'value', record.type_text, False, row=0),
+             Socket('new', 'new', f'{name}.new', 'value', record.type_text, False, row=1)))
     for record in scope.temporaries:
         name = _reference(record.name)
         add('temporary', record, record.name, record.type_text,
@@ -141,7 +187,7 @@ def build(program, path):
                 if port.key is None:
                     continue
                 sockets[index].append(Socket(port.key, port.key, f'{name}.{_reference(port.key)}',
-                                             port.kind, port.type_text, port.is_list))
+                                             port.kind, port.type_text, port.is_list, row=_AUTO))
         stage = '' if record.stage == 'default' else f'stage {record.stage}'
         add('procedure', record, record.name, ' '.join(filter(None, ('native' if record.is_native else '',
                                                                      'procedure', stage))),
@@ -188,6 +234,8 @@ class _ItemBuilder:
         self.node_type = node_type
         self.order = 0
         self.details = ()
+        self.width = DEFAULT_WIDTH
+        self.height = None
 
     def socket(self, side, key, reference):
         """Return the socket for an endpoint port, adding an unresolved one if needed."""
@@ -195,13 +243,42 @@ class _ItemBuilder:
         for socket in sockets:
             if socket.key == key:
                 return socket
-        socket = Socket(key, key or '', reference, None, None, False, resolved=False)
+        socket = Socket(key, key or '', reference, None, None, False, resolved=False,
+                        row=None if key is None else _AUTO)
         sockets.append(socket)
         return socket
 
     def freeze(self):
-        return Item(self.id, self.kind, self.title, self.subtitle, tuple(self.inputs), tuple(self.outputs),
-                    self.position, self.diagnostics, self.node_type, self.order, self.details)
+        return Item(self.id, self.kind, self.title, self.subtitle, _assign_rows(self.inputs),
+                    _assign_rows(self.outputs), self.position, self.diagnostics, self.node_type, self.order,
+                    self.details, self.width, self.height)
+
+
+def _assign_rows(sockets):
+    """Give each socket without a row the lowest free row on its side, in order.
+
+    A row requested twice keeps its first socket; later ones are treated as
+    having no row.
+    """
+    used = set()
+    requested = []
+    for socket in sockets:
+        row = socket.row
+        if isinstance(row, int) and row not in used:
+            used.add(row)
+        elif row is not None:
+            row = _AUTO
+        requested.append(row)
+    result = []
+    free = 0
+    for socket, row in zip(sockets, requested):
+        if row == _AUTO:
+            while free in used:
+                free += 1
+            used.add(free)
+            row = free
+        result.append(replace(socket, row=row))
+    return tuple(result)
 
 
 def _end(builders, path, endpoint, side):
@@ -226,13 +303,27 @@ def _file_rank(filenames, filename):
     return filenames.index(filename) if filename in filenames else len(filenames)
 
 
-def _details(analysis, node):
+def _details(node, node_type):
     values = {binding.name: binding.value_text for binding in node.parameters}
-    return tuple((parameter.name, values[parameter.name]) for parameter in analysis.parameters(node.id) or ()
-                 if parameter.summary and parameter.name in values)
+    details = []
+    for parameter in node_type.parameters:
+        if attribute_value(parameter.attributes, 'Diagram.ShowValue') is None:
+            continue
+        if parameter.name in values:
+            details.append((parameter.name, values[parameter.name], 'bound'))
+        elif parameter.default_text is not None:
+            details.append((parameter.name, parameter.default_text, 'default'))
+        else:
+            details.append((parameter.name, None, 'absent' if parameter.is_optional else 'missing'))
+    return tuple(details)
 
 
 def _node_sockets(analysis, node):
+    """Return the sockets of a node, with rows from its node type's port declarations."""
+    rows = {}
+    for port in node.ports or ():
+        row = attribute_value(port.attributes, 'Diagram.Row')
+        rows[(port.direction, port.name)] = row if row is not None else None if port.name is None else _AUTO
     resolved = analysis.ports(node.id)
     if resolved is not None:
         ports = [(port.name, port.direction, port.kind, port.is_list,
@@ -247,7 +338,8 @@ def _node_sockets(analysis, node):
     name = _reference(node.name)
     for port_name, direction, kind, is_list, type_text, resolved_port in ports:
         reference = name if port_name is None else f'{name}.{_reference(port_name)}'
-        socket = Socket(port_name, port_name or '', reference, kind, type_text, is_list, resolved_port)
+        row = rows.get((direction, port_name), None if port_name is None else _AUTO)
+        socket = Socket(port_name, port_name or '', reference, kind, type_text, is_list, resolved_port, row)
         (inputs if direction == 'input' else outputs).append(socket)
     return inputs, outputs
 

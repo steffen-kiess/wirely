@@ -27,7 +27,7 @@ namespace MQTT {
 
   native node type ValueOptionProvider {
     parameter Type: ValueType;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
     optional parameter Template: String;
@@ -49,7 +49,7 @@ namespace MQTT {
 
   node type ValueProvider {
     parameter Type: ValueType;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
     optional parameter Template: String;
@@ -72,7 +72,7 @@ namespace MQTT {
 
   native node type EventSender {
     parameter Type: ValueType;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
     optional parameter Template: String;
@@ -94,7 +94,7 @@ namespace MQTT {
 
   native node type EventReceiver {
     parameter Type: ValueType;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
     // TODO optional parameter Template : String;

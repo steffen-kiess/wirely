@@ -15,7 +15,7 @@ namespace CSV {
   // on shutdown.
   native node type ValueWriter {
     parameter Type: ValueType;
-    #[summary]
+    #[Diagram.ShowValue]
     parameter Filename: String;
 
     assert SupportsType(Type), "Type must support CSV conversion";

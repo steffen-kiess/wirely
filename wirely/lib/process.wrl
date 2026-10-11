@@ -1,7 +1,7 @@
 namespace Process {
   native node type LaunchOnEvent {
     // Will be passed to "sh -c"
-    #[summary]
+    #[Diagram.ShowValue]
     parameter ShellCommand: String;
     parameter Type: ValueType = unit;
     // Note: The value of the event will be ignored

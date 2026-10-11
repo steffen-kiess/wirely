@@ -19,6 +19,11 @@ another name for its source. Temporary symbols are therefore always
 `<node>:<procedure>.<port>`; declared temporaries remain available by name
 as variable aliases.
 
+#### Attribute names
+
+Compiler attributes use PascalCase. Rename `#[internal]` to `#[Internal]`,
+and `#[position(x = 1, y = 2)]` to `#[Diagram.Position(X = 1, Y = 2)]`.
+
 #### Source editing
 
 `wirely.compiler.attribute_editing` is replaced by
@@ -51,15 +56,18 @@ them to `apply_edits()` to get the new texts.
   changes, renames, and removes declarations, edits parameter bindings and
   node types, and connects, disconnects, and reconnects ports. Renaming
   updates the references to a declaration.
-- `position` can be set on ports, parameters, constants, states,
-  temporaries, and procedures.
+- `Diagram.*` attributes store diagram layouts: positions and sizes of
+  instances, ports, parameters, constants, states, temporaries, and
+  procedures, default sizes of node types, port rows, and parameter values
+  shown in instances. See [diagram layout](doc/diagram-layout.md).
 - `wirely.compiler.analysis` resolves port and parameter types of programs
   with errors or unfinished connections and reports all errors in
   declarations and instances. It also checks whether ports can be
   connected and lists the node types and type names usable in a scope.
   Compiler diagnostics carry source offsets.
-- `wirely edit` edits programs as source text and as node graphs, kept in
-  sync. Install the `editor` extra to use it.
+- `wirely edit` edits programs as source text and as diagrams, kept in
+  sync. `wirely export-image` draws a diagram as a PDF or PNG file. Install
+  the `editor` extra to use them.
 
 ## 0.1.2 - 2026-10-10
 

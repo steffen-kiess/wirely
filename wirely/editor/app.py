@@ -1,4 +1,4 @@
-"""Main window of the editor: tabs with source files and scope graphs."""
+"""Main window of the editor: tabs with source files and scope diagrams."""
 
 import dataclasses
 import html
@@ -105,9 +105,9 @@ class MainWindow(QMainWindow):
         self._action(edit_menu, '&Undo', QKeySequence.StandardKey.Undo, lambda: self.undo(host))
         self._action(edit_menu, '&Redo', QKeySequence.StandardKey.Redo, lambda: self.redo(host))
         view_menu = host.menuBar().addMenu('&View')
-        self._action(view_menu, 'Program &Graph', 'Ctrl+G', lambda: self.open_graph((), host=host))
+        self._action(view_menu, 'Program &Diagram', 'Ctrl+G', lambda: self.open_graph((), host=host))
         self._action(view_menu, '&Source of Selection', 'Ctrl+E', lambda: self.show_selection_source(host))
-        self._action(view_menu, 'Show &Cursor in Graph', 'Ctrl+Shift+E', lambda: self.show_cursor_in_graph(host))
+        self._action(view_menu, 'Show &Cursor in Diagram', 'Ctrl+Shift+E', lambda: self.show_cursor_in_graph(host))
         host.snap_action = QAction('Snap to Grid', host)
         host.snap_action.setCheckable(True)
         host.snap_action.setChecked(self.snapping)
@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
             group = self.workspaces.group_of(tab)
             index = group.indexOf(tab)
             group.setTabText(index, f'◇ {_scope_label(tab.path)}')
-            group.setTabToolTip(index, f'Graph of {_scope_label(tab.path)}')
+            group.setTabToolTip(index, f'Diagram of {_scope_label(tab.path)}')
         modified = any(document.is_modified for document in self.session.documents.values())
         names = ', '.join(os.path.basename(filename) for filename in self.session.documents)
         self.setWindowTitle(f'{names}{" *" if modified else ""} – Wirely')
@@ -329,7 +329,7 @@ class MainWindow(QMainWindow):
             item = QTreeWidgetItem(files, [os.path.basename(filename) + ('*' if document.is_modified else '')])
             item.setToolTip(0, filename)
             item.setData(0, Qt.ItemDataRole.UserRole, ('file', filename))
-        graphs = QTreeWidgetItem(self.tree, ['Graphs'])
+        graphs = QTreeWidgetItem(self.tree, ['Diagrams'])
         paths = list(self.program.user_scopes())
         paths += [tab.path for tab in self.graph_tabs if tab.path not in paths]
         for path in paths:
@@ -514,7 +514,7 @@ class MainWindow(QMainWindow):
         self._link_text(target if tab.state == 'live' else None)
 
     def _link_text(self, target):
-        """Highlight the source of a graph element in the text tabs, without moving them."""
+        """Highlight the source of a diagram element in the text tabs, without moving them."""
         self._linked_target = target
         location = self.program.span_of(target) if target is not None else None
         for filename, editor in self.text_tabs.items():
@@ -539,12 +539,12 @@ class MainWindow(QMainWindow):
             self.show_in_graph(widget.document_record.filename)
 
     def show_in_graph(self, filename):
-        """Select the element at the cursor of a text tab in the graph of its scope."""
+        """Select the element at the cursor of a text tab in the diagram of its scope."""
         editor = self.text_tabs[filename]
         found = self.program.element_at(filename, python_offset(editor.document_record.text(),
                                                                 editor.textCursor().position()))
         if found is None:
-            self._status('No graph element at the cursor', 5000)
+            self._status('No diagram element at the cursor', 5000)
             return
         scope, target = found
         if isinstance(target, NodeType):

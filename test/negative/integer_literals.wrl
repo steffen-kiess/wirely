@@ -71,7 +71,7 @@ node type Settings {
 node settings: Settings { Value: 0o10L } // E: Syntax error
 
 // TEST: attribute_integer_suffix
-#[position(x = 1L, y = 0)] node n: Missing {} // E: Syntax error
+#[Diagram.Position(X = 1L, Y = 0)] node n: Missing {} // E: Syntax error
 
 // TEST: empty_negative_hex
 node type Settings {

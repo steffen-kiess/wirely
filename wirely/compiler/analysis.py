@@ -52,8 +52,6 @@ class ResolvedParameter:
     type: object
     optional: bool
     bound: bool
-    # Marked #[summary]: the value is shown in the node.
-    summary: bool
 
 
 @dataclass(frozen=True)
@@ -118,9 +116,7 @@ class Analysis:
         if node is None:
             return None
         return tuple(ResolvedParameter(name, _resolve(getattr(parameter, 'type_resolved', None), node.par_values),
-                                       parameter.is_optional, parameter in node.par_values,
-                                       any(attribute.name == 'summary'
-                                           for attribute in getattr(parameter, 'attributes', ())))
+                                       parameter.is_optional, parameter in node.par_values)
                      for name, parameter in node.node_type.parsed_parameters.items())
 
     def can_connect(self, scope, source, target, *, replacing=None):

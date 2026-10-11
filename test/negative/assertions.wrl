@@ -85,7 +85,7 @@ constant assert: boolean = true; // E: Syntax error
 #[unknown] assert true; // E: Unknown attribute
 
 // TEST: inappropriate metadata
-#[position(x = 1, y = 2)] assert true; // E: Attribute position is not permitted on assertion
+#[Diagram.Position(X = 1, Y = 2)] assert true; // E: Attribute Diagram.Position is not permitted on assertion
 
 // TEST: evaluation error
 // LIBRARIES: std, knx

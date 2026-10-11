@@ -71,26 +71,49 @@ def _error(source, message):
     raise ProgramError(SourceElement(source_position=source.source_position), message)
 
 
+def _number(value):
+    return type(value) in (int, float) and math.isfinite(value)
+
+
 def _position(attribute):
     metadata = attribute.metadata
     if metadata.kind != 'list':
-        _error(attribute, 'position requires x and y arguments')
+        _error(attribute, f'{attribute.name} requires X and Y arguments')
     coordinates = {}
     for argument in metadata.value:
-        if not isinstance(argument, Metadata) or argument.name not in ('x', 'y'):
-            _error(argument, 'Unknown position argument; expected x or y')
+        if not isinstance(argument, Metadata) or argument.name not in ('X', 'Y'):
+            _error(argument, f'Unknown {attribute.name} argument; expected X or Y')
         name = argument.name
         if name in coordinates:
-            _error(argument, f'Duplicate position argument {name}')
-        if argument.kind != 'value' or not isinstance(argument.value, MetadataLiteral):
-            _error(argument, f'position {name} requires a finite numeric literal')
-        value = argument.value.value
-        if type(value) not in (int, float) or (isinstance(value, float) and not math.isfinite(value)):
-            _error(argument, f'position {name} requires a finite numeric literal')
-        coordinates[name] = value
-    if set(coordinates) != {'x', 'y'}:
-        _error(attribute, 'position requires x and y arguments')
-    return coordinates['x'], coordinates['y']
+            _error(argument, f'Duplicate {attribute.name} argument {name}')
+        if argument.kind != 'value' or not isinstance(argument.value, MetadataLiteral) \
+                or not _number(argument.value.value):
+            _error(argument, f'{attribute.name} {name} requires a finite numeric literal')
+        coordinates[name] = argument.value.value
+    if set(coordinates) != {'X', 'Y'}:
+        _error(attribute, f'{attribute.name} requires X and Y arguments')
+    return coordinates['X'], coordinates['Y']
+
+
+def _literal(attribute):
+    metadata = attribute.metadata
+    if metadata.kind != 'value' or not isinstance(metadata.value, MetadataLiteral):
+        return None
+    return metadata.value.value
+
+
+def _size(attribute):
+    value = _literal(attribute)
+    if not _number(value) or value <= 0:
+        _error(attribute, f'{attribute.name} requires a positive finite number, as in {attribute.name} = 8')
+    return value
+
+
+def _row(attribute):
+    value = _literal(attribute)
+    if type(value) is not int or value < 0:
+        _error(attribute, f'{attribute.name} requires a non-negative integer, as in {attribute.name} = 0')
+    return value
 
 
 def _flag(attribute):
@@ -101,17 +124,28 @@ def _flag(attribute):
 
 # Extensions must explicitly define qualified names as well as unqualified ones.
 # Attribute names, their namespaces, and their arguments use PascalCase.
+_DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'temporary', 'constant', 'parameter', 'procedure'})
+
 ATTRIBUTE_REGISTRY = {
-    'position': AttributeDefinition(frozenset({
-        'node', 'port', 'state', 'temporary', 'constant', 'parameter', 'procedure',
-    }), _position),
     'Internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
         'temporary', 'struct_field', 'enum_member',
     }), _flag),
-    'summary': AttributeDefinition(frozenset({'parameter'}), _flag),
+    # Diagram layout, see doc/diagram-layout.md.
+    'Diagram.Position': AttributeDefinition(_DIAGRAM_ITEMS, _position),
+    'Diagram.Width': AttributeDefinition(_DIAGRAM_ITEMS, _size),
+    'Diagram.Height': AttributeDefinition(_DIAGRAM_ITEMS, _size),
+    'Diagram.DefaultWidth': AttributeDefinition(frozenset({'node_type'}), _size),
+    'Diagram.DefaultHeight': AttributeDefinition(frozenset({'node_type'}), _size),
+    'Diagram.Row': AttributeDefinition(frozenset({'port'}), _row),
+    'Diagram.ShowValue': AttributeDefinition(frozenset({'parameter'}), _flag),
 }
+
+
+def _direction_name(port):
+    from . import ast
+    return 'input' if port.direction == ast.PortDirection.Input else 'output'
 
 
 def _immutable(value):
@@ -206,6 +240,24 @@ def validate_files(files, *, contain=None):
             visit(child, child_scope)
         for child in getattr(item, 'members', ()):
             visit(child, child_scope)
+        if isinstance(item, NodeType):
+            check_rows(item.declarations)
+
+    def check_rows(declarations):
+        """Reject two ports on the same side of a diagram item with the same row."""
+        used = {}
+        for declaration in declarations:
+            if not isinstance(declaration, ast.DeclarationPort):
+                continue
+            for attribute in getattr(declaration, 'attributes', ()):
+                if attribute.name != 'Diagram.Row':
+                    continue
+                key = (declaration.direction, attribute.value)
+                with contain(None):
+                    if key in used:
+                        _error(attribute, f'Port row {attribute.value} is already used by {used[key]}')
+                used.setdefault(key, declaration.name_str if declaration.name is None
+                                else f'{_direction_name(declaration)} {declaration.name_str}')
 
     metadata = []
     for filename, parsed in files:
@@ -215,6 +267,7 @@ def validate_files(files, *, contain=None):
         metadata.append(FileMetadata(filename, parsed.inner_attributes, attributes))
         for declaration in parsed:
             visit(declaration, ())
+    check_rows([declaration for _, parsed in files for declaration in parsed])
     return tuple(metadata)
 
 

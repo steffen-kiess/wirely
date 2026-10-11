@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory() as directory:
     printer = scene.items_by_id[Node(('printer',))]
     start = at(printer.mapToScene(20, 8))
     x, y = map(snap, from_pixels(printer.pos().x() + 40, printer.pos().y() + 60))
-    expected = f'position(x = {x:g}, y = {y:g})'
+    expected = f'Diagram.Position(X = {x:g}, Y = {y:g})'
     origin = at(QPointF())
     drag(view, start, start + QPoint(40, 60))
     checks.assertIn(expected, document.text())
@@ -155,7 +155,7 @@ with tempfile.TemporaryDirectory() as directory:
             graphic = scene.items_by_id[item_id]
             checks.assertEqual(graphic.pos(), position + QPointF(dx * STEP, dy * STEP))
             x, y = from_pixels(graphic.pos().x(), graphic.pos().y())
-            checks.assertIn(f'position(x = {x:g}, y = {y:g})', document.text())
+            checks.assertIn(f'Diagram.Position(X = {x:g}, Y = {y:g})', document.text())
         window.undo()
         checks.assertEqual(document.text(), source)
     view.resetTransform()
@@ -168,13 +168,13 @@ with tempfile.TemporaryDirectory() as directory:
         palette.return_value.exec.return_value = True
         palette.return_value.selected_type.return_value = 'Std.DebugEventPrinter'
         window.add_node(tab, position)
-    checks.assertIn('position(x = -3, y = 4)', document.text())
+    checks.assertIn('Diagram.Position(X = -3, Y = 4)', document.text())
     window.undo()
     with patch('wirely.editor.app.DeclarationDialog') as dialog:
         dialog.return_value.exec.return_value = True
         dialog.return_value.declaration.return_value = 'state extra: boolean = false;'
         window.add_declaration(tab, 'state', position)
-    checks.assertIn('position(x = -3, y = 4)', document.text())
+    checks.assertIn('Diagram.Position(X = -3, Y = 4)', document.text())
     state = scene.items_by_id[State(('extra',))]
     old = state.sockets[('outputs', 'old')].scenePos()
     new = state.sockets[('outputs', 'new')].scenePos()
@@ -191,19 +191,19 @@ with tempfile.TemporaryDirectory() as directory:
         palette.return_value.exec.return_value = True
         palette.return_value.selected_type.return_value = 'Std.DebugEventPrinter'
         window.add_node(tab, position)
-    checks.assertIn('position(x = -2.7, y = 4.3)', document.text())
+    checks.assertIn('Diagram.Position(X = -2.7, Y = 4.3)', document.text())
     window.undo()
     with patch('wirely.editor.app.DeclarationDialog') as dialog:
         dialog.return_value.exec.return_value = True
         dialog.return_value.declaration.return_value = 'state extra: boolean = false;'
         window.add_declaration(tab, 'state', position)
-    checks.assertIn('position(x = -2.7, y = 4.3)', document.text())
+    checks.assertIn('Diagram.Position(X = -2.7, Y = 4.3)', document.text())
     checks.assertEqual(scene.items_by_id[State(('extra',))].pos(), position)
     window.undo()
     window.snap_action.trigger()
 
     # Loading fractional positions preserves them without editing source.
-    fractional = '#[position(x = -2.7, y = 4.3)]\n' + source
+    fractional = '#[Diagram.Position(X = -2.7, Y = 4.3)]\n' + source
     cursor = QTextCursor(document.text_document)
     cursor.select(QTextCursor.SelectionType.Document)
     cursor.insertText(fractional)
@@ -322,8 +322,8 @@ with tempfile.TemporaryDirectory() as directory:
 
     # A file loaded with stored positions exercises source cursor changes
     # inside existing metadata, including dragging past the viewport edge.
-    positioned_source = ('#[position(x = 0, y = 0)]\n' + source.replace(
-        'node printer:', '#[position(x = 10, y = 7)]\nnode printer:'))
+    positioned_source = ('#[Diagram.Position(X = 0, Y = 0)]\n' + source.replace(
+        'node printer:', '#[Diagram.Position(X = 10, Y = 7)]\nnode printer:'))
     with open(filename, 'w', encoding='utf-8') as file:
         file.write(positioned_source)
     window = MainWindow([filename])

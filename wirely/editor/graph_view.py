@@ -6,6 +6,7 @@ selection survives refreshes.
 """
 
 import math
+from collections import defaultdict
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen
@@ -16,19 +17,16 @@ from PySide6.QtWidgets import (
 
 from wirely.compiler.outline import Connection
 
+from . import graph_model
 from . import layout as _layout
 from .graph_model import Unresolved, layout_edges
-from .grid import STEP, from_pixels, size, snap
+from .grid import STEP, from_pixels, snap
 
 PADDING = 8
 ROW_HEIGHT = STEP
 SOCKET_RADIUS = 5
-MIN_WIDTH = 110
-COLUMN_GAP = 24
 # Inset of the drawn body from the grid footprint, so neighbours stay apart.
 INSET = 2
-# Widest a node grows for its parameter values.
-DETAILS_MAX_WIDTH = 16 * STEP
 # Added to the source-order Z value of selected items.
 SELECTED_Z = 1_000_000
 # Graphs use a fixed font with pixel sizes, so their layout does not depend
@@ -107,46 +105,31 @@ class ItemGraphic(QGraphicsObject):
         self.prepareGeometryChange()
         self.model = model_item
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not isinstance(model_item.id, Unresolved))
-        title, subtitle, label = self.fonts
-        # Default ports attach to the header; named ports and parameter values get rows.
-        named = {side: [socket for socket in sockets if socket.key is not None]
-                 for side, sockets in (('inputs', model_item.inputs), ('outputs', model_item.outputs))}
-        rows = len(model_item.details) + max(len(named['inputs']), len(named['outputs']))
-        left = max((label.horizontalAdvance(socket.label) for socket in named['inputs']), default=0)
-        right = max((label.horizontalAdvance(socket.label) for socket in named['outputs']), default=0)
-        details = max((label.horizontalAdvance(_detail_text(detail)) for detail in model_item.details), default=0)
-        width = max(MIN_WIDTH, title.horizontalAdvance(model_item.title) + 2 * PADDING + 16,
-                    subtitle.horizontalAdvance(model_item.subtitle) + 2 * PADDING,
-                    left + right + 2 * PADDING + COLUMN_GAP,
-                    min(details + 2 * PADDING, DETAILS_MAX_WIDTH))
-        self.width = size(width / STEP) * STEP
-        self.header = size((PADDING + title.height() + subtitle.height() + 4) / STEP) * STEP
-        self.height = self.header + (rows + 1) * STEP if rows else self.header
+        # Geometry follows doc/diagram-layout.md and does not depend on text.
+        self.width = model_item.width * STEP
+        self.header = graph_model.HEADER_HEIGHT * STEP
+        self.height = graph_model.item_height(model_item) * STEP
+        self.value_row = graph_model.port_rows(model_item)
         for socket in self.sockets.values():
             socket.setParentItem(None)
             if socket.scene() is not None:
                 socket.scene().removeItem(socket)
         self.sockets = {}
         for side, sockets, x in (('inputs', model_item.inputs, 0), ('outputs', model_item.outputs, self.width)):
-            row = 0
             for socket in sockets:
-                if socket.key is None:
-                    graphic = SocketGraphic(self, socket, side, None)
-                    graphic.setPos(x, STEP)
-                else:
-                    graphic = SocketGraphic(self, socket, side, row)
-                    graphic.setPos(x, self._row_y(len(model_item.details) + row))
-                    row += 1
+                graphic = SocketGraphic(self, socket, side, socket.row)
+                graphic.setPos(x, STEP if socket.row is None else self._row_y(socket.row))
                 self.sockets[(side, socket.key)] = graphic
-        parts = [diagnostic.message for diagnostic in model_item.diagnostics]
+        parts = [f'{model_item.title}\n{model_item.subtitle}']
         if model_item.details:
             parts.append('\n'.join(map(_detail_text, model_item.details)))
+        parts += [diagnostic.message for diagnostic in model_item.diagnostics]
         self.setToolTip('\n\n'.join(parts))
         self._update_z()
         self.update()
 
     def _row_y(self, row):
-        return self.header + (row + 1) * STEP
+        return graph_model.row_y(row) * STEP
 
     def _update_z(self):
         self.setZValue(self.model.order + (SELECTED_Z if self.isSelected() else 0))
@@ -187,36 +170,50 @@ class ItemGraphic(QGraphicsObject):
         painter.fillPath(path, color)
 
         title, subtitle, label = self.fonts
+        text_width = max(0.0, self.width - 2 * PADDING)
         text_color = palette.color(QPalette.ColorRole.Text)
+        dimmed = palette.color(QPalette.ColorRole.PlaceholderText)
         painter.setPen(text_color)
         painter.setFont(self.scene().title_font)
-        painter.drawText(QRectF(PADDING, PADDING / 2, self.width - 2 * PADDING, title.height()),
-                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, model_item.title)
-        painter.setFont(self.scene().subtitle_font)
-        painter.setPen(palette.color(QPalette.ColorRole.PlaceholderText))
-        painter.drawText(QRectF(PADDING, PADDING / 2 + title.height(), self.width - 2 * PADDING, subtitle.height()),
+        top = (self.header - title.height() - subtitle.height()) / 2
+        painter.drawText(QRectF(PADDING, top, text_width, title.height()),
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                         subtitle.elidedText(model_item.subtitle, Qt.TextElideMode.ElideRight,
-                                             self.width - 2 * PADDING))
+                         title.elidedText(model_item.title, Qt.TextElideMode.ElideRight, text_width))
+        painter.setFont(self.scene().subtitle_font)
+        painter.setPen(dimmed)
+        painter.drawText(QRectF(PADDING, top + title.height(), text_width, subtitle.height()),
+                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                         subtitle.elidedText(model_item.subtitle, Qt.TextElideMode.ElideRight, text_width))
         if self.linked and not selected:
             pen = QPen(palette.color(QPalette.ColorRole.Highlight), 2, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(QRectF(0, 0, self.width, self.height), 7, 7)
         painter.setFont(self.scene().label_font)
-        painter.setPen(palette.color(QPalette.ColorRole.PlaceholderText))
-        for row, detail in enumerate(model_item.details):
-            painter.drawText(QRectF(PADDING, self._row_y(row) - ROW_HEIGHT / 2, self.width - 2 * PADDING, ROW_HEIGHT),
+        faint = QColor(dimmed)
+        faint.setAlpha(150)
+        colors = {'bound': dimmed, 'default': faint, 'absent': faint, 'missing': _ERROR_COLOR}
+        for index, detail in enumerate(model_item.details):
+            painter.setPen(colors[detail[2]])
+            painter.drawText(QRectF(PADDING, self._row_y(self.value_row + index) - ROW_HEIGHT / 2, text_width,
+                                    ROW_HEIGHT),
                              Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                             label.elidedText(_detail_text(detail), Qt.TextElideMode.ElideRight,
-                                              self.width - 2 * PADDING))
+                             label.elidedText(_detail_text(detail), Qt.TextElideMode.ElideRight, text_width))
+        rows = defaultdict(set)
+        for graphic in self.sockets.values():
+            if graphic.row is not None and graphic.socket.label:
+                rows[graphic.row].add(graphic.side)
         for graphic in self.sockets.values():
             if graphic.row is None:
                 continue
+            # Labels sharing a row with one on the other side get half the width each.
+            available = text_width / 2 - 2 if len(rows[graphic.row]) == 2 else text_width
+            x = PADDING if graphic.side == 'inputs' else PADDING + text_width - available
             painter.setPen(text_color if graphic.socket.resolved else _ERROR_COLOR)
             alignment = Qt.AlignmentFlag.AlignLeft if graphic.side == 'inputs' else Qt.AlignmentFlag.AlignRight
-            painter.drawText(QRectF(PADDING, graphic.y() - ROW_HEIGHT / 2, self.width - 2 * PADDING, ROW_HEIGHT),
-                             alignment | Qt.AlignmentFlag.AlignVCenter, graphic.socket.label)
+            painter.drawText(QRectF(x, graphic.y() - ROW_HEIGHT / 2, available, ROW_HEIGHT),
+                             alignment | Qt.AlignmentFlag.AlignVCenter,
+                             label.elidedText(graphic.socket.label, Qt.TextElideMode.ElideRight, available))
         if model_item.diagnostics:
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(_ERROR_COLOR)
@@ -705,8 +702,10 @@ def _font(pixel_size, bold=False):
 
 
 def _detail_text(detail):
-    name, value = detail
-    return f'{name}: {value}'
+    name, value, state = detail
+    if state == 'missing':
+        return f'{name}: missing'
+    return f'{name}: {"–" if value is None else value}'
 
 
 def _socket_tooltip(socket):

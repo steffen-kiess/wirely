@@ -1,5 +1,5 @@
 node source: Std.Constant {
-  #![position(x = 120, y = -40.5)]
+  #![Diagram.Position(X = 120, Y = -40.5)]
   Type: boolean,
   Value: true,
 }
@@ -7,34 +7,58 @@ node sink: Std.And {}
 connect source -> sink;
 
 node type Metadata {
-  #[summary]
+  #[Diagram.ShowValue]
   parameter Value: boolean = true;
   assert Value;
 }
-#[position(x = -0x2a, y = +0o52)]
+#[Diagram.Position(X = -0x2a, Y = +0o52)]
 node positioned: Metadata {}
 node inner: Metadata {
-  #![position(x = 1.5, y = -2)]
+  #![Diagram.Position(X = 1.5, Y = -2)]
 }
 node type Positioned {
-  #[position(x = 0, y = 0)]
+  #[Diagram.Position(X = 0, Y = 0)]
   parameter Initial: boolean = true;
-  #[position(x = 0, y = 1)]
+  #[Diagram.Position(X = 0, Y = 1)]
   constant Inverted: boolean = !Initial;
-  #[position(x = 1, y = 0)]
+  #[Diagram.Position(X = 1, Y = 0)]
   default output: value boolean;
   #[Internal]
-  #[position(x = 2, y = 0)]
+  #[Diagram.Position(X = 2, Y = 0)]
   state previous: boolean = Initial;
-  #[position(x = 3, y = 0)]
+  #[Diagram.Position(X = 3, Y = 0)]
   temporary current: boolean;
 
-  #[position(x = 4, y = 0)]
+  #[Diagram.Position(X = 4, Y = 0)]
   procedure run depends on previous.old as old produces current { current = !old; }
   connect current -> previous;
   connect current -> default output;
 }
 node positioned_type: Positioned {}
+
+node type Sized {
+  #![Diagram.DefaultWidth = 10]
+  #![Diagram.DefaultHeight = 6.5]
+  #[Diagram.ShowValue]
+  #[Diagram.Width = 4]
+  parameter Label: String = "sized";
+  #[Diagram.Row = 2]
+  input Enable: value boolean;
+  #[Diagram.Row = 0]
+  default input: value boolean;
+  #[Diagram.Row = 2]
+  output Enabled: value boolean;
+  #[Diagram.Height = 3]
+  state last: boolean = false;
+  connect Enable -> Enabled;
+  connect default input -> last;
+}
+#[Diagram.Width = 12.5]
+node sized: Sized {
+  #![Diagram.Height = 9]
+}
+connect source -> sized;
+connect source -> sized.Enable;
 
 #[Internal]
 namespace Implementation {

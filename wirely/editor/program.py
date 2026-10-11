@@ -105,7 +105,7 @@ class Program:
         """Set grid positions of elements, given as {ID: (x, y)}."""
         return self._combined(
             lambda sources, target=target, x=x, y=y: editing.set_attribute(
-                sources, target, editing.format_metadata('position', x=_coordinate(x), y=_coordinate(y)))
+                sources, target, editing.format_metadata('Diagram.Position', X=_coordinate(x), Y=_coordinate(y)))
             for target, (x, y) in positions.items())
 
     def connect(self, scope, source, target, *, index=None):
@@ -127,7 +127,7 @@ class Program:
 
     def add_declaration(self, scope, declaration, position=None):
         attributes = () if position is None else (
-            editing.format_metadata('position', x=_coordinate(position[0]), y=_coordinate(position[1])),)
+            editing.format_metadata('Diagram.Position', X=_coordinate(position[0]), Y=_coordinate(position[1])),)
         return editing.add_declaration(self.sources, scope, declaration, attributes=attributes)
 
     def add_node(self, scope, type_text, position=None):
