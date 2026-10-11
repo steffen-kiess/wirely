@@ -42,9 +42,9 @@ constant Result: uint8 = if let Some(Some(value)) = Value { value } else { 0 }; 
 constant Value: uint8 = 1;
 constant Result: uint8 = if let Some(value) = Value { value } else { 0 }; // E: Expected an Option value, got uint8
 
-// TEST: if let without else
+// TEST: value-producing if let without else
 constant Value: Option[uint8] = None;
-constant Result: uint8 = if let Some(value) = Value { value }; // E: Syntax error
+constant Result: uint8 = if let Some(value) = Value { value }; // E: Expected value of type unit
 
 // TEST: if let scrutinee with a logical operator
 constant Value: Option[uint8] = None;

@@ -274,6 +274,11 @@ def check_arithmetic():
 
 
 def check_branches():
+    assert execute([
+        instruction(Opcode.COPY, output(0), const(0)),
+        instruction(Opcode.COPY, output(0), const(1)),
+        instruction(Opcode.RETURN),
+    ], constants=(Constant(types.boolean, True), Constant(types.boolean, False))) == (False,)
     for condition in (False, True):
         outcome = execute([
             instruction(Opcode.JUMP_IF_FALSE, Operand(OperandKind.INPUT, 0), BranchTarget(3)),

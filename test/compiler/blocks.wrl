@@ -1,0 +1,140 @@
+// Blocks share local mutation and statement syntax at compile time.
+constant Updated: boolean = {
+  let mut value = false;
+  {
+    value = true;
+  }
+  if value {
+    value = false;
+  }
+  if let Some(inner) = Some(true) {
+    value = inner;
+  }
+  false;
+  7;
+  value
+};
+assert Updated;
+assert { let value = true; } == ();
+assert {} == ();
+
+// Assignment returns unit and associates to the right.
+assert {
+  let first: unit;
+  let second: unit;
+  first = second = ();
+  first == second
+};
+
+constant Delayed: boolean = {
+  let chosen: boolean;
+  if Updated {
+    chosen = true;
+  } else {
+    chosen = false;
+  }
+  let mut changed: boolean;
+  changed = chosen;
+  changed = !changed;
+  !changed
+};
+assert Delayed;
+assert {
+  let chosen: boolean;
+  if let Some(value) = Some(true) {
+    chosen = value;
+  } else {
+    chosen = false;
+  }
+  chosen
+};
+
+// Shadowing creates a fresh binding; saved values remain independent.
+assert {
+  let mut value = true;
+  let saved = value;
+  value = false;
+  {
+    let value = value;
+    let mut value = value;
+    value = true;
+  }
+  let value = value;
+  saved && !value
+};
+
+// Short-circuit operands are evaluated only when needed.
+assert {
+  let mut value = false;
+  false && { value = true; true };
+  true || { value = true; false };
+  !value
+};
+assert {
+  let mut value = false;
+  true && { value = true; true };
+  value
+};
+
+// Earlier operands keep their values when later operands mutate locals.
+constant Difference: uint8 = {
+  let mut value: uint8 = 10;
+  uint8.WrappingSub(value, { value = 2; value })
+};
+assert Difference == 8;
+assert {
+  let mut value = true;
+  value == { value = false; true }
+};
+struct type Pair {
+  first: boolean,
+  second: boolean,
+}
+constant Fields: Pair = {
+  let mut value = true;
+  Pair { first: value, second: { value = false; value } }
+};
+assert Fields.first && !Fields.second;
+assert {
+  { Fields }.first;
+  if true { Fields } else { Fields }.first
+};
+
+// UnwrapOr evaluates its fallback even when the option is present.
+assert {
+  let mut fallback = false;
+  let option: Option[boolean] = Some(true);
+  let result = option.UnwrapOr({ fallback = true; false });
+  result && fallback
+};
+
+// Compile-time blocks also support parameter-only types.
+constant Text: String = {
+  let mut text = "before";
+  { text = "after"; }
+  text
+};
+assert Text == "after";
+
+// An assignment's RHS can initialize other bindings before its store.
+assert {
+  let outer: boolean;
+  let inner: boolean;
+  outer = { inner = true; inner };
+  outer && inner
+};
+
+node type Generic {
+  parameter Type: ValueType;
+  parameter Initial: Type;
+  parameter Other: Type;
+  constant Result: Type = {
+    let mut value: Type;
+    value = Initial;
+    { value = Other; }
+    value
+  };
+  assert Result == Other;
+}
+node boolean: Generic { Type: boolean, Initial: true, Other: false }
+node integer: Generic { Type: uint8, Initial: 1, Other: 2 }

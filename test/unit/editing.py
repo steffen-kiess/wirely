@@ -541,3 +541,37 @@ for target, name in ((State(('Toggle', 'on')), 'enabled'), (Parameter(('Toggle',
                      (Node(('toggle',)), 'switch'), (NodeType(('Toggle',)), 'Switch')):
     files = apply_edits(files, rename(files, target, name))
     checks.assertIsNotNone(compile_strs(files, add_std=True))
+
+# Assignments and nested blocks preserve local shadowing during renames.
+block_source = '''constant Flag: boolean = true;
+constant Saved: boolean = {
+  let mut value = Flag;
+  { value = Flag; }
+  let Flag = Flag;
+  {
+    let mut Flag = Flag;
+    Flag = false;
+  }
+  Flag
+};
+node type Block {
+  parameter Type: ValueType;
+  parameter Initial: Type;
+  default output: value Type;
+  procedure run produces default output as output {
+    let mut next: Type;
+    if true { next = Initial; } else { next = Initial; }
+    output = next;
+  }
+}
+'''
+check_rename(Constant(('Flag',)), 'Enabled',
+             ('constant Flag:', 'constant Enabled:'),
+             ('let mut value = Flag;', 'let mut value = Enabled;'),
+             ('{ value = Flag; }', '{ value = Enabled; }'),
+             ('let Flag = Flag;', 'let Flag = Enabled;'), source=block_source)
+check_rename(Parameter(('Block', 'Type')), 'ElementType',
+             ('parameter Type:', 'parameter ElementType:'),
+             ('Initial: Type', 'Initial: ElementType'),
+             ('output: value Type', 'output: value ElementType'),
+             ('next: Type', 'next: ElementType'), source=block_source)

@@ -22,7 +22,7 @@ import lark
 
 from . import ast
 from . import parser
-from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, OutputAssignment, ProcedureBody, PropertyAccess
+from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, PropertyAccess
 from .node_type import NodeType as _NodeType
 from wirely import types as _types
 from .outline import (
@@ -630,16 +630,13 @@ def _reference_roots(element, bound=frozenset()):
         yield from _reference_roots(element.scrutinee, bound)
         yield from _reference_roots(element.then, bound | {element.name.id_str})
         yield from _reference_roots(element.otherwise, bound)
-    elif isinstance(element, (ExpressionBlock, ProcedureBody)):
-        statements = (*element.bindings, element.result) if isinstance(element, ExpressionBlock) else element.statements
-        for statement in statements:
+    elif isinstance(element, ExpressionBlock):
+        for statement in element.statements:
             if isinstance(statement, LocalBinding):
                 if statement.annotation is not None:
                     yield from _reference_roots(statement.annotation, bound)
                 yield from _reference_roots(statement.initializer, bound)
                 bound = bound | {statement.name.id_str}
-            elif isinstance(statement, OutputAssignment):
-                yield from _reference_roots(statement.expression, bound)
             else:
                 yield from _reference_roots(statement, bound)
     elif isinstance(element, (list, tuple)):

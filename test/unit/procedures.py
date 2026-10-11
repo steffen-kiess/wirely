@@ -5,6 +5,7 @@ import wirely.compiler
 import wirely.native.std
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
+from wirely.runtime import procedures as runtime_procedures
 
 
 def check_main_program():
@@ -480,7 +481,9 @@ def check_native_functions():
       default output: value int16;
       output Done: value unit;
       procedure run depends on default input as input produces default output as output, Done {
-        output = TestLibrary.Clamp(input, -10, High);
+        let mut low: int16 = -10;
+        TestLibrary.Nothing();
+        output = TestLibrary.Clamp(input, low, { low = 100; High });
         Done = TestLibrary.Nothing();
       }
     }
@@ -492,7 +495,11 @@ def check_native_functions():
     source = function_engine.get_native_state('source')
     for value, expected in [(5, 5), (500, 10), (-500, -10)]:
         source.set_value(value)
-        function_engine.step()
+        with patch.object(runtime_procedures, 'call_native_function',
+                          wraps=runtime_procedures.call_native_function) as calls:
+            function_engine.step()
+        assert [call.args[1] for call in calls.call_args_list] == [
+            ('TestLibrary', 'Nothing'), ('TestLibrary', 'Clamp'), ('TestLibrary', 'Nothing')]
         function_engine.assert_value_is('clamped', expected)
         function_engine.assert_value_is('clamped.Done', wirely.Unit())
     function_engine.assert_is_idle()
@@ -579,6 +586,23 @@ def check_monotonic_time_functions():
     engine.assert_is_idle()
 
 
+
+def check_mutation():
+    source = engine.get_native_state('source')
+    for value in (False, True, False, True):
+        source.set_value(value)
+        engine.step()
+        for output, expected in {
+                'Saved': value, 'Changed': not value, 'Shadowed': not value,
+                'Chosen': value, 'ReadOutput': not value, 'ShortCircuit': value,
+                'Pattern': value, 'Difference': 8, 'SelfUpdate': 8, 'Snapshot': True,
+                'Fields': pair(True, 2), 'Fallback': value, 'FallbackRan': True,
+                'Unit': wirely.Unit()}.items():
+            engine.assert_value_is(f'mutation.{output}', expected)
+    engine.step()
+    engine.assert_is_idle()
+
+
 check_main_program()
 check_pure_stages()
 check_output_storage()
@@ -598,3 +622,4 @@ check_native_functions()
 check_duration_functions()
 check_time_of_day_functions()
 check_monotonic_time_functions()
+check_mutation()

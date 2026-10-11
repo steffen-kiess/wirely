@@ -1,0 +1,296 @@
+// TEST: untyped immutable declaration
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value; // E: require a type annotation
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: untyped mutable declaration
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value; // E: require a type annotation
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: uninitialized mutable read
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value: boolean;
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: uninitialized immutable read
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: self initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value: boolean;
+    value = value; // E: not definitely initialized
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: partial initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    if Enabled { value = true; }
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: possibly repeated immutable initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    if Enabled { value = true; }
+    value = false; // E: assigned more than once
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: RHS already initialized destination
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    value = { value = true; false }; // E: assigned more than once
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: missing output branch
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    if Enabled { output = true; } // ^E: did not assign outputs on every path
+  }
+}
+node probe: Probe {}
+
+// TEST: possibly repeated output assignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    if Enabled { output = true; }
+    output = false; // E: assigned more than once
+  }
+}
+node probe: Probe {}
+
+// TEST: output read before branch merge
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    if Enabled { output = true; }
+    let saved = output; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: short-circuit initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    Enabled && { value = true; true };
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: short-circuit immutable reassignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    Enabled || { value = true; true };
+    value = false; // E: assigned more than once
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: short-circuit output initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    Enabled && { output = true; true }; // ^E: did not assign outputs on every path
+  }
+}
+node probe: Probe {}
+
+// TEST: conditional pattern initialization
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    if let Some(inner) = Some(Enabled) { value = inner; }
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: field assignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value = Some(Enabled);
+    value.IsSome = false; // E: whole local variable or output
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: indexed assignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let mut value = true;
+    value[0] = false; // E: whole local variable or output
+    output = value;
+  }
+}
+node probe: Probe {}
+
+// TEST: expression assignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    (true && false) = false; // E: whole local variable or output
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: parameter assignment
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    Enabled = false; // E: expected a local variable or output
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: unit conditional required
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    if Enabled { true } // E: Invalid unit
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: non-unit block statement
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    { true } // E: Expected value of type unit
+    output = true;
+  }
+}
+node probe: Probe {}
+
+// TEST: procedure result must be unit
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    output = true;
+    false // E: Invalid unit
+  }
+}
+node probe: Probe {}
+
+// TEST: inner local does not escape
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    { let value = true; }
+    output = value; // E: Unknown procedure value
+  }
+}
+node probe: Probe {}
+
+// TEST: branch binding identities
+node type Probe {
+  parameter Enabled: boolean = true;
+  default output: value boolean;
+  procedure run produces default output as output {
+    let value: boolean;
+    if Enabled { let value = true; } else { value = false; }
+    output = value; // E: not definitely initialized
+  }
+}
+node probe: Probe {}
+
+// TEST: compile-time immutable reassignment
+constant Value: boolean = {
+  let value = true;
+  value = false; // E: assigned more than once
+  value
+};
+
+// TEST: compile-time missing initialization
+constant Value: boolean = {
+  let value: boolean;
+  if true { value = true; }
+  value // E: not definitely initialized
+};
+
+// TEST: missing statement semicolon
+constant Value: boolean = {
+  true
+  false // E: Syntax error
+};
+
+// TEST: value-producing if requires else
+constant Value: boolean = if true { true }; // E: Invalid unit

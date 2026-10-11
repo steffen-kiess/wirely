@@ -197,7 +197,7 @@ def is_type_declaration(declaration):
 
 
 class IfExpression(Expression):
-    def __init__(self, condition, then, otherwise, *, source_position):
+    def __init__(self, condition, then, otherwise=None, *, source_position):
         super().__init__(source_position=source_position)
         self.condition = condition
         self.then = then
@@ -205,7 +205,7 @@ class IfExpression(Expression):
 
 
 class IfLetExpression(Expression):
-    def __init__(self, constructor, name, scrutinee, then, otherwise, *, source_position):
+    def __init__(self, constructor, name, scrutinee, then, otherwise=None, *, source_position):
         super().__init__(source_position=source_position)
         self.constructor = constructor
         self.name = name
@@ -215,31 +215,46 @@ class IfLetExpression(Expression):
 
 
 class ExpressionBlock(Expression):
-    def __init__(self, *items, source_position):
+    def __init__(self, *statements, source_position):
         super().__init__(source_position=source_position)
-        self.bindings = items[:-1]
-        self.result = items[-1]
+        self.statements = statements
+
+
+class ExpressionStatement(SourceElement):
+    def __init__(self, expression, *, terminated=True, source_position):
+        super().__init__(source_position=source_position)
+        self.expression = expression
+        self.terminated = terminated
+
+    @staticmethod
+    def unterminated(expression, *, source_position):
+        return ExpressionStatement(expression, terminated=False, source_position=source_position)
 
 
 class LocalBinding(SourceElement):
-    def __init__(self, name, annotation, initializer, *, source_position):
+    def __init__(self, name, annotation, initializer, *, mutable=False, source_position):
         super().__init__(source_position=source_position)
         self.name = name
         self.annotation = annotation
         self.initializer = initializer
+        self.is_mutable = mutable
+
+    @staticmethod
+    def mutable(name, annotation, initializer, *, source_position):
+        return LocalBinding(name, annotation, initializer, mutable=True, source_position=source_position)
 
 
-class OutputAssignment(SourceElement):
-    def __init__(self, name, expression, *, source_position):
+class AssignmentExpression(Expression):
+    def __init__(self, target, expression, *, source_position):
         super().__init__(source_position=source_position)
-        self.name = name
+        self.target = target
         self.expression = expression
 
 
-class ProcedureBody(SourceElement):
-    def __init__(self, *statements, source_position):
-        super().__init__(source_position=source_position)
-        self.statements = statements
+@dataclass(frozen=True)
+class Binding:
+    value: 'TypedExpression'
+    mutable: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -339,6 +354,12 @@ class TypedExpression:
                 raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
 
     def evaluate(self, inputs, locals):
+        if self.operation == 'unit':
+            return model.types.unit.default_value()
+        if self.operation == 'assign':
+            value = self.arguments[0].evaluate(inputs, locals)
+            locals[self.payload] = value
+            return model.types.unit.default_value()
         if self.operation == 'constant':
             return self.payload.evaluate()
         if self.operation == 'call':
@@ -365,11 +386,10 @@ class TypedExpression:
         if operation == 'input':
             return inputs[self.payload]
         if operation == 'local':
-            return locals[self.payload]
+            return locals['local', self.payload]
         if operation == 'block':
-            locals = dict(locals)
-            for slot, expression in zip(self.payload, self.arguments[:-1]):
-                locals[slot] = expression.evaluate(inputs, locals)
+            for expression in self.arguments[:-1]:
+                expression.evaluate(inputs, locals)
             return self.arguments[-1].evaluate(inputs, locals)
         if operation in ('arith', 'neg'):
             return self.evaluate_arithmetic(inputs, locals)
@@ -395,7 +415,7 @@ class TypedExpression:
             if left is None:
                 return self.arguments[2].evaluate(inputs, locals)
             if self.payload is not None:
-                locals = {**locals, self.payload: left.value}
+                locals['local', self.payload] = left.value
             return self.arguments[1].evaluate(inputs, locals)
         right = self.arguments[1].evaluate(inputs, locals)
         if operation == 'unwrap_or':
@@ -506,13 +526,15 @@ class InstructionCompiler:
 
     def compile(self, expression, destination=None):
         operation = expression.operation
-        if operation in ('constant', 'input', 'local'):
+        if operation in ('constant', 'input', 'local', 'output'):
             if operation == 'constant':
                 source = Operand(OperandKind.CONST, self.intern_constant(
                     expression.value_type, expression.payload.evaluate(),
                 ))
             elif operation == 'input':
                 source = self.inputs[expression.payload]
+            elif operation == 'output':
+                source = self.outputs[expression.payload]
             else:
                 source = self.local(expression.payload, expression.value_type)
             if destination is None:
@@ -520,24 +542,35 @@ class InstructionCompiler:
             self.emit(Opcode.COPY, destination, source)
             return destination
         if operation == 'block':
-            for slot, value in zip(expression.payload, expression.arguments[:-1]):
-                self.compile(value, self.local(slot, value.value_type))
+            for value in expression.arguments[:-1]:
+                self.compile(value)
             return self.compile(expression.arguments[-1], destination)
+        if operation == 'assign':
+            value = expression.arguments[0]
+            kind, slot = expression.payload
+            target = self.outputs[slot] if kind == 'output' else self.local(slot, value.value_type)
+            # Evaluate fully before writing: the RHS can read or update the target.
+            self.emit(Opcode.COPY, target, self.compile(value))
+            return self.compile(TypedExpression(model.types.unit, 'unit'), destination)
+        if operation == 'unit':
+            destination = destination or self.allocate(model.types.unit)
+            self.emit(Opcode.SET_DEFAULT, destination)
+            return destination
         if destination is None:
             destination = self.allocate(expression.value_type)
         if operation == 'call':
-            arguments = [self.compile(argument) for argument in expression.arguments]
+            arguments = [self.snapshot(argument) for argument in expression.arguments]
             self.emit(Opcode.CALL, destination, self.intern_function(expression.payload[0]),
                       len(arguments), *arguments)
             return destination
         if operation == 'struct':
             # Field values are computed before being stored; bodies never read the destination.
-            values = [self.compile(argument) for argument in expression.arguments]
+            values = [self.snapshot(argument) for argument in expression.arguments]
             fields = tuple(expression.value_type.fields)
             for name, value in zip(expression.payload, values):
                 self.emit(Opcode.SET_FIELD, destination, value, fields.index(name))
             return destination
-        left = self.compile(expression.arguments[0])
+        left = self.snapshot(expression.arguments[0])
         if operation == 'if':
             skip_then = self.emit(Opcode.JUMP_IF_FALSE, left, BranchTarget(0))
             self.compile(expression.arguments[1], destination)
@@ -546,6 +579,7 @@ class InstructionCompiler:
             self.compile(expression.arguments[2], destination)
             self.patch(skip_else)
         elif operation in ('unwrap_or', 'if_let'):
+            fallback = self.snapshot(expression.arguments[1]) if operation == 'unwrap_or' else None
             present = self.allocate(model.types.boolean)
             self.emit(Opcode.IS_SOME, present, left)
             skip_some = self.emit(Opcode.JUMP_IF_FALSE, present, BranchTarget(0))
@@ -558,7 +592,10 @@ class InstructionCompiler:
                 self.compile(expression.arguments[1], destination)
             skip_none = self.emit(Opcode.JUMP, BranchTarget(0))
             self.patch(skip_some)
-            self.compile(expression.arguments[-1], destination)
+            if fallback is not None:
+                self.emit(Opcode.COPY, destination, fallback)
+            else:
+                self.compile(expression.arguments[-1], destination)
             self.patch(skip_none)
         elif operation in ('and', 'or'):
             self.emit(Opcode.COPY, destination, left)
@@ -600,11 +637,16 @@ class InstructionCompiler:
             raise AssertionError(f'Unknown procedure operation {operation!r}')
         return destination
 
-    def body(self, statements):
-        for slot, expression in statements:
-            destination = (self.outputs[slot] if isinstance(slot, str)
-                           else self.local(slot, expression.value_type))
-            self.compile(expression, destination)
+    def snapshot(self, expression):
+        source = self.compile(expression)
+        if source.kind in (OperandKind.LOCAL, OperandKind.OUTPUT):
+            destination = self.allocate(expression.value_type)
+            self.emit(Opcode.COPY, destination, source)
+            return destination
+        return source
+
+    def body(self, expression):
+        self.compile(expression)
         self.emit(Opcode.RETURN)
         return ProgramBody(tuple(self.instructions), tuple(self.local_types))
 
@@ -618,6 +660,8 @@ class ExpressionCompiler:
         self.protected = set(protected)
         self.next_slot = 0
         self.static_usage = set()
+        self.bindings = {}
+        self.initialization = {}
 
     def record_static_usage(self, expression):
         expression = property_reference(self.scope, expression, self.names)
@@ -638,6 +682,12 @@ class ExpressionCompiler:
                 elif isinstance(child, SourceElement):
                     self.record_static_usage(child)
 
+    def bind(self, name, value, *, mutable=False, initialized=False):
+        self.names[name] = value
+        key = value.operation, value.payload
+        self.bindings[key] = Binding(value, mutable)
+        self.initialization[key] = initialized, initialized
+
     def local(self, binding):
         name = binding.name.id_str
         if name in self.protected:
@@ -646,11 +696,67 @@ class ExpressionCompiler:
             self.record_static_usage(binding.annotation)
         expected = (self.scope.resolve_type(binding.annotation, par_values=self.parameters)
                     if binding.annotation is not None else None)
-        expression = self.compile(binding.initializer, expected)
+        if binding.initializer is None and expected is None:
+            raise ProgramError(binding, 'Uninitialized locals require a type annotation')
+        expression = (self.compile(binding.initializer, expected)
+                      if binding.initializer is not None else None)
+        value_type = expected or expression.value_type
+        if self.runtime:
+            check_runtime_type(value_type, binding)
         slot = self.next_slot
         self.next_slot += 1
-        self.names[name] = TypedExpression(expected or expression.value_type, 'local', payload=slot)
-        return slot, expression
+        self.bind(name, TypedExpression(value_type, 'local', payload=slot),
+                  mutable=binding.is_mutable, initialized=expression is not None)
+        return (TypedExpression(model.types.unit, 'assign', (expression,), ('local', slot))
+                if expression is not None else TypedExpression(model.types.unit, 'unit'))
+
+    def merge_initialization(self, before, *branches):
+        """Merge (possibly initialized, definitely initialized) for outer bindings."""
+        self.initialization = {
+            key: (any(branch[key][0] for branch in branches),
+                  all(branch[key][1] for branch in branches))
+            for key in before
+        }
+
+    def assignment(self, expression):
+        target = expression.target
+        if not isinstance(target, model.Reference) or target.length != 1:
+            raise ProgramError(target, 'Assignment requires a whole local variable or output')
+        name = target.identifiers[0].id_str
+        value = self.names.get(name)
+        key = (value.operation, value.payload) if value is not None else None
+        binding = self.bindings.get(key)
+        if binding is None:
+            raise ProgramError(target, f'Cannot assign to {name!r}; expected a local variable or output')
+        rhs = self.compile(expression.expression, binding.value.value_type)
+        if not binding.mutable and self.initialization[key][0]:
+            raise ProgramError(target, f'Immutable binding {name!r} may be assigned more than once')
+        self.initialization[key] = True, True
+        return TypedExpression(model.types.unit, 'assign', (rhs,), key)
+
+    def block(self, expression, expected):
+        previous_names = dict(self.names)
+        outer_keys = set(self.initialization)
+        statements = []
+        result = TypedExpression(model.types.unit, 'unit')
+        try:
+            for index, statement in enumerate(expression.statements):
+                if isinstance(statement, LocalBinding):
+                    statements.append(self.local(statement))
+                    continue
+                is_tail = not statement.terminated and index == len(expression.statements) - 1
+                value = self.compile(statement.expression, expected if is_tail else None)
+                if is_tail:
+                    result = value
+                else:
+                    if not statement.terminated:
+                        check_value_type(value.value_type, model.types.unit, statement)
+                    statements.append(value)
+        finally:
+            self.names = previous_names
+            self.initialization = {key: state for key, state in self.initialization.items()
+                                   if key in outer_keys}
+        return TypedExpression(result.value_type, 'block', (*statements, result))
 
     def compile(self, expression, expected=None):
         expression = property_reference(self.scope, expression, self.names)
@@ -665,6 +771,8 @@ class ExpressionCompiler:
 
     def _compile(self, expression, expected):
         boolean = model.types.boolean
+        if isinstance(expression, AssignmentExpression):
+            return self.assignment(expression)
         if isinstance(expression, PropertyAccess):
             name = expression.name.id_str
             receiver = self.compile(expression.receiver)
@@ -726,7 +834,9 @@ class ExpressionCompiler:
         if isinstance(expression, BinaryExpression):
             if expression.operator in ('and', 'or'):
                 left = self.compile(expression.left, boolean)
+                before = dict(self.initialization)
                 right = self.compile(expression.right, boolean)
+                self.merge_initialization(before, before, self.initialization)
             else:
                 # A typed operand supplies context for an adjacent literal.
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
@@ -735,26 +845,28 @@ class ExpressionCompiler:
             return TypedExpression(boolean, expression.operator, (left, right))
         if isinstance(expression, IfExpression):
             condition = self.compile(expression.condition, boolean)
-            branch_type = expected or self.context_type(expression.then) or self.context_type(expression.otherwise)
+            before = dict(self.initialization)
+            branch_type = (model.types.unit if expression.otherwise is None else
+                           expected or self.context_type(expression.then) or self.context_type(expression.otherwise))
             then = self.compile(expression.then, branch_type)
-            otherwise = self.compile(expression.otherwise, then.value_type)
+            then_state = dict(self.initialization)
+            self.initialization = dict(before)
+            otherwise = (self.compile(expression.otherwise, then.value_type)
+                         if expression.otherwise is not None else TypedExpression(model.types.unit, 'unit'))
+            self.merge_initialization(before, then_state, self.initialization)
             return TypedExpression(then.value_type, 'if', (condition, then, otherwise))
         if isinstance(expression, IfLetExpression):
             return self.if_let(expression, expected)
         if isinstance(expression, ExpressionBlock):
-            previous = dict(self.names)
-            try:
-                bindings = [self.local(binding) for binding in expression.bindings]
-                result = self.compile(expression.result, expected)
-            finally:
-                self.names = previous
-            return TypedExpression(result.value_type, 'block',
-                                     tuple(value for slot, value in bindings) + (result,),
-                                     tuple(slot for slot, value in bindings))
+            return self.block(expression, expected)
         if isinstance(expression, model.Reference) and expression.length == 1:
             name = expression.identifiers[0].id_str
             if name in self.names:
-                return self.names[name]
+                value = self.names[name]
+                key = value.operation, value.payload
+                if key in self.initialization and not self.initialization[key][1]:
+                    raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
+                return value
             if self.runtime and name in self.protected:
                 raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
         if self.runtime:
@@ -877,21 +989,27 @@ class ExpressionCompiler:
             raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
         slot = self.next_slot
         self.next_slot += 1
-        self.names[name] = TypedExpression(inner_type, 'local', payload=slot)
+        self.bind(name, TypedExpression(inner_type, 'local', payload=slot), initialized=True)
         return slot
 
     def if_let(self, expression, expected):
         if expression.constructor.id_str != 'Some':
             raise ProgramError(expression.constructor, 'if let patterns must have the form Some(name)')
         option, inner_type = self.option_operand(expression.scrutinee)
-        branch_type = expected or self.context_type(expression.otherwise)
+        before = dict(self.initialization)
+        branch_type = (model.types.unit if expression.otherwise is None else
+                       expected or self.context_type(expression.otherwise))
         previous = dict(self.names)
         try:
             slot = self.bind_pattern(expression, inner_type)
             then = self.compile(expression.then, branch_type or self.context_type(expression.then))
+            then_state = dict(self.initialization)
         finally:
             self.names = previous
-        otherwise = self.compile(expression.otherwise, then.value_type)
+        self.initialization = dict(before)
+        otherwise = (self.compile(expression.otherwise, then.value_type)
+                     if expression.otherwise is not None else TypedExpression(model.types.unit, 'unit'))
+        self.merge_initialization(before, then_state, self.initialization)
         return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
 
     def check_runtime_syntax(self, expression):
@@ -942,16 +1060,23 @@ class ExpressionCompiler:
             self.check_runtime_syntax(expression.then)
             self.check_runtime_syntax(expression.otherwise)
         elif isinstance(expression, ExpressionBlock):
-            for binding in expression.bindings:
-                self.check_runtime_syntax(binding.initializer)
-            self.check_runtime_syntax(expression.result)
+            for statement in expression.statements:
+                self.check_runtime_syntax(statement.initializer if isinstance(statement, LocalBinding)
+                                          else statement.expression)
+        elif isinstance(expression, AssignmentExpression):
+            self.check_runtime_syntax(expression.expression)
 
     def context_type(self, expression):
         # Unsuffixed literals accept context instead of imposing their default.
         if isinstance(expression, (model.IntNumber, model.StringConstant)):
             return None
         if isinstance(expression, ExpressionBlock):
-            return None if expression.bindings else self.context_type(expression.result)
+            if not expression.statements:
+                return model.types.unit
+            tail = expression.statements[-1]
+            if isinstance(tail, LocalBinding) or tail.terminated:
+                return model.types.unit
+            return self.context_type(tail.expression) if len(expression.statements) == 1 else None
         if isinstance(expression, BinaryExpression) and expression.operator in ARITHMETIC_OPERATORS:
             return self.context_type(expression.left) or self.context_type(expression.right)
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
@@ -1012,21 +1137,35 @@ class ExpressionCompiler:
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return model.types.boolean
-        if isinstance(expression, ExpressionBlock) and not expression.bindings:
-            return self.known_type(expression.result)
+        if isinstance(expression, AssignmentExpression):
+            return model.types.unit
+        if isinstance(expression, ExpressionBlock):
+            if not expression.statements:
+                return model.types.unit
+            tail = expression.statements[-1]
+            if isinstance(tail, LocalBinding) or tail.terminated:
+                return model.types.unit
+            if len(expression.statements) == 1:
+                return self.known_type(tail.expression)
         if isinstance(expression, IfExpression):
+            if expression.otherwise is None:
+                return model.types.unit
             # A typed branch takes precedence over a literal one.
             return (self.context_type(expression.then) or self.context_type(expression.otherwise)
                     or self.known_type(expression.then))
         if isinstance(expression, IfLetExpression):
+            if expression.otherwise is None:
+                return model.types.unit
             option_type = self.known_type(expression.scrutinee)
             if isinstance(option_type, model.types.TypeOption):
                 previous, next_slot = dict(self.names), self.next_slot
+                previous_bindings, previous_init = dict(self.bindings), dict(self.initialization)
                 try:
                     self.bind_pattern(expression, option_type.inner_type)
                     then_type = self.context_type(expression.then)
                 finally:
                     self.names, self.next_slot = previous, next_slot
+                    self.bindings, self.initialization = previous_bindings, previous_init
                 if then_type is not None:
                     return then_type
             return self.context_type(expression.otherwise) or self.known_type(expression.otherwise)
@@ -1074,21 +1213,11 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
                                   names=names, protected=protected | set(source_types))
-    statements = []
-    written = set()
-    for statement in declaration.body.statements:
-        if isinstance(statement, LocalBinding):
-            statements.append(compiler.local(statement))
-            continue
-        name = statement.name.id_str
-        if name not in output_types:
-            raise ProgramError(statement.name, f'Cannot assign to {name!r}; expected a declared output')
-        if name in written:
-            raise ProgramError(statement.name, f'Output {name!r} is assigned more than once')
-        statements.append((name, compiler.compile(statement.expression, output_types[name])))
-        written.add(name)
-    missing = set(output_types) - written
+    for name, value_type in output_types.items():
+        compiler.bind(name, TypedExpression(value_type, 'output', payload=name))
+    body = compiler.compile(declaration.body, model.types.unit)
+    missing = [name for name in output_types if not compiler.initialization['output', name][1]]
     if missing:
-        raise ProgramError(declaration.body, f'Procedure did not assign outputs: {sorted(missing)!r}')
+        raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
-    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(statements)
+    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body)

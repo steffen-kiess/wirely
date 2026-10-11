@@ -106,6 +106,7 @@ to_compile = [
     'test/compiler/path.wrl',
     'test/compiler/prepared_configuration.wrl',
     'test/compiler/syntax.wrl',
+    'test/compiler/blocks.wrl',
     'test/compiler/types.wrl',
     'test/compiler/runtime_limits.wrl',
 ]
@@ -132,6 +133,7 @@ negative_tests = [
     'test/negative/native_functions.wrl',
     'test/negative/path.wrl',
     'test/negative/procedures.wrl',
+    'test/negative/blocks.wrl',
     'test/negative/native_initializers.wrl',
     'test/negative/procedure_ports.wrl',
     'test/negative/resource_declarations.wrl',

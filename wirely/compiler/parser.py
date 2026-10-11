@@ -9,7 +9,7 @@ from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, OutputAssignment, ProcedureBody,
+    LocalBinding, AssignmentExpression, ExpressionStatement,
 )
 
 
@@ -20,7 +20,7 @@ with open(os.path.dirname(__file__) + '/wirely.lark', 'r') as file:
 
 ast_classes = [
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, OutputAssignment, ProcedureBody,
+    LocalBinding, AssignmentExpression, ExpressionStatement,
     model.ConnectionKindSpecifier,
     model.PortTypeSpecification,
     model.PortTypeSpecificationData,

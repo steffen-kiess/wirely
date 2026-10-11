@@ -89,7 +89,8 @@ for seed in range(20):
     node_type = next(d for d in declarations if isinstance(d, model.NodeType))
     procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
     statements = procedure.body.statements
-    checks.assertEqual([statement.name.id_str for statement in statements], ['x', 'd'])
+    checks.assertEqual(statements[0].name.id_str, 'x')
+    checks.assertEqual(str(statements[1].expression.target), 'd')
     checks.assertEqual(names(statements[0].initializer.parameters), ['a', 'b'])
 
 # Struct fields and enum members are shuffled only with layout.

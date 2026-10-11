@@ -330,3 +330,95 @@ node monotonic_math: MonotonicMath {}
 connect monotonic_source -> monotonic_math;
 connect monotonic_other -> monotonic_math.Other;
 connect monotonic_span -> monotonic_math.Span;
+
+namespace ProcedureTests {
+  node type Mutation {
+    default input: value boolean;
+    output Saved: value boolean;
+    output Changed: value boolean;
+    output Shadowed: value boolean;
+    output Chosen: value boolean;
+    output ReadOutput: value boolean;
+    output ShortCircuit: value boolean;
+    output Pattern: value boolean;
+    output Difference: value uint8;
+    output SelfUpdate: value uint8;
+    output Snapshot: value boolean;
+    output Fields: value Pair;
+    output Fallback: value boolean;
+    output FallbackRan: value boolean;
+    output Unit: value unit;
+
+    procedure run
+      depends on default input as input
+      produces Saved, Changed, Shadowed, Chosen, ReadOutput, ShortCircuit,
+        Pattern, Difference, SelfUpdate, Snapshot, Fields, Fallback,
+        FallbackRan, Unit
+    {
+      let mut value: boolean;
+      value = input;
+      let saved = value;
+      { value = !value; }
+      Saved = saved;
+      Changed = value;
+      {
+        let value = value;
+        let mut value = value;
+        value = !value;
+      }
+      let value = value;
+      Shadowed = value;
+
+      let chosen: boolean;
+      if input {
+        chosen = true;
+        Chosen = chosen;
+      } else {
+        chosen = false;
+        Chosen = chosen;
+      }
+      ReadOutput = !Chosen;
+
+      let mut visited = false;
+      input && { visited = true; true };
+      !input || { visited = true; false };
+      if input { visited = true; }
+      ShortCircuit = visited;
+
+      let pattern: boolean;
+      let mut option: Option[boolean] = if input { Some(true) } else { None };
+      if let Some(inner) = option {
+        option = None;
+        pattern = inner;
+      } else {
+        pattern = false;
+      }
+      if let Some(inner) = option { pattern; }
+      Pattern = pattern;
+
+      let mut number: uint8 = 10;
+      Difference = uint8.WrappingSub(number, { number = 2; number });
+      number = 10;
+      number = uint8.WrappingSub(number, { number = 2; number });
+      SelfUpdate = number;
+      let mut flag = true;
+      Snapshot = flag == { flag = false; true };
+      flag = true;
+      Fields = Pair {
+        enabled: flag,
+        number: if { flag = false; flag } { 1 } else { 2 },
+      };
+
+      let mut fallback_ran = false;
+      let option_value: Option[boolean] = if input { Some(true) } else { None };
+      Fallback = option_value.UnwrapOr({ fallback_ran = true; false });
+      FallbackRan = fallback_ran;
+      let first: unit;
+      let second: unit;
+      first = second = ();
+      Unit = { true; first };
+    }
+  }
+}
+node mutation: ProcedureTests.Mutation {}
+connect source -> mutation;

@@ -16,7 +16,7 @@ node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    output = output; // E: Cannot read output
+    output = output; // E: not definitely initialized
   }
 }
 node probe: Probe {  }
@@ -27,7 +27,7 @@ node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
     let value = true;
-    value = false; // E: expected a declared output
+    value = false; // E: assigned more than once
     output = value;
   }
 }
@@ -166,12 +166,13 @@ node type Probe {
 }
 node probe: Probe {  }
 
-// TEST: mutable local
+// TEST: mutable local type mismatch
 node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    let mut value = true; // E: Syntax error
+    let mut value = true;
+    value = 1; // E: Invalid boolean
     output = value;
   }
 }
@@ -210,7 +211,7 @@ node type Probe {
   default input: value boolean;
   default output: value boolean;
   procedure run depends on default input as input produces default output as output {
-    input = false; // E: expected a declared output
+    input = false; // E: expected a local variable or output
     output = input;
   }
 }
@@ -316,11 +317,11 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: result assignment inside a branch
+// TEST: result assignment with mismatched branch types
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    let value = if true { output = true; } else { false }; // E: Syntax error
+    let value = if true { output = true; } else { false }; // E: Invalid unit
     output = value;
   }
 }

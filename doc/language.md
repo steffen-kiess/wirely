@@ -502,14 +502,16 @@ node type Select {
 ```
 
 Inside the body, use input port names and runtime-valued parameter and
-constant names as values. Assign each output port exactly once; outputs
-cannot be read. Port, parameter, and constant names must be distinct. Use
-separate ports to read and write state.
+constant names as values. Assign each output port exactly once on every
+path through the body. An output can be read after it has been assigned on
+every path reaching the read. Port, parameter, and constant names must be
+distinct. Use separate ports to read and write state.
 
-`let` creates an immutable local. A later `let` may reuse a local name;
-locals cannot shadow inputs, outputs, parameters, or constants. A block's
-locals are visible only inside that block. Outputs are assigned in the
-outer body.
+`let` creates an immutable local; `let mut` permits reassignment. A later
+`let` may reuse a local name, with its own type and mutability. Its
+initializer sees the previous binding. In procedures, locals cannot shadow
+inputs, outputs, parameters, or constants. A block's locals are visible
+only inside that block; it can update mutable locals declared outside it.
 
 Local types are inferred from their initializers, or supplied by an
 annotation. Integer literals default to `int32` without an expected type.
@@ -522,8 +524,19 @@ let count: uint8 = 3;
 let time: TimeOfDay = "08:00";
 ```
 
-Locals must have runtime types. A string literal needs a runtime destination
-such as `TimeOfDay` or `Duration`; `String` itself is parameter-only.
+An uninitialized local requires a type annotation. Assign it on every path
+before reading it; an immutable local can be assigned only once per path:
+
+```wirely
+let chosen: boolean;
+if enabled { chosen = true; } else { chosen = false; }
+let mut current = chosen;
+current = !current;
+```
+
+Procedure locals must have runtime types. A string literal needs a runtime
+destination such as `TimeOfDay` or `Duration`; `String` itself is
+parameter-only.
 
 Expressions support parentheses, `!`, short-circuit `&&` and `||`, and
 `==` and `!=` for matching value types. Options compare presence and payload;
@@ -582,11 +595,18 @@ lists, and aggregates containing parameter-only types are compile-time-only.
 For `ValueType` values, built-in types compare by type, `Option` and `List`
 compare their inner types, and structs and enums compare by declaration.
 For example, `OutputType == unit` or `Option[int16] == Option[int16]`.
-`if` requires a Boolean condition and an `else`; both branches yield the same
-type. Expression blocks may contain locals followed by a final expression
-without a semicolon. These expressions also work in parameter values and
-other compile-time expressions. Procedure bodies can call native functions
-that are not declared `constant`.
+Blocks contain local declarations and expression statements. A statement
+ending in `;` discards its expression's value. A final expression without
+`;` supplies the block's value; otherwise the block yields `()`.
+Assignment is an expression yielding `()` and assigns a whole local or
+output. Operands evaluate left to right; assignment evaluates its
+right-hand side before storing. Blocks and conditionals used as statements
+can omit `;` when they yield unit. Procedure bodies yield unit. These rules
+also apply to blocks in parameter values and other compile-time expressions.
+
+`if` requires a Boolean condition; both branches yield the same type.
+Omit `else` when the branch yields unit. Procedure bodies can call native
+functions that are not declared `constant`.
 
 For `Option[T]` values, `.IsSome` is true when present and `.IsNone` is true
 when absent. `value.UnwrapOr(fallback)` returns the contained value, or
@@ -604,7 +624,7 @@ bodies use `UnwrapOr` or `if let`.
 let level = if let Some(sum) = int16.CheckedAdd(input, 1) { sum } else { 0 };
 ```
 
-`Some(_)` matches without binding. The `else` block is required, and
+`Some(_)` matches without binding. Omit `else` when the branch yields unit;
 `else if let` chains further patterns. The binding follows the rules for
 `let`. Other patterns are not supported, and the value cannot contain `&&`
 or `||` without parentheses.
@@ -619,8 +639,8 @@ or multi inputs. State reads must be listed in
 Procedure bodies are pure: they read declared values and write declared
 outputs. They cannot access resources, clocks, or deadlines.
 The engine runs them initially and when dependencies change, retaining
-outputs while dependencies are unchanged. Immutable locals and
-single-assignment outputs keep these transformations easy to reason about.
+outputs while dependencies are unchanged. Local mutation is confined to
+one invocation.
 
 Bodies have no loops or recursion. This keeps an unrelated computation
 from holding up actions such as switching on a light. The goal is prompt,

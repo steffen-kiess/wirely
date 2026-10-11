@@ -38,7 +38,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "temporary" identifier ":" type ";" -> declaration_temporary
     // Procedures and initializers
     | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
-    | "procedure" identifier _procedure_clauses procedure_body -> declaration_procedure__create_body
+    | "procedure" identifier _procedure_clauses expression_block -> declaration_procedure__create_body
     | "native" "initializer" depends_declaration [uses_declaration] ";" -> declaration_initializer
 
 native_specifier: "native"
@@ -101,45 +101,53 @@ procedure_port: reference ["as" identifier | "as" string_constant] -> reference_
     | identifier ":" port_type_specification -> typed_port
 static_binding: expression ["as" identifier | "as" string_constant]
 
-procedure_body: "{" procedure_statement* "}"
-?procedure_statement: local_binding | output_assignment
-local_binding: "let" identifier [":" type] "=" expression ";"
-output_assignment: identifier "=" expression ";"
+local_binding: "let" identifier [":" type] ["=" expression] ";"
+    | "let" "mut" identifier [":" type] ["=" expression] ";" -> local_binding__mutable
+?block_statement: local_binding
+    | expression_without_block ";" -> expression_statement
+    | block_expression ";" -> expression_statement
+    | block_expression -> expression_statement__unterminated
+block_tail: expression_without_block -> expression_statement__unterminated
 
 // ---------------------------------------------------------------------------
 // Expressions
 
 // Types are compile-time expressions. As in Rust, a bare struct literal is not
 // allowed where a "{" can follow: in types and if conditions.
-?expression: disjunction{struct_atom}
-?expression_no_struct: disjunction{atom}
-?type: expression_no_struct
+?expression: assignment{struct_atom, struct_atom}
+?expression_no_struct: assignment{atom, atom}
+?expression_without_block: assignment{nonblock_struct_atom, struct_atom}
+?type: disjunction{atom, atom}
 expression_list: _list{expression} -> copy_list
 
-// Binary and unary operators, from lowest to highest precedence. The
-// parameter is the atom rule, which decides whether struct literals appear.
-?disjunction{a}: conjunction{a}
-    | disjunction{a} "||" conjunction{a} -> binary_expression__logical_or
-?conjunction{a}: comparison{a}
-    | conjunction{a} "&&" comparison{a} -> binary_expression__logical_and
+// Binary and unary operators, from lowest to highest precedence. The atom
+// rules control the first operand and subsequent operands. Statement
+// expressions cannot start with a block: a leading block or conditional
+// ends the statement unless followed by field access or enclosed in parentheses.
+?assignment{a, b}: disjunction{a, b}
+    | disjunction{a, b} "=" assignment{b, b} -> assignment_expression
+?disjunction{a, b}: conjunction{a, b}
+    | disjunction{a, b} "||" conjunction{b, b} -> binary_expression__logical_or
+?conjunction{a, b}: comparison{a, b}
+    | conjunction{a, b} "&&" comparison{b, b} -> binary_expression__logical_and
 // Comparisons do not chain.
-?comparison{a}: sum{a}
-    | sum{a} "==" sum{a} -> binary_expression__equal
-    | sum{a} "!=" sum{a} -> binary_expression__not_equal
-    | sum{a} "<" sum{a} -> binary_expression__less
-    | sum{a} "<=" sum{a} -> binary_expression__less_equal
-    | sum{a} ">" sum{a} -> binary_expression__greater
-    | sum{a} ">=" sum{a} -> binary_expression__greater_equal
-?sum{a}: product{a}
-    | sum{a} "+" product{a} -> binary_expression__add
-    | sum{a} "-" product{a} -> binary_expression__subtract
-?product{a}: unary{a}
-    | product{a} "*" unary{a} -> binary_expression__multiply
-    | product{a} "/" unary{a} -> binary_expression__divide
-    | product{a} "%" unary{a} -> binary_expression__remainder
-?unary{a}: primary{a}
-    | "!" unary{a} -> unary_expression
-    | "-" unary{a} -> unary_expression__negate
+?comparison{a, b}: sum{a, b}
+    | sum{a, b} "==" sum{b, b} -> binary_expression__equal
+    | sum{a, b} "!=" sum{b, b} -> binary_expression__not_equal
+    | sum{a, b} "<" sum{b, b} -> binary_expression__less
+    | sum{a, b} "<=" sum{b, b} -> binary_expression__less_equal
+    | sum{a, b} ">" sum{b, b} -> binary_expression__greater
+    | sum{a, b} ">=" sum{b, b} -> binary_expression__greater_equal
+?sum{a, b}: product{a, b}
+    | sum{a, b} "+" product{b, b} -> binary_expression__add
+    | sum{a, b} "-" product{b, b} -> binary_expression__subtract
+?product{a, b}: unary{a, b}
+    | product{a, b} "*" unary{b, b} -> binary_expression__multiply
+    | product{a, b} "/" unary{b, b} -> binary_expression__divide
+    | product{a, b} "%" unary{b, b} -> binary_expression__remainder
+?unary{a, b}: primary{a}
+    | "!" unary{b, b} -> unary_expression
+    | "-" unary{b, b} -> unary_expression__negate
 
 // A dotted name is a reference; "." after anything else is a property access.
 ?primary{a}: reference -> copy
@@ -151,24 +159,27 @@ expression_list: _list{expression} -> copy_list
 
 ?struct_atom: atom
     | reference "{" struct_literal_field_list "}" -> struct_literal
+?nonblock_struct_atom: nonblock_atom
+    | reference "{" struct_literal_field_list "}" -> struct_literal
 struct_literal_field_list: _list{struct_literal_field} -> copy_list
 struct_literal_field: identifier ":" expression
 
-?atom: int_number -> copy
+?atom: nonblock_atom | block_expression
+?block_expression: if_expression | expression_block
+?nonblock_atom: int_number -> copy
     | float_number -> copy
     | string_constant -> copy
     | "(" ")" -> unit_literal
     | "(" expression ")" -> copy
     | "[" expression_list "]" -> list_literal
-    | if_expression
-    | expression_block
+    | block_expression "." identifier -> property_access
 
-?if_expression: "if" expression_no_struct expression_block _else -> if_expression
-    | "if" _let comparison{atom} expression_block _else -> if_let_expression
+?if_expression: "if" expression_no_struct expression_block [_else] -> if_expression
+    | "if" _let comparison{atom, atom} expression_block [_else] -> if_let_expression
 // "let Some(name) =" in an if let
 _let: "let" identifier "(" identifier ")" "="
 _else: "else" (expression_block | if_expression)
-expression_block: "{" local_binding* expression "}"
+expression_block: "{" block_statement* block_tail? "}"
 
 // ---------------------------------------------------------------------------
 // Names and literals
