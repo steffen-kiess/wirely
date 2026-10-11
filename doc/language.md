@@ -251,6 +251,9 @@ unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
 See the [value type reference](value-types.md) for allowed values, runtime
 status, and serialization support.
 
+For a list value, `items.Length` returns its element count as a compile-time
+`uint32` constant.
+
 Declare a struct at top level or inside a namespace:
 
 ```wirely
@@ -356,6 +359,15 @@ multi input, which then receives all of its sources at that place, in
 order; a multi input cannot be connected to other targets. Connections to and from temporaries, state, and
 procedures are described in
 [State and execution](#state-and-execution).
+
+Use `InputName.Length` or `(default input).Length` for an enclosing multi
+input's number of sources, including forwarded sources. Inside procedures,
+an input alias also supports `.Length`; reading an enclosing input's length
+does not require a `depends on` entry. The result is a compile-time `uint32`
+constant for each instance, with zero for an empty input. Event inputs count
+sources regardless of event presence. Input lengths are available when
+instances specialize; they cannot select types needed earlier. The default
+input can appear in expressions only as the receiver of `.Length`.
 
 A connection source can also name a parameter or constant of the same
 scope. It supplies a `value` of the declared type and cannot be a target:

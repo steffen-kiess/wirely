@@ -153,7 +153,9 @@ class Scope(Declaration, abc.ABC):
                     except ProgramError:
                         raise ProgramError(value, f'Unknown static value {value}') from None
                 return model.value.DeferredValue(self, value, value_type)
-            if isinstance(value, Expression):
+            if (isinstance(value, Expression)
+                    or (isinstance(value, Reference) and value.length == 1
+                        and value.identifiers[0].id_str in ('default input', 'default output'))):
                 return compile_constant(self, value, value_type, par_values)
             if value_type == model.types.ValueType and not isinstance(value, model.FunctionCall):
                 return model.ConstantValue(value_type, self.resolve_type(value, par_values=par_values),

@@ -90,6 +90,38 @@ class ValueParameter(Value):
         raise Exception('Attempt to call ValueParameter.evaluate()')
 
 
+class InputLengthValue(Value):
+    """Structural metadata resolved in the instance owning the input."""
+
+    value_type = model.types.uint32
+
+    def __init__(self, scope, port, *, ast_element):
+        super().__init__(ast_element=ast_element)
+        self.scope = scope
+        self.port = port
+
+    @property
+    def contains_parameters(self):
+        return True
+
+    def resolve_self(self, par_values):
+        instance = getattr(par_values, 'instance', None)
+        while instance is not None and instance.node_type is not self.scope:
+            instance = instance.parent_instance
+        if instance is None:
+            raise model.ProgramError(self.ast_element,
+                                     'Input length is unavailable before instance specialization')
+        owner = instance.node or instance.node_type.singleton_instance
+        port = owner.custom_inputs[self.port]
+        count = len(model.list_members(instance.path, port))
+        return ConstantValue(self.value_type, self.value_type.verify_value(count),
+                             ast_element=self.ast_element)
+
+    def evaluate(self):
+        raise model.ProgramError(self.ast_element,
+                                 'Input length is unavailable before instance specialization')
+
+
 class DeferredValue(Value):
     """An initializer whose expected type needs instance values first."""
 

@@ -745,6 +745,49 @@ node invalid: TestLibrary.InvalidProbe {{}}
         checks.assertEqual(constructed, [])
 
 
+def check_input_length_values():
+    registry = {}
+
+    @native_node_type(registry, has_native_state=True)
+    class LengthProbe(NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            self.count = context.values['Count']
+
+        def run(self, *, context):
+            assert context.values['Count'] == self.count
+            context.set_output('output', self.count)
+
+    source = '''
+namespace TestLibrary {
+  native node type LengthProbe {
+    default input: multi value boolean;
+    default output: value uint32;
+    native initializer uses (default input).Length as Count;
+    native procedure run produces default output as output
+      uses (default input).Length as Count;
+  }
+}
+node source: Std.DebugValueSource { Type: boolean }
+node empty: TestLibrary.LengthProbe {}
+node multiple: TestLibrary.LengthProbe {}
+connect source, source -> multiple;
+'''
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
+        graph = wirely.compiler.compile_strs([
+            ('wirely/lib/std.wrl', std_source), ('<input-length-values>', source),
+        ])
+        assert graph is not None
+        machine = Engine(program_compiler.compile(graph))
+    for value in (False, True):
+        machine.get_native_state('source').set_value(value)
+        machine.step()
+        machine.assert_value_is('empty', 0)
+        machine.assert_value_is('multiple', 2)
+        machine.assert_is_idle()
+
+
+check_input_length_values()
 check_native_linking_errors()
 check_input_ports()
 check_wakeups()

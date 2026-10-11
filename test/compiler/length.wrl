@@ -1,0 +1,121 @@
+constant Items: List[String] = ["one", "two"];
+constant Empty: List[uint8] = [];
+constant ItemCount: uint32 = Items.Length;
+assert ItemCount == 2;
+assert Empty.Length == 0;
+assert {
+  let mut items: List[boolean] = [true];
+  assert items.Length == 1;
+  let count = { items = [false, true]; items }.Length;
+  assert count == 2;
+  assert items.Length == 2;
+  true
+};
+
+struct type Measurement { Length: uint32 }
+constant MeasurementValue: Measurement = Measurement { Length: 7 };
+assert MeasurementValue.Length == 7;
+
+node type GenericList {
+  parameter Type: ValueType;
+  parameter Items: Type;
+  parameter Expected: uint32;
+  constant Count: uint32 = Items.Length;
+  assert Count == Expected;
+  procedure run { assert Items.Length == Expected; }
+}
+node generic_list: GenericList {
+  Type: List[String], Items: ["a", "b"], Expected: 2,
+}
+
+node type Verify {
+  parameter Actual: uint32 = 99;
+  parameter Expected: uint32;
+  assert Actual == Expected;
+}
+node type Lengths {
+  parameter Expected: uint32;
+  parameter NamedExpected: uint32 = 0;
+  parameter DefaultCount: uint32 = (default input).Length;
+  default input: multi value boolean;
+  input Named: multi value boolean;
+  constant Count: uint32 = (default input).Length;
+  assert Count == Expected;
+  assert DefaultCount == Expected;
+  assert Named.Length == NamedExpected;
+  node verify: Verify { Actual: Count, Expected: Expected }
+  node direct: Verify { Actual: (default input).Length, Expected: Expected }
+  node optional_binding: Verify {
+    Actual?: Some((default input).Length), Expected: Expected,
+  }
+  procedure metadata {
+    assert ((default input)).Length == Expected;
+    assert Named.Length == NamedExpected;
+    let text = if (default input).Length == Expected { "same" } else { "different" };
+    assert text == "same";
+    let Named: List[boolean] = [true];
+    assert Named.Length == 1;
+  }
+  procedure aliases depends on default input as values, Named as empty {
+    assert values.Length == Expected;
+    assert empty.Length == NamedExpected;
+    assert values.Length + 1 == Expected + 1;
+    if values.Length == 0 { let text = "empty"; assert text == "empty"; }
+    for value in values { assert values.Length == Expected; value; }
+  }
+}
+node type Forward {
+  parameter Expected: uint32;
+  default input: multi value boolean;
+  input Extra: value boolean;
+  node child: Lengths { Expected: Expected }
+  connect Extra, default input -> child;
+}
+node source: Std.Constant { Type: boolean, Value: true }
+node empty: Lengths { Expected: 0 }
+node single: Lengths { Expected: 1 }
+connect source -> single;
+node repeated: Lengths { Expected: 2 }
+connect source, source -> repeated;
+node named: Lengths { Expected: 0, NamedExpected: 2 }
+connect source, source -> named.Named;
+node forwarded: Forward { Expected: 3 }
+connect source -> forwarded.Extra;
+connect source, source -> forwarded;
+node forwarded_empty: Forward { Expected: 1 }
+connect source -> forwarded_empty.Extra;
+
+node type NestedForward {
+  default input: multi value boolean;
+  node child: Forward { Expected: 3 }
+  connect default input -> child;
+  connect source -> child.Extra;
+  node source: Std.Constant { Type: boolean, Value: true }
+}
+node nested: NestedForward {}
+connect source, source -> nested;
+
+node type Explicit {
+  default input: multi value boolean;
+  procedure run depends on values: multi value boolean, empty: multi value boolean {
+    assert values.Length == (default input).Length;
+    assert empty.Length == 0;
+  }
+  connect default input -> run.values;
+}
+node explicit: Explicit {}
+connect source, source -> explicit;
+
+node type EventLengths {
+  parameter Expected: uint32 = 0;
+  default input: multi event boolean;
+  input Events: multi event boolean;
+  assert (default input).Length == Expected;
+  assert Events.Length == Expected;
+  procedure metadata { assert Events.Length == (default input).Length; }
+}
+node events: EventLengths {}
+node event_source: Std.DebugEventSource { Type: boolean }
+node multiple_events: EventLengths { Expected: 2 }
+connect event_source, event_source -> multiple_events;
+connect event_source, event_source -> multiple_events.Events;

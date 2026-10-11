@@ -531,7 +531,7 @@ class NodeTypeInstance(NodeInstance):
             next_parent = next_parent.parent_instance
 
         all_par_values.update(self.parameter_values)
-        all_par_values = ParameterValues(all_par_values)
+        all_par_values = ParameterValues(all_par_values, instance=self)
         parameter_values_resolved = {}
         parameter_keys = list(self.parameter_values)
         parameter_keys.extend(
@@ -555,9 +555,9 @@ class NodeTypeInstance(NodeInstance):
                     owner.instantiation, f'While instantiating {name!r}',
                 )]
             raise
-        self.static_values = {
+        self.static_values = ParameterValues({
             key: all_par_values[key] for key in all_par_values if key in all_par_values
-        }
+        }, instance=self)
         self.static_values.update(self.parameter_values)
         self.static_values.update(self.constant_values)
 

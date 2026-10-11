@@ -37,6 +37,7 @@ test_names = [
     'unit/compiler_api',
     'unit/native_interface',
     'unit/procedures',
+    'unit/length',
     'unit/instructions',
     'unit/bitwise',
     'unit/native_values',
@@ -112,6 +113,7 @@ to_compile = [
     'test/compiler/syntax.wrl',
     'test/compiler/blocks.wrl',
     'test/compiler/multi_procedures.wrl',
+    'test/compiler/length.wrl',
     'test/compiler/types.wrl',
     'test/compiler/runtime_limits.wrl',
 ]
@@ -142,6 +144,7 @@ negative_tests = [
     'test/negative/procedures.wrl',
     'test/negative/blocks.wrl',
     'test/negative/multi_procedures.wrl',
+    'test/negative/length.wrl',
     'test/negative/native_initializers.wrl',
     'test/negative/procedure_ports.wrl',
     'test/negative/resource_declarations.wrl',

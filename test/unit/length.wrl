@@ -1,0 +1,50 @@
+struct type Measurement { Length: uint32 }
+
+node type Lengths {
+  parameter Expected: uint32;
+  parameter Items: List[String] = ["a", "b", "c"];
+  default input: multi value boolean;
+  default output: value uint32;
+  output Alias: value uint32;
+  output ListCount: value uint32;
+  output Explicit: value uint32;
+
+  procedure metadata produces default output as count, ListCount {
+    count = (default input).Length;
+    ListCount = Items.Length;
+  }
+  procedure aliases depends on default input as values produces Alias {
+    assert values.Length == Expected;
+    Alias = values.Length + 1;
+  }
+  procedure explicit depends on values: multi value boolean produces Explicit {
+    Explicit = values.Length;
+  }
+  connect default input -> explicit.values;
+}
+node type Forward {
+  parameter Expected: uint32;
+  default input: multi value boolean;
+  input Extra: value boolean;
+  node child: Lengths { Expected: Expected }
+  connect Extra, default input -> child;
+}
+node type Fields {
+  default input: value Measurement;
+  default output: value uint32;
+  procedure run depends on default input as value produces default output as output {
+    output = value.Length;
+  }
+}
+node source: Std.DebugValueSource { Type: boolean }
+node measurement: Std.DebugValueSource { Type: Measurement }
+node fields: Fields {}
+connect measurement -> fields;
+node empty: Lengths { Expected: 0 }
+node single: Lengths { Expected: 1 }
+connect source -> single;
+node repeated: Lengths { Expected: 2 }
+connect source, source -> repeated;
+node forwarded: Forward { Expected: 3 }
+connect source -> forwarded.Extra;
+connect source, source -> forwarded;

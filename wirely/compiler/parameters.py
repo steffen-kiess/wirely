@@ -7,8 +7,9 @@ from wirely.compiler.types import resolve_type
 
 
 class ParameterValues(dict):
-    def __init__(self, values):
+    def __init__(self, values, *, instance=None):
         super().__init__(values)
+        self.instance = instance if instance is not None else getattr(values, 'instance', None)
         self._resolved = {}
         self._bindings = {}
         self._resolving = []

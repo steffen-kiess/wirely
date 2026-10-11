@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from . import model
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
-from .value import Value, ConstantValue, check_value_type
+from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
     BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
@@ -137,6 +137,7 @@ def property_reference(scope, expression, local_names=()):
         return expression
     root = identifiers[0].id_str
     if (root in local_names or root in scope.static_declarations
+            or root in getattr(scope, 'input_ports', {})
             or root in ('true', 'false', 'None')):
         split = 1
     else:
@@ -157,6 +158,17 @@ def property_reference(scope, expression, local_names=()):
     for name in identifiers[split:]:
         receiver = PropertyAccess(receiver, name, source_position=expression.source_position)
     return receiver
+
+
+def multi_length_port(scope, receiver, names):
+    """Find an enclosing input, without treating shadowed names as ports."""
+    if not isinstance(receiver, model.Reference) or receiver.length != 1:
+        return None
+    name = receiver.identifiers[0].id_str
+    if name in names:
+        return None
+    port = getattr(scope, 'input_ports', {}).get(name)
+    return port if port is not None and port.is_list else None
 
 
 # Member functions of integer types, mapped to their operation and overflow mode.
@@ -299,9 +311,11 @@ class Binding:
 class ExpressionClassification:
     """Resolve runtime dependencies, including cycles through block locals."""
 
-    def __init__(self, expression, names):
+    def __init__(self, expression, names, scope, multi_names):
         self.dependencies = {}
         self.runtime = set()
+        self.scope = scope
+        self.multi_names = multi_names
         self.visit(expression, names)
         dependents = {}
         for source, dependencies in self.dependencies.items():
@@ -319,6 +333,14 @@ class ExpressionClassification:
         if not isinstance(expression, SourceElement):
             return
         dependencies = self.dependencies.setdefault(expression, set())
+        property_expression = property_reference(self.scope, expression, names)
+        if isinstance(property_expression, PropertyAccess) and property_expression.name.id_str == 'Length':
+            receiver = property_expression.receiver
+            if isinstance(receiver, model.Reference) and receiver.length == 1:
+                name = receiver.identifiers[0].id_str
+                if ((name in self.multi_names and names.get(name) is True)
+                        or multi_length_port(self.scope, receiver, names) is not None):
+                    return
         if isinstance(expression, model.Reference):
             binding = names.get(expression.identifiers[0].id_str, False)
             if binding is True:
@@ -399,7 +421,11 @@ class TypedExpression:
         if self.expected_type is not None:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
-        if self.operation in ('and', 'or', 'assert'):
+        if self.operation == 'list_length':
+            receiver_type = self.arguments[0].value_type
+            if not receiver_type.contains_parameters and not isinstance(receiver_type, model.types.TypeList):
+                raise ProgramError(self.source, f"Value of type {receiver_type} has no property 'Length'")
+        elif self.operation in ('and', 'or', 'assert'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
         elif self.operation in (*BITWISE_OPERATORS, 'not'):
@@ -506,6 +532,8 @@ class TypedExpression:
                                                for name, argument in zip(self.payload, self.arguments)})
         if self.operation == 'list':
             return tuple(argument.evaluate(inputs, locals) for argument in self.arguments)
+        if self.operation == 'list_length':
+            return model.types.uint32.verify_value(len(self.arguments[0].evaluate(inputs, locals)))
         if self.operation == 'some':
             return model.Some(self.arguments[0].evaluate(inputs, locals))
         if self.operation == 'field':
@@ -919,6 +947,9 @@ class ExpressionCompiler:
         if self.loop_outer_keys is not None:
             raise ProgramError(expression, 'Nested for loops are not supported')
         iterable = expression.iterable
+        if (isinstance(iterable, model.Reference)
+                and iterable.identifiers[0].id_str == 'default input'):
+            raise ProgramError(iterable, 'For loops require a multi value input name or alias')
         value = (self.names.get(iterable.identifiers[0].id_str)
                  if isinstance(iterable, model.Reference) and iterable.length == 1 else None)
         if value is None or value.operation != 'multi_input':
@@ -981,6 +1012,7 @@ class ExpressionCompiler:
         if self.runtime and self.classification is None:
             self.classification = ExpressionClassification(
                 expression, {name: value.runtime for name, value in self.names.items()},
+                self.scope, {name for name, value in self.names.items() if value.operation == 'multi_input'},
             )
         runtime = self.is_runtime(expression)
         expression = property_reference(self.scope, expression, self.names)
@@ -1001,10 +1033,27 @@ class ExpressionCompiler:
             return self.assignment(expression)
         if isinstance(expression, PropertyAccess):
             name = expression.name.id_str
+            if name == 'Length':
+                if isinstance(expression.receiver, model.Reference) and expression.receiver.length == 1:
+                    value = self.names.get(expression.receiver.identifiers[0].id_str)
+                    if value is not None and value.operation == 'multi_input':
+                        return TypedExpression(model.types.uint32, 'constant', payload=ConstantValue(
+                            model.types.uint32, model.types.uint32.verify_value(len(value.payload)),
+                            ast_element=expression,
+                        ))
+                port = multi_length_port(self.scope, expression.receiver, self.names)
+                if port is not None:
+                    value = InputLengthValue(self.scope, port, ast_element=expression)
+                    if getattr(self.parameters, 'instance', None) is not None:
+                        value = value.resolve_self(self.parameters)
+                    return TypedExpression(model.types.uint32, 'constant', payload=value)
             receiver = self.compile(expression.receiver)
             receiver_type = receiver.value_type
             if isinstance(receiver_type, model.types.TypeStruct) and name in receiver_type.fields:
                 return TypedExpression(receiver_type.fields[name], 'field', (receiver,), name)
+            if name == 'Length' and (isinstance(receiver_type, model.types.TypeList)
+                                     or receiver_type.contains_parameters):
+                return TypedExpression(model.types.uint32, 'list_length', (receiver,))
             if (name in ('IsSome', 'IsNone') and (isinstance(receiver_type, model.types.TypeOption)
                                                   or receiver_type.contains_parameters)):
                 return TypedExpression(boolean, 'is_some' if name == 'IsSome' else 'is_none',
@@ -1019,6 +1068,10 @@ class ExpressionCompiler:
         if isinstance(expression, model.FunctionCall):
             method = property_reference(self.scope, expression.fun, self.names)
             if isinstance(method, PropertyAccess):
+                if method.name.id_str == 'Length':
+                    length = self.compile(method)
+                    if length.operation != 'field':
+                        raise ProgramError(expression, 'Length is a property; omit parentheses')
                 if method.name.id_str == 'UnwrapOr':
                     return self.unwrap_or(expression, method.receiver, expected)
                 if method.name.id_str == 'Unwrap':
@@ -1100,10 +1153,14 @@ class ExpressionCompiler:
             return self.block(expression, expected)
         if isinstance(expression, model.Reference) and expression.length == 1:
             name = expression.identifiers[0].id_str
+            if name in ('default input', 'default output'):
+                raise ProgramError(expression, 'Default ports cannot be used as values; '
+                                   'use (default input).Length for a multi input')
             if name in self.names:
                 value = self.names[name]
                 if value.operation == 'multi_input':
-                    raise ProgramError(expression, 'Multi inputs can only be used as for-loop sources')
+                    raise ProgramError(expression, 'Multi inputs can only be used as for-loop sources '
+                                       'or receivers of .Length')
                 key = value.operation, value.payload
                 if key in self.initialization and not self.initialization[key][1]:
                     raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
@@ -1341,6 +1398,8 @@ class ExpressionCompiler:
             receiver_type = self.known_type(expression.receiver)
             if isinstance(receiver_type, model.types.TypeStruct):
                 return receiver_type.fields.get(expression.name.id_str)
+            if expression.name.id_str == 'Length':
+                return model.types.uint32
             return model.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
         if isinstance(expression, model.ParameterOption):
             parameter = self.parameter_option_declaration(expression)
@@ -1444,9 +1503,36 @@ class ExpressionCompiler:
         return None
 
 
+def input_length_source(expression, seen=None):
+    """Find structural dependencies when a type is requested before specialization."""
+    seen = set() if seen is None else seen
+    if expression.operation == 'constant':
+        value = expression.payload
+        if isinstance(value, InputLengthValue):
+            return value.ast_element
+        if isinstance(value, model.ValueParameter):
+            declaration = value.parameter
+            if declaration.default_value is not None and declaration not in seen:
+                seen.add(declaration)
+                compiler = ExpressionCompiler(declaration.interface, {})
+                default = compiler.compile(declaration.default_value, declaration.type_resolved)
+                source = input_length_source(default, seen)
+                if source is not None:
+                    return source
+    for argument in expression.arguments:
+        source = input_length_source(argument, seen)
+        if source is not None:
+            return source
+    return None
+
+
 def compile_constant(scope, expression, expected, parameters):
     compiler = ExpressionCompiler(scope, parameters)
     typed_expression = compiler.compile(expression, expected)
+    if typed_expression.value_type == model.types.ValueType and getattr(parameters, 'instance', None) is None:
+        source = input_length_source(typed_expression)
+        if source is not None:
+            raise ProgramError(source, 'Input length is unavailable before instance specialization')
     return ExpressionValue(typed_expression, ast_element=expression)
 
 

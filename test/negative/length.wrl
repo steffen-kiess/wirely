@@ -1,0 +1,156 @@
+// LIBRARIES: std
+
+// TEST: bare default input
+node type Probe {
+  default input: multi value boolean;
+  constant Count: uint32 = (default input); // E: Default ports cannot be used as values
+}
+
+// TEST: default input arithmetic
+node type Probe {
+  default input: multi value boolean;
+  assert (default input) == (); // E: Default ports cannot be used as values
+}
+
+// TEST: default input list
+node type Probe {
+  default input: multi value boolean;
+  constant Items: List[boolean] = [(default input)]; // E: Default ports cannot be used as values
+}
+
+// TEST: default input argument
+node type Probe {
+  default input: multi value boolean;
+  assert Some((default input)).IsSome; // E: Default ports cannot be used as values
+}
+
+// TEST: default input other property
+node type Probe {
+  default input: multi value boolean;
+  assert (default input).IsSome; // E: Default ports cannot be used as values
+}
+
+// TEST: default output
+node type Probe {
+  default output: value boolean;
+  assert (default output).Length == 0; // E: Default ports cannot be used as values
+}
+
+// TEST: default input loop
+node type Probe {
+  default input: multi value boolean;
+  procedure run depends on default input as values {
+    for value in (default input) {} // E: For loops require a multi value input name or alias
+  }
+}
+node probe: Probe {}
+
+// TEST: scalar input
+node type Probe {
+  default input: value boolean;
+  assert (default input).Length == 1; // E: Default ports cannot be used as values
+}
+
+// TEST: scalar value
+constant Flag: boolean = true;
+assert Flag.Length == 1; // E: has no property 'Length'
+
+// TEST: list property call
+constant Items: List[uint8] = [];
+assert Items.Length() == 0; // E: Length is a property; omit parentheses
+
+// TEST: port property call
+node type Probe {
+  default input: multi value boolean;
+  assert (default input).Length() == 0; // E: Length is a property; omit parentheses
+}
+
+// TEST: alias property call
+node type Probe {
+  default input: multi value boolean;
+  procedure run depends on default input as values {
+    assert values.Length() == 0; // E: Length is a property; omit parentheses
+  }
+}
+node probe: Probe {}
+
+// TEST: child input metadata
+node type Child { input Items: multi value boolean; }
+node child: Child {}
+assert child.Items.Length == 0; // E: Cannot infer expression type
+
+// TEST: result type
+constant Items: List[boolean] = [];
+constant Count: int32 = Items.Length; // E: Expected value of type int32, got uint32
+
+// TEST: generic receiver
+node type Probe {
+  parameter Type: ValueType;
+  parameter Item: Type;
+  constant Count: uint32 = Item.Length; // E: Value of type boolean has no property 'Length'
+}
+node probe: Probe { Type: boolean, Item: true } // H: While instantiating 'probe'
+
+// TEST: early type selection
+node type Child {
+  parameter Type: ValueType;
+  input Value: value Type;
+}
+node type Probe {
+  default input: multi value boolean;
+  node child: Child {
+    Type: if (default input).Length == 0 { boolean } else { uint8 },
+    // ^E: Input length is unavailable before instance specialization
+  }
+}
+
+// TEST: runtime field Length
+struct type Measurement { Length: uint32 }
+node type Probe {
+  default input: value Measurement;
+  procedure run depends on default input as value {
+    assert value.Length == 0; // E: Assertion condition must be a compile-time expression
+  }
+}
+node source: Std.Constant { Type: Measurement, Value: Measurement { Length: 0 } }
+node probe: Probe {}
+connect source -> probe;
+
+// TEST: shadowed port is a scalar
+node type Probe {
+  input Items: multi value boolean;
+  procedure run {
+    let Items = true;
+    assert Items.Length == 0; // E: has no property 'Length'
+  }
+}
+node probe: Probe {}
+
+// TEST: indirect early type selection
+node type Probe {
+  default input: multi value boolean;
+  constant Count: uint32 = (default input).Length;
+  // ^E: Input length is unavailable before instance specialization
+  constant Type: ValueType = if Count == 0 { boolean } else { uint8 };
+}
+
+// TEST: recursive forwarding
+node type Recursive {
+  default input: multi value boolean;
+  assert (default input).Length == 0;
+  node child: Recursive {} // E: Recursive node type instantiation of 'Recursive'
+  connect default input -> child;
+}
+
+// TEST: length does not permit runtime list locals
+node type Probe {
+  default input: value boolean;
+  procedure run depends on default input as value {
+    let Items: List[boolean] = [true]; // E: Type List[boolean] is not a runtime type
+    assert Items.Length == 1;
+    value;
+  }
+}
+node source: Std.Constant { Type: boolean, Value: true }
+node probe: Probe {}
+connect source -> probe;
