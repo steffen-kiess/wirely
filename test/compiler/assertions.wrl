@@ -3,6 +3,53 @@ constant Later: boolean = true;
 constant r#assert: boolean = true;
 assert r#assert, "raw identifier";
 
+assert { assert true; } == ();
+assert {
+  let mut amount: uint8 = 1;
+  assert amount == 1;
+  assert { amount = 2; true };
+  assert amount == 2, "assertions preserve mutation order";
+  { assert amount == 2; }
+  let r#assert = amount == 2;
+  assert r#assert, r#"a "quoted" message"#;
+  amount == 2
+};
+
+procedure compile_only {
+  assert true;
+  let mut text: String = "before";
+  assert text == "before";
+  { text = "after"; assert text == "after"; }
+  assert text == "after";
+  if true { assert true; } else { assert false; }
+  true || { assert false; false };
+  false && { assert false; true };
+}
+
+procedure iterate depends on values: multi value boolean {
+  for value in values { assert true; }
+}
+
+node type BlockChecked {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  parameter Expected: Type;
+  parameter Default: Type = { assert Value == Expected; Value };
+  constant Checked: Type = {
+    let value: Type = Default;
+    assert value == Expected;
+    value
+  };
+  assert Checked == Expected;
+  procedure check {
+    assert Value == Expected;
+    let value: Type = Checked;
+    assert value == Expected;
+  }
+}
+node integer: BlockChecked { Type: uint8, Value: 3, Expected: 3 }
+node text: BlockChecked { Type: String, Value: "hello", Expected: "hello" }
+
 node type Checked {
   assert Default == Selected;
   assert {

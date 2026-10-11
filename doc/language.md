@@ -224,8 +224,10 @@ node type Select {
 ```
 
 Use `assert condition;` or `assert condition, "message";` at the program
-root or in a node type. The condition must be Boolean and may use compile-time
-expressions, parameters, and constants declared later in the same scope:
+root, in a node type, or inside an expression block. Conditions must be
+constant Boolean expressions. Block assertions can use compile-time locals;
+declaration assertions can use parameters and constants declared later in
+the same scope:
 
 ```wirely
 node type Checked {
@@ -235,11 +237,12 @@ node type Checked {
 }
 ```
 
-Assertions run in declaration order after constants resolve, before initializer
-bindings, once per instance (once for the root and each instantiated singleton).
-A false condition stops compilation. Unused node types have their assertions
-checked but do not evaluate them. Assertions generate no runtime code. Messages
-may also use raw string literals.
+Declaration assertions run in declaration order after constants resolve,
+before initializer bindings, once per instance (once for the root and each
+instantiated singleton). Block assertions follow expression evaluation order.
+A false condition stops compilation. Unused node types have their declaration
+assertions checked but do not evaluate them. Assertions generate no runtime
+code. Messages may also use raw string literals.
 
 Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
 unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,

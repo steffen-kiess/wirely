@@ -29,15 +29,19 @@ namespace ProcedureTests {
       produces default output as output, Number, Shifted, Saved, ReadBack,
         Matched, Selected
     {
+      assert Text == "hello", "constant parameter";
       "discarded";
       { let items: List[String] = ["discarded"]; }
       output = if input {
         let mut text: String = "before";
+        assert text == "before";
         { text = Text; }
         let text = text;
+        assert text == "hello", r#"updated "text""#;
         text == "hello" && Path.Parent("folder/file") == "folder"
       } else {
         let items: List[uint8] = [1, 2];
+        assert items == [1, 2];
         items == [2, 1]
       };
       Number = if input { 1 + 2 } else { 4 + 5 };
@@ -46,11 +50,21 @@ namespace ProcedureTests {
       value = 10;
       Saved = saved;
       ReadBack = Number;
-      Shifted = saved << { let count: uint8 = 1; count + 1 };
+      Shifted = saved << {
+        let count: uint8 = 1;
+        assert count < 8;
+        count + 1
+      };
       Matched = if let Some(number) = Some(uint8.From(2)) {
         uint8.WrappingAdd(number, saved)
       } else { 0 };
-      Selected = if true { uint8.CheckedFrom(3).Unwrap() } else { 1 / 0 };
+      Selected = if true {
+        assert true;
+        uint8.CheckedFrom(3).Unwrap()
+      } else {
+        assert false;
+        1 / 0
+      };
     }
   }
 

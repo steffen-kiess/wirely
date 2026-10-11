@@ -264,6 +264,12 @@ class ExpressionStatement(SourceElement):
         return ExpressionStatement(expression, terminated=False, source_position=source_position)
 
 
+class AssertionStatement(ExpressionStatement):
+    def __init__(self, expression, message, *, source_position):
+        super().__init__(expression, source_position=source_position)
+        self.message = message
+
+
 class LocalBinding(SourceElement):
     def __init__(self, name, annotation, initializer, *, mutable=False, source_position):
         super().__init__(source_position=source_position)
@@ -393,7 +399,7 @@ class TypedExpression:
         if self.expected_type is not None:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
-        if self.operation in ('and', 'or'):
+        if self.operation in ('and', 'or', 'assert'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
         elif self.operation in (*BITWISE_OPERATORS, 'not'):
@@ -477,6 +483,13 @@ class TypedExpression:
 
     def evaluate(self, inputs, locals):
         if self.operation == 'unit':
+            return model.types.unit.default_value()
+        if self.operation == 'assert':
+            if not self.arguments[0].evaluate(inputs, locals):
+                message = 'Compile-time assertion failed'
+                if self.payload is not None:
+                    message += ': ' + self.payload
+                raise ProgramError(self.source, message)
             return model.types.unit.default_value()
         if self.operation == 'assign':
             value = self.arguments[0].evaluate(inputs, locals)
@@ -938,6 +951,17 @@ class ExpressionCompiler:
             for index, statement in enumerate(expression.statements):
                 if isinstance(statement, LocalBinding):
                     statements.append(self.local(statement))
+                    continue
+                if isinstance(statement, AssertionStatement):
+                    if self.is_runtime(statement.expression):
+                        raise ProgramError(statement.expression,
+                                           'Assertion condition must be a compile-time expression')
+                    condition = self.compile(statement.expression, model.types.boolean)
+                    statements.append(TypedExpression(
+                        model.types.unit, 'assert', (condition,),
+                        payload=statement.message.value if statement.message is not None else None,
+                        source=statement,
+                    ))
                     continue
                 is_tail = not statement.terminated and index == len(expression.statements) - 1
                 value = self.compile(statement.expression, expected if is_tail else None)

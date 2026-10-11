@@ -51,16 +51,121 @@ namespace Example { // H: In this namespace
   assert true; // E: Declaration not allowed in namespace
 }
 
-// TEST: procedure
+// TEST: procedure failure
 procedure run {
-  assert true; // E: Syntax error
+  assert false; // E: Compile-time assertion failed
 }
 
-// TEST: expression block
+// TEST: expression block failure
 assert {
-  assert true; // E: Syntax error
+  assert false, "block failed"; // E: Compile-time assertion failed: block failed
   true
 };
+
+// TEST: procedure raw message
+procedure run {
+  assert false, r#"a "quoted" message\n"#;
+  // ^E: Compile-time assertion failed: a "quoted" message\n
+}
+
+// TEST: block non boolean
+assert {
+  assert 1; // E: Invalid boolean value
+  true
+};
+
+// TEST: uninitialized constant local
+procedure run {
+  let value: boolean;
+  assert value; // E: is not definitely initialized
+}
+
+// TEST: runtime input
+constant InputValue: boolean = true;
+procedure run depends on input: value boolean {
+  assert input; // E: Assertion condition must be a compile-time expression
+}
+connect InputValue -> run.input;
+
+// TEST: runtime output read
+temporary result: boolean;
+procedure run produces result {
+  result = true;
+  assert result; // E: Assertion condition must be a compile-time expression
+}
+
+// TEST: literal-initialized runtime local
+temporary result: boolean;
+procedure run produces result {
+  let value = true;
+  assert value; // E: Assertion condition must be a compile-time expression
+  result = value;
+}
+
+// TEST: runtime assignment in condition
+temporary result: boolean;
+procedure run produces result {
+  assert { result = true; true };
+  // ^E: Assertion condition must be a compile-time expression
+}
+
+// TEST: failing assertion in runtime-controlled branch
+constant InputValue: boolean = false;
+procedure run depends on input: value boolean {
+  if input { assert false; } // E: Compile-time assertion failed
+}
+connect InputValue -> run.input;
+
+// TEST: failing assertion in runtime short-circuit operand
+constant InputValue: boolean = true;
+procedure run depends on input: value boolean {
+  input || { assert false; true }; // E: Compile-time assertion failed
+}
+connect InputValue -> run.input;
+
+// TEST: unselected branches are still type checked
+procedure run {
+  if true {} else { assert 1; } // E: Invalid boolean value
+}
+
+// TEST: runtime loop element
+procedure run depends on values: multi value boolean {
+  for value in values {
+    assert value; // E: Assertion condition must be a compile-time expression
+  }
+}
+
+// TEST: failing constant assertion in an empty loop
+procedure run depends on values: multi value boolean {
+  for value in values { assert false; } // E: Compile-time assertion failed
+}
+
+// TEST: deferred block non boolean
+node type Checked {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  constant Checked: boolean = {
+    assert Value; // E: Expected value of type boolean, got int16
+    true
+  };
+}
+node checked: Checked { Type: int16, Value: 1 } // H: While instantiating 'checked'
+
+// TEST: block assertion without semicolon
+procedure run {
+  assert true
+} // E: Syntax error
+
+// TEST: block assertion without condition
+procedure run {
+  assert; // E: Syntax error
+}
+
+// TEST: block nonliteral message
+procedure run {
+  let message: String = "message";
+  assert true, message; // E: Syntax error
+}
 
 // TEST: missing condition
 assert; // E: Syntax error
