@@ -164,7 +164,7 @@ def _validate_body(procedure, constant_types, functions):
 
 
 def validate_program(program):
-    """Reject invalid constants, sources, and procedure instructions with ValueError."""
+    """Reject invalid constants, bindings, sources, and procedure instructions with ValueError."""
     if not isinstance(program, Program):
         raise ValueError('Expected a Program')
     for index, constant in enumerate(program.constants):
@@ -191,6 +191,17 @@ def validate_program(program):
             raise ValueError(f'Function func.{index}: {error}') from error
     constant_ids = {id(constant) for constant in program.constants}
 
+    def check_bindings(values):
+        for name, constant in values.items():
+            if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
+                raise ValueError(f'Static binding {name!r} is not a typed Constant')
+
+    for node_id, instance in program.instances.items():
+        try:
+            check_bindings(instance.initializer_values)
+        except ValueError as error:
+            raise ValueError(f'Instance {node_id!r}: {error}') from error
+
     def check_source(input_source):
         if input_source.constant is not None and id(input_source.constant) not in constant_ids:
             raise ValueError('Constant source is not an entry of the program constants')
@@ -198,6 +209,7 @@ def validate_program(program):
     for schedule in program.procs.values():
         for procedure in schedule:
             try:
+                check_bindings(procedure.values)
                 for _, input_source in procedure.dependencies:
                     check_source(input_source)
                 if procedure.body is not None:

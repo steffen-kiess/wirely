@@ -111,7 +111,7 @@ class NativeInstance:
     has_native_state: bool  # Whether the engine creates a native state object.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
     initializer_bindings: tuple  # (input name, provider node ID) entries.
-    initializer_values: Mapping[str, object] = field(default_factory=dict)  # Lifetime static bindings.
+    initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
 
     def __post_init__(self):
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
@@ -134,7 +134,7 @@ class Procedure:
     resources: tuple  # (input name, provider node ID) entries.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
-    values: Mapping[str, object] = field(default_factory=dict)  # Native static bindings.
+    values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure `uses` values.
 
     def __post_init__(self):
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
@@ -198,6 +198,12 @@ class Program:
             for part in formatted.splitlines():
                 line(part, indent + 2)
 
+        def static_bindings(label, values, indent):
+            line(label + ':', indent)
+            for name, constant in sorted(values.items()):
+                line(f'{name}: {constant.value_type}', indent + 2)
+                value('value', constant.value, indent + 4)
+
         def resources(bindings, indent):
             for name, node_id in bindings:
                 line(f'{name}: {node_id}', indent)
@@ -248,7 +254,7 @@ class Program:
             line(f'name: {instance.name}', 4)
             line(f'has native state: {instance.has_native_state}', 4)
             value('parameters', dict(instance.parameters), 4)
-            value('initializer values', dict(instance.initializer_values), 4)
+            static_bindings('initializer values', instance.initializer_values, 4)
             line('initializer resources:', 4)
             resources(instance.initializer_bindings, 6)
 
@@ -260,7 +266,7 @@ class Program:
                 type_name, method_name = proc.reference
                 line(f'{index}. {proc.node_id}: {".".join(type_name)}.{method_name}', 4)
                 line(f'node context: {proc.node_context.name}', 6)
-                value('values', dict(proc.values), 6)
+                static_bindings('values', proc.values, 6)
                 line('dependencies:', 6)
                 for name, input_source in proc.dependencies:
                     line(f'{name}: {source(input_source)}', 8)

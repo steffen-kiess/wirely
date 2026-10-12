@@ -120,12 +120,14 @@ class VariableTableInstance:
 
 class ProcedureContext:
     __slots__ = (
-        '_inputs', '_outputs', '_written_outputs', '_static',
+        '_inputs', '_outputs', '_written_outputs', '_static', '_values',
         '_step_info', '_wakeup_time', '_wakeup_time_set', '_engine',
     )
 
-    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info, engine):
+    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info, engine,
+                 values: Mapping[str, object]):
         self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
+        self._values = values
         self._outputs = outputs
         self._written_outputs = set()
         self._static = static
@@ -159,7 +161,7 @@ class ProcedureContext:
 
     @property
     def values(self) -> Mapping[str, object]:
-        return self._static.values
+        return self._values
 
     def start_time_for_stage(self, stage: 'RunStage') -> TimeSnapshot:
         if not isinstance(stage, RunStage):

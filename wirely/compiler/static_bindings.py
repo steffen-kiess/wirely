@@ -2,11 +2,14 @@
 
 from types import MappingProxyType
 
+from ..program import Constant
 from . import model
 from .expressions import compile_constant
+from .types import resolve_type
 
 
 def evaluate_bindings(uses, instance):
+    """Return the typed values bound by a `uses` clause, keyed by name."""
     values = {}
     if uses is None:
         return MappingProxyType(values)
@@ -17,8 +20,8 @@ def evaluate_bindings(uses, instance):
             value = compile_constant(scope, expression, None, instance.static_values)
             value = value.resolve_self(instance.static_values)
             try:
-                concrete = value.evaluate()
-                values[binding.key] = model.value_types._to_native(value.value_type, concrete)
+                value_type = resolve_type(value.value_type, instance.static_values)
+                values[binding.key] = Constant(value_type, value_type.verify_value(value.evaluate()))
             except (ValueError, ArithmeticError) as error:
                 raise model.ProgramError(expression, str(error)) from error
     return MappingProxyType(values)
