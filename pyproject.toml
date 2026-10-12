@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wirely"
-version = "0.1.3.dev0"
+version = "0.1.3"
 description = "Node-based language and runtime for low-level home automation"
 readme = "README.md"
 requires-python = ">=3.11"
