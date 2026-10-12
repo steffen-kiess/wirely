@@ -10,37 +10,11 @@ Replace `Time` with `Schedule` for `IsInDailyInterval`, `TriggerAt`,
 `TimeOfDayMinute`, and `IsValidDailyInterval`, and with `Timer` for
 `DebounceStable` and `MonotonicTimeReached`.
 
-#### Shared names
-
-Nodes, including procedures, state, and temporaries, and named ports in a
-node type or at the top level share one namespace. Rename declarations that
-share a name, including an input and an output with the same name.
-
-#### Procedure outputs and temporaries
-
-Procedures cannot produce resource outputs.
-
-Values are stored per procedure output port, and a declared temporary is
-another name for its source. Temporary symbols are therefore always
-`<node>:<procedure>.<port>`; declared temporaries remain available by name
-as variable aliases.
-
-#### Attribute names
-
-Compiler attributes use PascalCase. Rename `#[internal]` to `#[Internal]`,
-and `#[position(x = 1, y = 2)]` to `#[Diagram.Position(X = 1, Y = 2)]`.
-
-#### Source editing
-
-`wirely.compiler.attribute_editing` is replaced by
-`wirely.compiler.editing`. Its attribute functions take a list of
-`(filename, text)` pairs instead of one text and return `TextEdit`s; pass
-them to `apply_edits()` to get the new texts.
-
 ### Added
 
 - `Timer.MonotonicTimestamp` emits the step's monotonic time while an input
   event is present.
+- Bitwise operators `&`, `|`, `^`, `!`, `<<`, and `>>` for integers.
 - Procedure ports can be declared with a type and wired with `connect`.
   Refer to a port as `procedure.port`, also in reference ports of other
   procedures:
@@ -57,26 +31,6 @@ them to `apply_edits()` to get the new texts.
   ```
 - Connections can target temporaries and state; state takes its value from
   a procedure output port. Reference output ports can target child inputs.
-- `if` conditions accept indexing, `()`, list literals, and nested `if`, as
-  in `T == Option[uint8]`.
-- `wirely.compiler.outline` lists the declarations, ports, and connections
-  of source files without compiling them. `wirely.compiler.editing` adds,
-  changes, renames, and removes declarations, edits parameter bindings and
-  node types, and connects, disconnects, and reconnects ports. Renaming
-  updates the references to a declaration.
-- `Diagram.*` attributes store diagram layouts: positions and sizes of
-  instances, ports, parameters, constants, states, temporaries, and
-  procedures, default sizes of node types, port rows, and parameter values
-  shown in instances. See [diagram layout](doc/diagram-layout.md).
-- `wirely.compiler.analysis` resolves port and parameter types of programs
-  with errors or unfinished connections and reports all errors in
-  declarations and instances. It also checks whether ports can be
-  connected and lists the node types and type names usable in a scope.
-  Compiler diagnostics carry source offsets.
-- A node type can connect its own `multi` input to a multi input of a
-  child node, which receives all of its sources.
-- `#[Unordered]` marks `multi` inputs whose connection order has no
-  meaning, such as the input of `Std.And`.
 - `wirely edit` edits programs as source text and as diagrams, kept in
   sync. `wirely export-image` draws a diagram as a PDF or PNG file. Install
   the `editor` extra to use them.
