@@ -9,7 +9,7 @@ os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QMouseEvent, QTextCursor
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLineEdit, QMessageBox, QSplitter
+from PySide6.QtWidgets import QApplication, QLineEdit, QMenu, QMessageBox, QSplitter
 
 from wirely.compiler.outline import Node
 from wirely.editor.app import MainWindow
@@ -26,7 +26,7 @@ other_source = 'state flag: boolean = false;\n' + '// scroll\n' * 100
 
 
 def action(host, menu_name, label):
-    menu = next(action.menu() for action in host.menuBar().actions() if action.text() == menu_name)
+    menu = next(menu for menu in host.menuBar().findChildren(QMenu) if menu.title() == menu_name)
     return next(action for action in menu.actions() if action.text() == label)
 
 
