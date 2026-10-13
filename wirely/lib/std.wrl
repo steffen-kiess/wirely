@@ -5,6 +5,15 @@ namespace Std {
     Both = 3,
   }
 
+  #[Internal]
+  struct type FormatParts {
+    prefix: String,
+    suffix: String,
+    has_value: boolean,
+  }
+  #[Internal]
+  native constant function ParseFormat(format: String, type: ValueType): FormatParts;
+
   node type Constant {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
@@ -62,6 +71,20 @@ namespace Std {
     default input: event Type;
 
     native procedure run stage output depends on default input as "input";
+  }
+
+  node type WarnOnEvent {
+    #[Diagram.ShowValue]
+    parameter Format: String;
+    parameter Type: ValueType = unit;
+
+    constant format_parts: FormatParts = ParseFormat(Format, Type);
+
+    default input: event Type;
+
+    native procedure run stage output
+      depends on default input as "input"
+      uses format_parts;
   }
 
   #[Internal]

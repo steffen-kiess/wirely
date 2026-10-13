@@ -24,5 +24,14 @@ assert MQTT.ParseTemplate(Some(r#"{"quoted":"%s", "value":%s}"#))
     suffix: "}",
   };
 
+assert Std.ParseFormat("text", unit)
+  == Std.FormatParts { prefix: "text", suffix: "", has_value: false };
+assert Std.ParseFormat("a{}b", boolean)
+  == Std.FormatParts { prefix: "a", suffix: "b", has_value: true };
+assert Std.ParseFormat("{}", uint8)
+  == Std.FormatParts { prefix: "", suffix: "", has_value: true };
+assert Std.ParseFormat("{{x}} {} }}{{", boolean)
+  == Std.FormatParts { prefix: "{x} ", suffix: " }{", has_value: true };
+
 assert MQTT.TemplateParts { prefix: "a", suffix: "b" }
   != MQTT.TemplateParts { prefix: "a", suffix: "c" };

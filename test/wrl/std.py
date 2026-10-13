@@ -1,3 +1,6 @@
+import contextlib
+import io
+
 import wirely
 
 engine.get_native_state('in').set_value(False)
@@ -48,6 +51,28 @@ engine.step()
 engine.assert_value_is('edge', None)
 engine.step()
 engine.assert_value_is('edge', None)
+engine.assert_is_idle()
+
+# Std.WarnOnEvent
+
+def step_output():
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        engine.step()
+    return output.getvalue()
+
+engine.get_native_state('unit_events').send_event(wirely.Some(wirely.Unit()))
+engine.get_native_state('bool_events').send_event(wirely.Some(True))
+assert sorted(step_output().splitlines()) == ['Warning: [w_bool]: Bool warning True!', 'Warning: [w_unit]: Unit warning']
+assert step_output() == ''
+engine.assert_is_idle()
+
+# An identical event in the next step produces another warning.
+engine.get_native_state('bool_events').send_event(wirely.Some(True))
+assert step_output() == 'Warning: [w_bool]: Bool warning True!\n'
+engine.get_native_state('bool_events').send_event(wirely.Some(True))
+assert step_output() == 'Warning: [w_bool]: Bool warning True!\n'
+assert step_output() == ''
 engine.assert_is_idle()
 
 

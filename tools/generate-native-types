@@ -23,6 +23,7 @@ ENUM_TYPES = (
 )
 STRUCT_TYPES = (
     'MQTT.TemplateParts',
+    'Std.FormatParts',
     'TwoN.Credentials',
 )
 

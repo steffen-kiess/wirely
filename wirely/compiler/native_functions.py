@@ -26,6 +26,9 @@ native_function_impls = {
     'MQTT.ParseTemplate': (
         'wirely.compiler.function_implementations.mqtt', 'parse_template',
     ),
+    'Std.ParseFormat': (
+        'wirely.compiler.function_implementations.std', 'parse_format',
+    ),
     'TwoN.ReadCredentials': (
         'wirely.compiler.function_implementations.two_n', 'read_credentials',
     ),

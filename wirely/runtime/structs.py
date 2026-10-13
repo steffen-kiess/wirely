@@ -11,6 +11,13 @@ class MQTTTemplateParts(NamedTuple):
     suffix: str
 
 
+# Std.FormatParts in wirely/lib/std.wrl
+class StdFormatParts(NamedTuple):
+    prefix: str
+    suffix: str
+    has_value: bool
+
+
 # TwoN.Credentials in wirely/lib/two_n.wrl
 class TwoNCredentials(NamedTuple):
     username: str
@@ -20,5 +27,6 @@ class TwoNCredentials(NamedTuple):
 # Python types by struct type name.
 native_struct_types = {
     'MQTT.TemplateParts': MQTTTemplateParts,
+    'Std.FormatParts': StdFormatParts,
     'TwoN.Credentials': TwoNCredentials,
 }

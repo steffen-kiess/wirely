@@ -36,6 +36,30 @@ constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%s%"));
 constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%x"));
 // ^E: Unexpected sequence in template string
 
+// TEST: missing format placeholder
+constant Parts: Std.FormatParts = Std.ParseFormat("text", boolean);
+// ^E: Format without {} for type boolean
+
+// TEST: format placeholder for unit
+constant Parts: Std.FormatParts = Std.ParseFormat("{}", unit);
+// ^E: Format with {} for unit type
+
+// TEST: repeated format placeholder
+constant Parts: Std.FormatParts = Std.ParseFormat("{}{}", boolean);
+// ^E: Found multiple {} in format string
+
+// TEST: format argument
+constant Parts: Std.FormatParts = Std.ParseFormat("{0}", boolean);
+// ^E: Found { without } in format string
+
+// TEST: trailing format brace
+constant Parts: Std.FormatParts = Std.ParseFormat("{}{", boolean);
+// ^E: Found { without } in format string
+
+// TEST: lone closing format brace
+constant Parts: Std.FormatParts = Std.ParseFormat("{}}", boolean);
+// ^E: Found } without { in format string
+
 // TEST: relative credential path
 constant Credentials: TwoN.Credentials = TwoN.ReadCredentials("relative");
 // ^E: UsernamePasswordFile must be absolute

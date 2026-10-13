@@ -34,6 +34,23 @@ class DebugEventPrinter:
         print(f'[{context.name}]: Got event {value}', flush=True)
 
 
+@native_node_type(native_node_types, has_native_state=False)
+class WarnOnEvent:
+    @staticmethod
+    def run(*, context):
+        event = context.inputs['input']
+
+        if event is None:
+            return
+
+        parts = context.values['format_parts'].native
+        message = f'{parts.prefix}{event.value}{parts.suffix}' if parts.has_value else parts.prefix
+        print(f'Warning: [{context.name}]: {message}', flush=True)
+
+        # This makes sure that an identical event in the next step is not skipped
+        context.trigger_self()
+
+
 @native_resource_type(native_resource_types, 'DebugValueSourceState')
 @native_node_type(native_node_types, has_native_state=True)
 class DebugValueSource(NativeState):

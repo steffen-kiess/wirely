@@ -8,3 +8,11 @@ node in: Std.DebugValueSource { Type: boolean }
 
 node edge: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 connect in -> edge;
+
+node unit_events: Std.DebugEventSource { Type: unit }
+node w_unit: Std.WarnOnEvent { Format: "Unit warning" }
+connect unit_events -> w_unit;
+
+node bool_events: Std.DebugEventSource { Type: boolean }
+node w_bool: Std.WarnOnEvent { Format: "Bool warning {}!", Type: boolean }
+connect bool_events -> w_bool;
