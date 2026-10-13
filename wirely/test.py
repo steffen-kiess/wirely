@@ -42,6 +42,7 @@ python_only_tests = [
     'unit/test_resources',
     'unit/test_runner',
     'repo/files',
+    'repo/native_types',
     'unit/library_configuration',
     'unit/state_connections',
     'unit/types',

@@ -171,6 +171,10 @@ struct types without one; `from_native(value)` builds a `StructValue` from
 such an instance. A struct output accepts only `StructValue`s of its own
 struct type.
 
+`tools/generate-native-types` generates both files from the standard
+library. To give a library enum or struct type a Python type, add it to the
+lists in that script and run it.
+
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.
 Event ports use the same representation, adding an outer option:
