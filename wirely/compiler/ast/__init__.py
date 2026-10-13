@@ -32,7 +32,7 @@ from .values import (
     Reference,
     ListLiteral,
     FunctionCall,
-    ParameterOption,
+    OptionalExpression,
     BracketOperator,
     ResolvedPortReference,
     StructLiteralField,

@@ -26,8 +26,6 @@ class DeclarationLibrary(Scope):
         names = args[:-1]
         declarations = args[-1]
         for name in reversed(names):
-            if name.id_str == 'parameter_option':
-                raise ProgramError(name, 'parameter_option is reserved for the intrinsic')
             declarations = [DeclarationLibrary(
                 name, declarations, source_position=source_position)]
         return declarations[0]

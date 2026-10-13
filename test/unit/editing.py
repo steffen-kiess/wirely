@@ -470,7 +470,7 @@ program = '''node type T {
   native procedure check depends on t uses C, P;
   connect s.new -> default output;
   connect run.t -> t;
-  assert parameter_option(P) == P;
+  assert optional(P) == P;
 }
 node x: T { P: uint8 }
 connect x.a -> x.a;
@@ -502,7 +502,7 @@ check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '
              ('uses C', 'uses D as C'))
 check_rename(Parameter(('T', 'P')), 'Q', ('P: ValueType', 'Q: ValueType'), ('C: P', 'C: Q'), ('value P', 'value Q'),
              ('s: P', 's: Q'), ('t: P', 't: Q'), ('Type: P', 'Type: Q'),
-             (', P;', ', Q as P;'), ('parameter_option(P) == P', 'parameter_option(Q) == Q'), ('{ P:', '{ Q:'))
+             (', P;', ', Q as P;'), ('optional(P) == P', 'optional(Q) == Q'), ('{ P:', '{ Q:'))
 check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), ('x: T', 'x: U'))
 checks.assertEqual(edit(rename, program, Node(('x',)), 'x'), program)
 

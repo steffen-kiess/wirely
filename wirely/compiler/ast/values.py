@@ -199,29 +199,33 @@ class FunctionCall(Value):
         self.fun = fun
         self.parameters = parameters
 
-    @staticmethod
-    def create(fun, parameters, *, source_position):
-        if (isinstance(fun, Reference) and fun.length == 1
-                and fun.identifiers[0].id_str == 'parameter_option'):
-            return ParameterOption(parameters, source_position=source_position)
-        return FunctionCall(fun, parameters, source_position=source_position)
 
+class OptionalExpression(Value):
+    """optional(x): an optional parameter, or an event in a procedure body, as an option."""
 
-class ParameterOption(Value):
     def __init__(self, parameters, *, source_position):
         super().__init__(source_position=source_position)
         self.parameters = parameters
 
-    def declaration(self, scope, local_names=()):
+    def argument(self):
         if len(self.parameters) != 1:
-            raise ProgramError(self, 'parameter_option expects exactly one argument')
-        reference = self.parameters[0]
+            raise ProgramError(self, 'optional expects exactly one argument')
+        return self.parameters[0]
+
+    def declaration(self, scope, local_names=(), *, events=False):
+        """Return the optional parameter the argument names.
+
+        events mentions event dependencies as alternatives in errors, for
+        procedure bodies.
+        """
+        reference = self.argument()
         if not isinstance(reference, Reference) or reference.length != 1:
-            raise ProgramError(reference, 'parameter_option requires an unqualified optional parameter reference')
+            raise ProgramError(reference, 'optional requires an unqualified optional parameter reference')
         name = reference.identifiers[0].id_str
         parameter = scope.parsed_parameters.get(name)
         if name in local_names or parameter is None or parameter.optional_specifier is None:
-            raise ProgramError(reference, 'parameter_option requires an optional parameter without a default')
+            alternative = ' or a single event dependency' if events else ''
+            raise ProgramError(reference, f'optional requires an optional parameter without a default{alternative}')
         return parameter
 
 

@@ -58,7 +58,7 @@ node number: Compare { Type: int16, Expected: false }
 node type OptionalOutput {
   parameter OutputType: ValueType = unit;
   optional parameter OutputValue: OutputType;
-  assert OutputType == unit || parameter_option(OutputValue).IsSome,
+  assert OutputType == unit || optional(OutputValue).IsSome,
     "OutputValue is required when OutputType is not unit";
 }
 

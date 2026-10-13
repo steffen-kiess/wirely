@@ -68,6 +68,7 @@ ast_classes = [
     model.DeclarationLibrary,
     model.NodeTypeSpecifier,
     model.ListLiteral,
+    model.OptionalExpression,
     model.FunctionCall,
     model.DeclarationNativeFunction,
     model.FunctionArgument,
@@ -216,17 +217,8 @@ class Transformer(lark.Transformer):
         if cls_name in ast_classes_byname:
             cls = ast_classes_byname[cls_name]
             if len(parts) == 1:
-                result = cls(*children, source_position=source_position)
-            else:
-                result = getattr(cls, parts[1])(*children, source_position=source_position)
-            if isinstance(result, (model.Declaration, model.NodeType,
-                                   model.DeclarationLibrary, LocalBinding,
-                                   model.StructField, model.EnumMember,
-                                   model.FunctionArgument)):
-                name = getattr(result, 'name', None)
-                if isinstance(name, model.Identifier) and name.id_str == 'parameter_option':
-                    raise model.ProgramError(name, 'parameter_option is reserved for the intrinsic')
-            return result
+                return cls(*children, source_position=source_position)
+            return getattr(cls, parts[1])(*children, source_position=source_position)
 
         raise Exception(f'No handler for {data}')
 

@@ -7,7 +7,7 @@ from wirely.util import check_parameters
 from wirely.compiler.types import parse_value
 
 from .base import SourcePosition, ProgramError, Declaration
-from .values import Reference, FunctionCall, ParameterOption, BracketOperator, StructLiteral, check_struct_literal
+from .values import Reference, FunctionCall, OptionalExpression, BracketOperator, StructLiteral, check_struct_literal
 
 
 # This class contains methods for resolving references in a scope
@@ -139,7 +139,7 @@ class Scope(Declaration, abc.ABC):
             if (isinstance(value, FunctionCall) and not value_type.contains_parameters
                     and isinstance(property_reference(self, value.fun), PropertyAccess)):
                 return compile_constant(self, value, value_type, par_values)
-            if isinstance(value, ParameterOption):
+            if isinstance(value, OptionalExpression):
                 parameter = value.declaration(self)
                 result = model.value.ParameterOptionValue(parameter, ast_element=value)
                 model.value.check_value_type(result.value_type, value_type, value)

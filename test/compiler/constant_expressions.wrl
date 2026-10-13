@@ -48,7 +48,7 @@ node type OptionalValue {
   parameter Type: ValueType;
   optional parameter Value: Type;
   procedure compile_only {
-    let option = parameter_option(Value);
+    let option = optional(Value);
     option.IsSome;
   }
 }

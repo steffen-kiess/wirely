@@ -65,3 +65,12 @@ procedure add_all
   any_steps = steps;
 }
 connect first, second -> add_all.values;
+
+// The payload of second, else of first, else the previous value.
+state latest: uint8 = 0;
+procedure keep_latest
+  depends on first, second, latest.old as previous
+  produces latest
+{
+  latest = optional(second).UnwrapOr(optional(first).UnwrapOr(previous));
+}

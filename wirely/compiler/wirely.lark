@@ -169,21 +169,21 @@ expression_list: _list{expression} -> copy_list
 ?nonblock_struct_atom: nonblock_postfix | struct_postfix
 ?struct_postfix: reference "{" struct_literal_field_list "}" -> struct_literal
     | struct_postfix "[" expression "]" -> bracket_operator
-    | struct_postfix "(" expression_list ")" -> function_call__create
+    | struct_postfix "(" expression_list ")" -> function_call
     | struct_postfix "." identifier -> property_access
 ?nonblock_postfix: nonblock_atom
     | reference "[" expression "]" -> bracket_operator
-    | reference "(" expression_list ")" -> function_call__create
+    | reference "(" expression_list ")" -> function_call
     | nonblock_postfix "[" expression "]" -> bracket_operator
-    | nonblock_postfix "(" expression_list ")" -> function_call__create
+    | nonblock_postfix "(" expression_list ")" -> function_call
     | nonblock_postfix "." identifier -> property_access
 // Bare blocks cannot take a field suffix here; nonblock_atom handles it.
 ?block_postfix: block_expression | block_suffix_expression
 ?block_suffix_expression: block_suffix_expression "[" expression "]" -> bracket_operator
-    | block_suffix_expression "(" expression_list ")" -> function_call__create
+    | block_suffix_expression "(" expression_list ")" -> function_call
     | block_suffix_expression "." identifier -> property_access
     | block_expression "[" expression "]" -> bracket_operator
-    | block_expression "(" expression_list ")" -> function_call__create
+    | block_expression "(" expression_list ")" -> function_call
 struct_literal_field_list: _list{struct_literal_field} -> copy_list
 struct_literal_field: identifier ":" expression
 
@@ -198,6 +198,7 @@ on_trigger_list: _list1{identifier} -> copy_list
     | "(" ")" -> unit_literal
     | "(" expression ")" -> copy
     | "[" expression_list "]" -> list_literal
+    | "optional" "(" expression_list ")" -> optional_expression
     | block_expression "." identifier -> property_access
 
 ?if_expression: "if" expression_no_struct expression_block [_else] -> if_expression

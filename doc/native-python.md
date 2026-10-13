@@ -122,7 +122,7 @@ are shared within the instance. Static values do not schedule procedures.
 Omitting `uses` provides an empty mapping.
 
 An undeclared key raises `KeyError`. Bind an optional parameter with
-`uses parameter_option(Foo) as foo`: `values['foo']` contains `None` when
+`uses optional(Foo) as foo`: `values['foo']` contains `None` when
 omitted and `wirely.Some(value)` when supplied. For an optional `Option[T]`,
 a supplied `None` becomes `wirely.Some(None)`. Ordinary bindings and resolved
 defaults contain their ordinary values. `ValueType` bindings provide

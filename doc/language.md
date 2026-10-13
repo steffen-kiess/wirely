@@ -207,7 +207,7 @@ node type Example {
 }
 ```
 
-Read an optional parameter as an option with `parameter_option(Name)`.
+Read an optional parameter as an option with `optional(Name)`.
 The unqualified name must refer to an `optional parameter` in the current
 node or root scope. For a parameter of type `T`, the result is `Option[T]`:
 `None` when omitted and `Some(value)` when supplied. An optional `Option[T]`
@@ -220,14 +220,14 @@ optional or defaulted parameter of type `T`. `Some(value)` supplies the value;
 ```wirely
 node type Forward {
   optional parameter Label: String;
-  node child: Child { Label?: parameter_option(Label) }
+  node child: Child { Label?: optional(Label) }
 }
 ```
 
 Ordinary `Name: expression` bindings require `T`, and reading an omitted
-parameter fails compilation. The intrinsic is available in compile-time
-expressions, including inside procedure bodies. Its name is reserved for
-the intrinsic.
+parameter fails compilation. `optional(Name)` is a compile-time expression,
+also inside procedure bodies, where it can also read an event; see
+[procedure bodies](#procedure-bodies).
 
 Declare a constant in a node type or at the program root with
 `constant Name: Type = expression;`. Constants use the same types as
@@ -776,13 +776,17 @@ present in this step. A trigger directly names an event dependency or the
 loop variable over a multi event dependency; a multi event dependency is
 present when any of its sources is. Inside a block whose only trigger is an
 `event T` dependency, its name reads the payload as `T`, also in nested
-blocks. Event dependencies cannot be read elsewhere:
+blocks; elsewhere, reading the name fails compilation. `optional(e)` reads
+an event dependency or a loop variable over a multi event dependency
+anywhere in the body as `Option[T]`: `None` when absent and
+`Some(payload)` when present.
 
 ```wirely
 let mut next = previous;
 on press { next = !previous; }
 on reset { next = reset; }
 toggled = next;
+last_reset = optional(reset).UnwrapOr(previous_reset);
 ```
 
 When several events are present in the same step, each of their blocks

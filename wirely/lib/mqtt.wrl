@@ -38,7 +38,7 @@ namespace MQTT {
     assert SupportsType(Type), "Unsupported type for MQTT";
 
     constant template_parts: TemplateParts =
-      ParseTemplate(parameter_option(Template));
+      ParseTemplate(optional(Template));
 
     input Broker: resource Broker;
     default input: value Option[Type];
@@ -46,7 +46,7 @@ namespace MQTT {
     resource state: ValueOptionProviderState;
     native initializer depends on Broker
       produces state as "state"
-      uses Type, Topic, parameter_option(Format) as Format, template_parts;
+      uses Type, Topic, optional(Format) as Format, template_parts;
 
     native procedure set_value stage output
       depends on state as "state", default input as "input";
@@ -68,8 +68,8 @@ namespace MQTT {
     node impl: ValueOptionProvider {
       Type: Type,
       Topic: Topic,
-      Format?: parameter_option(Format),
-      Template?: parameter_option(Template),
+      Format?: optional(Format),
+      Template?: optional(Template),
     }
     connect Broker -> impl.Broker;
     connect create_option -> impl;
@@ -88,7 +88,7 @@ namespace MQTT {
     assert SupportsType(Type), "Unsupported type for MQTT";
 
     constant template_parts: TemplateParts =
-      ParseTemplate(parameter_option(Template));
+      ParseTemplate(optional(Template));
 
     input Broker: resource Broker;
     default input: event Type;
@@ -96,7 +96,7 @@ namespace MQTT {
     resource state: EventSenderState;
     native initializer depends on Broker
       produces state as "state"
-      uses Type, Topic, parameter_option(Format) as Format, template_parts;
+      uses Type, Topic, optional(Format) as Format, template_parts;
 
     native procedure send_value stage output
       depends on state as "state", default input as "input";
@@ -120,7 +120,7 @@ namespace MQTT {
     resource state: EventReceiverState;
     native initializer depends on Broker
       produces state as "state"
-      uses Type, Topic, parameter_option(Format) as Format;
+      uses Type, Topic, optional(Format) as Format;
 
     native procedure get_value stage input
       depends on state as "state"

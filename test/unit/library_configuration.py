@@ -57,7 +57,7 @@ def node_program(node_type, output_type, output_value, *, forward=False):
     if node_type == 'Memory.ToggleFlipFlopTrigger':
         child_settings.append('MinimumDelay: "PT2S"')
     if forward:
-        child_settings += ['OutputType: Type', 'OutputValue?: parameter_option(Value)']
+        child_settings += ['OutputType: Type', 'OutputValue?: optional(Value)']
         ports = ''
         connections = ''
         if node_type == 'Memory.ToggleFlipFlopTrigger':

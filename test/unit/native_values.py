@@ -114,10 +114,10 @@ def check_values():
     resource state: ValuesState;
     native initializer depends on Connection, produces state as "state",
       uses Number, Seed as seed, Example.Same(20) as "retained",
-        parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
+        optional(Missing) as missing, optional(Absent) as Absent,;
     native procedure run depends on state as "state", Connection, produces Result as Number,
-      uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
-        parameter_option(Absent) as Absent, Default,
+      uses Seed as "seed", optional(Missing) as Missing, optional(Missing) as alias,
+        optional(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
         Example.Same(40) as call,
         { let text: String = "hello"; text } as block,
@@ -165,15 +165,15 @@ def check_optional_values():
         optional parameter Maybe: Option[boolean];
         optional parameter Type: ValueType;
         parameter Default: Option[boolean] = None;
-        native initializer uses parameter_option(Maybe) as Maybe,
-          parameter_option(Maybe) as "", parameter_option(Type) as Type, Default;
+        native initializer uses optional(Maybe) as Maybe,
+          optional(Maybe) as "", optional(Type) as Type, Default;
       }}
     }}
     node type Forward {{
       optional parameter Maybe: Option[boolean];
       optional parameter Type: ValueType;
       node child: TestLibrary.OptionalProbe {{
-        Maybe?: parameter_option(Maybe), Type?: parameter_option(Type),
+        Maybe?: optional(Maybe), Type?: optional(Type),
       }}
     }}
     node forward: Forward {{ {arguments} }}

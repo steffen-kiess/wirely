@@ -8,8 +8,8 @@ namespace ProcedureTests {
     default output: value Option[boolean];
     output Wrapped: value Presence;
     procedure run produces default output as output, Wrapped {
-      output = parameter_option(Enabled);
-      Wrapped = Presence { value: parameter_option(Enabled) };
+      output = optional(Enabled);
+      Wrapped = Presence { value: optional(Enabled) };
     }
   }
 

@@ -40,3 +40,38 @@ node events: Events {}
 connect press -> events.Press;
 connect value, value -> events.Values;
 connect value -> events.Changed;
+
+// optional(e) reads an event as an option anywhere in a body.
+node type Optionals {
+  input A: event uint8;
+  input B: event uint8;
+  input Nested: event Option[uint8];
+  input Values: multi event uint8;
+  default output: value Option[uint8];
+  procedure run
+    depends on A as a, B as b, Nested as nested, Values as values
+    produces default output as output
+  {
+    let mut result: Option[uint8] = optional(a);
+    on a, b {
+      if let Some(value) = optional(b) { result = Some(value); }
+    }
+    on a {
+      let same: Option[uint8] = optional(a);
+      result = same;
+    }
+    for item in values {
+      let item_value: Option[uint8] = optional(item);
+      if item_value.IsSome { result = item_value; }
+    }
+    let twice: Option[Option[uint8]] = optional(nested);
+    if let Some(inner) = twice { result = inner; }
+    output = result;
+  }
+}
+node nested: Std.DebugEventSource { Type: Option[uint8] }
+node optionals: Optionals {}
+connect value -> optionals.A;
+connect value -> optionals.B;
+connect nested -> optionals.Nested;
+connect value, value -> optionals.Values;

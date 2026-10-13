@@ -17,9 +17,9 @@ node type Destination {
   parameter ExpectedPair: Option[Pair] = None;
   assert Number == Expected && Flag == ExpectedFlag;
   assert Text == ExpectedText;
-  assert parameter_option(Nested) == ExpectedNested;
-  assert parameter_option(Items) == ExpectedItems;
-  assert parameter_option(PairValue) == ExpectedPair;
+  assert optional(Nested) == ExpectedNested;
+  assert optional(Items) == ExpectedItems;
+  assert optional(PairValue) == ExpectedPair;
 }
 node type Forward {
   optional parameter Number: int16;
@@ -32,18 +32,18 @@ node type Forward {
   parameter ExpectedFlag: boolean = false;
   parameter ExpectedText: String = "default";
   node child: Destination {
-    Number?: parameter_option(Number),
-    Flag?: { let value = parameter_option(Flag); value },
-    Text?: if true { parameter_option(Text) } else { Some("unused") },
-    Nested?: parameter_option(Nested),
-    Items?: parameter_option(Items),
-    PairValue?: parameter_option(PairValue),
+    Number?: optional(Number),
+    Flag?: { let value = optional(Flag); value },
+    Text?: if true { optional(Text) } else { Some("unused") },
+    Nested?: optional(Nested),
+    Items?: optional(Items),
+    PairValue?: optional(PairValue),
     Expected: Expected,
     ExpectedFlag: ExpectedFlag,
     ExpectedText: ExpectedText,
-    ExpectedNested: parameter_option(Nested),
-    ExpectedItems: parameter_option(Items),
-    ExpectedPair: parameter_option(PairValue),
+    ExpectedNested: optional(Nested),
+    ExpectedItems: optional(Items),
+    ExpectedPair: optional(PairValue),
   }
   node forced: Destination { Number?: Some(12), Flag?: None, Expected: 12 }
 }
@@ -58,7 +58,7 @@ node nested_some: Forward { Nested: Some(false), Expected: 9 }
 node type NestedForward {
   optional parameter Number: int16;
   parameter Expected: int16;
-  node child: Forward { Number?: parameter_option(Number), Expected: Expected }
+  node child: Forward { Number?: optional(Number), Expected: Expected }
 }
 node outer_omitted: NestedForward { Expected: 9 }
 node outer_supplied: NestedForward { Number: 4, Expected: 4 }
@@ -66,7 +66,7 @@ node type TypeForward {
   optional parameter Type: ValueType;
   parameter ExpectedType: ValueType;
   node child: Destination {
-    Type?: parameter_option(Type), Expected: 9, ExpectedType: ExpectedType,
+    Type?: optional(Type), Expected: 9, ExpectedType: ExpectedType,
   }
 }
 node default_type: TypeForward { ExpectedType: int16 }
@@ -75,7 +75,7 @@ node type Generic {
   parameter Type: ValueType;
   optional parameter Value: Type;
   parameter Expected: Option[Type];
-  constant Maybe: Option[Type] = parameter_option(Value);
+  constant Maybe: Option[Type] = optional(Value);
   assert Maybe.IsSome == Expected.IsSome;
 }
 node generic_omitted: Generic { Type: String, Expected: None }
@@ -84,7 +84,7 @@ node generic_supplied: Generic {
 }
 node type DefaultExpression {
   optional parameter Flag: boolean;
-  parameter Fallback: Option[boolean] = parameter_option(Flag);
+  parameter Fallback: Option[boolean] = optional(Flag);
   parameter Expected: Option[boolean];
   assert Fallback == Expected;
 }
@@ -115,7 +115,7 @@ node chained_declared_reversed: ChainedReverse { Type: ValueType, Inner: int8, V
 node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
 node type Raw {
   optional parameter r#type: boolean;
-  constant Maybe: Option[boolean] = parameter_option(r#type,);
+  constant Maybe: Option[boolean] = optional(r#type,);
   assert Maybe == Some(true);
 }
 node raw: Raw { r#type?: Some(true), }
@@ -127,7 +127,7 @@ node type Presence {
   parameter Expected: boolean;
   parameter ExpectedOptional: boolean;
   assert Value.IsSome == Expected && Value.IsNone == !Expected;
-  assert parameter_option(Optional).IsSome == ExpectedOptional;
+  assert optional(Optional).IsSome == ExpectedOptional;
   assert { let value: Option[Option[Type]] = Some(None); value }.IsSome;
   assert { let value: Option[Type] = None; value.IsNone };
   assert (if Value.IsSome { true } else { false }) == Expected;
@@ -150,6 +150,6 @@ node type ListSnapshot {
 }
 node type Capture {
   optional parameter Value: List[boolean];
-  node snapshot: ListSnapshot { Value: parameter_option(Value) }
+  node snapshot: ListSnapshot { Value: optional(Value) }
 }
 node capture: Capture { Value: [true, false] }

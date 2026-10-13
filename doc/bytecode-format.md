@@ -545,7 +545,7 @@ struct type StaticBinding {
 
 Names belong to the native procedure's `UsesNames` range for procedures
 or the native state type's `UsesNames` range for initializers. Optional
-parameter presence requested by `parameter_option` is represented by the
+parameter presence requested by `optional` is represented by the
 bound option value.
 
 ### ResourceInputs

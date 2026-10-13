@@ -100,7 +100,7 @@ _exports = {
     'DeclarationNativeFunction': 'compiler.ast',
     'FunctionArgument': 'compiler.ast',
     'FunctionCall': 'compiler.ast',
-    'ParameterOption': 'compiler.ast',
+    'OptionalExpression': 'compiler.ast',
     'BracketOperator': 'compiler.ast',
     'ConnectionKind': 'compiler.ast',
     'NodeType': 'compiler.node_type',

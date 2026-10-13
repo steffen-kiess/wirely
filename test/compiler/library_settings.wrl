@@ -54,9 +54,9 @@ node type KNXSettings {
   optional parameter Host: String;
   optional parameter UnixPath: String;
   node connection: KNX.Connection {
-    Protocol?: parameter_option(Protocol),
-    Host?: parameter_option(Host),
-    UnixPath?: parameter_option(UnixPath),
+    Protocol?: optional(Protocol),
+    Host?: optional(Host),
+    UnixPath?: optional(UnixPath),
   }
 }
 node knx_tcp: KNXSettings { Protocol: KNX.Protocol.TCP, Host: "127.0.0.1" }
@@ -72,8 +72,8 @@ node type MQTTSettings {
   default input: value Std.EdgeType;
   node output: MQTT.ValueProvider {
     Topic: "unused", Type: Std.EdgeType,
-    Format?: parameter_option(Format),
-    Template?: parameter_option(Template),
+    Format?: optional(Format),
+    Template?: optional(Template),
   }
   connect Broker -> output.Broker;
   connect default input -> output;

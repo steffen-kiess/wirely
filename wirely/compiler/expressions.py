@@ -850,6 +850,9 @@ class InstructionCompiler:
         return ProgramBody(tuple(self.instructions), tuple(self.local_types))
 
 
+OPTIONAL_RUNTIME_MESSAGE = 'optional requires an optional parameter without a default or a single event dependency'
+
+
 class ExpressionCompiler:
     def __init__(self, scope, parameters, *, runtime=False, names=None, protected=()):
         self.scope = scope
@@ -883,9 +886,20 @@ class ExpressionCompiler:
             return value is not None and value.runtime
         return False
 
-    def parameter_option_declaration(self, expression):
+    def optional_parameter_declaration(self, expression):
         local_names = {name for name, value in self.names.items() if value.operation != 'constant'}
-        return expression.declaration(self.scope, local_names)
+        return expression.declaration(self.scope, local_names, events=self.runtime)
+
+    def optional_event(self, expression):
+        """Return the option storage of the event that optional(x) names, or None."""
+        reference = expression.argument()
+        if not isinstance(reference, model.Reference) or reference.length != 1:
+            return None
+        value = self.names.get(reference.identifiers[0].id_str)
+        if (value is None or value.operation == 'multi_input'
+                or (value.operation, value.payload) not in self.events):
+            return None
+        return value
 
     def record_static_usage(self, expression):
         expression = property_reference(self.scope, expression, self.names)
@@ -1176,10 +1190,13 @@ class ExpressionCompiler:
                 receiver = self.compile(method.receiver)
                 raise ProgramError(method.name,
                                    f'Value of type {receiver.value_type} has no method {method.name.id_str!r}')
-        if isinstance(expression, model.ParameterOption):
+        if isinstance(expression, model.OptionalExpression):
+            event = self.optional_event(expression)
+            if event is not None:
+                return event
             if self.is_runtime(expression):
-                raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
-            parameter = self.parameter_option_declaration(expression)
+                raise ProgramError(expression, OPTIONAL_RUNTIME_MESSAGE)
+            parameter = self.optional_parameter_declaration(expression)
             value = model.value.ParameterOptionValue(parameter, ast_element=expression)
             if self.runtime:
                 value = value.resolve_self(self.parameters)
@@ -1414,8 +1431,10 @@ class ExpressionCompiler:
     def check_runtime_syntax(self, expression):
         if not self.is_runtime(expression):
             return
-        if isinstance(expression, model.ParameterOption):
-            raise ProgramError(expression, 'parameter_option is only available in compile-time expressions')
+        if isinstance(expression, model.OptionalExpression):
+            if self.optional_event(expression) is None:
+                raise ProgramError(expression, OPTIONAL_RUNTIME_MESSAGE)
+            return
         if is_some_call(expression):
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
@@ -1500,8 +1519,11 @@ class ExpressionCompiler:
             if expression.name.id_str == 'Length':
                 return model.types.uint32
             return model.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None
-        if isinstance(expression, model.ParameterOption):
-            parameter = self.parameter_option_declaration(expression)
+        if isinstance(expression, model.OptionalExpression):
+            event = self.optional_event(expression)
+            if event is not None:
+                return event.value_type
+            parameter = self.optional_parameter_declaration(expression)
             value_type = model.types.TypeOption(parameter.type_resolved)
             return resolve_type(value_type, self.parameters) if self.runtime else value_type
         if isinstance(expression, model.Reference):

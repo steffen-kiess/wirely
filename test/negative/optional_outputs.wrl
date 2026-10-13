@@ -32,7 +32,7 @@ node type Forward {
   node child: Schedule.TriggerAt {
     Time: "12:00",
     OutputType: boolean,
-    OutputValue?: parameter_option(Value),
+    OutputValue?: optional(Value),
     // ^E: Expected value of type Option[boolean], got Option[uint16]
   }
 }
@@ -43,7 +43,7 @@ node type Forward {
   optional parameter Value: boolean;
   node child: Memory.ToggleFlipFlopTrigger {
     OutputType: uint16,
-    OutputValue?: parameter_option(Value),
+    OutputValue?: optional(Value),
     // ^E: Expected value of type Option[uint16], got Option[boolean]
   }
 }
@@ -53,7 +53,7 @@ node forward: Forward { Value: false }
 node type Output {
   parameter Type: ValueType;
   optional parameter Value: Type;
-  assert Type == unit || parameter_option(Value).IsSome;
+  assert Type == unit || optional(Value).IsSome;
   // ^E: Compile-time assertion failed
 }
 node output: Output { Type: boolean } // H: While instantiating 'output'
