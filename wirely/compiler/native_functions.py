@@ -6,7 +6,6 @@ import inspect
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from wirely.types import TypeStruct, StructValue
 
 from . import model
 
@@ -70,6 +69,7 @@ class NativeFunctionContext:
     arguments_ast: Mapping[str, object]
     call: object
     services: Mapping[str, object]
+    return_type: object  # Declared return type as a wirely.ValueType.
 
     def error(self, message, *, argument=None):
         if argument is not None and argument not in self.arguments_ast:
@@ -175,7 +175,7 @@ def invoke(function, values, sources, call):
     context = NativeFunctionContext(
         function.native_name, MappingProxyType(arguments),
         MappingProxyType(dict(zip(function.argument_names, sources))), call,
-        function.scope.services,
+        function.scope.services, model.value_types.ValueType(function.return_type),
     )
     try:
         result = implementation(context=context)
@@ -184,10 +184,6 @@ def invoke(function, values, sources, call):
     except (ValueError, ArithmeticError, OSError) as error:
         raise model.ProgramError(call, str(error)) from error
     try:
-        if (isinstance(function.return_type, TypeStruct)
-                and isinstance(result, Mapping)
-                and not isinstance(result, StructValue)):
-            result = model.value_types.ValueType(function.return_type).make_struct(result)
         result = model.value_types._from_native(function.return_type, result)
         return function.return_type.verify_value(result)
     except Exception as error:

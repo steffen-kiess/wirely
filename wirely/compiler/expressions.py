@@ -537,7 +537,7 @@ class TypedExpression:
         if self.operation == 'some':
             return model.Some(self.arguments[0].evaluate(inputs, locals))
         if self.operation == 'field':
-            return self.arguments[0].evaluate(inputs, locals)[self.payload]
+            return self.arguments[0].evaluate(inputs, locals)[self.arguments[0].value_type.index(self.payload)]
         if self.operation == 'convert':
             # A lossless conversion always fits, so checking cannot fail.
             target_type = self.value_type.inner_type if self.payload == 'checked' else self.value_type

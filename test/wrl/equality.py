@@ -1,6 +1,11 @@
 import wirely
 
 
+def make(struct_type, **fields):
+    """Return the StructValue with these fields by name."""
+    return struct_type.make(tuple(fields[name] for name, _ in struct_type.fields))
+
+
 def check_equality():
     at = wirely.TimeOfDay.from_parts(8, 0)
     later = wirely.TimeOfDay.from_parts(8, 1)
@@ -10,19 +15,15 @@ def check_equality():
     next_instant = wirely.MonotonicTime(1, 101)
     other_generation = wirely.MonotonicTime(2, 100)
     default = wirely.MonotonicTime(0, 0)
-    packet_type = wirely.ValueType(engine.get_variable('packet_left').var_type)
-    nested_type = wirely.ValueType(engine.get_variable('nested_left').var_type.inner_type)
-    empty_type = wirely.ValueType(engine.get_variable('empty_left').var_type)
+    packet_type = wirely.ValueType(engine.get_variable('packet_left').var_type).struct_type
+    nested_type = wirely.ValueType(engine.get_variable('nested_left').var_type.inner_type).struct_type
+    empty_type = wirely.ValueType(engine.get_variable('empty_left').var_type).struct_type
 
     def packet(**changes):
-        return packet_type.make_struct({
-            'flag': True, 'at': at, 'span': span, 'instant': instant, **changes,
-        })
+        return make(packet_type, **{'flag': True, 'at': at, 'span': span, 'instant': instant, **changes})
 
     def nested(packet_value, maybe):
-        return wirely.Some(nested_type.make_struct({
-            'packet': packet_value, 'maybe': maybe,
-        }))
+        return wirely.Some(make(nested_type, packet=packet_value, maybe=maybe))
 
     value = packet()
     nested_value = nested(wirely.Some(value), wirely.Some(None))
@@ -51,7 +52,7 @@ def check_equality():
                    (nested_value, nested(None, wirely.Some(None)), False),
                    (nested_value, nested(wirely.Some(value), None), False),
                    (nested_value, nested(wirely.Some(packet(instant=default)), wirely.Some(None)), False)],
-        'empty': [(empty_type.make_struct({}), empty_type.make_struct({}), True)],
+        'empty': [(empty_type.make(()), empty_type.make(()), True)],
     }
 
     # Initialize every source so the shared engine can run all comparators.

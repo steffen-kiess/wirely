@@ -167,8 +167,8 @@ def check_struct_codecs():
         with checks.assertRaises(ValueError):
             nested.deserialize(invalid)
     optional = wirely.types.TypeOption(slot)
-    assert optional.serialize(wirely.Some(value['slot'])) == encoded + b'\x01'
-    assert optional.deserialize(encoded + b'\x01') == wirely.Some(value['slot'])
+    assert optional.serialize(wirely.Some(value[nested.index('slot')])) == encoded + b'\x01'
+    assert optional.deserialize(encoded + b'\x01') == wirely.Some(value[nested.index('slot')])
     assert optional.serialize(None) == bytes(18)
     assert optional.deserialize(bytes(18)) is None
 

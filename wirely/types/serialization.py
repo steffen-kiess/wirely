@@ -63,12 +63,13 @@ def _data_size(value_type):
 
 
 def _struct_offsets(value_type):
-    offsets = {}
+    """Return the field offsets in declaration order."""
+    offsets = []
     end = 0
-    for name, field_type in value_type.fields.items():
+    for field_type in value_type.fields.values():
         alignment, _, size = _layout(field_type)
         offset = (end + alignment - 1) & ~(alignment - 1)
-        offsets[name] = offset
+        offsets.append(offset)
         end = offset + size
     return offsets
 
@@ -87,8 +88,9 @@ def _serialize(value_type, value):
     value = value_type.verify_value(value)
     if isinstance(value_type, TypeStruct):
         data = bytearray(length)
-        for name, offset in _struct_offsets(value_type).items():
-            encoded = value_type.fields[name].serialize(value[name])
+        value = value_type.verify_value(value)
+        for field_type, field, offset in zip(value_type.fields.values(), value, _struct_offsets(value_type)):
+            encoded = field_type.serialize(field)
             data[offset:offset + len(encoded)] = encoded
         return bytes(data)
     if isinstance(value_type, TypeOption):
@@ -119,15 +121,14 @@ def _deserialize(value_type, data):
     if len(data) != length:
         raise ValueError(f'Expected {length} bytes for {value_type}, got {len(data)}')
     if isinstance(value_type, TypeStruct):
-        fields = {}
+        fields = []
         end = 0
-        for name, offset in _struct_offsets(value_type).items():
+        for field_type, offset in zip(value_type.fields.values(), _struct_offsets(value_type)):
             if any(data[end:offset]):
                 raise ValueError('Struct padding must be zero')
-            field_type = value_type.fields[name]
             end = offset + field_type.data_size
-            fields[name] = field_type.deserialize(data[offset:end])
-        return value_type.make_value(fields)
+            fields.append(field_type.deserialize(data[offset:end]))
+        return value_type.verify_value(tuple(fields))
     if isinstance(value_type, TypeOption):
         present = data[-1]
         if present > 1:

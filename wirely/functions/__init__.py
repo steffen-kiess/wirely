@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from ..types import StructValue, TypeStruct, value_types
+from ..types import value_types
 
 
 # Maps namespaces to modules of this package, each with a native_functions registry.
@@ -37,6 +37,7 @@ def native_function(registry, name):
 class RuntimeFunctionContext:
     function_name: str  # Native name, such as 'Duration.CheckedAdd'.
     arguments: Mapping[str, object]  # Native argument values by declared name.
+    return_type: value_types.ValueType  # Declared return type.
 
 
 def validate_native_function(implementation, function_name):
@@ -60,9 +61,8 @@ def call_native_function(implementation, function_name, argument_names, paramete
     Implementations must be total; exceptions propagate to the caller."""
     arguments = {name: value_types._to_native(value_type, value)
                  for name, value_type, value in zip(argument_names, parameter_types, values)}
-    result = implementation(context=RuntimeFunctionContext(function_name, MappingProxyType(arguments)))
-    if isinstance(return_type, TypeStruct) and isinstance(result, Mapping) and not isinstance(result, StructValue):
-        result = value_types.ValueType(return_type).make_struct(result)
+    result = implementation(context=RuntimeFunctionContext(
+        function_name, MappingProxyType(arguments), value_types.ValueType(return_type)))
     return return_type.verify_value(value_types._from_native(return_type, result))
 
 

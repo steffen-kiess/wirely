@@ -62,14 +62,69 @@ class EnumValue:
         return f'EnumValue({self.type.name}.{self.name})'
 
 
+@dataclass(frozen=True, slots=True, eq=False)
+class StructType:
+    """The native view of a struct type, compared by identity."""
+
+    name: str  # Qualified name, such as 'MQTT.TemplateParts'.
+    fields: tuple  # (name, ValueType) of each field, in declaration order.
+    python_type: type | None  # NamedTuple from wirely.runtime.structs, if any.
+
+    def index(self, name):
+        """Return the position of a field."""
+        for index, (field_name, _) in enumerate(self.fields):
+            if field_name == name:
+                return index
+        raise ValueError(f'Unknown field {name!r} of {self.name}')
+
+    def make(self, values):
+        """Return the value with these field values in field order."""
+        values = tuple(values)
+        if len(values) != len(self.fields):
+            raise ValueError(f'Expected {len(self.fields)} field values for {self.name}, got {len(values)}')
+        return StructValue(self, tuple(field_type.validate(value)
+                                       for (_, field_type), value in zip(self.fields, values)))
+
+    def from_native(self, value):
+        """Return the value of an instance of the struct type's Python type."""
+        if self.python_type is None:
+            raise ValueError(f'Struct type {self.name!r} has no Python type')
+        if not isinstance(value, self.python_type):
+            raise ValueError(f'Expected a {self.python_type.__qualname__}, got {value!r}')
+        return self.make(tuple(value))
+
+    def __repr__(self):
+        return f'StructType({self.name})'
+
+
+@dataclass(frozen=True, slots=True)
+class StructValue:
+    """A value of a struct type; equal to another value of the same type and field values."""
+
+    type: StructType
+    values: tuple  # Field values in field order.
+
+    def __post_init__(self):
+        if type(self.values) is not tuple or len(self.values) != len(self.type.fields):
+            raise ValueError(f'Expected a tuple of {len(self.type.fields)} field values for {self.type.name}')
+
+    @property
+    def native(self):
+        """The value as an instance of the struct type's Python type."""
+        if self.type.python_type is None:
+            raise ValueError(f'Struct type {self.type.name!r} has no Python type')
+        return self.type.python_type(*self.values)
+
+    def __repr__(self):
+        fields = ', '.join(f'{name}: {value!r}' for (name, _), value in zip(self.type.fields, self.values))
+        return f'{self.type.name} {{ {fields} }}'
+
+
 def _to_native(value_type, value):
     if isinstance(value_type, _types.TypeStruct):
-        if not isinstance(value, _types.StructValue) or value._type is not value_type:
-            raise ValueError(f'Expected struct value of type {value_type}')
-        if value.keys() != value_type.fields.keys():
-            raise ValueError(f'Expected exactly the fields of {value_type}')
-        return _types.StructValue(value_type, {name: _to_native(field_type, value[name])
-                                               for name, field_type in value_type.fields.items()})
+        value = value_type.verify_value(value)
+        return StructValue(value_type.struct_type, tuple(
+            _to_native(field_type, field) for field_type, field in zip(value_type.fields.values(), value)))
     if value_type == _types.ValueType:
         return ValueType(value)
     if isinstance(value_type, _types.TypeEnum):
@@ -83,12 +138,10 @@ def _to_native(value_type, value):
 
 def _from_native(value_type, value):
     if isinstance(value_type, _types.TypeStruct):
-        if not isinstance(value, _types.StructValue) or value._type is not value_type:
-            raise ValueError(f'Expected struct value of type {value_type}')
-        if value.keys() != value_type.fields.keys():
-            raise ValueError(f'Expected exactly the fields of {value_type}')
-        return _types.StructValue(value_type, {name: _from_native(field_type, value[name])
-                                               for name, field_type in value_type.fields.items()})
+        if not isinstance(value, StructValue) or value.type is not value_type.struct_type:
+            raise ValueError(f'Expected a StructValue of {value_type}, got {value!r}')
+        return tuple(_from_native(field_type, field)
+                     for field_type, field in zip(value_type.fields.values(), value.values))
     if value_type == _types.ValueType:
         if not isinstance(value, ValueType):
             raise ValueError(f'Expected wirely.ValueType, got {value!r}')
@@ -128,19 +181,18 @@ class ValueType:
             raise ValueError(str(error)) from error
 
     @property
+    def struct_type(self):
+        """The StructType of a struct type."""
+        if not isinstance(self._type, _types.TypeStruct):
+            raise ValueError(f'{self} is not a struct type')
+        return self._type.struct_type
+
+    @property
     def enum_type(self):
         """The EnumType of an enum type."""
         if not isinstance(self._type, _types.TypeEnum):
             raise ValueError(f'{self} is not an enum type')
         return self._type.enum_type
-
-    def make_struct(self, fields):
-        """Construct a struct from a mapping of native field values."""
-        if not isinstance(self._type, _types.TypeStruct):
-            raise ValueError(f'{self} is not a struct type')
-        if not isinstance(fields, Mapping):
-            raise ValueError('Struct fields must be a mapping')
-        return self.validate(_types.StructValue(self._type, fields))
 
     def parse(self, text):
         try:

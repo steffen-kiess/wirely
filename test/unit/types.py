@@ -1,10 +1,12 @@
 import dataclasses
 import enum
+import typing
 from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
 import wirely.runtime.enums
+import wirely.runtime.structs
 
 
 checks = TestCase()
@@ -240,22 +242,34 @@ def check_type_names():
 
 
 def check_structs():
-    packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean})
+    # Native code gets StructValues: field values by ordinal and their StructType.
+    packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean, 'count': wirely.types.uint8})
     descriptor = wirely.ValueType(packet_type)
-    packet = descriptor.make_struct({'flag': True})
-    assert packet == descriptor.make_struct({'flag': True})
-    assert packet != descriptor.make_struct({'flag': False})
-    with checks.assertRaises(TypeError):
-        packet['flag'] = False
-    other = wirely.ValueType(wirely.types.TypeStruct('Other', dict(packet_type.fields)))
-    assert packet != other.make_struct({'flag': True})
-    with checks.assertRaises(ValueError):
-        descriptor.validate(other.make_struct({'flag': True}))
-    for fields in (None, [], {}, {'flag': True, 'extra': 1}, {'flag': 7}):
+    packet_struct = descriptor.struct_type
+    assert packet_struct is descriptor.struct_type
+    assert (packet_struct.name, packet_struct.fields, packet_struct.python_type) == (
+        'Packet', (('flag', wirely.value_types.boolean), ('count', wirely.value_types.uint8)), None)
+    assert (packet_struct.index('flag'), packet_struct.index('count')) == (0, 1)
+    packet = packet_struct.make((True, 7))
+    assert (packet.type, packet.values) == (packet_struct, (True, 7))
+    assert packet == packet_struct.make([True, 7]) and hash(packet) == hash(packet_struct.make((True, 7)))
+    assert packet != packet_struct.make((False, 7)) and packet != (True, 7)
+    with checks.assertRaises(dataclasses.FrozenInstanceError):
+        packet.values = (False, 7)
+    for invalid in (lambda: packet_struct.index('extra'), lambda: packet_struct.make((True,)),
+                    lambda: packet_struct.make((True, 7, 8)), lambda: packet_struct.make((True, 'seven')),
+                    lambda: packet.native, lambda: packet_struct.from_native((True, 7)),
+                    lambda: wirely.value_types.uint8.struct_type):
         with checks.assertRaises(ValueError):
-            descriptor.make_struct(fields)
-    with checks.assertRaises(ValueError):
-        wirely.value_types.uint8.make_struct({})
+            invalid()
+
+    # Values of another struct type with the same fields are different.
+    other = wirely.ValueType(wirely.types.TypeStruct('Packet', dict(packet_type.fields))).struct_type
+    assert packet != other.make((True, 7))
+    for value in (other.make((True, 7)), (True, 7), {'flag': True, 'count': 7}):
+        with checks.assertRaisesRegex(ValueError, 'Expected a StructValue of Packet'):
+            descriptor.validate(value)
+    assert descriptor.validate(packet) == packet
 
     settings_type = wirely.types.TypeStruct('Settings', {
         'text': wirely.types.String,
@@ -263,17 +277,25 @@ def check_structs():
         'inner': packet_type, 'type': wirely.types.ValueType,
     })
     settings_descriptor = wirely.ValueType(settings_type)
-    supplied = {'text': 'hello', 'items': [wirely.Some(packet), None],
-                'inner': packet, 'type': wirely.value_types.uint8}
-    settings = settings_descriptor.make_struct(supplied)
-    supplied['text'] = 'changed'
-    supplied['items'].append(None)
-    assert settings['text'] == 'hello'
-    assert settings['items'] == (wirely.Some(packet), None)
+    items = [wirely.Some(packet), None]
+    settings = settings_descriptor.struct_type.make(('hello', items, packet, wirely.value_types.uint8))
+    items.append(None)
+    assert settings.values == ('hello', (wirely.Some(packet), None), packet, wirely.value_types.uint8)
     assert settings_descriptor.validate(settings) == settings
     assert not settings_descriptor.supports_json and not settings_descriptor.supports_csv
     with checks.assertRaises(ValueError):
         settings_descriptor.parse('{}')
+
+    # A Python type for the struct type name supplies .native.
+    class Point(typing.NamedTuple):
+        x: int
+        y: int
+
+    with patch.dict(wirely.runtime.structs.native_struct_types, {'Native.Point': Point}):
+        point_type = wirely.types.TypeStruct('Native.Point', {'x': wirely.types.int8, 'y': wirely.types.int8}).struct_type
+    assert point_type.python_type is Point
+    point = point_type.from_native(Point(1, -2))
+    assert point.values == (1, -2) and point.native == Point(1, -2)
 
 
 def check_default_values():

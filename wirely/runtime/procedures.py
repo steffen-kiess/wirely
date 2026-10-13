@@ -53,14 +53,11 @@ def execute_procedure(program, procedure, inputs, functions=()):
             elif opcode == Opcode.SET_DEFAULT:
                 result = value_type(destination).default_value()
             elif opcode == Opcode.GET_FIELD:
-                source = operands[1]
-                field = tuple(value_type(source).fields)[operands[2]]
-                result = read(source)[field]
+                result = read(operands[1])[operands[2]]
             elif opcode == Opcode.SET_FIELD:
-                struct_type = value_type(destination)
-                fields = dict(read(destination))
-                fields[tuple(struct_type.fields)[operands[2]]] = read(operands[1])
-                result = struct_type.make_value(fields)
+                fields = list(read(destination))
+                fields[operands[2]] = read(operands[1])
+                result = tuple(fields)
             elif opcode == Opcode.MAKE_SOME:
                 result = Some(read(operands[1]))
             elif opcode == Opcode.GET_OPTION_VALUE:

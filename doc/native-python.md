@@ -140,7 +140,7 @@ defaults contain their ordinary values. `ValueType` bindings provide
 | `TimeOfDay` | `wirely.TimeOfDay`, with `nanoseconds` since midnight (up to 24:00) |
 | `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
 | Declared enums | Immutable `wirely.EnumValue` |
-| Declared structs | Immutable `wirely.StructValue` mappings |
+| Declared structs | Immutable `wirely.StructValue` |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
@@ -152,13 +152,24 @@ are normalized into tuples.
 
 An `EnumValue` has the member number as `value`, the member `name`, and its
 `type`, a `wirely.EnumType` with the enum's `name`, `underlying_type`,
-`members` (numbers by name), and `names` (names by number). Two values are equal when both type and number
-are equal; compare with numbers or Python enums through `value` or `native`.
-`native` is the member of the Python `IntEnum` that
-[`wirely/runtime/enums.py`](../wirely/runtime/enums.py) registers for the
-enum type, and raises `ValueError` for enum types without one, so use it
-only in code written for a specific enum. An enum output accepts only
-`EnumValue`s of its own enum type.
+`members` (numbers by name), and `names` (names by number). Two values are
+equal when both type and number are equal; compare with numbers or Python
+enums through `value` or `native`. `native` is the member of the Python
+`IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
+registers for the enum type, and raises `ValueError` for enum types without
+one, so use it only in code written for a specific enum. An enum output
+accepts only `EnumValue`s of its own enum type.
+
+A `StructValue` has its field values in declaration order as `values`, and
+its `type`, a `wirely.StructType` with the struct's `name`, its `fields` as
+`(name, ValueType)` pairs, and `index(name)` for a field's position. Two
+values are equal when both type and field values are equal. Build values
+with the type's `make(values)`. `native` is an instance of the `NamedTuple`
+that [`wirely/runtime/structs.py`](../wirely/runtime/structs.py) registers
+for the struct type, with fields by name, and raises `ValueError` for
+struct types without one; `from_native(value)` builds a `StructValue` from
+such an instance. A struct output accepts only `StructValue`s of its own
+struct type.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.
@@ -183,8 +194,8 @@ using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
 and `value_type`.
 
 - `validate(value)` normalizes a Python value; `parse(text)` parses text.
-- `make_struct(fields)` constructs a struct from a mapping of field values.
-  Read fields with `value["field"]`; values belong to their declared type.
+- `struct_type` and `enum_type` give the `StructType` or `EnumType` of a
+  struct or enum type.
 - `supports_json` indicates support for `json_encode(value, format=None)`
   and `json_decode(value, format=None)`. These convert Python values to or
   from JSON-compatible Python values, without serializing JSON text.
@@ -192,11 +203,11 @@ and `value_type`.
   `(text, needs_quotes)`.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
-descriptors are available through static bindings. For a declared enum,
-pass its type as a `ValueType` parameter; the descriptor's `enum_type`
-provides `from_name(name)` and `from_value(number)` to build values. Each
-compiled program owns its enum types; pass values belonging to that
-program.
+descriptors are available through static bindings. For a declared enum or
+struct, pass its type as a `ValueType` parameter; the descriptor's
+`enum_type` provides `from_name(name)` and `from_value(number)`, and its
+`struct_type` provides `make(values)`. Each compiled program owns its enum
+and struct types; pass values belonging to that program.
 
 ## Native objects, resources, and tasks
 
@@ -345,14 +356,15 @@ def clamp(*, context):
     return min(max(arguments['value'], arguments['low']), arguments['high'])
 ```
 
-The context has read-only `function_name` and `arguments` (native values by
-declared argument name). Implementations must be synchronous and pure:
-the result depends only on the arguments, and calling the function has no
-side effects. They must return a value of the declared return type for
-every argument; return an `Option` when a result may be absent. An
-exception is an internal error: during compilation it stops compilation,
-and at runtime it propagates out of `Engine.step()`. An `Engine` resolves
-every function its program calls when it is constructed.
+The context has read-only `function_name`, `arguments` (native values by
+declared argument name), and `return_type` (a `wirely.ValueType`). Build a
+struct result with `context.return_type.struct_type`. Implementations must
+be synchronous and pure: the result depends only on the arguments, and
+calling the function has no side effects. They must return a value of the
+declared return type for every argument; return an `Option` when a result
+may be absent. An exception is an internal error: during compilation it
+stops compilation, and at runtime it propagates out of `Engine.step()`. An
+`Engine` resolves every function its program calls when it is constructed.
 
 ### Constant functions
 
@@ -385,8 +397,9 @@ Implementations must be synchronous, accept `context=context`, and return
 one value matching the declared return type.
 
 `NativeFunctionContext` has read-only `function_name` (the native name),
-`arguments` (native values by declared argument name), `arguments_ast`
-(call-site expression nodes by name), and `call` (the call node).
+`arguments` (native values by declared argument name), `return_type`,
+`arguments_ast` (call-site expression nodes by name), and `call` (the call
+node).
 `services` is a read-only mapping of Python objects supplied through the
 optional `services` argument to `compile_files()` or `compile_strs()`.
 The compiler copies the mapping, preserving its objects by reference, and

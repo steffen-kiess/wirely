@@ -30,7 +30,7 @@ class Connection(NativeState):
         print(f'  Connecting to: {hostname!r}:{port}', flush=True)
         print(f'  Using TLSA: {tlsa!r}', flush=True)
 
-        self.client = wirely.two_n.client.Client(hostname=hostname, port=port, tlsa=tlsa, http_api_username_password=(credentials['username'], credentials['password']))
+        self.client = wirely.two_n.client.Client(hostname=hostname, port=port, tlsa=tlsa, http_api_username_password=(credentials.native.username, credentials.native.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):

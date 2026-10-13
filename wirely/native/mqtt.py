@@ -262,9 +262,9 @@ class ValueOptionProvider(NativeState):
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
         self.format = _json_format(context.values['Format'])
-        parts = context.values['template_parts']
-        self.template_prefix = parts['prefix']
-        self.template_suffix = parts['suffix']
+        parts = context.values['template_parts'].native
+        self.template_prefix = parts.prefix
+        self.template_suffix = parts.suffix
 
         aiomqtt = get_aiomqtt()
 
@@ -342,9 +342,9 @@ class EventSender(NativeState):
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
         self.format = _json_format(context.values['Format'])
-        parts = context.values['template_parts']
-        self.template_prefix = parts['prefix']
-        self.template_suffix = parts['suffix']
+        parts = context.values['template_parts'].native
+        self.template_prefix = parts.prefix
+        self.template_suffix = parts.suffix
 
         aiomqtt = get_aiomqtt()
 

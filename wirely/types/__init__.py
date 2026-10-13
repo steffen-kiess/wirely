@@ -5,7 +5,6 @@ import re
 from collections.abc import Mapping
 from types import MappingProxyType
 
-from .struct import StructValue
 from .option import Some
 from .unit import Unit
 from .time import (
@@ -238,7 +237,10 @@ class TypeOption(Type):
 
 
 class TypeStruct(Type):
-    """A nominal value type with fields kept in declaration order."""
+    """A nominal value type with fields kept in declaration order.
+
+    Values are tuples of field values in that order.
+    """
 
     is_json_serializable = False
     has_to_csv_value = False
@@ -278,24 +280,36 @@ class TypeStruct(Type):
         return f'TypeStruct({self.name})'
 
     def make_value(self, fields):
+        """Return the value with these field values by name."""
         if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
             raise ValueError(f'Expected exactly the fields of {self.name}: {", ".join(self.fields)}')
-        return StructValue(self, {name: field_type.verify_value(fields[name])
-                                  for name, field_type in self.fields.items()})
+        return self.verify_value(tuple(fields[name] for name in self.fields))
+
+    def index(self, name):
+        """Return the position of a field."""
+        return tuple(self.fields).index(name)
 
     def verify_value(self, value):
-        if not isinstance(value, StructValue) or value._type is not self:
-            raise ValueError(f'Expected struct value of type {self.name}, got {value!r}')
-        return self.make_value(value)
+        if type(value) is not tuple or len(value) != len(self.fields):
+            raise ValueError(f'Expected a value of struct type {self.name}, got {value!r}')
+        return tuple(field_type.verify_value(field) for field_type, field in zip(self.fields.values(), value))
+
+    @functools.cached_property
+    def struct_type(self):
+        """The runtime view of this type for native code."""
+        from .value_types import StructType, ValueType
+        from ..runtime.structs import native_struct_types
+        return StructType(self.name, tuple((name, ValueType(field_type)) for name, field_type in self.fields.items()),
+                          native_struct_types.get(self.name))
 
     def equals(self, value1, value2):
         value1 = self.verify_value(value1)
         value2 = self.verify_value(value2)
-        return all(field_type.equals(value1[name], value2[name])
-                   for name, field_type in self.fields.items())
+        return all(field_type.equals(field1, field2)
+                   for field_type, field1, field2 in zip(self.fields.values(), value1, value2))
 
     def default_value(self):
-        return self.make_value({name: field_type.default_value() for name, field_type in self.fields.items()})
+        return tuple(field_type.default_value() for field_type in self.fields.values())
 
     def _parse_impl(self, text):
         raise ValueError(f'{self.name} does not support text parsing')

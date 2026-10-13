@@ -2,6 +2,8 @@
 
 import os
 
+from wirely.runtime.structs import TwoNCredentials
+
 
 def is_valid_code(*, context):
     code = context.arguments['code']
@@ -24,4 +26,4 @@ def read_credentials(*, context):
             raise ValueError(f'Failed to read username and password from {filename!r}')
     except (OSError, ValueError) as error:
         raise context.error(str(error), argument='filename') from error
-    return {'username': username, 'password': password}
+    return context.return_type.struct_type.from_native(TwoNCredentials(username, password))

@@ -584,6 +584,33 @@ namespace Example {
     probe.assert_value_is('probe', 1)
 
 
+def check_struct_outputs():
+    # Struct outputs accept only StructValues of the output's struct type.
+    def check_struct_output(context):
+        pair, other = context.values['pair'], context.values['other']
+        assert (pair.type.name, pair.values) == ('Example.Pair', (True, 7))
+        for invalid in [(True, 7), other]:
+            with checks.assertRaisesRegex(ValueError, 'Expected a StructValue of Example.Pair'):
+                context.set_output('output', invalid)
+        context.set_output('output', pair.type.make((False, 8)))
+
+    probe = make_engine('''
+    default output: value Example.Pair;
+
+    native procedure run produces default output as "output"
+      uses Example.Pair { enabled: true, number: 7 } as pair,
+        Example.Other { enabled: true, number: 7 } as other;
+    ''', check_struct_output, extra='''
+namespace Example {
+  struct type Pair { enabled: boolean, number: uint8 }
+  struct type Other { enabled: boolean, number: uint8 }
+}
+''')
+    probe.step()
+    # Inside the runtime, a struct is a tuple of its field values.
+    probe.assert_value_is('probe', (False, 8))
+
+
 def check_port_keys():
     def check_keys(context):
         assert context.inputs['line\nkey'] == 7
@@ -896,5 +923,6 @@ check_outputs()
 check_events()
 check_unit_outputs()
 check_enum_outputs()
+check_struct_outputs()
 check_port_keys()
 check_native_methods()

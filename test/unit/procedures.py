@@ -68,8 +68,8 @@ def compile_program(source, *, add_std=False):
 def check_constant_blocks():
     for name, expected in [('optional_absent', None), ('optional_present', wirely.Some(True))]:
         engine.assert_value_is(name, expected)
-        value_type = wirely.ValueType(engine.get_variable(name + '.Wrapped').var_type)
-        engine.assert_value_is(name + '.Wrapped', value_type.make_struct({'value': expected}))
+        # Inside the runtime, a struct is a tuple of its field values.
+        engine.assert_value_is(name + '.Wrapped', (expected,))
     source = engine.get_native_state('constant_source')
     for enabled in (False, True, False):
         source.set_value(enabled)
@@ -454,19 +454,21 @@ def check_arithmetic():
 
 
 def pair(enabled, number):
-    pair_type = wirely.ValueType(engine.get_variable('pair_source').var_type)
-    return pair_type.make_struct({'enabled': enabled, 'number': number})
+    """Return a Pair as native code passes it."""
+    pair_type = wirely.ValueType(engine.get_variable('pair_source').var_type).struct_type
+    return pair_type.make((enabled, number))
 
 
 def check_struct_fields():
+    # Native sources take StructValues; inside the runtime, structs are tuples.
     source = engine.get_native_state('pair_source')
     for enabled, number, expected_next in [(True, 7, 8), (False, 255, 255), (True, 0, 1)]:
         source.set_value(pair(enabled, number))
         engine.step()
         engine.assert_value_is('pair_fields.Enabled', enabled)
         engine.assert_value_is('pair_fields.Next', expected_next)
-        engine.assert_value_is('pair_fields.Built', pair(not enabled, number if enabled else 0))
-        engine.assert_value_is('pair_fields.Wrapped', wirely.Some(pair(enabled, number)))
+        engine.assert_value_is('pair_fields.Built', (not enabled, number if enabled else 0))
+        engine.assert_value_is('pair_fields.Wrapped', wirely.Some((enabled, number)))
         engine.assert_value_is('pair_fields.Nested',
                                None if number == 0 else wirely.Some(wirely.Some(enabled)))
     engine.assert_is_idle()
@@ -615,7 +617,7 @@ def check_mutation():
                 'Saved': value, 'Changed': not value, 'Shadowed': not value,
                 'Chosen': value, 'ReadOutput': not value, 'ShortCircuit': value,
                 'Pattern': value, 'Difference': 8, 'SelfUpdate': 8, 'Snapshot': True,
-                'Fields': pair(True, 2), 'Fallback': value, 'FallbackRan': True,
+                'Fields': (True, 2), 'Fallback': value, 'FallbackRan': True,
                 'Unit': wirely.Unit()}.items():
             engine.assert_value_is(f'mutation.{output}', expected)
     engine.step()

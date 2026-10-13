@@ -52,7 +52,8 @@ class ValuesProbe(NativeState):
         assert context.values['call'] == 40
         assert context.values['block'] == 'hello'
         assert context.values['items'] == (wirely.Some(7), None)
-        assert dict(context.values['pair']) == {'value': True}
+        pair = context.values['pair']
+        assert (pair.type.name, pair.type.fields[0][0], pair.values) == ('Example.Pair', 'value', (True,))
         assert context.values['unit'] == wirely.Unit()
         assert context.values['option'] == wirely.Some(False)
         assert context.values['at'] == wirely.TimeOfDay.from_parts(0, 30)
