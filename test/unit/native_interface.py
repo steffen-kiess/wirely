@@ -267,7 +267,7 @@ def check_triggers():
 
         @staticmethod
         def refresh(*, context):
-            state = context.inputs['state']
+            state = context.inputs['state'].object
             assert context.name == state.context.name
             state.calls.append('refresh')
             if state.reschedule_once:
@@ -276,11 +276,11 @@ def check_triggers():
 
         @staticmethod
         def run(*, context):
-            context.inputs['state'].calls.append('run')
+            context.inputs['state'].object.calls.append('run')
 
         @staticmethod
         def log(*, context):
-            context.inputs['state'].calls.append('log')
+            context.inputs['state'].object.calls.append('log')
 
     @native_node_type(trigger_registry, has_native_state=True)
     class SharedTriggerProbe(TriggerProbe):
@@ -340,7 +340,9 @@ def check_triggers():
     assert trigger_graph is not None
     trigger_program = program_compiler.compile(trigger_graph)
     assert trigger_program is not None
-    with patch.dict(wirely.native.test_library.native_node_types, trigger_registry):
+    resource_types = {'ProbeState': TriggerProbe, 'Service': Provider}
+    with patch.dict(wirely.native.test_library.native_node_types, trigger_registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, resource_types):
         trigger_engine = Engine(trigger_program)
     first = trigger_engine.get_native_state('first')
     second = trigger_engine.get_native_state('second')
@@ -716,7 +718,8 @@ node overridden: TestLibrary.OverrideProbe {}
 node stateful: TestLibrary.StateProbe {}
 node keyed: TestLibrary.KeyedProbe {}
 '''
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, {'ProbeState': StateProbe}):
         graph = wirely.compiler.compile_strs([('<native-methods>', source)])
         assert graph is not None
         runtime = Engine(program_compiler.compile_nocatch(graph))
@@ -819,7 +822,7 @@ def check_input_length_values():
 
         @staticmethod
         def run(*, context):
-            state = context.inputs['state']
+            state = context.inputs['state'].object
             assert context.values['Count'] == state.count
             context.set_output('output', state.count)
 
@@ -840,7 +843,8 @@ node empty: TestLibrary.LengthProbe {}
 node multiple: TestLibrary.LengthProbe {}
 connect source, source -> multiple;
 '''
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, {'LengthState': LengthProbe}):
         graph = wirely.compiler.compile_strs([
             ('wirely/lib/std.wrl', std_source), ('<input-length-values>', source),
         ])

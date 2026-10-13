@@ -1,9 +1,11 @@
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
+@native_resource_type(native_resource_types, 'OutputState')
 @native_node_type(native_node_types, has_native_state=True)
 class Output(NativeState):
     def __init__(self, *, context):
@@ -44,7 +46,7 @@ class Output(NativeState):
 
     @staticmethod
     def set_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         import gpiod
         from gpiod.line import Bias, Direction, Drive, Value
 

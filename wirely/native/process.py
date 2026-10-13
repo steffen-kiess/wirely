@@ -2,12 +2,14 @@ import contextlib
 import asyncio
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
+@native_resource_type(native_resource_types, 'LaunchOnEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class LaunchOnEvent(NativeState):
     def __init__(self, *, context):
@@ -28,7 +30,7 @@ class LaunchOnEvent(NativeState):
 
     @staticmethod
     def run(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         inp = context.inputs['input']
 
         if inp is None:

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import wirely
 import wirely.native.test_library
+import wirely.native.two_n
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
@@ -29,6 +30,14 @@ class SettingsDevice(NativeState):
 
     def add_handler(self, events, handler):
         self.handlers.append((events, handler))
+
+
+def settings_registries():
+    """Patch in SettingsDevice as the provider of TwoN.Device resources."""
+    stack = contextlib.ExitStack()
+    stack.enter_context(patch.dict(wirely.native.test_library.native_node_types, registry))
+    stack.enter_context(patch.dict(wirely.native.two_n.native_resource_types, {'Device': SettingsDevice}))
+    return stack
 
 
 def compile_program(source, *, filename='<configuration>'):
@@ -173,7 +182,7 @@ connect device -> wrapper.Device;
 def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
-        with patch.dict(wirely.native.test_library.native_node_types, registry):
+        with settings_registries():
             runtime = Engine(program)
         runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
@@ -186,8 +195,7 @@ def check_codes_and_tracing():
             program = code_program(node_type, parameter, value)
             output = io.StringIO()
             with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), \
-                    patch.dict(wirely.native.test_library.native_node_types, registry), \
-                    contextlib.redirect_stdout(output):
+                    settings_registries(), contextlib.redirect_stdout(output):
                 Engine(program)
             assert (value in output.getvalue()) == (enabled == '1')
 

@@ -115,7 +115,7 @@ def check_resource_isolation():
 
         @staticmethod
         def run(*, context):
-            state = context.inputs['state']
+            state = context.inputs['state'].object
             state.count += 1
             context.set_output('output', state.count)
 
@@ -139,7 +139,9 @@ node alias: TestLibrary.Provider {}
 node consumer: TestLibrary.Consumer {}
 connect alias -> consumer.Service;
 '''
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
+    resource_types = {'Service': Provider, 'ConsumerState': Consumer}
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, resource_types):
         graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
         assert graph is not None
         program = replace(program_compiler.compile_nocatch(graph), graph=None)
@@ -148,7 +150,7 @@ connect alias -> consumer.Service;
     for runtime in (first, second):
         provider = runtime.get_native_state('provider')
         assert provider is runtime.get_native_state('alias')
-        assert runtime.get_native_state('consumer').inputs['service'] is provider
+        assert runtime.get_native_state('consumer').inputs['service'].object is provider
     assert first.get_native_state('provider') is not second.get_native_state('provider')
     first.step()
     first.trigger('consumer', 'run')
@@ -222,7 +224,8 @@ node source: Renamed.Source {}
 node sink: Renamed.Sink {}
 connect source -> sink.Service;
 '''
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, {'Service': Provider}):
         graph = wirely.compiler.compile_strs([('<native-names>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)

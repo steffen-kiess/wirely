@@ -4,13 +4,15 @@ import contextlib
 import typing
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.util import check_parameters
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
+@native_resource_type(native_resource_types, 'TimeOfDayMinuteState')
 @native_node_type(native_node_types, has_native_state=True)
 class TimeOfDayMinute(NativeState):
     def __init__(self, *, context):
@@ -58,7 +60,7 @@ class TimeOfDayMinute(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         if state._fake_time is not None:
             context.set_output('output', state._fake_time)
             return

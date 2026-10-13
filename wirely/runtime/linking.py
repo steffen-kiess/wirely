@@ -3,7 +3,8 @@
 import inspect
 
 from ..functions import get_native_function_by_name
-from ..native import get_native_node_type_by_name
+from ..native import get_native_node_type_by_name, get_native_resource_type_by_name
+from .resources import ResourceType
 
 
 def validate_native_method(native_class, name):
@@ -68,6 +69,17 @@ def link_native_classes(program):
     for prefix, method in sorted(methods):
         validate_native_method(classes[prefix], method)
     return classes
+
+
+def link_native_resource_types(program):
+    """Resolve the Python type of every resource type in the program's native interfaces."""
+    names = set()
+    for native_type in program.native_types.values():
+        names.update(native_type.initializer_resources.values())
+        names.update(native_type.resource_outputs.values())
+    for interface in program.native_procedures.values():
+        names.update(interface.resources.values())
+    return {name: ResourceType(name, get_native_resource_type_by_name(name)) for name in sorted(names)}
 
 
 def link_native_functions(program):

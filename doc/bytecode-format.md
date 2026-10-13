@@ -746,8 +746,8 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 ### Linking
 
 The runtime matches the qualified names of native state types, native
-procedures, and native functions to native code, and binds interface names
-to static values, inputs, outputs, and resources.
+procedures, native functions, and resource types to native code, and binds
+interface names to static values, inputs, outputs, and resources.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes

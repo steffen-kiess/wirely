@@ -1,8 +1,9 @@
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
 @native_node_type(native_node_types, has_native_state=False)
@@ -52,6 +53,7 @@ class DebugEventPrinter:
         print(f'[{context.name}]: Got event {value}', flush=True)
 
 
+@native_resource_type(native_resource_types, 'DebugValueSourceState')
 @native_node_type(native_node_types, has_native_state=True)
 class DebugValueSource(NativeState):
     def __init__(self, *, context):
@@ -63,7 +65,7 @@ class DebugValueSource(NativeState):
 
     @staticmethod
     def run(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         context.set_output('output', state.current_value)
 
     def set_value(self, value):
@@ -90,6 +92,7 @@ class DebugValueSource(NativeState):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
+@native_resource_type(native_resource_types, 'DebugEventSourceState')
 @native_node_type(native_node_types, has_native_state=True)
 class DebugEventSource(NativeState):
     def __init__(self, *, context):
@@ -102,7 +105,7 @@ class DebugEventSource(NativeState):
 
     @staticmethod
     def run(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         context.set_output('output', state.next_value)
         if state.next_value is not None:
             state.next_value = None

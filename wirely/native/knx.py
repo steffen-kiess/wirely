@@ -2,12 +2,14 @@ import asyncio
 import contextlib
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
+@native_resource_type(native_resource_types, 'Bus')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
     def __init__(self, *, context):
@@ -43,6 +45,7 @@ class Connection(NativeState):
         print('Connecting to KNX bus done', flush=True)
 
 
+@native_resource_type(native_resource_types, 'ValueReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueReceiver(NativeState):
     def __init__(self, *, context):
@@ -59,7 +62,7 @@ class ValueReceiver(NativeState):
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        self.native_bus = context.inputs['Bus']
+        self.native_bus = context.inputs['Bus'].object
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
@@ -90,7 +93,7 @@ class ValueReceiver(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         res = state.current_value
@@ -104,6 +107,7 @@ class ValueReceiver(NativeState):
         context.set_output('output', res_opt)
 
 
+@native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
@@ -129,7 +133,7 @@ class ValueOptionProvider(NativeState):
         print(f'  Using group address: {group_address!r}', flush=True)
         print(f'  Using type: {ty!r}', flush=True)
 
-        self.native_bus = context.inputs['Bus']
+        self.native_bus = context.inputs['Bus'].object
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address)
@@ -151,7 +155,7 @@ class ValueOptionProvider(NativeState):
 
     @staticmethod
     def set_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -187,6 +191,7 @@ class ValueOptionProvider(NativeState):
             print(f'Sending {value} to {self.address} done', flush=True)
 
 
+@native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(NativeState):
     def __init__(self, *, context):
@@ -206,7 +211,7 @@ class EventReceiver(NativeState):
         print(f"  Using group address: {context.values['group_address']!r}", flush=True)
         print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
-        self.native_bus = context.inputs['Bus']
+        self.native_bus = context.inputs['Bus'].object
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(context.values['group_address'])
@@ -235,7 +240,7 @@ class EventReceiver(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         if len(state.received_values) == 0:
@@ -251,6 +256,7 @@ class EventReceiver(NativeState):
         context.trigger_self()
 
 
+@native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
     def __init__(self, *, context):
@@ -271,7 +277,7 @@ class EventSender(NativeState):
         self.value_type = context.values['Type']
         self.value_type_knx = context.values['value_type_name']
 
-        self.native_bus = context.inputs['Bus']
+        self.native_bus = context.inputs['Bus'].object
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(context.values['group_address'])
@@ -291,7 +297,7 @@ class EventSender(NativeState):
 
     @staticmethod
     def send_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']

@@ -5,10 +5,11 @@ import urllib
 import contextlib
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
 def _json_format(option):
@@ -130,6 +131,7 @@ def parse_mqtt_uri(uri):
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
+@native_resource_type(native_resource_types, 'Broker')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
     def __init__(self, *, context):
@@ -242,6 +244,7 @@ class Connection(NativeState):
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
+@native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
@@ -270,7 +273,7 @@ class ValueOptionProvider(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker']
+        self.native_server = context.inputs['Broker'].object
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.value_type.json_encode
@@ -285,7 +288,7 @@ class ValueOptionProvider(NativeState):
 
     @staticmethod
     def set_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -321,6 +324,7 @@ class ValueOptionProvider(NativeState):
             print(f'Sending {value} to {self.topic} done', flush=True)
 
 
+@native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
     def __init__(self, *, context):
@@ -349,7 +353,7 @@ class EventSender(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker']
+        self.native_server = context.inputs['Broker'].object
         print(f'  Using native server object: {self.native_server}', flush=True)
 
         self.json_encode = self.value_type.json_encode
@@ -364,7 +368,7 @@ class EventSender(NativeState):
 
     @staticmethod
     def send_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -402,6 +406,7 @@ class EventSender(NativeState):
             print(f'Sending {value} to {self.topic} done', flush=True)
 
 
+@native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(NativeState):
     def __init__(self, *, context):
@@ -425,7 +430,7 @@ class EventReceiver(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker']
+        self.native_server = context.inputs['Broker'].object
         print(f'  Using native server object: {self.native_server}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
@@ -438,7 +443,7 @@ class EventReceiver(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         if len(state.received_values) == 0:

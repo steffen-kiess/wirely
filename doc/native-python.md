@@ -79,9 +79,12 @@ value/event dependencies. Use a Wirely procedure to aggregate multi value
 inputs.
 A `value List[T]` input carries a single tuple-valued datum.
 
-A resource dependency supplies the value its provider's initializer wrote
-for the connected output. Resource identity is stable, and changes inside an
-object do not trigger a procedure rerun.
+A resource dependency supplies an immutable `ResourceValue` from
+`wirely.runtime.resources`. Its `object` is what the provider's initializer
+wrote for the connected output, and its `type` is a `ResourceType` with the
+resource type's `name`, such as `'KNX.Bus'`, and its `python_type`. Resource
+identity is stable, and changes inside an object do not trigger a procedure
+rerun.
 
 `context.set_output(name, value)` writes a procedure output port. Write
 every declared output once per invocation, including `None` for no event.
@@ -210,13 +213,20 @@ native initializer depends on Broker produces default output as "topic";
 ```
 
 Dependencies and outputs use the same key rules as procedure ports. Read a
-resource input with `context.inputs['Broker']` in the constructor or
-`self.inputs['Broker']` in tasks. The constructor writes each produced
-resource output with `context.set_output(key, value)`, as procedures do,
-usually passing the native object itself. Providers are constructed before
-their consumers. An initializer accepts only resource dependencies and
-outputs. See [`mqtt.py`](../wirely/native/mqtt.py) for provider and client
-examples.
+resource input with `context.inputs['Broker'].object` in the constructor or
+`self.inputs['Broker'].object` in tasks. The constructor writes each
+produced resource output with `context.set_output(key, value)`, as
+procedures do, usually passing the native object itself. The value must be
+an instance of the Python type registered for the output's resource type.
+Providers are constructed before their consumers. An initializer accepts
+only resource dependencies and outputs. See
+[`mqtt.py`](../wirely/native/mqtt.py) for provider and client examples.
+
+Register the Python type of each resource type in the module's
+`native_resource_types` dictionary with `@native_resource_type`, under the
+last component of the resource type's name. A program using a resource
+type without a registered Python type fails when its `Engine` is
+constructed.
 
 To give procedures access to the native object, produce it as a
 [resource](language.md#opaque-resource-ports) and depend on it:
@@ -235,6 +245,10 @@ native node type Receiver {
 ```
 
 ```python
+native_resource_types = {}
+
+
+@native_resource_type(native_resource_types, 'ReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class Receiver(NativeState):
     def __init__(self, *, context):
@@ -248,7 +262,7 @@ class Receiver(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        value = context.inputs['state'].value
+        value = context.inputs['state'].object.value
         if value is not None:
             value = wirely.Some(value)
         context.set_output('output', value)

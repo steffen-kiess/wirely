@@ -42,7 +42,7 @@ class ValuesProbe(NativeState):
 
     @staticmethod
     def run(*, context):
-        assert context.values['seed'] == context.inputs['state'].values['seed']
+        assert context.values['seed'] == context.inputs['state'].object.values['seed']
         assert context.values['Missing'] is context.values['alias'] is None
         assert context.values['Absent'] == wirely.Some(None)
         assert context.values['Default'] is True
@@ -138,7 +138,9 @@ node provider: TestLibrary.Provider {}
 connect provider -> first.Connection;
 connect provider -> second.Connection;
 '''
+    resource_types = {'Service': Provider, 'ValuesState': ValuesProbe}
     with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, resource_types), \
             patch.dict(native_function_impls, {'Example.Identity': identity}):
         graph = compile_strs([('<values>', source)])
         assert graph is not None

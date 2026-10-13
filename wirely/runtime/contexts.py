@@ -9,6 +9,7 @@ from ..types import value_types
 from ..program import RunStage, Variable, VariableTable, InputSource
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
+from .resources import ResourceType, ResourceValue
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -20,7 +21,8 @@ class NativeNodeContext:
     inputs: Mapping[str, object]
     _engine: object = field(repr=False)
     _node_id: str = field(repr=False)
-    _output_names: frozenset = field(default=frozenset(), repr=False)  # Keys produced by the initializer.
+    # Resource types of the outputs produced by the initializer, by key.
+    _output_types: Mapping[str, ResourceType] = field(default_factory=dict, repr=False)
     _outputs: dict = field(default_factory=dict, repr=False)  # Resource outputs written by the initializer.
     _constructed: bool = field(default=False, repr=False)  # Whether the initializer has returned.
 
@@ -33,16 +35,19 @@ class NativeNodeContext:
     def set_output(self, name: str, value: object):
         if self._constructed:
             raise ValueError(f'Outputs of {self.name} can only be written by the native initializer')
-        if not isinstance(name, str) or name not in self._output_names:
+        if not isinstance(name, str) or name not in self._output_types:
             raise ValueError(f'Unknown output name {name!r} in initializer on {self.name}')
         if name in self._outputs:
             raise ValueError(f'Output {name!r} on {self.name} was already written')
-        self._outputs[name] = value
+        try:
+            self._outputs[name] = ResourceValue(self._output_types[name], value)
+        except TypeError as error:
+            raise ValueError(f'Invalid value for output {name!r} on {self.name}: {error}') from error
 
     def _finish_construction(self):
         """End the initializer's output phase and return the written outputs."""
         object.__setattr__(self, '_constructed', True)
-        missing = self._output_names - self._outputs.keys()
+        missing = self._output_types.keys() - self._outputs.keys()
         if missing:
             raise ValueError(f'Native initializer on {self.name} did not write outputs: {sorted(missing)!r}')
         return self._outputs
@@ -71,7 +76,7 @@ class NativeState:
     def trigger(self, output: str) -> None:
         """Schedule each procedure that depends on this state's resource `output`."""
         context = self.context
-        if output not in context._output_names:
+        if output not in context._output_types:
             raise ValueError(f'Unknown output name {output!r} on {context.name}')
         context._engine.trigger_dependents(context._node_id, output)
 

@@ -17,7 +17,7 @@ def _native_values(bindings):
 
 class Engine:
     def __init__(self, program):
-        from .linking import link_native_classes, link_native_functions
+        from .linking import link_native_classes, link_native_functions, link_native_resource_types
 
         if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
@@ -70,7 +70,8 @@ class Engine:
             id(proc): _native_values(proc.values)
             for schedule in program.procs.values() for proc in schedule if proc.body is None
         }
-        self.resource_outputs = {}  # Objects written by native initializers, by (node ID, output key).
+        self.resource_types = link_native_resource_types(program)
+        self.resource_outputs = {}  # ResourceValues written by native initializers, by (node ID, output key).
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
             native_state = None
@@ -80,7 +81,8 @@ class Engine:
                     name=instance.name, values=_native_values(instance.initializer_values),
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
                     _engine=self, _node_id=node_id,
-                    _output_names=frozenset(program.native_types[instance.type_name].resource_outputs),
+                    _output_types={key: self.resource_types[name] for key, name
+                                   in program.native_types[instance.type_name].resource_outputs.items()},
                 )
                 native_state = native_class(context=context)
                 for key, value in context._finish_construction().items():

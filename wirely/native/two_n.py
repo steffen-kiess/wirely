@@ -4,13 +4,15 @@ import json
 import contextlib
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
+@native_resource_type(native_resource_types, 'Device')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
     def __init__(self, *, context):
@@ -42,6 +44,7 @@ class Connection(NativeState):
         print('Starting TwoN client done', flush=True)
 
 
+@native_resource_type(native_resource_types, 'KeyEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class KeyEvent(NativeState):
     def __init__(self, *, context):
@@ -55,7 +58,7 @@ class KeyEvent(NativeState):
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f"  Key: {self.values['Key']!r}", flush=True)
 
-        self.native_device = context.inputs['Device']
+        self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -88,7 +91,7 @@ class KeyEvent(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         value = state.received_value
         state.received_value = None
 
@@ -100,6 +103,7 @@ class KeyEvent(NativeState):
             context.trigger_self()
 
 
+@native_resource_type(native_resource_types, 'CodeEnteredEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class CodeEnteredEvent(NativeState):
     def __init__(self, *, context):
@@ -113,7 +117,7 @@ class CodeEnteredEvent(NativeState):
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f"  Code: {self.values['Code']!r}", flush=True)
 
-        self.native_device = context.inputs['Device']
+        self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -142,7 +146,7 @@ class CodeEnteredEvent(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         value = state.pending
         state.pending = False
 
@@ -193,6 +197,7 @@ class KeyState(NativeState):
         context.set_output('current_value', new_value)
 
 
+@native_resource_type(native_resource_types, 'IOStateState')
 @native_node_type(native_node_types, has_native_state=True)
 class IOState(NativeState):
     def __init__(self, *, context):
@@ -208,7 +213,7 @@ class IOState(NativeState):
 
         print(f"  Port: {self.values['Port']!r}", flush=True)
 
-        self.native_device = context.inputs['Device']
+        self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -261,7 +266,7 @@ class IOState(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         value = state.current_value
         if value is None:
             raise Exception('TwoN.IOState: get_value() called while current_value is None')
@@ -269,6 +274,7 @@ class IOState(NativeState):
         context.set_output('output', value)
 
 
+@native_resource_type(native_resource_types, 'SwitchStateState')
 @native_node_type(native_node_types, has_native_state=True)
 class SwitchState(NativeState):
     def __init__(self, *, context):
@@ -284,7 +290,7 @@ class SwitchState(NativeState):
 
         print(f"  SwitchNumber: {self.values['SwitchNumber']!r}", flush=True)
 
-        self.native_device = context.inputs['Device']
+        self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
@@ -335,7 +341,7 @@ class SwitchState(NativeState):
 
     @staticmethod
     def get_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         value = state.current_value
         if value is None:
             raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
@@ -343,6 +349,7 @@ class SwitchState(NativeState):
         context.set_output('output', value)
 
 
+@native_resource_type(native_resource_types, 'OutputControlState')
 @native_node_type(native_node_types, has_native_state=True)
 class OutputControl(NativeState):
     def __init__(self, *, context):
@@ -360,7 +367,7 @@ class OutputControl(NativeState):
 
         print(f"  Port: {self.values['Port']!r}", flush=True)
 
-        self.native_device = context.inputs['Device']
+        self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
@@ -373,7 +380,7 @@ class OutputControl(NativeState):
 
     @staticmethod
     def send_value(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']

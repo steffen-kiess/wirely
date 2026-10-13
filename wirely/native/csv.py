@@ -4,11 +4,12 @@ import os
 import sys
 
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_resource_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
+native_resource_types = {}
 
 
 class CsvValue:
@@ -47,6 +48,7 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
+@native_resource_type(native_resource_types, 'ValueWriterState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueWriter(NativeState):
     # TODO: Should writing to the file be done on a background thread?
@@ -125,7 +127,7 @@ class ValueWriter(NativeState):
 
     @staticmethod
     def run(*, context):
-        state = context.inputs['state']
+        state = context.inputs['state'].object
         new_value = context.inputs['input']
         reached = context.inputs['repeat_time_reached']
         repeat_time = context.inputs['repeat_time_old']

@@ -28,7 +28,7 @@ class HeldEventSource(NativeState):
     @staticmethod
     def run(*, context):
         # The timestamp node must keep stepping even when this output is cached.
-        context.set_output('output', context.inputs['state'].value)
+        context.set_output('output', context.inputs['state'].object.value)
 
 
 source = '''namespace TestLibrary {
@@ -45,7 +45,8 @@ node input: TestLibrary.HeldEventSource {}
 node timestamp: Timer.MonotonicTimestamp { Type: boolean }
 connect input -> timestamp;
 '''
-with patch.dict(wirely.native.test_library.native_node_types, registry):
+with patch.dict(wirely.native.test_library.native_node_types, registry), \
+        patch.dict(wirely.native.test_library.native_resource_types, {'HeldEventState': HeldEventSource}):
     graph = compile_strs(_standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
     assert graph is not None
     runtime = Engine(program_compiler.compile_nocatch(graph))
