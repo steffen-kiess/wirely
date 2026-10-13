@@ -71,8 +71,9 @@ node empty: Compare { Type: Empty }
 connect empty_left -> empty.Left;
 connect empty_right -> empty.Right;
 
-temporary LiteralEqual: boolean;
-temporary LiteralUnequal: boolean;
+// Read by equality.py.
+#[Allow(Unused)] temporary LiteralEqual: boolean;
+#[Allow(Unused)] temporary LiteralUnequal: boolean;
 procedure literals produces LiteralEqual, LiteralUnequal {
   let at: TimeOfDay = "08:00";
   let span: Duration = "PT60S";

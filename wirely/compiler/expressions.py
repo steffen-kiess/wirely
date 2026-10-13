@@ -1011,7 +1011,7 @@ class ExpressionCompiler:
                             for member in value.payload]
             else:
                 options.append(value)
-        self.check_simultaneous(expression, keys)
+        self.check_nesting(expression, keys)
         before = dict(self.initialization)
         previous = dict(self.present)
         slot = None
@@ -1040,8 +1040,22 @@ class ExpressionCompiler:
                          else TypedExpression(model.types.boolean, 'or', (condition, present), runtime=True))
         return TypedExpression(model.types.unit, 'if', (condition, body, absent))
 
-    def check_simultaneous(self, expression, keys):
-        """Warn when no trigger relates to the enclosing on block, so both must coincide."""
+    def check_nesting(self, expression, keys):
+        """Warn when enclosing on blocks make this one always run, or run only by coincidence."""
+        def names(block):
+            return ' or '.join(repr(trigger.id_str) for trigger in block.triggers)
+
+        def warn(name, enclosing, message):
+            self.scope.coordinator.warnings.warn(
+                name, expression.triggers[0], message, instance_trace=False,
+                hints=(model.CompilerHint(enclosing, 'Enclosing on block is here'),),
+            )
+
+        # A present loop variable implies its multi event.
+        for enclosing, outer_keys in self.on_blocks:
+            if all(outer in keys or self.event_loops.get(outer) in keys for outer in outer_keys):
+                warn('RedundantOn', enclosing, f'Block always runs, since {names(enclosing)} is present here')
+                return
         if not self.on_blocks:
             return
         enclosing, outer_keys = self.on_blocks[-1]
@@ -1049,13 +1063,8 @@ class ExpressionCompiler:
             if (key in outer_keys or self.event_loops.get(key) in outer_keys
                     or any(self.event_loops.get(outer) == key for outer in outer_keys)):
                 return
-        def names(block):
-            return ' or '.join(repr(trigger.id_str) for trigger in block.triggers)
-        self.scope.coordinator.warnings.warn(
-            'SimultaneousEvents', expression.triggers[0],
-            f'Block runs only if {names(expression)} occurs in the same step as {names(enclosing)}',
-            hints=(model.CompilerHint(enclosing, 'Enclosing on block is here'),), instance_trace=False,
-        )
+        warn('SimultaneousEvents', enclosing,
+             f'Block runs only if {names(expression)} occurs in the same step as {names(enclosing)}')
 
     def block(self, expression, expected):
         previous_names = dict(self.names)

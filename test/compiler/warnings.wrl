@@ -5,8 +5,9 @@ node b: Std.DebugEventSource { Type: boolean }
 node c: Std.DebugEventSource { Type: boolean }
 node d: Std.DebugEventSource { Type: boolean }
 
-// A nested on block warns when none of its triggers relates to the
-// enclosing block.
+// A nested on block warns when it always runs because an enclosing block
+// guarantees one of its triggers, or when none of its triggers relates to
+// the nearest enclosing block.
 state nested: boolean = false;
 procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
   let mut value = false;
@@ -16,22 +17,31 @@ procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
     if value {
       on c {} // W: Block runs only if 'c'
     }
-    on a {}
-    on a, b {}
+    on a {} // W: Block always runs, since 'a' is present here
+    on a, b {} // W: Block always runs, since 'a' is present here
+    on b {
+      // ^W: Block runs only if 'b'
+      on a {} // W: Block always runs, since 'a' is present here
+    }
     for item in inputs {
       on item {} // W: Block runs only if 'item'
     }
   }
   on a, b {
     on a { value = a; }
+    on a, b {} // W: Block always runs, since 'a' or 'b' is present here
   }
   on inputs {
     for item in inputs {
       on item {
-        on inputs {
-          on item {}
-        }
+        on inputs {} // W: Block always runs, since 'inputs' is present here
+        on item {} // W: Block always runs, since 'item' is present here
       }
+    }
+  }
+  for item in inputs {
+    on item {
+      on inputs {} // W: Block always runs, since 'item' is present here
     }
   }
   nested = value;
@@ -74,3 +84,43 @@ node type AllowedType {
 node allowed_type: AllowedType {}
 connect a -> allowed_type;
 connect b -> allowed_type.Other;
+
+// Temporaries and resources need a reader in their node type; an output of
+// the node type counts even if no instance uses it. States are not checked.
+temporary unread: boolean; // W: Temporary 'unread' is never read
+procedure write_unread produces unread { unread = true; }
+
+state unread_state: boolean = false;
+procedure write_state produces unread_state { unread_state = true; }
+
+namespace TestLibrary {
+  native node type Resources {
+    input Service: resource Std.DebugEventSourceState;
+    resource read_by_initializer: Std.DebugEventSourceState;
+    connect Service -> read_by_initializer;
+    resource read_by_procedure: Std.DebugEventSourceState;
+    resource unread_resource: Std.DebugEventSourceState; // W: Resource 'unread_resource' is never read
+    native initializer depends on read_by_initializer
+      produces read_by_procedure, unread_resource;
+    native procedure run depends on read_by_procedure;
+  }
+}
+
+node type Readers {
+  default output: value boolean;
+  input Value: value boolean;
+  temporary connected: boolean;
+  temporary referenced: boolean;
+  temporary forwarded: boolean;
+  temporary checked: boolean;
+  connect Value -> connected;
+  connect connected -> referenced;
+  procedure check depends on referenced produces checked { checked = referenced; }
+  connect checked -> forwarded;
+  connect forwarded -> default output;
+  temporary unread: boolean; // W: Temporary 'unread' is never read
+  connect Value -> unread;
+}
+node readers: Readers {}
+connect a_value -> readers.Value;
+node a_value: Std.DebugValueSource { Type: boolean }

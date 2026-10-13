@@ -253,7 +253,7 @@ procedure advance depends on saved.new as current produces saved {
 
 // TEST: later-stage state producer
 state saved: boolean = false;
-temporary current: boolean;
+#[Allow(Unused)] temporary current: boolean;
 procedure write stage output produces saved { saved = true; }
 // ^H: Producer was declared here
 procedure read depends on saved.new as value produces current {

@@ -17,6 +17,7 @@ node type Events {
     on changed {
       let event: Type = changed;
       result = event;
+      #[Allow(RedundantOn)]
       on changed { result = changed; }
     }
     on changed, on {

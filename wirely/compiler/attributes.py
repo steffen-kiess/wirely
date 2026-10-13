@@ -153,7 +153,7 @@ ATTRIBUTE_REGISTRY = {
     # Suppresses warnings inside the item, see WarningSink.
     'Allow': AttributeDefinition(frozenset({
         'file', 'namespace', 'node_type', 'node', 'constant', 'parameter', 'state',
-        'assertion', 'procedure', 'statement',
+        'temporary', 'resource', 'assertion', 'procedure', 'statement',
     }), _warning_names, repeatable=True),
     # Diagram layout, see doc/diagram-layout.md.
     'Diagram.Position': AttributeDefinition(_DIAGRAM_ITEMS, _position),

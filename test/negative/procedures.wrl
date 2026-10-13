@@ -333,13 +333,13 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: top-level result type
-temporary t: int8;
+#[Allow(Unused)] temporary t: int8;
 procedure p1 produces t {
   t = 128; // E: out of range
 }
 
 // TEST: top-level missing assignment
-temporary t: int8;
+#[Allow(Unused)] temporary t: int8;
 procedure p1 produces t {} // E: did not assign outputs
 
 // TEST: top-level dependency cycle
@@ -385,21 +385,21 @@ procedure two
 native procedure p1; // E: Native procedures must belong to a node type
 
 // TEST: Some argument count in a procedure
-temporary result: Option[boolean];
+#[Allow(Unused)] temporary result: Option[boolean];
 procedure run produces result {
   result = Some(true, false); // E: Some expects exactly one argument
 }
 
 // TEST: struct literal missing field in a procedure
 struct type Pair { enabled: boolean, number: uint8, }
-temporary result: Pair;
+#[Allow(Unused)] temporary result: Pair;
 procedure run produces result {
   result = Pair { enabled: true }; // E: Missing fields of Pair: number
 }
 
 // TEST: struct literal unknown field in a procedure
 struct type Pair { enabled: boolean, }
-temporary result: Pair;
+#[Allow(Unused)] temporary result: Pair;
 procedure run produces result {
   result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
 }

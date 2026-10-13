@@ -63,7 +63,7 @@ node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 // TEST: runtime_generic_temporary
 node type Invalid {
   parameter Type: ValueType;
-  temporary saved: Type;
+  #[Allow(Unused)] temporary saved: Type;
   native procedure write produces saved;
 }
 node invalid: Invalid { Type: Option[String] } // E: parameter-only

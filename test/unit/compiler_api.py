@@ -34,7 +34,7 @@ compile_strs([('<root>', 'node a: T {}\nnode 1')], on_diagnostic=diagnostics.app
 checks.assertEqual((diagnostics[0].kind, diagnostics[0].start), ('syntax_error', 18))
 
 # Valid root graphs reach program compilation without repeating binding.
-source = 'temporary result: boolean; procedure run produces result { result = true; }'
+source = '#[Allow(Unused)] temporary result: boolean; procedure run produces result { result = true; }'
 diagnostics = []
 graph = compile_strs([('<root>', source)], on_diagnostic=diagnostics.append)
 checks.assertIsNotNone(graph)

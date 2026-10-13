@@ -333,7 +333,7 @@ node type T {
 }
 
 // TEST: Allow unknown warning
-#[Allow(Unused)] constant C: boolean = true; // E: Unknown warning Unused
+#[Allow(Missing)] constant C: boolean = true; // E: Unknown warning Missing
 
 // TEST: Allow without names
 #[Allow] constant C: boolean = true; // E: Allow requires warning names

@@ -213,6 +213,23 @@ def validate_nodes(graph):
         check_alias_cycle(graph, node)
     if getattr(graph, 'is_native', False):
         validate_resource_outputs(graph)
+    check_unused(graph)
+
+
+def check_unused(graph):
+    """Warn about temporaries and resources of the node type that nothing reads."""
+    read = {id(connection.source) for connection in graph.connections}
+    if getattr(graph, 'initializer', None) is not None:
+        read.update(id(dependency) for dependency in graph.initializer.depends.get_resolved_dependencies())
+    warnings = graph.coordinator.warnings
+    for name, node in graph.temporary_nodes.items():
+        if id(node) not in read:
+            warnings.warn('Unused', graph.value_nodes[name].name, f'Temporary {name!r} is never read',
+                          instance_trace=False)
+    for name, resource in graph.local_resources.items():
+        if id(resource) not in read:
+            warnings.warn('Unused', resource.declaration.name, f'Resource {name!r} is never read',
+                          instance_trace=False)
 
 
 def validate_resource_outputs(graph):

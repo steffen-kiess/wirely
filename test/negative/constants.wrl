@@ -196,7 +196,7 @@ node probe: Probe {} // E: parameter-only
 
 // TEST: constant type in root temporary
 constant Type: ValueType = String;
-temporary text: Type; // E: parameter-only
+#[Allow(Unused)] temporary text: Type; // E: parameter-only
 procedure run produces text { text = "hello"; }
 
 // TEST: constant type in root state

@@ -56,8 +56,8 @@ node absent: OptionalValue { Type: String }
 node present: OptionalValue { Type: String, Value: "hello" }
 node type_value: OptionalValue { Type: ValueType, Value: uint8 }
 
-temporary comparison: boolean;
-temporary selected: uint8;
+#[Allow(Unused)] temporary comparison: boolean;
+#[Allow(Unused)] temporary selected: uint8;
 procedure constants produces comparison, selected {
   comparison = Text == Text && "text" == "text"
     && Settings { text: "a" } != Settings { text: "b" }
@@ -73,7 +73,7 @@ procedure constants produces comparison, selected {
 struct type Address {
   address: uint16,
 }
-temporary parsed: Address;
+#[Allow(Unused)] temporary parsed: Address;
 procedure parse produces parsed {
   parsed = Address { address: KNX.ParseGroupAddress("1/2/3") };
 }
