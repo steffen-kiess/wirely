@@ -105,7 +105,8 @@ static_binding: expression ["as" identifier | "as" string_constant]
 
 local_binding: "let" identifier [":" type] ["=" expression] ";"
     | "let" "mut" identifier [":" type] ["=" expression] ";" -> local_binding__mutable
-?block_statement: local_binding
+block_statement: outer_attribute* bare_block_statement -> attributed
+?bare_block_statement: local_binding
     | "assert" expression ["," string_constant] ";" -> assertion_statement
     | expression_without_block ";" -> expression_statement
     | block_expression ";" -> expression_statement

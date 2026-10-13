@@ -417,3 +417,7 @@ apply, including `wirely.ValueType` for type values and `wirely.Unit()` for
 unit. Use `raise context.error(message)` for a call-site diagnostic, or
 supply `argument='name'` to point at that argument. `ValueError`,
 `ArithmeticError`, and `OSError` also produce call-site compilation errors.
+`context.warn(message)` reports a `NativeFunction` warning at the call and
+returns; it accepts `argument=` as well. A call can be evaluated more than
+once, for example once per instance; equal warnings at one call are
+reported once.

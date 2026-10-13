@@ -8,8 +8,10 @@ from .stages import ResolutionState
 
 
 class CompilerCoordinator:
-    def __init__(self, global_node_type, report_progress=None, *, shuffle_seed=None, diagnostics=None):
+    def __init__(self, global_node_type, report_progress=None, *, shuffle_seed=None, diagnostics=None,
+                 warnings=None):
         self.global_node_type = global_node_type
+        self.warnings = warnings
         self.report_progress = report_progress
         self.shuffle_seed = shuffle_seed
         # A list collects errors and continues after them; None stops at the first error.

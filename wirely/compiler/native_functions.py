@@ -73,12 +73,18 @@ class NativeFunctionContext:
     call: object
     services: Mapping[str, object]
     return_type: object  # Declared return type as a wirely.ValueType.
+    _warnings: object  # The compilation's WarningSink.
 
-    def error(self, message, *, argument=None):
+    def _source(self, argument):
         if argument is not None and argument not in self.arguments_ast:
             raise ValueError(f'Unknown function argument {argument!r}')
-        source = self.call if argument is None else self.arguments_ast[argument]
-        return model.ProgramError(source, message)
+        return self.call if argument is None else self.arguments_ast[argument]
+
+    def error(self, message, *, argument=None):
+        return model.ProgramError(self._source(argument), message)
+
+    def warn(self, message, *, argument=None):
+        self._warnings.warn('NativeFunction', self._source(argument), message)
 
 
 def validate_entry(name, declaration):
@@ -179,6 +185,7 @@ def invoke(function, values, sources, call):
         function.native_name, MappingProxyType(arguments),
         MappingProxyType(dict(zip(function.argument_names, sources))), call,
         function.scope.services, model.value_types.ValueType(function.return_type),
+        function.scope.coordinator.warnings,
     )
     try:
         result = implementation(context=context)

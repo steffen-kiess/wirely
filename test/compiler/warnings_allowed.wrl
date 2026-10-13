@@ -1,0 +1,9 @@
+// Allow on the file covers all of its contents.
+#![Allow(SimultaneousEvents)]
+
+node a: Std.DebugEventSource { Type: boolean }
+node b: Std.DebugEventSource { Type: boolean }
+
+procedure run depends on a, b {
+  on a { on b {} }
+}

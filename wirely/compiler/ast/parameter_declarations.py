@@ -5,7 +5,7 @@ import typing
 from wirely.compiler import model
 from wirely.util import check_parameters
 
-from .base import SourcePosition, CompilerHint, ProgramError, Identifier, Declaration
+from .base import SourcePosition, ProgramError, Identifier, Declaration
 from .specifiers import OptionalSpecifier
 
 
@@ -99,10 +99,7 @@ class DeclarationAssertion(Declaration):
                         message += ': ' + self.message.value
                     raise ProgramError(self, message)
             except ProgramError as error:
-                owner = instance.node or instance.node_type.singleton_instance
-                if not owner.is_root:
-                    name = model.InstanceNode.path_name(instance.path, qualified=True)
-                    error.hints = [*error.hints, CompilerHint(
-                        owner.instantiation, f'While instantiating {name!r}',
-                    )]
+                hint = instance.instantiation_hint()
+                if hint is not None:
+                    error.hints = [*error.hints, hint]
                 raise

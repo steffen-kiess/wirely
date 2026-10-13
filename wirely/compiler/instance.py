@@ -544,38 +544,44 @@ class NodeTypeInstance(NodeInstance):
             if key in all_par_values:
                 parameter_values_resolved[key] = all_par_values[key]
         self.parameter_values = parameter_values_resolved
-        try:
-            self.constant_values = {
-                declaration: all_par_values[declaration]
-                for declaration in self.node_type.parsed_constants.values()
-            }
-        except model.ProgramError as error:
-            owner = self.node or self.node_type.singleton_instance
-            if not owner.is_root:
-                name = InstanceNode.path_name(self.path, qualified=True)
-                error.hints = [*error.hints, model.CompilerHint(
-                    owner.instantiation, f'While instantiating {name!r}',
-                )]
-            raise
-        self.static_values = ParameterValues({
-            key: all_par_values[key] for key in all_par_values if key in all_par_values
-        }, instance=self)
-        self.static_values.update(self.parameter_values)
-        self.static_values.update(self.constant_values)
+        with self.node_type.coordinator.warnings.instance(self.instantiation_hint()):
+            try:
+                self.constant_values = {
+                    declaration: all_par_values[declaration]
+                    for declaration in self.node_type.parsed_constants.values()
+                }
+            except model.ProgramError as error:
+                hint = self.instantiation_hint()
+                if hint is not None:
+                    error.hints = [*error.hints, hint]
+                raise
+            self.static_values = ParameterValues({
+                key: all_par_values[key] for key in all_par_values if key in all_par_values
+            }, instance=self)
+            self.static_values.update(self.parameter_values)
+            self.static_values.update(self.constant_values)
 
-        for assertion in self.node_type.assertions:
-            assertion.evaluate(self)
+            for assertion in self.node_type.assertions:
+                assertion.evaluate(self)
 
-        from .static_bindings import evaluate_bindings
-        initializer = self.node_type.initializer
-        self.initializer_values = evaluate_bindings(
-            initializer.uses if initializer is not None else None, self,
-        )
+            from .static_bindings import evaluate_bindings
+            initializer = self.node_type.initializer
+            self.initializer_values = evaluate_bindings(
+                initializer.uses if initializer is not None else None, self,
+            )
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)
         name = InstanceNode.path_name(self.path, qualified=True) or '<global>'
         self.static_context = model.StaticNodeContext(name=name, parameters=parameters)
+
+    def instantiation_hint(self):
+        """Return a hint at the instantiation of this instance, or None for the root."""
+        owner = self.node or self.node_type.singleton_instance
+        if owner.is_root:
+            return None
+        name = InstanceNode.path_name(self.path, qualified=True)
+        return model.CompilerHint(owner.instantiation, f'While instantiating {name!r}')
 
     @property
     def path(self):

@@ -44,6 +44,7 @@ procedure add_both
 {
   let mut sum = previous;
   on first {
+    #[Allow(SimultaneousEvents)]
     on second { sum = Some(uint8.WrappingAdd(first, second)); }
   }
   both = sum;

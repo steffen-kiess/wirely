@@ -16,7 +16,7 @@ def evaluate_bindings(uses, instance):
     scope = instance.node_type
     for binding in uses.bindings:
         expression = binding.expression
-        with expression.context:
+        with expression.context, scope.coordinator.warnings.instance(instance.instantiation_hint()):
             value = compile_constant(scope, expression, None, instance.static_values)
             value = value.resolve_self(instance.static_values)
             try:

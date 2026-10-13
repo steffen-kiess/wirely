@@ -1,0 +1,76 @@
+// Warnings and their suppression with Allow.
+
+node a: Std.DebugEventSource { Type: boolean }
+node b: Std.DebugEventSource { Type: boolean }
+node c: Std.DebugEventSource { Type: boolean }
+node d: Std.DebugEventSource { Type: boolean }
+
+// A nested on block warns when none of its triggers relates to the
+// enclosing block.
+state nested: boolean = false;
+procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
+  let mut value = false;
+  on a {
+    on b { value = b; } // W: Block runs only if 'b' occurs in the same step as 'a'
+    on b, c {} // W: Block runs only if 'b' or 'c' occurs
+    if value {
+      on c {} // W: Block runs only if 'c'
+    }
+    on a {}
+    on a, b {}
+    for item in inputs {
+      on item {} // W: Block runs only if 'item'
+    }
+  }
+  on a, b {
+    on a { value = a; }
+  }
+  on inputs {
+    for item in inputs {
+      on item {
+        on inputs {
+          on item {}
+        }
+      }
+    }
+  }
+  nested = value;
+}
+connect c, d -> nest.inputs;
+
+// Allow covers the attributed item and everything inside it.
+state allowed: boolean = false;
+procedure allow_statements depends on a, b, c produces allowed {
+  on a {
+    #[Allow(SimultaneousEvents)]
+    on b {}
+    #[Allow(SimultaneousEvents)]
+    if true {
+      on b {}
+    }
+  }
+  #[Allow(SimultaneousEvents)]
+  on a {
+    on b {
+      on c {}
+    }
+  }
+  allowed = false;
+}
+
+#[Allow(SimultaneousEvents)]
+procedure allow_procedure depends on a, b {
+  on a { on b {} }
+}
+
+#[Allow(NativeFunction, SimultaneousEvents)]
+node type AllowedType {
+  default input: event boolean;
+  input Other: event boolean;
+  procedure run depends on default input as input, Other {
+    on input { on Other {} }
+  }
+}
+node allowed_type: AllowedType {}
+connect a -> allowed_type;
+connect b -> allowed_type.Other;

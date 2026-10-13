@@ -116,6 +116,22 @@ def _row(attribute):
     return value
 
 
+def _warning_names(attribute):
+    from .diagnostics import WARNINGS
+
+    metadata = attribute.metadata
+    if metadata.kind != 'list' or not metadata.value:
+        _error(attribute, f'{attribute.name} requires warning names, as in {attribute.name}(SimultaneousEvents)')
+    names = []
+    for argument in metadata.value:
+        if not isinstance(argument, Metadata) or argument.kind != 'flag':
+            _error(argument, f'{attribute.name} arguments must be warning names')
+        if argument.name not in WARNINGS:
+            _error(argument, f'Unknown warning {argument.name}')
+        names.append(argument.name)
+    return tuple(names)
+
+
 def _flag(attribute):
     if attribute.metadata.kind != 'flag':
         _error(attribute, f'{attribute.name} must be a flag without arguments or a value')
@@ -134,6 +150,11 @@ ATTRIBUTE_REGISTRY = {
         'temporary', 'resource', 'struct_field', 'enum_member',
     }), _flag),
     'Unordered': AttributeDefinition(frozenset({'port'}), _flag),
+    # Suppresses warnings inside the item, see WarningSink.
+    'Allow': AttributeDefinition(frozenset({
+        'file', 'namespace', 'node_type', 'node', 'constant', 'parameter', 'state',
+        'assertion', 'procedure', 'statement',
+    }), _warning_names, repeatable=True),
     # Diagram layout, see doc/diagram-layout.md.
     'Diagram.Position': AttributeDefinition(_DIAGRAM_ITEMS, _position),
     'Diagram.Width': AttributeDefinition(_DIAGRAM_ITEMS, _size),
@@ -179,15 +200,38 @@ def validate_attributes(attributes, target):
     return tuple(result)
 
 
-def validate_files(files, *, contain=None):
+def validate_files(files, *, contain=None, warnings):
     """Validate all metadata before the ordinary compilation passes.
 
     contain is CompilerCoordinator.contain when continuing after errors.
+    Allow attributes are registered with the WarningSink warnings.
     """
     if contain is None:
         contain = lambda element: contextlib.nullcontext()
     from . import ast
+    from .expressions import ExpressionBlock
     from .node_type import NodeType
+
+    def allow(item, attributes):
+        position = item.source_position
+        for attribute in attributes:
+            if attribute.name == 'Allow':
+                for name in attribute.value:
+                    warnings.allow(name, position.filename, position.meta.start_pos, position.meta.end_pos)
+
+    def visit_blocks(element):
+        """Validate the attributes of statements in blocks inside element."""
+        if isinstance(element, ExpressionBlock):
+            for statement in element.statements:
+                with contain(None):
+                    statement.attributes = validate_attributes(statement.outer_attributes, 'statement')
+                allow(statement, statement.attributes)
+        for name, child in vars(element).items():
+            if name in ('source_position', 'outer_attributes', 'inner_attributes', 'attributes'):
+                continue
+            for item in child if isinstance(child, (tuple, list)) else (child,):
+                if isinstance(item, ast.SourceElement):
+                    visit_blocks(item)
 
     targets = {
         NodeType: 'node_type', ast.DeclarationLibrary: 'namespace',
@@ -213,6 +257,9 @@ def validate_files(files, *, contain=None):
         target = targets[type(item)]
         with contain(None):
             item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
+        allow(item, item.attributes)
+        if not isinstance(item, (NodeType, ast.DeclarationLibrary)):
+            visit_blocks(item)
         child_scope = scope
         if isinstance(item, ast.DeclarationLibrary):
             child_scope = scope + (item.name.id_str,)
@@ -276,6 +323,10 @@ def validate_files(files, *, contain=None):
         attributes = ()
         with contain(None):
             attributes = validate_attributes(parsed.inner_attributes, 'file')
+        for attribute in attributes:
+            if attribute.name == 'Allow':
+                for name in attribute.value:
+                    warnings.allow(name, filename)
         metadata.append(FileMetadata(filename, parsed.inner_attributes, attributes))
         for declaration in parsed:
             visit(declaration, ())

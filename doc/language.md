@@ -56,10 +56,11 @@ flow through ports in each step.
 ## Attributes
 
 Outer attributes `#[...]` attach to the following declaration, struct field,
-or enum member. Inner attributes `#![...]` at the beginning of a file,
-namespace, node instance, node type, struct, or enum body attach to that item.
-They do not inherit onto its contents. Repeated namespace declarations
-combine their attributes.
+enum member, or statement in a block. Inner attributes `#![...]` at the
+beginning of a file, namespace, node instance, node type, struct, or enum
+body attach to that item.
+Except for `Allow`, they do not inherit onto its contents. Repeated
+namespace declarations combine their attributes.
 
 Attribute metadata supports dot-separated names, flags, `name = literal`,
 and nested comma-separated argument lists with optional trailing commas.
@@ -87,6 +88,17 @@ omitted from the library reference.
 `#[Unordered]` on a `multi` input states that the order and number of its
 connections have no meaning, as for `Std.And`. The compiler still keeps
 their order.
+
+`#[Allow(Name, ...)]` suppresses the named warnings inside the attributed
+item, including everything nested in it. It can appear on files with
+`#![Allow(...)]`, namespaces, node types, node instances, constants,
+parameters, states, assertions, procedures, and statements. Warnings are
+reported with their name, for example `[SimultaneousEvents]`:
+
+| Name | Reported for |
+| --- | --- |
+| `SimultaneousEvents` | A nested `on` block whose triggers are all unrelated to the enclosing block's. |
+| `NativeFunction` | A warning from the implementation of a native function. |
 
 Attributes before `connect` apply to every connection in that statement;
 attributes before an individual source apply to that source's connection.
@@ -771,8 +783,10 @@ toggled = next;
 ```
 
 When several events are present in the same step, each of their blocks
-runs, in order. `on` blocks yield unit, have no `else`, and are available
-only in procedure bodies. Store an event's effect in state to keep it after the event ends.
+runs, in order. A block nested in another with only unrelated triggers runs
+only when the events coincide, and causes a `SimultaneousEvents` warning.
+`on` blocks yield unit, have no `else`, and are available only in procedure
+bodies. Store an event's effect in state to keep it after the event ends.
 
 Use native procedures for external effects or operations outside this
 expression subset. Their `.wrl` declarations specify the interface and

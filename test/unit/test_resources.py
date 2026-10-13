@@ -169,7 +169,7 @@ async def check_runner_cleanup():
         started = []
         stopped = []
 
-        def compile_fixture(filenames, *, services):
+        def compile_fixture(filenames, *, services, on_diagnostic):
             resources = services[TEST_RESOURCES_SERVICE]
             paths.extend((resources.get_knx_path(), resources.get_output_path('failed.csv'),
                           resources.get_mqtt_uri().removeprefix('mqtt+unix://')))

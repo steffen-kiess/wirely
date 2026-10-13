@@ -5,7 +5,7 @@ import lark
 
 import wirely
 from wirely.compiler import model
-from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
+from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
 
 
@@ -18,12 +18,15 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
                  services=None, on_diagnostic=None, shuffle_seed=None, shuffle_layout=None):
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
-    def report_progress(message):
+    def report_escaping(diagnostic):
         try:
-            report(Diagnostic('info', message))
+            report(diagnostic)
         except Exception as error:
             # Callback failures must escape the compiler's exception handling.
             raise _DiagnosticCallbackError(error) from error
+
+    def report_progress(message):
+        report_escaping(Diagnostic('info', message))
 
     compilation_services = MappingProxyType(dict(services if services is not None else {}))
     # TODO: Where should this import be done?
@@ -41,6 +44,7 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     if add_std:
         filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
 
+    warnings = WarningSink(report_escaping)
     exc = None
     try:
         if verbose_passes:
@@ -52,14 +56,14 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
             shuffle_declarations(decls, shuffle_seed, layout=shuffle_layout)
         if verbose_passes:
             report_progress('Starting validating source metadata')
-        file_metadata = validate_source_metadata(parsed_files, decls)
+        file_metadata = validate_source_metadata(parsed_files, decls, warnings)
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
         global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
         global_node_type.services = compilation_services
         global_node_type.file_metadata = file_metadata
         from .coordinator import CompilerCoordinator
         coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None,
-                                          shuffle_seed=shuffle_seed)
+                                          shuffle_seed=shuffle_seed, warnings=warnings)
         coordinator.compile()
     except lark.UnexpectedInput as e:
         report(Diagnostic('syntax_error', str(e), filename=e.source_filename, line=e.line,
@@ -86,11 +90,11 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     return None
 
 
-def validate_source_metadata(parsed_files, declarations):
+def validate_source_metadata(parsed_files, declarations, warnings):
     from .attributes import validate_files
     from .native_functions import validate_collisions, validate_native_names
 
-    metadata = validate_files(parsed_files)
+    metadata = validate_files(parsed_files, warnings=warnings)
     validate_collisions(declarations)
     validate_native_names(declarations)
     return metadata

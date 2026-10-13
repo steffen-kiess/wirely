@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
-from wirely.test import run_python_only_test, run_python_test, run_runtime_test
+from wirely.test import compile_checked, run_python_only_test, run_python_test, run_runtime_test
 
 
 checks = TestCase()
@@ -66,6 +66,28 @@ async def run_test():
             (root / 'test/unit/plain.py').unlink()
             with checks.assertRaises(FileNotFoundError):
                 await run_python_only_test('unit/plain')
+
+    # Fixtures outside negative tests must warn exactly as their W: annotations expect.
+    with tempfile.TemporaryDirectory() as directory:
+        fixture = Path(directory) / 'warnings.wrl'
+
+        def write(annotation):
+            fixture.write_text(
+                'node a: Std.DebugEventSource { Type: boolean }\n'
+                'node b: Std.DebugEventSource { Type: boolean }\n'
+                'procedure run depends on a, b {\n'
+                f'  on a {{ on b {{}} }}{annotation}\n'
+                '}\n', encoding='utf-8',
+            )
+
+        write(' // W: Block runs only')
+        compile_checked(str(fixture))
+        write('')
+        with checks.assertRaisesRegex(AssertionError, 'warning mismatch'):
+            compile_checked(str(fixture))
+        write(' // W: Block runs only // H: Enclosing')
+        with checks.assertRaisesRegex(AssertionError, 'only warning annotations'):
+            compile_checked(str(fixture))
 
     # This test has no Wirely fixture and must never invoke the compiler.
     with patch('wirely.test.model.compiler.compile_files',

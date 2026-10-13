@@ -329,3 +329,28 @@ node type T {
   #[Unordered(Always)] input A: multi value boolean;
   // ^E: Unordered must be a flag without arguments or a value
 }
+
+// TEST: Allow unknown warning
+#[Allow(Unused)] constant C: boolean = true; // E: Unknown warning Unused
+
+// TEST: Allow without names
+#[Allow] constant C: boolean = true; // E: Allow requires warning names
+
+// TEST: Allow value argument
+#[Allow(SimultaneousEvents = 1)] constant C: boolean = true;
+// ^E: Allow arguments must be warning names
+
+// TEST: Allow on connection
+node type T {
+  input A: value boolean;
+  output B: value boolean;
+  #[Allow(SimultaneousEvents)] connect A -> B;
+  // ^E: Attribute Allow is not permitted on connection
+}
+
+// TEST: statement attribute
+constant C: boolean = {
+  #[Internal] let value = true;
+  // ^E: Attribute Internal is not permitted on statement
+  value
+};

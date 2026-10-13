@@ -36,14 +36,18 @@ def cycle_error(element, message, steps, via):
 
 
 def compile(global_node_type, *, on_diagnostic=None):
+    report = print_diagnostic if on_diagnostic is None else on_diagnostic
+    warnings = global_node_type.coordinator.warnings
+    previous_report, warnings.report = warnings.report, report
     try:
         return compile_nocatch(global_node_type)
     except model.ProgramError as exc:
-        report = print_diagnostic if on_diagnostic is None else on_diagnostic
         always_print_stacktrace = model.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
         for diagnostic in error_diagnostics(exc, always_print_stacktrace=always_print_stacktrace):
             report(diagnostic)
         return None
+    finally:
+        warnings.report = previous_report
 
 
 def compile_nocatch(global_node_type):
@@ -71,6 +75,7 @@ def members(path, source):
 def lower_program(global_node_type):
     # TODO: More checks, e.g. that global_node_type has not parameters or inputs / outputs
     graph = global_node_type
+    warnings = graph.coordinator.warnings
     if graph.body_state is not ResolutionState.COMPLETE:
         raise RuntimeError('Program lowering requires a bound and validated global graph')
     root = None
@@ -146,7 +151,7 @@ def lower_program(global_node_type):
         """Return the constant supplying a parameter or constant connected as a source."""
         instance = instances[path]
         reference = source.reference
-        with reference.context:
+        with reference.context, warnings.instance(instance.instantiation_hint()):
             try:
                 value_type = resolve_type(source.var_type, instance.static_values)
                 expression = model.Reference([reference], source_position=reference.source_position)
@@ -156,12 +161,9 @@ def lower_program(global_node_type):
                 except (ValueError, ArithmeticError) as error:
                     raise model.ProgramError(reference, str(error)) from error
             except model.ProgramError as error:
-                owner = instance.node or instance.node_type.singleton_instance
-                if not owner.is_root:
-                    name = model.InstanceNode.path_name(path, qualified=True)
-                    error.hints = [*error.hints, model.CompilerHint(
-                        owner.instantiation, f'While instantiating {name!r}',
-                    )]
+                hint = instance.instantiation_hint()
+                if hint is not None:
+                    error.hints = [*error.hints, hint]
                 raise
         return InputSource(constant=constants[intern_constant(value_type, concrete)])
 
@@ -393,9 +395,10 @@ def lower_program(global_node_type):
                 variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
-            bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
-                                                 intern_constant, intern_function, multi_sources,
-                                                 event_sources)
+            with warnings.instance(instances[path].instantiation_hint()):
+                bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
+                                                     intern_constant, intern_function, multi_sources,
+                                                     event_sources)
 
     from .static_bindings import evaluate_bindings
     schedules = {}

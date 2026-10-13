@@ -37,6 +37,7 @@ python_only_tests = [
     'misc/grammar',
     'unit/runtime_program',
     'unit/compiler_api',
+    'unit/compiler_warnings',
     'unit/native_interface',
     'unit/instructions',
     'unit/test_resources',
@@ -125,6 +126,8 @@ to_compile = [
     'compiler/blocks',
     'compiler/multi_procedures',
     'compiler/events',
+    'compiler/warnings',
+    'compiler/warnings_allowed',
     'compiler/length',
     'compiler/types',
     'compiler/runtime_limits',
@@ -280,6 +283,83 @@ def negative_test_cases(source):
         yield NegativeTestCase(label, start + 1, end, padded, libraries)
 
 
+def diagnostic_items(diagnostics):
+    """Return (kind, absolute filename, line, message) for diagnostics other than progress."""
+    items = []
+    for diagnostic in diagnostics:
+        if diagnostic.kind == 'info':
+            continue
+        kind = {'error': 'E', 'syntax_error': 'E', 'hint': 'H', 'warning': 'W'}[diagnostic.kind]
+        message = diagnostic.message
+        if diagnostic.kind == 'syntax_error':
+            message = 'Syntax error: ' + message.splitlines()[0]
+        filename = None if diagnostic.filename is None else os.path.abspath(diagnostic.filename)
+        items.append((kind, filename, diagnostic.line, message))
+    return items
+
+
+def match_diagnostics(expected, actual, full_fn, start_line, end_line, *, relaxed):
+    """Return the expected and actual diagnostics left unmatched.
+
+    relaxed matches any line between start_line and end_line, for shuffled
+    expectations.
+    """
+    matched = {}
+
+    def match_expectation(expected_index, seen):
+        kind, line_number, fragment = expected[expected_index]
+        for actual_index, item in enumerate(actual):
+            location_matches = (isinstance(item[2], int)
+                                and start_line <= item[2] <= end_line
+                                if relaxed else item[2] == line_number)
+            if (actual_index in seen or item[0] != kind or item[1] != full_fn
+                    or not location_matches or fragment not in item[3]):
+                continue
+            seen.add(actual_index)
+            if (actual_index not in matched
+                    or match_expectation(matched[actual_index], seen)):
+                matched[actual_index] = expected_index
+                return True
+        return False
+
+    missing = [item for index, item in enumerate(expected)
+               if not match_expectation(index, set())]
+    unexpected = [item for index, item in enumerate(actual) if index not in matched]
+    return missing, unexpected
+
+
+def compile_checked(fn, *, services=None):
+    """Compile fn, which must warn exactly as its W: annotations expect."""
+    full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
+    with open(full_fn, encoding='utf-8') as file:
+        source = file.read()
+    line_count = len(source.splitlines())
+    expected = expected_diagnostics(source)
+    shuffled_expected = expected_diagnostics(source, shuffled=True)
+    relaxed = bool(os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED') and shuffled_expected)
+    if relaxed:
+        expected = shuffled_expected
+    if any(kind != 'W' for kind, _, _ in expected):
+        raise AssertionError(f'{fn}: only warning annotations are allowed outside negative tests')
+
+    diagnostics = []
+
+    def report(diagnostic):
+        diagnostics.append(diagnostic)
+        print_diagnostic(diagnostic)
+
+    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=report)
+    prog = None if global_node_type is None else program_compiler.compile(global_node_type,
+                                                                          on_diagnostic=report)
+    if prog is None:
+        sys.exit(1)
+    warnings = [item for item in diagnostic_items(diagnostics) if item[0] == 'W']
+    missing, unexpected = match_diagnostics(expected, warnings, full_fn, 1, line_count, relaxed=relaxed)
+    if missing or unexpected:
+        raise AssertionError(f'{fn}: warning mismatch; missing={missing}, unexpected={unexpected}')
+    return prog
+
+
 def compile_negative_case(full_fn, case):
     if case.label == '':
         raise AssertionError('empty test label')
@@ -310,38 +390,9 @@ def compile_negative_case(full_fn, case):
     if any(diagnostic.kind == 'internal_error' for diagnostic in diagnostics):
         raise AssertionError(f'compiler failed internally:\n{messages}')
 
-    actual = []
-    for diagnostic in diagnostics:
-        if diagnostic.kind == 'info':
-            continue
-        kind = {'error': 'E', 'syntax_error': 'E', 'hint': 'H', 'warning': 'W'}[diagnostic.kind]
-        message = diagnostic.message
-        if diagnostic.kind == 'syntax_error':
-            message = 'Syntax error: ' + message.splitlines()[0]
-        filename = None if diagnostic.filename is None else os.path.abspath(diagnostic.filename)
-        actual.append((kind, filename, diagnostic.line, message))
-
-    matched = {}
-
-    def match_expectation(expected_index, seen):
-        kind, line_number, fragment = expected[expected_index]
-        for actual_index, item in enumerate(actual):
-            location_matches = (isinstance(item[2], int)
-                                and case.start_line <= item[2] <= case.end_line
-                                if relaxed else item[2] == line_number)
-            if (actual_index in seen or item[0] != kind or item[1] != full_fn
-                    or not location_matches or fragment not in item[3]):
-                continue
-            seen.add(actual_index)
-            if (actual_index not in matched
-                    or match_expectation(matched[actual_index], seen)):
-                matched[actual_index] = expected_index
-                return True
-        return False
-
-    missing = [item for index, item in enumerate(expected)
-               if not match_expectation(index, set())]
-    unexpected = [item for index, item in enumerate(actual) if index not in matched]
+    actual = diagnostic_items(diagnostics)
+    missing, unexpected = match_diagnostics(expected, actual, full_fn, case.start_line, case.end_line,
+                                            relaxed=relaxed)
     if result is not None or missing or unexpected or not any(item[0] == 'E' for item in actual):
         raise AssertionError(
             f'diagnostic mismatch; missing={missing}, unexpected={unexpected}, '
@@ -371,14 +422,7 @@ def compile_negative_test(fn, *, verbose=True):
 def compile_test(fn):
     print(f'Compiling {fn}')
 
-    full_fn = os.path.dirname(__file__) + '/../' + fn
-    global_node_type = model.compiler.compile_files([full_fn])
-    if global_node_type is None:
-        sys.exit(1)
-
-    prog = program_compiler.compile(global_node_type)
-    if prog is None:
-        sys.exit(1)
+    prog = compile_checked(fn)
 
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
@@ -633,17 +677,8 @@ async def run_runtime_test(test_name):
 
     with contextlib.ExitStack() as resource_stack:
         resources = TestResourceProvider(resource_stack)
-        fn = os.path.dirname(__file__) + f'/../test/{test_name}.wrl'
         py_fn = os.path.dirname(__file__) + f'/../test/{test_name}.py'
-        global_node_type = model.compiler.compile_files(
-            [fn], services={TEST_RESOURCES_SERVICE: resources},
-        )
-        if global_node_type is None:
-            sys.exit(1)
-
-        prog = program_compiler.compile(global_node_type)
-        if prog is None:
-            sys.exit(1)
+        prog = compile_checked(f'test/{test_name}.wrl', services={TEST_RESOURCES_SERVICE: resources})
 
         with open(os.devnull, 'w') as file:
             prog.dump(file=file)

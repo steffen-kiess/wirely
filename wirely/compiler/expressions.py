@@ -867,6 +867,10 @@ class ExpressionCompiler:
         self.events = {}
         # Payload locals of events known to be present, by (operation, payload).
         self.present = {}
+        # Multi event keys of loop variables over them, by loop variable key.
+        self.event_loops = {}
+        # (expression, trigger keys) of the enclosing on blocks, innermost last.
+        self.on_blocks = []
 
     def is_runtime(self, expression):
         if self.classification is not None and expression in self.classification.dependencies:
@@ -981,6 +985,7 @@ class ExpressionCompiler:
         self.bind(name, TypedExpression(value.value_type, 'local', payload=slot, runtime=True), initialized=True)
         if (value.operation, value.payload) in self.events:
             self.events['local', slot] = self.events[value.operation, value.payload]
+            self.event_loops['local', slot] = value.operation, value.payload
         try:
             body = self.compile(expression.body, model.types.unit)
             # A loop may execute zero times, regardless of its specialized arity.
@@ -995,18 +1000,22 @@ class ExpressionCompiler:
         if not self.runtime:
             raise ProgramError(expression, 'on blocks are only allowed in procedure bodies')
         options = []
+        keys = []
         for trigger in expression.triggers:
             value = self.names.get(trigger.id_str)
             if value is None or (value.operation, value.payload) not in self.events:
                 raise ProgramError(trigger, f'{trigger.id_str!r} is not an event dependency')
+            keys.append((value.operation, value.payload))
             if value.operation == 'multi_input':
                 options += [TypedExpression(value.value_type, 'input', payload=member, runtime=True)
                             for member in value.payload]
             else:
                 options.append(value)
+        self.check_simultaneous(expression, keys)
         before = dict(self.initialization)
         previous = dict(self.present)
         slot = None
+        self.on_blocks.append((expression, keys))
         try:
             if len(expression.triggers) == 1 and value.operation != 'multi_input':
                 # The only trigger is present in the block, so its name reads the payload.
@@ -1017,6 +1026,7 @@ class ExpressionCompiler:
             body = self.compile(expression.body, model.types.unit)
         finally:
             self.present = previous
+            self.on_blocks.pop()
         self.merge_initialization(before, before, self.initialization)
         absent = TypedExpression(model.types.unit, 'unit')
         if slot is not None:
@@ -1029,6 +1039,23 @@ class ExpressionCompiler:
             condition = (present if condition.operation == 'constant'
                          else TypedExpression(model.types.boolean, 'or', (condition, present), runtime=True))
         return TypedExpression(model.types.unit, 'if', (condition, body, absent))
+
+    def check_simultaneous(self, expression, keys):
+        """Warn when no trigger relates to the enclosing on block, so both must coincide."""
+        if not self.on_blocks:
+            return
+        enclosing, outer_keys = self.on_blocks[-1]
+        for key in keys:
+            if (key in outer_keys or self.event_loops.get(key) in outer_keys
+                    or any(self.event_loops.get(outer) == key for outer in outer_keys)):
+                return
+        def names(block):
+            return ' or '.join(repr(trigger.id_str) for trigger in block.triggers)
+        self.scope.coordinator.warnings.warn(
+            'SimultaneousEvents', expression.triggers[0],
+            f'Block runs only if {names(expression)} occurs in the same step as {names(enclosing)}',
+            hints=(model.CompilerHint(enclosing, 'Enclosing on block is here'),), instance_trace=False,
+        )
 
     def block(self, expression, expected):
         previous_names = dict(self.names)

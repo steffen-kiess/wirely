@@ -20,7 +20,7 @@ from . import support
 from .ast import PortDirection
 from .attributes import validate_files
 from .coordinator import CompilerCoordinator
-from .diagnostics import Diagnostic
+from .diagnostics import Diagnostic, WarningSink
 from .native_functions import validate_collisions, validate_native_names
 from .outline import Constant, Node, NodeType, Parameter, Port, ProcedurePort, State, Temporary
 from .types import resolve_type
@@ -302,8 +302,9 @@ def analyze(sources, *, add_std=False):
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
     global_node_type = model.NodeType([], None, declarations, source_position=position)
     global_node_type.services = MappingProxyType({})
-    coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics)
-    global_node_type.file_metadata = validate_files(parsed_files, contain=coordinator.contain)
+    warnings = WarningSink(diagnostics.append)
+    coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)
+    global_node_type.file_metadata = validate_files(parsed_files, contain=coordinator.contain, warnings=warnings)
     with coordinator.contain(None):
         validate_collisions(declarations)
         validate_native_names(declarations)
