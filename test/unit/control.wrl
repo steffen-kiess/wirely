@@ -1,4 +1,4 @@
 // Control protocol tests run requests against this program.
 node c: Std.Constant { Type: uint32, Value: 42 }
-node d: Std.DelayOneStep { Type: uint32, InitialValue: 7 }
+state d: uint32 = 7;
 connect c -> d;

@@ -61,9 +61,9 @@ def check_engine_isolation():
   default input: value boolean;
   default output: value boolean;
 
-  node delay: Std.DelayOneStep { Type: boolean, InitialValue: false }
+  state delay: boolean = false;
   connect default input -> delay;
-  connect delay -> default output;
+  connect delay.old -> default output;
 }
 
 singleton node type Shared {

@@ -98,8 +98,8 @@ async def check_stream(server):
         assert state[1] == bytes(engine.state.data)
         # Snapshots keep their data while the runtime continues.
         assert await client.request(Op.STEP) == {1: 1, 2: 0}
-        parts = await client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 1, 3: [[4, 4], [0, 2]]})
-        assert parts == {1: bytes(engine.cache.data[4:8] + engine.cache.data[0:2])}
+        parts = await client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 1, 3: [[2, 2], [0, 2]]})
+        assert parts == {1: bytes(engine.cache.data[2:4] + engine.cache.data[0:2])}
         await expect_error(ErrorCode.INVALID_ARGUMENT,
                            client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 0, 3: [[2, 4]]}))
         await expect_error(ErrorCode.INVALID_ARGUMENT,
@@ -204,7 +204,7 @@ async def check_cli(server):
     assert 'paused' in await run_client_command(*serial, 'pause')
     assert '2 steps' in await run_client_command(*serial, 'step', '--count', '2')
     output = await run_client_command('--unix-path', server.stream_path, 'dump', '--program', program_path)
-    assert '  d.value: 42\n' in output
+    assert '  d: 42\n' in output
     assert '  c:run.output: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output

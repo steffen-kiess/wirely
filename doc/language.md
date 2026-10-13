@@ -530,8 +530,8 @@ its inputs are unchanged, it supplies its retained value.
 Procedures run in three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends
 results to external systems. State updates become visible on the next step.
-`Std.DelayOneStep` outputs the previous step's input and stores the current
-input for the following step. Use it to break dependency cycles.
+Connecting a value to state and reading `.old` delays it by one step; use
+this to break dependency cycles.
 
 ### Procedure bodies
 

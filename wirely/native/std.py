@@ -17,26 +17,6 @@ class Constant:
 
 
 @native_node_type(native_node_types, has_native_state=False)
-class DelayOneStep:
-    @staticmethod
-    def copy_from_input(*, context):
-        # print('COPY_FROM_INPUT')
-        # print(context)
-
-        value = context.inputs['input']
-        context.set_output('value', value)
-
-    @staticmethod
-    def copy_to_output(*, context):
-        # print('COPY_TO_OUTPUT')
-        # print(context)
-
-        value = context.inputs['value_old']
-        context.set_output('output', value)
-        # print(value)
-
-
-@native_node_type(native_node_types, has_native_state=False)
 class DebugValuePrinter:
     @staticmethod
     def run(*, context):

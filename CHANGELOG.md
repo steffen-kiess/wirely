@@ -2,6 +2,19 @@
 
 ## 0.1.4 (Unreleased)
 
+### Breaking changes and migration
+
+#### Std.DelayOneStep
+
+Replace `Std.DelayOneStep` with state and read its previous value with
+`.old`:
+
+```wirely
+state delayed: boolean = false;
+connect source -> delayed;
+connect delayed.old -> target;
+```
+
 ## 0.1.3 - 2026-10-12
 
 ### Breaking changes and migration

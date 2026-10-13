@@ -32,24 +32,6 @@ namespace Std {
     }
   }
 
-  node type DelayOneStep {
-    parameter Type: ValueType;
-    #[Diagram.ShowValue]
-    parameter InitialValue: Type;
-
-    default input: value Type;
-    default output: value Type;
-
-    state value: Type = InitialValue;
-
-    native procedure copy_from_input
-      depends on default input as "input"
-      produces r#value;
-    native procedure copy_to_output
-      depends on value.old as "value_old"
-      produces default output as "output";
-  }
-
   node type TwoStageValueForward {
     parameter Type: ValueType;
 

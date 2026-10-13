@@ -2,12 +2,12 @@ node inp: Std.DebugValueSource { Type: boolean }
 node prnt0: Std.DebugValuePrinter { Type: boolean }
 connect inp -> prnt0;
 
-node delay1: Std.DelayOneStep { Type: boolean, InitialValue: false }
+state delay1: boolean = false;
 connect inp -> delay1;
 node prnt1: Std.DebugValuePrinter { Type: boolean }
-connect delay1 -> prnt1;
+connect delay1.old -> prnt1;
 
-node delay2: Std.DelayOneStep { Type: boolean, InitialValue: false }
-connect delay1 -> delay2;
+state delay2: boolean = false;
+connect delay1.old -> delay2;
 node prnt2: Std.DebugValuePrinter { Type: boolean }
-connect delay2 -> prnt2;
+connect delay2.old -> prnt2;
