@@ -1,13 +1,17 @@
-import subprocess
-import sys
+import importlib.machinery
+import importlib.util
 from pathlib import Path
 
 
-# The generated Python enums and structs match the standard library.
+# The generated Python enums and structs match the standard library. The
+# script is loaded as a module so that it uses the interpreter running the tests.
 root = Path(__file__).resolve().parents[2]
-result = subprocess.run([sys.executable, str(root / 'tools/generate-native-types'), '--check'],
-                        cwd=root, capture_output=True, text=True)
-assert result.returncode == 0, result.stdout + result.stderr
+loader = importlib.machinery.SourceFileLoader('generate_native_types', str(root / 'tools/generate-native-types'))
+generator = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+loader.exec_module(generator)
+outdated = [str(path.relative_to(root)) for path, content in generator.generated_files().items()
+            if not path.exists() or path.read_text(encoding='utf-8') != content]
+assert not outdated, f'Out of date, run tools/generate-native-types: {outdated}'
 
 
 async def run_test():

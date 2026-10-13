@@ -122,6 +122,15 @@ def generate_structs(graph):
     return '\n'.join(lines)
 
 
+def generated_files():
+    """Return the generated content of each file, keyed by path."""
+    graph = compile_library()
+    return {
+        repository_root / 'wirely/runtime/enums.py': generate_enums(graph),
+        repository_root / 'wirely/runtime/structs.py': generate_structs(graph),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true',
@@ -134,13 +143,8 @@ def main():
         os.execv(venv / 'bin' / 'python', [str(venv / 'bin' / 'python'), __file__, *sys.argv[1:]])
     sys.path.insert(0, str(repository_root))
 
-    graph = compile_library()
-    outputs = {
-        repository_root / 'wirely/runtime/enums.py': generate_enums(graph),
-        repository_root / 'wirely/runtime/structs.py': generate_structs(graph),
-    }
     outdated = False
-    for path, content in outputs.items():
+    for path, content in generated_files().items():
         current = path.read_text(encoding='utf-8') if path.exists() else ''
         if current == content:
             continue
