@@ -98,7 +98,9 @@ def check_resource_isolation():
 
     @native_node_type(registry, has_native_state=True)
     class Provider(NativeState):
-        pass
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('service', self)
 
     @native_node_type(registry, has_native_state=True)
     class Consumer(NativeState):
@@ -114,6 +116,7 @@ def check_resource_isolation():
   resource type Service;
   singleton native node type Provider {
     default output: resource Service;
+    native initializer produces default output as "service";
   }
   native node type Consumer {
     input Service: resource Service;

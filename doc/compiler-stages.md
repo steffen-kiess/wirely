@@ -65,13 +65,14 @@ parameter values can still depend on how the type will be instantiated.
    later.
 6. **`bind_bodies`.** Resolve procedure port references and the types they
    inherit. Check parameter defaults, constants, and assertion expressions.
-   Resolve initializer dependencies and connect ports named in procedure
-   dependency and output declarations. Then apply explicit `connect`
-   statements in their relative source order. This order preserves
+   Resolve initializer dependencies and outputs, and connect ports named in
+   procedure dependency and output declarations. Then apply explicit
+   `connect` statements in their relative source order. This order preserves
    multi-input ordering and the choice of storage for procedure outputs.
-7. **`validate_bodies`.** Check that procedure inputs and local storage have
-   sources. Reject local aliases that refer back to themselves. Each body,
-   including the top-level body, is now connected and checked.
+7. **`validate_bodies`.** Check that procedure inputs, local storage, and
+   resource outputs of native node types have sources. Reject local aliases
+   that refer back to themselves. Each body, including the top-level body, is
+   now connected and checked.
 8. **`populate_instances`.** Fill in existing child instances with storage,
    procedures, aliases, state-copy sources, and initializer dependencies
    from their type graphs, using `NodeType.populate_instance()`. Process

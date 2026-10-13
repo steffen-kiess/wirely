@@ -62,6 +62,7 @@ class Engine:
             id(proc): _native_values(proc.values)
             for schedule in program.procs.values() for proc in schedule if proc.body is None
         }
+        self.resource_outputs = {}  # Objects written by native initializers, by (node ID, output key).
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
             native_state = None
@@ -70,15 +71,17 @@ class Engine:
                 context = NativeNodeContext(
                     name=instance.name, values=_native_values(instance.initializer_values),
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
-                    _engine=self, _node_id=node_id,
+                    _engine=self, _node_id=node_id, _output_names=frozenset(instance.outputs),
                 )
                 native_state = native_class(context=context)
+                for key, value in context._finish_construction().items():
+                    self.resource_outputs[node_id, key] = value
             self.native_states[node_id] = native_state
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
 
     def _resource_inputs(self, bindings):
-        return {name: self.native_states[node_id] for name, node_id in bindings}
+        return {name: self.resource_outputs[binding.provider, binding.output] for name, binding in bindings.items()}
 
     async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         def start_task_cleanup():

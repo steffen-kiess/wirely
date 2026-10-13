@@ -394,6 +394,7 @@ namespace Example {
 
   native node type Connection {
     default output: resource Session;
+    native initializer produces default output as "session";
   }
 
   native node type Client {
@@ -413,6 +414,9 @@ resource declaration. Resources identify opaque service state rather than
 carrying data values. They cannot be used for parameters, state, temporaries,
 `ValueType` arguments, or value types such as `Option[T]` and `List[T]`.
 Composite nodes can forward resources through their inputs and outputs.
+A native node type produces each resource output in its
+[native initializer](native-python.md#native-objects-resources-and-tasks)
+or connects it from a child node.
 
 The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
@@ -424,9 +428,9 @@ within a step. A procedure reads its input ports, declared with
 `depends on`, and writes its output ports, declared with `produces`.
 Procedures run in dependency order; dependencies must be acyclic.
 
-Native procedures accept `uses` after `produces`; native initializers accept
-it after `depends on`. Bind node parameters and constants by name, or use
-`expression as name` or `expression as "key"`. See
+Native procedures and initializers accept `uses` after `produces`. Bind
+node parameters and constants by name, or use `expression as name` or
+`expression as "key"`. See
 [native static values](native-python.md#static-values-and-prepared-data)
 for binding syntax and Python access. Procedures with Wirely bodies refer
 to parameters and constants directly and do not accept `uses`.

@@ -22,7 +22,7 @@ namespace MQTT {
 
     default output: resource Broker;
 
-    native initializer uses URI;
+    native initializer produces default output as "broker" uses URI;
   }
 
   native node type ValueOptionProvider {

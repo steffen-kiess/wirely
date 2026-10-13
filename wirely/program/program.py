@@ -103,6 +103,17 @@ class OutputTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class ResourceBinding:
+    """A resource input bound to a resource output of a native provider."""
+
+    provider: str  # Provider node ID, a key of Program.instances.
+    output: str  # Key under which the provider's initializer produces the output.
+
+    def __str__(self):
+        return f'{self.provider}.{self.output}'
+
+
+@dataclass(frozen=True, slots=True)
 class NativeInstance:
     """Stored node context for procedures and optional native state creation."""
 
@@ -110,17 +121,17 @@ class NativeInstance:
     type_name: tuple[str, ...]  # Qualified node type name, split into components.
     has_native_state: bool  # Whether the engine creates a native state object.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
-    initializer_bindings: tuple  # (input name, provider node ID) entries.
+    initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
     initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
+    outputs: tuple[str, ...] = ()  # Keys of the resource outputs the initializer produces, sorted.
 
     def __post_init__(self):
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
         object.__setattr__(self, 'type_name', tuple(self.type_name))
         parameters = MappingProxyType(dict(self.parameters))
         object.__setattr__(self, 'parameters', parameters)
-        object.__setattr__(self, 'initializer_bindings', tuple(
-            (name, node_id) for name, node_id in self.initializer_bindings
-        ))
+        object.__setattr__(self, 'initializer_bindings', MappingProxyType(dict(self.initializer_bindings)))
+        object.__setattr__(self, 'outputs', tuple(self.outputs))
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,7 +142,7 @@ class Procedure:
     reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
-    resources: tuple  # (input name, provider node ID) entries.
+    resources: Mapping[str, ResourceBinding]  # Resource inputs by name.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure `uses` values.
@@ -141,9 +152,7 @@ class Procedure:
         type_name, proc_name = self.reference
         object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
         object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
-        object.__setattr__(self, 'resources', tuple(
-            (name, node_id) for name, node_id in self.resources
-        ))
+        object.__setattr__(self, 'resources', MappingProxyType(dict(self.resources)))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
     @property
@@ -205,8 +214,8 @@ class Program:
                 value('value', constant.value, indent + 4)
 
         def resources(bindings, indent):
-            for name, node_id in bindings:
-                line(f'{name}: {node_id}', indent)
+            for name, binding in bindings.items():
+                line(f'{name}: {binding}', indent)
 
         constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
 
@@ -257,6 +266,9 @@ class Program:
             static_bindings('initializer values', instance.initializer_values, 4)
             line('initializer resources:', 4)
             resources(instance.initializer_bindings, 6)
+            line('outputs:', 4)
+            for key in instance.outputs:
+                line(key, 6)
 
         line()
         line('Stages:')

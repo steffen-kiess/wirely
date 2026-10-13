@@ -39,7 +39,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     // Procedures and initializers
     | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
     | "procedure" identifier _procedure_clauses expression_block -> declaration_procedure__create_body
-    | "native" "initializer" depends_declaration [uses_declaration] ";" -> declaration_initializer
+    | "native" "initializer" depends_declaration produces_declaration [uses_declaration] ";" -> declaration_initializer
 
 native_specifier: "native"
 optional_specifier: "optional"

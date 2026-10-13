@@ -23,6 +23,7 @@ libraries = _standard_library_sources(['std', 'schedule', 'timer', 'memory', 'tw
 class SettingsDevice(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('device', self)
         self.log_receiver = self
         self.handlers = []
 
@@ -154,6 +155,7 @@ def code_program(node_type, parameter, value):
     return compile_program(f'''namespace TestLibrary {{
   native node type SettingsDevice {{
     default output: resource TwoN.Device;
+    native initializer produces default output as "device";
   }}
 }}
 node type Wrapper {{

@@ -25,11 +25,24 @@ class Provider(NativeState):
         inputs = context.inputs
         assert not inputs
         self.value = 7
+        self.named = object()
+        context.set_output('service', self)
+        context.set_output('named', self.named)
 
 
 @native_node_type(registry, has_native_state=True)
-class Shared(Provider):
-    pass
+class Shared(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        self.value = 7
+        context.set_output('service', self)
+
+
+@native_node_type(registry, has_native_state=True)
+class Incomplete(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        context.set_output('service', self)
 
 
 @native_node_type(registry, has_native_state=True)
@@ -95,11 +108,12 @@ namespace TestLibrary {
   native node type Provider {
     default output: resource Service;
     output Named: resource Service;
-    native initializer;
+    native initializer produces default output as "service", Named as "named";
   }
 
   singleton native node type Shared {
     default output: resource Service;
+    native initializer produces default output as "service";
   }
 
   node type Forward {
@@ -195,6 +209,8 @@ shared = native_resource_engine.get_native_state('shared')
 assert native_resource_engine.get_native_state('other_shared') is shared
 assert consumer.inputs['Service'] is provider
 assert consumer.inputs['implicit'] is shared
+with checks.assertRaisesRegex(ValueError, 'can only be written by the native initializer'):
+    provider.context.set_output('service', provider)
 value_source = native_resource_engine.get_native_state('value_source')
 value_source.set_value(7)
 native_resource_engine.step()
@@ -221,6 +237,7 @@ namespace TestLibrary {
   native node type Provider {
     default output: resource Service;
     output Named: resource Service;
+    native initializer produces default output as "service", Named as "named";
   }
   native node type Dependent {
     input Service: resource Service;
@@ -237,7 +254,23 @@ with patch.dict(wirely.native.test_library.native_node_types, registry):
     alias_engine = Engine(program_compiler.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'] is alias_engine.get_native_state('source')
-assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider')
+# Each output supplies the object its provider wrote under the output's key.
+assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider').named
+
+incomplete_graph = compile_resources('''
+namespace TestLibrary {
+  resource type Service;
+  native node type Incomplete {
+    default output: resource Service;
+    output Named: resource Service;
+    native initializer produces default output as "service", Named as "named";
+  }
+}
+node source: TestLibrary.Incomplete {}
+''')
+with patch.dict(wirely.native.test_library.native_node_types, registry), \
+        checks.assertRaisesRegex(ValueError, r"did not write outputs: \['named'\]"):
+    Engine(program_compiler.compile_nocatch(incomplete_graph))
 
 
 async def run_test():

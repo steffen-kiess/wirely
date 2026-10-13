@@ -75,6 +75,13 @@ class ValuesProbe(NativeState):
 
 @native_node_type(registry, has_native_state=True)
 class Provider(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        context.set_output('service', self)
+
+
+@native_node_type(registry, has_native_state=True)
+class OptionalProbe(NativeState):
     pass
 
 
@@ -83,6 +90,7 @@ def check_values():
   resource type Service;
   native node type Provider {
     default output: resource Service;
+    native initializer produces default output as "service";
   }
   native node type ValuesProbe {
     parameter Number: uint16;
@@ -145,7 +153,7 @@ def check_optional_values():
     ]:
         with patch.dict(wirely.native.test_library.native_node_types, registry):
             graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
-      native node type Provider {{
+      native node type OptionalProbe {{
         optional parameter Maybe: Option[boolean];
         optional parameter Type: ValueType;
         parameter Default: Option[boolean] = None;
@@ -156,7 +164,7 @@ def check_optional_values():
     node type Forward {{
       optional parameter Maybe: Option[boolean];
       optional parameter Type: ValueType;
-      node child: TestLibrary.Provider {{
+      node child: TestLibrary.OptionalProbe {{
         Maybe?: parameter_option(Maybe), Type?: parameter_option(Type),
       }}
     }}

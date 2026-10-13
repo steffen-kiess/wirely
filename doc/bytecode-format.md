@@ -527,7 +527,8 @@ struct type ResourceInterface {
 ```
 
 Each range contains unique names in UTF-8 bytewise lexical order.
-A node type's default resource output is named `default`.
+Resource input names are dependency keys; resource output names are the
+keys of the native initializer's `produces` clause.
 
 ### StaticBindings
 

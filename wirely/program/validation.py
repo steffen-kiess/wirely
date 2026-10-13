@@ -5,7 +5,7 @@ from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
-from .program import Program
+from .program import Program, ResourceBinding
 
 
 _SIGNATURES = {
@@ -164,7 +164,7 @@ def _validate_body(procedure, constant_types, functions):
 
 
 def validate_program(program):
-    """Reject invalid constants, bindings, sources, and procedure instructions with ValueError."""
+    """Reject invalid constants, bindings, resources, sources, and procedure instructions with ValueError."""
     if not isinstance(program, Program):
         raise ValueError('Expected a Program')
     for index, constant in enumerate(program.constants):
@@ -196,9 +196,18 @@ def validate_program(program):
             if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
                 raise ValueError(f'Static binding {name!r} is not a typed Constant')
 
+    def check_resources(bindings):
+        for name, binding in bindings.items():
+            if not isinstance(binding, ResourceBinding):
+                raise ValueError(f'Resource input {name!r} is not a ResourceBinding')
+            provider = program.instances.get(binding.provider)
+            if provider is None or not provider.has_native_state or binding.output not in provider.outputs:
+                raise ValueError(f'Resource input {name!r} is bound to unknown output {binding}')
+
     for node_id, instance in program.instances.items():
         try:
             check_bindings(instance.initializer_values)
+            check_resources(instance.initializer_bindings)
         except ValueError as error:
             raise ValueError(f'Instance {node_id!r}: {error}') from error
 
@@ -210,6 +219,7 @@ def validate_program(program):
         for procedure in schedule:
             try:
                 check_bindings(procedure.values)
+                check_resources(procedure.resources)
                 for _, input_source in procedure.dependencies:
                     check_source(input_source)
                 if procedure.body is not None:

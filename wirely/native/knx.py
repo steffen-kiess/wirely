@@ -12,6 +12,7 @@ native_node_types = {}
 class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('bus', self)
 
         from wirely.knx.connection_config import create_connection_config
         from wirely.knx.connection_adapter import create_xknx

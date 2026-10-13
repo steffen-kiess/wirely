@@ -73,9 +73,9 @@ value/event dependencies. Use a Wirely procedure to aggregate multi value
 inputs.
 A `value List[T]` input carries a single tuple-valued datum.
 
-A resource dependency supplies one provider's native object. Resource
-identity is stable, and changes inside an object do not trigger a procedure
-rerun.
+A resource dependency supplies the value its provider's initializer wrote
+for the connected output. Resource identity is stable, and changes inside an
+object do not trigger a procedure rerun.
 
 `context.set_output(name, value)` writes a procedure output port. Write
 every declared output once per invocation, including `None` for no event.
@@ -200,19 +200,20 @@ Changes to Python fields do not automatically schedule procedures. Call
 `self.trigger('get_value')` to schedule a procedure on this native node.
 Repeated triggers before execution schedule one invocation.
 
-Declare constructor resource inputs inside a native node type:
+Declare constructor resource inputs and outputs inside a native node type:
 
 ```wirely
-native initializer depends on Broker;
+native initializer depends on Broker produces default output as "topic";
 ```
 
-The bindings use the same key rules as procedure inputs. Read the provider
-with `context.inputs['Broker']` in the constructor or `self.inputs['Broker']`
-in tasks. Providers are constructed before their consumers. An initializer
-accepts only resource dependencies and has no `produces` clause.
-
-Resource outputs need no procedure to publish a value. See
-[`mqtt.py`](../wirely/native/mqtt.py) for provider and client examples.
+Dependencies and outputs use the same key rules as procedure ports. Read a
+resource input with `context.inputs['Broker']` in the constructor or
+`self.inputs['Broker']` in tasks. The constructor writes each produced
+resource output with `context.set_output(key, value)`, as procedures do,
+usually passing the native object itself. Providers are constructed before
+their consumers. An initializer accepts only resource dependencies and
+outputs. See [`mqtt.py`](../wirely/native/mqtt.py) for provider and client
+examples.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
 `start_tasks_async(task_group, async_exit_stack)` on each native object.

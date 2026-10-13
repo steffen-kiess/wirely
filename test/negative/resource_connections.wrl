@@ -108,7 +108,7 @@ namespace Std {
   native node type DebugValueSource {
     input Service: resource Service;
     default output: resource Service;
-    native initializer depends on Service;
+    native initializer depends on Service produces default output as "service";
     // ^E: Circular native initializer dependency
   }
 }

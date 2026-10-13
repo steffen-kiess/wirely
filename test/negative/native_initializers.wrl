@@ -74,7 +74,71 @@ native node type Invalid {
       Second as "\x53ervice"; // E: Duplicate port name
 }
 
-// TEST: initializer_produces
+// TEST: initializer_value_output
 native node type Invalid {
-  native initializer produces Service; // E: Syntax error
+  default output: value boolean;
+  native initializer produces default output as "value"; // E: Initializer outputs must be resource outputs of the node type
+}
+
+// TEST: initializer_typed_output
+resource type Handle;
+native node type Invalid {
+  native initializer produces Service: resource Handle; // E: Initializer outputs must reference resource outputs
+}
+
+// TEST: initializer_implicit_output_alias
+resource type Handle;
+native node type Invalid {
+  default output: resource Handle;
+  native initializer produces default output; // E: Default ports and complex references require an explicit alias
+}
+
+// TEST: initializer_duplicate_output_key
+// SH: Previous port was here
+// SE: Duplicate port name
+resource type Handle;
+native node type Invalid {
+  output First: resource Handle;
+  output Second: resource Handle;
+  native initializer
+    produces First as "service", // H: Previous port was here
+      Second as "service"; // E: Duplicate port name
+}
+
+// TEST: initializer_duplicate_output
+// SH: Previous output was here
+// SE: Duplicate initializer output
+resource type Handle;
+native node type Invalid {
+  default output: resource Handle;
+  native initializer
+    produces default output as "first", // H: Previous output was here
+      default output as "second"; // E: Duplicate initializer output
+}
+
+// TEST: initializer_missing_output
+resource type Handle;
+native node type Invalid {
+  default output: resource Handle;
+  output Named: resource Handle; // E: Output 'Named' has no source
+  native initializer produces default output as "service";
+}
+
+// TEST: initializer_missing_default_output
+resource type Handle;
+native node type Invalid {
+  default output: resource Handle; // E: Default output has no source
+}
+
+// TEST: initializer_produced_and_connected_output
+resource type Handle;
+native node type Source {
+  default output: resource Handle;
+  native initializer produces default output as "service";
+}
+native node type Invalid {
+  default output: resource Handle;
+  node source: Source {}
+  connect source -> default output; // E: Default output is both produced and connected
+  native initializer produces default output as "service"; // H: Produced by the native initializer here
 }

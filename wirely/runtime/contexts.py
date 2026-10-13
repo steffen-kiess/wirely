@@ -20,12 +20,32 @@ class NativeNodeContext:
     inputs: Mapping[str, object]
     _engine: object = field(repr=False)
     _node_id: str = field(repr=False)
+    _output_names: frozenset = field(default=frozenset(), repr=False)  # Keys produced by the initializer.
+    _outputs: dict = field(default_factory=dict, repr=False)  # Resource outputs written by the initializer.
+    _constructed: bool = field(default=False, repr=False)  # Whether the initializer has returned.
 
     def __post_init__(self):
         for name in ('values', 'inputs'):
             value = getattr(self, name)
             if not isinstance(value, MappingProxyType):
                 object.__setattr__(self, name, MappingProxyType(dict(value)))
+
+    def set_output(self, name: str, value: object):
+        if self._constructed:
+            raise ValueError(f'Outputs of {self.name} can only be written by the native initializer')
+        if not isinstance(name, str) or name not in self._output_names:
+            raise ValueError(f'Unknown output name {name!r} in initializer on {self.name}')
+        if name in self._outputs:
+            raise ValueError(f'Output {name!r} on {self.name} was already written')
+        self._outputs[name] = value
+
+    def _finish_construction(self):
+        """End the initializer's output phase and return the written outputs."""
+        object.__setattr__(self, '_constructed', True)
+        missing = self._output_names - self._outputs.keys()
+        if missing:
+            raise ValueError(f'Native initializer on {self.name} did not write outputs: {sorted(missing)!r}')
+        return self._outputs
 
 
 class NativeState:

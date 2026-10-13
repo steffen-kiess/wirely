@@ -7,7 +7,7 @@ from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, Program, RunStage, Variable, VariableTable,
+    OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding, RunStage, Variable, VariableTable,
 )
 
 # Body of a procedure storing a copied state: output.0 = input.0.
@@ -260,26 +260,27 @@ def lower_program(global_node_type):
                 for path, instance in instances.items()}
 
     def resource_path(path, source, port):
-        """Return a resource provider and the connections leading to it."""
+        """Return a resource provider, its binding, and the connections leading to it."""
         trace = {}
         provider_path, output = model.resolve_variable(path, source, trace)
-        if not instances[provider_path].node_type.is_native:
+        node_type = instances[provider_path].node_type
+        if not node_type.is_native:
             raise model.ProgramError(port, 'Resource input has no native provider', hints=[
                 model.CompilerHint(output.port_spec, 'Resource output was declared here'),
             ])
-        return provider_path, model.traced_connections(list(trace.values()))
+        binding = ResourceBinding(node_ids[provider_path], node_type.initializer.output_keys[output.type_output_port])
+        return provider_path, binding, model.traced_connections(list(trace.values()))
 
     initializer_bindings = {}
     construction_dependencies = {}
     for path, instance in instances.items():
         node = instance.node if instance.node is not None else instance.node_type.singleton_instance
-        bindings = []
+        bindings = {}
         dependencies = []
         for name, (source, port) in node.initializer_sources.items():
-            provider, via = resource_path(path, source, port)
-            bindings.append((name, node_ids[provider]))
+            provider, bindings[name], via = resource_path(path, source, port)
             dependencies.append((provider, port, via))
-        initializer_bindings[path] = tuple(bindings)
+        initializer_bindings[path] = bindings
         construction_dependencies[path] = dependencies
 
     construction_order = []
@@ -311,6 +312,8 @@ def lower_program(global_node_type):
             parameters=instance.static_context.parameters,
             initializer_bindings=initializer_bindings[path],
             initializer_values=instance.initializer_values,
+            outputs=() if instance.node_type.initializer is None
+            else tuple(sorted(instance.node_type.initializer.output_keys.values())),
         )
         for path, instance in instances.items()
     }
@@ -396,14 +399,13 @@ def lower_program(global_node_type):
         schedule = []
         for path, proc in stage_procs:
             dependencies = []
-            resources = []
+            resources = {}
             outputs = {}
             for name, source in proc.static_context._sources.items():
                 if model.ast.dependency_is_resource(source):
                     port = next(port for port in proc.declaration_procedure.depends.dependencies
                                    if port.key == name)
-                    provider, _ = resource_path(path, source, port)
-                    resources.append((name, node_ids[provider]))
+                    _, resources[name], _ = resource_path(path, source, port)
                     continue
                 is_list = getattr(source, 'is_list', False)
                 for index, (member_path, member, _) in enumerate(members(path, source)):
@@ -418,7 +420,7 @@ def lower_program(global_node_type):
                 node_id=node_ids[path],
                 reference=(instances[path].node_type.fullname_tuple, proc.declaration_procedure.python_name),
                 node_context=native_instances[node_ids[path]],
-                dependencies=tuple(dependencies), resources=tuple(resources),
+                dependencies=tuple(dependencies), resources=resources,
                 outputs=outputs, body=bodies.get((path, proc)),
                 values=evaluate_bindings(proc.declaration_procedure.uses, instances[path]),
             ))
@@ -437,7 +439,7 @@ def lower_program(global_node_type):
                 reference=(instance.node_type.fullname_tuple, f'<state {state.name}>'),
                 node_context=native_instances[node_ids[path]],
                 dependencies=(('value', resolve_source(path, state.copy_source)),),
-                resources=(), outputs={'value': OutputTarget(state_map[path, state])},
+                resources={}, outputs={'value': OutputTarget(state_map[path, state])},
                 body=COPY_BODY,
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)

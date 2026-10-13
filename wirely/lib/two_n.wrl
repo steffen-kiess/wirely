@@ -22,7 +22,9 @@ namespace TwoN {
 
     default output: resource Device;
 
-    native initializer uses Host, Port, TLSA, credentials;
+    native initializer
+      produces default output as "device"
+      uses Host, Port, TLSA, credentials;
   }
 
   // Get an event whenever a key is pressed or released

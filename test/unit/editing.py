@@ -492,6 +492,10 @@ check_rename(Temporary(('T', 't')), 'u', ('temporary t:', 'temporary u:'), ('pro
              ('depends on t uses', 'depends on u as t uses'), ('-> t;', '-> u;'))
 check_rename(Port(('T', 'a'), 'input'), 'b', ('input a:', 'input b:'), ('depends on a,', 'depends on b as a,'),
              ('x.a -> x.a', 'x.b -> x.b'))
+check_rename(Port(('T', 'Named'), 'output'), 'Other', ('output Named:', 'output Other:'),
+             ('produces Named;', 'produces Other as Named;'),
+             source='resource type R;\nnative node type T {\n  output Named: resource R;\n'
+                    '  native initializer produces Named;\n}\n')
 check_rename(Procedure(('T', 'run')), 'go', ('procedure run', 'procedure go'), ('run.t', 'go.t'))
 check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "check"'))
 check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),

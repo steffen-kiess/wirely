@@ -190,7 +190,7 @@ class DeclarationState(Declaration):
 
 
 def validate_nodes(graph):
-    """Require a source for each procedure input port and variable."""
+    """Require a source for each procedure input port, variable, and native resource output."""
     for procedure in graph.procedures.values():
         procedure.validate_ports()
     for name, variable in graph.value_nodes.items():
@@ -200,6 +200,26 @@ def validate_nodes(graph):
             raise ProgramError(variable, f'{"State" if is_state else "Temporary"} {name!r} has no source')
     for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values()):
         check_alias_cycle(graph, node)
+    if getattr(graph, 'is_native', False):
+        validate_resource_outputs(graph)
+
+
+def validate_resource_outputs(graph):
+    """Require one source for each resource output of a native node type."""
+    produced = graph.initializer.output_keys if graph.initializer is not None else {}
+    for output in graph.output_ports.values():
+        if output.resource_type is None:
+            continue
+        name = 'Default output' if output.output_name == '' else f'Output {output.output_name!r}'
+        if output.connected_source is None and output not in produced:
+            raise ProgramError(output.port_spec, f'{name} has no source')
+        if output.connected_source is not None and output in produced:
+            connection = next(connection.source_element for connection in graph.connections
+                              if connection.target is output)
+            port = next(port for port in graph.initializer.produces.outputs if port.key == produced[output])
+            raise ProgramError(connection, f'{name} is both produced and connected', hints=[
+                CompilerHint(port, 'Produced by the native initializer here'),
+            ])
 
 
 def passed_on_variable(source):

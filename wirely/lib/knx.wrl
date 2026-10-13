@@ -26,6 +26,7 @@ namespace KNX {
     default output: resource Bus;
 
     native initializer
+      produces default output as "bus"
       uses parameter_option(Host) as Host,
         parameter_option(Protocol) as Protocol,
         parameter_option(Port) as Port,

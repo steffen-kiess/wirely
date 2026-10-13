@@ -523,9 +523,7 @@ def _endpoint_references(item):
             yield source, None
         yield item.target, None
     elif isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
-        ports = list(item.depends.dependencies)
-        if isinstance(item, ast.DeclarationProcedure):
-            ports += item.produces.outputs
+        ports = [*item.depends.dependencies, *item.produces.outputs]
         for port in ports:
             if isinstance(port, ast.ReferencePort):
                 yield port.reference, port

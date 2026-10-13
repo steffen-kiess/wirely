@@ -15,6 +15,7 @@ native_node_types = {}
 class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('device', self)
 
         import wirely.two_n.client
 

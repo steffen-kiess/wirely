@@ -134,6 +134,7 @@ def parse_mqtt_uri(uri):
 class Connection(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('broker', self)
 
         aiomqtt = get_aiomqtt()
 

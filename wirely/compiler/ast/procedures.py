@@ -197,10 +197,13 @@ class UsesDeclaration(SourceElement):
 
 
 class DeclarationInitializer(Declaration):
-    def __init__(self, depends: DependsDeclaration, uses=None, *, source_position: SourcePosition):
+    def __init__(self, depends: DependsDeclaration, produces: ProducesDeclaration, uses=None, *,
+                 source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.depends = depends
+        self.produces = produces
         self.uses = uses
+        self.output_keys = {}  # Produced resource output (TypeOutputPort) -> key.
 
     def collect_declarations(self, graph):
         if not isinstance(graph, model.NodeType) or not graph.is_native:
@@ -211,11 +214,29 @@ class DeclarationInitializer(Declaration):
             ])
         graph.initializer = self
         self.depends.collect_declarations(graph, self)
+        self.produces.collect_declarations(graph, self)
 
     def bind_body(self, graph):
         for port in self.depends.dependencies:
             if isinstance(port, TypedPort):
                 raise ProgramError(port, 'Initializer dependencies must reference resources')
+        for port in self.produces.outputs:
+            if isinstance(port, TypedPort):
+                raise ProgramError(port, 'Initializer outputs must reference resource outputs')
+        check_port_keys(self.produces.outputs)
+        declarations = {}
+        for port in self.produces.outputs:
+            with port.context:
+                output = port.reference.resolve(graph, PortDirection.Input, 'destination').port
+            if (not isinstance(output, model.TypeOutputPort) or output.graph is not graph
+                    or output.resource_type is None):
+                raise ProgramError(port, 'Initializer outputs must be resource outputs of the node type')
+            if output in declarations:
+                raise ProgramError(port, 'Duplicate initializer output', hints=[
+                    CompilerHint(declarations[output], 'Previous output was here'),
+                ])
+            declarations[output] = port
+            self.output_keys[output] = port.key
         self.depends.bind_body(graph, self)
         if self.uses is not None:
             self.uses.check(graph)

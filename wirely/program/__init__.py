@@ -7,6 +7,6 @@ from .procedures import (
 )
 from .program import (
     InputSource, NativeInstance, Procedure, Program, OutputTarget,
-    RunStage, Variable, VariableTable,
+    ResourceBinding, RunStage, Variable, VariableTable,
 )
 from .validation import validate_program
