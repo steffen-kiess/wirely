@@ -273,6 +273,13 @@ class ResolvedPortReference(SourceElement):
             self.port = static_source(static, self.node_name, self.port_name, direction)
             return
 
+        local = getattr(graph, 'local_resources', {}).get(self.node_name_str)
+        if local is not None:
+            if self.port_name is not None:
+                raise ProgramError(self.port_name, f'Resource {self.node_name_str!r} has no port {self.port_name_str!r}')
+            self.port = local
+            return
+
         # TODO: Should this be here?
         if direction == PortDirection.Input:
             if self.node_name_str in graph.output_ports and self.port_name_str == '':

@@ -40,6 +40,7 @@ class NodeType(model.Scope):
         self.output_ports = {}
         self.state_nodes = {}
         self.temporary_nodes = {}
+        self.local_resources = {}
         self.libraries = {}
         self.assertions = []
         self.interface_state = ResolutionState.PENDING
@@ -308,6 +309,9 @@ class NodeType(model.Scope):
                 temporary.port_spec = port.port_spec
                 node.port_storage[port] = temporary
 
+        for resource in self.local_resources.values():
+            model.InstanceLocalResource(node, resource)
+
         def source(port):
             """Map a connection source in this type to this instance."""
             if isinstance(port, model.TypeInputPort):
@@ -323,10 +327,15 @@ class NodeType(model.Scope):
                 return storage
             if isinstance(port, (model.InstanceOutputPort, model.StaticSource)):
                 return port
+            if isinstance(port, model.LocalResource):
+                return node.local_resources[port.name]
             raise Exception(f'Got unknown source: {port}')
 
         for name, temporary in temporaries.items():
             temporary.alias_of = source(self.temporary_nodes[name].connected_source)
+        for name, resource in self.local_resources.items():
+            if resource.connected_source is not None:
+                node.local_resources[name].alias_of = source(resource.connected_source)
         for name, state in self.state_nodes.items():
             if state.copy_source is not None:
                 state_variables[name].copy_source = source(state.copy_source)
@@ -339,6 +348,8 @@ class NodeType(model.Scope):
                     source_port = node.custom_inputs[dep]
                 elif isinstance(dep, model.InstanceNode):
                     source_port = dep.output_ports_byname['']
+                elif isinstance(dep, model.LocalResource):
+                    source_port = source(dep)
                 else:
                     source_port = dep
                 node.initializer_sources[port.key] = (source_port, port)

@@ -45,7 +45,7 @@ NUMBER_DISTANCE = 18
 ZOOM_RATE = 0.0015
 
 _KIND_COLORS = {
-    'node': '#4a78b0', 'state': '#a0522d', 'temporary': '#6b8e23', 'constant': '#7b68a6',
+    'node': '#4a78b0', 'state': '#a0522d', 'temporary': '#6b8e23', 'resource': '#9a5cc6', 'constant': '#7b68a6',
     'parameter': '#7b68a6', 'input': '#2e8b8b', 'output': '#2e8b8b', 'procedure': '#b07a2a',
     'unresolved': '#999999',
 }

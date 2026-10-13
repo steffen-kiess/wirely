@@ -47,8 +47,8 @@ class Socket:
 @dataclass(frozen=True)
 class Item:
     id: object
-    # 'node', 'state', 'temporary', 'constant', 'parameter', 'input', 'output',
-    # 'procedure', or 'unresolved'.
+    # 'node', 'state', 'temporary', 'resource', 'constant', 'parameter', 'input',
+    # 'output', 'procedure', or 'unresolved'.
     kind: str
     title: str
     subtitle: str
@@ -188,6 +188,11 @@ def build(program, path):
         add('temporary', record, record.name, record.type_text,
             (Socket(None, '', name, 'value', record.type_text, False),),
             (Socket(None, '', name, 'value', record.type_text, False),))
+    for record in scope.resources:
+        name = _reference(record.name)
+        add('resource', record, record.name, f'resource {record.type_text}',
+            (Socket(None, '', name, 'resource', record.type_text, False),),
+            (Socket(None, '', name, 'resource', record.type_text, False),))
     for record in scope.procedures:
         name = _reference(record.name)
         sockets = [[], []]
@@ -210,7 +215,7 @@ def build(program, path):
                                tuple(diagnostics[edge.id]) if edge.id is not None else ()))
 
     records = sorted((*scope.nodes, *scope.ports, *scope.parameters, *scope.constants,
-                      *scope.states, *scope.temporaries, *scope.procedures),
+                      *scope.states, *scope.temporaries, *scope.resources, *scope.procedures),
                      key=lambda record: (_file_rank(scope.filenames, record.filename), record.span[0]))
     unresolved = [builder for builder in builders.values() if isinstance(builder.id, Unresolved)]
     for order, builder in enumerate([builders[record.id] for record in records] + unresolved):

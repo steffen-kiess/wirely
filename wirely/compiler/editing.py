@@ -507,7 +507,7 @@ def _references(result, edge, target):
 def _used_names(scope):
     """Return the names of a scope's nodes, ports, statics, and procedures."""
     used = {item.name for item in (*scope.nodes, *scope.parameters, *scope.constants,
-                                   *scope.states, *scope.temporaries, *scope.procedures)}
+                                   *scope.states, *scope.temporaries, *scope.resources, *scope.procedures)}
     used.update(port.name for port in scope.ports if port.name is not None)
     return used
 

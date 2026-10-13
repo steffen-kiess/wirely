@@ -82,24 +82,36 @@ namespace Std {
     native procedure run stage output depends on default input as "input";
   }
 
+  #[Internal]
+  resource type DebugValueSourceState;
+
   native node type DebugValueSource {
     parameter Type: ValueType;
 
     default output: value Type;
 
-    native initializer uses Type;
+    resource state: DebugValueSourceState;
+    native initializer produces state as "state" uses Type;
 
-    native procedure run stage input produces default output as "output";
+    native procedure run stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type DebugEventSourceState;
 
   native node type DebugEventSource {
     parameter Type: ValueType;
 
     default output: event Type;
 
-    native initializer uses Type;
+    resource state: DebugEventSourceState;
+    native initializer produces state as "state" uses Type;
 
-    native procedure run stage input produces default output as "output";
+    native procedure run stage input
+      depends on state as "state"
+      produces default output as "output";
   }
 
   node type OptionNone {

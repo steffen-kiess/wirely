@@ -67,6 +67,7 @@ from .nodes import (
     circular_connection,
     register_name,
     DeclarationTemporary,
+    DeclarationLocalResource,
 )
 from .procedures import (
     StageDeclaration,

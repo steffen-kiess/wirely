@@ -56,17 +56,20 @@ class DebugEventPrinter:
 class DebugValueSource(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.current_value = None
 
         self.out_type = context.values['Type']
 
-    def run(self, *, context):
-        context.set_output('output', self.current_value)
+    @staticmethod
+    def run(*, context):
+        state = context.inputs['state']
+        context.set_output('output', state.current_value)
 
     def set_value(self, value):
         self.current_value = value
 
-        self.trigger('run')
+        self.trigger('Std.DebugValueSource:run', 'state', output='state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:
@@ -91,16 +94,19 @@ class DebugValueSource(NativeState):
 class DebugEventSource(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         # TODO: Allow a queue of values?
         self.next_value = None
 
         self.out_type = context.values['Type']
 
-    def run(self, *, context):
-        context.set_output('output', self.next_value)
-        if self.next_value is not None:
-            self.next_value = None
-            self.trigger('run')
+    @staticmethod
+    def run(*, context):
+        state = context.inputs['state']
+        context.set_output('output', state.next_value)
+        if state.next_value is not None:
+            state.next_value = None
+            context.trigger_self()
 
     def send_event(self, value):
         if self.next_value is not None:
@@ -108,7 +114,7 @@ class DebugEventSource(NativeState):
 
         self.next_value = value
 
-        self.trigger('run')
+        self.trigger('Std.DebugEventSource:run', 'state', output='state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:

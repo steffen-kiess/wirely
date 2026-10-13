@@ -47,6 +47,11 @@ class Temporary:
 
 
 @dataclass(frozen=True)
+class Resource:
+    path: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Constant:
     path: tuple[str, ...]
 
@@ -156,6 +161,18 @@ class TemporaryInfo:
 
 
 @dataclass(frozen=True)
+class ResourceInfo:
+    id: Resource
+    filename: str
+    span: tuple[int, int]
+    attributes: tuple
+    position: tuple | None
+    name: str
+    type_text: str
+    _declaration: object = field(default=None, compare=False, repr=False)
+
+
+@dataclass(frozen=True)
 class ConstantInfo:
     id: Constant
     filename: str
@@ -246,6 +263,7 @@ class Scope:
     namespaces: tuple['Scope', ...]
     states: tuple[StateInfo, ...]
     temporaries: tuple[TemporaryInfo, ...]
+    resources: tuple[ResourceInfo, ...]
     constants: tuple[ConstantInfo, ...]
     parameters: tuple[ParameterInfo, ...]
     ports: tuple[PortInfo, ...]
@@ -324,8 +342,8 @@ class Outline:
             index.setdefault(key, []).append(record)
 
         def visit(scope):
-            for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.constants,
-                           *scope.parameters, *scope.ports):
+            for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.resources,
+                           *scope.constants, *scope.parameters, *scope.ports):
                 add(record.id, record)
             for procedure in scope.procedures:
                 add(procedure.id, procedure)
@@ -474,7 +492,8 @@ def _ports(builder):
 def _names(builder):
     """Map each kind of name in a scope to the IDs of its declarations."""
     if builder.name_table is None:
-        table = {key: {} for key in ('static', 'input', 'output', 'state', 'temporary', 'procedure', 'node')}
+        table = {key: {} for key in ('static', 'input', 'output', 'state', 'temporary', 'resource', 'procedure',
+                                     'node')}
         for item in builder.items:
             if isinstance(item, ast.DeclarationConstant):
                 table['static'][item.name.id_str] = Constant(builder.path + (item.name.id_str,))
@@ -487,6 +506,8 @@ def _names(builder):
                 table['state'][item.name_str] = State(builder.path + (item.name_str,))
             elif isinstance(item, ast.DeclarationTemporary):
                 table['temporary'][item.name_str] = Temporary(builder.path + (item.name_str,))
+            elif isinstance(item, ast.DeclarationLocalResource):
+                table['resource'][item.name.id_str] = Resource(builder.path + (item.name.id_str,))
             elif isinstance(item, ast.DeclarationProcedure):
                 table['procedure'][item.name.id_str] = Procedure(builder.path + (item.name.id_str,))
             elif isinstance(item, ast.DeclarationInstance):
@@ -527,9 +548,9 @@ def _resolve_endpoint(builder, reference, is_target):
     port = reference.identifiers[1].id_str if reference.length == 2 else None
     names = _names(builder)
     if is_target:
-        kinds = ('static', 'output', 'state', 'temporary', 'procedure', 'node')
+        kinds = ('static', 'output', 'state', 'temporary', 'resource', 'procedure', 'node')
     else:
-        kinds = ('static', 'state', 'input', 'temporary', 'procedure', 'node')
+        kinds = ('static', 'state', 'input', 'temporary', 'resource', 'procedure', 'node')
     for kind in kinds:
         if kind in ('input', 'output') and port is not None:
             continue
@@ -576,6 +597,9 @@ def _record(builder, item):
     if isinstance(item, ast.DeclarationTemporary):
         return TemporaryInfo(Temporary(path + (item.name_str,)), *common, attributes,
                              _position(attributes), item.name_str, _text(item.var_type), item)
+    if isinstance(item, ast.DeclarationLocalResource):
+        return ResourceInfo(Resource(path + (item.name.id_str,)), *common, attributes,
+                            _position(attributes), item.name.id_str, _text(item.port_spec.ty), item)
     if isinstance(item, ast.DeclarationConstant):
         return ConstantInfo(Constant(path + (item.name.id_str,)), *common, attributes,
                             _position(attributes), item.name.id_str, _text(item.ty),
@@ -655,7 +679,8 @@ def _build_scope(builder):
     return Scope(
         builder.kind, builder.path, of_type(NodeInfo), node_types,
         tuple(_build_scope(child) for child in builder.namespaces.values()),
-        of_type(StateInfo), of_type(TemporaryInfo), of_type(ConstantInfo), of_type(ParameterInfo),
+        of_type(StateInfo), of_type(TemporaryInfo), of_type(ResourceInfo), of_type(ConstantInfo),
+        of_type(ParameterInfo),
         _ports(builder), of_type(ProcedureInfo),
         _with_occurrences([edge for item in builder.items for edge in _edges(builder, item)]),
         tuple(builder.blocks))

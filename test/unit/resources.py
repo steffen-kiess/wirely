@@ -49,6 +49,7 @@ class Incomplete(NativeState):
 class Consumer(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         inputs = context.inputs
         assert inputs['OtherService'] is inputs['implicit']
         assert inputs['RepeatedService'] is inputs['Service']
@@ -62,13 +63,16 @@ class Consumer(NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         startup_inputs.append(self.inputs)
 
-    def read(self, *, context):
-        assert dict(context.inputs) == dict(self.inputs)
+    @staticmethod
+    def read(*, context):
+        state = context.inputs['state']
+        assert {key: value for key, value in context.inputs.items() if key != 'state'} == dict(state.inputs)
         procedure_calls.append(('read', context.inputs['Service']))
         context.set_output('Count', context.inputs['Service'].value)
 
-    def poll(self, *, context):
-        assert context.inputs['Service'] is self.inputs['Service']
+    @staticmethod
+    def poll(*, context):
+        assert context.inputs['Service'] is context.inputs['state'].inputs['Service']
         procedure_calls.append(('poll', context.inputs['Service']))
 
 
@@ -104,6 +108,7 @@ def compile_resources(source):
 source = '''
 namespace TestLibrary {
   resource type Service;
+  resource type ConsumerState;
 
   native node type Provider {
     default output: resource Service;
@@ -140,15 +145,17 @@ namespace TestLibrary {
     node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
+    resource state: ConsumerState;
     native initializer
       depends on Service, OtherService, RepeatedService,
-        default input as "implicit", forwarded as "child";
+        default input as "implicit", forwarded as "child"
+      produces state as "state";
 
     native procedure read
-      depends on Service, OtherService, RepeatedService,
+      depends on state as "state", Service, OtherService, RepeatedService,
         default input as "implicit", forwarded as "child"
       produces Count;
-    native procedure poll stage input depends on Service;
+    native procedure poll stage input depends on state as "state", Service;
   }
 
   node type ProcedureConsumer {
@@ -271,6 +278,82 @@ node source: TestLibrary.Incomplete {}
 with patch.dict(wirely.native.test_library.native_node_types, registry), \
         checks.assertRaisesRegex(ValueError, r"did not write outputs: \['named'\]"):
     Engine(program_compiler.compile_nocatch(incomplete_graph))
+
+
+# A resource declaration passes on its one source, like a temporary: a native
+# node can hand its state to a child, and a composite node can name a child's
+# resource.
+alias_registry = {}
+alias_reads = []
+
+
+@native_node_type(alias_registry, has_native_state=True)
+class AliasSource(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        context.set_output('service', self)
+
+
+@native_node_type(alias_registry, has_native_state=True)
+class AliasChild(NativeState):
+    pass
+
+
+@native_node_type(alias_registry, has_native_state=True)
+class AliasHolder(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        context.set_output('state', self)
+
+
+@native_node_type(alias_registry, has_native_state=False)
+class AliasComposite:
+    @staticmethod
+    def read(*, context):
+        alias_reads.append(context.inputs['service'])
+
+
+with patch.dict(wirely.native.test_library.native_node_types, alias_registry):
+    alias_graph = wirely.compiler.compile_strs([('<resource-aliases>', '''
+namespace TestLibrary {
+  resource type Service;
+  native node type AliasSource {
+    default output: resource Service;
+    native initializer produces default output as "service";
+  }
+  native node type AliasChild {
+    input Service: resource Service;
+    native initializer depends on Service as "service";
+  }
+  native node type AliasHolder {
+    resource state: Service;
+    native initializer produces state as "state";
+    node child: AliasChild {}
+    connect state -> child.Service;
+  }
+  node type AliasComposite {
+    resource service: Service;
+    node source: AliasSource {}
+    connect source -> service;
+    node child: AliasChild {}
+    connect service -> child.Service;
+    native procedure read depends on service as "service";
+  }
+}
+node holder: TestLibrary.AliasHolder {}
+node composite: TestLibrary.AliasComposite {}
+''')])
+    assert alias_graph is not None
+    alias_program = program_compiler.compile_nocatch(alias_graph)
+    alias_resource_engine = Engine(alias_program)
+holder = alias_resource_engine.get_native_state('holder')
+assert alias_resource_engine.get_native_state('holder.child').inputs['service'] is holder
+source_state = alias_resource_engine.get_native_state('composite.source')
+assert alias_resource_engine.get_native_state('composite.child').inputs['service'] is source_state
+read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node_id == 'composite')
+assert dict(read.resources) == {'service': wirely.program.ResourceBinding('composite.source', 'service')}
+alias_resource_engine.step()
+assert alias_reads == [source_state]
 
 
 async def run_test():

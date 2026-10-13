@@ -131,7 +131,7 @@ class TypeOutputPort(GraphElement):
     def connect(self, source):
         # TODO: Clean up class structure for value sources / targets
         if not isinstance(source, (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
-                                   StaticSource)):
+                                   StaticSource, LocalResource)):
             raise Exception('source parameter value is not a data or resource source')
         # if self.is_list:
         if False:
@@ -170,6 +170,54 @@ class TemporaryNode(GraphElement):
 
     def __repr__(self):
         return f'<TemporaryNode "{self.name}">'
+
+
+class LocalResource(GraphElement):
+    """A declared resource, connected from one source or produced by the native initializer."""
+
+    def __init__(self, graph, declaration, resource_type):
+        super().__init__(graph, name=declaration.name.id_str)
+        self.declaration = declaration
+        self.port_spec = declaration.port_spec
+        self.resource_type = resource_type
+        self.var_type = None
+        graph.local_resources[self.name] = self
+
+        self.connected_source = None
+
+        # TODO: Remove
+        self.node = self
+
+    def connect(self, source):
+        if self.connected_source is not None:
+            raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
+        self.connected_source = source
+
+    def __repr__(self):
+        return f'<LocalResource "{self.name}">'
+
+
+class InstanceLocalResource:
+    """A local resource of one node instance."""
+
+    def __init__(self, node, resource):
+        self.node = node
+        self.resource = resource
+        self.var_identifier = resource.name
+        # The instance source passed on by a connected resource; None if produced.
+        self.alias_of = None
+        node.local_resources[resource.name] = self
+
+    @property
+    def port_spec(self):
+        return self.resource.port_spec
+
+    @property
+    def resource_type(self):
+        return self.resource.resource_type
+
+    def __repr__(self):
+        return f'<InstanceLocalResource "{self.node.name}.{self.resource.name}">'
 
 
 class StateNode(GraphElement):

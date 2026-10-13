@@ -154,7 +154,8 @@ Nodes and named ports in one node type, or at the top level, share one
 namespace.
 A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
-Python state or resources. Both forms require native support when instantiated.
+Python state or resources; it requires a `native initializer`, which creates
+them. Both forms require native support when instantiated.
 
 Node types with native state, resource types, and native functions accept
 `as "Qualified.Name"` after their name. Native code
@@ -407,6 +408,7 @@ namespace Example {
 
   native node type Client {
     input Service: resource Session;
+    native initializer depends on Service;
   }
 }
 ```
@@ -425,6 +427,20 @@ Composite nodes can forward resources through their inputs and outputs.
 A native node type produces each resource output in its
 [native initializer](native-python.md#native-objects-resources-and-tasks)
 or connects it from a child node.
+
+`resource name: Type;` declares a named resource in a node type or at the
+top level. Like a temporary, it has exactly one source: a connection, or
+the native initializer of a native node type producing it. Connections,
+initializers, and procedures can use it as a source. Native procedures
+access their node's native state through such a resource:
+
+```wirely
+native node type Receiver {
+  resource state: ReceiverState;
+  native initializer produces state as "state";
+  native procedure get_value depends on state as "state";
+}
+```
 
 The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 

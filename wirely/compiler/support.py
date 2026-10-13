@@ -10,9 +10,9 @@ debug_variable_resolution = False
 
 
 SOURCE_TYPES = (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
-                StateRead, model.ProcedureOutputPort, StaticSource)
+                StateRead, model.ProcedureOutputPort, StaticSource, model.LocalResource)
 TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureInputPort, model.TemporaryNode,
-                model.StateNode)
+                model.StateNode, model.LocalResource)
 
 
 def describe_target(target):
@@ -23,6 +23,8 @@ def describe_target(target):
         return 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
     if isinstance(target, (model.ProcedureInputPort, model.ProcedureOutputPort)):
         return target.description[0].upper() + target.description[1:]
+    if isinstance(target, model.LocalResource):
+        return f'Resource {target.name!r}'
     kind = 'State' if isinstance(target, model.StateNode) else 'Temporary'
     return f'{kind} {target.name!r}'
 
@@ -95,7 +97,8 @@ def port_declaration(port):
         return port.type_output_port.port_spec
     if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
         return port.port_spec
-    if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource)):
+    if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource,
+                         model.LocalResource)):
         return port.declaration
     return port.graph.value_nodes[port.name]
 
@@ -226,7 +229,8 @@ def resolve_variable(path, var, seen=None):
     if isinstance(var.node, InstanceNode) and var.node.node_type.is_singleton:
         owner = var.node.node_type.singleton_instance
         if owner is not var.node:
-            items = owner.input_ports + owner.output_ports + owner.temporaries + owner.state_variables
+            items = (owner.input_ports + owner.output_ports + owner.temporaries + owner.state_variables
+                     + list(owner.local_resources.values()))
             item = next(item for item in items if type(item) is type(var) and item.var_identifier == var.var_identifier)
             return resolve_variable((owner.node_type,), item, seen)
 
@@ -305,6 +309,20 @@ def resolve_variable(path, var, seen=None):
         if debug_variable_resolution:
             print(f'resolve_variable: returning {path}, {temporary}')
         return path, temporary
+
+    if isinstance(var, model.InstanceLocalResource):
+        # A connected resource is another name for its source.
+        if var.alias_of is not None:
+            return resolve_variable(path, var.alias_of, seen)
+        return path, var
+
+    if isinstance(var, model.LocalResource):
+        if path[-1] != var:
+            raise Exception('path[-1] != var')
+        node = path[-2]
+        if not isinstance(node, InstanceNode):
+            node = node.singleton_instance
+        return resolve_variable(path[:-1], node.local_resources[var.name], seen)
 
     if isinstance(var, model.TemporaryNode):
         # TODO: Clean up

@@ -32,6 +32,7 @@ def identity(*, context):
 class ValuesProbe(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         assert self.values['missing'] is None
         assert self.values['Absent'] == wirely.Some(None)
         assert self.values['Number'] == self.values['seed']
@@ -39,8 +40,9 @@ class ValuesProbe(NativeState):
         with checks.assertRaises(TypeError):
             context.values['Number'] = 1
 
-    def run(self, *, context):
-        assert context.values['seed'] == self.values['seed']
+    @staticmethod
+    def run(*, context):
+        assert context.values['seed'] == context.inputs['state'].values['seed']
         assert context.values['Missing'] is context.values['alias'] is None
         assert context.values['Absent'] == wirely.Some(None)
         assert context.values['Default'] is True
@@ -65,7 +67,8 @@ class ValuesProbe(NativeState):
             context.values = {}
         context.set_output('Number', context.values['seed'])
 
-    def empty(self, *, context):
+    @staticmethod
+    def empty(*, context):
         assert not context.values
         with checks.assertRaises(KeyError):
             context.values['seed']
@@ -88,6 +91,7 @@ class OptionalProbe(NativeState):
 def check_values():
     source = '''namespace TestLibrary {
   resource type Service;
+  resource type ValuesState;
   native node type Provider {
     default output: resource Service;
     native initializer produces default output as "service";
@@ -106,10 +110,11 @@ def check_values():
     constant Types: List[Option[ValueType]] = [Some(uint16), None];
     input Connection: resource Service;
     output Result: value uint16;
-    native initializer depends on Connection,
+    resource state: ValuesState;
+    native initializer depends on Connection, produces state as "state",
       uses Number, Seed as seed, Example.Same(20) as "retained",
         parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
-    native procedure run depends on Connection, produces Result as Number,
+    native procedure run depends on state as "state", Connection, produces Result as Number,
       uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
         parameter_option(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,

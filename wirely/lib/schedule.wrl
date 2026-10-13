@@ -3,11 +3,19 @@ namespace Schedule {
   native constant function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 
   #[Internal]
+  resource type TimeOfDayMinuteState;
+
+  #[Internal]
   native singleton node type TimeOfDayMinute {
     default output: value TimeOfDay;
 
+    resource state: TimeOfDayMinuteState;
+    native initializer produces state as "state";
+
     // TODO: Should this be "stage input"? Should this use some global time?
-    native procedure get_value produces default output as "output";
+    native procedure get_value
+      depends on state as "state"
+      produces default output as "output";
   }
 
   // TODO: Implement this in a way which does not cause code to be run every

@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 from wirely.compiler.editing import apply_edits
-from wirely.compiler.outline import Connection, Node, NodeType, Port, Procedure, State
+from wirely.compiler.outline import Connection, Node, NodeType, Port, Procedure, Resource, State
 from wirely.editor import graph_model
 from wirely.editor.graph_model import Unresolved, layout_edges
 from wirely.editor.layout import COLUMN_GAP, LayoutItem, layout
@@ -60,6 +60,22 @@ checks.assertEqual([(edge.kind, edge.source, edge.target) for edge in body.edges
 ])
 # Reading state.old does not order the layout.
 checks.assertEqual(layout_edges(body), [(Port(('Counter', 'Step'), 'input'), add), (add, count)])
+
+# A resource declaration is a connection target and a source for procedures.
+native = graph_model.build(Program([('main.wrl', '''resource type Handle;
+native node type Device {
+  resource state: Handle;
+  native initializer produces state as "state";
+  native procedure poll depends on state as "state";
+}
+''')]), ('Device',))
+state = Resource(('Device', 'state'))
+checks.assertEqual([(item.kind, item.title, sockets(item)) for item in native.items], [
+    ('resource', 'state', (['state'], ['state'])),
+    ('procedure', 'poll', (['poll.state'], [])),
+])
+checks.assertEqual([(edge.source, edge.target) for edge in native.edges],
+                   [((state, None), (Procedure(('Device', 'poll')), 'state'))])
 
 # Nodes get resolved ports; ends without a resolved port or element are
 # marked unresolved.

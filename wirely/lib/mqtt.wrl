@@ -25,6 +25,9 @@ namespace MQTT {
     native initializer produces default output as "broker" uses URI;
   }
 
+  #[Internal]
+  resource type ValueOptionProviderState;
+
   native node type ValueOptionProvider {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
@@ -40,11 +43,13 @@ namespace MQTT {
     input Broker: resource Broker;
     default input: value Option[Type];
 
+    resource state: ValueOptionProviderState;
     native initializer depends on Broker
+      produces state as "state"
       uses Type, Topic, parameter_option(Format) as Format, template_parts;
 
     native procedure set_value stage output
-      depends on default input as "input";
+      depends on state as "state", default input as "input";
   }
 
   node type ValueProvider {
@@ -70,6 +75,9 @@ namespace MQTT {
     connect create_option -> impl;
   }
 
+  #[Internal]
+  resource type EventSenderState;
+
   native node type EventSender {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
@@ -85,12 +93,17 @@ namespace MQTT {
     input Broker: resource Broker;
     default input: event Type;
 
+    resource state: EventSenderState;
     native initializer depends on Broker
+      produces state as "state"
       uses Type, Topic, parameter_option(Format) as Format, template_parts;
 
     native procedure send_value stage output
-      depends on default input as "input";
+      depends on state as "state", default input as "input";
   }
+
+  #[Internal]
+  resource type EventReceiverState;
 
   native node type EventReceiver {
     parameter Type: ValueType;
@@ -104,9 +117,13 @@ namespace MQTT {
     input Broker: resource Broker;
     default output: event Type;
 
+    resource state: EventReceiverState;
     native initializer depends on Broker
+      produces state as "state"
       uses Type, Topic, parameter_option(Format) as Format;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
 }

@@ -69,8 +69,9 @@ parameter values can still depend on how the type will be instantiated.
    procedure dependency and output declarations. Then apply explicit
    `connect` statements in their relative source order. This order preserves
    multi-input ordering and the choice of storage for procedure outputs.
-7. **`validate_bodies`.** Check that procedure inputs, local storage, and
-   resource outputs of native node types have sources. Reject local aliases
+7. **`validate_bodies`.** Check that procedure inputs, local storage,
+   declared resources, and resource outputs of native node types have
+   sources, and that native node types have initializers. Reject local aliases
    that refer back to themselves. Each body, including the top-level body, is
    now connected and checked.
 8. **`populate_instances`.** Fill in existing child instances with storage,

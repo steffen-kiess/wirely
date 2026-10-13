@@ -6,7 +6,7 @@ from ..functions import get_native_function_by_name
 from ..native import get_native_node_type_by_name
 
 
-def validate_native_method(native_class, name, *, has_native_state):
+def validate_native_method(native_class, name):
     description = f'{native_class.__name__}.{name}'
     try:
         method = inspect.getattr_static(native_class, name)
@@ -21,7 +21,7 @@ def validate_native_method(native_class, name, *, has_native_state):
         arguments = (native_class,)
     elif inspect.isfunction(method):
         function = method
-        arguments = (object(),) if has_native_state else ()
+        arguments = ()
     else:
         raise ValueError(f'Unsupported native procedure method {description!r}')
 
@@ -55,22 +55,18 @@ def link_native_classes(program):
         if instance.has_native_state:
             resolve(instance.type_name, True)
 
+    # Native procedures are static or class methods; any registered class may hold them.
     methods = set()
     for schedule in program.procs.values():
         for procedure in schedule:
             if procedure.body is None:
                 prefix, _, method = procedure.reference.rpartition(':')
-                # Procedures of native states are methods of the state's class.
-                state_type = procedure.node_context.type_name
-                if state_type is not None and prefix != state_type:
-                    raise ValueError(f'Native procedure {procedure.reference!r} must belong to '
-                                     f'native type {state_type!r}')
-                resolve(prefix, state_type is not None)
+                if prefix not in classes:
+                    classes[prefix] = get_native_node_type_by_name(prefix)
                 methods.add((prefix, method))
 
     for prefix, method in sorted(methods):
-        validate_native_method(classes[prefix], method,
-                               has_native_state=classes[prefix].native_node_has_native_state)
+        validate_native_method(classes[prefix], method)
     return classes
 
 

@@ -124,13 +124,14 @@ def _flag(attribute):
 
 # Extensions must explicitly define qualified names as well as unqualified ones.
 # Attribute names, their namespaces, and their arguments use PascalCase.
-_DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'temporary', 'constant', 'parameter', 'procedure'})
+_DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'temporary', 'resource', 'constant', 'parameter',
+                            'procedure'})
 
 ATTRIBUTE_REGISTRY = {
     'Internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
-        'temporary', 'struct_field', 'enum_member',
+        'temporary', 'resource', 'struct_field', 'enum_member',
     }), _flag),
     'Unordered': AttributeDefinition(frozenset({'port'}), _flag),
     # Diagram layout, see doc/diagram-layout.md.
@@ -196,6 +197,7 @@ def validate_files(files, *, contain=None):
         ast.DeclarationConnection: 'connection',
         ast.DeclarationState: 'state',
         ast.DeclarationTemporary: 'temporary',
+        ast.DeclarationLocalResource: 'resource',
         ast.DeclarationPort: 'port',
         ast.DeclarationParameter: 'parameter',
         ast.DeclarationConstant: 'constant',

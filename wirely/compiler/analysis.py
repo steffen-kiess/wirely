@@ -376,7 +376,7 @@ def _element_spans(result):
     elements = []
 
     def visit(scope):
-        for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.constants,
+        for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.resources, *scope.constants,
                        *scope.parameters, *scope.ports, *scope.procedures, *scope.node_types):
             elements.append((record.filename, record.span, record.id))
         for edge in scope.edges:

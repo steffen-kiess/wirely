@@ -15,6 +15,7 @@ native_node_types = {}
 class TimeOfDayMinute(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.task = None
         self._fake_time = None
 
@@ -40,7 +41,7 @@ class TimeOfDayMinute(NativeState):
         self.current_value = now_min
         # TODO: Should this avoid triggering if the value doesn't change?
         # TODO: Should this avoid triggering while _fake_time is set?
-        self.trigger('get_value')
+        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
 
         return wait_time_s
 
@@ -55,21 +56,23 @@ class TimeOfDayMinute(NativeState):
             # print(f'Waiting for {wait_time_s}', flush=True)
             await asyncio.sleep(wait_time_s)
 
-    def get_value(self, *, context):
-        if self._fake_time is not None:
-            context.set_output('output', self._fake_time)
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
+        if state._fake_time is not None:
+            context.set_output('output', state._fake_time)
             return
 
-        if self.task is None:
+        if state.task is None:
             raise Exception('start_tasks() was never called')
 
-        context.set_output('output', self.current_value)
+        context.set_output('output', state.current_value)
 
     # TODO: Is this used anywhere?
     def update_value(self):
         import datetime
 
-        self.trigger('get_value')
+        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
 
     @check_parameters
     def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]):
@@ -77,7 +80,7 @@ class TimeOfDayMinute(NativeState):
 
         # TODO: Make sure that seconds/microseconds are 0?
 
-        self.trigger('get_value')
+        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:

@@ -53,6 +53,7 @@ class ValueWriter(NativeState):
 
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         self.file = None
 
@@ -96,7 +97,7 @@ class ValueWriter(NativeState):
                     else:
                         self.write_value(('', False), time)
                         # Make sure that if after the shutdown another step is run run() will be called again
-                        self.trigger('run')
+                        self.trigger('CSV.ValueWriter:run', 'state', output='state')
             finally:
                 self.writer = None
                 self.file = None
@@ -122,7 +123,9 @@ class ValueWriter(NativeState):
         self.last_value_csv = new_value_csv
         return True
 
-    def run(self, *, context):
+    @staticmethod
+    def run(*, context):
+        state = context.inputs['state']
         new_value = context.inputs['input']
         reached = context.inputs['repeat_time_reached']
         repeat_time = context.inputs['repeat_time_old']
@@ -140,9 +143,9 @@ class ValueWriter(NativeState):
         if force:
             # Make sure that if in the next cycle/step the timeout is reached again, the procedure will be called again.
             # TODO: Should this simply be done whenever write_value() is called?
-            self.trigger('run')
+            context.trigger_self()
 
-        written = self.write_value(new_value_csv, time, force=force)
+        written = state.write_value(new_value_csv, time, force=force)
         if written:
             # TODO: Think what happens if new_value_csv is ('', False)
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic

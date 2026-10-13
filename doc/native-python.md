@@ -18,12 +18,10 @@ and the last component the class.
 
 A native procedure's
 [native name](language.md#state-and-execution), such as
-`Std.Constant:run`, selects the method after `:` on the class named
-before it. For a node with native state, the class must be the node
-type's own, and the method runs on the native state object. Without native
-state, the method is a static method or class method. The method name
-also identifies the procedure for triggers, so it must be unique within a
-node type.
+`Std.Constant:run`, selects a static method or class method: the part
+before `:` names a registered class, and the part after it the method.
+Procedures receive a native state only through a resource dependency, as
+shown [below](#native-objects-resources-and-tasks).
 
 Native registries must be available when constructing an `Engine` from
 `wirely.runtime.engine`. It resolves classes using the native type names
@@ -62,10 +60,10 @@ class OptionSome:
         context.set_output('output', wirely.Some(context.inputs['input']))
 ```
 
-Use `has_native_state=False` for a class implementing procedures of node
-types without native state, as above. For a `native node type`, use `has_native_state=True` and instance
-methods such as `def run(self, *, context)`. Either form can also declare
-`.wrl` state.
+Register the class of a `native node type` with `has_native_state=True`,
+and other classes with `has_native_state=False`, as above. Either kind of
+class can implement procedures. Node types of either kind can also
+declare `.wrl` state.
 
 Procedures run synchronously with the keyword argument `context`; their
 return values are ignored. Use native node tasks for asynchronous I/O.
@@ -161,7 +159,7 @@ Event ports use the same representation, adding an outer option:
 
 These encodings apply to both reads and writes. Value ports carry
 values directly. After emitting an event, schedule another invocation with
-`self.trigger('run')` to write `None`.
+`context.trigger_self()` to write `None`.
 
 ## Value type descriptors
 
@@ -204,11 +202,8 @@ and call `super().__init__(context=context)`.
 `self.values` and `self.inputs` give the same mappings. Native
 singletons share one object.
 
-Changes to Python fields do not automatically schedule procedures. Call
-`self.trigger('get_value')` to schedule a procedure on this native node.
-Repeated triggers before execution schedule one invocation.
-
-Declare constructor resource inputs and outputs inside a native node type:
+The native initializer declares the constructor's resource inputs and
+outputs:
 
 ```wirely
 native initializer depends on Broker produces default output as "topic";
@@ -222,6 +217,49 @@ usually passing the native object itself. Providers are constructed before
 their consumers. An initializer accepts only resource dependencies and
 outputs. See [`mqtt.py`](../wirely/native/mqtt.py) for provider and client
 examples.
+
+To give procedures access to the native object, produce it as a
+[resource](language.md#opaque-resource-ports) and depend on it:
+
+```wirely
+resource type ReceiverState;
+
+native node type Receiver {
+  default output: value Option[boolean];
+  resource state: ReceiverState;
+  native initializer produces state as "state";
+  native procedure get_value stage input
+    depends on state as "state"
+    produces default output as "output";
+}
+```
+
+```python
+@native_node_type(native_node_types, has_native_state=True)
+class Receiver(NativeState):
+    def __init__(self, *, context):
+        super().__init__(context=context)
+        context.set_output('state', self)
+        self.value = None
+
+    def receive(self, value):
+        self.value = value
+        self.trigger('Example.Receiver:get_value', 'state', output='state')
+
+    @staticmethod
+    def get_value(*, context):
+        value = context.inputs['state'].value
+        if value is not None:
+            value = wirely.Some(value)
+        context.set_output('output', value)
+```
+
+Changes to Python fields do not automatically schedule procedures. Call
+`self.trigger(procedure, input, output=key)` to schedule each procedure
+with native name `procedure` whose resource dependency `input` is this
+object's output `key`, in any node. Repeated triggers before execution
+schedule one invocation. Inside a procedure, use `context.trigger_self()`
+instead.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
 `start_tasks_async(task_group, async_exit_stack)` on each native object.

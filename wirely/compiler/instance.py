@@ -33,6 +33,7 @@ class InstanceNode(model.GraphElement):
         self.input_ports_byname = {}
         self.output_ports_byname = {}
         self.temporaries = []
+        self.local_resources = {}
         self.state_variables = []
         self.procedures = []
         self.last_proc_id = 0
@@ -267,7 +268,7 @@ class InstanceInputPort(InstanceSource):
     def connect(self, output):
         # TODO: Clean up class structure for value sources / targets
         if not isinstance(output, (InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
-                                   model.StaticSource)):
+                                   model.StaticSource, model.LocalResource)):
             raise Exception('output parameter value is not a data or resource source')
         if self.is_list:
             # TODO: Clean up
@@ -440,7 +441,8 @@ class InstanceProcedure:
 
         self.dependencies = []
         for dependency in dependencies:
-            if not isinstance(dependency, (InstanceSource, InstanceOutputPort, model.StateRead, model.StaticSource)):
+            if not isinstance(dependency, (InstanceSource, InstanceOutputPort, model.StateRead, model.StaticSource,
+                                           model.InstanceLocalResource)):
                 raise Exception('dependencies parameter value is not an Input or Temporary instance')
             # Old-state dependencies have no producer edge; new-state reads depend on the writer.
             # TODO: Allow dependencies on other nodes? Probably yes. Maybe check where dependency.node is a child of the current node?

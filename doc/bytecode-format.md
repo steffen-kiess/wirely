@@ -592,9 +592,6 @@ zero-count range.
 // A native procedure invocation or procedure body with its bindings.
 // Procedures table.
 struct type Procedure {
-  // Index into NativeStates, or no entry for stateless calls and
-  // procedure bodies.
-  NativeState: OptionalRef,
   // Index into NativeProcedures, or no entry for a procedure body.
   Native: OptionalRef,
   // Index into ProcedureBodies, or no entry for a native procedure.
@@ -614,12 +611,17 @@ Procedures are stored in execution order, consecutively within each
 stage. Each procedure has either a native procedure or a body.
 
 The native procedure identifies the native implementation and its
-interfaces. When present, the native state supplies the native state
-object. Each native procedure call receives its own resolved `uses`
-values; omitting `uses` gives an empty binding range. Triggers and wakeups
-identify a scheduled procedure by its native state and native procedure
-references. Stateless procedures retain distinct entries even when they
-invoke the same native procedure.
+interfaces. Native procedures reach native state objects only through
+their resource inputs. Each native procedure call receives its own
+resolved `uses` values; omitting `uses` gives an empty binding range.
+Procedures retain distinct entries even when they invoke the same native
+procedure.
+
+A self-trigger or wakeup refers to its own `Procedures` entry. A native
+state triggers procedures by naming a native procedure, one of its
+resource inputs, and one of the state's resource outputs. This schedules
+each entry of that native procedure whose `ResourceInputs` bind that input
+to the state's output.
 
 A body procedure executes its instruction stream. Its `Uses` and
 `Resources` ranges are empty, and each value input has one source.
@@ -747,8 +749,7 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 
 The runtime matches the qualified names of native state types, native
 procedures, and native functions to native code, and binds interface names
-to static values, inputs, outputs, and resources. Linking also checks that
-each procedure's native state has the type its native procedure expects.
+to static values, inputs, outputs, and resources.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes
@@ -758,7 +759,7 @@ value/event specialization is not currently supported. Procedure debug
 symbols remain instance names such as `someblock:procedure`.
 
 Embedded adapters can retain numeric bindings and function pointers after
-linking. Native trigger names resolve to the same native procedure indices.
+linking. Native state triggers resolve to fixed lists of `Procedures` entries.
 
 ## ProcedureCode
 

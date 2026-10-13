@@ -46,6 +46,7 @@ class Connection(NativeState):
 class KeyEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         self.received_value = None
 
@@ -82,25 +83,28 @@ class KeyEvent(NativeState):
             print(f'Warning: TwoN.KeyEvent: Got event while old event is pending: {self.received_value} -> {new_value}', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('get_value')
+        self.trigger('TwoN.KeyEvent:get_value', 'state', output='state')
         self.received_value = new_value
 
-    def get_value(self, *, context):
-        value = self.received_value
-        self.received_value = None
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
+        value = state.received_value
+        state.received_value = None
 
         if value is None:
             context.set_output('output', None)
         else:
             context.set_output('output', wirely.Some(value))
             # Trigger to set value to None again
-            self.trigger('get_value')
+            context.trigger_self()
 
 
 @native_node_type(native_node_types, has_native_state=True)
 class CodeEnteredEvent(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         self.pending = False
 
@@ -133,19 +137,21 @@ class CodeEnteredEvent(NativeState):
             print('Warning: TwoN.CodeEnteredEvent: Got event while old event is pending', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('get_value')
+        self.trigger('TwoN.CodeEnteredEvent:get_value', 'state', output='state')
         self.pending = True
 
-    def get_value(self, *, context):
-        value = self.pending
-        self.pending = False
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
+        value = state.pending
+        state.pending = False
 
         if not value:
             context.set_output('output', None)
         else:
             context.set_output('output', wirely.Some(wirely.Unit()))
             # Trigger to set value to None again
-            self.trigger('get_value')
+            context.trigger_self()
 
 
 @native_node_type(native_node_types, has_native_state=False)
@@ -191,6 +197,7 @@ class KeyState(NativeState):
 class IOState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
@@ -249,11 +256,13 @@ class IOState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('get_value')
+        self.trigger('TwoN.IOState:get_value', 'state', output='state')
         self.current_value = new_value
 
-    def get_value(self, *, context):
-        value = self.current_value
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
+        value = state.current_value
         if value is None:
             raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
@@ -264,6 +273,7 @@ class IOState(NativeState):
 class SwitchState(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         # TODO: What value should this provide while there is no connection?
         self.current_value = None
@@ -320,11 +330,13 @@ class SwitchState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('get_value')
+        self.trigger('TwoN.SwitchState:get_value', 'state', output='state')
         self.current_value = new_value
 
-    def get_value(self, *, context):
-        value = self.current_value
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
+        value = state.current_value
         if value is None:
             raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
@@ -335,6 +347,7 @@ class SwitchState(NativeState):
 class OutputControl(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         # Task is needed for sending out values
         self.task = None
@@ -358,7 +371,9 @@ class OutputControl(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def send_value(self, *, context):
+    @staticmethod
+    def send_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -366,13 +381,13 @@ class OutputControl(NativeState):
             return
         value = value_opt.value
 
-        if self.value_to_send is not None:
+        if state.value_to_send is not None:
             print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
-        self.value_to_send = value
-        self.event.set()
+        state.value_to_send = value
+        state.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.trigger('send_value')
+        context.trigger_self()
 
     async def run_task(self):
         while True:

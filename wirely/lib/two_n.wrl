@@ -27,6 +27,9 @@ namespace TwoN {
       uses Host, Port, TLSA, credentials;
   }
 
+  #[Internal]
+  resource type KeyEventState;
+
   // Get an event whenever a key is pressed or released
   native node type KeyEvent {
     #[Diagram.ShowValue]
@@ -36,9 +39,12 @@ namespace TwoN {
     // True if the key is pressed, false if it released.
     default output: event boolean;
 
-    native initializer depends on Device uses Key;
+    resource state: KeyEventState;
+    native initializer depends on Device produces state as "state" uses Key;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
 
   // Get the current state of a key
@@ -80,6 +86,9 @@ namespace TwoN {
       uses Timeout;
   }
 
+  #[Internal]
+  resource type IOStateState;
+
   // Get the current state of an input or output
   // TODO: Regularly get the current value?
   native node type IOState {
@@ -88,13 +97,19 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device uses Port;
+    resource state: IOStateState;
+    native initializer depends on Device produces state as "state" uses Port;
 
     // True if the input/output is on, false otherwise.
     default output: value boolean;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type SwitchStateState;
 
   // Get the current state of a switch
   // TODO: Regularly get the current value?
@@ -104,15 +119,24 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device uses SwitchNumber;
+    resource state: SwitchStateState;
+    native initializer
+      depends on Device
+      produces state as "state"
+      uses SwitchNumber;
 
     // True if the switch is active, false otherwise.
     default output: value boolean;
 
     // TODO: Outputs for "locked" and "held"?
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type CodeEnteredEventState;
 
   native node type CodeEnteredEvent {
     parameter Code: String;
@@ -122,10 +146,16 @@ namespace TwoN {
     input Device: resource Device;
     default output: event unit;
 
-    native initializer depends on Device uses Code;
+    resource state: CodeEnteredEventState;
+    native initializer depends on Device produces state as "state" uses Code;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type OutputControlState;
 
   native node type OutputControl {
     #[Diagram.ShowValue]
@@ -133,13 +163,14 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    native initializer depends on Device uses Port;
+    resource state: OutputControlState;
+    native initializer depends on Device produces state as "state" uses Port;
 
     // True to turn the output is on, false to turn it off.
     default input: event boolean;
 
     native procedure send_value stage output
-      depends on default input as "input";
+      depends on state as "state", default input as "input";
   }
 
   // TODO: Block for setting output from value?

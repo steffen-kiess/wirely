@@ -17,23 +17,28 @@ registry = {}
 class HeldEventSource(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.value = None
 
     def set_value(self, value):
         if self.value != value:
             self.value = value
-            self.trigger('run')
+            self.trigger('TestLibrary.HeldEventSource:run', 'state', output='state')
 
-    def run(self, *, context):
+    @staticmethod
+    def run(*, context):
         # The timestamp node must keep stepping even when this output is cached.
-        context.set_output('output', self.value)
+        context.set_output('output', context.inputs['state'].value)
 
 
 source = '''namespace TestLibrary {
+  resource type HeldEventState;
   native node type HeldEventSource {
     default output: event boolean;
 
-    native procedure run produces default output as "output";
+    resource state: HeldEventState;
+    native initializer produces state as "state";
+    native procedure run depends on state as "state" produces default output as "output";
   }
 }
 node input: TestLibrary.HeldEventSource {}

@@ -9,7 +9,7 @@ from wirely.util import check_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
 from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Declaration, Value
-from .specifiers import PortDirection
+from .specifiers import PortDirection, ListSpecifier, PortTypeSpecificationResource
 from .values import Reference
 
 
@@ -198,7 +198,18 @@ def validate_nodes(graph):
         node = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
         if node.connected_source is None:
             raise ProgramError(variable, f'{"State" if is_state else "Temporary"} {name!r} has no source')
-    for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values()):
+    produced = graph.initializer.output_keys if getattr(graph, 'initializer', None) is not None else {}
+    for resource in graph.local_resources.values():
+        if resource.connected_source is None and resource not in produced:
+            raise ProgramError(resource.declaration, f'Resource {resource.name!r} has no source')
+        if resource.connected_source is not None and resource in produced:
+            connection = next(connection.source_element for connection in graph.connections
+                              if connection.target is resource)
+            port = next(port for port in graph.initializer.produces.outputs if port.key == produced[resource])
+            raise ProgramError(connection, f'Resource {resource.name!r} is both produced and connected', hints=[
+                CompilerHint(port, 'Produced by the native initializer here'),
+            ])
+    for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values(), *graph.local_resources.values()):
         check_alias_cycle(graph, node)
     if getattr(graph, 'is_native', False):
         validate_resource_outputs(graph)
@@ -206,7 +217,9 @@ def validate_nodes(graph):
 
 def validate_resource_outputs(graph):
     """Require one source for each resource output of a native node type."""
-    produced = graph.initializer.output_keys if graph.initializer is not None else {}
+    if graph.initializer is None:
+        raise ProgramError(graph.name, 'Native node types require a native initializer')
+    produced = graph.initializer.output_keys
     for output in graph.output_ports.values():
         if output.resource_type is None:
             continue
@@ -223,8 +236,8 @@ def validate_resource_outputs(graph):
 
 
 def passed_on_variable(source):
-    """Return the temporary or copied state whose value source passes on, if any."""
-    if isinstance(source, model.TemporaryNode):
+    """Return the temporary, resource, or copied state whose value source passes on, if any."""
+    if isinstance(source, (model.TemporaryNode, model.LocalResource)):
         return source
     if isinstance(source, model.StateRead) and source.phase == 'new' and source.state.copy_source is not None:
         return source.state
@@ -259,6 +272,29 @@ def register_name(graph, name, declaration):
             CompilerHint(previous, 'Previous declaration was here'),
         ])
     graph.name_declarations[name.id_str] = declaration
+
+
+class DeclarationLocalResource(Declaration):
+    """A named resource with one source, like a temporary."""
+
+    @check_parameters
+    def __init__(self, name: Identifier, resource_type: Reference, *, source_position: SourcePosition):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.port_spec = PortTypeSpecificationResource(
+            ListSpecifier(False, source_position=resource_type.source_position), resource_type,
+            source_position=resource_type.source_position,
+        )
+
+    def collect_declarations(self, graph):
+        register_name(graph, self.name, self)
+
+    def register_interface_declarations(self, interface):
+        self.interface = interface
+
+    def prepare_interface(self, new_graph):
+        resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
+        copy_attributes(model.LocalResource(new_graph, self, resource_type), self)
 
 
 class DeclarationTemporary(Declaration):

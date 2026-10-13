@@ -68,9 +68,12 @@ class NativeState:
     def _shutdown_time(self) -> datetime.datetime | None:
         return self.context._engine.shutdown_time
 
-    def trigger(self, name: str) -> None:
+    def trigger(self, procedure: str, input: str, *, output: str) -> None:
+        """Schedule each procedure `procedure` whose resource `input` is this state's `output`."""
         context = self.context
-        context._engine.trigger(context._node_id, name)
+        if output not in context._output_names:
+            raise ValueError(f'Unknown output name {output!r} on {context.name}')
+        context._engine.trigger_dependents(context._node_id, output, procedure, input)
 
     def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
         pass

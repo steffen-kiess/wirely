@@ -149,6 +149,8 @@ class DependsDeclaration(SourceElement):
                     raise ProgramError(dep, 'State dependencies must explicitly reference .old or .new')
             elif name in self.graph.input_ports:
                 res = self.graph.input_ports[name]
+            elif name in self.graph.local_resources:
+                res = self.graph.local_resources[name]
             else:
                 raise ProgramError(dep, f'Could not find dependency')
             resolved.append(res)
@@ -222,7 +224,7 @@ class DeclarationInitializer(Declaration):
         self.depends = depends
         self.produces = produces
         self.uses = uses
-        self.output_keys = {}  # Produced resource output (TypeOutputPort) -> key.
+        self.output_keys = {}  # Produced resource output or local resource -> key.
 
     def collect_declarations(self, graph):
         if not isinstance(graph, model.NodeType) or not graph.is_native:
@@ -247,9 +249,10 @@ class DeclarationInitializer(Declaration):
         for port in self.produces.outputs:
             with port.context:
                 output = port.reference.resolve(graph, PortDirection.Input, 'destination').port
-            if (not isinstance(output, model.TypeOutputPort) or output.graph is not graph
+            if not isinstance(output, model.LocalResource) and (
+                    not isinstance(output, model.TypeOutputPort) or output.graph is not graph
                     or output.resource_type is None):
-                raise ProgramError(port, 'Initializer outputs must be resource outputs of the node type')
+                raise ProgramError(port, 'Initializer outputs must be resource outputs or local resources of the node type')
             if output in declarations:
                 raise ProgramError(port, 'Duplicate initializer output', hints=[
                     CompilerHint(declarations[output], 'Previous output was here'),

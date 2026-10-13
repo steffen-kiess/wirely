@@ -269,7 +269,8 @@ def lower_program(global_node_type):
             raise model.ProgramError(port, 'Resource input has no native provider', hints=[
                 model.CompilerHint(output.port_spec, 'Resource output was declared here'),
             ])
-        binding = ResourceBinding(node_ids[provider_path], node_type.initializer.output_keys[output.type_output_port])
+        produced = output.resource if isinstance(output, model.InstanceLocalResource) else output.type_output_port
+        binding = ResourceBinding(node_ids[provider_path], node_type.initializer.output_keys[produced])
         return provider_path, binding, model.traced_connections(list(trace.values()))
 
     initializer_bindings = {}

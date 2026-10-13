@@ -2,6 +2,9 @@ namespace CSV {
   #[Internal]
   native constant function SupportsType(type: ValueType): boolean;
 
+  #[Internal]
+  resource type ValueWriterState;
+
   // Writes lines with:
   // - Current date / time
   // - Old value (or null (unquoted empty string) on startup / when value was
@@ -20,7 +23,8 @@ namespace CSV {
 
     assert SupportsType(Type), "Type must support CSV conversion";
 
-    native initializer uses Filename;
+    resource state: ValueWriterState;
+    native initializer produces state as "state" uses Filename;
     // TODO: Make repeat interval configurable? Allow disabling repeat?
 
     default input: value Type;
@@ -34,7 +38,7 @@ namespace CSV {
     connect repeat_time.old -> repeat_time_reached;
 
     native procedure run stage output
-      depends on repeat_time.old as "repeat_time_old",
+      depends on state as "state", repeat_time.old as "repeat_time_old",
         default input as "input", repeat_time_reached
       produces repeat_time uses Type;
   }

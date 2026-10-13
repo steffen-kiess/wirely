@@ -35,6 +35,9 @@ namespace KNX {
         parameter_option(IndividualAddress) as IndividualAddress;
   }
 
+  #[Internal]
+  resource type ValueReceiverState;
+
   native node type ValueReceiver {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
@@ -52,11 +55,18 @@ namespace KNX {
     input Bus: resource Bus;
     default output: value Option[Type];
 
+    resource state: ValueReceiverState;
     native initializer depends on Bus
+      produces state as "state"
       uses Type, group_address, value_type_name;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type ValueOptionProviderState;
 
   native node type ValueOptionProvider {
     parameter Type: ValueType;
@@ -74,11 +84,13 @@ namespace KNX {
     input Bus: resource Bus;
     default input: value Option[Type];
 
+    resource state: ValueOptionProviderState;
     native initializer depends on Bus
+      produces state as "state"
       uses Type, group_address, value_type_name;
 
     native procedure set_value stage output
-      depends on default input as "input";
+      depends on state as "state", default input as "input";
   }
 
   node type ValueProvider {
@@ -97,6 +109,9 @@ namespace KNX {
     connect create_option -> impl;
   }
 
+  #[Internal]
+  resource type EventReceiverState;
+
   native node type EventReceiver {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
@@ -108,11 +123,18 @@ namespace KNX {
     input Bus: resource Bus;
     default output: event Type;
 
+    resource state: EventReceiverState;
     native initializer depends on Bus
+      produces state as "state"
       uses Type, group_address, value_type_name;
 
-    native procedure get_value stage input produces default output as "output";
+    native procedure get_value stage input
+      depends on state as "state"
+      produces default output as "output";
   }
+
+  #[Internal]
+  resource type EventSenderState;
 
   native node type EventSender {
     parameter Type: ValueType;
@@ -125,10 +147,12 @@ namespace KNX {
     input Bus: resource Bus;
     default input: event Type;
 
+    resource state: EventSenderState;
     native initializer depends on Bus
+      produces state as "state"
       uses Type, group_address, value_type_name;
 
     native procedure send_value stage output
-      depends on default input as "input";
+      depends on state as "state", default input as "input";
   }
 }

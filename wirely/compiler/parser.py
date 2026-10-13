@@ -53,6 +53,7 @@ ast_classes = [
     model.DeclarationConnection,
     model.DeclarationState,
     model.DeclarationTemporary,
+    model.DeclarationLocalResource,
     model.DeclarationProcedure,
     model.DeclarationInitializer,
     model.NativeSpecifier,

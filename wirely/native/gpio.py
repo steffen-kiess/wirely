@@ -8,6 +8,7 @@ native_node_types = {}
 class Output(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.gpio_request = None
         self.direction_set = False
 
@@ -41,14 +42,16 @@ class Output(NativeState):
         ))
         self.direction_set = False
 
-    def set_value(self, *, context):
+    @staticmethod
+    def set_value(*, context):
+        state = context.inputs['state']
         import gpiod
         from gpiod.line import Bias, Direction, Drive, Value
 
         value = context.inputs['input']
         logical_value = Value.ACTIVE if value else Value.INACTIVE
 
-        if not self.direction_set:
+        if not state.direction_set:
             bias = {
                 'AsIs': Bias.AS_IS,
                 'Disable': Bias.DISABLED,
@@ -60,15 +63,15 @@ class Output(NativeState):
                 'OpenDrain': Drive.OPEN_DRAIN,
                 'OpenSource': Drive.OPEN_SOURCE,
             }
-            self.gpio_request.reconfigure_lines({
-                self.gpio_offset: gpiod.LineSettings(
+            state.gpio_request.reconfigure_lines({
+                state.gpio_offset: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
                     output_value=logical_value,
-                    active_low=self.values['ActiveState'].name == 'Low',
-                    drive=drive[self.values['Drive'].name],
-                    bias=bias[self.values['Bias'].name],
+                    active_low=state.values['ActiveState'].name == 'Low',
+                    drive=drive[state.values['Drive'].name],
+                    bias=bias[state.values['Bias'].name],
                 ),
             })
-            self.direction_set = True
+            state.direction_set = True
         else:
-            self.gpio_request.set_value(self.gpio_offset, logical_value)
+            state.gpio_request.set_value(state.gpio_offset, logical_value)

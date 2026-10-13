@@ -110,23 +110,28 @@ def check_resource_isolation():
     class Consumer(NativeState):
         def __init__(self, *, context):
             super().__init__(context=context)
+            context.set_output('state', self)
             self.count = 0
 
-        def run(self, *, context):
-            self.count += 1
-            context.set_output('output', self.count)
+        @staticmethod
+        def run(*, context):
+            state = context.inputs['state']
+            state.count += 1
+            context.set_output('output', state.count)
 
     source = '''namespace TestLibrary {
   resource type Service;
+  resource type ConsumerState;
   singleton native node type Provider {
     default output: resource Service;
     native initializer produces default output as "service";
   }
   native node type Consumer {
     input Service: resource Service;
+    resource state: ConsumerState;
     default output: value uint8;
-    native initializer depends on Service as service;
-    native procedure run produces default output as output;
+    native initializer depends on Service as service produces state as "state";
+    native procedure run depends on state as "state" produces default output as output;
   }
 }
 node provider: TestLibrary.Provider {}

@@ -47,6 +47,7 @@ class Connection(NativeState):
 class ValueReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.current_value = None
 
         import xknx
@@ -85,12 +86,14 @@ class ValueReceiver(NativeState):
 
         self.current_value = val
 
-        self.trigger('get_value')
+        self.trigger('KNX.ValueReceiver:get_value', 'state', output='state')
 
-    def get_value(self, *, context):
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
-        res = self.current_value
+        res = state.current_value
 
         if res is None:
             res_opt = None
@@ -105,6 +108,7 @@ class ValueReceiver(NativeState):
 class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         # TODO: Is this needed?
         self.current_value = None
@@ -145,27 +149,29 @@ class ValueOptionProvider(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def set_value(self, *, context):
+    @staticmethod
+    def set_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
 
         if value_opt is None:
-            # TODO: Somehow reset the self.expose value in this case?
+            # TODO: Somehow reset the state.expose value in this case?
             value = None
         else:
             value = value_opt.value
             # TODO: Any checks needed here?
 
-        print(f'Setting output {self.address} to {value}, old value_to_send is {self.value_to_send}', flush=True)
+        print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
 
         # This does not work because this function is not async
         # Also this would have to handle None values
-        # await self.expose.set(value)
+        # await state.expose.set(value)
         # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
         # TODO: Provide some notification if this is happening?
-        self.value_to_send = value
-        self.event.set()
+        state.value_to_send = value
+        state.event.set()
 
     async def run_task(self):
         while True:
@@ -185,6 +191,7 @@ class ValueOptionProvider(NativeState):
 class EventReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         self.task = None
         self.received_values = []
@@ -224,28 +231,31 @@ class EventReceiver(NativeState):
         value = self.values['Type'].validate(val)
 
         self.received_values.append(value)
-        self.trigger('get_value')
+        self.trigger('KNX.EventReceiver:get_value', 'state', output='state')
 
-    def get_value(self, *, context):
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
-        if len(self.received_values) == 0:
+        if len(state.received_values) == 0:
             context.set_output('output', None)
             return
-        value = self.received_values.pop(0)
+        value = state.received_values.pop(0)
 
         res_opt = wirely.Some(value)
         # print(f'get_value: {res_opt}')
 
         context.set_output('output', res_opt)
 
-        self.trigger('get_value')
+        context.trigger_self()
 
 
 @native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         # Task is needed for sending out values
         self.task = None
@@ -279,7 +289,9 @@ class EventSender(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def send_value(self, *, context):
+    @staticmethod
+    def send_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -291,15 +303,15 @@ class EventSender(NativeState):
             value = value_opt.value
             # TODO: Any checks needed here?
 
-        print(f'Sending event {value} to {self.address}, old values_to_send is {self.values_to_send}', flush=True)
+        print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
 
         # Note: If sending is too slow, there might be multiple events queued up.
         # TODO: Provide a notification in this case?
-        self.values_to_send.append(value)
-        self.event.set()
+        state.values_to_send.append(value)
+        state.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.trigger('send_value')
+        context.trigger_self()
 
     async def run_task(self):
         while True:

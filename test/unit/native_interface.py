@@ -258,41 +258,86 @@ def check_triggers():
             assert not context.values and not context.inputs
             with checks.assertRaises(AttributeError):
                 context.name = 'other'
+            context.set_output('state', self)
             self.calls = []
             self.reschedule_once = False
-            self.trigger('refresh')
+            self.refresh()
             assert not self.calls
 
-        def refresh(self, *, context):
-            assert context.name == self.context.name
-            self.calls.append('refresh')
-            if self.reschedule_once:
-                self.reschedule_once = False
-                self.trigger('refresh')
+        def refresh(self):
+            self.trigger(f'TestLibrary.{type(self).__name__}:refresh_procedure', 'state', output='state')
 
-        def run(self, *, context):
-            self.calls.append('run')
+        @staticmethod
+        def refresh_procedure(*, context):
+            state = context.inputs['state']
+            assert context.name == state.context.name
+            state.calls.append('refresh')
+            if state.reschedule_once:
+                state.reschedule_once = False
+                context.trigger_self()
+
+        @staticmethod
+        def run(*, context):
+            context.inputs['state'].calls.append('run')
 
     @native_node_type(trigger_registry, has_native_state=True)
     class SharedTriggerProbe(TriggerProbe):
         pass
 
+    @native_node_type(trigger_registry, has_native_state=True)
+    class Provider(NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('service', self)
+
+    @native_node_type(trigger_registry, has_native_state=False)
+    class Reader:
+        calls = []
+
+        @staticmethod
+        def poll(*, context):
+            Reader.calls.append(context.name)
+
     with patch.dict(wirely.native.test_library.native_node_types, trigger_registry):
         trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
     namespace TestLibrary {
+      resource type ProbeState;
+      resource type Service;
       native node type TriggerProbe {
-        native procedure Poll as "TestLibrary.TriggerProbe:refresh";
-        native procedure run;
+        resource state: ProbeState;
+        native initializer produces state as "state";
+        native procedure refresh as "TestLibrary.TriggerProbe:refresh_procedure"
+          depends on state as "state";
+        native procedure run depends on state as "state";
       }
       singleton native node type SharedTriggerProbe {
-        native procedure Poll as "TestLibrary.SharedTriggerProbe:refresh";
-        native procedure run;
+        resource state: ProbeState;
+        native initializer produces state as "state";
+        native procedure refresh as "TestLibrary.SharedTriggerProbe:refresh_procedure"
+          depends on state as "state";
+        native procedure run depends on state as "state";
+      }
+      native node type Provider {
+        default output: resource Service;
+        native initializer produces default output as "service";
+      }
+      node type Reader {
+        input Service: resource Service;
+        native procedure poll depends on Service as "service";
       }
     }
     node first: TestLibrary.TriggerProbe {}
     node second: TestLibrary.TriggerProbe {}
     node shared: TestLibrary.SharedTriggerProbe {}
     node shared_again: TestLibrary.SharedTriggerProbe {}
+    node provider: TestLibrary.Provider {}
+    node other_provider: TestLibrary.Provider {}
+    node reader: TestLibrary.Reader {}
+    node another_reader: TestLibrary.Reader {}
+    node other_reader: TestLibrary.Reader {}
+    connect provider -> reader.Service;
+    connect provider -> another_reader.Service;
+    connect other_provider -> other_reader.Service;
     ''')])
     assert trigger_graph is not None
     trigger_program = program_compiler.compile(trigger_graph)
@@ -313,17 +358,20 @@ def check_triggers():
     first_startup = first.calls.copy()
     second_startup = second.calls.copy()
     shared_startup = shared.calls.copy()
+    Reader.calls.clear()
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    for invalid in ['Poll', 'missing', 1]:
-        with checks.assertRaisesRegex(ValueError, 'Unknown procedure name'):
-            first.trigger(invalid)
+    # Triggers name the procedure, its resource input, and the state's output.
+    with checks.assertRaisesRegex(ValueError, "Unknown output name 'missing'"):
+        first.trigger('TestLibrary.TriggerProbe:refresh_procedure', 'state', output='missing')
+    first.trigger('TestLibrary.TriggerProbe:missing', 'state', output='state')
+    first.trigger('TestLibrary.TriggerProbe:refresh_procedure', 'missing', output='state')
     trigger_engine.step()
     assert first.calls == first_startup
 
-    first.trigger('refresh')
-    first.trigger('refresh')
+    first.refresh()
+    first.refresh()
     assert first.calls == first_startup
     trigger_engine.step()
     assert first.calls == first_startup + ['refresh']
@@ -333,7 +381,7 @@ def check_triggers():
     trigger_engine.assert_is_idle()
 
     first.reschedule_once = True
-    first.trigger('refresh')
+    first.refresh()
     trigger_engine.step()
     assert first.calls == first_startup + ['refresh', 'refresh']
     trigger_engine.step()
@@ -341,13 +389,19 @@ def check_triggers():
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    second.trigger('run')
-    shared.trigger('refresh')
+    second.trigger('TestLibrary.TriggerProbe:run', 'state', output='state')
+    shared.refresh()
     trigger_engine.step()
     assert second.calls == second_startup + ['run']
     assert shared.calls == shared_startup + ['refresh']
     assert len(first.calls) == 5
     trigger_engine.step()
+    trigger_engine.assert_is_idle()
+
+    # A provider triggers the procedures bound to its output, in any node.
+    trigger_engine.get_native_state('provider').trigger('TestLibrary.Reader:poll', 'service', output='service')
+    trigger_engine.step()
+    checks.assertCountEqual(Reader.calls, ['reader', 'another_reader'])
     trigger_engine.assert_is_idle()
 
 
@@ -612,13 +666,11 @@ async def run_test():
 
 
 def check_native_methods():
+    # Native procedures are static or class methods of the class their name selects.
     registry = {}
     calls = []
 
     class Methods:
-        def instance(self, *, context):
-            calls.append(('instance', context.name))
-
         @staticmethod
         def shared(*, context):
             calls.append(('shared', context.name))
@@ -627,54 +679,46 @@ def check_native_methods():
         def class_method(cls, *, context):
             calls.append((cls.__name__, context.name))
 
-    @native_node_type(registry, has_native_state=True)
-    class InstanceProbe(Methods, NativeState):
-        pass
-
-    @native_node_type(registry, has_native_state=True)
-    class OverrideProbe(InstanceProbe):
-        def shared(self, *, context):
-            calls.append(('override', context.name))
-
     @native_node_type(registry, has_native_state=False)
     class ClassProbe(Methods):
         pass
 
+    @native_node_type(registry, has_native_state=False)
+    class OverrideProbe(ClassProbe):
+        @staticmethod
+        def shared(*, context):
+            calls.append(('override', context.name))
+
     @native_node_type(registry, has_native_state=True)
-    class SharedProbe(InstanceProbe):
-        pass
+    class StateProbe(Methods, NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('state', self)
 
     source = '''namespace TestLibrary {
-  native node type InstanceProbe {
-    native procedure Poll as "TestLibrary.InstanceProbe:instance";
-    native procedure shared;
-    native procedure class_method;
-  }
-  native node type OverrideProbe {
-    native procedure instance;
-    native procedure shared;
-    native procedure class_method;
-  }
+  resource type ProbeState;
   node type ClassProbe {
     native procedure shared;
     native procedure class_method;
   }
-  singleton native node type SharedProbe {
-    native procedure instance;
+  node type OverrideProbe {
     native procedure shared;
     native procedure class_method;
   }
-  // Stateless procedures may use another type's implementation.
+  native node type StateProbe {
+    resource state: ProbeState;
+    native initializer produces state as "state";
+    native procedure class_method depends on state as "state";
+  }
+  // Procedures may use another type's implementation.
   node type KeyedProbe {
     native procedure shared as "TestLibrary.ClassProbe:shared";
   }
 }
-node instance: TestLibrary.InstanceProbe {}
-node overridden: TestLibrary.OverrideProbe {}
 node class_only: TestLibrary.ClassProbe {}
+node overridden: TestLibrary.OverrideProbe {}
+node stateful: TestLibrary.StateProbe {}
 node keyed: TestLibrary.KeyedProbe {}
-node shared: TestLibrary.SharedProbe {}
-node shared_again: TestLibrary.SharedProbe {}
 '''
     with patch.dict(wirely.native.test_library.native_node_types, registry):
         graph = wirely.compiler.compile_strs([('<native-methods>', source)])
@@ -682,11 +726,9 @@ node shared_again: TestLibrary.SharedProbe {}
         runtime = Engine(program_compiler.compile_nocatch(graph))
     runtime.step()
     expected = [
-        ('instance', 'instance'), ('shared', 'instance'), ('InstanceProbe', 'instance'),
-        ('instance', 'overridden'), ('override', 'overridden'), ('OverrideProbe', 'overridden'),
-        ('shared', 'class_only'), ('ClassProbe', 'class_only'), ('shared', 'keyed'),
-        ('instance', 'TestLibrary.SharedProbe'), ('shared', 'TestLibrary.SharedProbe'),
-        ('SharedProbe', 'TestLibrary.SharedProbe'),
+        ('shared', 'class_only'), ('ClassProbe', 'class_only'),
+        ('override', 'overridden'), ('OverrideProbe', 'overridden'),
+        ('StateProbe', 'stateful'), ('shared', 'keyed'),
     ]
     assert sorted(calls) == sorted(expected)
     runtime.assert_is_idle()
@@ -701,7 +743,8 @@ def check_native_linking_errors():
             constructed.append(context.name)
             super().__init__(context=context)
 
-        def run(self, *, context):
+        @staticmethod
+        def run(*, context):
             pass
 
     def wrong_signature(*, other):
@@ -723,8 +766,6 @@ def check_native_linking_errors():
         ({}, 'native procedure missing;', False, False, 'Cannot find native procedure'),
         ({}, 'native procedure Poll as "TestLibrary.InvalidProbe:missing";', False, False,
          'Cannot find native procedure'),
-        ({}, 'native procedure run as "TestLibrary.ValidProbe:run";', True, True,
-         "must belong to native type 'TestLibrary.InvalidProbe'"),
         ({'run': staticmethod(wrong_signature)}, 'native procedure run;', False, False,
          'Invalid native procedure'),
         ({'run': instance_method}, 'native procedure run;', False, False,
@@ -738,19 +779,22 @@ def check_native_linking_errors():
         ({'run': property(lambda self: None)}, 'native procedure run;', False, False,
          'Unsupported native procedure method'),
         ({}, '', True, False, 'requires has_native_state=True'),
-        ({'run': instance_method}, 'native procedure run;', False, True,
-         'requires has_native_state=False'),
+        ({'run': instance_method}, 'native procedure run;', True, True,
+         'Invalid native procedure'),
     )
     for methods, declaration, declared_state, implemented_state, message in cases:
         registry = {'ValidProbe': ValidProbe}
         implementation = type('InvalidProbe', (), methods)
         native_node_type(registry, has_native_state=implemented_state)(implementation)
         kind = 'native node' if declared_state else 'node'
+        initializer = 'native initializer;' if declared_state else ''
         source = f'''namespace TestLibrary {{
   native node type ValidProbe {{
+    native initializer;
     native procedure run;
   }}
   {kind} type InvalidProbe {{
+    {initializer}
     {declaration}
   }}
 }}
@@ -774,19 +818,24 @@ def check_input_length_values():
     class LengthProbe(NativeState):
         def __init__(self, *, context):
             super().__init__(context=context)
+            context.set_output('state', self)
             self.count = context.values['Count']
 
-        def run(self, *, context):
-            assert context.values['Count'] == self.count
-            context.set_output('output', self.count)
+        @staticmethod
+        def run(*, context):
+            state = context.inputs['state']
+            assert context.values['Count'] == state.count
+            context.set_output('output', state.count)
 
     source = '''
 namespace TestLibrary {
+  resource type LengthState;
   native node type LengthProbe {
     default input: multi value boolean;
     default output: value uint32;
-    native initializer uses (default input).Length as Count;
-    native procedure run produces default output as output
+    resource state: LengthState;
+    native initializer produces state as "state" uses (default input).Length as Count;
+    native procedure run depends on state as "state" produces default output as output
       uses (default input).Length as Count;
   }
 }

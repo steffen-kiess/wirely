@@ -246,6 +246,7 @@ class Connection(NativeState):
 class ValueOptionProvider(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -282,7 +283,9 @@ class ValueOptionProvider(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def set_value(self, *, context):
+    @staticmethod
+    def set_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -292,17 +295,17 @@ class ValueOptionProvider(NativeState):
             value_bytes = b''
         else:
             value = value_opt.value
-            value = self.json_encode(value, self.format)
+            value = state.json_encode(value, state.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = self.template_prefix + value + self.template_suffix
+            value = state.template_prefix + value + state.template_suffix
             value_bytes = bytes(value, 'utf-8')
 
-        print(f'Setting output {self.topic} to {value_bytes}, old value_to_send is {self.value_to_send}', flush=True)
+        print(f'Setting output {state.topic} to {value_bytes}, old value_to_send is {state.value_to_send}', flush=True)
 
         # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
         # TODO: Provide some notification if this is happening?
-        self.value_to_send = value_bytes
-        self.event.set()
+        state.value_to_send = value_bytes
+        state.event.set()
 
     async def run_task(self):
         while True:
@@ -322,6 +325,7 @@ class ValueOptionProvider(NativeState):
 class EventSender(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
         self.current_value = None
         # Task is needed for sending out values
         self.task = None
@@ -358,7 +362,9 @@ class EventSender(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def send_value(self, *, context):
+    @staticmethod
+    def send_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -368,20 +374,20 @@ class EventSender(NativeState):
             return
         else:
             value = value_opt.value
-            value = self.json_encode(value, self.format)
+            value = state.json_encode(value, state.format)
             value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = self.template_prefix + value + self.template_suffix
+            value = state.template_prefix + value + state.template_suffix
             value_bytes = bytes(value, 'utf-8')
 
-        print(f'Sending event {self.topic} to {value_bytes}, old values_to_send is {self.values_to_send}', flush=True)
+        print(f'Sending event {state.topic} to {value_bytes}, old values_to_send is {state.values_to_send}', flush=True)
 
         # Note: If sending is too slow, there might be multiple events queued up.
         # TODO: Provide a notification in this case?
-        self.values_to_send.append(value_bytes)
-        self.event.set()
+        state.values_to_send.append(value_bytes)
+        state.event.set()
 
         # This makes sure that the value is sent again if the input does not change
-        self.trigger('send_value')
+        context.trigger_self()
 
     async def run_task(self):
         while True:
@@ -400,6 +406,7 @@ class EventSender(NativeState):
 class EventReceiver(NativeState):
     def __init__(self, *, context):
         super().__init__(context=context)
+        context.set_output('state', self)
 
         self.task = None
         self.received_values = []
@@ -429,20 +436,22 @@ class EventReceiver(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def get_value(self, *, context):
+    @staticmethod
+    def get_value(*, context):
+        state = context.inputs['state']
         # TODO: Add checks whether everything is running?
 
-        if len(self.received_values) == 0:
+        if len(state.received_values) == 0:
             context.set_output('output', None)
             return
-        value = self.received_values.pop(0)
+        value = state.received_values.pop(0)
 
         res_opt = wirely.Some(value)
         # print(f'get_value: {res_opt}')
 
         context.set_output('output', res_opt)
 
-        self.trigger('get_value')
+        context.trigger_self()
 
     async def run_task(self):
         # TODO: Should subscribing be done here or in start_tasks()?
@@ -469,7 +478,7 @@ class EventReceiver(NativeState):
                             value = self.values['Type'].json_decode(value, self.format)
 
                             self.received_values.append(value)
-                            self.trigger('get_value')
+                            self.trigger('MQTT.EventReceiver:get_value', 'state', output='state')
                     except Exception as e:
                         # TODO: Do something else here?
                         # TODO: Print stack trace?
