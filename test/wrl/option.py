@@ -60,9 +60,11 @@ class IntegerSubclass(int):
 
 
 integer_option = wirely.types.TypeOption(wirely.types.int8)
-normalized = integer_option.verify_value(wirely.Some(IntegerSubclass(7)))
-assert type(normalized.value) is int
-assert normalized.value == 7
+assert integer_option.verify_value(wirely.Some(7)) == wirely.Some(7)
+# Integer payloads must be plain ints in range.
+for payload in (IntegerSubclass(7), True, 128):
+    with checks.assertRaises(ValueError):
+        integer_option.verify_value(wirely.Some(payload))
 with checks.assertRaises(Exception):
     integer_option.parse('128')
 

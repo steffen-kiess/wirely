@@ -134,7 +134,7 @@ defaults contain their ordinary values. `ValueType` bindings provide
 | --- | --- |
 | `unit` | `wirely.Unit` |
 | `boolean` | `bool` |
-| All integer types | `int` |
+| All integer types | `int` within the type's range; not `bool` |
 | `String` | `str` |
 | `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
 | `TimeOfDay` | `wirely.TimeOfDay`, with `nanoseconds` since midnight (up to 24:00) |

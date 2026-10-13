@@ -448,6 +448,9 @@ def check_outputs():
             assert f'on {context.name}:' in str(error)
         else:
             raise AssertionError('Invalid output was accepted')
+        for invalid in (256, -1, True):
+            with checks.assertRaisesRegex(ValueError, 'Invalid value'):
+                context.set_output('output', invalid)
         context.set_output('output', 7)
         with checks.assertRaisesRegex(ValueError, f'on {context.name} was already written'):
             context.set_output('output', 8)

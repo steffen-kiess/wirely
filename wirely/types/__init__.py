@@ -459,6 +459,13 @@ class TypeInt(TypeConcrete):
     def default_value(self):
         return 0
 
+    def verify_value(self, value):
+        if type(value) is not int:
+            raise ValueError(f'Expected an integer for {self}, got {value!r}')
+        if not self.min_value <= value <= self.max_value:
+            raise ValueError(f'{value} is out of range for {self}')
+        return value
+
     def bitwise(self, operation, left, right=None):
         left = self.verify_value(left)
         if operation == 'not':
@@ -511,10 +518,7 @@ class TypeInt(TypeConcrete):
         return _fit_integer(result, self.min_value, self.max_value, overflow)
 
     def _parse_impl(self, s):
-        i = int(s)
-        if i < self.min_value or i > self.max_value:
-            raise Exception(f'Int value out of range: {i!r}')
-        return i
+        return int(s)
 
     def json_encode(self, expr, format):
         if format is not None:

@@ -34,6 +34,14 @@ def check_parsing_and_conversions():
             for text in (str(minimum - 1), str(maximum + 1), 'false'):
                 with checks.assertRaises(ValueError):
                     descriptor.parse(text)
+            # Integers are checked against their type's range; booleans are not integers.
+            internal = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
+            for value in (minimum, maximum):
+                assert internal.verify_value(value) == value and descriptor.validate(value) == value
+            for value in (minimum - 1, maximum + 1, True):
+                for check in (internal.verify_value, descriptor.validate):
+                    with checks.assertRaises(ValueError):
+                        check(value)
     integer = wirely.value_types.uint16
     for operation in (lambda: integer.json_encode('invalid'),
                       lambda: integer.json_decode('invalid'),
@@ -42,8 +50,6 @@ def check_parsing_and_conversions():
                       lambda: integer.json_decode(42, 'invalid')):
         with checks.assertRaises(ValueError):
             operation()
-    assert wirely.value_types.uint16.validate(True) == 1
-    assert type(wirely.value_types.uint16.validate(True)) is int
     assert wirely.value_types.string.json_decode('hello') == 'hello'
     assert wirely.value_types.string.json_encode('hello') == 'hello'
     assert wirely.value_types.time_of_day.parse('11:17') == wirely.TimeOfDay.from_parts(11, 17)
@@ -120,9 +126,9 @@ def check_descriptors_and_lists():
     assert len({first, second, wirely.value_types.uint16}) == 2
     assert str(first) == 'Option[List[uint16]]'
     assert not first.supports_json and not first.supports_csv
-    assert first.validate(wirely.Some([True, 7])) == wirely.Some((1, 7))
+    assert first.validate(wirely.Some([1, 7])) == wirely.Some((1, 7))
     assert first.validate(None) is None
-    for value in ([7], wirely.Some(['invalid'])):
+    for value in ([7], wirely.Some(['invalid']), wirely.Some([True, 7]), wirely.Some([70000])):
         with checks.assertRaises(ValueError):
             first.validate(value)
     for operation in (lambda: first.json_encode(None),
@@ -258,6 +264,7 @@ def check_structs():
         packet.values = (False, 7)
     for invalid in (lambda: packet_struct.index('extra'), lambda: packet_struct.make((True,)),
                     lambda: packet_struct.make((True, 7, 8)), lambda: packet_struct.make((True, 'seven')),
+                    lambda: packet_struct.make((True, 300)),
                     lambda: packet.native, lambda: packet_struct.from_native((True, 7)),
                     lambda: wirely.value_types.uint8.struct_type):
         with checks.assertRaises(ValueError):
