@@ -48,28 +48,47 @@ class ReferencePort(SourceElement):
             raise ProgramError(self, 'Default ports and complex references require an explicit alias')
         return names[0]
 
+    @property
+    def python_key(self):
+        return self.key
+
 
 class TypedPort(SourceElement):
-    """A typed procedure port, which connections supply or consume."""
+    """A typed procedure port, which connections supply or consume.
 
-    def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
+    In native procedures, a string alias gives the Python key.
+    """
+
+    def __init__(self, name: Identifier, port_spec: PortTypeSpecification,
+                 alias: typing.Optional[StringConstant] = None, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.port_spec = port_spec
         self.reference = None
-        self.alias = None
+        self.alias = alias
+
+    @staticmethod
+    def from_reference(reference: Reference, alias, port_spec, *, source_position):
+        names = [identifier.id_str for identifier in reference.identifiers]
+        if len(names) != 1 or names[0] in ('default input', 'default output'):
+            raise ProgramError(reference, 'Typed port names must be identifiers')
+        return TypedPort(reference.identifiers[0], port_spec, alias, source_position=source_position)
 
     @property
     def key(self):
         return self.name.id_str
 
+    @property
+    def python_key(self):
+        return self.alias.value if self.alias is not None else self.key
 
-def check_port_keys(ports):
+
+def check_port_keys(ports, *, python=False):
     keys = {}
     for port in ports:
-        key = port.key
+        key = port.python_key if python else port.key
         if key in keys:
-            raise ProgramError(port, f'Duplicate port name {key!r}', hints=[
+            raise ProgramError(port, f'Duplicate port {"key" if python else "name"} {key!r}', hints=[
                 CompilerHint(keys[key], 'Previous port was here'),
             ])
         keys[key] = port
@@ -273,6 +292,8 @@ class DeclarationProcedure(Declaration):
                                          source_position=source_position)
         procedure.body = body
         for port in (*depends.dependencies, *produces.outputs):
+            if isinstance(port, TypedPort) and port.alias is not None:
+                raise ProgramError(port.alias, 'Typed port keys require a native procedure')
             if isinstance(port.alias, StringConstant):
                 raise ProgramError(port.alias, 'Procedure aliases must be identifiers')
         return procedure
@@ -350,6 +371,9 @@ class DeclarationProcedure(Declaration):
     def prepare_interface(self, new_graph):
         check_port_keys(self.depends.dependencies)
         check_port_keys(self.produces.outputs)
+        if self.is_native:
+            check_port_keys(self.depends.dependencies, python=True)
+            check_port_keys(self.produces.outputs, python=True)
         self.input_ports = {
             declaration.key: self.create_port(new_graph, declaration, is_input=True)
             for declaration in self.depends.dependencies

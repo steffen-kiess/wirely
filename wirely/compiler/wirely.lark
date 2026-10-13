@@ -96,9 +96,10 @@ produces_declaration: ()
 uses_declaration: "uses" _list{static_binding}
 
 // A reference port connected to what it references, or a typed port wired
-// with connect.
+// with connect. A typed port's name is an identifier; it starts with
+// reference to avoid an LALR conflict.
 procedure_port: reference ["as" identifier | "as" string_constant] -> reference_port
-    | identifier ":" port_type_specification -> typed_port
+    | reference ["as" string_constant] ":" port_type_specification -> typed_port__from_reference
 static_binding: expression ["as" identifier | "as" string_constant]
 
 local_binding: "let" identifier [":" type] ["=" expression] ";"

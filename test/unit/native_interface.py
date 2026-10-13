@@ -535,6 +535,20 @@ def check_port_keys():
     probe.step()
     probe.assert_value_is('probe', 7)
 
+    # Typed port keys replace port names only in Python.
+    probe = make_engine('''
+    node source: Std.Constant { Type: uint8, Value: 7 }
+    default output: value uint8;
+
+    native procedure run
+      depends on level as "value": value uint8
+      produces result as "output": value uint8;
+    connect source -> run.level;
+    connect run.result -> default output;
+    ''', lambda context: context.set_output('output', context.inputs['value']))
+    probe.step()
+    probe.assert_value_is('probe', 7)
+
 
 startup_observations = []
 cleanup_observations = []

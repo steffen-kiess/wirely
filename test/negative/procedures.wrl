@@ -194,6 +194,14 @@ node type Probe {
 }
 node probe: Probe {}
 
+// TEST: typed port key
+node type Probe {
+  procedure run produces result as "output": value boolean { // E: Typed port keys require a native procedure
+    result = true;
+  }
+}
+node probe: Probe {}
+
 // TEST: colliding port names
 node type Probe {
   default input: value boolean;

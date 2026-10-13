@@ -400,21 +400,25 @@ def lower_program(global_node_type):
             dependencies = []
             resources = {}
             outputs = {}
+            declaration = proc.declaration_procedure
+            input_ports = {port.key: port for port in declaration.depends.dependencies}
+            output_keys = {port.key: port.python_key for port in declaration.produces.outputs}
             for name, source in proc.static_context._sources.items():
+                port = input_ports[name]
+                key = port.python_key
                 if model.ast.dependency_is_resource(source):
-                    port = next(port for port in proc.declaration_procedure.depends.dependencies
-                                   if port.key == name)
-                    _, resources[name], _ = resource_path(path, source, port)
+                    _, resources[key], _ = resource_path(path, source, port)
                     continue
                 is_list = getattr(source, 'is_list', False)
                 for index, (member_path, member, _) in enumerate(members(path, source)):
-                    debug_name = f'{name}[{index}]' if is_list else name
+                    debug_name = f'{key}[{index}]' if is_list else key
                     dependencies.append((debug_name, resolve_source(member_path, member)))
             for name, target in proc.static_context._targets.items():
+                key = output_keys[name]
                 if isinstance(target, model.InstanceStateVariable):
-                    outputs[name] = OutputTarget(state_map[path, target])
+                    outputs[key] = OutputTarget(state_map[path, target])
                 else:
-                    outputs[name] = OutputTarget(variable_map[path, target.var_identifier].variable)
+                    outputs[key] = OutputTarget(variable_map[path, target.var_identifier].variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].node_type.fullname_tuple, proc.declaration_procedure.python_name),
@@ -517,10 +521,11 @@ def native_node_type(node_type):
             continue
         procedures[procedure.python_name] = NativeProcedureInterface(
             uses=uses_names(procedure.uses),
-            resources={key: port.resource_type.name_tuple for key, port in procedure.input_ports.items()
-                       if port.resource_type is not None},
-            inputs=tuple(key for key, port in procedure.input_ports.items() if port.resource_type is None),
-            outputs=tuple(procedure.output_ports),
+            resources={port.declaration.python_key: port.resource_type.name_tuple
+                       for port in procedure.input_ports.values() if port.resource_type is not None},
+            inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
+                         if port.resource_type is None),
+            outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
         )
     return NativeNodeType(
         name=node_type.fullname_tuple, has_native_state=node_type.is_native,

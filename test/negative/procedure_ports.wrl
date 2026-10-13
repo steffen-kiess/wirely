@@ -143,11 +143,28 @@ node type Invalid {
 }
 
 // TEST: procedure_port_unknown
+// Connections use the port name, not its key.
 node type Invalid {
   input Flag: value boolean;
   native procedure run
-    depends on value: value boolean;
+    depends on value as "missing": value boolean;
   connect Flag -> run.missing; // E: Unable to find port 'missing' of procedure 'run'
+}
+
+// TEST: procedure_port_duplicate_key
+node type Invalid {
+  input Flag: value boolean;
+  native procedure run
+    depends on Flag as "value", // H: Previous port was here
+      other as "value": value boolean; // E: Duplicate port key 'value'
+}
+
+// TEST: procedure_port_default_name
+node type Invalid {
+  default input: value boolean;
+  native procedure run
+    depends on default input as "value": value boolean;
+  // ^E: Typed port names must be identifiers
 }
 
 // TEST: procedure_port_direction
