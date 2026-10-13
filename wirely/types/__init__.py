@@ -126,8 +126,8 @@ class Type(abc.ABC):
         raise ValueError(f'{self} values cannot be formatted as text')
 
 
-# A concrete type which is implemented using a specific python type
-class TypeConcrete(Type):
+# A parameterless primitive type, without fields or inner types
+class TypePrimitive(Type):
     def __init__(self, *, name, python_type, is_runtime_type, is_json_serializable, has_to_csv_value):
         self.name = name
         self.python_type = python_type
@@ -143,7 +143,7 @@ class TypeConcrete(Type):
         return False
 
     def __repr__(self):
-        return f'TypeConcrete({self.name})'
+        return f'TypePrimitive({self.name})'
 
     def __str__(self):
         return self.name
@@ -396,7 +396,7 @@ class TypeList(Type):
 
 
 # TODO: Add to_csv_value?
-class TypeUnit(TypeConcrete):
+class TypeUnit(TypePrimitive):
     def __init__(self):
         super().__init__(name='unit', python_type=Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
@@ -413,7 +413,7 @@ class TypeUnit(TypeConcrete):
         return '()'
 
 
-class TypeBoolean(TypeConcrete):
+class TypeBoolean(TypePrimitive):
     def bitwise(self, operation, left, right=None):
         left = self.verify_value(left)
         if operation == 'not':
@@ -465,7 +465,7 @@ class TypeBoolean(TypeConcrete):
 
 
 # TODO: Work on value verification etc.
-class TypeInt(TypeConcrete):
+class TypeInt(TypePrimitive):
     is_ordered = True
 
     def __init__(self, *, is_signed, bits):
@@ -565,7 +565,7 @@ class TypeInt(TypeConcrete):
         return str(value), False
 
 
-class TypeValueType(TypeConcrete):
+class TypeValueType(TypePrimitive):
     def __init__(self):
         super().__init__(name='ValueType', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
 
@@ -584,7 +584,7 @@ class TypeValueType(TypeConcrete):
         return str(self.verify_value(value))
 
 
-class TypeMonotonicTime(TypeConcrete):
+class TypeMonotonicTime(TypePrimitive):
     def __init__(self):
         super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
@@ -603,7 +603,7 @@ class TypeMonotonicTime(TypeConcrete):
 
 
 # TODO: Add to_csv_value and make json serializable?
-class TypeDuration(TypeConcrete):
+class TypeDuration(TypePrimitive):
     is_ordered = True
 
     def __init__(self):
@@ -620,7 +620,7 @@ class TypeDuration(TypeConcrete):
 
 
 # TODO: Add to_csv_value?
-class TypeTimeOfDay(TypeConcrete):
+class TypeTimeOfDay(TypePrimitive):
     is_ordered = True
 
     def __init__(self):
@@ -638,7 +638,7 @@ class TypeTimeOfDay(TypeConcrete):
 
 # TODO: Remove json_encode because strings should not be used at runtime?
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
-class TypeString(TypeConcrete):
+class TypeString(TypePrimitive):
     def __init__(self):
         super().__init__(name='String', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
 
@@ -663,7 +663,7 @@ class TypeString(TypeConcrete):
 
 
 # TODO: Add to_csv_value?
-class TypeEnum(TypeConcrete):
+class TypeEnum(TypePrimitive):
     """An enumeration whose values are member numbers of an explicit integer type."""
 
     def __init__(self, name, members, *, underlying_type):
