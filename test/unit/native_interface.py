@@ -258,17 +258,15 @@ def check_triggers():
             assert not context.values and not context.inputs
             with checks.assertRaises(AttributeError):
                 context.name = 'other'
-            context.set_output('state', self)
+            context.set_output('refresher', self)
+            context.set_output('runner', self)
             self.calls = []
             self.reschedule_once = False
-            self.refresh()
+            self.trigger('refresher')
             assert not self.calls
 
-        def refresh(self):
-            self.trigger(f'TestLibrary.{type(self).__name__}:refresh_procedure', 'state', output='state')
-
         @staticmethod
-        def refresh_procedure(*, context):
+        def refresh(*, context):
             state = context.inputs['state']
             assert context.name == state.context.name
             state.calls.append('refresh')
@@ -279,6 +277,10 @@ def check_triggers():
         @staticmethod
         def run(*, context):
             context.inputs['state'].calls.append('run')
+
+        @staticmethod
+        def log(*, context):
+            context.inputs['state'].calls.append('log')
 
     @native_node_type(trigger_registry, has_native_state=True)
     class SharedTriggerProbe(TriggerProbe):
@@ -298,43 +300,39 @@ def check_triggers():
         def poll(*, context):
             Reader.calls.append(context.name)
 
+    probe_body = '''
+        resource refresher: ProbeState;
+        resource runner: ProbeState;
+        native initializer produces refresher as "refresher", runner as "runner";
+        native procedure refresh depends on refresher as "state";
+        native procedure run depends on runner as "state";
+        native procedure log depends on runner as "state";
+    '''
     with patch.dict(wirely.native.test_library.native_node_types, trigger_registry):
-        trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
-    namespace TestLibrary {
+        trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', f'''
+    namespace TestLibrary {{
       resource type ProbeState;
       resource type Service;
-      native node type TriggerProbe {
-        resource state: ProbeState;
-        native initializer produces state as "state";
-        native procedure refresh as "TestLibrary.TriggerProbe:refresh_procedure"
-          depends on state as "state";
-        native procedure run depends on state as "state";
-      }
-      singleton native node type SharedTriggerProbe {
-        resource state: ProbeState;
-        native initializer produces state as "state";
-        native procedure refresh as "TestLibrary.SharedTriggerProbe:refresh_procedure"
-          depends on state as "state";
-        native procedure run depends on state as "state";
-      }
-      native node type Provider {
+      native node type TriggerProbe {{{probe_body}}}
+      singleton native node type SharedTriggerProbe {{{probe_body}}}
+      native node type Provider {{
         default output: resource Service;
         native initializer produces default output as "service";
-      }
-      node type Reader {
+      }}
+      node type Reader {{
         input Service: resource Service;
         native procedure poll depends on Service as "service";
-      }
-    }
-    node first: TestLibrary.TriggerProbe {}
-    node second: TestLibrary.TriggerProbe {}
-    node shared: TestLibrary.SharedTriggerProbe {}
-    node shared_again: TestLibrary.SharedTriggerProbe {}
-    node provider: TestLibrary.Provider {}
-    node other_provider: TestLibrary.Provider {}
-    node reader: TestLibrary.Reader {}
-    node another_reader: TestLibrary.Reader {}
-    node other_reader: TestLibrary.Reader {}
+      }}
+    }}
+    node first: TestLibrary.TriggerProbe {{}}
+    node second: TestLibrary.TriggerProbe {{}}
+    node shared: TestLibrary.SharedTriggerProbe {{}}
+    node shared_again: TestLibrary.SharedTriggerProbe {{}}
+    node provider: TestLibrary.Provider {{}}
+    node other_provider: TestLibrary.Provider {{}}
+    node reader: TestLibrary.Reader {{}}
+    node another_reader: TestLibrary.Reader {{}}
+    node other_reader: TestLibrary.Reader {{}}
     connect provider -> reader.Service;
     connect provider -> another_reader.Service;
     connect other_provider -> other_reader.Service;
@@ -354,7 +352,7 @@ def check_triggers():
     assert not first.calls and not second.calls and not shared.calls
     trigger_engine.step()
     for state in [first, second, shared]:
-        checks.assertCountEqual(state.calls, ['refresh', 'run'])
+        checks.assertCountEqual(state.calls, ['refresh', 'run', 'log'])
     first_startup = first.calls.copy()
     second_startup = second.calls.copy()
     shared_startup = shared.calls.copy()
@@ -362,16 +360,14 @@ def check_triggers():
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    # Triggers name the procedure, its resource input, and the state's output.
     with checks.assertRaisesRegex(ValueError, "Unknown output name 'missing'"):
-        first.trigger('TestLibrary.TriggerProbe:refresh_procedure', 'state', output='missing')
-    first.trigger('TestLibrary.TriggerProbe:missing', 'state', output='state')
-    first.trigger('TestLibrary.TriggerProbe:refresh_procedure', 'missing', output='state')
+        first.trigger('missing')
     trigger_engine.step()
     assert first.calls == first_startup
 
-    first.refresh()
-    first.refresh()
+    # A trigger reruns the procedures depending on the output, once per step.
+    first.trigger('refresher')
+    first.trigger('refresher')
     assert first.calls == first_startup
     trigger_engine.step()
     assert first.calls == first_startup + ['refresh']
@@ -381,7 +377,7 @@ def check_triggers():
     trigger_engine.assert_is_idle()
 
     first.reschedule_once = True
-    first.refresh()
+    first.trigger('refresher')
     trigger_engine.step()
     assert first.calls == first_startup + ['refresh', 'refresh']
     trigger_engine.step()
@@ -389,17 +385,17 @@ def check_triggers():
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    second.trigger('TestLibrary.TriggerProbe:run', 'state', output='state')
-    shared.refresh()
+    second.trigger('runner')
+    shared.trigger('refresher')
     trigger_engine.step()
-    assert second.calls == second_startup + ['run']
+    checks.assertCountEqual(second.calls, second_startup + ['run', 'log'])
     assert shared.calls == shared_startup + ['refresh']
-    assert len(first.calls) == 5
+    assert len(first.calls) == 6
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    # A provider triggers the procedures bound to its output, in any node.
-    trigger_engine.get_native_state('provider').trigger('TestLibrary.Reader:poll', 'service', output='service')
+    # Dependents in other nodes rerun too.
+    trigger_engine.get_native_state('provider').trigger('service')
     trigger_engine.step()
     checks.assertCountEqual(Reader.calls, ['reader', 'another_reader'])
     trigger_engine.assert_is_idle()

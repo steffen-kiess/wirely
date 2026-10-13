@@ -618,10 +618,8 @@ Procedures retain distinct entries even when they invoke the same native
 procedure.
 
 A self-trigger or wakeup refers to its own `Procedures` entry. A native
-state triggers procedures by naming a native procedure, one of its
-resource inputs, and one of the state's resource outputs. This schedules
-each entry of that native procedure whose `ResourceInputs` bind that input
-to the state's output.
+state triggers procedures by naming one of its resource outputs. This
+schedules each entry whose `ResourceInputs` bind to that output.
 
 A body procedure executes its instruction stream. Its `Uses` and
 `Resources` ranges are empty, and each value input has one source.
@@ -759,7 +757,8 @@ value/event specialization is not currently supported. Procedure debug
 symbols remain instance names such as `someblock:procedure`.
 
 Embedded adapters can retain numeric bindings and function pointers after
-linking. Native state triggers resolve to fixed lists of `Procedures` entries.
+linking. Each native state output resolves to a fixed list of `Procedures`
+entries for triggers.
 
 ## ProcedureCode
 

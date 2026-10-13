@@ -57,13 +57,14 @@ class Engine:
 
         self.native_classes = link_native_classes(program)
         self.native_functions = link_native_functions(program)
-        # Native procedure keys by (provider node ID, output, procedure, resource input).
+        # Keys of the procedures depending on each resource, by (provider node ID, output).
         self._resource_triggers = {}
         for schedule in program.procs.values():
             for proc in schedule:
-                for name, binding in proc.resources.items():
-                    self._resource_triggers.setdefault(
-                        (binding.provider, binding.output, proc.reference, name), []).append(proc.key)
+                for binding in proc.resources.values():
+                    keys = self._resource_triggers.setdefault((binding.provider, binding.output), [])
+                    if proc.key not in keys:
+                        keys.append(proc.key)
         # Native `uses` values of each native procedure, keyed by procedure identity.
         self._procedure_values = {
             id(proc): _native_values(proc.values)
@@ -130,9 +131,9 @@ class Engine:
             raise ValueError(f'Unknown procedure name {proc_name!r} on {node_id}')
         self._trigger_key(key)
 
-    def trigger_dependents(self, node_id, output, procedure, input):
-        """Schedule each procedure `procedure` whose resource `input` is bound to the output."""
-        for key in self._resource_triggers.get((node_id, output, procedure, input), ()):
+    def trigger_dependents(self, node_id, output):
+        """Schedule each procedure that depends on a native state's resource output."""
+        for key in self._resource_triggers.get((node_id, output), ()):
             self._trigger_key(key)
 
     def _trigger_key(self, key):

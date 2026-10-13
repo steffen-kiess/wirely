@@ -23,7 +23,7 @@ class HeldEventSource(NativeState):
     def set_value(self, value):
         if self.value != value:
             self.value = value
-            self.trigger('TestLibrary.HeldEventSource:run', 'state', output='state')
+            self.trigger('state')
 
     @staticmethod
     def run(*, context):

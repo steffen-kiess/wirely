@@ -86,7 +86,7 @@ class ValueReceiver(NativeState):
 
         self.current_value = val
 
-        self.trigger('KNX.ValueReceiver:get_value', 'state', output='state')
+        self.trigger('state')
 
     @staticmethod
     def get_value(*, context):
@@ -231,7 +231,7 @@ class EventReceiver(NativeState):
         value = self.values['Type'].validate(val)
 
         self.received_values.append(value)
-        self.trigger('KNX.EventReceiver:get_value', 'state', output='state')
+        self.trigger('state')
 
     @staticmethod
     def get_value(*, context):

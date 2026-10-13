@@ -478,7 +478,7 @@ class EventReceiver(NativeState):
                             value = self.values['Type'].json_decode(value, self.format)
 
                             self.received_values.append(value)
-                            self.trigger('MQTT.EventReceiver:get_value', 'state', output='state')
+                            self.trigger('state')
                     except Exception as e:
                         # TODO: Do something else here?
                         # TODO: Print stack trace?

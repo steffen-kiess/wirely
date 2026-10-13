@@ -83,7 +83,7 @@ class KeyEvent(NativeState):
             print(f'Warning: TwoN.KeyEvent: Got event while old event is pending: {self.received_value} -> {new_value}', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('TwoN.KeyEvent:get_value', 'state', output='state')
+        self.trigger('state')
         self.received_value = new_value
 
     @staticmethod
@@ -137,7 +137,7 @@ class CodeEnteredEvent(NativeState):
             print('Warning: TwoN.CodeEnteredEvent: Got event while old event is pending', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('TwoN.CodeEnteredEvent:get_value', 'state', output='state')
+        self.trigger('state')
         self.pending = True
 
     @staticmethod
@@ -256,7 +256,7 @@ class IOState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('TwoN.IOState:get_value', 'state', output='state')
+        self.trigger('state')
         self.current_value = new_value
 
     @staticmethod
@@ -330,7 +330,7 @@ class SwitchState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('TwoN.SwitchState:get_value', 'state', output='state')
+        self.trigger('state')
         self.current_value = new_value
 
     @staticmethod

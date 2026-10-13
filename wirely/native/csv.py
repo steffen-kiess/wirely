@@ -97,7 +97,7 @@ class ValueWriter(NativeState):
                     else:
                         self.write_value(('', False), time)
                         # Make sure that if after the shutdown another step is run run() will be called again
-                        self.trigger('CSV.ValueWriter:run', 'state', output='state')
+                        self.trigger('state')
             finally:
                 self.writer = None
                 self.file = None

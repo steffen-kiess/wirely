@@ -41,7 +41,7 @@ class TimeOfDayMinute(NativeState):
         self.current_value = now_min
         # TODO: Should this avoid triggering if the value doesn't change?
         # TODO: Should this avoid triggering while _fake_time is set?
-        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
+        self.trigger('state')
 
         return wait_time_s
 
@@ -72,7 +72,7 @@ class TimeOfDayMinute(NativeState):
     def update_value(self):
         import datetime
 
-        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
+        self.trigger('state')
 
     @check_parameters
     def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]):
@@ -80,7 +80,7 @@ class TimeOfDayMinute(NativeState):
 
         # TODO: Make sure that seconds/microseconds are 0?
 
-        self.trigger('Schedule.TimeOfDayMinute:get_value', 'state', output='state')
+        self.trigger('state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:

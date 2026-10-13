@@ -244,7 +244,7 @@ class Receiver(NativeState):
 
     def receive(self, value):
         self.value = value
-        self.trigger('Example.Receiver:get_value', 'state', output='state')
+        self.trigger('state')
 
     @staticmethod
     def get_value(*, context):
@@ -255,8 +255,7 @@ class Receiver(NativeState):
 ```
 
 Changes to Python fields do not automatically schedule procedures. Call
-`self.trigger(procedure, input, output=key)` to schedule each procedure
-with native name `procedure` whose resource dependency `input` is this
+`self.trigger(key)` to schedule each procedure that depends on this
 object's output `key`, in any node. Repeated triggers before execution
 schedule one invocation. Inside a procedure, use `context.trigger_self()`
 instead.

@@ -69,7 +69,7 @@ class DebugValueSource(NativeState):
     def set_value(self, value):
         self.current_value = value
 
-        self.trigger('Std.DebugValueSource:run', 'state', output='state')
+        self.trigger('state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:
@@ -114,7 +114,7 @@ class DebugEventSource(NativeState):
 
         self.next_value = value
 
-        self.trigger('Std.DebugEventSource:run', 'state', output='state')
+        self.trigger('state')
 
     def debug_command(self, parameters):
         if len(parameters) == 0:
