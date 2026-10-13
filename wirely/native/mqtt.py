@@ -7,6 +7,7 @@ import contextlib
 import wirely
 from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
+from wirely.runtime.enums import MQTTFormat
 
 native_node_types = {}
 native_resource_types = {}
@@ -15,7 +16,7 @@ native_resource_types = {}
 def _json_format(option):
     if option is None:
         return None
-    return {'Default': None, 'SnakeCase': 'SnakeCase'}[option.value.name]
+    return {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}[option.value.native]
 
 
 aiomqtt_module = None

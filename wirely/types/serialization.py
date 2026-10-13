@@ -96,7 +96,7 @@ def _serialize(value_type, value):
             return bytes(length)
         return value_type.inner_type.serialize(value.value) + b'\x01'
     if isinstance(value_type, TypeEnum):
-        return value_type.underlying_type.serialize(value.value)
+        return value_type.underlying_type.serialize(value_type.verify_value(value))
     if isinstance(value_type, TypeUnit):
         return b''
     if isinstance(value_type, TypeBoolean):
@@ -138,7 +138,7 @@ def _deserialize(value_type, data):
             return None
         return Some(value_type.inner_type.deserialize(data[:-1]))
     if isinstance(value_type, TypeEnum):
-        return value_type.python_type(value_type.underlying_type.deserialize(data))
+        return value_type.verify_value(value_type.underlying_type.deserialize(data))
     if isinstance(value_type, TypeUnit):
         return Unit()
     if isinstance(value_type, TypeBoolean):

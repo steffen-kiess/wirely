@@ -1,4 +1,5 @@
 import abc
+import functools
 import re
 
 from collections.abc import Mapping
@@ -599,37 +600,58 @@ class TypeString(TypeConcrete):
 
 # TODO: Add to_csv_value?
 class TypeEnum(TypeConcrete):
-    """A named Python enumeration encoded with an explicit integer type."""
+    """An enumeration whose values are member numbers of an explicit integer type."""
 
-    def __init__(self, name, python_type, *, underlying_type):
-        """Define the enum and check that its member numbers fit the integer type."""
+    def __init__(self, name, members, *, underlying_type):
+        """Define the enum and check that its member numbers are distinct and fit the integer type."""
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
-        if not python_type.__members__:
+        if not members:
             raise ValueError('Enum must declare at least one member')
-        for member in python_type.__members__.values():
-            if type(member.value) is not int or not underlying_type.min_value <= member.value <= underlying_type.max_value:
-                raise ValueError(f'Enum member {member.name} does not fit {underlying_type}')
-        super().__init__(name=name, python_type=python_type, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
+        names = {}
+        for member, number in members.items():
+            if type(number) is not int or not underlying_type.min_value <= number <= underlying_type.max_value:
+                raise ValueError(f'Enum member {member} does not fit {underlying_type}')
+            if number in names:
+                raise ValueError(f'Enum members {names[number]} and {member} have the same number {number}')
+            names[number] = member
+        super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
         self.underlying_type = underlying_type  # Wire width and signedness of member numbers.
+        self.members = MappingProxyType(dict(members))  # Member numbers by name, in declaration order.
+        self._names = names
+
+    def verify_value(self, value):
+        if type(value) is not int or value not in self._names:
+            raise ValueError(f'Expected a member number of {self}, got {value!r}')
+        return value
+
+    def member_name(self, number):
+        return self._names[self.verify_value(number)]
+
+    @functools.cached_property
+    def enum_type(self):
+        """The runtime view of this type for native code."""
+        from .value_types import EnumType, ValueType
+        from ..runtime.enums import native_enum_types
+        return EnumType(self.name, ValueType(self.underlying_type), self.members, native_enum_types.get(self.name))
 
     def default_value(self):
-        return next(iter(self.python_type.__members__.values()))
+        return next(iter(self.members.values()))
 
     def _parse_impl(self, s):
         try:
-            return self.python_type[s]
+            return self.members[s]
         except KeyError:
             raise ValueError(f'Unknown member {s!r} of {self.name}') from None
 
     def json_encode(self, expr, format):
         if format == 'SnakeCase':
-            s = expr.name
+            s = self.member_name(expr)
             # https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case/1176023#1176023
             s = re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
             return s
         elif format is None:
-            return expr.name
+            return self.member_name(expr)
         else:
             raise Exception(f'Invalid JSON format: {format!r}')
 
@@ -639,7 +661,7 @@ class TypeEnum(TypeConcrete):
         elif format is None:
             if not isinstance(expr, str):
                 raise Exception(f'Expected string for enum, got {expr!r}')
-            return self.python_type[expr]
+            return self._parse_impl(expr)
         else:
             raise Exception(f'Invalid JSON format: {format!r}')
 
@@ -671,7 +693,7 @@ def convert(source_type, target_type, overflow, value):
 
     Booleans are 1-bit unsigned integers. Checked results are Some(value) or None."""
     if isinstance(source_type, TypeEnum):
-        number = source_type.verify_value(value).value
+        number = source_type.verify_value(value)
     else:
         integer_range(source_type)
         number = int(source_type.verify_value(value))

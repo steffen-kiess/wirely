@@ -28,7 +28,7 @@ class Connection(NativeState):
         protocol = parameter('Protocol')
         self.connection_config = create_connection_config(
             host=parameter('Host'),
-            protocol=None if protocol is None else protocol.name,
+            protocol=None if protocol is None else protocol.native.name,
             port=parameter('Port'),
             unix_path=parameter('UnixPath'),
             ssh_target=parameter('SSHTarget'),

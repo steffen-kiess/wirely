@@ -1,5 +1,6 @@
 from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
+from wirely.runtime.enums import GPIOActiveState, GPIOBias, GPIODrive
 
 native_node_types = {}
 native_resource_types = {}
@@ -21,10 +22,10 @@ class Output(NativeState):
         from gpiod.line import Bias, Direction
 
         bias = {
-            'AsIs': Bias.AS_IS,
-            'Disable': Bias.DISABLED,
-            'PullDown': Bias.PULL_DOWN,
-            'PullUp': Bias.PULL_UP,
+            GPIOBias.AsIs: Bias.AS_IS,
+            GPIOBias.Disable: Bias.DISABLED,
+            GPIOBias.PullDown: Bias.PULL_DOWN,
+            GPIOBias.PullUp: Bias.PULL_UP,
         }
         chip = async_exit_stack.enter_context(gpiod.Chip(self.values['ChipDeviceFile']))
         try:
@@ -39,7 +40,7 @@ class Output(NativeState):
             ) from exc
         self.gpio_request = async_exit_stack.enter_context(chip.request_lines(
             config={self.gpio_offset: gpiod.LineSettings(
-                direction=Direction.INPUT, bias=bias[self.values['Bias'].name])},
+                direction=Direction.INPUT, bias=bias[self.values['Bias'].native])},
             consumer='Wirely',
         ))
         self.direction_set = False
@@ -55,23 +56,23 @@ class Output(NativeState):
 
         if not state.direction_set:
             bias = {
-                'AsIs': Bias.AS_IS,
-                'Disable': Bias.DISABLED,
-                'PullDown': Bias.PULL_DOWN,
-                'PullUp': Bias.PULL_UP,
+                GPIOBias.AsIs: Bias.AS_IS,
+                GPIOBias.Disable: Bias.DISABLED,
+                GPIOBias.PullDown: Bias.PULL_DOWN,
+                GPIOBias.PullUp: Bias.PULL_UP,
             }
             drive = {
-                'PushPull': Drive.PUSH_PULL,
-                'OpenDrain': Drive.OPEN_DRAIN,
-                'OpenSource': Drive.OPEN_SOURCE,
+                GPIODrive.PushPull: Drive.PUSH_PULL,
+                GPIODrive.OpenDrain: Drive.OPEN_DRAIN,
+                GPIODrive.OpenSource: Drive.OPEN_SOURCE,
             }
             state.gpio_request.reconfigure_lines({
                 state.gpio_offset: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
                     output_value=logical_value,
-                    active_low=state.values['ActiveState'].name == 'Low',
-                    drive=drive[state.values['Drive'].name],
-                    bias=bias[state.values['Bias'].name],
+                    active_low=state.values['ActiveState'].native is GPIOActiveState.Low,
+                    drive=drive[state.values['Drive'].native],
+                    bias=bias[state.values['Bias'].native],
                 ),
             })
             state.direction_set = True

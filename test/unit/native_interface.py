@@ -558,6 +558,32 @@ def check_unit_outputs():
     probe.assert_value_is('probe', wirely.Some(wirely.Unit()))
 
 
+def check_enum_outputs():
+    # Enum outputs accept only EnumValues of the output's enum type.
+    def check_enum_output(context):
+        mode, other = context.values['mode'], context.values['other']
+        assert (mode.name, mode.value, mode.type.name) == ('On', 2, 'Example.Mode')
+        for invalid in [2, other]:
+            with checks.assertRaisesRegex(ValueError, 'Expected an EnumValue of Example.Mode'):
+                context.set_output('output', invalid)
+        context.set_output('output', mode.type.from_name('Off'))
+
+    probe = make_engine('''
+    default output: value Example.Mode;
+
+    native procedure run produces default output as "output"
+      uses Example.Mode.On as mode, Example.Other.On as other;
+    ''', check_enum_output, extra='''
+namespace Example {
+  enum type Mode: uint8 { Off = 1, On = 2, }
+  enum type Other: uint8 { Off = 1, On = 2, }
+}
+''')
+    probe.step()
+    # Inside the runtime, enum values are member numbers.
+    probe.assert_value_is('probe', 1)
+
+
 def check_port_keys():
     def check_keys(context):
         assert context.inputs['line\nkey'] == 7
@@ -869,5 +895,6 @@ check_typed_ports()
 check_outputs()
 check_events()
 check_unit_outputs()
+check_enum_outputs()
 check_port_keys()
 check_native_methods()

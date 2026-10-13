@@ -1,4 +1,3 @@
-import enum
 import io
 from unittest import TestCase
 
@@ -123,11 +122,7 @@ def check_structs_and_options():
 
 
 def check_conversions():
-    class Level(enum.Enum):
-        OFF = 0
-        HIGH = 200
-
-    level = types.TypeEnum('Level', Level, underlying_type=types.uint8)
+    level = types.TypeEnum('Level', {'OFF': 0, 'HIGH': 200}, underlying_type=types.uint8)
     boolean_option = types.TypeOption(types.boolean)
     int8_option = types.TypeOption(types.int8)
     cases = [  # opcode, source type, value, destination type, expected
@@ -136,7 +131,7 @@ def check_conversions():
         (Opcode.CONVERT_CHECKED, types.int16, 300, int8_option, None),
         (Opcode.CONVERT_CHECKED, types.int16, -128, int8_option, types.Some(-128)),
         (Opcode.CONVERT_SATURATING, types.int16, -1, types.uint8, 0),
-        (Opcode.CONVERT_WRAPPING, level, Level.HIGH, types.int8, -56),
+        (Opcode.CONVERT_WRAPPING, level, 200, types.int8, -56),
         (Opcode.CONVERT_WRAPPING, types.boolean, True, types.uint8, 1),
         (Opcode.CONVERT_WRAPPING, types.boolean, False, types.int64, 0),
     ]
@@ -192,11 +187,7 @@ def check_calls():
 
 
 def check_defaults_and_equality():
-    class Mode(enum.Enum):
-        FIRST = 7
-        SECOND = 9
-
-    mode = types.TypeEnum('Mode', Mode, underlying_type=types.uint8)
+    mode = types.TypeEnum('Mode', {'FIRST': 7, 'SECOND': 9}, underlying_type=types.uint8)
     option = types.TypeOption(mode)
     outcome = execute([
         instruction(Opcode.GET_OPTION_VALUE, output(0), local(0)),
@@ -204,7 +195,8 @@ def check_defaults_and_equality():
         instruction(Opcode.EQUAL, output(2), local(1), local(1)),
         instruction(Opcode.RETURN),
     ], local_types=(option, types.unit), output_types=(mode, mode, types.boolean))
-    assert outcome == (Mode.FIRST, Mode.FIRST, True)
+    # Enum values are member numbers inside the runtime.
+    assert outcome == (7, 7, True)
 
 
 def check_ordering():

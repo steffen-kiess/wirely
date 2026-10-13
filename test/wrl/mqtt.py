@@ -3,7 +3,7 @@ import contextlib
 
 import wirely.native.mqtt
 
-modes = engine.program.instances['enum_event_source'].parameters['Type']._type.python_type
+modes = engine.program.instances['enum_event_source'].parameters['Type'].enum_type
 
 # mosquitto_sub -v -t '#'
 
@@ -219,13 +219,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.Off))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('Off')))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"off"'))
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.Off))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('Off')))
             await expect_msgs()
 
             engine.step()
@@ -234,7 +234,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.EmergencyHeat))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('EmergencyHeat')))
             await expect_msgs()
 
             engine.step()
@@ -254,13 +254,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.Off))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('Off')))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.Off))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('Off')))
             await expect_msgs()
 
             engine.step()
@@ -269,7 +269,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.EmergencyHeat))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('EmergencyHeat')))
             await expect_msgs()
 
             engine.step()

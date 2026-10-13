@@ -1,7 +1,10 @@
+import dataclasses
 import enum
 from unittest import TestCase
+from unittest.mock import patch
 
 import wirely
+import wirely.runtime.enums
 
 
 checks = TestCase()
@@ -48,17 +51,63 @@ def check_parsing_and_conversions():
         with checks.assertRaises(ValueError):
             descriptor.parse(text)
 
-    members = enum.Enum('Mode', {'Cool': 3, 'EmergencyHeat': 5})
     descriptor = wirely.ValueType(wirely.types.TypeEnum(
-        'Mode', members, underlying_type=wirely.types.uint8,
+        'Mode', {'Cool': 3, 'EmergencyHeat': 5}, underlying_type=wirely.types.uint8,
     ))
-    assert descriptor.parse('Cool') == members.Cool
-    assert descriptor.json_encode(members.Cool) == 'Cool'
-    assert descriptor.json_encode(members.EmergencyHeat, 'SnakeCase') == 'emergency_heat'
-    assert descriptor.json_decode('Cool') == members.Cool
+    mode = descriptor.enum_type
+    cool = mode.from_name('Cool')
+    assert descriptor.parse('Cool') == cool
+    assert descriptor.json_encode(cool) == 'Cool'
+    assert descriptor.json_encode(mode.from_value(5), 'SnakeCase') == 'emergency_heat'
+    assert descriptor.json_decode('Cool') == cool
     for text in ('NotCool', 'cool', 'Mode.Cool'):
         with checks.assertRaises(ValueError):
             descriptor.parse(text)
+
+
+def check_enum_values():
+    # Native code gets EnumValues: a member number and its EnumType.
+    descriptor = wirely.ValueType(wirely.types.TypeEnum(
+        'Mode', {'Cool': 3, 'Heat': 4}, underlying_type=wirely.types.uint8,
+    ))
+    mode = descriptor.enum_type
+    assert mode is descriptor.enum_type
+    assert (mode.name, mode.underlying_type, dict(mode.members), mode.python_type) == (
+        'Mode', wirely.value_types.uint8, {'Cool': 3, 'Heat': 4}, None)
+    assert dict(mode.names) == {3: 'Cool', 4: 'Heat'}
+    cool = mode.from_name('Cool')
+    assert (cool.value, cool.name, cool.type) == (3, 'Cool', mode)
+    assert cool == mode.from_value(3) and hash(cool) == hash(mode.from_value(3))
+    assert cool != mode.from_value(4) and cool != 3
+    with checks.assertRaises(dataclasses.FrozenInstanceError):
+        cool.value = 4
+    for invalid in (lambda: mode.from_name('Off'), lambda: mode.from_value(5),
+                    lambda: mode.from_value(True), lambda: cool.native):
+        with checks.assertRaises(ValueError):
+            invalid()
+
+    # Values of another enum type with the same numbers are different.
+    other = wirely.ValueType(wirely.types.TypeEnum(
+        'Mode', {'Cool': 3, 'Heat': 4}, underlying_type=wirely.types.uint8,
+    ))
+    assert cool != other.enum_type.from_value(3)
+    for value in (3, other.enum_type.from_value(3)):
+        with checks.assertRaisesRegex(ValueError, 'Expected an EnumValue of Mode'):
+            descriptor.validate(value)
+    assert descriptor.validate(cool) == cool
+    with checks.assertRaisesRegex(ValueError, 'is not an enum type'):
+        wirely.value_types.uint8.enum_type
+
+    # A Python enum for the type name supplies .native.
+    class Mode(enum.IntEnum):
+        Cool = 3
+        Heat = 4
+
+    with patch.dict(wirely.runtime.enums.native_enum_types, {'Native.Mode': Mode}):
+        native = wirely.types.TypeEnum('Native.Mode', {'Cool': 3, 'Heat': 4},
+                                       underlying_type=wirely.types.uint8).enum_type
+    assert native.python_type is Mode
+    assert native.from_value(4).native is Mode.Heat
 
 
 def check_descriptors_and_lists():
@@ -231,8 +280,7 @@ def check_default_values():
     from unittest.mock import Mock
 
     types = wirely.types
-    members = enum.Enum('Defaults', {'First': 99, 'Second': 1})
-    enum_type = types.TypeEnum('Defaults', members, underlying_type=types.uint16)
+    enum_type = types.TypeEnum('Defaults', {'First': 99, 'Second': 1}, underlying_type=types.uint16)
     empty = types.TypeStruct('EmptyDefault', {})
     packet = types.TypeStruct('DefaultPacket', {
         'flag': types.boolean, 'mode': enum_type, 'optional': types.TypeOption(types.uint32),
@@ -248,12 +296,12 @@ def check_default_values():
         (types.Duration, wirely.Duration(duration_ns=0)),
         (types.MonotonicTime, wirely.MonotonicTime(0, 0)),
         (types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0)), (types.ValueType, types.unit),
-        (enum_type, members.First), (types.TypeList(types.String), ()),
+        (enum_type, 99), (types.TypeList(types.String), ()),
         (types.TypeList(types.TypeList(types.uint8)), ()),
         (types.TypeOption(enum_type), None),
         (types.TypeOption(types.TypeList(types.String)), None),
         (empty, empty.make_value({})),
-        (packet, packet.make_value({'flag': False, 'mode': members.First, 'optional': None})),
+        (packet, packet.make_value({'flag': False, 'mode': 99, 'optional': None})),
         (nested, nested.make_value({
             'packet': packet.default_value(), 'empty': empty.default_value(),
             'items': (), 'type': types.unit,
@@ -269,7 +317,7 @@ def check_default_values():
     assert packet.serialize(packet.default_value()) == b'\x00\x00\x63\x00' + bytes(5)
 
     with checks.assertRaisesRegex(ValueError, 'Enum must declare at least one member'):
-        types.TypeEnum('NoMembers', enum.Enum('NoMembers', {}), underlying_type=types.uint8)
+        types.TypeEnum('NoMembers', {}, underlying_type=types.uint8)
 
     unresolved = Mock(spec=types.Type)
     unresolved.contains_parameters = True
@@ -298,7 +346,7 @@ def check_runtime_limits():
     assert (MAX_STORAGE_SIZE, MAX_NESTING_DEPTH, MAX_TOTAL_MEMBER_COUNT) == (128, 16, 128)
     types = wirely.types
     empty = types.TypeStruct('Empty', {})
-    enum_type = types.TypeEnum('Mode', enum.Enum('Mode', {'On': 1}), underlying_type=types.uint64)
+    enum_type = types.TypeEnum('Mode', {'On': 1}, underlying_type=types.uint64)
     for primitive in (types.unit, types.boolean, types.uint64, enum_type, types.String, types.ValueType):
         assert (primitive.nesting_depth, primitive.total_member_count) == (0, 1)
     assert (empty.nesting_depth, empty.total_member_count, empty.size) == (1, 1, 0)
@@ -380,6 +428,7 @@ def check_runtime_limits():
 
 
 check_parsing_and_conversions()
+check_enum_values()
 check_descriptors_and_lists()
 check_unit()
 check_times()

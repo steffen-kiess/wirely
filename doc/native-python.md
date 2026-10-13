@@ -139,7 +139,7 @@ defaults contain their ordinary values. `ValueType` bindings provide
 | `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
 | `TimeOfDay` | `wirely.TimeOfDay`, with `nanoseconds` since midnight (up to 24:00) |
 | `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
-| Declared enums | Members of a Python `enum.Enum` class |
+| Declared enums | Immutable `wirely.EnumValue` |
 | Declared structs | Immutable `wirely.StructValue` mappings |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
@@ -149,6 +149,16 @@ defaults contain their ordinary values. `ValueType` bindings provide
 are normalized into tuples.
 
 `Unit` is immutable and fieldless; all instances compare equal.
+
+An `EnumValue` has the member number as `value`, the member `name`, and its
+`type`, a `wirely.EnumType` with the enum's `name`, `underlying_type`,
+`members` (numbers by name), and `names` (names by number). Two values are equal when both type and number
+are equal; compare with numbers or Python enums through `value` or `native`.
+`native` is the member of the Python `IntEnum` that
+[`wirely/runtime/enums.py`](../wirely/runtime/enums.py) registers for the
+enum type, and raises `ValueError` for enum types without one, so use it
+only in code written for a specific enum. An enum output accepts only
+`EnumValue`s of its own enum type.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.
@@ -183,9 +193,10 @@ and `value_type`.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
 descriptors are available through static bindings. For a declared enum,
-pass its type as a `ValueType` parameter and use `parse("MemberName")` on
-that descriptor to obtain a member. Each compiled program owns its enum
-classes; pass values belonging to that program.
+pass its type as a `ValueType` parameter; the descriptor's `enum_type`
+provides `from_name(name)` and `from_value(number)` to build values. Each
+compiled program owns its enum types; pass values belonging to that
+program.
 
 ## Native objects, resources, and tasks
 

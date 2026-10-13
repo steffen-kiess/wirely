@@ -1,6 +1,5 @@
 """Struct, enum, and resource type declarations."""
 
-import enum
 import typing
 
 from wirely.compiler import model
@@ -146,14 +145,7 @@ class DeclarationEnumType(Declaration):
             values[number] = member
             numbers[member_name] = number
         fullname = graph.fullname + '.' + name if isinstance(graph, model.ast.DeclarationLibrary) else name
-        try:
-            python_type = enum.Enum(name, numbers)
-        except (TypeError, ValueError) as error:
-            raise ProgramError(self, str(error)) from None
-        for member_name, member in names.items():
-            if member_name not in python_type.__members__:
-                raise ProgramError(member.name, f'Unsupported enum member name {member_name}')
-        self.value_type = model.types.TypeEnum(fullname, python_type, underlying_type=underlying)
+        self.value_type = model.types.TypeEnum(fullname, numbers, underlying_type=underlying)
         self.value_type.declaration = self
         graph.enum_types[name] = self.value_type
 

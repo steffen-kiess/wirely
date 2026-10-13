@@ -1,6 +1,7 @@
 import wirely
 from wirely.native import native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
+from wirely.runtime.enums import StdEdgeType
 
 native_node_types = {}
 native_resource_types = {}
@@ -198,15 +199,15 @@ class DetectEdge:
     @staticmethod
     def run(*, context):
         last_value = context.inputs['last_value_old']
-        edge_type = context.values['EdgeType'].name
+        edge_type = context.values['EdgeType'].native
 
         value = context.inputs['input']
 
         # print(f'Last={last_value} Now={value}')
-        if edge_type == 'Falling':
+        if edge_type is StdEdgeType.Falling:
             do_trigger = (last_value == wirely.Some(True)) and (value == False)
         else:
-            raise Exception(f'TODO: Implement edge type {edge_type}')
+            raise Exception(f'TODO: Implement edge type {edge_type.name}')
 
         context.set_output('last_value', wirely.Some(value))
         if do_trigger:
