@@ -718,8 +718,8 @@ or `||` without parentheses.
 Procedures can copy any runtime value, including options and structs, read
 struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
-Their ports support single and multi `value` inputs and single `value`
-outputs. State reads must be listed in
+Their ports support single and multi `value` and `event` inputs and single
+`value` outputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
@@ -728,7 +728,7 @@ The engine runs them initially and when dependencies change, retaining
 outputs while dependencies are unchanged. Local mutation is confined to
 one invocation.
 
-Iterate over a multi value dependency with `for`:
+Iterate over a multi value or event dependency with `for`:
 
 ```wirely
 let mut result = true;
@@ -738,7 +738,7 @@ for value in inputs {
 output = result;
 ```
 
-The source directly names a multi value dependency, declared as a typed
+The source directly names a multi dependency, declared as a typed
 port or referenced through `depends on`. Multi inputs support iteration
 only. Iteration follows connection order, and an empty input executes no
 iterations. The loop variable is immutable and scoped to the unit-valued
@@ -755,6 +755,24 @@ recursion. This keeps an unrelated computation
 from holding up actions such as switching on a light. The goal is prompt,
 predictable home automation, rather than a hard real-time guarantee;
 execution cost still depends on the body and the size of its values.
+
+An `on` block runs when at least one of its comma-separated triggers is
+present in this step. A trigger directly names an event dependency or the
+loop variable over a multi event dependency; a multi event dependency is
+present when any of its sources is. Inside a block whose only trigger is an
+`event T` dependency, its name reads the payload as `T`, also in nested
+blocks. Event dependencies cannot be read elsewhere:
+
+```wirely
+let mut next = previous;
+on press { next = !previous; }
+on reset { next = reset; }
+toggled = next;
+```
+
+When several events are present in the same step, each of their blocks
+runs, in order. `on` blocks yield unit, have no `else`, and are available
+only in procedure bodies. Store an event's effect in state to keep it after the event ends.
 
 Use native procedures for external effects or operations outside this
 expression subset. Their `.wrl` declarations specify the interface and

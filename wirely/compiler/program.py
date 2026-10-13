@@ -355,6 +355,7 @@ def lower_program(global_node_type):
                 continue
             source_types = {}
             multi_sources = {}
+            event_sources = set()
             for name, source in proc.static_context._sources.items():
                 declaration = proc.declaration_procedure
                 port = next(port for port in declaration.depends.dependencies
@@ -363,12 +364,15 @@ def lower_program(global_node_type):
                     raise model.ProgramError(port, 'Procedures cannot access resources')
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
-                    raise model.ProgramError(port, 'Event ports are not supported in procedures')
+                    event_sources.add(name)
                 if getattr(source, 'is_list', False):
                     value_type = (resolve_type(source.var_type, instances[path].static_values)
                                   if hasattr(source, 'var_type') else
                                   instances[path].node_type.resolve_type(
                                       spec.ty, par_values=instances[path].static_values))
+                    if name in event_sources:
+                        # Each event source holds None while absent.
+                        value_type = model.types.TypeOption(value_type)
                     keys = []
                     for index, (member_path, member, _) in enumerate(members(path, source)):
                         key = name, index
@@ -385,12 +389,13 @@ def lower_program(global_node_type):
                 if isinstance(spec, model.PortTypeSpecificationResource):
                     raise model.ProgramError(port, 'Procedures cannot produce resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
-                    raise model.ProgramError(port, 'Event ports are not supported in procedures')
+                    raise model.ProgramError(port, 'Event outputs are not supported in procedure bodies')
                 variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
             bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
-                                                 intern_constant, intern_function, multi_sources)
+                                                 intern_constant, intern_function, multi_sources,
+                                                 event_sources)
 
     from .static_bindings import evaluate_bindings
     schedules = {}

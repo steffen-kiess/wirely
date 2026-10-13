@@ -187,8 +187,10 @@ struct_literal_field_list: _list{struct_literal_field} -> copy_list
 struct_literal_field: identifier ":" expression
 
 ?atom: nonblock_postfix | block_postfix
-?block_expression: if_expression | expression_block | for_expression
+?block_expression: if_expression | expression_block | for_expression | on_expression
 for_expression: "for" identifier "in" expression_no_struct expression_block
+on_expression: "on" on_trigger_list expression_block
+on_trigger_list: _list1{identifier} -> copy_list
 ?nonblock_atom: int_number -> copy
     | float_number -> copy
     | string_constant -> copy

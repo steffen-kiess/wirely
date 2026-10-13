@@ -1,0 +1,41 @@
+// Event dependencies in procedure bodies.
+node type Events {
+  parameter Type: ValueType = uint8;
+  input Press: event unit;
+  input Values: multi event Type;
+  input Changed: event Type;
+  default output: value Type;
+  procedure run
+    depends on Press as on, Values, empty: multi event Type,
+      changed: event Type
+    produces default output as output
+  {
+    let mut result: Type = 0;
+    // Weak keywords name events and locals.
+    on on {}
+    on changed, on, { result = 2; }
+    on changed {
+      let event: Type = changed;
+      result = event;
+      on changed { result = changed; }
+    }
+    on changed, on {
+      on changed { result = changed; }
+    }
+    let unit_value = on on {};
+    on Values {}
+    on empty { result = 1; }
+    for item in Values {
+      on item { result = Type.WrappingAdd(result, item); }
+    }
+    assert Values.Length == 2;
+    output = result;
+  }
+  connect Changed -> run.changed;
+}
+node press: Std.DebugEventSource { Type: unit }
+node value: Std.DebugEventSource { Type: uint8 }
+node events: Events {}
+connect press -> events.Press;
+connect value, value -> events.Values;
+connect value -> events.Changed;

@@ -1,0 +1,66 @@
+// Procedure bodies read events inside on blocks.
+node press: Std.DebugEventSource { Type: unit }
+node number: Std.DebugEventSource { Type: uint8 }
+node first: Std.DebugEventSource { Type: uint8 }
+node second: Std.DebugEventSource { Type: uint8 }
+
+state toggled: boolean = false;
+state last: Option[uint8] = None;
+state count: uint8 = 0;
+state both: Option[uint8] = None;
+state total: uint8 = 0;
+state any_steps: uint8 = 0;
+
+procedure toggle
+  depends on press, toggled.old as previous
+  produces toggled
+{
+  let mut next = previous;
+  on press { next = !previous; }
+  toggled = next;
+}
+
+procedure remember
+  depends on number, last.old as previous
+  produces last
+{
+  let mut next = previous;
+  on number { next = Some(number); }
+  last = next;
+}
+
+procedure count_either
+  depends on first, second, count.old as previous
+  produces count
+{
+  let mut next = previous;
+  on first, second { next = uint8.WrappingAdd(previous, 1); }
+  count = next;
+}
+
+procedure add_both
+  depends on first, second, both.old as previous
+  produces both
+{
+  let mut sum = previous;
+  on first {
+    on second { sum = Some(uint8.WrappingAdd(first, second)); }
+  }
+  both = sum;
+}
+
+procedure add_all
+  depends on values: multi event uint8, total.old as previous_total,
+    any_steps.old as previous_steps
+  produces total, any_steps
+{
+  let mut next = previous_total;
+  for value in values {
+    on value { next = uint8.WrappingAdd(next, value); }
+  }
+  total = next;
+  let mut steps = previous_steps;
+  on values { steps = uint8.WrappingAdd(previous_steps, 1); }
+  any_steps = steps;
+}
+connect first, second -> add_all.values;

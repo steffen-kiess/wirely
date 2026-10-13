@@ -36,7 +36,7 @@ node type Probe {
   default input: multi value boolean;
   procedure run depends on default input as values {
     let scalar = true;
-    for value in scalar {} // E: For loops require a multi value input name
+    for value in scalar {} // E: For loops require a multi value or event input name
   }
 }
 node probe: Probe {}
@@ -45,7 +45,7 @@ node probe: Probe {}
 node type Probe {
   default input: multi value boolean;
   procedure run depends on default input as values {
-    for value in { values } {} // E: For loops require a multi value input name
+    for value in { values } {} // E: For loops require a multi value or event input name
   }
 }
 node probe: Probe {}

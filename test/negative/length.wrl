@@ -40,7 +40,7 @@ node type Probe {
 node type Probe {
   default input: multi value boolean;
   procedure run depends on default input as values {
-    for value in (default input) {} // E: For loops require a multi value input name or alias
+    for value in (default input) {} // E: For loops require a multi value or event input name or alias
   }
 }
 node probe: Probe {}

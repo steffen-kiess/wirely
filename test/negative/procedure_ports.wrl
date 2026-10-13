@@ -232,22 +232,51 @@ node type Invalid {
     depends on value: value boolean; // H: Dependencies declared here
 }
 
-// TEST: procedure_port_body_event
+// TEST: event_read_outside_on
 // LIBRARIES: std
-node type Invalid {
-  input Flag: event boolean;
-  default output: value boolean;
-  procedure run
-    depends on value: event boolean // E: Event ports are not supported in procedures
-    produces default output as output
-  {
-    output = true;
-  }
-  connect Flag -> run.value;
+node a: Std.DebugEventSource { Type: boolean }
+state result: boolean = false;
+procedure run depends on a produces result {
+  result = a; // E: Event 'a' can only be read inside 'on a'
 }
-node source: Std.DebugEventSource { Type: boolean }
-node invalid: Invalid {}
-connect source -> invalid.Flag;
+
+// TEST: event_read_with_other_trigger
+// LIBRARIES: std
+node a: Std.DebugEventSource { Type: boolean }
+node b: Std.DebugEventSource { Type: boolean }
+state result: boolean = false;
+procedure run depends on a, b produces result {
+  let mut value = false;
+  on a, b { value = a; } // E: Event 'a' can only be read inside 'on a'
+  result = value;
+}
+
+// TEST: event_multi_read
+// LIBRARIES: std
+node a: Std.DebugEventSource { Type: boolean }
+state result: boolean = false;
+procedure run depends on values: multi event boolean produces result {
+  let mut value = false;
+  on values {
+    for item in values {
+      value = item; // E: Event 'item' can only be read inside 'on item'
+    }
+  }
+  result = value;
+}
+connect a -> run.values;
+
+// TEST: on_value_trigger
+// LIBRARIES: std
+node a: Std.DebugValueSource { Type: boolean }
+state result: boolean = false;
+procedure run depends on a produces result {
+  on a {} // E: 'a' is not an event dependency
+  result = a;
+}
+
+// TEST: on_in_constant
+constant Value: boolean = { on a {} true }; // E: on blocks are only allowed in procedure bodies
 
 // TEST: initializer_typed_port
 resource type Handle;

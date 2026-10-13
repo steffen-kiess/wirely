@@ -259,6 +259,13 @@ class ForExpression(Expression):
         self.body = body
 
 
+class OnExpression(Expression):
+    def __init__(self, triggers, body, *, source_position):
+        super().__init__(source_position=source_position)
+        self.triggers = tuple(triggers)
+        self.body = body
+
+
 class ExpressionBlock(Expression):
     def __init__(self, *statements, source_position):
         super().__init__(source_position=source_position)
@@ -376,6 +383,11 @@ class ExpressionClassification:
             self.visit(expression.iterable, names)
             self.visit(expression.body, {**names, expression.name.id_str: True})
             dependencies.update((expression.iterable, expression.body))
+            return
+        if isinstance(expression, OnExpression):
+            self.runtime.add(expression)
+            self.visit(expression.body, names)
+            dependencies.add(expression.body)
             return
         # Walk syntax only; declaration names and annotations are not values.
         for name, child in vars(expression).items():
@@ -851,6 +863,10 @@ class ExpressionCompiler:
         self.initialization = {}
         self.loop_outer_keys = None
         self.classification = None
+        # Payload types of event bindings, by (operation, payload).
+        self.events = {}
+        # Payload locals of events known to be present, by (operation, payload).
+        self.present = {}
 
     def is_runtime(self, expression):
         if self.classification is not None and expression in self.classification.dependencies:
@@ -949,11 +965,11 @@ class ExpressionCompiler:
         iterable = expression.iterable
         if (isinstance(iterable, model.Reference)
                 and iterable.identifiers[0].id_str == 'default input'):
-            raise ProgramError(iterable, 'For loops require a multi value input name or alias')
+            raise ProgramError(iterable, 'For loops require a multi value or event input name or alias')
         value = (self.names.get(iterable.identifiers[0].id_str)
                  if isinstance(iterable, model.Reference) and iterable.length == 1 else None)
         if value is None or value.operation != 'multi_input':
-            raise ProgramError(iterable, 'For loops require a multi value input name')
+            raise ProgramError(iterable, 'For loops require a multi value or event input name')
         name = expression.name.id_str
         if name in self.protected:
             raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
@@ -963,6 +979,8 @@ class ExpressionCompiler:
         self.next_slot += 1
         self.loop_outer_keys = set(before)
         self.bind(name, TypedExpression(value.value_type, 'local', payload=slot, runtime=True), initialized=True)
+        if (value.operation, value.payload) in self.events:
+            self.events['local', slot] = self.events[value.operation, value.payload]
         try:
             body = self.compile(expression.body, model.types.unit)
             # A loop may execute zero times, regardless of its specialized arity.
@@ -972,6 +990,45 @@ class ExpressionCompiler:
             self.loop_outer_keys = None
             self.initialization = {key: state for key, state in self.initialization.items() if key in before}
         return TypedExpression(model.types.unit, 'for', (body,), (slot, value.payload))
+
+    def on_expression(self, expression):
+        if not self.runtime:
+            raise ProgramError(expression, 'on blocks are only allowed in procedure bodies')
+        options = []
+        for trigger in expression.triggers:
+            value = self.names.get(trigger.id_str)
+            if value is None or (value.operation, value.payload) not in self.events:
+                raise ProgramError(trigger, f'{trigger.id_str!r} is not an event dependency')
+            if value.operation == 'multi_input':
+                options += [TypedExpression(value.value_type, 'input', payload=member, runtime=True)
+                            for member in value.payload]
+            else:
+                options.append(value)
+        before = dict(self.initialization)
+        previous = dict(self.present)
+        slot = None
+        try:
+            if len(expression.triggers) == 1 and value.operation != 'multi_input':
+                # The only trigger is present in the block, so its name reads the payload.
+                slot = self.next_slot
+                self.next_slot += 1
+                key = value.operation, value.payload
+                self.present[key] = TypedExpression(self.events[key], 'local', payload=slot, runtime=True)
+            body = self.compile(expression.body, model.types.unit)
+        finally:
+            self.present = previous
+        self.merge_initialization(before, before, self.initialization)
+        absent = TypedExpression(model.types.unit, 'unit')
+        if slot is not None:
+            return TypedExpression(model.types.unit, 'if_let', (value, body, absent), slot)
+        condition = TypedExpression(model.types.boolean, 'constant', payload=ConstantValue(
+            model.types.boolean, False, ast_element=expression,
+        ))
+        for option in options:
+            present = TypedExpression(model.types.boolean, 'is_some', (option,), runtime=True)
+            condition = (present if condition.operation == 'constant'
+                         else TypedExpression(model.types.boolean, 'or', (condition, present), runtime=True))
+        return TypedExpression(model.types.unit, 'if', (condition, body, absent))
 
     def block(self, expression, expected):
         previous_names = dict(self.names)
@@ -1029,6 +1086,8 @@ class ExpressionCompiler:
         boolean = model.types.boolean
         if isinstance(expression, ForExpression):
             return self.for_expression(expression)
+        if isinstance(expression, OnExpression):
+            return self.on_expression(expression)
         if isinstance(expression, AssignmentExpression):
             return self.assignment(expression)
         if isinstance(expression, PropertyAccess):
@@ -1162,6 +1221,10 @@ class ExpressionCompiler:
                     raise ProgramError(expression, 'Multi inputs can only be used as for-loop sources '
                                        'or receivers of .Length')
                 key = value.operation, value.payload
+                if key in self.events:
+                    if key not in self.present:
+                        raise ProgramError(expression, f"Event {name!r} can only be read inside 'on {name}'")
+                    return self.present[key]
                 if key in self.initialization and not self.initialization[key][1]:
                     raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
                 return value
@@ -1447,7 +1510,7 @@ class ExpressionCompiler:
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return model.types.boolean
-        if isinstance(expression, ForExpression):
+        if isinstance(expression, (ForExpression, OnExpression)):
             return model.types.unit
         if isinstance(expression, AssignmentExpression):
             return model.types.unit
@@ -1549,7 +1612,7 @@ def fold_constants(expression):
 
 
 def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
-                      multi_sources=None):
+                      multi_sources=None, event_sources=()):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     multi_sources = multi_sources or {}
@@ -1571,6 +1634,9 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
                                   names=names, protected=protected | input_names)
+    for name in event_sources:
+        value = names[name]
+        compiler.events[value.operation, value.payload] = value.value_type.inner_type
     for name, value_type in output_types.items():
         compiler.bind(name, TypedExpression(value_type, 'output', payload=name, runtime=True))
     body = compiler.compile(declaration.body, model.types.unit)

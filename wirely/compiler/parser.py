@@ -8,8 +8,8 @@ from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, capture_source_path
 from .expressions import (
-    BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
+    BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression,
+    ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
 )
 
 
@@ -19,8 +19,8 @@ with open(os.path.dirname(__file__) + '/wirely.lark', 'r') as file:
 # TODO: Move somewhere else?
 
 ast_classes = [
-    BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, ExpressionBlock, PropertyAccess,
-    LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
+    BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression,
+    ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
     model.ConnectionKindSpecifier,
     model.PortTypeSpecification,
     model.PortTypeSpecificationData,
