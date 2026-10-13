@@ -156,6 +156,14 @@ A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
+Node types with native state or native procedures, resource types, and
+native functions accept `as "Qualified.Name"` after their name. Native code
+and `Program` use this native name instead of the qualified Wirely name, so
+the declaration can be renamed or moved without changing its
+implementation, as in
+`native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
+Each native name identifies one declaration of its kind.
+
 Identifiers are case-sensitive. Weak keywords `constant`, `default`,
 `event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
 `state`, `type`, and `value` can also be used as identifiers. Other keywords

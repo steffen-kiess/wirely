@@ -185,10 +185,57 @@ connect service -> consumer.Service;
             Engine(replace(program, instances=instances))
 
 
+def check_native_names():
+    # Keys replace qualified names in native interfaces and linking.
+    registry = {}
+
+    @native_node_type(registry, has_native_state=True)
+    class Provider(NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('service', self)
+
+    @native_node_type(registry, has_native_state=False)
+    class Consumer:
+        @staticmethod
+        def run(*, context):
+            context.set_output('output', 7)
+
+    source = '''namespace Renamed {
+  resource type Link as "TestLibrary.Service";
+  native node type Source as "TestLibrary.Provider" {
+    default output: resource Link;
+    native initializer produces default output as "service";
+  }
+  node type Sink as "TestLibrary.Consumer" {
+    input Service: resource Link;
+    default output: value uint8;
+    native procedure run depends on Service produces default output as "output";
+  }
+}
+node source: Renamed.Source {}
+node sink: Renamed.Sink {}
+connect source -> sink.Service;
+'''
+    with patch.dict(wirely.native.test_library.native_node_types, registry):
+        graph = wirely.compiler.compile_strs([('<native-names>', source)])
+        assert graph is not None
+        program = program_compiler.compile_nocatch(graph)
+        engine = Engine(program)
+    assert program.instances['source'].type_name == 'TestLibrary.Provider'
+    assert set(program.native_types) == {'TestLibrary.Provider', 'TestLibrary.Consumer'}
+    assert program.native_types['TestLibrary.Provider'].resource_outputs == {'service': 'TestLibrary.Service'}
+    assert program.native_types['TestLibrary.Consumer'].procedures['run'].resources == {
+        'Service': 'TestLibrary.Service'}
+    engine.step()
+    engine.assert_value_is('sink', 7)
+
+
 check_compilation_without_native_implementations()
 check_engine_isolation()
 check_resource_isolation()
 check_resource_binding_validation()
+check_native_names()
 
 
 async def run_test():

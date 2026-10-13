@@ -490,19 +490,20 @@ def check_conversions():
 
 def check_native_functions():
     # Runtime native functions run in procedures and in compile-time expressions.
+    # Keys select implementations by native name.
     functions = compile_program('''namespace TestLibrary {
-      native function Clamp(value: int16, low: int16, high: int16): int16;
+      native function Limit as "TestLibrary.Clamp"(value: int16, low: int16, high: int16): int16;
       native function Nothing(): unit;
     }
     node type Clamped {
-      constant High: int16 = TestLibrary.Clamp(500, 0, 10);
+      constant High: int16 = TestLibrary.Limit(500, 0, 10);
       default input: value int16;
       default output: value int16;
       output Done: value unit;
       procedure run depends on default input as input produces default output as output, Done {
         let mut low: int16 = -10;
         TestLibrary.Nothing();
-        output = TestLibrary.Clamp(input, low, { low = 100; High });
+        output = TestLibrary.Limit(input, low, { low = 100; High });
         Done = TestLibrary.Nothing();
       }
     }
@@ -517,7 +518,7 @@ def check_native_functions():
         with patch.object(runtime_procedures, 'call_native_function',
                           wraps=runtime_procedures.call_native_function) as calls:
             function_engine.step()
-        assert [call.args[1] for call in calls.call_args_list] == [('TestLibrary', 'Clamp')]
+        assert [call.args[1] for call in calls.call_args_list] == ['TestLibrary.Clamp']
         function_engine.assert_value_is('clamped', expected)
         function_engine.assert_value_is('clamped.Done', wirely.Unit())
     function_engine.assert_is_idle()

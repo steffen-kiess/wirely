@@ -155,3 +155,11 @@ node type Invalid {
   native procedure run
     produces handles: multi resource Handle; // E: Got multi specifier for non-input
 }
+
+// TEST: resource_duplicate_native_name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Fixture.Handle'
+namespace Fixture {
+  resource type Handle; // H: Previous declaration was here
+  resource type Link as "Fixture.Handle"; // E: Duplicate native name 'Fixture.Handle'
+}

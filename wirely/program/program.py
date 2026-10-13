@@ -114,8 +114,8 @@ class ResourceBinding:
 
 
 def _resource_types(resources):
-    """Return resource types by key, sorted, with qualified names as tuples."""
-    return MappingProxyType({key: tuple(resources[key]) for key in sorted(resources)})
+    """Return resource types by key, sorted."""
+    return MappingProxyType({key: resources[key] for key in sorted(resources)})
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +123,7 @@ class NativeProcedureInterface:
     """Declared interface of a native procedure."""
 
     uses: tuple[str, ...]  # Names bound by `uses`, sorted.
-    resources: Mapping[str, tuple[str, ...]]  # Resource input key -> qualified resource type.
+    resources: Mapping[str, str]  # Resource input key -> native resource type name.
     inputs: tuple[str, ...]  # Value and event input keys, sorted.
     outputs: tuple[str, ...]  # Output keys, sorted.
 
@@ -137,15 +137,14 @@ class NativeProcedureInterface:
 class NativeNodeType:
     """Declared native interface of a node type, linked by name at runtime."""
 
-    name: tuple[str, ...]  # Qualified node type name.
+    name: str  # Native node type name, such as 'KNX.Switch'.
     has_native_state: bool  # Whether instances have a native state object.
     initializer_uses: tuple[str, ...]  # Names bound by the initializer's `uses`, sorted.
-    initializer_resources: Mapping[str, tuple[str, ...]]  # Resource input key -> resource type.
-    resource_outputs: Mapping[str, tuple[str, ...]]  # Initializer `produces` key -> resource type.
+    initializer_resources: Mapping[str, str]  # Resource input key -> resource type.
+    resource_outputs: Mapping[str, str]  # Initializer `produces` key -> resource type.
     procedures: Mapping[str, NativeProcedureInterface]  # Native procedures by Python name.
 
     def __post_init__(self):
-        object.__setattr__(self, 'name', tuple(self.name))
         object.__setattr__(self, 'initializer_uses', tuple(sorted(self.initializer_uses)))
         for name in ('initializer_resources', 'resource_outputs'):
             object.__setattr__(self, name, _resource_types(getattr(self, name)))
@@ -157,7 +156,7 @@ class NativeInstance:
     """Stored node context for procedures and optional native state creation."""
 
     name: str  # Instance name exposed to native code.
-    type_name: tuple[str, ...]  # Qualified node type name, split into components.
+    type_name: str  # Native node type name.
     has_native_state: bool  # Whether the engine creates a native state object.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
     initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
@@ -165,7 +164,6 @@ class NativeInstance:
 
     def __post_init__(self):
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
-        object.__setattr__(self, 'type_name', tuple(self.type_name))
         parameters = MappingProxyType(dict(self.parameters))
         object.__setattr__(self, 'parameters', parameters)
         object.__setattr__(self, 'initializer_bindings', MappingProxyType(dict(self.initializer_bindings)))
@@ -176,7 +174,7 @@ class Procedure:
     """A scheduled procedure with its inputs and output destinations."""
 
     node_id: str  # Owning node's key in Program.instances.
-    reference: tuple[tuple[str, ...], str]  # (qualified type components, method name).
+    reference: tuple[str, str]  # (native node type name, method name).
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
     resources: Mapping[str, ResourceBinding]  # Resource inputs by name.
@@ -186,8 +184,6 @@ class Procedure:
 
     def __post_init__(self):
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
-        type_name, proc_name = self.reference
-        object.__setattr__(self, 'reference', (tuple(type_name), proc_name))
         object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
         object.__setattr__(self, 'resources', MappingProxyType(dict(self.resources)))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
@@ -218,7 +214,7 @@ class Program:
     variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
-    native_types: Mapping[tuple[str, ...], NativeNodeType] = field(default_factory=dict)  # By type name.
+    native_types: Mapping[str, NativeNodeType] = field(default_factory=dict)  # By type name.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self):
@@ -288,7 +284,7 @@ class Program:
         for index, function in enumerate(self.functions):
             parameters = ', '.join(f'{name}: {value_type}' for name, value_type
                                    in zip(function.argument_names, function.parameter_types))
-            line(f'func.{index}: {".".join(function.name)}({parameters}): {function.return_type}', 2)
+            line(f'func.{index}: {function.name}({parameters}): {function.return_type}', 2)
 
         def names(label, items, indent):
             line(f'{label}: {", ".join(items)}' if items else f'{label}:', indent)
@@ -296,12 +292,12 @@ class Program:
         def resource_types(label, resources, indent):
             line(label + ':', indent)
             for key, resource_type in resources.items():
-                line(f'{key}: {".".join(resource_type)}', indent + 2)
+                line(f'{key}: {resource_type}', indent + 2)
 
         line()
         line('Native types:')
         for type_name, native_type in sorted(self.native_types.items()):
-            line(f'{".".join(type_name)}:', 2)
+            line(f'{type_name}:', 2)
             line(f'has native state: {native_type.has_native_state}', 4)
             names('initializer uses', native_type.initializer_uses, 4)
             resource_types('initializer resources', native_type.initializer_resources, 4)
@@ -322,7 +318,7 @@ class Program:
         line()
         line('Node instances:')
         for node_id, instance in sorted(self.instances.items()):
-            line(f'{node_id}: {".".join(instance.type_name)}', 2)
+            line(f'{node_id}: {instance.type_name}', 2)
             line(f'name: {instance.name}', 4)
             line(f'has native state: {instance.has_native_state}', 4)
             value('parameters', dict(instance.parameters), 4)
@@ -336,7 +332,7 @@ class Program:
             line(f'{stage.name}:', 2)
             for index, proc in enumerate(schedule, 1):
                 type_name, method_name = proc.reference
-                line(f'{index}. {proc.node_id}: {".".join(type_name)}.{method_name}', 4)
+                line(f'{index}. {proc.node_id}: {type_name}.{method_name}', 4)
                 line(f'node context: {proc.node_context.name}', 6)
                 static_bindings('values', proc.values, 6)
                 line('dependencies:', 6)

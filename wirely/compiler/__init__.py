@@ -88,10 +88,11 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
 
 def validate_source_metadata(parsed_files, declarations):
     from .attributes import validate_files
-    from .native_functions import validate_collisions
+    from .native_functions import validate_collisions, validate_native_names
 
     metadata = validate_files(parsed_files)
     validate_collisions(declarations)
+    validate_native_names(declarations)
     return metadata
 
 

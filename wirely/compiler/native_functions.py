@@ -12,52 +12,52 @@ from . import model
 
 
 native_function_impls = {
-    ('KNX', 'ParseGroupAddress'): (
+    'KNX.ParseGroupAddress': (
         'wirely.compiler.function_implementations.knx', 'parse_group_address',
     ),
-    ('KNX', 'ValueTypeName'): (
+    'KNX.ValueTypeName': (
         'wirely.compiler.function_implementations.knx', 'value_type_name',
     ),
-    ('KNX', 'SupportsValueType'): (
+    'KNX.SupportsValueType': (
         'wirely.compiler.function_implementations.knx', 'supports_value_type',
     ),
-    ('MQTT', 'SupportsType'): (
+    'MQTT.SupportsType': (
         'wirely.compiler.function_implementations.mqtt', 'supports_type',
     ),
-    ('MQTT', 'ParseTemplate'): (
+    'MQTT.ParseTemplate': (
         'wirely.compiler.function_implementations.mqtt', 'parse_template',
     ),
-    ('TwoN', 'ReadCredentials'): (
+    'TwoN.ReadCredentials': (
         'wirely.compiler.function_implementations.two_n', 'read_credentials',
     ),
-    ('CSV', 'SupportsType'): (
+    'CSV.SupportsType': (
         'wirely.compiler.function_implementations.csv', 'supports_type',
     ),
-    ('Schedule', 'IsValidDailyInterval'): (
+    'Schedule.IsValidDailyInterval': (
         'wirely.compiler.function_implementations.schedule', 'is_valid_daily_interval',
     ),
-    ('TwoN', 'IsValidCode'): (
+    'TwoN.IsValidCode': (
         'wirely.compiler.function_implementations.two_n', 'is_valid_code',
     ),
-    ('Path', 'Join'): ('wirely.compiler.function_implementations.path', 'join'),
-    ('Path', 'Parent'): ('wirely.compiler.function_implementations.path', 'parent'),
-    ('Path', 'SourceFile'): ('wirely.compiler.function_implementations.path', 'source_file'),
-    ('Test', 'ReplaceKNXPath'): (
+    'Path.Join': ('wirely.compiler.function_implementations.path', 'join'),
+    'Path.Parent': ('wirely.compiler.function_implementations.path', 'parent'),
+    'Path.SourceFile': ('wirely.compiler.function_implementations.path', 'source_file'),
+    'Test.ReplaceKNXPath': (
         'wirely.compiler.function_implementations.test', 'replace_knx_path',
     ),
-    ('Test', 'ReplaceMQTTURI'): (
+    'Test.ReplaceMQTTURI': (
         'wirely.compiler.function_implementations.test', 'replace_mqtt_uri',
     ),
-    ('Test', 'ReplaceOutputPath'): (
+    'Test.ReplaceOutputPath': (
         'wirely.compiler.function_implementations.test', 'replace_output_path',
     ),
-    ('Test', 'ReplaceTwoNHost'): (
+    'Test.ReplaceTwoNHost': (
         'wirely.compiler.function_implementations.test', 'replace_twon_host',
     ),
-    ('Test', 'ReplaceTwoNPort'): (
+    'Test.ReplaceTwoNPort': (
         'wirely.compiler.function_implementations.test', 'replace_twon_port',
     ),
-    ('Test', 'ReplaceTwoNTLSA'): (
+    'Test.ReplaceTwoNTLSA': (
         'wirely.compiler.function_implementations.test', 'replace_twon_tlsa',
     ),
 }
@@ -65,7 +65,7 @@ native_function_impls = {
 
 @dataclass(frozen=True, slots=True)
 class NativeFunctionContext:
-    function_name: tuple[str, ...]
+    function_name: str  # Native name, such as 'KNX.ParseGroupAddress'.
     arguments: Mapping[str, object]
     arguments_ast: Mapping[str, object]
     call: object
@@ -80,7 +80,7 @@ class NativeFunctionContext:
 
 def validate_entry(name, declaration):
     if name not in native_function_impls:
-        raise model.ProgramError(declaration, f'Missing implementation for function {".".join(name)!r}')
+        raise model.ProgramError(declaration, f'Missing implementation for function {name!r}')
     entry = native_function_impls[name]
     if callable(entry):
         return
@@ -89,7 +89,7 @@ def validate_entry(name, declaration):
             and all(part.isidentifier() for part in entry[0].split('.'))
             and entry[1].isidentifier()):
         return
-    raise model.ProgramError(declaration, f'Invalid implementation entry for function {".".join(name)!r}')
+    raise model.ProgramError(declaration, f'Invalid implementation entry for function {name!r}')
 
 
 def validate_collisions(declarations):
@@ -114,12 +114,44 @@ def validate_collisions(declarations):
     visit(declarations, ())
 
 
+def validate_native_names(declarations):
+    """Reject native names shared by two node types, resource types, or functions."""
+    names = {}
+
+    def register(kind, item, path):
+        name = item.alias.value if item.alias is not None else '.'.join(path + (item.name.id_str,))
+        previous = names.setdefault((kind, name), item)
+        # Wirely name checks report clashes between unkeyed declarations.
+        if previous is not item and (item.alias is not None or previous.alias is not None):
+            raise model.ProgramError(item.alias or item.name, f'Duplicate native name {name!r}', hints=[
+                model.CompilerHint(previous.alias or previous.name, 'Previous declaration was here'),
+            ])
+
+    def visit(items, path):
+        for item in items:
+            if isinstance(item, model.DeclarationLibrary):
+                visit(item.declarations, path + (item.name.id_str,))
+            elif isinstance(item, model.NodeType):
+                if item.is_native or any(isinstance(declaration, model.DeclarationProcedure)
+                                         and declaration.is_native for declaration in item.declarations):
+                    register('node type', item, path)
+                elif item.alias is not None:
+                    raise model.ProgramError(item.alias, 'Node type keys require native state or native procedures')
+                visit(item.declarations, path + (item.name.id_str,))
+            elif isinstance(item, model.DeclarationResourceType):
+                register('resource type', item, path)
+            elif isinstance(item, model.DeclarationNativeFunction):
+                register('function', item, path)
+
+    visit(declarations, ())
+
+
 def resolve_implementation(function, call):
     # Declaration objects belong to one compilation, so this cache cannot leak.
     if hasattr(function, '_resolved_implementation'):
         return function._resolved_implementation
-    name = '.'.join(function.function_name)
-    entry = native_function_impls[function.function_name]
+    name = function.function_name
+    entry = native_function_impls[function.native_name]
     try:
         implementation = (entry if callable(entry)
                           else getattr(importlib.import_module(entry[0]), entry[1]))
@@ -142,7 +174,7 @@ def invoke(function, values, sources, call):
     arguments = {name: model.value_types._to_native(ty, value)
                  for name, ty, value in zip(function.argument_names, function.parameter_types, values)}
     context = NativeFunctionContext(
-        function.function_name, MappingProxyType(arguments),
+        function.native_name, MappingProxyType(arguments),
         MappingProxyType(dict(zip(function.argument_names, sources))), call,
         function.scope.services,
     )
@@ -160,21 +192,21 @@ def invoke(function, values, sources, call):
         result = model.value_types._from_native(function.return_type, result)
         return function.return_type.verify_value(result)
     except Exception as error:
-        name = '.'.join(function.function_name)
+        name = function.function_name
         raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
 
 
 def invoke_runtime_function(function, values, call):
     """Evaluate a runtime-callable native function during compilation."""
     from wirely.functions import call_native_function, get_native_function_by_name
-    name = '.'.join(function.function_name)
+    name = function.function_name
     if not hasattr(function, '_runtime_implementation'):
         try:
-            function._runtime_implementation = get_native_function_by_name(function.function_name)
+            function._runtime_implementation = get_native_function_by_name(function.native_name)
         except (ImportError, ValueError) as error:
             raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     try:
-        return call_native_function(function._runtime_implementation, function.function_name,
+        return call_native_function(function._runtime_implementation, function.native_name,
                                     function.argument_names, function.parameter_types,
                                     function.return_type, values)
     except Exception as error:

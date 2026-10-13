@@ -485,7 +485,7 @@ constructor of the state's type and supplies the initializer's resolved
 // A native state implementation and its interfaces.
 // NativeStateTypes table.
 struct type NativeStateType {
-  // Qualified name in Names.
+  // Native name in Names, such as ABB.JRA.Blind.
   Name: StringRef,
   // Range into InterfaceNames; names bound by the initializer's `uses`.
   UsesNames: Range,
@@ -521,7 +521,7 @@ unique names in UTF-8 bytewise lexical order.
 struct type ResourceInterface {
   // Interface name in Names.
   Name: StringRef,
-  // Qualified resource type name in Names, such as KNX.Bus.
+  // Native resource type name in Names, such as KNX.Bus.
   Type: StringRef,
 }
 ```
@@ -735,7 +735,7 @@ struct type ProcedureBody {
 // A native function called by procedure bodies.
 // NativeFunctions table.
 struct type NativeFunction {
-  // Qualified name in Names.
+  // Native name in Names.
   Name: StringRef,
   // Range into TypeLists; parameter types in argument order.
   Parameters: Range,

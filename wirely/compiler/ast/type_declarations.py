@@ -1,13 +1,14 @@
 """Struct, enum, and resource type declarations."""
 
 import enum
+import typing
 
 from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import parse_value
 
 from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Declaration, Value
-from .values import IntNumber, Reference
+from .values import IntNumber, Reference, StringConstant
 
 
 class EnumMember(SourceElement):
@@ -159,9 +160,11 @@ class DeclarationEnumType(Declaration):
 
 class DeclarationResourceType(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, alias: typing.Optional[StringConstant] = None, *,
+                 source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
+        self.alias = alias  # Native name replacing the qualified name.
 
     def register_interface_declarations(self, interface):
         if interface.name is not None:
@@ -190,4 +193,5 @@ class DeclarationResourceType(Declaration):
             name_tuple = graph.fullname_tuple + (name,)
         else:
             name_tuple = (name,)
-        graph.resource_types[name] = model.ResourceType('.'.join(name_tuple), name_tuple, self)
+        native_name = self.alias.value if self.alias is not None else '.'.join(name_tuple)
+        graph.resource_types[name] = model.ResourceType('.'.join(name_tuple), name_tuple, self, native_name)

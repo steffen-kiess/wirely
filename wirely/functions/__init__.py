@@ -16,10 +16,10 @@ from ..types import StructValue, TypeStruct, value_types
 
 # Maps namespaces to modules of this package, each with a native_functions registry.
 function_pkgs = {
-    ('Duration',): 'duration',
-    ('MonotonicTime',): 'monotonic_time',
-    ('TestLibrary',): 'test_library',
-    ('TimeOfDay',): 'time_of_day',
+    'Duration': 'duration',
+    'MonotonicTime': 'monotonic_time',
+    'TestLibrary': 'test_library',
+    'TimeOfDay': 'time_of_day',
 }
 
 
@@ -35,13 +35,13 @@ def native_function(registry, name):
 
 @dataclass(frozen=True, slots=True)
 class RuntimeFunctionContext:
-    function_name: tuple[str, ...]  # Qualified name components.
+    function_name: str  # Native name, such as 'Duration.CheckedAdd'.
     arguments: Mapping[str, object]  # Native argument values by declared name.
 
 
 def validate_native_function(implementation, function_name):
     """Reject implementations that cannot be called synchronously with context=."""
-    description = '.'.join(function_name)
+    description = function_name
     if not callable(implementation):
         raise ValueError(f'Native function {description!r} is not callable')
     target = inspect.unwrap(implementation if inspect.isroutine(implementation) else implementation.__call__)
@@ -60,21 +60,21 @@ def call_native_function(implementation, function_name, argument_names, paramete
     Implementations must be total; exceptions propagate to the caller."""
     arguments = {name: value_types._to_native(value_type, value)
                  for name, value_type, value in zip(argument_names, parameter_types, values)}
-    result = implementation(context=RuntimeFunctionContext(tuple(function_name), MappingProxyType(arguments)))
+    result = implementation(context=RuntimeFunctionContext(function_name, MappingProxyType(arguments)))
     if isinstance(return_type, TypeStruct) and isinstance(result, Mapping) and not isinstance(result, StructValue):
         result = value_types.ValueType(return_type).make_struct(result)
     return return_type.verify_value(value_types._from_native(return_type, result))
 
 
-def get_native_function_by_name(function_name: tuple[str, ...]):
+def get_native_function_by_name(function_name: str):
     """Return the implementation of a native function, validated for calling."""
-    description = '.'.join(function_name)
-    pkg_name = function_pkgs.get(function_name[:-1])
+    namespace, _, name = function_name.rpartition('.')
+    pkg_name = function_pkgs.get(namespace)
     if pkg_name is None:
-        raise ValueError(f'No native namespace for function {description!r}')
+        raise ValueError(f'No native namespace for function {function_name!r}')
     pkg = importlib.import_module('.' + pkg_name, __name__)
-    implementation = pkg.native_functions.get(function_name[-1])
+    implementation = pkg.native_functions.get(name)
     if implementation is None:
-        raise ValueError(f'Cannot find native function {description!r}')
+        raise ValueError(f'Cannot find native function {function_name!r}')
     validate_native_function(implementation, function_name)
     return implementation

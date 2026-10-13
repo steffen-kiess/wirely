@@ -21,7 +21,7 @@ from .ast import PortDirection
 from .attributes import validate_files
 from .coordinator import CompilerCoordinator
 from .diagnostics import Diagnostic
-from .native_functions import validate_collisions
+from .native_functions import validate_collisions, validate_native_names
 from .outline import Constant, Node, NodeType, Parameter, Port, ProcedurePort, State, Temporary
 from .types import resolve_type
 
@@ -306,6 +306,7 @@ def analyze(sources, *, add_std=False):
     global_node_type.file_metadata = validate_files(parsed_files, contain=coordinator.contain)
     with coordinator.contain(None):
         validate_collisions(declarations)
+        validate_native_names(declarations)
     coordinator.compile_interfaces()
     coordinator.resolve_procedure_ports()
     elements = _element_spans(result)

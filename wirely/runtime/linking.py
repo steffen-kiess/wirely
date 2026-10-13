@@ -52,7 +52,7 @@ def link_native_classes(program):
         native_class = classes[name]
         if getattr(native_class, 'native_node_has_native_state', None) != instance.has_native_state:
             raise ValueError(
-                f'Node type {".".join(name)!r} requires has_native_state={instance.has_native_state}',
+                f'Node type {name!r} requires has_native_state={instance.has_native_state}',
             )
         state_modes[name] = instance.has_native_state
 

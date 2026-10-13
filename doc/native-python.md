@@ -11,16 +11,17 @@ See the [language guide](language.md) for `.wrl` syntax and the
 [`wirely/native/__init__.py`](../wirely/native/__init__.py) maps namespaces
 to modules: `Std` maps to `std`, and `ABB.JRA` to `abb_jra`. A new namespace
 needs a map entry. Each module supplies a `native_node_types` dictionary;
-`@native_node_type` registers a class under its Python name. Class and
-procedure names match their `.wrl` declarations unless the procedure has
-an alias, such as `native procedure Poll as "poll";`. The alias supplies
-both the Python method name and its trigger key.
+`@native_node_type` registers a class under its Python name. The node
+type's [native name](language.md#declarations-and-names) selects the
+class: its namespace part selects the map entry, and its last component
+the class. Procedure names match their `.wrl` declarations unless the
+procedure has an alias, such as `native procedure Poll as "poll";`. The
+alias supplies both the Python method name and its trigger key.
 
 Native registries must be available when constructing an `Engine` from
-`wirely.runtime.engine`. It resolves classes using the fully qualified
-type names stored in `Program` as tuples,
-for example `("ABB", "JRA", "Blind")`. Each engine creates its own native
-states from the program's initializer values and resource bindings.
+`wirely.runtime.engine`. It resolves classes using the native type names
+stored in `Program`, such as `"ABB.JRA.Blind"`. Each engine creates its own
+native states from the program's initializer values and resource bindings.
 
 For example, `Std.OptionSome` declares:
 
@@ -260,7 +261,8 @@ runtime and lives in [`wirely/functions/`](../wirely/functions/) rather
 than with the runtime-only native node types. `function_pkgs` in
 [`wirely/functions/__init__.py`](../wirely/functions/__init__.py) maps each
 namespace to a module there. Register the implementation in that module's
-`native_functions` dictionary, using the Wirely function name:
+`native_functions` dictionary, using the last component of the function's
+native name:
 
 ```python
 from wirely.functions import native_function
@@ -288,15 +290,14 @@ every function its program calls when it is constructed.
 Declare a compile-time-only function with `native constant function` in a
 `.wrl` library included in the compilation. Before compiling, add its
 Python implementation to `native_function_impls` in
-`wirely.compiler.native_functions`. The key is a tuple of namespace
-components followed by the function name, such as `('Example', 'Parse')`
-for `Example.Parse`. The value is a callable or a pair
+`wirely.compiler.native_functions`. The key is the function's native
+name, such as `'Example.Parse'`. The value is a callable or a pair
 of an absolute Python module name and the name of a callable in that module:
 
 ```python
 from wirely.compiler.native_functions import native_function_impls
 
-native_function_impls[('Example', 'Parse')] = (
+native_function_impls['Example.Parse'] = (
     'my_integration.functions', 'parse',
 )
 
@@ -314,11 +315,11 @@ functions and skipped conditional branches do not need their modules.
 Implementations must be synchronous, accept `context=context`, and return
 one value matching the declared return type.
 
-`NativeFunctionContext` has read-only `function_name` (the qualified name
-tuple), `arguments` (native values by declared argument name),
-`arguments_ast` (call-site expression nodes by name), and `call` (the call
-node). `services` is a read-only mapping of Python objects supplied through
-the optional `services` argument to `compile_files()` or `compile_strs()`.
+`NativeFunctionContext` has read-only `function_name` (the native name),
+`arguments` (native values by declared argument name), `arguments_ast`
+(call-site expression nodes by name), and `call` (the call node).
+`services` is a read-only mapping of Python objects supplied through the
+optional `services` argument to `compile_files()` or `compile_strs()`.
 The compiler copies the mapping, preserving its objects by reference, and
 makes it available through program generation. It defaults to empty.
 Services belong to compiler structures, including optional debug graphs,

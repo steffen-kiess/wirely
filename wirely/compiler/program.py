@@ -308,7 +308,7 @@ def lower_program(global_node_type):
     native_construction_order = tuple(node_ids[path] for path in construction_order)
     native_instances = {
         node_ids[path]: NativeInstance(
-            name=node_ids[path], type_name=instance.node_type.fullname_tuple,
+            name=node_ids[path], type_name=instance.node_type.native_name,
             has_native_state=instance.node_type.is_native,
             parameters=instance.static_context.parameters,
             initializer_bindings=initializer_bindings[path],
@@ -337,11 +337,11 @@ def lower_program(global_node_type):
     function_indices = {}
 
     def intern_function(declaration):
-        if declaration.function_name not in function_indices:
-            function_indices[declaration.function_name] = len(functions)
-            functions.append(Function(declaration.function_name, declaration.argument_names,
+        if declaration.native_name not in function_indices:
+            function_indices[declaration.native_name] = len(functions)
+            functions.append(Function(declaration.native_name, declaration.argument_names,
                                       declaration.parameter_types, declaration.return_type))
-        return function_indices[declaration.function_name]
+        return function_indices[declaration.native_name]
 
     for stage_procs in procs.values():
         for path, proc in stage_procs:
@@ -421,7 +421,7 @@ def lower_program(global_node_type):
                     outputs[key] = OutputTarget(variable_map[path, target.var_identifier].variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
-                reference=(instances[path].node_type.fullname_tuple, proc.declaration_procedure.python_name),
+                reference=(instances[path].node_type.native_name, proc.declaration_procedure.python_name),
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=resources,
                 outputs=outputs, body=bodies.get((path, proc)),
@@ -439,7 +439,7 @@ def lower_program(global_node_type):
                 continue
             copies.append(Procedure(
                 node_id=node_ids[path],
-                reference=(instance.node_type.fullname_tuple, f'<state {state.name}>'),
+                reference=(instance.node_type.native_name, f'<state {state.name}>'),
                 node_context=native_instances[node_ids[path]],
                 dependencies=(('value', resolve_source(path, state.copy_source)),),
                 resources={}, outputs={'value': OutputTarget(state_map[path, state])},
@@ -484,9 +484,9 @@ def lower_program(global_node_type):
     native_types = {}
     for instance in instances.values():
         node_type = instance.node_type
-        if node_type.fullname_tuple not in native_types and (
+        if node_type.native_name not in native_types and (
                 node_type.is_native or any(procedure.is_native for procedure in node_type.procedures.values())):
-            native_types[node_type.fullname_tuple] = native_node_type(node_type)
+            native_types[node_type.native_name] = native_node_type(node_type)
     return Program(
         name=str(graph), graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
@@ -513,22 +513,22 @@ def native_node_type(node_type):
                                     initializer.depends.get_resolved_dependencies()):
             if isinstance(dependency, model.InstanceNode):
                 dependency = dependency.output_ports_byname['']
-            initializer_resources[port.key] = dependency.resource_type.name_tuple
-        resource_outputs = {key: output.resource_type.name_tuple for output, key in initializer.output_keys.items()}
+            initializer_resources[port.key] = dependency.resource_type.native_name
+        resource_outputs = {key: output.resource_type.native_name for output, key in initializer.output_keys.items()}
     procedures = {}
     for procedure in node_type.procedures.values():
         if not procedure.is_native:
             continue
         procedures[procedure.python_name] = NativeProcedureInterface(
             uses=uses_names(procedure.uses),
-            resources={port.declaration.python_key: port.resource_type.name_tuple
+            resources={port.declaration.python_key: port.resource_type.native_name
                        for port in procedure.input_ports.values() if port.resource_type is not None},
             inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
                          if port.resource_type is None),
             outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
         )
     return NativeNodeType(
-        name=node_type.fullname_tuple, has_native_state=node_type.is_native,
+        name=node_type.native_name, has_native_state=node_type.is_native,
         initializer_uses=uses_names(initializer.uses) if initializer is not None else (),
         initializer_resources=initializer_resources, resource_outputs=resource_outputs,
         procedures=procedures,

@@ -137,7 +137,7 @@ def _validate_body(procedure, constant_types, functions):
                     raise ValueError(f'Function index out of range: {function_index}')
                 function = functions[function_index]
                 if count != len(function.parameter_types):
-                    raise ValueError(f'Function {".".join(function.name)} expects {len(function.parameter_types)} '
+                    raise ValueError(f'Function {function.name} expects {len(function.parameter_types)} '
                                      f'arguments, got {count}')
                 _same_type(operand_types[0], function.return_type)
                 for argument_type, parameter_type in zip(operand_types[1:], function.parameter_types):
@@ -180,8 +180,8 @@ def validate_program(program):
         try:
             if not isinstance(function, Function):
                 raise ValueError('Expected a Function')
-            if not function.name or not all(type(part) is str and part for part in function.name):
-                raise ValueError('Expected a qualified function name')
+            if type(function.name) is not str or not function.name:
+                raise ValueError('Expected a function name')
             if (len(function.argument_names) != len(function.parameter_types)
                     or len(set(function.argument_names)) != len(function.argument_names)):
                 raise ValueError('Expected one distinct name per parameter')
@@ -213,14 +213,14 @@ def validate_program(program):
             if output_type is None:
                 raise ValueError(f'Resource input {name!r} is bound to unknown output {binding}')
             if output_type != declared[name]:
-                raise ValueError(f'Resource input {name!r} of type {".".join(declared[name])} is bound to '
-                                 f'{binding} of type {".".join(output_type)}')
+                raise ValueError(f'Resource input {name!r} of type {declared[name]} is bound to '
+                                 f'{binding} of type {output_type}')
 
     for node_id, instance in program.instances.items():
         try:
             native_type = program.native_types.get(instance.type_name)
             if instance.has_native_state and (native_type is None or not native_type.has_native_state):
-                raise ValueError(f'Node type {".".join(instance.type_name)} has no native state')
+                raise ValueError(f'Node type {instance.type_name} has no native state')
             if instance.has_native_state:
                 check_bindings(instance.initializer_values, native_type.initializer_uses)
                 check_resources(instance.initializer_bindings, native_type.initializer_resources)
@@ -235,7 +235,7 @@ def validate_program(program):
         native_type = program.native_types.get(type_name)
         interface = None if native_type is None else native_type.procedures.get(name)
         if interface is None:
-            raise ValueError(f'Node type {".".join(type_name)} declares no native procedure {name!r}')
+            raise ValueError(f'Node type {type_name} declares no native procedure {name!r}')
         check_bindings(procedure.values, interface.uses)
         check_resources(procedure.resources, interface.resources)
         check_names('Inputs', [name for name, _ in procedure.dependencies], interface.inputs)

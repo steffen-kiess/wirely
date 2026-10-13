@@ -15,11 +15,11 @@ declaration: outer_attribute* bare_declaration -> attributed
 // Namespaces and node types
 bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
     // TODO: Can this be done in a nicer way?
-    | node_type_specifier* "node" "type" identifier "{" declaration_list "}" -> node_type__make
+    | node_type_specifier* "node" "type" identifier ["as" string_constant] "{" declaration_list "}" -> node_type__make
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
     | "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type
-    | "resource" "type" identifier ";" -> declaration_resource_type
+    | "resource" "type" identifier ["as" string_constant] ";" -> declaration_resource_type
     // Native functions
     | "native" "function" _signature ";" -> declaration_native_function
     | "native" "constant" "function" _signature ";" -> declaration_native_function__create_constant
@@ -57,7 +57,7 @@ enum_member_list: inner_attribute* _list{enum_member} -> file_input
 enum_member: outer_attribute* bare_enum_member -> attributed
 bare_enum_member: identifier "=" expression -> enum_member
 
-_signature: identifier "(" function_argument_list ")" ":" type
+_signature: identifier ["as" string_constant] "(" function_argument_list ")" ":" type
 function_argument_list: _list{function_argument} -> copy_list
 function_argument: identifier ":" type
 

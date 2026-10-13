@@ -98,7 +98,7 @@ def check_values():
     optional parameter Absent: Option[boolean];
     parameter Default: boolean = true;
     parameter Type: ValueType = uint16;
-    constant Seed: uint16 = Example.Identity(Number);
+    constant Seed: uint16 = Example.Same(Number);
     constant Items: List[Option[uint16]] = [Some(7), None];
     constant At: TimeOfDay = "00:30";
     constant Span: Duration = "PT1S";
@@ -107,13 +107,13 @@ def check_values():
     input Connection: resource Service;
     output Result: value uint16;
     native initializer depends on Connection,
-      uses Number, Seed as seed, Example.Identity(20) as "retained",
+      uses Number, Seed as seed, Example.Same(20) as "retained",
         parameter_option(Missing) as missing, parameter_option(Absent) as Absent,;
     native procedure run depends on Connection, produces Result as Number,
       uses Seed as "seed", parameter_option(Missing) as Missing, parameter_option(Missing) as alias,
         parameter_option(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
-        Example.Identity(40) as call,
+        Example.Same(40) as call,
         { let text: String = "hello"; text } as block,
         Items as items, Example.Pair { value: true } as pair,
         () as unit, { let value: Option[boolean] = Some(false); value } as option,
@@ -125,7 +125,7 @@ def check_values():
 namespace Example {
   enum type Mode: uint8 { On = 1, }
   struct type Pair { value: boolean, }
-  native constant function Identity(value: uint16): uint16;
+  native constant function Same as "Example.Identity"(value: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }
@@ -134,7 +134,7 @@ connect provider -> first.Connection;
 connect provider -> second.Connection;
 '''
     with patch.dict(wirely.native.test_library.native_node_types, registry), \
-            patch.dict(native_function_impls, {('Example', 'Identity'): identity}):
+            patch.dict(native_function_impls, {'Example.Identity': identity}):
         graph = compile_strs([('<values>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
@@ -184,7 +184,7 @@ def check_optional_values():
 def check_type_member_collision():
     # A namespace function named like a type member is ambiguous at the call.
     diagnostics = []
-    with patch.dict(native_function_impls, {('int16', 'WrappingAdd'): identity}):
+    with patch.dict(native_function_impls, {'int16.WrappingAdd': identity}):
         graph = compile_strs([('<collision>', '''namespace int16 {
       native constant function WrappingAdd(a: int16, b: int16): int16;
     }

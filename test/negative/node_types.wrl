@@ -34,3 +34,16 @@ node type Enclosing {
   namespace Nested { // E: Attempt to put namespace into invalid context
   }
 }
+
+// TEST: duplicate_native_name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Fixture.Device'
+namespace Fixture {
+  native node type Device {} // H: Previous declaration was here
+}
+namespace Other {
+  native node type Switch as "Fixture.Device" {} // E: Duplicate native name 'Fixture.Device'
+}
+
+// TEST: key_without_native_parts
+node type Plain as "Fixture.Plain" {} // E: Node type keys require native state or native procedures

@@ -98,3 +98,13 @@ temporary result: int16;
 procedure run produces result {
   result = TestLibrary.Clamp(true, 0, 1); // E: Invalid int value true
 }
+
+// TEST: duplicate native name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Fixture.Parse'
+namespace Fixture {
+  native function Parse(text: String): uint16; // H: Previous declaration was here
+}
+namespace Other {
+  native function Read as "Fixture.Parse"(text: String): uint16; // E: Duplicate native name 'Fixture.Parse'
+}

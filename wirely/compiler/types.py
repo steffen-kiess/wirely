@@ -8,10 +8,11 @@ from . import model
 class ResourceType:
     """Nominal port type identifying an opaque service resource."""
 
-    def __init__(self, name, name_tuple, declaration):
+    def __init__(self, name, name_tuple, declaration, native_name):
         self.name = name
         self.name_tuple = name_tuple  # Qualified name components.
         self.declaration = declaration
+        self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
 
     def __str__(self):
         return self.name

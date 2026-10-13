@@ -10,9 +10,10 @@ from wirely.util import check_parameters
 
 class NodeType(model.Scope):
     @check_parameters
-    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, source_position: typing.Optional[model.SourcePosition]):
+    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, alias: typing.Optional[model.StringConstant] = None, source_position: typing.Optional[model.SourcePosition]):
         super().__init__(source_position=source_position)
         self.name = name
+        self.alias = alias  # Native name replacing the qualified name.
         self.declarations = declarations
         self.inner_attributes = getattr(declarations, 'inner_attributes', ())
 
@@ -47,10 +48,9 @@ class NodeType(model.Scope):
 
     @staticmethod
     def make(*args, source_position: typing.Optional[model.SourcePosition]):
-        specifiers = args[:-2]
-        name = args[-2]
-        declarations = args[-1]
-        return NodeType(list(specifiers), name, declarations, source_position=source_position)
+        specifiers = args[:-3]
+        name, alias, declarations = args[-3:]
+        return NodeType(list(specifiers), name, declarations, alias=alias, source_position=source_position)
 
     def _register_in(self, graph):
         """Register this node type in its enclosing scope."""
@@ -374,6 +374,11 @@ class NodeType(model.Scope):
             return self.name.id_str
         else:
             return self.parent_graph.fullname + '.' + self.name.id_str
+
+    @property
+    def native_name(self):
+        """The name that links native code, such as 'ABB.JRA.Blind'."""
+        return self.alias.value if self.alias is not None else '.'.join(self.fullname_tuple)
 
     @property
     def fullname_tuple(self):
