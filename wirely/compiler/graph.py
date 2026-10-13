@@ -298,19 +298,11 @@ class ProcedurePort(GraphElement):
         """Prepare a reference port's counterpart and inherited specification."""
         if self.reference_state is ResolutionState.COMPLETE:
             return
-        if self.reference_state is ResolutionState.RESOLVING:
-            raise model.ProgramError(self.declaration, 'Circular procedure port reference')
         if self.reference_state is ResolutionState.FAILED:
             raise RuntimeError('Cannot reuse a failed procedure port resolution')
-        self.reference_state = ResolutionState.RESOLVING
         try:
+            # A procedure port counterpart is typed, so its specification is known.
             counterpart = self._counterpart()
-            if isinstance(counterpart, ProcedurePort):
-                if counterpart.reference_state is ResolutionState.FAILED:
-                    # Only reachable when continuing after the counterpart's error.
-                    self.reference_state = ResolutionState.FAILED
-                    return
-                counterpart.resolve_reference()
             specification = port_specification(counterpart)
             self._counterpart = counterpart
             self._specification = specification

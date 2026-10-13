@@ -378,6 +378,9 @@ class DeclarationProcedure(Declaration):
                 direction = 'output' if is_input else 'input'
                 raise ProgramError(port_name, f'Port {port_name.id_str!r} of procedure {procedure!r} is an {direction}')
             raise ProgramError(port_name, f'Unable to find port {port_name.id_str!r} of procedure {procedure!r}')
+        # Reference ports are connected to what they reference and are not addressable.
+        if not isinstance(port.declaration, TypedPort):
+            raise ProgramError(port_name, f'Port {port_name.id_str!r} of procedure {procedure!r} is not a typed port')
         return port
 
     def validate_ports(self):

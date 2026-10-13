@@ -138,7 +138,8 @@ for scope, source_text, target_text, expected in (
         ((), 'number', 'box.value', ConnectionCheck(
             False, "Input 'value' of node 'box' already has a source; only multi inputs accept several")),
         (('Box',), 'last.new', 'default output', ConnectionCheck(False, 'Default output already has a source')),
-        (('Box',), 'value', 'run.input', ConnectionCheck(False, "Port 'input' of procedure 'run' already has a source")),
+        (('Box',), 'Zero', 'run.typed', ConnectionCheck(False, "Port 'typed' of procedure 'run' already has a source")),
+        (('Box',), 'value', 'run.input', ConnectionCheck(False, "Port 'input' of procedure 'run' is not a typed port")),
         ((), 'broken', 'printer', ConnectionCheck(False, "Unable to find source node 'broken'"))):
     checks.assertEqual(result.can_connect(scope, source_text, target_text), expected, (source_text, target_text))
 checks.assertEqual(result.can_connect((), 'number', 'box.value', replacing=Connection((), 'number', 'box.value')),
@@ -148,7 +149,7 @@ with checks.assertRaises(ValueError):
 checks.assertEqual(result.connection_candidates((), source='flag'), ('box.many', 'both'))
 checks.assertEqual(result.connection_candidates((), target='printer'), ('number', 'box'))
 checks.assertEqual(result.connection_candidates(('Box',), target='last'),
-                   ('value', 'last.old', 'last.new', 'current', 'run.current'))
+                   ('value', 'last.old', 'last.new', 'current'))
 checks.assertEqual(result.value_type(ProcedurePort(Procedure(('Box', 'run')), 'input', 'input')),
                    result.value_type(Port(('Box', 'value'), 'input')))
 checks.assertEqual(result.value_type(ProcedurePort(Procedure(('Box', 'run')), 'typed', 'input')), int32)

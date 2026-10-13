@@ -415,19 +415,19 @@ procedure run produces result {
   result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
 }
 
-// TEST: circular procedure reference specifications
+// TEST: procedure reference to a reference port
 node type References {
+  default input: value boolean;
+  temporary copy: boolean;
   procedure first
-    depends on second.result as input // E: Circular procedure port reference
-    produces result: value boolean
+    depends on default input as input
+    produces copy as result
   {
     result = input;
   }
   procedure second
-    depends on input: value boolean
-    produces first.input as result
+    depends on first.result as value // E: Port 'result' of procedure 'first' is not a typed port
   {
-    result = input;
   }
 }
 

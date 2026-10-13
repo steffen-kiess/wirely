@@ -488,7 +488,9 @@ A typed port, `name: value Type`, `name: event Type`, or
 can be `multi`; each resource input takes one provider. Native procedures
 also accept `name as "key": Type`; Python uses the key, so `name` can change
 without changing the native code.
-Refer to a port as `procedure.port`, in `connect` or in a reference port:
+Refer to a typed port as `procedure.port`, in `connect` or in a reference
+port. Reference ports are not addressable; to use a produced value in
+several places, produce it into a temporary:
 
 ```wirely
 procedure invert

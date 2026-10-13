@@ -128,8 +128,20 @@ node type Invalid {
   default input: value boolean;
   input Other: value boolean;
   native procedure run
-    depends on default input as value; // H: Previous connection was here
+    depends on value: value boolean;
+  connect default input -> run.value; // H: Previous connection was here
   connect Other -> run.value; // E: Port 'value' of procedure 'run' already has a source
+}
+
+// TEST: procedure_port_reference
+// Reference ports are connected to what they reference.
+node type Invalid {
+  default input: value boolean;
+  default output: value boolean;
+  native procedure run
+    depends on default input as value
+    produces default output as "output";
+  connect run.output -> default output; // E: Port 'output' of procedure 'run' is not a typed port
 }
 
 // TEST: procedure_port_multi_forward
@@ -152,6 +164,8 @@ node type Invalid {
 }
 
 // TEST: procedure_port_duplicate_key
+// SH: Previous port was here
+// SE: Duplicate port key 'value'
 node type Invalid {
   input Flag: value boolean;
   native procedure run
