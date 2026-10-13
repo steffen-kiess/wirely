@@ -187,7 +187,7 @@ class DeclarationResourceType(Declaration):
                 CompilerHint(graph.node_types[name], 'Previous node type was here'),
             ])
         if isinstance(graph, model.ast.DeclarationLibrary):
-            fullname = graph.fullname + '.' + name
+            name_tuple = graph.fullname_tuple + (name,)
         else:
-            fullname = name
-        graph.resource_types[name] = model.ResourceType(fullname, self)
+            name_tuple = (name,)
+        graph.resource_types[name] = model.ResourceType('.'.join(name_tuple), name_tuple, self)

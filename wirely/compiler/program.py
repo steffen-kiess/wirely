@@ -7,7 +7,8 @@ from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding, RunStage, Variable, VariableTable,
+    NativeNodeType, NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding,
+    RunStage, Variable, VariableTable,
 )
 
 # Body of a procedure storing a copied state: output.0 = input.0.
@@ -312,8 +313,6 @@ def lower_program(global_node_type):
             parameters=instance.static_context.parameters,
             initializer_bindings=initializer_bindings[path],
             initializer_values=instance.initializer_values,
-            outputs=() if instance.node_type.initializer is None
-            else tuple(sorted(instance.node_type.initializer.output_keys.values())),
         )
         for path, instance in instances.items()
     }
@@ -478,6 +477,12 @@ def lower_program(global_node_type):
         instance.node_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton
     }
+    native_types = {}
+    for instance in instances.values():
+        node_type = instance.node_type
+        if node_type.fullname_tuple not in native_types and (
+                node_type.is_native or any(procedure.is_native for procedure in node_type.procedures.values())):
+            native_types[node_type.fullname_tuple] = native_node_type(node_type)
     return Program(
         name=str(graph), graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
@@ -487,4 +492,39 @@ def lower_program(global_node_type):
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
         constants=tuple(constants),
         functions=tuple(functions),
+        native_types=native_types,
+    )
+
+
+def native_node_type(node_type):
+    """Return the declared native interface of a node type."""
+    def uses_names(uses):
+        return () if uses is None else tuple(binding.key for binding in uses.bindings)
+
+    initializer = node_type.initializer
+    initializer_resources = {}
+    resource_outputs = {}
+    if initializer is not None:
+        for port, dependency in zip(initializer.depends.dependencies,
+                                    initializer.depends.get_resolved_dependencies()):
+            if isinstance(dependency, model.InstanceNode):
+                dependency = dependency.output_ports_byname['']
+            initializer_resources[port.key] = dependency.resource_type.name_tuple
+        resource_outputs = {key: output.resource_type.name_tuple for output, key in initializer.output_keys.items()}
+    procedures = {}
+    for procedure in node_type.procedures.values():
+        if not procedure.is_native:
+            continue
+        procedures[procedure.python_name] = NativeProcedureInterface(
+            uses=uses_names(procedure.uses),
+            resources={key: port.resource_type.name_tuple for key, port in procedure.input_ports.items()
+                       if port.resource_type is not None},
+            inputs=tuple(key for key, port in procedure.input_ports.items() if port.resource_type is None),
+            outputs=tuple(procedure.output_ports),
+        )
+    return NativeNodeType(
+        name=node_type.fullname_tuple, has_native_state=node_type.is_native,
+        initializer_uses=uses_names(initializer.uses) if initializer is not None else (),
+        initializer_resources=initializer_resources, resource_outputs=resource_outputs,
+        procedures=procedures,
     )

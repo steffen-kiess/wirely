@@ -2,6 +2,7 @@ from dataclasses import replace
 import subprocess
 import sys
 from textwrap import dedent
+from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
@@ -9,9 +10,12 @@ import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
+from wirely.program import ResourceBinding
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
 
+
+checks = TestCase()
 
 # Runtime imports must work without loading the optional compiler dependencies.
 subprocess.run([sys.executable, '-c', dedent('''
@@ -149,9 +153,42 @@ connect alias -> consumer.Service;
     second.assert_value_is('consumer', 1)
 
 
+def check_resource_binding_validation():
+    graph = wirely.compiler.compile_strs([('<resource-validation>', '''namespace TestLibrary {
+  resource type Service;
+  resource type Other;
+  native node type ServiceProvider {
+    default output: resource Service;
+    native initializer produces default output as "service";
+  }
+  native node type OtherProvider {
+    default output: resource Other;
+    native initializer produces default output as "other";
+  }
+  native node type Consumer {
+    input Service: resource Service;
+    native initializer depends on Service;
+  }
+}
+node service: TestLibrary.ServiceProvider {}
+node other: TestLibrary.OtherProvider {}
+node consumer: TestLibrary.Consumer {}
+connect service -> consumer.Service;
+''')])
+    assert graph is not None
+    program = program_compiler.compile_nocatch(graph)
+    consumer = program.instances['consumer']
+    for binding, message in ((ResourceBinding('service', 'missing'), 'unknown output service.missing'),
+                             (ResourceBinding('other', 'other'), 'of type TestLibrary.Service is bound to other.other')):
+        instances = {**program.instances, 'consumer': replace(consumer, initializer_bindings={'Service': binding})}
+        with checks.assertRaisesRegex(ValueError, message):
+            Engine(replace(program, instances=instances))
+
+
 check_compilation_without_native_implementations()
 check_engine_isolation()
 check_resource_isolation()
+check_resource_binding_validation()
 
 
 async def run_test():

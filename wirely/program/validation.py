@@ -191,25 +191,55 @@ def validate_program(program):
             raise ValueError(f'Function func.{index}: {error}') from error
     constant_ids = {id(constant) for constant in program.constants}
 
-    def check_bindings(values):
+    def check_names(kind, names, declared):
+        if set(names) != set(declared):
+            raise ValueError(f'{kind} {sorted(names)!r} do not match the declared {sorted(declared)!r}')
+
+    def check_bindings(values, declared):
+        check_names('Static bindings', values, declared)
         for name, constant in values.items():
             if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
                 raise ValueError(f'Static binding {name!r} is not a typed Constant')
 
-    def check_resources(bindings):
+    def check_resources(bindings, declared):
+        check_names('Resource inputs', bindings, declared)
         for name, binding in bindings.items():
             if not isinstance(binding, ResourceBinding):
                 raise ValueError(f'Resource input {name!r} is not a ResourceBinding')
             provider = program.instances.get(binding.provider)
-            if provider is None or not provider.has_native_state or binding.output not in provider.outputs:
+            provider_type = (program.native_types.get(provider.type_name)
+                             if provider is not None and provider.has_native_state else None)
+            output_type = None if provider_type is None else provider_type.resource_outputs.get(binding.output)
+            if output_type is None:
                 raise ValueError(f'Resource input {name!r} is bound to unknown output {binding}')
+            if output_type != declared[name]:
+                raise ValueError(f'Resource input {name!r} of type {".".join(declared[name])} is bound to '
+                                 f'{binding} of type {".".join(output_type)}')
 
     for node_id, instance in program.instances.items():
         try:
-            check_bindings(instance.initializer_values)
-            check_resources(instance.initializer_bindings)
+            native_type = program.native_types.get(instance.type_name)
+            if instance.has_native_state and (native_type is None or not native_type.has_native_state):
+                raise ValueError(f'Node type {".".join(instance.type_name)} has no native state')
+            if instance.has_native_state:
+                check_bindings(instance.initializer_values, native_type.initializer_uses)
+                check_resources(instance.initializer_bindings, native_type.initializer_resources)
+            else:
+                check_bindings(instance.initializer_values, ())
+                check_resources(instance.initializer_bindings, {})
         except ValueError as error:
             raise ValueError(f'Instance {node_id!r}: {error}') from error
+
+    def check_native_procedure(procedure):
+        type_name, name = procedure.reference
+        native_type = program.native_types.get(type_name)
+        interface = None if native_type is None else native_type.procedures.get(name)
+        if interface is None:
+            raise ValueError(f'Node type {".".join(type_name)} declares no native procedure {name!r}')
+        check_bindings(procedure.values, interface.uses)
+        check_resources(procedure.resources, interface.resources)
+        check_names('Inputs', [name for name, _ in procedure.dependencies], interface.inputs)
+        check_names('Outputs', procedure.outputs, interface.outputs)
 
     def check_source(input_source):
         if input_source.constant is not None and id(input_source.constant) not in constant_ids:
@@ -218,8 +248,10 @@ def validate_program(program):
     for schedule in program.procs.values():
         for procedure in schedule:
             try:
-                check_bindings(procedure.values)
-                check_resources(procedure.resources)
+                if procedure.body is None:
+                    check_native_procedure(procedure)
+                else:
+                    check_bindings(procedure.values, ())
                 for _, input_source in procedure.dependencies:
                     check_source(input_source)
                 if procedure.body is not None:

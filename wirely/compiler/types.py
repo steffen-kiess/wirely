@@ -8,8 +8,9 @@ from . import model
 class ResourceType:
     """Nominal port type identifying an opaque service resource."""
 
-    def __init__(self, name, declaration):
+    def __init__(self, name, name_tuple, declaration):
         self.name = name
+        self.name_tuple = name_tuple  # Qualified name components.
         self.declaration = declaration
 
     def __str__(self):

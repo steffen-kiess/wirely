@@ -71,7 +71,8 @@ class Engine:
                 context = NativeNodeContext(
                     name=instance.name, values=_native_values(instance.initializer_values),
                     inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
-                    _engine=self, _node_id=node_id, _output_names=frozenset(instance.outputs),
+                    _engine=self, _node_id=node_id,
+                    _output_names=frozenset(program.native_types[instance.type_name].resource_outputs),
                 )
                 native_state = native_class(context=context)
                 for key, value in context._finish_construction().items():

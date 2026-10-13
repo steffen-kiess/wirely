@@ -1010,8 +1010,10 @@ ranges support independent reads.
 | `name` | `SymbolMetadata` |
 | `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
 | `initial_state` | `InitialState` |
-| Native-state `instances` | `NativeStates`, `NativeStateTypes`, and `NodeSymbols` |
+| Native-state `instances` | `NativeStates` and `NodeSymbols` |
 | `instances[*].initializer_values` | Initializer `StaticBindings` and their values |
+| `instances[*].initializer_bindings`, `procs[*].resources` | `ResourceInputs` |
+| `native_types` | `NativeStateTypes`, `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, and `InputInterfaces` |
 | `native_construction_order` | Order of `NativeStates` |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
 | `procs[*].values` | Procedure `StaticBindings` and their values |
