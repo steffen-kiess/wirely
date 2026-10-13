@@ -35,7 +35,7 @@ def compile_library():
 
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
-        graph = wirely.compiler.compile_strs(wirely.compiler._standard_library_sources())
+        graph = wirely.compiler.compile_strs([], add_std=True)
     if graph is None:
         raise SystemExit(f'Compiling the standard library failed:\n{output.getvalue()}')
     return graph
