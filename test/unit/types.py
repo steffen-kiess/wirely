@@ -247,6 +247,48 @@ def check_type_names():
     assert str(wirely.ValueType(nested)) == 'Option[List[Option[uint8]]]'
 
 
+def check_to_text():
+    # Values format as Wirely literals; types without literals use fixed forms.
+    types = wirely.types
+    mode = types.TypeEnum('Example.Mode', {'Off': 0, 'Heat': 1}, underlying_type=types.int8)
+    reading = types.TypeStruct('Example.Reading', {'mode': mode, 'level': types.int16})
+    cases = [
+        (types.unit, wirely.Unit(), '()'),
+        (types.boolean, False, 'false'),
+        (types.int8, -42, '-42'),
+        (types.uint64, 2**64 - 1, '18446744073709551615'),
+        (mode, 1, 'Example.Mode.Heat'),
+        (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('08:00:30.5'), '08:00:30.5'),
+        (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('24:00'), '24:00'),
+        (types.MonotonicTime, wirely.MonotonicTime(1, 12_345_678_901_234), 'MonotonicTime(1, 12345.678901234s)'),
+        (types.MonotonicTime, wirely.MonotonicTime(2, 3_000_000_000), 'MonotonicTime(2, 3s)'),
+        (types.MonotonicTime, wirely.MonotonicTime(0, 5), 'MonotonicTime(invalid)'),
+        (types.TypeOption(reading), wirely.Some((1, -5)), 'Some(Example.Reading { mode: Example.Mode.Heat, level: -5 })'),
+        (types.TypeOption(types.uint8), None, 'None'),
+        (types.TypeStruct('Empty', {}), (), 'Empty {}'),
+        (types.String, 'a"b\\\n\x01é', r'"a\"b\\\n\u{1}é"'),
+        (types.TypeList(types.uint8), (1, 2), '[1, 2]'),
+        (types.TypeList(types.uint8), (), '[]'),
+        (types.TypeValueType(), types.TypeOption(reading), 'Option[Example.Reading]'),
+    ]
+    for value_type, value, text in cases:
+        assert value_type.to_text(value) == text, (value_type, value_type.to_text(value))
+    for duration_ns, text in [(0, 'PT0S'), (1_500_000_000, 'PT1.5S'), (1, 'PT0.000000001S'),
+                              (9_000 * 10**9, 'PT2H30M'), (86_400 * 10**9, 'P1D'),
+                              (100_800 * 10**9, 'P1DT4H'), (3_661 * 10**9 + 5, 'PT1H1M1.000000005S'),
+                              (2**64 - 1, 'P213503DT23H34M33.709551615S')]:
+        duration = wirely.Duration(duration_ns=duration_ns)
+        assert types.Duration.to_text(duration) == text, duration.to_iso()
+        assert wirely.Duration.parse(text) == duration
+    # Descriptors format native values, including StructValues and EnumValues.
+    heat = wirely.ValueType(mode).enum_type.from_name('Heat')
+    value = wirely.Some(wirely.ValueType(reading).struct_type.make((heat, 3)))
+    text = wirely.ValueType(types.TypeOption(reading)).to_text(value)
+    assert text == 'Some(Example.Reading { mode: Example.Mode.Heat, level: 3 })', text
+    with checks.assertRaises(ValueError):
+        wirely.value_types.uint8.to_text(256)
+
+
 def check_structs():
     # Native code gets StructValues: field values by ordinal and their StructType.
     packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean, 'count': wirely.types.uint8})
@@ -462,6 +504,7 @@ check_descriptors_and_lists()
 check_unit()
 check_times()
 check_type_names()
+check_to_text()
 check_structs()
 check_default_values()
 

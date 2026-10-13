@@ -63,15 +63,20 @@ def step_output():
 
 engine.get_native_state('unit_events').send_event(wirely.Some(wirely.Unit()))
 engine.get_native_state('bool_events').send_event(wirely.Some(True))
-assert sorted(step_output().splitlines()) == ['Warning: [w_bool]: Bool warning True!', 'Warning: [w_unit]: Unit warning']
+assert sorted(step_output().splitlines()) == ['Warning: [w_bool]: Bool warning true!', 'Warning: [w_unit]: Unit warning']
 assert step_output() == ''
 engine.assert_is_idle()
 
 # An identical event in the next step produces another warning.
 engine.get_native_state('bool_events').send_event(wirely.Some(True))
-assert step_output() == 'Warning: [w_bool]: Bool warning True!\n'
+assert step_output() == 'Warning: [w_bool]: Bool warning true!\n'
 engine.get_native_state('bool_events').send_event(wirely.Some(True))
-assert step_output() == 'Warning: [w_bool]: Bool warning True!\n'
+assert step_output() == 'Warning: [w_bool]: Bool warning true!\n'
+assert step_output() == ''
+engine.assert_is_idle()
+
+engine.get_native_state('edge_events').debug_command(['send', 'Falling'])
+assert step_output() == 'Warning: [w_edge]: Edge Std.EdgeType.Falling\n'
 assert step_output() == ''
 engine.assert_is_idle()
 

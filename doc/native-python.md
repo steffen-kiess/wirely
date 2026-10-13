@@ -198,6 +198,8 @@ using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
 and `value_type`.
 
 - `validate(value)` normalizes a Python value; `parse(text)` parses text.
+- `to_text(value)` formats a value in the
+  [text format](value-types.md#text-format).
 - `struct_type` and `enum_type` give the `StructType` or `EnumType` of a
   struct or enum type.
 - `supports_json` indicates support for `json_encode(value, format=None)`

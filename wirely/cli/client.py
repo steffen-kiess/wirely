@@ -121,7 +121,7 @@ async def _dump(client, args):
             for name, variable in sorted(variable_table.variables.items()):
                 offset = variable_table.offsets[variable]
                 value = variable.var_type.deserialize(data[offset:offset + variable.var_type.data_size])
-                print(f'  {name}: {value!r}')
+                print(f'  {name}: {variable.var_type.to_text(value)}')
     finally:
         await client.request(Op.RELEASE_SNAPSHOT, {1: snapshot_id})
     return 0

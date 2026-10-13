@@ -16,3 +16,7 @@ connect unit_events -> w_unit;
 node bool_events: Std.DebugEventSource { Type: boolean }
 node w_bool: Std.WarnOnEvent { Format: "Bool warning {}!", Type: boolean }
 connect bool_events -> w_bool;
+
+node edge_events: Std.DebugEventSource { Type: Std.EdgeType }
+node w_edge: Std.WarnOnEvent { Format: "Edge {}", Type: Std.EdgeType }
+connect edge_events -> w_edge;

@@ -304,6 +304,26 @@ Generic types can nest, for example `Option[List[uint8]]` or
 `List[T]` is a single list-valued datum. A `multi value T` input instead
 accepts several connections, each carrying a value of type `T`.
 
+## Text format
+
+Runtimes display values, for example in warnings and debug output, using
+Wirely literal syntax where it exists:
+
+| Type | Text |
+| --- | --- |
+| `unit`, `boolean`, integers | `()`, `true`, `-42` |
+| Declared enums | Qualified member, such as `Std.EdgeType.Falling` |
+| `Duration` | Unquoted canonical literal, such as `PT0S`, `PT1.5S`, or `P1DT4H` |
+| `TimeOfDay` | Unquoted literal, such as `08:00` or `08:00:30.5` |
+| `MonotonicTime` | `MonotonicTime(1, 12.5s)`; `MonotonicTime(invalid)` for generation 0 |
+| `Option[T]` | `None` or `Some(value)` |
+| Structs | Fields in declaration order: `Example.Reading { mode: Example.Mode.Heat, level: 3 }` |
+| `String`, `List[T]` | `"text"` with escapes, `[1, 2]` |
+
+Canonical durations use the largest units first and omit zero components
+and trailing zeros. `ValueType` values are displayed on a best-effort
+basis; do not rely on their text.
+
 ## JSON and CSV support
 
 Serialization support is used by library nodes such as MQTT providers and

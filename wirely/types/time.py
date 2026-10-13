@@ -61,6 +61,12 @@ class MonotonicTime:
     def __repr__(self):
         return f'MonotonicTime(generation={self.generation}, time_ns={self.time_ns})'
 
+    def to_text(self):
+        """Format as MonotonicTime(generation, seconds), or MonotonicTime(invalid) for generation 0."""
+        if self.generation == 0:
+            return 'MonotonicTime(invalid)'
+        return f'MonotonicTime({self.generation}, {_seconds_text(self.time_ns)}s)'
+
     def __add__(self, duration):
         if not isinstance(duration, Duration):
             raise Exception(f'Cannot add Duration and {type(duration)}')
@@ -85,6 +91,12 @@ class MonotonicTime:
         return hash(('MonotonicTime', self.generation, self.time_ns))
 
 
+def _seconds_text(nanoseconds):
+    """Format nanoseconds as decimal seconds without trailing fraction zeros."""
+    seconds, fraction = divmod(nanoseconds, 1_000_000_000)
+    return f'{seconds}.{fraction:09}'.rstrip('0') if fraction else str(seconds)
+
+
 # Duration as defined in ISO 8601-1:2019 5.5.2, but cannot contain years or months. Ignores things like DST changes and leap seconds, only stores then number of nanoseconds internally. Cannot be negative.
 @functools.total_ordering
 @dataclass(frozen=True, slots=True, init=False, eq=False)
@@ -106,6 +118,16 @@ class Duration:
 
     def __repr__(self):
         return f'Duration({self.duration_ns})'
+
+    def to_iso(self):
+        """Format in the canonical form accepted by parse(), such as PT2H30M or PT1.5S."""
+        minutes, nanoseconds = divmod(self.duration_ns, 60_000_000_000)
+        hours, minute = divmod(minutes, 60)
+        days, hour = divmod(hours, 24)
+        time = ''.join(f'{amount}{unit}' for amount, unit in ((hour, 'H'), (minute, 'M')) if amount)
+        if nanoseconds or not (days or time):
+            time += f'{_seconds_text(nanoseconds)}S'
+        return 'P' + (f'{days}D' if days else '') + (f'T{time}' if time else '')
 
     def __add__(self, other):
         if not isinstance(other, Duration):

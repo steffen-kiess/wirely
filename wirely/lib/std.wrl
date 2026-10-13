@@ -62,7 +62,7 @@ namespace Std {
 
     default input: value Type;
 
-    native procedure run stage output depends on default input as "input";
+    native procedure run stage output depends on default input as "input" uses Type;
   }
 
   node type DebugEventPrinter {
@@ -70,7 +70,7 @@ namespace Std {
 
     default input: event Type;
 
-    native procedure run stage output depends on default input as "input";
+    native procedure run stage output depends on default input as "input" uses Type;
   }
 
   node type WarnOnEvent {
@@ -84,7 +84,7 @@ namespace Std {
 
     native procedure run stage output
       depends on default input as "input"
-      uses format_parts;
+      uses Type, format_parts;
   }
 
   #[Internal]

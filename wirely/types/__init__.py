@@ -121,6 +121,10 @@ class Type(abc.ABC):
     def _parse_impl(self, s):
         ...
 
+    def to_text(self, value):
+        """Format value as text, using Wirely literal syntax where it exists."""
+        raise ValueError(f'{self} values cannot be formatted as text')
+
 
 # A concrete type which is implemented using a specific python type
 class TypeConcrete(Type):
@@ -235,6 +239,12 @@ class TypeOption(Type):
         # TODO: Use different format for strings?
         return Some(self.inner_type.parse(s))
 
+    def to_text(self, value):
+        value = self.verify_value(value)
+        if value is None:
+            return 'None'
+        return f'Some({self.inner_type.to_text(value.value)})'
+
 
 class TypeStruct(Type):
     """A nominal value type with fields kept in declaration order.
@@ -314,6 +324,14 @@ class TypeStruct(Type):
     def _parse_impl(self, text):
         raise ValueError(f'{self.name} does not support text parsing')
 
+    def to_text(self, value):
+        value = self.verify_value(value)
+        if not value:
+            return f'{self.name} {{}}'
+        fields = ', '.join(f'{name}: {field_type.to_text(field)}'
+                           for (name, field_type), field in zip(self.fields.items(), value))
+        return f'{self.name} {{ {fields} }}'
+
 
 class TypeList(Type):
     def __init__(self, inner_type):
@@ -373,6 +391,9 @@ class TypeList(Type):
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeList.parse')
 
+    def to_text(self, value):
+        return '[' + ', '.join(self.inner_type.to_text(item) for item in self.verify_value(value)) + ']'
+
 
 # TODO: Add to_csv_value?
 class TypeUnit(TypeConcrete):
@@ -386,6 +407,10 @@ class TypeUnit(TypeConcrete):
         if s != '()':
             raise Exception(f'Invalid unit value {s!r}')
         return Unit()
+
+    def to_text(self, value):
+        self.verify_value(value)
+        return '()'
 
 
 class TypeBoolean(TypeConcrete):
@@ -415,6 +440,9 @@ class TypeBoolean(TypeConcrete):
             return True
         else:
             raise Exception(f'Invalid boolean value {s!r}')
+
+    def to_text(self, value):
+        return 'true' if self.verify_value(value) else 'false'
 
     def json_encode(self, expr, format):
         if format is not None:
@@ -520,6 +548,9 @@ class TypeInt(TypeConcrete):
     def _parse_impl(self, s):
         return int(s)
 
+    def to_text(self, value):
+        return str(self.verify_value(value))
+
     def json_encode(self, expr, format):
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
@@ -549,6 +580,9 @@ class TypeValueType(TypeConcrete):
     def _parse_impl(self, s):
         raise Exception('TODO: TypeValueType.parse()')
 
+    def to_text(self, value):
+        return str(self.verify_value(value))
+
 
 class TypeMonotonicTime(TypeConcrete):
     def __init__(self):
@@ -560,6 +594,9 @@ class TypeMonotonicTime(TypeConcrete):
 
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeMonotonicTime.parse')
+
+    def to_text(self, value):
+        return self.verify_value(value).to_text()
 
 
 # TODO: Add type which represents offset to monotonic time and can be used e.g. for KNX messages which contain the current time?
@@ -578,6 +615,9 @@ class TypeDuration(TypeConcrete):
     def _parse_impl(self, s):
         return RuntimeDuration.parse(s)
 
+    def to_text(self, value):
+        return self.verify_value(value).to_iso()
+
 
 # TODO: Add to_csv_value?
 class TypeTimeOfDay(TypeConcrete):
@@ -592,6 +632,9 @@ class TypeTimeOfDay(TypeConcrete):
     def _parse_impl(self, s):
         return RuntimeTimeOfDay.parse(s)
 
+    def to_text(self, value):
+        return str(self.verify_value(value))
+
 
 # TODO: Remove json_encode because strings should not be used at runtime?
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
@@ -604,6 +647,9 @@ class TypeString(TypeConcrete):
 
     def _parse_impl(self, s):
         raise Exception('TypeString.parse()')
+
+    def to_text(self, value):
+        return _string_literal(self.verify_value(value))
 
     def json_encode(self, expr, format):
         if format is not None:
@@ -656,6 +702,9 @@ class TypeEnum(TypeConcrete):
     def default_value(self):
         return next(iter(self.members.values()))
 
+    def to_text(self, value):
+        return f'{self.name}.{self.member_name(value)}'
+
     def _parse_impl(self, s):
         try:
             return self.members[s]
@@ -682,6 +731,20 @@ class TypeEnum(TypeConcrete):
             return self._parse_impl(expr)
         else:
             raise Exception(f'Invalid JSON format: {format!r}')
+
+
+_STRING_ESCAPES = {'\0': '\\0', '\t': '\\t', '\n': '\\n', '\r': '\\r', '"': '\\"', '\\': '\\\\'}
+
+
+def _string_literal(text):
+    """Quote text as a Wirely string literal, escaping other control characters."""
+    def escape(char):
+        if char in _STRING_ESCAPES:
+            return _STRING_ESCAPES[char]
+        if ord(char) < 0x20 or ord(char) == 0x7f:
+            return f'\\u{{{ord(char):x}}}'
+        return char
+    return '"' + ''.join(escape(char) for char in text) + '"'
 
 
 def _fit_integer(value, min_value, max_value, overflow):

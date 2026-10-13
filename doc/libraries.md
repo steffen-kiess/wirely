@@ -61,7 +61,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Passes the input to the output. |
 | `DebugValuePrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
-| `WarnOnEvent` | `Format: String`, `Type: ValueType = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
+| `WarnOnEvent` | `Format: String`, `Type: ValueType = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
 | `DebugValueSource` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
 | `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: ValueType` | Out: `value Option[InnerType]`. Produces `None`. |

@@ -20,18 +20,22 @@ class Constant:
 class DebugValuePrinter:
     @staticmethod
     def run(*, context):
-        value = context.inputs['input']
+        text = context.values['Type'].to_text(context.inputs['input'])
 
-        print(f'[{context.name}]: Got value {value}', flush=True)
+        print(f'[{context.name}]: Got value {text}', flush=True)
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class DebugEventPrinter:
     @staticmethod
     def run(*, context):
-        value = context.inputs['input']
+        event = context.inputs['input']
 
-        print(f'[{context.name}]: Got event {value}', flush=True)
+        if event is None:
+            return
+
+        text = context.values['Type'].to_text(event.value)
+        print(f'[{context.name}]: Got event {text}', flush=True)
 
 
 @native_node_type(native_node_types, has_native_state=False)
@@ -44,7 +48,10 @@ class WarnOnEvent:
             return
 
         parts = context.values['format_parts'].native
-        message = f'{parts.prefix}{event.value}{parts.suffix}' if parts.has_value else parts.prefix
+        if parts.has_value:
+            message = parts.prefix + context.values['Type'].to_text(event.value) + parts.suffix
+        else:
+            message = parts.prefix
         print(f'Warning: [{context.name}]: {message}', flush=True)
 
         # This makes sure that an identical event in the next step is not skipped

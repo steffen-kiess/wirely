@@ -200,6 +200,12 @@ class ValueType:
         except Exception as error:
             raise ValueError(str(error)) from error
 
+    def to_text(self, value):
+        try:
+            return self._type.to_text(_from_native(self._type, value))
+        except Exception as error:
+            raise ValueError(str(error)) from error
+
     @property
     def supports_json(self):
         return getattr(self._type, 'is_json_serializable', False)
