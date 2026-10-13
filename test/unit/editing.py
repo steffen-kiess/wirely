@@ -497,7 +497,7 @@ check_rename(Port(('T', 'Named'), 'output'), 'Other', ('output Named:', 'output 
              source='resource type R;\nnative node type T {\n  output Named: resource R;\n'
                     '  native initializer produces Named;\n}\n')
 check_rename(Procedure(('T', 'run')), 'go', ('procedure run', 'procedure go'), ('run.t', 'go.t'))
-check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "check"'))
+check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "T:check"'))
 check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),
              ('uses C', 'uses D as C'))
 check_rename(Parameter(('T', 'P')), 'Q', ('P: ValueType', 'Q: ValueType'), ('C: P', 'C: Q'), ('value P', 'value Q'),

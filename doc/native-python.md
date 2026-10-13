@@ -11,12 +11,19 @@ See the [language guide](language.md) for `.wrl` syntax and the
 [`wirely/native/__init__.py`](../wirely/native/__init__.py) maps namespaces
 to modules: `Std` maps to `std`, and `ABB.JRA` to `abb_jra`. A new namespace
 needs a map entry. Each module supplies a `native_node_types` dictionary;
-`@native_node_type` registers a class under its Python name. The node
-type's [native name](language.md#declarations-and-names) selects the
-class: its namespace part selects the map entry, and its last component
-the class. Procedure names match their `.wrl` declarations unless the
-procedure has an alias, such as `native procedure Poll as "poll";`. The
-alias supplies both the Python method name and its trigger key.
+`@native_node_type` registers a class under its Python name. The
+[native name](language.md#declarations-and-names) of a node type with
+native state selects its class: the namespace part selects the map entry,
+and the last component the class.
+
+A native procedure's
+[native name](language.md#state-and-execution), such as
+`Std.Constant:run`, selects the method after `:` on the class named
+before it. For a node with native state, the class must be the node
+type's own, and the method runs on the native state object. Without native
+state, the method is a static method or class method. The method name
+also identifies the procedure for triggers, so it must be unique within a
+node type.
 
 Native registries must be available when constructing an `Engine` from
 `wirely.runtime.engine`. It resolves classes using the native type names
@@ -55,8 +62,8 @@ class OptionSome:
         context.set_output('output', wirely.Some(context.inputs['input']))
 ```
 
-Use `has_native_state=False` for a `node type` with native procedures, as
-above. For a `native node type`, use `has_native_state=True` and instance
+Use `has_native_state=False` for a class implementing procedures of node
+types without native state, as above. For a `native node type`, use `has_native_state=True` and instance
 methods such as `def run(self, *, context)`. Either form can also declare
 `.wrl` state.
 

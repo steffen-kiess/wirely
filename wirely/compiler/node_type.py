@@ -376,9 +376,16 @@ class NodeType(model.Scope):
             return self.parent_graph.fullname + '.' + self.name.id_str
 
     @property
+    def qualified_name(self):
+        """The dotted Wirely name, such as 'ABB.JRA.Blind'."""
+        return '.'.join(self.fullname_tuple)
+
+    @property
     def native_name(self):
-        """The name that links native code, such as 'ABB.JRA.Blind'."""
-        return self.alias.value if self.alias is not None else '.'.join(self.fullname_tuple)
+        """The name that links native state, or None without native state."""
+        if not self.is_native:
+            return None
+        return self.alias.value if self.alias is not None else self.qualified_name
 
     @property
     def fullname_tuple(self):

@@ -388,7 +388,12 @@ def rename(sources, target, new_name):
     texts = dict(sources)
     edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
     if isinstance(target, Procedure) and declaration.is_native and declaration.alias is None:
-        edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name), f' as "{old}"'))
+        # Keep the native procedure name.
+        owner = _single(before.find(NodeType(target.path[:-1])), NodeType(target.path[:-1]))._declaration
+        prefix = (owner.alias.value if owner.is_native and owner.alias is not None
+                  else '.'.join(target.path[:-1]))
+        edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
+                              f' as {_format_string(f"{prefix}:{old}")}'))
     if isinstance(target, NodeType):
         for scope in _scopes(before.scope):
             for node in scope.nodes:
@@ -965,6 +970,10 @@ class _Site:
     declaration_start: int = None
     open_brace: int = None
     close_brace: int = None
+
+
+def _format_string(value):
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 def _format_literal(value):

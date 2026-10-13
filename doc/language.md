@@ -156,8 +156,8 @@ A `singleton node type` shares one instance across its uses and cannot declare
 parameters. `native node type` indicates that the implementation also owns
 Python state or resources. Both forms require native support when instantiated.
 
-Node types with native state or native procedures, resource types, and
-native functions accept `as "Qualified.Name"` after their name. Native code
+Node types with native state, resource types, and native functions accept
+`as "Qualified.Name"` after their name. Native code
 and `Program` use this native name instead of the qualified Wirely name, so
 the declaration can be renamed or moved without changing its
 implementation, as in
@@ -435,6 +435,13 @@ with an initial value. `temporary name: Type;` names a value calculated
 within a step. A procedure reads its input ports, declared with
 `depends on`, and writes its output ports, declared with `produces`.
 Procedures run in dependency order; dependencies must be acyclic.
+
+A native procedure's native name has the form `Type:procedure`. It
+defaults to the node type's native name, or its qualified name without
+native state, followed by `:` and the procedure name. Set it with
+`as "Type:procedure"` after the procedure name, such as
+`native procedure Run as "Std.Constant:run";`, to rename the procedure or
+its node type without changing the implementation.
 
 Native procedures and initializers accept `uses` after `produces`. Bind
 node parameters and constants by name, or use `expression as name` or

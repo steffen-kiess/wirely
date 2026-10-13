@@ -281,11 +281,11 @@ def check_triggers():
         trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', '''
     namespace TestLibrary {
       native node type TriggerProbe {
-        native procedure Poll as "refresh";
+        native procedure Poll as "TestLibrary.TriggerProbe:refresh";
         native procedure run;
       }
       singleton native node type SharedTriggerProbe {
-        native procedure Poll as "refresh";
+        native procedure Poll as "TestLibrary.SharedTriggerProbe:refresh";
         native procedure run;
       }
     }
@@ -646,7 +646,7 @@ def check_native_methods():
 
     source = '''namespace TestLibrary {
   native node type InstanceProbe {
-    native procedure Poll as "instance";
+    native procedure Poll as "TestLibrary.InstanceProbe:instance";
     native procedure shared;
     native procedure class_method;
   }
@@ -664,10 +664,15 @@ def check_native_methods():
     native procedure shared;
     native procedure class_method;
   }
+  // Stateless procedures may use another type's implementation.
+  node type KeyedProbe {
+    native procedure shared as "TestLibrary.ClassProbe:shared";
+  }
 }
 node instance: TestLibrary.InstanceProbe {}
 node overridden: TestLibrary.OverrideProbe {}
 node class_only: TestLibrary.ClassProbe {}
+node keyed: TestLibrary.KeyedProbe {}
 node shared: TestLibrary.SharedProbe {}
 node shared_again: TestLibrary.SharedProbe {}
 '''
@@ -679,7 +684,7 @@ node shared_again: TestLibrary.SharedProbe {}
     expected = [
         ('instance', 'instance'), ('shared', 'instance'), ('InstanceProbe', 'instance'),
         ('instance', 'overridden'), ('override', 'overridden'), ('OverrideProbe', 'overridden'),
-        ('shared', 'class_only'), ('ClassProbe', 'class_only'),
+        ('shared', 'class_only'), ('ClassProbe', 'class_only'), ('shared', 'keyed'),
         ('instance', 'TestLibrary.SharedProbe'), ('shared', 'TestLibrary.SharedProbe'),
         ('SharedProbe', 'TestLibrary.SharedProbe'),
     ]
@@ -716,7 +721,10 @@ def check_native_linking_errors():
 
     cases = (
         ({}, 'native procedure missing;', False, False, 'Cannot find native procedure'),
-        ({}, 'native procedure Poll as "missing";', False, False, 'Cannot find native procedure'),
+        ({}, 'native procedure Poll as "TestLibrary.InvalidProbe:missing";', False, False,
+         'Cannot find native procedure'),
+        ({}, 'native procedure run as "TestLibrary.ValidProbe:run";', True, True,
+         "must belong to native type 'TestLibrary.InvalidProbe'"),
         ({'run': staticmethod(wrong_signature)}, 'native procedure run;', False, False,
          'Invalid native procedure'),
         ({'run': instance_method}, 'native procedure run;', False, False,

@@ -219,8 +219,8 @@ def validate_program(program):
     for node_id, instance in program.instances.items():
         try:
             native_type = program.native_types.get(instance.type_name)
-            if instance.has_native_state and (native_type is None or not native_type.has_native_state):
-                raise ValueError(f'Node type {instance.type_name} has no native state')
+            if instance.has_native_state and native_type is None:
+                raise ValueError(f'Unknown native type {instance.type_name!r}')
             if instance.has_native_state:
                 check_bindings(instance.initializer_values, native_type.initializer_uses)
                 check_resources(instance.initializer_bindings, native_type.initializer_resources)
@@ -231,11 +231,12 @@ def validate_program(program):
             raise ValueError(f'Instance {node_id!r}: {error}') from error
 
     def check_native_procedure(procedure):
-        type_name, name = procedure.reference
-        native_type = program.native_types.get(type_name)
-        interface = None if native_type is None else native_type.procedures.get(name)
+        prefix, _, method = procedure.reference.rpartition(':')
+        if not prefix or not method:
+            raise ValueError("Expected a native procedure name of the form 'Type:procedure'")
+        interface = program.native_procedures.get(procedure.reference)
         if interface is None:
-            raise ValueError(f'Node type {type_name} declares no native procedure {name!r}')
+            raise ValueError('Unknown native procedure')
         check_bindings(procedure.values, interface.uses)
         check_resources(procedure.resources, interface.resources)
         check_names('Inputs', [name for name, _ in procedure.dependencies], interface.inputs)
@@ -257,7 +258,7 @@ def validate_program(program):
                 if procedure.body is not None:
                     _validate_body(procedure, constant_types, program.functions)
             except ValueError as error:
-                raise ValueError(f'Procedure {procedure.reference[1]!r}: {error}') from error
+                raise ValueError(f'Procedure {procedure.reference!r}: {error}') from error
     for name, input_source in program.variables.items():
         try:
             check_source(input_source)

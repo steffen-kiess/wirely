@@ -309,7 +309,6 @@ def lower_program(global_node_type):
     native_instances = {
         node_ids[path]: NativeInstance(
             name=node_ids[path], type_name=instance.node_type.native_name,
-            has_native_state=instance.node_type.is_native,
             parameters=instance.static_context.parameters,
             initializer_bindings=initializer_bindings[path],
             initializer_values=instance.initializer_values,
@@ -421,7 +420,8 @@ def lower_program(global_node_type):
                     outputs[key] = OutputTarget(variable_map[path, target.var_identifier].variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
-                reference=(instances[path].node_type.native_name, proc.declaration_procedure.python_name),
+                reference=(declaration.native_name if declaration.is_native
+                           else f'{instances[path].node_type.qualified_name}:{declaration.name.id_str}'),
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=resources,
                 outputs=outputs, body=bodies.get((path, proc)),
@@ -439,7 +439,7 @@ def lower_program(global_node_type):
                 continue
             copies.append(Procedure(
                 node_id=node_ids[path],
-                reference=(instance.node_type.native_name, f'<state {state.name}>'),
+                reference=f'{instance.node_type.qualified_name}:<state {state.name}>',
                 node_context=native_instances[node_ids[path]],
                 dependencies=(('value', resolve_source(path, state.copy_source)),),
                 resources={}, outputs={'value': OutputTarget(state_map[path, state])},
@@ -482,11 +482,22 @@ def lower_program(global_node_type):
         for path, instance in instances.items() if instance.is_singleton
     }
     native_types = {}
+    native_procedures = {}
+    native_declarations = {}
     for instance in instances.values():
         node_type = instance.node_type
-        if node_type.native_name not in native_types and (
-                node_type.is_native or any(procedure.is_native for procedure in node_type.procedures.values())):
+        if node_type.is_native:
             native_types[node_type.native_name] = native_node_type(node_type)
+        for procedure in node_type.procedures.values():
+            if not procedure.is_native:
+                continue
+            name = procedure.native_name
+            interface = native_procedure_interface(procedure)
+            previous = native_declarations.setdefault(name, procedure)
+            if previous is not procedure and native_procedures[name] != interface:
+                raise model.ProgramError(procedure, f'Native procedure {name!r} is declared with different interfaces',
+                                         hints=[model.CompilerHint(previous, 'Previous declaration was here')])
+            native_procedures[name] = interface
     return Program(
         name=str(graph), graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
@@ -496,15 +507,28 @@ def lower_program(global_node_type):
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
         constants=tuple(constants),
         functions=tuple(functions),
-        native_types=native_types,
+        native_types=native_types, native_procedures=native_procedures,
+    )
+
+
+def uses_names(uses):
+    return () if uses is None else tuple(binding.key for binding in uses.bindings)
+
+
+def native_procedure_interface(procedure):
+    """Return the declared interface of a native procedure."""
+    return NativeProcedureInterface(
+        uses=uses_names(procedure.uses),
+        resources={port.declaration.python_key: port.resource_type.native_name
+                   for port in procedure.input_ports.values() if port.resource_type is not None},
+        inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
+                     if port.resource_type is None),
+        outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
     )
 
 
 def native_node_type(node_type):
-    """Return the declared native interface of a node type."""
-    def uses_names(uses):
-        return () if uses is None else tuple(binding.key for binding in uses.bindings)
-
+    """Return the declared native interface of a node type with native state."""
     initializer = node_type.initializer
     initializer_resources = {}
     resource_outputs = {}
@@ -515,21 +539,8 @@ def native_node_type(node_type):
                 dependency = dependency.output_ports_byname['']
             initializer_resources[port.key] = dependency.resource_type.native_name
         resource_outputs = {key: output.resource_type.native_name for output, key in initializer.output_keys.items()}
-    procedures = {}
-    for procedure in node_type.procedures.values():
-        if not procedure.is_native:
-            continue
-        procedures[procedure.python_name] = NativeProcedureInterface(
-            uses=uses_names(procedure.uses),
-            resources={port.declaration.python_key: port.resource_type.native_name
-                       for port in procedure.input_ports.values() if port.resource_type is not None},
-            inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
-                         if port.resource_type is None),
-            outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
-        )
     return NativeNodeType(
-        name=node_type.native_name, has_native_state=node_type.is_native,
+        name=node_type.native_name,
         initializer_uses=uses_names(initializer.uses) if initializer is not None else (),
         initializer_resources=initializer_resources, resource_outputs=resource_outputs,
-        procedures=procedures,
     )

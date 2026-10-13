@@ -135,20 +135,17 @@ class NativeProcedureInterface:
 
 @dataclass(frozen=True, slots=True)
 class NativeNodeType:
-    """Declared native interface of a node type, linked by name at runtime."""
+    """Declared interface of a node type with native state, linked by name at runtime."""
 
     name: str  # Native node type name, such as 'KNX.Switch'.
-    has_native_state: bool  # Whether instances have a native state object.
     initializer_uses: tuple[str, ...]  # Names bound by the initializer's `uses`, sorted.
     initializer_resources: Mapping[str, str]  # Resource input key -> resource type.
     resource_outputs: Mapping[str, str]  # Initializer `produces` key -> resource type.
-    procedures: Mapping[str, NativeProcedureInterface]  # Native procedures by Python name.
 
     def __post_init__(self):
         object.__setattr__(self, 'initializer_uses', tuple(sorted(self.initializer_uses)))
         for name in ('initializer_resources', 'resource_outputs'):
             object.__setattr__(self, name, _resource_types(getattr(self, name)))
-        object.__setattr__(self, 'procedures', MappingProxyType(dict(self.procedures)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,8 +153,7 @@ class NativeInstance:
     """Stored node context for procedures and optional native state creation."""
 
     name: str  # Instance name exposed to native code.
-    type_name: str  # Native node type name.
-    has_native_state: bool  # Whether the engine creates a native state object.
+    type_name: str | None  # Native node type name; None without native state.
     parameters: Mapping[str, object]  # Resolved parameters in native Python form.
     initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
     initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
@@ -168,13 +164,19 @@ class NativeInstance:
         object.__setattr__(self, 'parameters', parameters)
         object.__setattr__(self, 'initializer_bindings', MappingProxyType(dict(self.initializer_bindings)))
 
+    @property
+    def has_native_state(self):
+        """Whether the engine creates a native state object."""
+        return self.type_name is not None
+
 
 @dataclass(frozen=True, slots=True)
 class Procedure:
     """A scheduled procedure with its inputs and output destinations."""
 
     node_id: str  # Owning node's key in Program.instances.
-    reference: tuple[str, str]  # (native node type name, method name).
+    # Native procedure name, such as 'Std.Constant:run'; a 'Type:name' label for bodies.
+    reference: str
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
     resources: Mapping[str, ResourceBinding]  # Resource inputs by name.
@@ -190,8 +192,8 @@ class Procedure:
 
     @property
     def key(self):
-        """Return an identity distinct from native method aliases."""
-        name = self.reference[1]
+        """Return an identity that triggers use: the method name of native procedures."""
+        name = self.reference.rpartition(':')[2]
         return self.node_id, name if self.body is None else ('procedure', name)
 
 
@@ -215,11 +217,12 @@ class Program:
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
     native_types: Mapping[str, NativeNodeType] = field(default_factory=dict)  # By type name.
+    native_procedures: Mapping[str, NativeProcedureInterface] = field(default_factory=dict)  # By name.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self):
         for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables',
-                     'native_types'):
+                     'native_types', 'native_procedures'):
             object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
         object.__setattr__(self, 'procs', MappingProxyType({
             stage: tuple(schedule) for stage, schedule in self.procs.items()
@@ -298,17 +301,18 @@ class Program:
         line('Native types:')
         for type_name, native_type in sorted(self.native_types.items()):
             line(f'{type_name}:', 2)
-            line(f'has native state: {native_type.has_native_state}', 4)
             names('initializer uses', native_type.initializer_uses, 4)
             resource_types('initializer resources', native_type.initializer_resources, 4)
             resource_types('resource outputs', native_type.resource_outputs, 4)
-            line('procedures:', 4)
-            for name, interface in sorted(native_type.procedures.items()):
-                line(f'{name}:', 6)
-                names('uses', interface.uses, 8)
-                resource_types('resources', interface.resources, 8)
-                names('inputs', interface.inputs, 8)
-                names('outputs', interface.outputs, 8)
+
+        line()
+        line('Native procedures:')
+        for name, interface in sorted(self.native_procedures.items()):
+            line(f'{name}:', 2)
+            names('uses', interface.uses, 4)
+            resource_types('resources', interface.resources, 4)
+            names('inputs', interface.inputs, 4)
+            names('outputs', interface.outputs, 4)
 
         line()
         line('Native construction order:')
@@ -318,9 +322,9 @@ class Program:
         line()
         line('Node instances:')
         for node_id, instance in sorted(self.instances.items()):
-            line(f'{node_id}: {instance.type_name}', 2)
+            line(f'{node_id}:', 2)
             line(f'name: {instance.name}', 4)
-            line(f'has native state: {instance.has_native_state}', 4)
+            line(f'native state type: {instance.type_name}', 4)
             value('parameters', dict(instance.parameters), 4)
             static_bindings('initializer values', instance.initializer_values, 4)
             line('initializer resources:', 4)
@@ -331,8 +335,7 @@ class Program:
         for stage, schedule in self.procs.items():
             line(f'{stage.name}:', 2)
             for index, proc in enumerate(schedule, 1):
-                type_name, method_name = proc.reference
-                line(f'{index}. {proc.node_id}: {type_name}.{method_name}', 4)
+                line(f'{index}. {proc.node_id}: {proc.reference}', 4)
                 line(f'node context: {proc.node_context.name}', 6)
                 static_bindings('values', proc.values, 6)
                 line('dependencies:', 6)

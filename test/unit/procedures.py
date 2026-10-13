@@ -270,7 +270,7 @@ def check_mixed_procedures():
         parameter Value: Type;
         default output: value Type;
         temporary temp: Type;
-        native procedure produce as "run" produces temp as temp uses Value;
+        native procedure produce as "Std.Constant:run" produces temp as temp uses Value;
         procedure run depends on temp produces default output as output {
           output = temp;
         }
@@ -655,7 +655,7 @@ def check_multi_procedures():
     machine.assert_is_idle()
     procedure = next(proc for schedule in machine.program.procs.values() for proc in schedule
                      if proc.node_id == 'digits')
-    assert procedure.reference[1] == 'run'
+    assert procedure.reference.endswith(':run')
     assert [name for name, _ in procedure.dependencies] == ['z[0]', 'z[1]', 'middle', 'a[0]', 'a[1]']
     assert all(isinstance(source, wirely.program.InputSource) for _, source in procedure.dependencies)
 

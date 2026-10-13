@@ -2,15 +2,15 @@
 // SH: Previous Python procedure name was here
 // SE: Duplicate Python procedure name
 node type Invalid {
-  native procedure First as "refresh"; // H: Previous Python procedure name was here
-  native procedure Second as "refresh"; // E: Duplicate Python procedure name
+  native procedure First as "Invalid:refresh"; // H: Previous Python procedure name was here
+  native procedure Second as "Other:refresh"; // E: Duplicate Python procedure name
 }
 
 // TEST: procedure_alias_name_collision
 // SH: Previous Python procedure name was here
 // SE: Duplicate Python procedure name
 node type Invalid {
-  native procedure First as "refresh"; // H: Previous Python procedure name was here
+  native procedure First as "Invalid:refresh"; // H: Previous Python procedure name was here
   native procedure refresh; // E: Duplicate Python procedure name
 }
 
@@ -19,13 +19,32 @@ node type Invalid {
 // SE: Duplicate Python procedure name
 node type Invalid {
   native procedure refresh; // H: Previous Python procedure name was here
-  native procedure Second as "refresh"; // E: Duplicate Python procedure name
+  native procedure Second as "Invalid:refresh"; // E: Duplicate Python procedure name
 }
 
 // TEST: procedure_duplicate_decoded_alias_name
 // SH: Previous Python procedure name was here
 // SE: Duplicate Python procedure name
 node type Invalid {
-  native procedure First as r"refresh"; // H: Previous Python procedure name was here
-  native procedure Second as "\x72efresh"; // E: Duplicate Python procedure name
+  native procedure First as r"Invalid:refresh"; // H: Previous Python procedure name was here
+  native procedure Second as "Invalid:\x72efresh"; // E: Duplicate Python procedure name
 }
+
+// TEST: procedure_name_without_type
+node type Invalid {
+  native procedure run as "run"; // E: Native procedure names have the form 'Type:procedure'
+}
+
+// TEST: procedure_name_with_different_interfaces
+// SH: Previous declaration was here
+// SE: is declared with different interfaces
+node type First {
+  default output: value boolean;
+  native procedure run produces default output as "output"; // H: Previous declaration was here
+}
+node type Second {
+  default output: value boolean;
+  native procedure run as "First:run" produces default output as "value"; // E: is declared with different interfaces
+}
+node first: First {}
+node second: Second {}

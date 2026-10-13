@@ -42,37 +42,35 @@ def validate_native_method(native_class, name, *, has_native_state):
 
 def link_native_classes(program):
     """Validate all required implementations before constructing native objects."""
-    classes = {}
-    state_modes = {}
+    classes = {}  # By native state type name or stateless procedure prefix.
 
-    def resolve(instance):
-        name = instance.type_name
+    def resolve(name, has_native_state):
         if name not in classes:
             classes[name] = get_native_node_type_by_name(name)
-        native_class = classes[name]
-        if getattr(native_class, 'native_node_has_native_state', None) != instance.has_native_state:
-            raise ValueError(
-                f'Node type {name!r} requires has_native_state={instance.has_native_state}',
-            )
-        state_modes[name] = instance.has_native_state
+        if getattr(classes[name], 'native_node_has_native_state', None) != has_native_state:
+            raise ValueError(f'Node type {name!r} requires has_native_state={has_native_state}')
 
     for node_id in program.native_construction_order:
         instance = program.instances[node_id]
         if instance.has_native_state:
-            resolve(instance)
+            resolve(instance.type_name, True)
 
     methods = set()
     for schedule in program.procs.values():
         for procedure in schedule:
             if procedure.body is None:
-                resolve(procedure.node_context)
-                methods.add(procedure.reference)
+                prefix, _, method = procedure.reference.rpartition(':')
+                # Procedures of native states are methods of the state's class.
+                state_type = procedure.node_context.type_name
+                if state_type is not None and prefix != state_type:
+                    raise ValueError(f'Native procedure {procedure.reference!r} must belong to '
+                                     f'native type {state_type!r}')
+                resolve(prefix, state_type is not None)
+                methods.add((prefix, method))
 
-    for type_name, method_name in sorted(methods):
-        validate_native_method(
-            classes[type_name], method_name,
-            has_native_state=state_modes[type_name],
-        )
+    for prefix, method in sorted(methods):
+        validate_native_method(classes[prefix], method,
+                               has_native_state=classes[prefix].native_node_has_native_state)
     return classes
 
 

@@ -186,7 +186,7 @@ connect service -> consumer.Service;
 
 
 def check_native_names():
-    # Keys replace qualified names in native interfaces and linking.
+    # Native names replace qualified names in native interfaces and linking.
     registry = {}
 
     @native_node_type(registry, has_native_state=True)
@@ -207,10 +207,10 @@ def check_native_names():
     default output: resource Link;
     native initializer produces default output as "service";
   }
-  node type Sink as "TestLibrary.Consumer" {
+  node type Sink {
     input Service: resource Link;
     default output: value uint8;
-    native procedure run depends on Service produces default output as "output";
+    native procedure run as "TestLibrary.Consumer:run" depends on Service produces default output as "output";
   }
 }
 node source: Renamed.Source {}
@@ -223,10 +223,11 @@ connect source -> sink.Service;
         program = program_compiler.compile_nocatch(graph)
         engine = Engine(program)
     assert program.instances['source'].type_name == 'TestLibrary.Provider'
-    assert set(program.native_types) == {'TestLibrary.Provider', 'TestLibrary.Consumer'}
+    assert program.instances['sink'].type_name is None
+    assert set(program.native_types) == {'TestLibrary.Provider'}
     assert program.native_types['TestLibrary.Provider'].resource_outputs == {'service': 'TestLibrary.Service'}
-    assert program.native_types['TestLibrary.Consumer'].procedures['run'].resources == {
-        'Service': 'TestLibrary.Service'}
+    assert set(program.native_procedures) == {'TestLibrary.Consumer:run'}
+    assert program.native_procedures['TestLibrary.Consumer:run'].resources == {'Service': 'TestLibrary.Service'}
     engine.step()
     engine.assert_value_is('sink', 7)
 

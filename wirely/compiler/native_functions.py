@@ -132,11 +132,10 @@ def validate_native_names(declarations):
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.NodeType):
-                if item.is_native or any(isinstance(declaration, model.DeclarationProcedure)
-                                         and declaration.is_native for declaration in item.declarations):
+                if item.is_native:
                     register('node type', item, path)
                 elif item.alias is not None:
-                    raise model.ProgramError(item.alias, 'Node type keys require native state or native procedures')
+                    raise model.ProgramError(item.alias, 'Node type keys require native state')
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.DeclarationResourceType):
                 register('resource type', item, path)

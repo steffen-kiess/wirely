@@ -45,5 +45,7 @@ namespace Other {
   native node type Switch as "Fixture.Device" {} // E: Duplicate native name 'Fixture.Device'
 }
 
-// TEST: key_without_native_parts
-node type Plain as "Fixture.Plain" {} // E: Node type keys require native state or native procedures
+// TEST: key_without_native_state
+node type Plain as "Fixture.Plain" { // E: Node type keys require native state
+  native procedure run;
+}

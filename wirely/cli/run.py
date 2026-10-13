@@ -49,10 +49,9 @@ async def execute(engine, line):
         node_path = engine.get_node_path(parts[0])
         native_state = engine.native_states[node_path]
 
-        node_type_name = engine.program.instances[node_path].type_name
-
         if native_state is None:
-            raise CommandException(f'Node "{parts[0]}" ({node_type_name}) has no native state')
+            raise CommandException(f'Node "{parts[0]}" has no native state')
+        node_type_name = engine.program.instances[node_path].type_name
         if not hasattr(native_state, 'debug_command'):
             raise CommandException(f'Node "{parts[0]}" ({node_type_name}) has no debug_command function')
         native_state.debug_command(parts[1:])

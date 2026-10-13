@@ -276,6 +276,10 @@ class DeclarationProcedure(Declaration):
         self.produces = produces
         self.uses = uses
         self.body = None
+        if alias is not None:
+            prefix, _, method = alias.value.rpartition(':')
+            if not prefix or not method:
+                raise ProgramError(alias, "Native procedure names have the form 'Type:procedure'")
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state node after writing to a CSV file. The new value for the state node might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
@@ -312,13 +316,23 @@ class DeclarationProcedure(Declaration):
                     CompilerHint(previous.alias or previous.name, 'Previous Python procedure name was here'),
                 ])
         graph.procedures[name] = self
+        self.graph = graph
 
         self.depends.collect_declarations(graph, self)
         self.produces.collect_declarations(graph, self)
 
     @property
     def python_name(self):
-        return self.alias.value if self.alias is not None else self.name.id_str
+        """The method name, which native code also uses for triggers."""
+        return self.alias.value.rpartition(':')[2] if self.alias is not None else self.name.id_str
+
+    @property
+    def native_name(self):
+        """The native procedure name, such as 'Std.Constant:run'."""
+        if self.alias is not None:
+            return self.alias.value
+        prefix = self.graph.native_name if self.graph.is_native else self.graph.qualified_name
+        return f'{prefix}:{self.name.id_str}'
 
     def bind_body(self, graph):
         if graph.parent_graph is None and self.is_native:

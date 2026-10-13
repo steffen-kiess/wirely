@@ -208,14 +208,15 @@ class Engine:
                 )
                 if proc.body is None:
                     native_state = self.native_states[proc.node_id]
-                    target = native_state if proc.node_context.has_native_state else self.native_classes[proc.reference[0]]
-                    getattr(target, proc.reference[1])(context=context)
+                    prefix, _, method = proc.reference.rpartition(':')
+                    target = native_state if native_state is not None else self.native_classes[prefix]
+                    getattr(target, method)(context=context)
                 else:
                     for name, value in execute_procedure(self.program, proc, body_inputs, self.native_functions).items():
                         context.set_output(name, value)
                 missing = set(proc.outputs) - context._written_outputs
                 if missing:
-                    raise ValueError(f'Procedure {proc.reference[1]!r} on {context.name} did not write outputs: {sorted(missing)!r}')
+                    raise ValueError(f'Procedure {proc.reference!r} on {context.name} did not write outputs: {sorted(missing)!r}')
                 if context.wakeup_time is None:
                     self.wakeups.pop(key, None)
                 else:

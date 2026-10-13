@@ -36,9 +36,9 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
                  functions=()):
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'output{index}', value_type) for index, value_type in enumerate(output_types))
-    instance = NativeInstance('test', ('Test',), False, {}, ())
+    instance = NativeInstance('test', None, {}, ())
     procedure = Procedure(
-        node_id='test', reference=(('Test',), 'run'), node_context=instance,
+        node_id='test', reference='Test:run', node_context=instance,
         dependencies=tuple((variable.name, InputSource(variable, new_state=False))
                            for variable in state),
         resources=(), outputs={variable.name: OutputTarget(variable) for variable in outputs},

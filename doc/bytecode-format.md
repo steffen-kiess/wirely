@@ -631,7 +631,7 @@ Operands `input.N` and `output.N` select entry N of its `Inputs` and
 ```wirely
 // A named native procedure and its interfaces. NativeProcedures table.
 struct type NativeProcedure {
-  // Qualified name in Names.
+  // Native procedure name in Names, such as Std.Constant:run.
   Name: StringRef,
   // Range into InterfaceNames; names bound by `uses`.
   UsesNames: Range,
@@ -644,10 +644,7 @@ struct type NativeProcedure {
 }
 ```
 
-The qualified name joins the name of the declaring node type and the
-procedure name with `:`, such as `Std.Constant:run` for procedure `run` of
-`Std.Constant`. Entries are sorted by UTF-8 name bytes, without
-duplicates.
+Entries are sorted by UTF-8 name bytes, without duplicates.
 
 ### InputInterfaces
 
@@ -1013,7 +1010,8 @@ ranges support independent reads.
 | Native-state `instances` | `NativeStates` and `NodeSymbols` |
 | `instances[*].initializer_values` | Initializer `StaticBindings` and their values |
 | `instances[*].initializer_bindings`, `procs[*].resources` | `ResourceInputs` |
-| `native_types` | `NativeStateTypes`, `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, and `InputInterfaces` |
+| `native_types` | `NativeStateTypes`, `InterfaceNames`, and `ResourceInterfaces` |
+| `native_procedures` | `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, and `InputInterfaces` |
 | `native_construction_order` | Order of `NativeStates` |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
 | `procs[*].values` | Procedure `StaticBindings` and their values |
