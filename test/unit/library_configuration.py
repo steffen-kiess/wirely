@@ -179,7 +179,9 @@ connect input -> wrapper;
     runtime.assert_value_is('wrapper', 2)
 
 
-def code_program(node_type, parameter, value):
+def code_program(node_type, parameter, value, *, parameters=None):
+    arguments = {parameter: 'Value', **(parameters or {})}
+    settings = ', '.join(f'{name}: {expression}' for name, expression in arguments.items())
     return compile_program(f'''namespace TestLibrary {{
   native node type SettingsDevice {{
     default output: resource TwoN.Device;
@@ -189,13 +191,104 @@ def code_program(node_type, parameter, value):
 node type Wrapper {{
   parameter Value: String;
   input Device: resource TwoN.Device;
-  node child: TwoN.{node_type} {{ {parameter}: Value }}
+  node child: TwoN.{node_type} {{ {settings} }}
   connect Device -> child.Device;
 }}
 node device: TestLibrary.SettingsDevice {{}}
 node wrapper: Wrapper {{ Value: {json.dumps(value)} }}
 connect device -> wrapper.Device;
 ''')
+
+
+def check_key_state():
+    def make_runtime(timeout='PT10S'):
+        program = code_program('KeyState', 'Key', '%2', parameters={'Timeout': json.dumps(timeout)})
+        with settings_registries():
+            return Engine(program)
+
+    def event(pressed):
+        runtime.get_native_state('wrapper.child.key_event').handler({
+            'event': 'KeyPressed' if pressed else 'KeyReleased',
+            'params': {'key': '%2'},
+        })
+
+    def step(pressed, *, warning=False):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            runtime.step()
+        runtime.assert_value_is('wrapper.child', pressed)
+        expected = ('Warning: [wrapper.child.timeout_warning]: '
+                    'TwoN.KeyState: Resetting key after timeout\n') if warning else ''
+        assert output.getvalue() == expected, output.getvalue()
+
+    # Fix the clock so deadline boundaries and generation changes are exact.
+    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
+        runtime = make_runtime()
+        step(False)
+        runtime.assert_is_idle()
+        event(True)
+        step(True)
+        step(True)
+        runtime.assert_is_idle()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(True)
+        runtime.assert_is_idle()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(False, warning=True)
+        step(False)
+        runtime.assert_is_idle()
+
+        # A repeated press restarts the wait instead of using the old deadline.
+        event(True)
+        step(True)
+        step(True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(True)
+        event(True)
+        step(True)
+        step(True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(False, warning=True)
+        step(False)
+        runtime.assert_is_idle()
+
+        # A release coinciding with expiration is explicit, so it must not warn.
+        event(True)
+        step(True)
+        step(True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(10))
+        event(False)
+        step(False)
+        step(False)
+        runtime.assert_is_idle()
+
+        # A press at expiration wins and starts another wait without a warning.
+        event(True)
+        step(True)
+        step(True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(10))
+        event(True)
+        step(True)
+        step(True)
+        runtime.assert_is_idle()
+
+        # Losing the clock generation releases the key and warns only once.
+        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        step(False, warning=True)
+        step(False)
+        runtime.assert_is_idle()
+
+        # Zero duration still accepts the press in its event step.
+        runtime = make_runtime('PT0S')
+        step(False)
+        event(True)
+        step(True)
+        step(False, warning=True)
+        step(False)
+        runtime.assert_is_idle()
 
 
 def check_codes_and_tracing():
@@ -242,6 +335,7 @@ check_event_payloads()
 check_trigger_startup_after()
 check_delayed_event()
 check_debounce_duration()
+check_key_state()
 check_codes_and_tracing()
 check_prepared_credentials()
 

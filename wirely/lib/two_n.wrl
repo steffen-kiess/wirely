@@ -68,22 +68,38 @@ namespace TwoN {
     node key_event: KeyEvent { Key: Key }
     connect Device -> key_event.Device;
 
-    // The current value which is kept if there is no new event
-    state current_value: boolean = false;
+    // Start of the current press, or None while the key is released.
+    state pressed_at: Option[MonotonicTime] = None;
 
-    // The next time at which the state will be reset to False, or None while
-    // the key is released. If this time is not comparable to the current time,
-    // the state will be reset to False.
-    state timeout_time: Option[MonotonicTime] = None;
+    node event_time: Timer.MonotonicTimestamp { Type: boolean }
+    connect key_event -> event_time;
+    node timeout: Timer.DurationElapsed { Duration: Timeout }
+    connect pressed_at.old -> timeout;
+    node timeout_warning: Std.WarnOnEvent {
+      Format: "TwoN.KeyState: Resetting key after timeout",
+    }
 
-    node timeout_reached: Timer.MonotonicTimeReached {}
-    connect timeout_time.old -> timeout_reached;
-
-    native procedure get_value
-      depends on current_value.old as "current_value_old",
-        timeout_time.old as "timeout_time_old", key_event, timeout_reached
-      produces default output as "output", timeout_time, current_value
-      uses Timeout;
+    procedure get_value
+      depends on key_event, event_time, pressed_at.old as previous, timeout
+      produces default output as output, pressed_at, timed_out: event unit
+    {
+      // A new press or release takes precedence over an expired timeout.
+      pressed_at = if let Some(pressed) = optional(key_event) {
+        if pressed { optional(event_time) } else { None }
+      } else if timeout == Some(false) {
+        previous
+      } else {
+        // A missing release event or lost monotonic time releases the key.
+        None
+      };
+      output = pressed_at.IsSome;
+      on changed pressed_at {
+        if previous.IsSome && pressed_at.IsNone && optional(key_event).IsNone {
+          emit timed_out;
+        }
+      }
+    }
+    connect get_value.timed_out -> timeout_warning;
   }
 
   #[Internal]

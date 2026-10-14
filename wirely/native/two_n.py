@@ -5,7 +5,6 @@ import contextlib
 
 import wirely
 from wirely.native import native_node_type, native_resource_type
-from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
@@ -156,45 +155,6 @@ class CodeEnteredEvent(NativeState):
             context.set_output('output', wirely.Some(wirely.Unit()))
             # Trigger to set value to None again
             context.trigger_self()
-
-
-@native_node_type(native_node_types, has_native_state=False)
-class KeyState(NativeState):
-    @staticmethod
-    def get_value(*, context):
-        value = context.inputs['current_value_old']
-        timeout_time = context.inputs['timeout_time_old']
-        timeout_reached = context.inputs['timeout_reached']
-        event = context.inputs['key_event']
-
-        if event == wirely.Some(True):
-            # KeyPressed
-            now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
-            new_value = True
-            new_timeout_time = wirely.Some(now + context.values['Timeout'])
-        elif event == wirely.Some(False):
-            # KeyReleased
-            new_value = False
-            new_timeout_time = None
-        else:
-            # No event, keep current value (if there is no timeout)
-            if not value:
-                new_value = False
-                new_timeout_time = None
-            elif timeout_reached != wirely.Some(False):
-                # Old value was True, but timeout was reached or time was lost
-                print('Warning: TwoN.KeyState: Resetting key after timeout', flush=True)
-                # Change value to False, cancel timeout
-                new_value = False
-                new_timeout_time = None
-            else:
-                # Current (True) value is kept, keep timeout
-                new_value = True
-                new_timeout_time = timeout_time
-
-        context.set_output('output', new_value)
-        context.set_output('timeout_time', new_timeout_time)
-        context.set_output('current_value', new_value)
 
 
 @native_resource_type(native_resource_types, 'IOStateState')

@@ -184,7 +184,7 @@ connect its default `resource TwoN.Device` output to each client's named
 | --- | --- | --- |
 | `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
-| `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout. Startup state can be wrong if the key was already pressed. |
+| `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
 | `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value boolean`. Tracks whether a switch is active. |
 | `CodeEnteredEvent` | `Code: String` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
