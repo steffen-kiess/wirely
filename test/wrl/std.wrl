@@ -8,6 +8,18 @@ node in: Std.DebugValueSource { Type: boolean }
 
 node edge: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 connect in -> edge;
+node rising: Std.DetectEdge { EdgeType: Std.EdgeType.Rising }
+connect in -> rising;
+node both: Std.DetectEdge { EdgeType: Std.EdgeType.Both }
+connect in -> both;
+
+node initial_true: Std.DebugValueSource { Type: boolean }
+node initial_falling: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
+connect initial_true -> initial_falling;
+node initial_rising: Std.DetectEdge { EdgeType: Std.EdgeType.Rising }
+connect initial_true -> initial_rising;
+node initial_both: Std.DetectEdge { EdgeType: Std.EdgeType.Both }
+connect initial_true -> initial_both;
 
 node unit_events: Std.DebugEventSource { Type: unit }
 node w_unit: Std.WarnOnEvent { Format: "Unit warning" }

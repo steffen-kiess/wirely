@@ -69,7 +69,7 @@ General data flow, optional values, edge detection, and debug nodes.
 | `OptionUnwrapOr` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
 | `OptionIsSome` | `InnerType: ValueType` | In: `value Option[InnerType]`; out: `value boolean`. True when a value is present. |
 | `OptionCreate` | `InnerType: ValueType` | Named in: `HasValue: value boolean`, `Value: value InnerType`; out: `value Option[InnerType]`. Wraps `Value` when `HasValue` is true; otherwise produces `None`. |
-| `DetectEdge` | `EdgeType: Std.EdgeType` | In: `value boolean`; out: `event boolean`. Only `Std.EdgeType.Falling` works; `Rising` and `Both` raise an error when run. |
+| `DetectEdge` | `EdgeType: Std.EdgeType` | In: `value boolean`; out: `event boolean`. `Rising` detects false → true, `Falling` true → false, and `Both` either transition. Emits the new value; initialization emits nothing. |
 
 The debug sources are intended for testing and interactive control. Their
 input is supplied through the engine's debug interface, not a `.wrl`

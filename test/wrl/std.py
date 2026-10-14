@@ -4,6 +4,7 @@ import io
 import wirely
 
 engine.get_native_state('in').set_value(False)
+engine.get_native_state('initial_true').set_value(True)
 
 # Std.Constant
 
@@ -15,43 +16,48 @@ def check(*args):
 
     engine.assert_is_idle()
 
-# Needed because DetectEdge.run() will run twice
+# Initialization records the input without emitting an edge.
 engine.step()
+for name in ('edge', 'rising', 'both', 'initial_falling', 'initial_rising', 'initial_both'):
+    engine.assert_value_is(name, None)
 
 check(True, 1000)
 check(True, 1000)
 
 # Std.DetectEdge
 
-engine.assert_value_is('edge', None)
+def check_edges(source_name, names, cases):
+    source = engine.get_native_state(source_name)
+    for value, expected, settle in cases:
+        source.set_value(value)
+        engine.step()
+        for name, event in zip(names, expected):
+            engine.assert_value_is(name, event)
+        if settle:
+            engine.step()
+            for name in names:
+                engine.assert_value_is(name, None)
+            engine.assert_is_idle()
 
-engine.get_native_state('in').set_value(True)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.assert_is_idle()
 
-engine.get_native_state('in').set_value(True)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.assert_is_idle()
-
-engine.get_native_state('in').set_value(False)
-engine.step()
-engine.assert_value_is('edge', wirely.Some(False))
-engine.step()
-engine.assert_value_is('edge', None)
-engine.assert_is_idle()
-
-engine.get_native_state('in').set_value(False)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.step()
-engine.assert_value_is('edge', None)
-engine.assert_is_idle()
+rising = (None, wirely.Some(True), wirely.Some(True))
+falling = (wirely.Some(False), None, wirely.Some(False))
+unchanged = (None, None, None)
+check_edges('in', ('edge', 'rising', 'both'), [
+    (True, rising, True),
+    (True, unchanged, True),
+    (False, falling, True),
+    (False, unchanged, True),
+    (True, rising, False),
+    (False, falling, False),
+    (True, rising, True),
+])
+check_edges('initial_true', ('initial_falling', 'initial_rising', 'initial_both'), [
+    (True, unchanged, True),
+    (False, falling, True),
+    (False, unchanged, True),
+    (True, rising, True),
+])
 
 # Std.WarnOnEvent
 

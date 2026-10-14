@@ -191,7 +191,6 @@ namespace Std {
 
   // TODO: Allow ignoring edges when the time is lost
   node type DetectEdge {
-    // Currently only Falling is implemented.
     #[Diagram.ShowValue]
     parameter EdgeType: Std.EdgeType;
 
@@ -201,9 +200,20 @@ namespace Std {
 
     state last_value: Option[boolean] = None;
 
-    native procedure run
-      depends on last_value.old as "last_value_old", default input as "input"
-      produces default output as "output", last_value uses EdgeType;
+    procedure run
+      depends on last_value.old as last_value_old, default input as input
+      produces default output as output, last_value
+    {
+      let wanted = if input {
+        EdgeType == Std.EdgeType.Rising || EdgeType == Std.EdgeType.Both
+      } else {
+        EdgeType == Std.EdgeType.Falling || EdgeType == Std.EdgeType.Both
+      };
+      last_value = Some(input);
+      on changed last_value {
+        if last_value_old.IsSome && wanted { emit output(input); }
+      }
+    }
   }
 }
 
