@@ -15,6 +15,59 @@ def assert_content_is(fn, value):
     if actual != value:
         raise Exception(f'Test failed: Expected content {value!r}, got {actual!r}')
 
+async def check_repeat_boundaries(filename):
+    with open(filename, 'rb') as file:
+        expected = file.read().decode('utf-8')
+    source = engine.get_native_state('test_option_input')
+
+    def step(row=None):
+        nonlocal expected
+        _, _, step_info = engine.step()
+        if row is not None:
+            time = step_info.stage_start_time[RunStage.DEFAULT].isoformat()
+            expected += f'{time},{row[0]},{row[1]}\r\n'
+        assert_content_is(filename, expected)
+        engine.step()
+        assert_content_is(filename, expected)
+        engine.assert_is_idle()
+        assert_content_is(filename, expected)
+
+    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+        await engine.start_tasks_async(tg, async_exit_stack)
+        source.set_value(wirely.Some(False))
+        step(('', 'false'))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
+        step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(('false', 'false'))
+
+        # Changing the value halfway through the hour restarts the interval.
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1800))
+        source.set_value(wirely.Some(True))
+        step(('false', 'true'))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1800))
+        step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1799))
+        step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(('true', 'true'))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3599))
+        step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(('true', 'true'))
+
+        # Empty values are written on change, but not repeated.
+        source.set_value(None)
+        step(('true', ''))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3600))
+        step()
+        source.set_value(wirely.Some(False))
+        step(('', 'false'))
+
+    expected += f'{engine.last_shutdown_time.isoformat()},false,\r\n'
+    assert_content_is(filename, expected)
+
+
 async def run_test():
     fn = engine.get_native_state('test_value_writer').values['Filename']
     fn2 = engine.get_native_state('test_option_value_writer').values['Filename']
@@ -41,7 +94,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -59,7 +112,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -77,7 +130,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -101,7 +154,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -120,7 +173,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -146,7 +199,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
         assert_content_is(fn, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn, expected)
 
@@ -177,7 +230,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},false,true\r\n'
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -195,7 +248,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -213,7 +266,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,true\r\n'
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -225,7 +278,7 @@ async def run_test():
         expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},true,\r\n'
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -243,7 +296,7 @@ async def run_test():
         # Note: No new message because value is None
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -261,7 +314,7 @@ async def run_test():
         # Note: No new message because value is None
         assert_content_is(fn2, expected)
 
-        # Because of the changed RepeatTime some procedures will be executed again
+        # Because the last-write timestamp changed some procedures will be executed again
         engine.step()
         assert_content_is(fn2, expected)
 
@@ -269,3 +322,4 @@ async def run_test():
         assert_content_is(fn2, expected)
     # Note: No message on shutdown because old value is None
     assert_content_is(fn2, expected)
+    await check_repeat_boundaries(fn2)

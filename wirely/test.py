@@ -45,6 +45,7 @@ python_only_tests = [
     'repo/files',
     'repo/native_types',
     'unit/library_configuration',
+    'unit/csv',
     'unit/state_connections',
     'unit/types',
     'unit/serialization',

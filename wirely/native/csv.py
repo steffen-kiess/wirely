@@ -129,29 +129,26 @@ class ValueWriter(NativeState):
     def run(*, context):
         state = context.inputs['state'].object
         new_value = context.inputs['input']
-        reached = context.inputs['repeat_time_reached']
-        repeat_time = context.inputs['repeat_time_old']
+        elapsed = context.inputs['repeat_elapsed']
+        last_written_at = context.inputs['last_written_at_old']
 
         new_value_csv = context.values['Type'].to_csv_value(new_value)
 
-        # If reached is None or Some(True), the value has to be repeated
+        # If elapsed is None or Some(True), the value has to be repeated
         # Note: The empty value is not repeated
-        force = reached != wirely.Some(False) and new_value_csv != ('', False)
-        # print(f'NewValue={new_value} Reached={reached} force={force}')
+        force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
 
         # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
         time = context.start_time_for_stage(RunStage.DEFAULT).local
 
         if force:
-            # Make sure that if in the next cycle/step the timeout is reached again, the procedure will be called again.
+            # Re-evaluate the repeat decision next step after recording this write.
             # TODO: Should this simply be done whenever write_value() is called?
             context.trigger_self()
 
         written = state.write_value(new_value_csv, time, force=force)
         if written:
             # TODO: Think what happens if new_value_csv is ('', False)
-            now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
-            # Write value once an hour
-            repeat_time = wirely.Some(now + wirely.Duration.parse('PT1H'))
+            last_written_at = wirely.Some(context.start_time_for_stage(RunStage.DEFAULT).monotonic)
 
-        context.set_output('repeat_time', repeat_time)
+        context.set_output('last_written_at', last_written_at)

@@ -29,18 +29,17 @@ namespace CSV {
 
     default input: value Type;
 
-    // The next time at which the current value will be written out again even
-    // if it does not change. If this time is not comparable to the current
-    // time, the value will be written out again.
-    state repeat_time: Option[MonotonicTime] = None;
+    // Time of the last write. Repeat a nonempty value after one hour, or when
+    // this time is absent or not comparable to the current time.
+    state last_written_at: Option[MonotonicTime] = None;
 
-    node repeat_time_reached: Timer.MonotonicTimeReached {}
-    connect repeat_time.old -> repeat_time_reached;
+    node repeat_elapsed: Timer.DurationElapsed { Duration: "PT1H" }
+    connect last_written_at.old -> repeat_elapsed;
 
     native procedure run stage output
-      depends on state as "state", repeat_time.old as "repeat_time_old",
-        default input as "input", repeat_time_reached
-      produces repeat_time uses Type;
+      depends on state as "state", last_written_at.old as "last_written_at_old",
+        default input as "input", repeat_elapsed
+      produces last_written_at uses Type;
   }
 
   // TODO: Add EventWriter
