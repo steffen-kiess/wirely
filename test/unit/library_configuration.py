@@ -179,6 +179,104 @@ connect input -> wrapper;
     runtime.assert_value_is('wrapper', 2)
 
 
+def check_debounce_behavior():
+    def make_runtime(value_type='uint16', duration='PT10S'):
+        program = compile_program(f'''node type Wrapper {{
+  parameter Type: ValueType;
+  parameter Span: Duration;
+  default input: value Type;
+  default output: value Type;
+  node child: Timer.DebounceStable {{ Type: Type, Duration: Span }}
+  connect default input -> child;
+  connect child -> default output;
+}}
+node input: Std.DebugValueSource {{ Type: {value_type} }}
+node wrapper: Wrapper {{ Type: {value_type}, Span: {json.dumps(duration)} }}
+connect input -> wrapper;
+''')
+        return Engine(program)
+
+    def step(expected, *, settle=True):
+        runtime.step()
+        runtime.assert_value_is('wrapper', expected)
+        if settle:
+            runtime.step()
+            runtime.assert_value_is('wrapper', expected)
+            runtime.assert_is_idle()
+
+    # Fix the clock so expiration and generation changes are deterministic.
+    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
+        runtime = make_runtime()
+        source = runtime.get_native_state('input')
+        source.set_value(1)
+        step(1)
+        source.set_value(2)
+        step(1)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(1)
+        # An identical pending input must not restart its interval.
+        source.set_value(2)
+        step(1)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(2)
+
+        # A new pending value restarts the interval.
+        source.set_value(3)
+        step(2)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(2)
+        source.set_value(4)
+        step(2)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(2)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(4)
+
+        # Returning to the current output cancels the pending change.
+        source.set_value(5)
+        step(4)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        source.set_value(4)
+        step(4)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
+        step(4)
+        source.set_value(5)
+        step(4)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        step(4)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(5)
+
+        # Clock loss accepts the pending input immediately and clears the wait.
+        source.set_value(6)
+        step(5)
+        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        step(6)
+
+        runtime = make_runtime(duration='PT0S')
+        source = runtime.get_native_state('input')
+        source.set_value(1)
+        step(1)
+        source.set_value(2)
+        step(1, settle=False)
+        step(2)
+
+        # An absent Option payload is a value, distinct from no pending change.
+        runtime = make_runtime('Option[boolean]', 'PT2S')
+        source = runtime.get_native_state('input')
+        source.set_value(None)
+        step(None)
+        source.set_value(wirely.Some(False))
+        step(None)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
+        step(wirely.Some(False))
+        source.set_value(None)
+        step(wirely.Some(False))
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
+        step(None)
+
+
 def code_program(node_type, parameter, value, *, parameters=None):
     arguments = {parameter: 'Value', **(parameters or {})}
     settings = ', '.join(f'{name}: {expression}' for name, expression in arguments.items())
@@ -335,6 +433,7 @@ check_event_payloads()
 check_trigger_startup_after()
 check_delayed_event()
 check_debounce_duration()
+check_debounce_behavior()
 check_key_state()
 check_codes_and_tracing()
 check_prepared_credentials()
