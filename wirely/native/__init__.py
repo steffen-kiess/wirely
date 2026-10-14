@@ -34,7 +34,6 @@ native_node_pkgs = {
     'Schedule': 'schedule',
     'Timer': 'timer',
     'KNX': 'knx',
-    'ABB.JRA': 'abb_jra',
     'MQTT': 'mqtt',
     'CSV': 'csv',
     'TwoN': 'two_n',

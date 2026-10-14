@@ -14,15 +14,28 @@ namespace ABB.JRA {
     output DriveDown: value boolean;
     output DriveUp: value boolean;
     output SendReceiveDelayActive: value boolean;
-    // output Unassigned13 : value boolean;
-    // output Unassigned14 : value boolean;
-    // output Unassigned15 : value boolean;
 
-    native procedure run
-      depends on default input as "input"
+    // See JRAS_xxx1_PH_EN_V1-4_2CDC506051D0204.pdf, page 106.
+    procedure run
+      depends on default input as input
       produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
-        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
+        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive
+    {
+      ManualOperation = (input & (1 << 0)) != 0;
+      BlockActive = (input & (1 << 1)) != 0;
+      ForcedOperation = (input & (1 << 2)) != 0;
+      FrostAlarm = (input & (1 << 3)) != 0;
+      RainAlarm = (input & (1 << 4)) != 0;
+      WindAlarm = (input & (1 << 5)) != 0;
+      AutomaticSunProtection = (input & (1 << 6)) != 0;
+      AutomaticHeatingCooling = (input & (1 << 7)) != 0;
+      DriveError = (input & (1 << 8)) != 0;
+      DriveInMotion = (input & (1 << 9)) != 0;
+      DriveDown = (input & (1 << 10)) != 0;
+      DriveUp = (input & (1 << 11)) != 0;
+      SendReceiveDelayActive = (input & (1 << 12)) != 0;
+    }
   }
 
   node type InterpretStatusInformationOption {
@@ -40,32 +53,42 @@ namespace ABB.JRA {
     output DriveDown: value Option[boolean];
     output DriveUp: value Option[boolean];
     output SendReceiveDelayActive: value Option[boolean];
-    // output Unassigned13 : value Option[boolean];
-    // output Unassigned14 : value Option[boolean];
-    // output Unassigned15 : value Option[boolean];
 
-    native procedure run
-      depends on default input as "input"
+    procedure run
+      depends on default input as input
       produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
-        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive;
-
-    // TODO: Make this work?
-    // node have_value : Std.OptionIsSome { InnerType: uint16 }
-    // connect default input -> have_value;
-
-    // node input_value: Std.OptionUnwrapOr {
-    //   InnerType: uint16,
-    //   Default: 0,
-    // }
-    // connect default input -> input_value;
-
-    // node status : InterpretStatusInformation {}
-    // connect input_value -> status;
-
-    // node manual_operation_value : Std.OptionCreate { InnerType: boolean }
-    // connect have_value -> manual_operation_value.HasValue;
-    // connect status.ManualOperation -> manual_operation_value.Value;
-    // connect manual_operation_value -> ManualOperation;
+        DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive
+    {
+      if let Some(status) = input {
+        ManualOperation = Some((status & (1 << 0)) != 0);
+        BlockActive = Some((status & (1 << 1)) != 0);
+        ForcedOperation = Some((status & (1 << 2)) != 0);
+        FrostAlarm = Some((status & (1 << 3)) != 0);
+        RainAlarm = Some((status & (1 << 4)) != 0);
+        WindAlarm = Some((status & (1 << 5)) != 0);
+        AutomaticSunProtection = Some((status & (1 << 6)) != 0);
+        AutomaticHeatingCooling = Some((status & (1 << 7)) != 0);
+        DriveError = Some((status & (1 << 8)) != 0);
+        DriveInMotion = Some((status & (1 << 9)) != 0);
+        DriveDown = Some((status & (1 << 10)) != 0);
+        DriveUp = Some((status & (1 << 11)) != 0);
+        SendReceiveDelayActive = Some((status & (1 << 12)) != 0);
+      } else {
+        ManualOperation = None;
+        BlockActive = None;
+        ForcedOperation = None;
+        FrostAlarm = None;
+        RainAlarm = None;
+        WindAlarm = None;
+        AutomaticSunProtection = None;
+        AutomaticHeatingCooling = None;
+        DriveError = None;
+        DriveInMotion = None;
+        DriveDown = None;
+        DriveUp = None;
+        SendReceiveDelayActive = None;
+      }
+    }
   }
 }

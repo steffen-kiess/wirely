@@ -9,7 +9,7 @@ See the [language guide](language.md) for `.wrl` syntax and the
 
 `native_node_pkgs` in
 [`wirely/native/__init__.py`](../wirely/native/__init__.py) maps namespaces
-to modules: `Std` maps to `std`, and `ABB.JRA` to `abb_jra`. A new namespace
+to modules: `Std` maps to `std`, and `KNX` to `knx`. A new namespace
 needs a map entry. Each module supplies a `native_node_types` dictionary;
 `@native_node_type` registers a class under its Python name. The
 [native name](language.md#declarations-and-names) of a node type with
