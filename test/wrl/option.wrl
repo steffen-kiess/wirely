@@ -23,3 +23,20 @@ connect inp1 -> val3.HasValue;
 connect number_inp -> val3.Value;
 node is_some3: Std.OptionIsSome { InnerType: uint16 }
 connect val3 -> is_some3;
+
+node unwrapped: Std.OptionUnwrapOr { InnerType: uint16, Default: 77 }
+connect val3 -> unwrapped;
+
+node nested_input: Std.DebugValueSource { Type: Option[boolean] }
+node nested_some: Std.OptionSome { InnerType: Option[boolean] }
+connect nested_input -> nested_some;
+node nested_created: Std.OptionCreate { InnerType: Option[boolean] }
+connect inp1 -> nested_created.HasValue;
+connect nested_input -> nested_created.Value;
+node nested_is_some: Std.OptionIsSome { InnerType: Option[boolean] }
+connect nested_created -> nested_is_some;
+node nested_unwrapped: Std.OptionUnwrapOr {
+  InnerType: Option[boolean],
+  Default: Some(true),
+}
+connect nested_created -> nested_unwrapped;

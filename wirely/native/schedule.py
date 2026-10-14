@@ -106,22 +106,6 @@ class TimeOfDayMinute(NativeState):
 
 
 @native_node_type(native_node_types, has_native_state=False)
-class IsInDailyInterval:
-    @staticmethod
-    def run(*, context):
-        start = context.values['Start']
-        end = context.values['End']
-        time = context.inputs['current_time']
-
-        if start < end:
-            res = (time >= start) and (time < end)
-        else:
-            res = (time >= start) or (time < end)
-
-        context.set_output('output', res)
-
-
-@native_node_type(native_node_types, has_native_state=False)
 class TriggerAt:
     @staticmethod
     def run(*, context):

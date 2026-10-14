@@ -2,6 +2,7 @@ node t0: Schedule.IsInDailyInterval { Start: "00:00", End: "12:00" }
 node t1: Schedule.IsInDailyInterval { Start: "12:00", End: "24:00" }
 node all_day: Schedule.IsInDailyInterval { Start: "00:00", End: "24:00" }
 node never: Schedule.IsInDailyInterval { Start: "24:00", End: "00:00" }
+node overnight: Schedule.IsInDailyInterval { Start: "22:00", End: "06:00" }
 
 node trigger: Schedule.TriggerAt { Time: "12:34" }
 node trigger_value: Schedule.TriggerAt {

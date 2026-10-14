@@ -32,9 +32,16 @@ namespace Schedule {
 
     node current_time: TimeOfDayMinute {}
 
-    native procedure run
+    procedure run
       depends on current_time
-      produces default output as "output" uses Start, End;
+      produces default output as output
+    {
+      output = if Start < End {
+        current_time >= Start && current_time < End
+      } else {
+        current_time >= Start || current_time < End
+      };
+    }
   }
 
   // Creates an event whenever the current time changes from the range of 8

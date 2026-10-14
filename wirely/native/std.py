@@ -135,52 +135,6 @@ class DebugEventSource(NativeState):
 
 
 @native_node_type(native_node_types, has_native_state=False)
-class OptionSome:
-    @staticmethod
-    def run(*, context):
-        val = context.inputs['input']
-        # Pack value
-        val = wirely.Some(val)
-
-        context.set_output('output', val)
-
-
-@native_node_type(native_node_types, has_native_state=False)
-class OptionUnwrapOr:
-    @staticmethod
-    def run(*, context):
-        par_default = context.values['Default']
-
-        val = context.inputs['input']
-
-        if val is None:
-            res = par_default
-        else:
-            res = val.value
-
-        context.set_output('output', res)
-
-
-@native_node_type(native_node_types, has_native_state=False)
-class OptionIsSome:
-    @staticmethod
-    def run(*, context):
-        context.set_output('output', context.inputs['input'] is not None)
-
-
-@native_node_type(native_node_types, has_native_state=False)
-class OptionCreate:
-    @staticmethod
-    def run(*, context):
-        if context.inputs['HasValue']:
-            result = wirely.Some(context.inputs['Value'])
-        else:
-            result = None
-
-        context.set_output('output', result)
-
-
-@native_node_type(native_node_types, has_native_state=False)
 class DetectEdge:
     @staticmethod
     def run(*, context):

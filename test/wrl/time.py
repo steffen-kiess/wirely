@@ -60,6 +60,8 @@ async def run_test():
         engine.step(); engine.assert_is_idle()
         engine.assert_value_is('t0', False)
         engine.assert_value_is('t1', True)
+        engine.assert_value_is('all_day', True)
+        engine.assert_value_is('never', False)
 
         todm.set_fake_time(wirely.TimeOfDay.parse('13:45'))
         engine.step()
@@ -80,6 +82,16 @@ async def run_test():
         engine.assert_value_is('t1', True)
         engine.assert_value_is('all_day', True)
         engine.assert_value_is('never', False)
+
+        # The interval includes its start and excludes its end across midnight.
+        for time, expected in [('21:59', False), ('22:00', True), ('23:00', True),
+                               ('00:00', True), ('05:59', True), ('06:00', False),
+                               ('12:00', False)]:
+            todm.set_fake_time(wirely.TimeOfDay.parse(time))
+            engine.step()
+            engine.step()
+            engine.assert_value_is('overnight', expected)
+            engine.assert_is_idle()
 
         # Test TriggerAt
 

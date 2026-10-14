@@ -134,9 +134,12 @@ namespace Std {
     default input: value InnerType;
     default output: value Option[InnerType];
 
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      output = Some(input);
+    }
   }
 
   node type OptionUnwrapOr {
@@ -149,9 +152,12 @@ namespace Std {
     default input: value Option[InnerType];
     default output: value InnerType;
 
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output" uses Default;
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      output = input.UnwrapOr(Default);
+    }
   }
 
   node type OptionIsSome {
@@ -160,9 +166,12 @@ namespace Std {
     default input: value Option[InnerType];
     default output: value boolean;
 
-    native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+    procedure run
+      depends on default input as input
+      produces default output as output
+    {
+      output = input.IsSome;
+    }
   }
 
   node type OptionCreate {
@@ -172,9 +181,12 @@ namespace Std {
     input Value: value InnerType;
     default output: value Option[InnerType];
 
-    native procedure run
+    procedure run
       depends on HasValue, Value
-      produces default output as "output";
+      produces default output as output
+    {
+      output = if HasValue { Some(Value) } else { None };
+    }
   }
 
   // TODO: Allow ignoring edges when the time is lost

@@ -76,6 +76,8 @@ with checks.assertRaises(Exception):
 inp_count = 3
 inp = [engine.get_native_state('inp{}'.format(i)) for i in range(inp_count)]
 number_inp = engine.get_native_state('number_inp')
+nested_input = engine.get_native_state('nested_input')
+nested_input.set_value(None)
 
 
 def check(option_value, has_value, bool_value, number):
@@ -92,6 +94,7 @@ def check(option_value, has_value, bool_value, number):
     engine.assert_value_is('is_some2', has_value)
     engine.assert_value_is('val3', wirely.Some(number) if has_value else None)
     engine.assert_value_is('is_some3', has_value)
+    engine.assert_value_is('unwrapped', number if has_value else 77)
     engine.assert_is_idle()
 
 
@@ -99,6 +102,19 @@ check(False, False, False, 42)
 check(True, False, True, 123)
 check(False, True, False, 0)
 check(True, True, True, 65535)
+
+# Outer absence and a present option with an absent payload remain distinct.
+for value, has_value in [(None, False), (None, True),
+                         (wirely.Some(False), True), (wirely.Some(True), True),
+                         (wirely.Some(False), False)]:
+    nested_input.set_value(value)
+    inp[1].set_value(has_value)
+    engine.step()
+    engine.assert_value_is('nested_some', wirely.Some(value))
+    engine.assert_value_is('nested_created', wirely.Some(value) if has_value else None)
+    engine.assert_value_is('nested_is_some', has_value)
+    engine.assert_value_is('nested_unwrapped', value if has_value else wirely.Some(True))
+    engine.assert_is_idle()
 
 
 async def run_test():

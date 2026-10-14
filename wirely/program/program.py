@@ -175,7 +175,7 @@ class Procedure:
     """A scheduled procedure with its inputs and output destinations."""
 
     node_id: str  # Owning node's key in Program.instances.
-    # Native procedure name, such as 'Std.OptionSome:run'; a 'Type:name' label for bodies.
+    # Native procedure name, such as 'Std.WarnOnEvent:run'; a 'Type:name' label for bodies.
     reference: str
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.

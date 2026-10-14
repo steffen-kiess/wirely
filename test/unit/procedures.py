@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import wirely
 import wirely.compiler
-import wirely.native.std
+import wirely.native.test_library
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from wirely.runtime import procedures as runtime_procedures
@@ -270,7 +270,8 @@ def check_mixed_procedures():
         parameter Value: Type;
         default output: value Type;
         binding temp: value Type;
-        native procedure produce as "Std.OptionSome:run" produces temp as temp uses Value;
+        native procedure produce as "TestLibrary.TestNode:test_procedure"
+          produces temp as temp uses Value;
         procedure run depends on temp produces default output as output {
           output = temp;
         }
@@ -278,7 +279,7 @@ def check_mixed_procedures():
     }
     node mixed: Std.Constant { Type: boolean, Value: true }
     '''
-    with patch.object(wirely.native.std.OptionSome, 'run',
+    with patch.object(wirely.native.test_library.TestNode, 'test_procedure',
                       staticmethod(lambda *, context: context.set_output('temp', context.values['Value']))):
         mixed_engine = Engine(compile_program(mixed_source))
         mixed_engine.step()
