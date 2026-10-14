@@ -84,7 +84,7 @@ such as `"08:00"`.
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
-| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, optional `OutputValue: OutputType` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
+| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## Timer
 

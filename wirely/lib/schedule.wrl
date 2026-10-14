@@ -44,6 +44,16 @@ namespace Schedule {
     }
   }
 
+  #[Internal]
+  enum type TriggerAtState: uint8 {
+    // Initial state, or outside both intervals.
+    Outside = 0,
+    // In the before interval; entering the after interval will emit an event.
+    Before = 1,
+    // Already visited the after interval; wait until outside both to re-arm.
+    Triggered = 2,
+  }
+
   // Creates an event whenever the current time changes from the range of 8
   // hours before Time to the range 2 hours after Time, if since the last time
   // it was in the range 2 hours after Time the time was at lease once outside
@@ -59,20 +69,11 @@ namespace Schedule {
     // Defaults to unit
     parameter OutputType: ValueType = unit;
     // Defaults to () when OutputType is unit
-    optional parameter OutputValue: OutputType;
-
-    assert OutputType == unit || optional(OutputValue).IsSome,
-      "OutputValue is required when OutputType is not unit";
+    parameter OutputValue: OutputType = ();
 
     default output: event OutputType;
 
-    // Keeps track of the last state
-    // TODO: Introduce an enum for this?
-    // 0: Initial state / outside any range
-    // 1: In 'before' range, transition to 'after' range will trigger output
-    // 2: Has already triggered (or at least was in 'after' range), waiting for
-    // time outside any range
-    state trigger_state: uint8 = 0;
+    state trigger_state: TriggerAtState = TriggerAtState.Outside;
 
     // Note: This relies on both blocks using the same time source, so that
     // there is no cycle/step at the Time where both or neither are true.
@@ -85,9 +86,36 @@ namespace Schedule {
       End: TimeOfDay.WrappingAdd(Time, "PT2H"),
     }
 
-    native procedure run
-      depends on trigger_state.old as "state_old", before, after
-      produces default output as "output", trigger_state
-      uses optional(OutputValue) as OutputValue;
+    procedure run
+      depends on trigger_state.old as previous, before, after
+      produces default output as output, trigger_state
+    {
+      trigger_state = if before && after {
+        // The shared clock makes this impossible; keep the state if it occurs.
+        previous
+      } else if after {
+        // Startup here, or skipping the before interval, records the visit
+        // without emitting an event.
+        TriggerAtState.Triggered
+      } else if before {
+        if previous == TriggerAtState.Outside {
+          TriggerAtState.Before
+        } else {
+          // A clock rollback into the before interval, for example during DST
+          // changes, must not re-arm a Triggered state: returning to after
+          // would emit a duplicate.
+          previous
+        }
+      } else {
+        // Leaving both intervals allows a new before-to-after transition.
+        TriggerAtState.Outside
+      };
+      on changed trigger_state {
+        if previous == TriggerAtState.Before
+            && trigger_state == TriggerAtState.Triggered {
+          emit output(OutputValue);
+        }
+      }
+    }
   }
 }

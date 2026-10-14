@@ -86,12 +86,12 @@ connect feedback -> {external}.Feedback;
 
 
 def check_event_payloads():
-    cases = [(None, None, wirely.Unit()), ('boolean', 'false', False),
+    cases = [(None, None, wirely.Unit()), ('unit', '()', wirely.Unit()), ('boolean', 'false', False),
              ('uint16', '0', 0), ('Option[boolean]', 'None', None),
              ('Option[boolean]', 'Some(false)', wirely.Some(False))]
     for node_type in ('Schedule.TriggerAt', 'Memory.ToggleFlipFlopTrigger'):
         # A supplied false-like value must survive optional parameter forwarding.
-        scenarios = [(False, case) for case in cases] + [(True, cases[1])]
+        scenarios = [(forward, case) for forward in (False, True) for case in cases]
         for forward, (output_type, output_value, expected) in scenarios:
             program, target = node_program(node_type, output_type, output_value, forward=forward)
             runtime = Engine(program)
@@ -110,6 +110,25 @@ def check_event_payloads():
             runtime.step()
             runtime.assert_value_is(target, None)
             runtime.assert_is_idle()
+
+
+def check_trigger_startup_after():
+    program, target = node_program('Schedule.TriggerAt', None, None)
+    runtime = Engine(program)
+    clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
+    # Starting after the scheduled time must not emit or re-arm on rollback.
+    for time in ('12:30', '11:59', '12:00', '15:00', '11:59'):
+        clock.set_fake_time(wirely.TimeOfDay.parse(time))
+        runtime.step()
+        runtime.assert_value_is(target, None)
+        runtime.step()
+        runtime.assert_is_idle()
+    clock.set_fake_time(wirely.TimeOfDay.parse('12:00'))
+    runtime.step()
+    runtime.assert_value_is(target, wirely.Some(wirely.Unit()))
+    runtime.step()
+    runtime.assert_value_is(target, None)
+    runtime.assert_is_idle()
 
 
 def check_delayed_event():
@@ -220,6 +239,7 @@ def check_prepared_credentials():
 
 
 check_event_payloads()
+check_trigger_startup_after()
 check_delayed_event()
 check_debounce_duration()
 check_codes_and_tracing()
