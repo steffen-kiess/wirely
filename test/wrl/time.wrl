@@ -24,6 +24,12 @@ node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
 node reached: Timer.MonotonicTimeReached {}
 connect reached_input -> reached;
 
+node elapsed_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
+node elapsed: Timer.DurationElapsed { Duration: "PT10S" }
+connect elapsed_input -> elapsed;
+node elapsed_zero: Timer.DurationElapsed { Duration: "PT0S" }
+connect elapsed_input -> elapsed_zero;
+
 node timestamp_input: Std.DebugEventSource { Type: unit }
 node timestamp: Timer.MonotonicTimestamp {}
 connect timestamp_input -> timestamp;

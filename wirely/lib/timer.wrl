@@ -23,6 +23,28 @@ namespace Timer {
       produces default output as "output";
   }
 
+  node type DurationElapsed {
+    parameter Duration: Duration;
+
+    default input: value Option[MonotonicTime];
+    default output: value Option[boolean];
+
+    node reached: MonotonicTimeReached {}
+
+    procedure deadline
+      depends on default input as start
+      produces time: value Option[MonotonicTime]
+    {
+      time = if let Some(start_time) = start {
+        Some(MonotonicTime.SaturatingAdd(start_time, Duration))
+      } else {
+        None
+      };
+    }
+    connect deadline.time -> reached;
+    connect reached -> default output;
+  }
+
   // Output the initial value immediately, then accept changes after the input
   // remains stable for Duration.
   node type DebounceStable {

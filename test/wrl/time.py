@@ -14,6 +14,7 @@ async def run_test():
 
         engine.get_native_state('delay_input').set_value(4)
         engine.get_native_state('reached_input').set_value(None)
+        engine.get_native_state('elapsed_input').set_value(None)
 
         engine.step()
 
@@ -366,6 +367,73 @@ async def run_test():
             reached_input.set_value(time)
             engine.step()
             engine.assert_value_is('reached', expected)
+
+        # DurationElapsed preserves absence and rejects lost clock generations.
+        elapsed_input = engine.get_native_state('elapsed_input')
+        for start in (None, wirely.Some(wirely.MonotonicTime(0, 0))):
+            elapsed_input.set_value(start)
+            engine.step()
+            engine.assert_value_is('elapsed', None)
+            engine.assert_value_is('elapsed_zero', None)
+
+        # Advancing time expires the wait without changing its input.
+        _, _, step_info = engine.step()
+        start = step_info.stage_start_time_monotonic[RunStage.DEFAULT]
+        elapsed_input.set_value(wirely.Some(start))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(False))
+        engine.assert_value_is('elapsed_zero', wirely.Some(True))
+        engine.assert_is_idle()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(False))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(True))
+        engine.assert_is_idle()
+
+        # Replacing the start time restarts a pending wait.
+        _, _, step_info = engine.step()
+        elapsed_input.set_value(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT]))
+        engine.step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        _, _, step_info = engine.step()
+        elapsed_input.set_value(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT]))
+        engine.step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(False))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(True))
+
+        # A future start with zero duration waits until that start is reached.
+        _, _, step_info = engine.step()
+        start = step_info.stage_start_time_monotonic[RunStage.DEFAULT]
+        elapsed_input.set_value(wirely.Some(start + wirely.Duration.from_seconds(10)))
+        engine.step()
+        engine.assert_value_is('elapsed_zero', wirely.Some(False))
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(11))
+        engine.step()
+        engine.assert_value_is('elapsed_zero', wirely.Some(True))
+        engine.assert_value_is('elapsed', wirely.Some(False))
+
+        # Clearing a pending wait keeps it absent after its deadline passes.
+        elapsed_input.set_value(None)
+        engine.step()
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(11))
+        engine.step()
+        engine.assert_value_is('elapsed', None)
+        engine.assert_value_is('elapsed_zero', None)
+        engine.assert_is_idle()
+
+        # Adding the duration near the timestamp limit saturates, not overflows.
+        elapsed_input.set_value(wirely.Some(wirely.MonotonicTime(start.generation, wirely.MonotonicTime.MAX_NS - 5)))
+        engine.step()
+        engine.assert_value_is('elapsed', wirely.Some(False))
+        elapsed_input.set_value(None)
+        engine.step()
+        engine.assert_is_idle()
 
         # Without this sleep there is a warning: "sys:1: RuntimeWarning: coroutine 'TimeOfDayMinute.run_task' was never awaited"
         await asyncio.sleep(0.001)
