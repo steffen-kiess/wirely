@@ -124,3 +124,30 @@ node type Readers {
 node readers: Readers {}
 connect a_value -> readers.Value;
 node a_value: Std.DebugValueSource { Type: boolean }
+
+node type EmitWarnings {
+  input Input: event boolean;
+  output A: event boolean;
+  output B: event boolean;
+  output C: event boolean;
+  output D: event boolean;
+  output E: event boolean;
+  procedure run
+    depends on Input as input
+    produces A as a, B as b, C as c, D as d, E as e
+  {
+    emit a(true); // W: [UnguardedEvent]
+    emit? b(None); // W: [UnguardedEvent]
+    if optional(input).IsSome {
+      emit c(false); // W: [UnguardedEvent]
+    }
+    #[Allow(UnguardedEvent)]
+    emit d(true);
+    #[Allow(UnguardedEvent)]
+    if true { emit? e(Some(false)); }
+  }
+  #[Allow(UnguardedEvent)]
+  procedure allowed produces result: event unit { emit result; }
+}
+node emit_warnings: EmitWarnings {}
+connect a -> emit_warnings.Input;

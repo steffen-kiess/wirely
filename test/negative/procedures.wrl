@@ -230,7 +230,7 @@ connect source -> probe;
 // TEST: event output
 node type Probe {
   default output: event boolean;
-  procedure run produces default output as output { output = true; } // E: Event outputs
+  procedure run produces default output as output { output = true; } // E: Cannot assign event output
 }
 node probe: Probe {}
 

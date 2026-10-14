@@ -308,3 +308,268 @@ resource type Handle;
 native node type Invalid {
   native initializer depends on handle: resource Handle; // E: Initializer dependencies must reference resources
 }
+
+// TEST: emit_value_output
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: value boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    emit output(true); // E: is not an event output
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_payload_type
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    emit output(1); // E: Invalid boolean value
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_missing_payload
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    emit output; // E: Expected value of type boolean, got unit
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_optional_type
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    emit? output(true); // E: Invalid Option value
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_optional_argument
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event unit;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    emit? output; // E: Syntax error
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_read
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    let value = output; // E: Cannot read event output
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_read_after
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { emit output(true); let value = output; } // E: Cannot read event output
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_duplicate
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { emit output(true); emit output(false); } // E: may be assigned more than once
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_optional_duplicate
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { emit? output(None); emit output(false); } // E: may be assigned more than once
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_separate_guards
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { emit output(true); } on input { emit output(false); } // E: may be assigned more than once
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_branch_then_again
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { if input { emit output(true); } emit output(false); } // E: may be assigned more than once
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_loop
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    for item in values { on item { emit output(true); } } // E: Cannot assign outer immutable binding
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_input
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    on input { emit input(true); } // E: is not an event output
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_local
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    let result = false; on input { emit result(true); } // E: is not an event output
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+
+// TEST: emit_constant
+constant Value: unit = { emit output; }; // E: emit is only allowed in procedure bodies
+
+// TEST: emit_state
+state value: boolean = false;
+procedure run produces value {
+  emit value(true); // E: is not an event output
+}
+
+// TEST: emit_single_source_loop
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+node type Invalid {
+  input Input: event boolean;
+  input Values: multi event boolean;
+  default output: event boolean;
+  procedure run
+    depends on Input as input, Values as values
+    produces default output as output
+  {
+    for item in values { on item { emit output(true); } } // E: Cannot assign outer immutable binding
+  }
+}
+node invalid: Invalid {}
+connect source -> invalid.Input;
+connect source -> invalid.Values;

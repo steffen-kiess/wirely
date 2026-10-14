@@ -1,5 +1,5 @@
 // Allow on the file covers all of its contents.
-#![Allow(SimultaneousEvents)]
+#![Allow(SimultaneousEvents, UnguardedEvent)]
 
 node a: Std.DebugEventSource { Type: boolean }
 node b: Std.DebugEventSource { Type: boolean }
@@ -7,3 +7,5 @@ node b: Std.DebugEventSource { Type: boolean }
 procedure run depends on a, b {
   on a { on b {} }
 }
+
+procedure emit_allowed produces result: event unit { emit result; }

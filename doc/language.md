@@ -100,6 +100,7 @@ reported with their name, for example `[SimultaneousEvents]`:
 | --- | --- |
 | `SimultaneousEvents` | A nested `on` block whose triggers are all unrelated to the enclosing block's. |
 | `RedundantOn` | A nested `on` block that always runs because an enclosing block guarantees one of its triggers. |
+| `UnguardedEvent` | An event emission outside an `on` block. |
 | `Unused` | A temporary or resource that nothing in its node type reads; an output of the node type counts as a reader. |
 | `NativeFunction` | A warning from the implementation of a native function. |
 
@@ -181,7 +182,7 @@ implementation, as in
 Each native name identifies one declaration of its kind.
 
 Identifiers are case-sensitive. Weak keywords `constant`, `default`,
-`event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
+`emit`, `event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
 `state`, `type`, and `value` can also be used as identifiers. Other keywords
 require the `r#` prefix when used as names, for example
 `node r#node: Std.And {}`. Declarations end with `;`, except node instances
@@ -571,10 +572,10 @@ node type Select {
 ```
 
 Inside the body, use input port names, parameters, and constants as values.
-Assign each output port exactly once on every path through the body. An
-output can be read after it has been assigned on every path reaching the
-read. Port, parameter, and constant names must be
-distinct. Use separate ports to read and write state.
+Assign each value or state output exactly once on every path through the
+body. These outputs can be read after assignment on every path reaching the
+read. Emit event outputs as described below. Port, parameter, and constant
+names must be distinct. Use separate ports to read and write state.
 
 `let` creates an immutable local; `let mut` permits reassignment. A later
 `let` may reuse a local name, with its own type and mutability. Its
@@ -734,7 +735,7 @@ Procedures can copy any runtime value, including options and structs, read
 struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
 Their ports support single and multi `value` and `event` inputs and single
-`value` outputs. State reads must be listed in
+`value` and `event` outputs. State reads must be listed in
 `depends on`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
@@ -795,6 +796,36 @@ only when the events coincide, and causes a `SimultaneousEvents` warning; a
 nested block that always runs causes a `RedundantOn` warning.
 `on` blocks yield unit, have no `else`, and are available only in procedure
 bodies. Store an event's effect in state to keep it after the event ends.
+
+Emit an `event T` output with `emit output(value)`, where `value` has type
+`T`. For `event unit`, use `emit output` or `emit output(())`.
+`emit? output(option)` accepts `Option[T]`: `Some(value)` emits the payload,
+and `None` emits nothing. Both forms yield unit and can end a block.
+An output not emitted during an invocation is absent. For an
+`event Option[T]` output, `emit output(None)` emits an absent payload;
+`emit? output(None)` emits no event.
+
+Event outputs cannot be read or assigned with `=`. Emit each output at most
+once on every path; `emit?` counts even when its option is `None`. Mutually
+exclusive branches may each emit to the same output. To combine events in
+a loop, collect a payload locally and emit once afterward:
+
+```wirely
+on inputs {
+  let mut result: Option[Command] = None;
+  for item in inputs {
+    on item { result = Some(item); }
+  }
+  emit? output(result);
+}
+```
+
+This example selects the last present input in connection order.
+Emissions outside an `on` block cause an `UnguardedEvent` warning: an event
+that stays present can repeatedly cause external actions. Any enclosing
+`on` block guards an emission; an ordinary `if` does not. Use
+`#[Allow(UnguardedEvent)]` on a statement, procedure, or enclosing item for
+intentional unguarded emissions.
 
 Use native procedures for external effects or operations outside this
 expression subset. Their `.wrl` declarations specify the interface and

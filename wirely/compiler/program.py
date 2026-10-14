@@ -384,6 +384,7 @@ def lower_program(global_node_type):
                 else:
                     source_types[name] = resolve_source(path, source).value_type
             output_types = {}
+            event_outputs = set()
             for name, target in proc.static_context._targets.items():
                 spec = getattr(target, 'port_spec', None)
                 port = next(port for port in proc.declaration_procedure.produces.outputs
@@ -391,14 +392,14 @@ def lower_program(global_node_type):
                 if isinstance(spec, model.PortTypeSpecificationResource):
                     raise model.ProgramError(port, 'Procedures cannot produce resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
-                    raise model.ProgramError(port, 'Event outputs are not supported in procedure bodies')
+                    event_outputs.add(name)
                 variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
             with warnings.instance(instances[path].instantiation_hint()):
                 bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
                                                      intern_constant, intern_function, multi_sources,
-                                                     event_sources)
+                                                     event_sources, event_outputs)
 
     from .static_bindings import evaluate_bindings
     schedules = {}

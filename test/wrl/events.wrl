@@ -74,3 +74,43 @@ procedure keep_latest
 {
   latest = optional(second).UnwrapOr(optional(first).UnwrapOr(previous));
 }
+
+// Forward, filter, and merge events without retaining them in state.
+node type Emissions {
+  input Number: event uint8;
+  input Press: event unit;
+  input Values: multi event uint8;
+  output payload: event uint8;
+  output unit: event unit;
+  output constant: event uint8;
+  output filtered: event uint8;
+  output nested: event Option[uint8];
+  output absent: event unit;
+  output merged: event uint8;
+  output persistent: event unit;
+  #[Allow(UnguardedEvent)]
+  procedure always produces persistent { emit persistent; }
+  procedure run
+    depends on Number as number, Press as press, Values as values
+    produces payload, unit, constant, filtered, nested, absent, merged
+  {
+    on number {
+      emit payload(number);
+      emit constant(42);
+      emit? filtered(if number == 0 { None } else { Some(number) });
+      emit nested(if number == 0 { None } else { Some(number) });
+    }
+    on press { emit unit }
+    on values {
+      let mut result: Option[uint8] = None;
+      for item in values {
+        on item { result = Some(item); }
+      }
+      emit? merged(result);
+    }
+  }
+}
+node forward: Emissions {}
+connect number -> forward.Number;
+connect press -> forward.Press;
+connect first, second -> forward.Values;

@@ -266,6 +266,18 @@ class OnExpression(Expression):
         self.body = body
 
 
+class EmitExpression(Expression):
+    def __init__(self, target, expression=None, *, optional=False, source_position):
+        super().__init__(source_position=source_position)
+        self.target = target
+        self.expression = expression
+        self.is_optional = optional
+
+    @staticmethod
+    def optional(target, expression, *, source_position):
+        return EmitExpression(target, expression, optional=True, source_position=source_position)
+
+
 class ExpressionBlock(Expression):
     def __init__(self, *statements, source_position):
         super().__init__(source_position=source_position)
@@ -383,6 +395,12 @@ class ExpressionClassification:
             self.visit(expression.iterable, names)
             self.visit(expression.body, {**names, expression.name.id_str: True})
             dependencies.update((expression.iterable, expression.body))
+            return
+        if isinstance(expression, EmitExpression):
+            self.runtime.add(expression)
+            if expression.expression is not None:
+                self.visit(expression.expression, names)
+                dependencies.add(expression.expression)
             return
         if isinstance(expression, OnExpression):
             self.runtime.add(expression)
@@ -843,7 +861,9 @@ class InstructionCompiler:
             return destination
         return source
 
-    def body(self, expression):
+    def body(self, expression, event_outputs=()):
+        for name in event_outputs:
+            self.emit(Opcode.SET_DEFAULT, self.outputs[name])
         if expression.runtime:
             self.compile(expression)
         self.emit(Opcode.RETURN)
@@ -868,6 +888,7 @@ class ExpressionCompiler:
         self.classification = None
         # Payload types of event bindings, by (operation, payload).
         self.events = {}
+        self.event_outputs = set()
         # Payload locals of events known to be present, by (operation, payload).
         self.present = {}
         # Multi event keys of loop variables over them, by loop variable key.
@@ -967,13 +988,47 @@ class ExpressionCompiler:
         binding = self.bindings.get(key)
         if binding is None:
             raise ProgramError(target, f'Cannot assign to {name!r}; expected a local variable or output')
+        if name in self.event_outputs:
+            raise ProgramError(target, f'Cannot assign event output {name!r}; use emit')
         if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
             raise ProgramError(target, f'Cannot assign outer immutable binding {name!r} inside a loop')
         rhs = self.compile(expression.expression, binding.value.value_type)
+        return self.assign_binding(target, binding, rhs)
+
+    def assign_binding(self, target, binding, rhs):
+        name = target.id_str if isinstance(target, model.Identifier) else target.identifiers[0].id_str
+        key = binding.value.operation, binding.value.payload
+        if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
+            raise ProgramError(target, f'Cannot assign outer immutable binding {name!r} inside a loop')
         if not binding.mutable and self.initialization[key][0]:
             raise ProgramError(target, f'Immutable binding {name!r} may be assigned more than once')
         self.initialization[key] = True, True
         return TypedExpression(model.types.unit, 'assign', (rhs,), key)
+
+    def emit_expression(self, expression):
+        if not self.runtime:
+            raise ProgramError(expression, 'emit is only allowed in procedure bodies')
+        name = expression.target.id_str
+        if name not in self.event_outputs:
+            raise ProgramError(expression.target, f'{name!r} is not an event output')
+        binding = self.bindings['output', name]
+        option_type = binding.value.value_type
+        if expression.expression is None:
+            check_value_type(model.types.unit, option_type.inner_type, expression)
+            argument = TypedExpression(model.types.unit, 'unit')
+        else:
+            argument = self.compile(expression.expression,
+                                    option_type if expression.is_optional else option_type.inner_type)
+        value = (argument if expression.is_optional
+                 else TypedExpression(option_type, 'some', (argument,), runtime=argument.runtime))
+        result = self.assign_binding(expression.target, binding, value)
+        if not self.on_blocks:
+            self.scope.coordinator.warnings.warn(
+                'UnguardedEvent', expression,
+                f'Emission of {name!r} is outside an on block; '
+                'use on or suppress with #[Allow(UnguardedEvent)]',
+            )
+        return result
 
     def for_expression(self, expression):
         if not self.runtime:
@@ -1138,6 +1193,8 @@ class ExpressionCompiler:
             return self.for_expression(expression)
         if isinstance(expression, OnExpression):
             return self.on_expression(expression)
+        if isinstance(expression, EmitExpression):
+            return self.emit_expression(expression)
         if isinstance(expression, AssignmentExpression):
             return self.assignment(expression)
         if isinstance(expression, PropertyAccess):
@@ -1274,6 +1331,8 @@ class ExpressionCompiler:
                     raise ProgramError(expression, 'Multi inputs can only be used as for-loop sources '
                                        'or receivers of .Length')
                 key = value.operation, value.payload
+                if name in self.event_outputs:
+                    raise ProgramError(expression, f'Cannot read event output {name!r}')
                 if key in self.events:
                     if key not in self.present:
                         raise ProgramError(expression, f"Event {name!r} can only be read inside 'on {name}'")
@@ -1530,7 +1589,8 @@ class ExpressionCompiler:
             if expression.length == 1:
                 name = expression.identifiers[0].id_str
                 if name in self.names:
-                    return self.names[name].value_type
+                    value = self.names[name]
+                    return self.events.get((value.operation, value.payload), value.value_type)
                 if name in ('true', 'false'):
                     return model.types.boolean
                 parameter = self.scope.static_declarations.get(name)
@@ -1568,7 +1628,7 @@ class ExpressionCompiler:
             return self.known_type(expression.operand)
         if isinstance(expression, (UnaryExpression, BinaryExpression)):
             return model.types.boolean
-        if isinstance(expression, (ForExpression, OnExpression)):
+        if isinstance(expression, (ForExpression, OnExpression, EmitExpression)):
             return model.types.unit
         if isinstance(expression, AssignmentExpression):
             return model.types.unit
@@ -1670,7 +1730,7 @@ def fold_constants(expression):
 
 
 def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
-                      multi_sources=None, event_sources=()):
+                      multi_sources=None, event_sources=(), event_outputs=()):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     multi_sources = multi_sources or {}
@@ -1695,12 +1755,15 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
     for name in event_sources:
         value = names[name]
         compiler.events[value.operation, value.payload] = value.value_type.inner_type
+    compiler.event_outputs = set(event_outputs)
     for name, value_type in output_types.items():
         compiler.bind(name, TypedExpression(value_type, 'output', payload=name, runtime=True))
     body = compiler.compile(declaration.body, model.types.unit)
-    missing = [name for name in output_types if not compiler.initialization['output', name][1]]
+    missing = [name for name in output_types
+               if name not in compiler.event_outputs and not compiler.initialization['output', name][1]]
     if missing:
         raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {sorted(missing)!r}')
     procedure.static_usage = frozenset(compiler.static_usage)
     body = fold_constants(body)
-    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body)
+    event_outputs = tuple(name for name in output_types if name in compiler.event_outputs)
+    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body, event_outputs)

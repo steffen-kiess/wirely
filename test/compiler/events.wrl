@@ -75,3 +75,78 @@ connect value -> optionals.A;
 connect value -> optionals.B;
 connect nested -> optionals.Nested;
 connect value, value -> optionals.Values;
+
+// Emission expressions yield unit and event outputs need not be emitted.
+node type EmitEvents {
+  input Input: event uint8;
+  input Press: event unit;
+  output Value: event uint8;
+  output Unit: event unit;
+  output Optional: event uint8;
+  output Nested: event Option[uint8];
+  output Absent: event boolean;
+  procedure run
+    depends on Input as input, Press as press
+    produces Value as value, Unit as unit, Optional as option, Nested as nested,
+      Absent as absent
+  {
+    on input {
+      let result: unit = emit value(input);
+      emit? option(Some(input));
+      emit nested(None)
+    }
+    on press { emit unit(()) }
+  }
+}
+node emitted: EmitEvents {}
+connect value -> emitted.Input;
+connect press -> emitted.Press;
+
+// Mutually exclusive branches share an emission opportunity.
+node type EmitBranches {
+  input Input: event boolean;
+  default output: event uint8;
+  procedure run depends on Input as input produces default output as output {
+    on input {
+      if input { emit output(1); } else { emit? output(Some(2)); }
+    }
+  }
+}
+node flag: Std.DebugEventSource { Type: boolean }
+node branches: EmitBranches {}
+connect flag -> branches.Input;
+
+// emit remains usable as an identifier, including an emission target.
+node type EmitKeyword {
+  input Input: event unit;
+  default output: event unit;
+  procedure run depends on Input as input produces default output as emit {
+    on input { emit emit; }
+  }
+  procedure names {
+    let mut emit = 1;
+    emit = 2;
+    assert { let emit = Some(1); emit.IsSome };
+  }
+}
+node keyword: EmitKeyword {}
+connect press -> keyword.Input;
+
+namespace EmitKeywordCalls {
+  native function emit(value: uint8): uint8;
+  node type Check {
+    assert true || emit(1) == 1;
+  }
+}
+node check_emit_call: EmitKeywordCalls.Check {}
+
+namespace EmitKeywordStruct {
+  struct type emit {
+    value: uint8,
+  }
+  node type Check {
+    constant Value: emit = emit { value: 1 };
+    assert Value.value == 1;
+  }
+}
+node check_emit_struct: EmitKeywordStruct.Check {}

@@ -130,6 +130,8 @@ expression_list: _list{expression} -> copy_list
 // ends the statement unless followed by field access or enclosed in parentheses.
 ?assignment{a, b}: disjunction{a, b}
     | disjunction{a, b} "=" assignment{b, b} -> assignment_expression
+    | "emit" identifier ["(" expression ")"] -> emit_expression
+    | "emit" "?" identifier "(" expression ")" -> emit_expression__optional
 ?disjunction{a, b}: conjunction{a, b}
     | disjunction{a, b} "||" conjunction{b, b} -> binary_expression__logical_or
 ?conjunction{a, b}: comparison{a, b}
@@ -224,6 +226,7 @@ reference: identifier ("." identifier)* -> reference__from_list
     | "constant"
     | "default"
     | "event"
+    | "emit"
     | "input"
     | "in"
     | "multi"
