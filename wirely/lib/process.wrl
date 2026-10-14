@@ -10,7 +10,7 @@ namespace Process {
     // Note: The value of the event will be ignored
     default input: event Type;
 
-    resource state: LaunchOnEventState;
+    binding state: resource LaunchOnEventState;
     native initializer produces state as "state" uses ShellCommand;
 
     native procedure run stage output

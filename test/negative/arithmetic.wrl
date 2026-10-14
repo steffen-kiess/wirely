@@ -67,21 +67,21 @@ node generic: Generic { Type: int16 }
 // ^H: While instantiating 'generic'
 
 // TEST: operators in procedures
-#[Allow(Unused)] temporary result: int16;
+#[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   let value: int16 = 1;
   result = value + 1; // E: Arithmetic operators are compile-time only; use T.WrappingAdd, T.SaturatingAdd, or T.CheckedAdd
 }
 
 // TEST: division in procedures
-#[Allow(Unused)] temporary result: int16;
+#[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   let value: int16 = 4;
   result = value / 2; // E: Arithmetic operators are compile-time only; use T.CheckedDiv
 }
 
 // TEST: negation in procedures
-#[Allow(Unused)] temporary result: int16;
+#[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   let value: int16 = 1;
   result = -value; // E: Negation is compile-time only

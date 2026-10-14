@@ -22,7 +22,7 @@ from .attributes import validate_files
 from .coordinator import CompilerCoordinator
 from .diagnostics import Diagnostic, WarningSink
 from .native_functions import validate_collisions, validate_native_names
-from .outline import Constant, Node, NodeType, Parameter, Port, ProcedurePort, State, Temporary
+from .outline import Binding, Constant, Node, NodeType, Parameter, Port, ProcedurePort, State
 from .types import resolve_type
 
 
@@ -245,7 +245,7 @@ class Analysis:
         return sources
 
     def value_type(self, target):
-        """Return the type of a state, temporary, constant, parameter, or port of a node type or procedure."""
+        """Return the type of a state, value binding, constant, parameter, or port of a node type or procedure."""
         path = target.procedure.path if isinstance(target, ProcedurePort) else target.path
         scope = self._compiled_scope(path[:-1])
         name = path[-1]
@@ -253,7 +253,7 @@ class Analysis:
             return None
         if isinstance(target, State):
             node = scope.state_nodes.get(name)
-        elif isinstance(target, Temporary):
+        elif isinstance(target, Binding):
             node = scope.temporary_nodes.get(name)
         elif isinstance(target, (Constant, Parameter)):
             declaration = scope.static_declarations.get(name)
@@ -377,7 +377,7 @@ def _element_spans(result):
     elements = []
 
     def visit(scope):
-        for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.resources, *scope.constants,
+        for record in (*scope.nodes, *scope.states, *scope.bindings, *scope.constants,
                        *scope.parameters, *scope.ports, *scope.procedures, *scope.node_types):
             elements.append((record.filename, record.span, record.id))
         for edge in scope.edges:

@@ -13,7 +13,7 @@ node type Combined {
   parameter Other: boolean;
   constant Inverted: boolean = !Other;
   default output: value boolean;
-  temporary inverted: boolean;
+  binding inverted: value boolean;
   state last: boolean = false;
   node all: Std.And {}
   connect Inverted -> inverted;

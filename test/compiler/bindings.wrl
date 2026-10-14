@@ -1,0 +1,23 @@
+node type ValueBinding {
+  parameter Type: ValueType = uint8;
+  default input: value Type;
+  default output: value Type;
+  binding binding: value Type;
+  procedure copy depends on default input as input produces binding {
+    binding = input;
+  }
+  connect binding -> default output;
+}
+node source: Std.Constant { Type: uint8, Value: 7 }
+node forwarded: ValueBinding {}
+connect source -> forwarded;
+
+// Resource bindings share the one-source connection rules.
+resource type Handle;
+node type ResourceBinding {
+  default input: resource Handle;
+  default output: resource Handle;
+  binding service: resource Handle;
+  connect default input -> service;
+  connect service -> default output;
+}

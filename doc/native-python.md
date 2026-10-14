@@ -264,7 +264,7 @@ resource type ReceiverState;
 
 native node type Receiver {
   default output: value Option[boolean];
-  resource state: ReceiverState;
+  binding state: resource ReceiverState;
   native initializer produces state as "state";
   native procedure get_value stage input
     depends on state as "state"

@@ -89,8 +89,8 @@ def check_pure_stages():
       output InputStage: value boolean;
       default output: value boolean;
       output OutputStage: value boolean;
-      temporary early: boolean;
-      temporary calculated: boolean;
+      binding early: value boolean;
+      binding calculated: value boolean;
       procedure read stage input produces InputStage, early {
         InputStage = true;
         early = true;
@@ -120,7 +120,7 @@ def check_output_storage():
     # Output storage does not share slots with declared temporaries.
     program = compile_program('''node type Split {
       output Value: value boolean;
-      temporary Value_val: boolean;
+      binding Value_val: value boolean;
       procedure run produces Value as value, Value_val {
         value = true;
         Value_val = false;
@@ -147,7 +147,7 @@ def check_temporary_connections():
     node type Normalize {
       output Level: value boolean;
       output Inverted: value boolean;
-      temporary level: boolean;
+      binding level: value boolean;
       procedure normalize produces level { level = true; }
       procedure invert depends on level produces Inverted as inverted {
         inverted = if level { false } else { true };
@@ -186,7 +186,7 @@ def check_procedure_ports():
       output Copied: value boolean;
       output Fed: value boolean;
       state last: boolean = false;
-      temporary named: boolean;
+      binding named: value boolean;
       node copy: Copy {}
       node fed: Copy {}
 
@@ -269,7 +269,7 @@ def check_mixed_procedures():
         parameter Type: ValueType;
         parameter Value: Type;
         default output: value Type;
-        temporary temp: Type;
+        binding temp: value Type;
         native procedure produce as "Std.Constant:run" produces temp as temp uses Value;
         procedure run depends on temp produces default output as output {
           output = temp;
@@ -288,8 +288,8 @@ def check_mixed_procedures():
 
 def check_root_only():
     # The root exists without child nodes and does not require native lookup.
-    root_only = compile_program('''temporary t: int8;
-    temporary sum: Option[int8];
+    root_only = compile_program('''binding t: value int8;
+    binding sum: value Option[int8];
     procedure p1 produces t { t = 50; }
     procedure p2 depends on t produces sum { sum = int8.CheckedAdd(t, 100); }
     ''')
@@ -302,8 +302,8 @@ def check_root_only():
 
 def check_root_dependencies():
     # Root dependencies can order child producers, root procedures, and consumers.
-    chained = compile_program('''temporary first: boolean;
-    temporary second: boolean;
+    chained = compile_program('''binding first: value boolean;
+    binding second: value boolean;
     procedure one depends on source as input produces first { first = input; }
     procedure two depends on first, shared as enabled produces second {
       second = first && enabled;
@@ -344,8 +344,8 @@ def check_root_dependencies():
 def check_root_state():
     # Root state keeps old snapshots and exposes new values to same-step readers.
     root_state = compile_program('''state saved: boolean = false;
-    temporary previous: boolean;
-    temporary current: boolean;
+    binding previous: value boolean;
+    binding current: value boolean;
     procedure write depends on source as input produces saved { saved = input; }
     procedure read_old depends on saved.old as old produces previous {
       previous = old;

@@ -140,20 +140,20 @@ def _flag(attribute):
 
 # Extensions must explicitly define qualified names as well as unqualified ones.
 # Attribute names, their namespaces, and their arguments use PascalCase.
-_DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'temporary', 'resource', 'constant', 'parameter',
+_DIAGRAM_ITEMS = frozenset({'node', 'port', 'state', 'binding', 'constant', 'parameter',
                             'procedure'})
 
 ATTRIBUTE_REGISTRY = {
     'Internal': AttributeDefinition(frozenset({
         'node', 'node_type', 'function', 'namespace', 'struct', 'enum',
         'resource_type', 'constant', 'parameter', 'port', 'state',
-        'temporary', 'resource', 'struct_field', 'enum_member',
+        'binding', 'struct_field', 'enum_member',
     }), _flag),
     'Unordered': AttributeDefinition(frozenset({'port'}), _flag),
     # Suppresses warnings inside the item, see WarningSink.
     'Allow': AttributeDefinition(frozenset({
         'file', 'namespace', 'node_type', 'node', 'constant', 'parameter', 'state',
-        'temporary', 'resource', 'assertion', 'procedure', 'statement',
+        'binding', 'assertion', 'procedure', 'statement',
     }), _warning_names, repeatable=True),
     # Diagram layout, see doc/diagram-layout.md.
     'Diagram.Position': AttributeDefinition(_DIAGRAM_ITEMS, _position),
@@ -240,8 +240,7 @@ def validate_files(files, *, contain=None, warnings):
         ast.DeclarationResourceType: 'resource_type',
         ast.DeclarationConnection: 'connection',
         ast.DeclarationState: 'state',
-        ast.DeclarationTemporary: 'temporary',
-        ast.DeclarationLocalResource: 'resource',
+        ast.DeclarationBinding: 'binding',
         ast.DeclarationPort: 'port',
         ast.DeclarationParameter: 'parameter',
         ast.DeclarationConstant: 'constant',

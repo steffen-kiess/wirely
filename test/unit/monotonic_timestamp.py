@@ -36,7 +36,7 @@ source = '''namespace TestLibrary {
   native node type HeldEventSource {
     default output: event boolean;
 
-    resource state: HeldEventState;
+    binding state: resource HeldEventState;
     native initializer produces state as "state";
     native procedure run depends on state as "state" produces default output as "output";
   }

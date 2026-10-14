@@ -107,26 +107,26 @@ node type Probe {
 
 // TEST: second procedure for a temporary
 // SH: Previous connection was here
-// SE: Temporary 'flag' already has a source
+// SE: Binding 'flag' already has a source
 node type Probe {
-  temporary flag: boolean;
+  binding flag: value boolean;
   procedure first produces flag { flag = true; } // H: Previous connection was here
-  procedure second produces flag { flag = false; } // E: Temporary 'flag' already has a source
+  procedure second produces flag { flag = false; } // E: Binding 'flag' already has a source
 }
 node probe: Probe {}
 
 // TEST: temporary without source
 node type Probe {
   default output: value boolean;
-  temporary flag: boolean; // E: Temporary 'flag' has no source
+  binding flag: value boolean; // E: Binding 'flag' has no source
   connect flag -> default output;
 }
 
 // TEST: temporary cycle
 // SH: Cycle continues here
 // SE: Circular connection
-temporary first: boolean;
-temporary second: boolean;
+binding first: value boolean;
+binding second: value boolean;
 connect first -> second; // H: Cycle continues here
 connect second -> first; // E: Circular connection
 
@@ -143,7 +143,7 @@ connect relay -> relay; // E: Circular connection
 node type Relay {
   default input: value boolean;
   default output: value boolean;
-  temporary current: boolean;
+  binding current: value boolean;
   connect default input -> current; // H: Cycle continues here
   connect current -> default output; // H: Cycle continues here
 }
@@ -159,7 +159,7 @@ node outer: Outer {}
 
 // TEST: constant source type mismatch
 constant Count: int16 = 1; // H: Source was declared here
-temporary flag: boolean; // H: Target was declared here
+binding flag: value boolean; // H: Target was declared here
 connect Count -> flag; // E: source has type int16 but target has type boolean
 
 // TEST: constant source to an event input
@@ -190,7 +190,7 @@ connect Selected -> probe.Value; // E: Type-valued constant 'Selected' cannot be
 
 // TEST: constant target
 constant Flag: boolean = true;
-temporary flag: boolean;
+binding flag: value boolean;
 connect flag -> Flag; // E: Cannot connect to constant 'Flag'
 
 // TEST: parameter output port
@@ -229,6 +229,6 @@ node type Probe {
 // TEST: multi input to a temporary
 node type Probe {
   input Values: multi value boolean; // H: Source was declared here
-  temporary values: boolean; // H: Target was declared here
+  binding values: value boolean; // H: Target was declared here
   connect Values -> values; // E: A multi input can only be connected to a multi input
 }

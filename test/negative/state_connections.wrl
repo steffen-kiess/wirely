@@ -100,7 +100,7 @@ node type ResourceSink {
 }
 node type Invalid {
   state saved: boolean = false;
-  temporary temporary_value: boolean;
+  binding temporary_value: value boolean;
   procedure write produces saved, temporary_value {
     saved = true;
     temporary_value = true;
@@ -110,7 +110,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect temporary_value.old -> sink; // E: Temporary 'temporary_value' has no output port 'old'
+  connect temporary_value.old -> sink; // E: Binding 'temporary_value' has no output port 'old'
 }
 
 // TEST: unknown_state
@@ -253,7 +253,7 @@ procedure advance depends on saved.new as current produces saved {
 
 // TEST: later-stage state producer
 state saved: boolean = false;
-#[Allow(Unused)] temporary current: boolean;
+#[Allow(Unused)] binding current: value boolean;
 procedure write stage output produces saved { saved = true; }
 // ^H: Producer was declared here
 procedure read depends on saved.new as value produces current {
@@ -266,7 +266,7 @@ connect saved.new -> saved; // E: Circular connection
 
 // TEST: state new value fed back through a temporary
 state saved: boolean = false;
-temporary current: boolean;
+binding current: value boolean;
 connect saved.new -> current; // H: Cycle continues here
 connect current -> saved; // E: Circular connection
 

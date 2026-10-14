@@ -55,7 +55,7 @@ namespace KNX {
     input Bus: resource Bus;
     default output: value Option[Type];
 
-    resource state: ValueReceiverState;
+    binding state: resource ValueReceiverState;
     native initializer depends on Bus
       produces state as "state"
       uses Type, group_address, value_type_name;
@@ -84,7 +84,7 @@ namespace KNX {
     input Bus: resource Bus;
     default input: value Option[Type];
 
-    resource state: ValueOptionProviderState;
+    binding state: resource ValueOptionProviderState;
     native initializer depends on Bus
       produces state as "state"
       uses Type, group_address, value_type_name;
@@ -123,7 +123,7 @@ namespace KNX {
     input Bus: resource Bus;
     default output: event Type;
 
-    resource state: EventReceiverState;
+    binding state: resource EventReceiverState;
     native initializer depends on Bus
       produces state as "state"
       uses Type, group_address, value_type_name;
@@ -147,7 +147,7 @@ namespace KNX {
     input Bus: resource Bus;
     default input: event Type;
 
-    resource state: EventSenderState;
+    binding state: resource EventSenderState;
     native initializer depends on Bus
       produces state as "state"
       uses Type, group_address, value_type_name;

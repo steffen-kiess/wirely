@@ -160,7 +160,7 @@ namespace TestLibrary {
     node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
-    resource state: ConsumerState;
+    binding state: resource ConsumerState;
     native initializer
       depends on Service, OtherService, RepeatedService,
         default input as "implicit", forwarded as "child"
@@ -386,13 +386,13 @@ namespace TestLibrary {
     native initializer depends on Service as "service";
   }
   native node type AliasHolder {
-    resource state: Service;
+    binding state: resource Service;
     native initializer produces state as "state";
     node child: AliasChild {}
     connect state -> child.Service;
   }
   node type AliasComposite {
-    resource service: Service;
+    binding service: resource Service;
     node source: AliasSource {}
     connect source -> service;
     node child: AliasChild {}

@@ -66,7 +66,7 @@ node type Probe {
 // SE: Duplicate name 'value'
 node type Inner {}
 node type Probe {
-  temporary value: boolean; // H: Previous declaration was here
+  binding value: value boolean; // H: Previous declaration was here
   node value: Inner {} // E: Duplicate name 'value'
 }
 
@@ -75,7 +75,7 @@ node type Probe {
 // SE: Duplicate name 'Value'
 node type Probe {
   input Value: value boolean; // H: Previous declaration was here
-  temporary Value: boolean; // E: Duplicate name 'Value'
+  binding Value: value boolean; // E: Duplicate name 'Value'
 }
 
 // TEST: input and output share a name
@@ -107,7 +107,7 @@ node type Probe {
 // SH: Previous declaration was here
 // SE: Duplicate name 'value'
 constant value: boolean = true; // H: Previous declaration was here
-temporary value: boolean; // E: Duplicate name 'value'
+binding value: value boolean; // E: Duplicate name 'value'
 
 // TEST: literal of the wrong type
 node type Probe {
@@ -172,6 +172,6 @@ namespace Cycle {
 // TEST: unused nested type is validated
 node type Outer {
   node type Unused {
-    temporary value: boolean; // E: Temporary 'value' has no source
+    binding value: value boolean; // E: Binding 'value' has no source
   }
 }

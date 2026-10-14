@@ -167,12 +167,12 @@ namespace Fixture {
 // TEST: local_resource_without_source
 resource type Handle;
 node type Invalid {
-  resource state: Handle; // E: Resource 'state' has no source
+  binding state: resource Handle; // E: Binding 'state' has no source
 }
 
 // TEST: local_resource_unknown_type
 native node type Invalid {
-  resource state: Missing; // E: Cannot find resource type Missing
+  binding state: resource Missing; // E: Cannot find resource type Missing
   native initializer produces state as "state";
 }
 
@@ -181,8 +181,8 @@ native node type Invalid {
 // SE: Duplicate name 'state'
 resource type Handle;
 native node type Invalid {
-  temporary state: boolean; // H: Previous declaration was here
-  resource state: Handle; // E: Duplicate name 'state'
+  binding state: value boolean; // H: Previous declaration was here
+  binding state: resource Handle; // E: Duplicate name 'state'
   native initializer;
 }
 
@@ -191,7 +191,7 @@ native node type Invalid {
 // SE: Duplicate initializer output
 resource type Handle;
 native node type Invalid {
-  resource state: Handle;
+  binding state: resource Handle;
   native initializer produces state as "first", // H: Previous output was here
     state as "second"; // E: Duplicate initializer output
 }
@@ -201,18 +201,18 @@ resource type Handle;
 node type Invalid {
   input First: resource Handle;
   input Second: resource Handle;
-  resource service: Handle;
+  binding service: resource Handle;
   connect First -> service; // H: Previous connection was here
-  connect Second -> service; // E: Resource 'service' already has a source
+  connect Second -> service; // E: Binding 'service' already has a source
 }
 
 // TEST: local_resource_produced_and_connected
 resource type Handle;
 native node type Invalid {
   input Service: resource Handle;
-  resource state: Handle;
+  binding state: resource Handle;
   native initializer produces state as "state"; // H: Produced by the native initializer here
-  connect Service -> state; // E: Resource 'state' is both produced and connected
+  connect Service -> state; // E: Binding 'state' is both produced and connected
 }
 
 // TEST: local_resource_cycle
@@ -220,8 +220,8 @@ native node type Invalid {
 // SE: Circular connection
 resource type Handle;
 node type Invalid {
-  resource first: Handle;
-  resource second: Handle;
+  binding first: resource Handle;
+  binding second: resource Handle;
   connect first -> second; // H: Cycle continues here
   connect second -> first; // E: Circular connection
 }
@@ -229,7 +229,7 @@ node type Invalid {
 // TEST: local_resource_initializer_dependency
 resource type Handle;
 native node type Invalid {
-  resource state: Handle;
+  binding state: resource Handle;
   native initializer depends on state as "input" // E: Circular native initializer dependency
     produces state as "state";
 }
@@ -238,7 +238,7 @@ node invalid: Invalid {}
 // TEST: local_resource_procedure_output
 resource type Handle;
 native node type Invalid {
-  resource state: Handle;
+  binding state: resource Handle;
   native initializer produces state as "state";
   native procedure run produces state as "state"; // E: Procedures cannot produce resources
 }
@@ -246,7 +246,7 @@ native node type Invalid {
 // TEST: local_resource_port
 resource type Handle;
 native node type Invalid {
-  resource state: Handle;
+  binding state: resource Handle;
   native initializer produces state as "state";
-  native procedure run depends on state.value as "state"; // E: Resource 'state' has no port 'value'
+  native procedure run depends on state.value as "state"; // E: Binding 'state' has no port 'value'
 }

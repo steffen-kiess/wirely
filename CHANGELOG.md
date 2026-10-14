@@ -4,6 +4,12 @@
 
 ### Breaking changes and migration
 
+#### Bindings
+
+Replace `temporary name: T;` with `binding name: value T;`, and
+`resource name: R;` with `binding name: resource R;`. The connection kind is
+required. The old declaration forms are no longer accepted.
+
 #### Std.DelayOneStep
 
 Replace `Std.DelayOneStep` with state and read its previous value with

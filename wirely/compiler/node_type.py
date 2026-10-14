@@ -284,7 +284,7 @@ class NodeType(model.Scope):
                 )
                 copy_attributes(storage, variable)
                 state_variables[variable.name.id_str] = storage
-            elif isinstance(variable, model.ast.DeclarationTemporary):
+            elif isinstance(variable, model.ast.DeclarationBinding):
                 var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = var_type  # TODO: ?

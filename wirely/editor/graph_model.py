@@ -1,6 +1,6 @@
 """The diagram of one scope as plain data for drawing.
 
-Items are the nodes, states, temporaries, constants, parameters, ports, and
+Items are the nodes, states, bindings, constants, parameters, ports, and
 procedures of a scope, keyed by their outline IDs. Inputs are drawn on the
 left of an item and outputs on the right; a node type body's own input
 declarations are sources and its output declarations targets. Geometry is in
@@ -47,7 +47,7 @@ class Socket:
 @dataclass(frozen=True)
 class Item:
     id: object
-    # 'node', 'state', 'temporary', 'resource', 'constant', 'parameter', 'input',
+    # 'node', 'state', 'binding', 'constant', 'parameter', 'input',
     # 'output', 'procedure', or 'unresolved'.
     kind: str
     title: str
@@ -183,16 +183,11 @@ def build(program, path):
             (Socket(None, '', name, 'value', record.type_text, False),),
             (Socket('old', 'old', f'{name}.old', 'value', record.type_text, False, row=0),
              Socket('new', 'new', f'{name}.new', 'value', record.type_text, False, row=1)))
-    for record in scope.temporaries:
+    for record in scope.bindings:
         name = _reference(record.name)
-        add('temporary', record, record.name, record.type_text,
-            (Socket(None, '', name, 'value', record.type_text, False),),
-            (Socket(None, '', name, 'value', record.type_text, False),))
-    for record in scope.resources:
-        name = _reference(record.name)
-        add('resource', record, record.name, f'resource {record.type_text}',
-            (Socket(None, '', name, 'resource', record.type_text, False),),
-            (Socket(None, '', name, 'resource', record.type_text, False),))
+        add('binding', record, record.name, f'{record.kind} {record.type_text}',
+            (Socket(None, '', name, record.kind, record.type_text, False),),
+            (Socket(None, '', name, record.kind, record.type_text, False),))
     for record in scope.procedures:
         name = _reference(record.name)
         sockets = [[], []]
@@ -215,7 +210,7 @@ def build(program, path):
                                tuple(diagnostics[edge.id]) if edge.id is not None else ()))
 
     records = sorted((*scope.nodes, *scope.ports, *scope.parameters, *scope.constants,
-                      *scope.states, *scope.temporaries, *scope.resources, *scope.procedures),
+                      *scope.states, *scope.bindings, *scope.procedures),
                      key=lambda record: (_file_rank(scope.filenames, record.filename), record.span[0]))
     unresolved = [builder for builder in builders.values() if isinstance(builder.id, Unresolved)]
     for order, builder in enumerate([builders[record.id] for record in records] + unresolved):

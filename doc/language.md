@@ -32,7 +32,7 @@ A program, like each node type body, is a graph of nodes joined by
 connections. There are four kinds of nodes:
 
 - An instance, `node name: Type { … }`, creates a node of a node type.
-- A temporary holds a value calculated within a step.
+- A binding names a value or resource supplied elsewhere in the graph.
 - State keeps a value from one step to the next.
 - A procedure runs code that reads its inputs and writes its outputs.
 
@@ -40,7 +40,7 @@ connections. There are four kinds of nodes:
 
 Nodes have input and output ports. Each port has a kind, `value`, `event`,
 or `resource`, and a type, as in `value boolean`. An instance has the ports
-declared by its node type. A temporary has a default input and a default
+declared by its node type. A binding has a default input and a default
 output. State has a default input and the outputs `old` and `new`. A
 procedure has the ports it declares. Write `name.Port` for a named port and
 just `name` for a default port.
@@ -80,7 +80,7 @@ such files; references to declarations in other files stay unresolved.
 `#[Internal]` marks an implementation detail. It takes no arguments and can
 appear once on an instance, node type, function, namespace, value or
 resource type, constant, parameter, `input` or `output` declaration, state,
-temporary, struct field, or enum member. Eligible bodies also accept
+binding, struct field, or enum member. Eligible bodies also accept
 `#![Internal]`. References to internal declarations remain unrestricted.
 Internal declarations and contents of internal namespaces or types are
 omitted from the library reference.
@@ -92,7 +92,7 @@ their order.
 `#[Allow(Name, ...)]` suppresses the named warnings inside the attributed
 item, including everything nested in it. It can appear on files with
 `#![Allow(...)]`, namespaces, node types, node instances, constants,
-parameters, states, temporaries, resources, assertions, procedures, and
+parameters, states, bindings, assertions, procedures, and
 statements. Warnings are
 reported with their name, for example `[CoincidentTriggers]`:
 
@@ -101,7 +101,7 @@ reported with their name, for example `[CoincidentTriggers]`:
 | `CoincidentTriggers` | A nested `on` block whose triggers are all unrelated to the enclosing block's. |
 | `RedundantOn` | A nested `on` block that always runs because an enclosing block guarantees one of its triggers. |
 | `UnguardedEvent` | An event emission outside an `on` block. |
-| `Unused` | A temporary or resource that nothing in its node type reads; an output of the node type counts as a reader. |
+| `Unused` | A binding that nothing in its node type reads; an output of the node type counts as a reader. |
 | `NativeFunction` | A warning from the implementation of a native function. |
 
 Attributes before `connect` apply to every connection in that statement;
@@ -181,10 +181,10 @@ implementation, as in
 `native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
 Each native name identifies one declaration of its kind.
 
-Identifiers are case-sensitive. Weak keywords `changed`, `constant`, `default`,
-`emit`, `event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
-`state`, `type`, and `value` can also be used as identifiers. Other keywords
-require the `r#` prefix when used as names, for example
+Identifiers are case-sensitive. Weak keywords `binding`, `changed`,
+`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`, `output`,
+`resource`, `stage`, `state`, `type`, and `value` can also be used as
+identifiers. Other keywords require the `r#` prefix when used as names, for example
 `node r#node: Std.And {}`. Declarations end with `;`, except node instances
 and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
@@ -381,8 +381,8 @@ source. A `multi value T` or `multi event T` input accepts any number of
 sources; `connect a, b -> target;` connects both. `Std.And` is an example
 of a multi input. A node type can connect its own multi input to a child's
 multi input, which then receives all of its sources at that place, in
-order; a multi input cannot be connected to other targets. Connections to and from temporaries, state, and
-procedures are described in
+order; a multi input cannot be connected to other targets. Connections to
+and from bindings, state, and procedures are described in
 [State and execution](#state-and-execution).
 
 Use `InputName.Length` or `(default input).Length` for an enclosing multi
@@ -405,7 +405,7 @@ node type Fixed {
 }
 ```
 
-Within a scope, parameters, constants, nodes, ports, state, temporaries,
+Within a scope, parameters, constants, nodes, ports, state, bindings,
 and procedures need distinct names.
 
 ### Opaque resource ports
@@ -437,22 +437,23 @@ that namespace. A declaration may appear after its uses.
 
 Resource ports are compatible only when they refer to the same
 resource declaration. Resources identify opaque service state rather than
-carrying data values. They cannot be used for parameters, state, temporaries,
-`ValueType` arguments, or value types such as `Option[T]` and `List[T]`.
+carrying data values. They cannot be used for parameters, state, value
+bindings, `ValueType` arguments, or value types such as `Option[T]` and
+`List[T]`.
 Composite nodes can forward resources through their inputs and outputs.
 A native node type produces each resource output in its
 [native initializer](native-python.md#native-objects-resources-and-tasks)
 or connects it from a child node.
 
-`resource name: Type;` declares a named resource in a node type or at the
-top level. Like a temporary, it has exactly one source: a connection, or
-the native initializer of a native node type producing it. Connections,
-initializers, and procedures can use it as a source. Native procedures
+`binding name: resource Type;` names a resource in a node type or at the
+top level. Its source is a connection or the native initializer of a native
+node type producing it. Connections, initializers, and procedures can use
+it as a source. Native procedures
 access their node's native state through such a resource:
 
 ```wirely
 native node type Receiver {
-  resource state: ReceiverState;
+  binding state: resource ReceiverState;
   native initializer produces state as "state";
   native procedure get_value depends on state as "state";
 }
@@ -463,9 +464,10 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 ## State and execution
 
 Inside a node type, `state name: Type = value;` declares a persistent value
-with an initial value. `temporary name: Type;` names a value calculated
-within a step. A procedure reads its input ports, declared with
-`depends on`, and writes its output ports, declared with `produces`.
+with an initial value. `binding name: value Type;` names a value calculated
+within a step. A binding requires an explicit `value` or `resource` kind.
+A procedure reads its input ports, declared with `depends on`, and writes
+its output ports, declared with `produces`.
 Procedures run in dependency order; dependencies must be acyclic.
 
 A native procedure's native name has the form `Type:procedure`. It
@@ -506,7 +508,7 @@ also accept `name as "key": Type`; Python uses the key, so `name` can change
 without changing the native code.
 Refer to a typed port as `procedure.port`, in `connect` or in a reference
 port. Reference ports are not addressable; to use a produced value in
-several places, produce it into a temporary:
+several places, produce it into a value binding:
 
 ```wirely
 procedure invert
@@ -525,9 +527,9 @@ connect default input -> invert.value;
 ```
 
 Port names must be unique within each clause. Each input port needs exactly
-one source unless it is `multi`. A temporary takes the value of its one
-source, and state takes its new value from its one source. Output ports may
-have any number of targets.
+one source unless it is `multi`. A binding takes its value or resource from
+its one source, and state takes its new value from its one source. Output
+ports may have any number of targets.
 
 `last_value.old` reads the previous step's state without depending on this
 step's source.
@@ -535,7 +537,7 @@ step's source.
 Use `connect last_value.old -> target;` to feed local state into a
 `value Type` input or output. It reads the initial value on the first step
 and the previous step's state thereafter. Similarly, `connect name -> target;`
-feeds the value of a temporary calculated this step.
+feeds the value of a binding calculated this step.
 
 `last_value.new` reads the value produced this step. Use it as a
 connection source or reference port in `depends on`. The procedure

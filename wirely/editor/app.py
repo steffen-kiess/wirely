@@ -614,7 +614,7 @@ class MainWindow(QMainWindow):
             menu.addAction('Add Node…', lambda: self.add_node(tab, position)).setEnabled(live)
             add = menu.addMenu('Add')
             add.setEnabled(live)
-            kinds = ['state', 'temporary', 'constant', 'parameter']
+            kinds = ['state', 'binding', 'constant', 'parameter']
             if tab.model is not None and tab.model.kind == 'node_type':
                 kinds += ['input', 'output']
             for kind in kinds:

@@ -267,7 +267,7 @@ node type PendingOption {
   parameter Default: Type;
   default input: value Option[Type];
   default output: value Type;
-  temporary pending: Option[Type];
+  binding pending: value Option[Type];
 
   procedure store depends on default input as input produces pending {
     pending = input;

@@ -39,7 +39,7 @@ namespace TwoN {
     // True if the key is pressed, false if it released.
     default output: event boolean;
 
-    resource state: KeyEventState;
+    binding state: resource KeyEventState;
     native initializer depends on Device produces state as "state" uses Key;
 
     native procedure get_value stage input
@@ -97,7 +97,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    resource state: IOStateState;
+    binding state: resource IOStateState;
     native initializer depends on Device produces state as "state" uses Port;
 
     // True if the input/output is on, false otherwise.
@@ -119,7 +119,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    resource state: SwitchStateState;
+    binding state: resource SwitchStateState;
     native initializer
       depends on Device
       produces state as "state"
@@ -146,7 +146,7 @@ namespace TwoN {
     input Device: resource Device;
     default output: event unit;
 
-    resource state: CodeEnteredEventState;
+    binding state: resource CodeEnteredEventState;
     native initializer depends on Device produces state as "state" uses Code;
 
     native procedure get_value stage input
@@ -163,7 +163,7 @@ namespace TwoN {
 
     input Device: resource Device;
 
-    resource state: OutputControlState;
+    binding state: resource OutputControlState;
     native initializer depends on Device produces state as "state" uses Port;
 
     // True to turn the output is on, false to turn it off.

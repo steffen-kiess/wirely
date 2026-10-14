@@ -47,7 +47,7 @@ namespace Std {
     default input: value Type;
     default output: value Type;
 
-    temporary temp: Type;
+    binding temp: value Type;
 
     procedure run1 depends on default input as input produces temp {
       temp = input;
@@ -95,7 +95,7 @@ namespace Std {
 
     default output: value Type;
 
-    resource state: DebugValueSourceState;
+    binding state: resource DebugValueSourceState;
     native initializer produces state as "state" uses Type;
 
     native procedure run stage input
@@ -111,7 +111,7 @@ namespace Std {
 
     default output: event Type;
 
-    resource state: DebugEventSourceState;
+    binding state: resource DebugEventSourceState;
     native initializer produces state as "state" uses Type;
 
     native procedure run stage input

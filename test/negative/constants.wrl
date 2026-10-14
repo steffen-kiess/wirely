@@ -131,7 +131,7 @@ node probe: Probe {}
 // TEST: constant destination
 node type Probe {
   constant Flag: boolean = true;
-  temporary flag: boolean;
+  binding flag: value boolean;
   procedure run produces Flag as flag { // E: Cannot connect to constant 'Flag'
     flag = true;
   }
@@ -196,7 +196,7 @@ node probe: Probe {} // E: parameter-only
 
 // TEST: constant type in root temporary
 constant Type: ValueType = String;
-#[Allow(Unused)] temporary text: Type; // E: parameter-only
+#[Allow(Unused)] binding text: value Type; // E: parameter-only
 procedure run produces text { text = "hello"; }
 
 // TEST: constant type in root state

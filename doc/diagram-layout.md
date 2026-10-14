@@ -27,7 +27,7 @@ downward. Values can be fractional; editors write whole numbers as integers.
 | `Diagram.ShowValue` | node type parameters | flag |
 
 Diagram items are node instances, and `input` and `output` declarations,
-parameters, constants, states, temporaries, and procedures. Each attribute
+parameters, constants, states, bindings, and procedures. Each attribute
 can appear once per declaration; an instance can also set its attributes as
 inner attributes of its body:
 

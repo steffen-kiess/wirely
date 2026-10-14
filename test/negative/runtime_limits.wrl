@@ -176,7 +176,7 @@ struct type Depth17 {
 }
 
 
-temporary value: Depth17; // E: nesting depth 17 exceeds 16
+binding value: value Depth17; // E: nesting depth 17 exceeds 16
 
 // TEST: depth_option_state
 struct type Depth1 {
@@ -274,7 +274,7 @@ struct type Wide16 {
 
 node type Invalid {
   parameter Type: ValueType;
-  #[Allow(Unused)] temporary value: Type;
+  #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }
 node invalid: Invalid { Type: Option[Wide16] } // E: storage size 136 bytes exceeds 128 bytes
@@ -319,7 +319,7 @@ struct type Member128 {
 
 node type Invalid {
   parameter Type: ValueType;
-  #[Allow(Unused)] temporary value: Type;
+  #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }
 node invalid: Invalid { Type: Option[Member128] } // E: total member count 129 exceeds 128
@@ -396,7 +396,7 @@ struct type Depth17 {
 
 node type Invalid {
   parameter Type: ValueType;
-  #[Allow(Unused)] temporary value: Type;
+  #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }
 node invalid: Invalid { Type: Depth17 } // E: nesting depth 17 exceeds 16
@@ -424,7 +424,7 @@ struct type Wide16 {
 
 
 constant Large: Option[Wide16] = None;
-#[Allow(Unused)] temporary result: boolean;
+#[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
   let value = Large; // E: storage size 136 bytes exceeds 128 bytes
   result = value == value;

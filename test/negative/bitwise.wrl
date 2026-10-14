@@ -51,20 +51,20 @@ node generic: Generic { Type: Duration, Value: "PT1S" } // H: While instantiatin
 // TEST: procedure input count
 node source: Std.Constant { Type: uint32, Value: 1 }
 connect source -> run.count;
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run depends on count: value uint32 produces result {
   result = 1 << count; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure local count
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run produces result {
   let count = 1;
   result = 1 >> count; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure output count
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run produces result {
   result = 1;
   let shifted = 1 << result; // E: Shift count must be a compile-time value
@@ -73,13 +73,13 @@ procedure run produces result {
 // TEST: procedure state count
 state count: uint32 = 1;
 procedure write produces count { count = 1; }
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run depends on count.old as previous produces result {
   result = 1 >> previous; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure invalid constant count
-#[Allow(Unused)] temporary result: int8;
+#[Allow(Unused)] binding result: value int8;
 procedure run produces result {
   result = 1 << 8; // E: Shift count must be between 0 and 7
 }
@@ -89,7 +89,7 @@ node source: Std.Constant { Type: uint8, Value: 1 }
 node other_source: Std.Constant { Type: uint16, Value: 1 }
 connect source -> run.input;
 connect other_source -> run.other;
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run depends on input: value uint8, other: value uint16
   produces result
 {
@@ -129,7 +129,7 @@ struct type Counts {
 }
 node source: Std.Constant { Type: Counts, Value: Counts { amount: 1 } }
 connect source -> run.input;
-#[Allow(Unused)] temporary result: uint8;
+#[Allow(Unused)] binding result: value uint8;
 procedure run depends on input: value Counts produces result {
   result = 1 << input.amount; // E: Shift count must be a compile-time value
 }

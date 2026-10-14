@@ -23,7 +23,7 @@ node type Invalid {
 resource type Handle;
 
 node type Invalid {
-  temporary service: Handle; // E: Cannot find type Handle
+  binding service: value Handle; // E: Cannot find type Handle
 }
 
 // TEST: resource_generic_type

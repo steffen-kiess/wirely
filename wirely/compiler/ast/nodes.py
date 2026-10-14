@@ -1,4 +1,4 @@
-"""Instances, connections, state, and temporaries."""
+"""Instances, connections, state, and bindings."""
 
 import typing
 
@@ -9,7 +9,7 @@ from wirely.util import check_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
 from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Declaration, Value
-from .specifiers import PortDirection, ListSpecifier, PortTypeSpecificationResource
+from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationResource
 from .values import Reference
 
 
@@ -197,16 +197,16 @@ def validate_nodes(graph):
         is_state = isinstance(variable, DeclarationState)
         node = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
         if node.connected_source is None:
-            raise ProgramError(variable, f'{"State" if is_state else "Temporary"} {name!r} has no source')
+            raise ProgramError(variable, f'{"State" if is_state else "Binding"} {name!r} has no source')
     produced = graph.initializer.output_keys if getattr(graph, 'initializer', None) is not None else {}
     for resource in graph.local_resources.values():
         if resource.connected_source is None and resource not in produced:
-            raise ProgramError(resource.declaration, f'Resource {resource.name!r} has no source')
+            raise ProgramError(resource.declaration, f'Binding {resource.name!r} has no source')
         if resource.connected_source is not None and resource in produced:
             connection = next(connection.source_element for connection in graph.connections
                               if connection.target is resource)
             port = next(port for port in graph.initializer.produces.outputs if port.key == produced[resource])
-            raise ProgramError(connection, f'Resource {resource.name!r} is both produced and connected', hints=[
+            raise ProgramError(connection, f'Binding {resource.name!r} is both produced and connected', hints=[
                 CompilerHint(port, 'Produced by the native initializer here'),
             ])
     for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values(), *graph.local_resources.values()):
@@ -217,18 +217,18 @@ def validate_nodes(graph):
 
 
 def check_unused(graph):
-    """Warn about temporaries and resources of the node type that nothing reads."""
+    """Warn about bindings of the node type that nothing reads."""
     read = {id(connection.source) for connection in graph.connections}
     if getattr(graph, 'initializer', None) is not None:
         read.update(id(dependency) for dependency in graph.initializer.depends.get_resolved_dependencies())
     warnings = graph.coordinator.warnings
     for name, node in graph.temporary_nodes.items():
         if id(node) not in read:
-            warnings.warn('Unused', graph.value_nodes[name].name, f'Temporary {name!r} is never read',
+            warnings.warn('Unused', graph.value_nodes[name].name, f'Binding {name!r} is never read',
                           instance_trace=False)
     for name, resource in graph.local_resources.items():
         if id(resource) not in read:
-            warnings.warn('Unused', resource.declaration.name, f'Resource {name!r} is never read',
+            warnings.warn('Unused', resource.declaration.name, f'Binding {name!r} is never read',
                           instance_trace=False)
 
 
@@ -291,53 +291,44 @@ def register_name(graph, name, declaration):
     graph.name_declarations[name.id_str] = declaration
 
 
-class DeclarationLocalResource(Declaration):
-    """A named resource with one source, like a temporary."""
+class DeclarationBinding(Declaration):
+    """A named value or resource connection with exactly one source."""
 
     @check_parameters
-    def __init__(self, name: Identifier, resource_type: Reference, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
-        self.port_spec = PortTypeSpecificationResource(
-            ListSpecifier(False, source_position=resource_type.source_position), resource_type,
-            source_position=resource_type.source_position,
-        )
+        self.name_str = name.id_str
+        self.port_spec = port_spec
+        if port_spec.list_spec.is_list:
+            raise ProgramError(port_spec, 'Bindings cannot be multi')
+        if not self.is_resource and port_spec.kind_spec.kind != model.ConnectionKind.Value:
+            raise ProgramError(port_spec, 'Bindings support only value or resource kinds')
+        self.var_type = port_spec.ty
+
+    @property
+    def is_resource(self):
+        return isinstance(self.port_spec, PortTypeSpecificationResource)
 
     def collect_declarations(self, graph):
-        register_name(graph, self.name, self)
-
-    def register_interface_declarations(self, interface):
-        self.interface = interface
-
-    def prepare_interface(self, new_graph):
-        resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
-        copy_attributes(model.LocalResource(new_graph, self, resource_type), self)
-
-
-class DeclarationTemporary(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, var_type: Value, *, source_position: SourcePosition):
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.var_type = var_type
-
-        self.name_str = self.name.id_str
-
-    def collect_declarations(self, graph):
-        name = self.name.id_str
-        if name in graph.value_nodes:
-            hints = [
+        name = self.name_str
+        if not self.is_resource and name in graph.value_nodes:
+            raise ProgramError(self, f'Duplicate name {name!r}', hints=[
                 CompilerHint(graph.value_nodes[name], 'Previous declaration was here'),
-            ]
-            raise ProgramError(self, f'Duplicate name {name!r}', hints=hints)
+            ])
         register_name(graph, self.name, self)
-        graph.value_nodes[name] = self
+        if not self.is_resource:
+            graph.value_nodes[name] = self
 
     def register_interface_declarations(self, interface):
         self.interface = interface
 
     def prepare_interface(self, new_graph):
-        ty = self.interface.resolve_type(self.var_type)
-        check_runtime_type(ty, self)
-        variable = model.TemporaryNode(new_graph, ty, name=self.name_str)
+        if self.is_resource:
+            resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
+            variable = model.LocalResource(new_graph, self, resource_type)
+        else:
+            ty = self.interface.resolve_type(self.var_type)
+            check_runtime_type(ty, self)
+            variable = model.TemporaryNode(new_graph, ty, name=self.name_str)
         copy_attributes(variable, self)

@@ -27,7 +27,7 @@ node type Positioned {
   #[Diagram.Position(X = 2, Y = 0)]
   state previous: boolean = Initial;
   #[Diagram.Position(X = 3, Y = 0)]
-  temporary current: boolean;
+  binding current: value boolean;
 
   #[Diagram.Position(X = 4, Y = 0)]
   procedure run depends on previous.old as old produces current { current = !old; }
@@ -113,7 +113,7 @@ node type InternalForward {
   #[Internal]
   state previous: boolean = Initial;
   #[Internal]
-  temporary forwarded: boolean;
+  binding forwarded: value boolean;
 
   procedure forward
     depends on default input as input

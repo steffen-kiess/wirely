@@ -1,0 +1,25 @@
+// TEST: legacy_temporary
+temporary value: uint8; // E: Syntax error
+
+// TEST: legacy_resource
+resource service: Handle; // E: Syntax error
+
+// TEST: missing_kind
+binding value: uint8; // E: Syntax error
+
+// TEST: event_binding
+binding event: event uint8; // E: Bindings support only value or resource kinds
+
+// TEST: multi_value_binding
+binding values: multi value uint8; // E: Bindings cannot be multi
+
+// TEST: multi_resource_binding
+binding services: multi resource Handle; // E: Bindings cannot be multi
+
+// TEST: binding_initializer
+binding value: value uint8 = 0; // E: Syntax error
+
+// TEST: binding_state_access
+binding value: value uint8;
+procedure write produces value { value = 0; }
+procedure read depends on value.old as old {} // E: Binding 'value' has no output port

@@ -4,12 +4,12 @@ from wirely.compiler import compile_strs, parser
 from wirely.compiler.editing import (
     TextEdit, add_attribute, add_declaration, apply_edits, connect, disconnect, format_constant,
     format_identifier, format_metadata, format_node, format_parameter, format_port, format_state,
-    format_temporary, fresh_name, reconnect, remove_attribute, remove_declaration,
+    format_binding, fresh_name, reconnect, remove_attribute, remove_declaration,
     remove_parameter_binding, rename, replace_declaration, set_attribute, set_node_type,
     set_parameter_binding,
 )
 from wirely.compiler.outline import (
-    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, Temporary, outline,
+    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, Binding, outline,
 )
 
 
@@ -224,9 +224,9 @@ check_insert(('T',), format_node('k', 'U', [('P', '1')]),
              'node type T {\n\tnode x: U {}\n\n\tnode k: U {\n\t\t#![Diagram.Position(X = 1, Y = 2)]\n\t\tP: 1\n\t}\n}\n',
              source='node type T {\n\tnode x: U {}\n}\n', attributes=[format_metadata('Diagram.Position', X=1, Y=2)])
 check_insert((), format_parameter('Q', 'int'), 'parameter Q: int;\n\n' + body)
-check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  temporary t: int;\n\n  node x: U {}\n}\n',
+check_insert(('T',), format_binding('t', 'value', 'int'), 'node type T {\n  binding t: value int;\n\n  node x: U {}\n}\n',
              source='node type T { node x: U {} }\n')
-check_insert(('T',), format_temporary('t', 'int'), 'node type T {\n  #![Internal]\n  temporary t: int;\n}\n',
+check_insert(('T',), format_binding('t', 'value', 'int'), 'node type T {\n  #![Internal]\n  binding t: value int;\n}\n',
              source='node type T { #![Internal] }\n')
 check_insert(('T',), format_state('c', 'int', '0'),
              'node type T {\n  state a: int = 0; state b: int = 0;\n\n  state c: int = 0;\n}\n',
@@ -264,7 +264,7 @@ for declaration in ('connect a -> b;', 'node a: T {} node b: T {}', 'node a'):
     with checks.assertRaises(ValueError):
         edit(add_declaration, body, (), declaration)
 with checks.assertRaises(ValueError):
-    edit(add_declaration, body, ('Missing',), format_temporary('t', 'int'))
+    edit(add_declaration, body, ('Missing',), format_binding('t', 'value', 'int'))
 
 
 def multi_sources(text, target='m.multi'):
@@ -345,29 +345,29 @@ checks.assertEqual(edit(reconnect, body, Connection((), 's1', 'm.multi'), target
 
 # Removal cascades to connections in all files, including through instance ports.
 files = [
-    ('a.wrl', 'node type T {\n  input a: value int;\n  temporary t: int;\n  connect a -> t;\n}\n'
+    ('a.wrl', 'node type T {\n  input a: value int;\n  binding t: value int;\n  connect a -> t;\n}\n'
               'node n: T {} connect n -> q;\n'),
     ('b.wrl', 'connect w, v -> n.a;\nconnect n.a -> r;\n'),
 ]
 checks.assertEqual(apply_edits(files, remove_declaration(files, Port(('T', 'a'), 'input'))), [
-    ('a.wrl', 'node type T {\n  temporary t: int;\n}\nnode n: T {} connect n -> q;\n'),
+    ('a.wrl', 'node type T {\n  binding t: value int;\n}\nnode n: T {} connect n -> q;\n'),
     ('b.wrl', 'connect n.a -> r;\n'),
 ])
 checks.assertEqual(apply_edits(files, remove_declaration(files, Node(('n',)))), [
-    ('a.wrl', 'node type T {\n  input a: value int;\n  temporary t: int;\n  connect a -> t;\n}\n'),
+    ('a.wrl', 'node type T {\n  input a: value int;\n  binding t: value int;\n  connect a -> t;\n}\n'),
     ('b.wrl', ''),
 ])
 checks.assertEqual(apply_edits(files, remove_declaration(files, Node(('n',)), cascade=False))[1], files[1])
 checks.assertEqual(edit(remove_declaration, '#[Diagram.Position(X = 0, Y = 0)]\nstate s: int = 0;\nconnect s.old -> s;\n',
                         State(('s',))), '')
 checks.assertEqual(edit(remove_declaration, '''node type T {
-  temporary t: int;
+  binding t: value int;
   procedure run produces t { t = 1; }
   procedure other depends on x: value int produces y: value int { y = x; }
   connect t -> other.x;
   connect other.y -> u;
 }
-''', Procedure(('T', 'other'))), 'node type T {\n  temporary t: int;\n  procedure run produces t { t = 1; }\n}\n')
+''', Procedure(('T', 'other'))), 'node type T {\n  binding t: value int;\n  procedure run produces t { t = 1; }\n}\n')
 with checks.assertRaises(ValueError):
     edit(remove_declaration, body, Node(('missing',)))
 
@@ -377,7 +377,7 @@ spaced = '''node type T {
 
   input b: value int;
 
-  temporary t: int;
+  binding t: value int;
 
   connect b -> t;
 }
@@ -386,7 +386,7 @@ for target, expected in (
         (Port(('T', 'a'), 'input'), spaced.replace('  input a: value int;\n\n', '')),
         (Port(('T', 'b'), 'input'), spaced.replace('  input b: value int;\n\n', '').replace(
             '\n  connect b -> t;\n', '')),
-        (Temporary(('T', 't')), spaced.replace('  temporary t: int;\n\n', '').replace(
+        (Binding(('T', 't')), spaced.replace('  binding t: value int;\n\n', '').replace(
             '\n\n  connect b -> t;', ''))):
     checks.assertEqual(edit(remove_declaration, spaced, target), expected)
 
@@ -440,15 +440,15 @@ check(replace_declaration, declarations, State(('T', 's')), format_state('s', 'u
       declarations.replace('state s: int = 0;', 'state s: uint8 = 1;'))
 check(replace_declaration, declarations, Port(('T', 'a'), 'input'), format_port('input', 'a', 'event', 'int', True),
       declarations.replace('input a: value int;', 'input a: multi event int;'))
-check(replace_declaration, 'temporary t: int;\n', Temporary(('t',)), format_temporary('t', 'uint8'),
-      'temporary t: uint8;\n')
+check(replace_declaration, 'binding t: value int;\n', Binding(('t',)), format_binding('t', 'value', 'uint8'),
+      'binding t: value uint8;\n')
 check(replace_declaration, 'constant C: int = 1;\n', Constant(('C',)), format_constant('C', 'int', '2'),
       'constant C: int = 2;\n')
 check(replace_declaration, 'parameter P: int;\n', Parameter(('P',)), format_parameter('P', 'int', optional=True),
       'optional parameter P: int;\n')
 for target, declaration in ((Port(('T', 'a'), 'input'), 'output a: value int;'),
                             (State(('T', 's')), 'state t: int = 0;'),
-                            (State(('T', 's')), 'temporary s: int;'),
+                            (State(('T', 's')), 'binding s: value int;'),
                             (State(('T', 's')), '#[Internal] state s: int = 0;'),
                             (State(('T', 's')), 'state s: int ='),
                             (Procedure(('T', 'p')), 'procedure p produces s { s = 2; }')):
@@ -464,7 +464,7 @@ program = '''node type T {
   input a: value P;
   default output: value P;
   state s: P = C;
-  temporary t: P;
+  binding t: value P;
   node n: Std.Constant { Type: P, Value: C }
   procedure run depends on a, s.old as old, n as value produces t, s { t = a; s = old; }
   native procedure check depends on t uses C, P;
@@ -488,7 +488,7 @@ def check_rename(target, name, *replacements, source=program):
 check_rename(Node(('T', 'n')), 'm', ('node n:', 'node m:'), ('n as value', 'm as value'))
 check_rename(State(('T', 's')), 'r', ('state s:', 'state r:'), ('s.old', 'r.old'), ('produces t, s', 'produces t, r as s'),
              ('connect s.new', 'connect r.new'))
-check_rename(Temporary(('T', 't')), 'u', ('temporary t:', 'temporary u:'), ('produces t,', 'produces u as t,'),
+check_rename(Binding(('T', 't')), 'u', ('binding t: value', 'binding u: value'), ('produces t,', 'produces u as t,'),
              ('depends on t uses', 'depends on u as t uses'), ('-> t;', '-> u;'))
 check_rename(Port(('T', 'a'), 'input'), 'b', ('input a:', 'input b:'), ('depends on a,', 'depends on b as a,'),
              ('x.a -> x.a', 'x.b -> x.b'))
@@ -501,7 +501,7 @@ check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure
 check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),
              ('uses C', 'uses D as C'))
 check_rename(Parameter(('T', 'P')), 'Q', ('P: ValueType', 'Q: ValueType'), ('C: P', 'C: Q'), ('value P', 'value Q'),
-             ('s: P', 's: Q'), ('t: P', 't: Q'), ('Type: P', 'Type: Q'),
+             ('s: P', 's: Q'), ('Type: P', 'Type: Q'),
              (', P;', ', Q as P;'), ('optional(P) == P', 'optional(Q) == Q'), ('{ P:', '{ Q:'))
 check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), ('x: T', 'x: U'))
 checks.assertEqual(edit(rename, program, Node(('x',)), 'x'), program)
@@ -579,6 +579,27 @@ check_rename(Parameter(('Block', 'Type')), 'ElementType',
              ('Initial: Type', 'Initial: ElementType'),
              ('output: value Type', 'output: value ElementType'),
              ('next: Type', 'next: ElementType'), source=block_source)
+
+
+# Both binding kinds use the same formatting and editing API.
+checks.assertEqual(format_binding('binding', 'value', 'uint8'), 'binding binding: value uint8;')
+checks.assertEqual(format_binding('service', 'resource', 'Handle'), 'binding service: resource Handle;')
+with checks.assertRaises(ValueError):
+    format_binding('event', 'event', 'uint8')
+resource_source = '''native node type Device {
+  #[Internal]
+  binding service: resource Handle; // keep
+  native initializer produces service;
+  native procedure poll depends on service;
+}
+'''
+check_rename(Binding(('Device', 'service')), 'handle',
+             ('binding service:', 'binding handle:'),
+             ('produces service;', 'produces handle as service;'),
+             ('depends on service;', 'depends on handle as service;'), source=resource_source)
+check(replace_declaration, resource_source, Binding(('Device', 'service')),
+      format_binding('service', 'resource', 'Other'),
+      resource_source.replace('resource Handle;', 'resource Other;'))
 
 
 async def run_test():

@@ -45,11 +45,19 @@ NUMBER_DISTANCE = 18
 ZOOM_RATE = 0.0015
 
 _KIND_COLORS = {
-    'node': '#4a78b0', 'state': '#a0522d', 'temporary': '#6b8e23', 'resource': '#9a5cc6', 'constant': '#7b68a6',
+    'node': '#4a78b0', 'state': '#a0522d', 'binding': '#6b8e23', 'constant': '#7b68a6',
     'parameter': '#7b68a6', 'input': '#2e8b8b', 'output': '#2e8b8b', 'procedure': '#b07a2a',
     'unresolved': '#999999',
 }
 _PORT_COLORS = {'value': '#3c8dd8', 'event': '#e0a020', 'resource': '#9a5cc6', None: '#999999'}
+
+
+def _item_color(item):
+    if item.kind == 'binding' and item.inputs[0].kind == 'resource':
+        return _PORT_COLORS['resource']
+    return _KIND_COLORS.get(item.kind, '#888888')
+
+
 _ERROR_COLOR = QColor('#e0301e')
 
 
@@ -161,7 +169,7 @@ class ItemGraphic(QGraphicsObject):
         rect = QRectF(INSET, INSET, self.width - 2 * INSET, self.height - 2 * INSET)
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         border = palette.color(QPalette.ColorRole.Highlight) if selected else QColor(
-            _KIND_COLORS.get(model_item.kind, '#888888'))
+            _item_color(model_item))
         if model_item.diagnostics:
             border = _ERROR_COLOR if not selected else border
         painter.setPen(QPen(border, 2.5 if selected else 1.5,
@@ -169,7 +177,7 @@ class ItemGraphic(QGraphicsObject):
         painter.setBrush(palette.color(QPalette.ColorRole.Base))
         painter.drawRoundedRect(rect, 6, 6)
         header = QRectF(INSET, INSET, self.width - 2 * INSET, self.header - 2 - INSET)
-        color = QColor(_KIND_COLORS.get(model_item.kind, '#888888'))
+        color = QColor(_item_color(model_item))
         color.setAlpha(45)
         path = QPainterPath()
         path.addRoundedRect(header, 6, 6)

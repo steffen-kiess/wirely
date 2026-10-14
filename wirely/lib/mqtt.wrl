@@ -43,7 +43,7 @@ namespace MQTT {
     input Broker: resource Broker;
     default input: value Option[Type];
 
-    resource state: ValueOptionProviderState;
+    binding state: resource ValueOptionProviderState;
     native initializer depends on Broker
       produces state as "state"
       uses Type, Topic, optional(Format) as Format, template_parts;
@@ -93,7 +93,7 @@ namespace MQTT {
     input Broker: resource Broker;
     default input: event Type;
 
-    resource state: EventSenderState;
+    binding state: resource EventSenderState;
     native initializer depends on Broker
       produces state as "state"
       uses Type, Topic, optional(Format) as Format, template_parts;
@@ -117,7 +117,7 @@ namespace MQTT {
     input Broker: resource Broker;
     default output: event Type;
 
-    resource state: EventReceiverState;
+    binding state: resource EventReceiverState;
     native initializer depends on Broker
       produces state as "state"
       uses Type, Topic, optional(Format) as Format;

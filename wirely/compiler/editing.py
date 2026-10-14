@@ -26,7 +26,7 @@ from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, Propert
 from .node_type import NodeType as _NodeType
 from wirely import types as _types
 from .outline import (
-    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Temporary,
+    Binding, Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State,
     outline,
 )
 
@@ -78,7 +78,7 @@ def format_identifier(name):
     """Return name as an identifier, as a raw identifier r#name for keywords."""
     for candidate in (name, f'r#{name}'):
         try:
-            parsed = parser.parse_str(f'temporary {candidate}: T;', filename='<identifier>')
+            parsed = parser.parse_str(f'binding {candidate}: value T;', filename='<identifier>')
         except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError):
             continue
         if parsed[0].name_str == name:
@@ -97,8 +97,10 @@ def format_state(name, type_text, initial_text):
     return _checked(f'state {format_identifier(name)}: {type_text} = {initial_text};')
 
 
-def format_temporary(name, type_text):
-    return _checked(f'temporary {format_identifier(name)}: {type_text};')
+def format_binding(name, kind, type_text):
+    if kind not in ('value', 'resource'):
+        raise ValueError(f'Invalid binding kind {kind!r}')
+    return _checked(f'binding {format_identifier(name)}: {kind} {type_text};')
 
 
 def format_constant(name, type_text, value_text):
@@ -145,7 +147,7 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
     attributes of other declarations.
 
     It follows the last declaration of the same kind, or the last of an
-    earlier kind in the order parameter, constant, port, state, temporary,
+    earlier kind in the order parameter, constant, port, state, binding,
     node, procedure, node type; otherwise it starts the scope's body. With
     filename, it is inserted into that file's part of the scope.
     """
@@ -186,7 +188,7 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
 
 def remove_declaration(sources, target, *, cascade=True):
     """Remove a declaration and, with cascade, the connections referencing it."""
-    if not isinstance(target, (Node, NodeType, State, Temporary, Constant, Parameter, Port, Procedure)):
+    if not isinstance(target, (Node, NodeType, State, Binding, Constant, Parameter, Port, Procedure)):
         raise TypeError(f'Unsupported declaration target {target!r}')
     result = outline(sources)
     record = _single(result.find(target), target)
@@ -338,12 +340,12 @@ def set_node_type(sources, node, type_text):
 
 
 def replace_declaration(sources, target, declaration):
-    """Replace a state, temporary, constant, parameter, or port declaration.
+    """Replace a state, binding, constant, parameter, or port declaration.
 
     The new declaration must be of the same kind and name, and a port must
     keep its direction; attributes and comments around it are kept.
     """
-    if not isinstance(target, (State, Temporary, Constant, Parameter, Port)):
+    if not isinstance(target, (State, Binding, Constant, Parameter, Port)):
         raise TypeError(f'Unsupported declaration target {target!r}')
     declaration = declaration.strip()
     item = _parse_declaration(declaration)
@@ -365,7 +367,7 @@ def rename(sources, target, new_name):
     the old name as alias, and native procedures keep their Python name.
     Renaming fails if a reference would resolve differently afterwards.
     """
-    if not isinstance(target, (Node, State, Temporary, Constant, Parameter, Port, Procedure, NodeType)):
+    if not isinstance(target, (Node, State, Binding, Constant, Parameter, Port, Procedure, NodeType)):
         raise TypeError(f'Unsupported rename target {target!r}')
     before = outline(sources)
     record = _single(before.find(target), target)
@@ -459,16 +461,16 @@ def remove_attribute(sources, target, name):
 
 
 # Declarations that only have outer attributes.
-_OUTER_TARGETS = (State, Temporary, Constant, Parameter, Port, Procedure)
+_OUTER_TARGETS = (State, Binding, Constant, Parameter, Port, Procedure)
 
 _KIND_ORDER = (
     ast.DeclarationParameter, ast.DeclarationConstant, ast.DeclarationPort, ast.DeclarationState,
-    ast.DeclarationTemporary, ast.DeclarationInstance, ast.DeclarationProcedure, _NodeType,
+    ast.DeclarationBinding, ast.DeclarationInstance, ast.DeclarationProcedure, _NodeType,
 )
 
 
 def _kind_records(scope):
-    return [scope.parameters, scope.constants, scope.ports, scope.states, scope.temporaries,
+    return [scope.parameters, scope.constants, scope.ports, scope.states, scope.bindings,
             scope.nodes, scope.procedures, scope.node_types]
 
 
@@ -507,7 +509,7 @@ def _references(result, edge, target):
 def _used_names(scope):
     """Return the names of a scope's nodes, ports, statics, and procedures."""
     used = {item.name for item in (*scope.nodes, *scope.parameters, *scope.constants,
-                                   *scope.states, *scope.temporaries, *scope.resources, *scope.procedures)}
+                                   *scope.states, *scope.bindings, *scope.procedures)}
     used.update(port.name for port in scope.ports if port.name is not None)
     return used
 
@@ -585,8 +587,9 @@ def _expression_fields(item):
     elif isinstance(item, ast.DeclarationState):
         yield item.var_type
         yield item.initial_value
-    elif isinstance(item, ast.DeclarationTemporary):
-        yield item.var_type
+    elif isinstance(item, ast.DeclarationBinding):
+        if not item.is_resource:
+            yield item.port_spec.ty
     elif isinstance(item, ast.DeclarationPort):
         if isinstance(item.port_spec, ast.PortTypeSpecificationData):
             yield item.port_spec.ty
@@ -810,7 +813,7 @@ def _target_record(scope, target):
             if port.direction == 'output' and (port.name or 'default output') == name:
                 return port
     if reference.length <= 2:
-        for records in (scope.states, scope.temporaries, scope.procedures, scope.nodes):
+        for records in (scope.states, scope.bindings, scope.procedures, scope.nodes):
             for record in records:
                 if record.name == name:
                     return record

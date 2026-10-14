@@ -128,7 +128,7 @@ def check_resource_isolation():
   }
   native node type Consumer {
     input Service: resource Service;
-    resource state: ConsumerState;
+    binding state: resource ConsumerState;
     default output: value uint8;
     native initializer depends on Service as service produces state as "state";
     native procedure run depends on state as "state" produces default output as output;

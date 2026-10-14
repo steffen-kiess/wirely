@@ -276,8 +276,8 @@ node probe: Probe {}
 // SE: Circular procedure dependency
 // SH: Cycle continues here
 node type Probe {
-  temporary first: boolean;
-  temporary second: boolean;
+  binding first: value boolean;
+  binding second: value boolean;
   procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
   procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 }
@@ -333,13 +333,13 @@ node type Probe {
 node probe: Probe {}
 
 // TEST: top-level result type
-#[Allow(Unused)] temporary t: int8;
+#[Allow(Unused)] binding t: value int8;
 procedure p1 produces t {
   t = 128; // E: out of range
 }
 
 // TEST: top-level missing assignment
-#[Allow(Unused)] temporary t: int8;
+#[Allow(Unused)] binding t: value int8;
 procedure p1 produces t {} // E: did not assign outputs
 
 // TEST: top-level dependency cycle
@@ -347,8 +347,8 @@ procedure p1 produces t {} // E: did not assign outputs
 // SH: Cycle continues here
 // SE: Circular procedure dependency
 // SH: Cycle continues here
-temporary first: boolean;
-temporary second: boolean;
+binding first: value boolean;
+binding second: value boolean;
 procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
 procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 
@@ -364,8 +364,8 @@ node type Relay {
   default output: value boolean;
   connect default input -> default output; // H: Cycle continues here
 }
-temporary first: boolean;
-temporary second: boolean;
+binding first: value boolean;
+binding second: value boolean;
 node relay: Relay {}
 procedure one
   depends on second // H: Cycle continues here
@@ -385,21 +385,21 @@ procedure two
 native procedure p1; // E: Native procedures must belong to a node type
 
 // TEST: Some argument count in a procedure
-#[Allow(Unused)] temporary result: Option[boolean];
+#[Allow(Unused)] binding result: value Option[boolean];
 procedure run produces result {
   result = Some(true, false); // E: Some expects exactly one argument
 }
 
 // TEST: struct literal missing field in a procedure
 struct type Pair { enabled: boolean, number: uint8, }
-#[Allow(Unused)] temporary result: Pair;
+#[Allow(Unused)] binding result: value Pair;
 procedure run produces result {
   result = Pair { enabled: true }; // E: Missing fields of Pair: number
 }
 
 // TEST: struct literal unknown field in a procedure
 struct type Pair { enabled: boolean, }
-#[Allow(Unused)] temporary result: Pair;
+#[Allow(Unused)] binding result: value Pair;
 procedure run produces result {
   result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
 }
@@ -407,7 +407,7 @@ procedure run produces result {
 // TEST: procedure reference to a reference port
 node type References {
   default input: value boolean;
-  temporary copy: boolean;
+  binding copy: value boolean;
   procedure first
     depends on default input as input
     produces copy as result
@@ -421,4 +421,4 @@ node type References {
 }
 
 // TEST: root temporary without a source
-temporary unused: boolean; // E: Temporary 'unused' has no source
+binding unused: value boolean; // E: Binding 'unused' has no source

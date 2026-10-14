@@ -9,7 +9,7 @@ namespace Schedule {
   native singleton node type TimeOfDayMinute {
     default output: value TimeOfDay;
 
-    resource state: TimeOfDayMinuteState;
+    binding state: resource TimeOfDayMinuteState;
     native initializer produces state as "state";
 
     // TODO: Should this be "stage input"? Should this use some global time?

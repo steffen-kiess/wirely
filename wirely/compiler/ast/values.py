@@ -280,7 +280,7 @@ class ResolvedPortReference(SourceElement):
         local = getattr(graph, 'local_resources', {}).get(self.node_name_str)
         if local is not None:
             if self.port_name is not None:
-                raise ProgramError(self.port_name, f'Resource {self.node_name_str!r} has no port {self.port_name_str!r}')
+                raise ProgramError(self.port_name, f'Binding {self.node_name_str!r} has no port {self.port_name_str!r}')
             self.port = local
             return
 
@@ -294,7 +294,7 @@ class ResolvedPortReference(SourceElement):
             if variable is not None:
                 is_state = isinstance(variable, model.ast.DeclarationState)
                 if self.port_name is not None:
-                    kind = 'State' if is_state else 'Temporary'
+                    kind = 'State' if is_state else 'Binding'
                     raise ProgramError(self.port_name, f'{kind} {self.node_name_str!r} has no input port {self.port_name_str!r}')
                 variables = graph.state_nodes if is_state else graph.temporary_nodes
                 self.port = variables[self.node_name_str]
@@ -315,7 +315,7 @@ class ResolvedPortReference(SourceElement):
                 return
             if self.node_name_str in graph.temporary_nodes:
                 if self.port_name_str != '':
-                    raise ProgramError(self.port_name_elem, f'Temporary {self.node_name_str!r} has no output port {self.port_name_str!r}')
+                    raise ProgramError(self.port_name_elem, f'Binding {self.node_name_str!r} has no output port {self.port_name_str!r}')
                 self.port = graph.temporary_nodes[self.node_name_str]
                 # TODO: This is a hack
                 return

@@ -111,7 +111,7 @@ def check_values():
     constant Types: List[Option[ValueType]] = [Some(uint16), None];
     input Connection: resource Service;
     output Result: value uint16;
-    resource state: ValuesState;
+    binding state: resource ValuesState;
     native initializer depends on Connection, produces state as "state",
       uses Number, Seed as seed, Example.Same(20) as "retained",
         optional(Missing) as missing, optional(Absent) as Absent,;

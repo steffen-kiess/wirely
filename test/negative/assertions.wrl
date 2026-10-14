@@ -88,14 +88,14 @@ procedure run depends on input: value boolean {
 connect InputValue -> run.input;
 
 // TEST: runtime output read
-#[Allow(Unused)] temporary result: boolean;
+#[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
   result = true;
   assert result; // E: Assertion condition must be a compile-time expression
 }
 
 // TEST: literal-initialized runtime local
-#[Allow(Unused)] temporary result: boolean;
+#[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
   let value = true;
   assert value; // E: Assertion condition must be a compile-time expression
@@ -103,7 +103,7 @@ procedure run produces result {
 }
 
 // TEST: runtime assignment in condition
-#[Allow(Unused)] temporary result: boolean;
+#[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
   assert { result = true; true };
   // ^E: Assertion condition must be a compile-time expression

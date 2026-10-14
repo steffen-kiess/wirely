@@ -98,7 +98,7 @@ connect source -> printer;
 
 Choose descriptive names. Use `PascalCase` for namespaces, types, and public
 parameters and ports; prefer `snake_case` for internal nodes, state,
-temporaries, and procedures. Match existing interface names exactly.
+bindings, and procedures. Match existing interface names exactly.
 
 Prefer `// ` comments, including consecutive lines for longer explanations.
 Put comments above the code they describe and at the same indentation.

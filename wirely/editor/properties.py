@@ -3,10 +3,11 @@
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QFormLayout, QLabel, QLineEdit, QScrollArea, QVBoxLayout, QWidget
 
-from wirely.compiler.outline import Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State, \
-    Temporary
+from wirely.compiler.outline import (
+    Binding, Connection, Constant, Node, NodeType, Parameter, Port, Procedure, State,
+)
 
-_RENAMEABLE = (Node, State, Temporary, Constant, Parameter, Port, Procedure, NodeType)
+_RENAMEABLE = (Node, State, Binding, Constant, Parameter, Port, Procedure, NodeType)
 
 
 class PropertiesPanel(QScrollArea):

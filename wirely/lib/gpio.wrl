@@ -30,7 +30,7 @@ namespace GPIO {
     parameter Drive: GPIO.Drive = GPIO.Drive.PushPull;
     parameter Bias: GPIO.Bias = GPIO.Bias.AsIs;
 
-    resource state: OutputState;
+    binding state: resource OutputState;
     native initializer
       produces state as "state"
       uses ChipDeviceFile, Name, ActiveState, Drive, Bias;

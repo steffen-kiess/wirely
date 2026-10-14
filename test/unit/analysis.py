@@ -11,7 +11,7 @@ from wirely.compiler.coordinator import CompilerCoordinator
 from wirely.compiler.diagnostics import WarningSink, error_diagnostics
 from wirely.compiler.native_functions import validate_collisions
 from wirely.compiler.outline import (
-    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Temporary,
+    Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Binding,
 )
 
 
@@ -25,7 +25,7 @@ source = '''node type Box {
   input value: value Type;
   default output: value Type;
   state last: Type = Zero;
-  temporary current: Type;
+  binding current: value Type;
 }
 node constant: Std.Constant { Type: boolean, Value: true }
 node box: Box { Type: uint8 }
@@ -44,7 +44,7 @@ checks.assertEqual([(port.name, port.direction) for port in declared], [('value'
 checks.assertIsInstance(declared[0].type, model.TypeParameter)
 checks.assertEqual(result.value_type(Constant(('Box', 'Zero'))), int32)
 checks.assertIsInstance(result.value_type(State(('Box', 'last'))), model.TypeParameter)
-checks.assertIsInstance(result.value_type(Temporary(('Box', 'current'))), model.TypeParameter)
+checks.assertIsInstance(result.value_type(Binding(('Box', 'current'))), model.TypeParameter)
 checks.assertIsInstance(result.value_type(Port(('Box', 'value'), 'input')), model.TypeParameter)
 checks.assertEqual(result.value_type(Parameter(('Box', 'Type'))), model.types.ValueType)
 
@@ -108,7 +108,7 @@ node type Box {
   input many: multi value boolean;
   default output: value Type;
   state last: Type = Zero;
-  temporary current: Type;
+  binding current: value Type;
   node type Inner {}
   procedure run depends on value as input, typed: value int32 produces current { current = input; }
   connect Zero -> run.typed;

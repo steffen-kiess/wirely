@@ -24,8 +24,8 @@ def describe_target(target):
     if isinstance(target, (model.ProcedureInputPort, model.ProcedureOutputPort)):
         return target.description[0].upper() + target.description[1:]
     if isinstance(target, model.LocalResource):
-        return f'Resource {target.name!r}'
-    kind = 'State' if isinstance(target, model.StateNode) else 'Temporary'
+        return f'Binding {target.name!r}'
+    kind = 'State' if isinstance(target, model.StateNode) else 'Binding'
     return f'{kind} {target.name!r}'
 
 
@@ -301,7 +301,7 @@ def resolve_variable(path, var, seen=None):
         if temporary.node != path[-1]:
             if isinstance(path[-1], model.InstanceNode):  # TODO: Handle singletons here?
                 raise Exception(f'temporary.node {temporary.node} != path[-1] {path[-1]}')
-        # A declared temporary is another name for its source.
+        # A value binding is another name for its source.
         if temporary.alias_of is not None:
             return resolve_variable(path, temporary.alias_of, seen)
         if temporary.producer is None:

@@ -35,8 +35,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "node" identifier ":" instantiation -> declaration_instance
     | "connect" connection_source_list "->" reference ";" -> declaration_connection
     | "state" identifier ":" type "=" expression ";" -> declaration_state
-    | "temporary" identifier ":" type ";" -> declaration_temporary
-    | "resource" identifier ":" reference ";" -> declaration_local_resource
+    | "binding" identifier ":" port_type_specification ";" -> declaration_binding
     // Procedures and initializers
     | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
     | "procedure" identifier _procedure_clauses expression_block -> declaration_procedure__create_body
@@ -225,6 +224,7 @@ reference: identifier ("." identifier)* -> reference__from_list
 !identifier: CNAME
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
+    | "binding"
     | "changed"
     | "constant"
     | "default"

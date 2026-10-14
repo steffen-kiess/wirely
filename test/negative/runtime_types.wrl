@@ -15,12 +15,12 @@ node type Invalid {
 
 // TEST: runtime_string_temporary
 node type Invalid {
-  temporary text: String; // E: parameter-only
+  binding text: value String; // E: parameter-only
 }
 
 // TEST: runtime_list_temporary
 node type Invalid {
-  temporary items: List[uint8]; // E: parameter-only
+  binding items: value List[uint8]; // E: parameter-only
 }
 
 // TEST: runtime_optional_string
@@ -63,7 +63,7 @@ node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 // TEST: runtime_generic_temporary
 node type Invalid {
   parameter Type: ValueType;
-  #[Allow(Unused)] temporary saved: Type;
+  #[Allow(Unused)] binding saved: value Type;
   native procedure write produces saved;
 }
 node invalid: Invalid { Type: Option[String] } // E: parameter-only

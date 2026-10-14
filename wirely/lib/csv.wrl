@@ -23,7 +23,7 @@ namespace CSV {
 
     assert SupportsType(Type), "Type must support CSV conversion";
 
-    resource state: ValueWriterState;
+    binding state: resource ValueWriterState;
     native initializer produces state as "state" uses Filename;
     // TODO: Make repeat interval configurable? Allow disabling repeat?
 

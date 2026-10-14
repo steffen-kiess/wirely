@@ -94,7 +94,7 @@ constant Value: boolean = TestLibrary.Missing(); // E: Cannot load function 'Tes
 namespace TestLibrary {
   native function Clamp(value: int16, low: int16, high: int16): int16;
 }
-#[Allow(Unused)] temporary result: int16;
+#[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   result = TestLibrary.Clamp(true, 0, 1); // E: Invalid int value true
 }

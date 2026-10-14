@@ -66,7 +66,7 @@ def _describe(entry):
 
 
 class DeclarationDialog(QDialog):
-    """Enter a state, temporary, constant, parameter, or port declaration.
+    """Enter a state, binding, constant, parameter, or port declaration.
 
     kind is one of those names, or 'input' or 'output' for ports.
     """
@@ -80,9 +80,9 @@ class DeclarationDialog(QDialog):
         form.addRow('Name', self.name)
         self.port_kind = None
         self.is_list = None
-        if kind in ('input', 'output'):
+        if kind in ('input', 'output', 'binding'):
             self.port_kind = QComboBox(self)
-            self.port_kind.addItems(['value', 'event', 'resource'])
+            self.port_kind.addItems(['value', 'resource'] if kind == 'binding' else ['value', 'event', 'resource'])
             form.addRow('Kind', self.port_kind)
             self.is_list = QCheckBox('multi', self)
             if kind == 'input':
@@ -114,8 +114,8 @@ class DeclarationDialog(QDialog):
         value = self.value.text().strip() if self.value is not None else ''
         if self.kind == 'state':
             return editing.format_state(name, type_text, value)
-        if self.kind == 'temporary':
-            return editing.format_temporary(name, type_text)
+        if self.kind == 'binding':
+            return editing.format_binding(name, self.port_kind.currentText(), type_text)
         if self.kind == 'constant':
             return editing.format_constant(name, type_text, value)
         if self.kind == 'parameter':

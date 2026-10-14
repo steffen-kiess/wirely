@@ -18,7 +18,7 @@ constant Second: Duration = "PT1S";
 constant Value: Duration = -Second; // E: Integer arithmetic requires an integer value, got Duration
 
 // TEST: operator in a procedure
-#[Allow(Unused)] temporary result: Duration;
+#[Allow(Unused)] binding result: value Duration;
 procedure run produces result {
   let span: Duration = "PT1S";
   result = span + span; // E: Arithmetic operators are compile-time only; use Duration.SaturatingAdd or Duration.CheckedAdd

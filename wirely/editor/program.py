@@ -80,7 +80,7 @@ class Program:
                 matches.append((end - start, scope_path, element_id))
 
         def visit(scope):
-            for record in (*scope.nodes, *scope.states, *scope.temporaries, *scope.resources, *scope.constants,
+            for record in (*scope.nodes, *scope.states, *scope.bindings, *scope.constants,
                            *scope.parameters, *scope.ports, *scope.procedures):
                 add(scope.path, record, record.id)
             for edge in scope.edges:

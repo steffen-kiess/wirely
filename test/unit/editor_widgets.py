@@ -18,6 +18,7 @@ from wirely.editor import graph_model
 from wirely.editor.graph_view import GraphScene
 from wirely.editor.grid import STEP, from_pixels, snap
 from wirely.editor.program import Program
+from wirely.editor.palette import DeclarationDialog
 from wirely.editor.sync import Document
 
 
@@ -505,6 +506,17 @@ with tempfile.TemporaryDirectory() as directory:
             scene.clearSelection()
     checks.assertEqual(window.session.documents[filename].text(), positioned_source)
     window.close()
+
+
+# Binding creation exposes only the implemented connection kinds.
+binding_dialog = DeclarationDialog('binding', 'service', ['boolean', 'Handle'])
+checks.assertEqual([binding_dialog.port_kind.itemText(index)
+                    for index in range(binding_dialog.port_kind.count())], ['value', 'resource'])
+checks.assertEqual(binding_dialog.declaration(), 'binding service: value boolean;')
+binding_dialog.port_kind.setCurrentText('resource')
+binding_dialog.type.setCurrentText('Handle')
+checks.assertEqual(binding_dialog.declaration(), 'binding service: resource Handle;')
+binding_dialog.close()
 
 
 async def run_test():

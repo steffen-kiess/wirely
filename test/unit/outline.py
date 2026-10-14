@@ -2,7 +2,7 @@ from unittest import TestCase
 
 from wirely.compiler.outline import (
     Connection, Constant, Endpoint, Node, NodeType, Parameter, Port, Procedure, ProcedurePort,
-    State, Temporary, outline,
+    State, Binding, outline,
 )
 
 
@@ -17,7 +17,7 @@ node type T {
   input r: resource Std.R;
   default output: value P;
   state s: int = 0;
-  temporary t: int;
+  binding t: value int;
 
   procedure run
     depends on a as x, s.old as old, typed: value int
@@ -60,7 +60,7 @@ checks.assertEqual((parameter.type_text, parameter.default_text, parameter.is_op
 checks.assertEqual(result.find(Constant(('T', 'C')))[0].value_text, '1')
 state, = result.find(State(('T', 's')))
 checks.assertEqual((state.type_text, state.initial_text), ('int', '0'))
-checks.assertEqual(result.find(Temporary(('T', 't')))[0].type_text, 'int')
+checks.assertEqual(result.find(Binding(('T', 't')))[0].type_text, 'int')
 procedure, = result.find(Procedure(('T', 'run')))
 checks.assertEqual([(port.key, port.reference_text, port.kind) for port in procedure.inputs],
                    [('x', 'a', None), ('old', 's.old', None), ('typed', None, 'value')])
@@ -77,7 +77,7 @@ checks.assertEqual([(edge.kind, edge.source, edge.target) for edge in node_type.
     ('reference', Endpoint('run.new', run, 'new'), Endpoint('s.new', State(('T', 's')), 'new')),
     ('connect', Endpoint('e', Port(('T', 'e'), 'input'), None), Endpoint('run.typed', run, 'typed')),
     ('connect', Endpoint('C', Constant(('T', 'C')), None), Endpoint('run.typed', run, 'typed')),
-    ('connect', Endpoint('run.out', run, 'out'), Endpoint('t', Temporary(('T', 't')), None)),
+    ('connect', Endpoint('run.out', run, 'out'), Endpoint('t', Binding(('T', 't')), None)),
 ])
 
 # Reference edges carry the span of the reference on its side.
@@ -115,6 +115,19 @@ checks.assertEqual(result.find(Node(('a',)))[0].node_type, NodeType(('N', 'T')))
 namespace, = result.scope.namespaces
 checks.assertEqual([item.name for item in namespace.node_types], ['T', 'V'])
 checks.assertEqual(result.find(NodeType(('U',))), ())
+
+
+# Bindings share one collection and ID type, retaining their connection kind.
+bindings = outline([('bindings.wrl', '''binding number: value uint8;
+binding service: resource Handle;
+connect source -> number;
+connect provider -> service;
+''')])
+checks.assertEqual([(record.id, record.kind, record.type_text) for record in bindings.scope.bindings], [
+    (Binding(('number',)), 'value', 'uint8'),
+    (Binding(('service',)), 'resource', 'Handle'),
+])
+checks.assertEqual(bindings.scope.edges[1].target.element, Binding(('service',)))
 
 
 async def run_test():

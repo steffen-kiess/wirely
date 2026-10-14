@@ -301,8 +301,8 @@ def check_triggers():
             Reader.calls.append(context.name)
 
     probe_body = '''
-        resource refresher: ProbeState;
-        resource runner: ProbeState;
+        binding refresher: resource ProbeState;
+        binding runner: resource ProbeState;
         native initializer produces refresher as "refresher", runner as "runner";
         native procedure refresh depends on refresher as "state";
         native procedure run depends on runner as "state";
@@ -760,7 +760,7 @@ def check_native_methods():
     native procedure class_method;
   }
   native node type StateProbe {
-    resource state: ProbeState;
+    binding state: resource ProbeState;
     native initializer produces state as "state";
     native procedure class_method depends on state as "state";
   }
@@ -888,7 +888,7 @@ namespace TestLibrary {
   native node type LengthProbe {
     default input: multi value boolean;
     default output: value uint32;
-    resource state: LengthState;
+    binding state: resource LengthState;
     native initializer produces state as "state" uses (default input).Length as Count;
     native procedure run depends on state as "state" produces default output as output
       uses (default input).Length as Count;

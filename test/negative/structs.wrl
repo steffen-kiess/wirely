@@ -258,7 +258,7 @@ node n: Bad {}
 struct type Record {
   x: String,
 }
-node type Bad { temporary saved: Record; } // E: parameter-only
+node type Bad { binding saved: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_list_uint8_value
@@ -286,7 +286,7 @@ node n: Bad {}
 struct type Record {
   x: List[uint8],
 }
-node type Bad { temporary saved: Record; } // E: parameter-only
+node type Bad { binding saved: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: parameter_only_option_string_value
@@ -314,7 +314,7 @@ node n: Bad {}
 struct type Record {
   x: Option[String],
 }
-node type Bad { temporary saved: Record; } // E: parameter-only
+node type Bad { binding saved: value Record; } // E: parameter-only
 node n: Bad {}
 
 // TEST: unknown_field_access
