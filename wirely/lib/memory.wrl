@@ -16,32 +16,65 @@ namespace Memory {
 
     parameter OutputType: ValueType = unit;
     // Defaults to () when OutputType is unit
-    optional parameter OutputValue: OutputType;
-
-    assert OutputType == unit || optional(OutputValue).IsSome,
-      "OutputValue is required when OutputType is not unit";
+    parameter OutputValue: OutputType = ();
 
     default output: event OutputType;
 
     // Minimum delay between two output events.
     parameter MinimumDelay: Duration = "PT1S";
 
-    // Time when the next event is allowed. None or a non-comparable time means
-    // that the next event is allowed now.
-    state next_event_allowed_at: Option[MonotonicTime] = None;
+    // Start of the minimum delay after an output, cleared when the delay ends
+    // without another output. None or lost monotonic time allows output now.
+    state last_output_at: Option[MonotonicTime] = None;
     // If this is not None, there is a pending change.
-    // TODO: Should this forget the new value if the monotonic time is lost?
     state pending_event: Option[boolean] = None;
 
-    node next_event_allowed_at_reached: Timer.MonotonicTimeReached {}
-    connect next_event_allowed_at.old -> next_event_allowed_at_reached;
+    node output_time: Timer.MonotonicTimestamp {}
+    node delay: Timer.DurationElapsed { Duration: MinimumDelay }
+    connect last_output_at.old -> delay;
 
-    native procedure update
-      depends on next_event_allowed_at.old as "next_event_allowed_at_old",
-        pending_event.old as "pending_event_old", default input as "input",
-        Feedback, next_event_allowed_at_reached
-      produces default output as "output", next_event_allowed_at,
-        pending_event
-      uses optional(OutputValue) as OutputValue, MinimumDelay;
+    procedure update
+      depends on default input as input, Feedback,
+        pending_event.old as pending_event_old,
+        last_output_at.old as last_output_at_old, delay
+      produces default output as output, emitted: event unit, pending_event
+    {
+      // Clock loss drops a stale pending change, but a fresh command wins.
+      let lost = last_output_at_old.IsSome && delay.IsNone;
+      let mut pending = if optional(input).IsSome {
+        optional(input)
+      } else if lost {
+        None
+      } else {
+        pending_event_old
+      };
+      // Ignore commands without feedback, or when the requested state matches.
+      if Feedback.IsNone || pending == Feedback { pending = None; }
+      let fire = pending.IsSome && delay != Some(false);
+      pending_event = if fire { None } else { pending };
+      // Consuming a pending change guards delayed output without a fresh input.
+      on input, changed pending_event {
+        if fire {
+          emit output(OutputValue);
+          emit emitted;
+        }
+      }
+    }
+    connect update.emitted -> output_time;
+
+    procedure record
+      depends on output_time, last_output_at.old as last_output_at_old, delay
+      produces last_output_at
+    {
+      last_output_at = if optional(output_time).IsSome {
+        optional(output_time)
+      } else if delay == Some(false) {
+        // Keep the running delay even when no command is pending.
+        last_output_at_old
+      } else {
+        // Clear an expired or lost timer when no new output starts a delay.
+        None
+      };
+    }
   }
 }

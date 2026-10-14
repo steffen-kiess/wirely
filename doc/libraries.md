@@ -226,9 +226,11 @@ to change. It takes a default `event boolean` command input (`true` for on,
 `false` for off) and a named `Feedback: value Option[boolean]` input. Its
 default `event OutputType` output provides the trigger pulse. If feedback is
 `None`, commands are ignored. Its parameters are `OutputType: ValueType = unit`,
-optional `OutputValue: OutputType`, and `MinimumDelay: Duration = "PT1S"`.
+`OutputValue: OutputType = ()`, and `MinimumDelay: Duration = "PT1S"`.
 Set `OutputValue` when `OutputType` is not `unit`. The minimum delay limits
-successive output events.
+successive output events. During that delay, the latest command remains pending
+until feedback matches it or becomes unavailable. Lost monotonic time discards
+the pending command; a fresh command can emit immediately.
 
 ## Process
 

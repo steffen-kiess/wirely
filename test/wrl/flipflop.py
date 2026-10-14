@@ -13,7 +13,6 @@ async def run_test():
 
         inp = engine.get_native_state('in')
         feedback = engine.get_native_state('feedback')
-        trigger = engine.get_native_state('trigger')
 
         def tst(exp, cmd=None, fdbck=()):
             if exp is not None:

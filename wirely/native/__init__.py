@@ -39,7 +39,6 @@ native_node_pkgs = {
     'TwoN': 'two_n',
     'GPIO': 'gpio',
     'TestLibrary': 'test_library',
-    'Memory': 'memory',
     'Process': 'process',
 }
 

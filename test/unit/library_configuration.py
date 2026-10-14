@@ -47,7 +47,7 @@ def compile_program(source, *, filename='<configuration>'):
         return program_compiler.compile_nocatch(graph)
 
 
-def node_program(node_type, output_type, output_value, *, forward=False):
+def node_program(node_type, output_type, output_value, *, forward=False, minimum_delay='PT2S'):
     settings = []
     if output_type is not None:
         settings.append('OutputType: ' + output_type)
@@ -55,7 +55,7 @@ def node_program(node_type, output_type, output_value, *, forward=False):
         settings.append('OutputValue: ' + output_value)
     child_settings = ['Time: "12:00"'] if node_type == 'Schedule.TriggerAt' else []
     if node_type == 'Memory.ToggleFlipFlopTrigger':
-        child_settings.append('MinimumDelay: "PT2S"')
+        child_settings.append('MinimumDelay: ' + json.dumps(minimum_delay))
     if forward:
         child_settings += ['OutputType: Type', 'OutputValue?: optional(Value)']
         ports = ''
@@ -151,6 +151,120 @@ def check_delayed_event():
     runtime.step()
     runtime.assert_value_is(target, None)
     runtime.assert_is_idle()
+
+
+def check_flipflop_behavior():
+    def make_runtime(minimum_delay='PT2S'):
+        program, target = node_program('Memory.ToggleFlipFlopTrigger', None, None,
+                                       minimum_delay=minimum_delay)
+        return Engine(program), target
+
+    def command(value):
+        runtime.get_native_state('input').send_event(wirely.Some(value))
+
+    def feedback(value):
+        runtime.get_native_state('feedback').set_value(value)
+
+    def step(*, fire=False, settle=True):
+        runtime.step()
+        runtime.assert_value_is(target, wirely.Some(wirely.Unit()) if fire else None)
+        if settle:
+            runtime.step()
+            runtime.assert_value_is(target, None)
+            runtime.assert_is_idle()
+
+    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
+        runtime, target = make_runtime()
+        feedback(None)
+        step()
+        command(True)
+        step()
+        feedback(wirely.Some(False))
+        step()
+        command(False)
+        step()
+        command(True)
+        step(fire=True)
+
+        # A new matching command or matching feedback cancels the pending one.
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(True)
+        step()
+        command(False)
+        step()
+        command(True)
+        step()
+        feedback(wirely.Some(True))
+        step()
+        feedback(wirely.Some(False))
+        step()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step()
+
+        # Expiration consumes the pending command without needing another input.
+        command(True)
+        step(fire=True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(True)
+        step()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step(fire=True)
+
+        # A fresh command at expiration replaces the pending request.
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(True)
+        step()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(False)
+        step()
+        command(True)
+        step(fire=True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(True)
+        step()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        feedback(wirely.Some(True))
+        command(False)
+        step(fire=True)
+
+        # Feedback loss clears a pending command even if feedback returns.
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(False)
+        step()
+        feedback(None)
+        step()
+        feedback(wirely.Some(True))
+        step()
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        step()
+
+        # Clock loss drops stale requests, but accepts a fresh one immediately.
+        command(False)
+        step(fire=True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(False)
+        step()
+        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        step()
+        command(False)
+        step(fire=True)
+        runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+        command(False)
+        step()
+        now[0] = wirely.MonotonicTime(3, now[0].time_ns)
+        command(False)
+        step(fire=True)
+
+        # With zero delay, identical commands in consecutive steps each emit.
+        runtime, target = make_runtime('PT0S')
+        feedback(wirely.Some(False))
+        step()
+        command(True)
+        step(fire=True, settle=False)
+        command(True)
+        step(fire=True, settle=False)
+        step()
 
 
 def check_debounce_duration():
@@ -432,6 +546,7 @@ def check_prepared_credentials():
 check_event_payloads()
 check_trigger_startup_after()
 check_delayed_event()
+check_flipflop_behavior()
 check_debounce_duration()
 check_debounce_behavior()
 check_key_state()
