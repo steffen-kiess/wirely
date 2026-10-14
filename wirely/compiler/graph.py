@@ -150,9 +150,10 @@ class TypeOutputPort(GraphElement):
 
 
 class TemporaryNode(GraphElement):
-    def __init__(self, graph, type, *, name):
+    def __init__(self, graph, type, *, name, port_spec):
         super().__init__(graph, name=name)
         self.var_type = type
+        self.port_spec = port_spec
 
         if name in self.graph.temporary_nodes:
             raise Exception(f'Duplicate temporary node name: {name!r}')
@@ -266,7 +267,9 @@ def port_specification(port):
     """Return the port specification of a connection source or target."""
     if isinstance(port, ProcedurePort):
         return port.specification
-    if isinstance(port, (TemporaryNode, StateNode, StateRead, StaticSource)):
+    if isinstance(port, TemporaryNode):
+        return PortSpecification(port.var_type, port.port_spec, None, False)
+    if isinstance(port, (StateNode, StateRead, StaticSource)):
         return PortSpecification(port.var_type, None, None, False)
     var_type = port.var_type
     if isinstance(port.node, model.InstanceNode) and var_type is not None:

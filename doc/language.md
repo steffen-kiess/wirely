@@ -32,7 +32,7 @@ A program, like each node type body, is a graph of nodes joined by
 connections. There are four kinds of nodes:
 
 - An instance, `node name: Type { … }`, creates a node of a node type.
-- A binding names a value or resource supplied elsewhere in the graph.
+- A binding names a value, event, or resource supplied elsewhere in the graph.
 - State keeps a value from one step to the next.
 - A procedure runs code that reads its inputs and writes its outputs.
 
@@ -465,7 +465,8 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 
 Inside a node type, `state name: Type = value;` declares a persistent value
 with an initial value. `binding name: value Type;` names a value calculated
-within a step. A binding requires an explicit `value` or `resource` kind.
+within a step. A binding requires an explicit `value`, `event`, or
+`resource` kind.
 A procedure reads its input ports, declared with `depends on`, and writes
 its output ports, declared with `produces`.
 Procedures run in dependency order; dependencies must be acyclic.
@@ -527,8 +528,8 @@ connect default input -> invert.value;
 ```
 
 Port names must be unique within each clause. Each input port needs exactly
-one source unless it is `multi`. A binding takes its value or resource from
-its one source, and state takes its new value from its one source. Output
+one source unless it is `multi`. A binding takes its value, event, or resource
+from its one source, and state takes its new value from its one source. Output
 ports may have any number of targets.
 
 `last_value.old` reads the previous step's state without depending on this
@@ -808,6 +809,20 @@ and `None` emits nothing. Both forms yield unit and can end a block.
 An output not emitted during an invocation is absent. For an
 `event Option[T]` output, `emit output(None)` emits an absent payload;
 `emit? output(None)` emits no event.
+
+Use an event binding to share an event between procedures or connections:
+
+```wirely
+binding forwarded: event uint8;
+procedure forward depends on input produces forwarded {
+  on input { emit forwarded(input); }
+}
+connect forwarded -> target;
+```
+
+Consumers declare `forwarded` in `depends on` and read it with `on` or
+`optional(...)`, like an event input. A connected event source can also
+supply the binding directly.
 
 Event outputs cannot be read or assigned with `=`. Emit each output at most
 once on every path; `emit?` counts even when its option is `None`. Mutually

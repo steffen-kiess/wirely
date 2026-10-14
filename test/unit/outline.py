@@ -120,12 +120,14 @@ checks.assertEqual(result.find(NodeType(('U',))), ())
 # Bindings share one collection and ID type, retaining their connection kind.
 bindings = outline([('bindings.wrl', '''binding number: value uint8;
 binding service: resource Handle;
+binding event: event Option[uint8];
 connect source -> number;
 connect provider -> service;
 ''')])
 checks.assertEqual([(record.id, record.kind, record.type_text) for record in bindings.scope.bindings], [
     (Binding(('number',)), 'value', 'uint8'),
     (Binding(('service',)), 'resource', 'Handle'),
+    (Binding(('event',)), 'event', 'Option[uint8]'),
 ])
 checks.assertEqual(bindings.scope.edges[1].target.element, Binding(('service',)))
 

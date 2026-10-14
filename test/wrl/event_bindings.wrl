@@ -1,0 +1,81 @@
+node number: Std.DebugEventSource { Type: uint8 }
+node unit: Std.DebugEventSource { Type: unit }
+node nested: Std.DebugEventSource { Type: Option[uint8] }
+
+node type Relay {
+  parameter Type: ValueType;
+  default input: event Type;
+  default output: event Type;
+  output Optional: event Type;
+  binding incoming: event Type;
+  binding produced: event Type;
+  binding forwarded: event Type;
+  binding optional_event: event Type;
+  connect default input -> incoming;
+  procedure forward depends on incoming as event produces produced as result {
+    on event { emit result(event); }
+  }
+  procedure option depends on incoming as event produces optional_event as result {
+    on event { emit? result(optional(event)); }
+  }
+  connect produced -> forwarded;
+  connect forwarded -> default output;
+  connect optional_event -> Optional;
+}
+node relay: Relay { Type: uint8 }
+node unit_relay: Relay { Type: unit }
+node nested_relay: Relay { Type: Option[uint8] }
+connect number -> relay;
+connect unit -> unit_relay;
+connect nested -> nested_relay;
+
+binding shared: event uint8;
+connect relay -> shared;
+node type Consumer {
+  default input: event uint8;
+  default output: value Option[uint8];
+  procedure read depends on default input as event produces default output as result {
+    result = optional(event);
+  }
+}
+node first: Consumer {}
+node second: Consumer {}
+connect shared -> first;
+connect shared -> second;
+
+node type Sum {
+  default input: multi event uint8;
+  default output: value uint8;
+  procedure add depends on default input as inputs produces default output as result {
+    let mut sum: uint8 = 0;
+    for event in inputs {
+      on event { sum = uint8.WrappingAdd(sum, event); }
+    }
+    result = sum;
+  }
+}
+node sum: Sum {}
+connect shared, shared -> sum;
+binding filtered_event: event uint8;
+procedure filter depends on shared produces filtered_event {
+  on shared {
+    emit? filtered_event(if shared == 0 { None } else { Some(shared) });
+  }
+}
+node filtered: Consumer {}
+connect filtered_event -> filtered;
+node warning: Std.WarnOnEvent { Type: uint8, Format: "Binding {}" }
+connect shared -> warning;
+
+// A native procedure can produce an event binding through a reference port.
+node type NativeBinding {
+  default input: event unit;
+  default output: event MonotonicTime;
+  binding timestamp: event MonotonicTime;
+  native procedure run as "Timer.MonotonicTimestamp:run"
+    depends on default input as "input"
+    produces timestamp as "output";
+  connect timestamp -> default output;
+}
+node timestamp: NativeBinding {}
+connect unit -> timestamp;

@@ -581,11 +581,12 @@ check_rename(Parameter(('Block', 'Type')), 'ElementType',
              ('next: Type', 'next: ElementType'), source=block_source)
 
 
-# Both binding kinds use the same formatting and editing API.
+# All binding kinds use the same formatting and editing API.
 checks.assertEqual(format_binding('binding', 'value', 'uint8'), 'binding binding: value uint8;')
 checks.assertEqual(format_binding('service', 'resource', 'Handle'), 'binding service: resource Handle;')
+checks.assertEqual(format_binding('event', 'event', 'uint8'), 'binding event: event uint8;')
 with checks.assertRaises(ValueError):
-    format_binding('event', 'event', 'uint8')
+    format_binding('event', 'multi event', 'uint8')
 resource_source = '''native node type Device {
   #[Internal]
   binding service: resource Handle; // keep
@@ -600,6 +601,16 @@ check_rename(Binding(('Device', 'service')), 'handle',
 check(replace_declaration, resource_source, Binding(('Device', 'service')),
       format_binding('service', 'resource', 'Other'),
       resource_source.replace('resource Handle;', 'resource Other;'))
+
+
+event_source = """binding signal: event uint8; // keep
+procedure produce produces signal {}
+procedure consume depends on signal {}
+"""
+check_rename(Binding(('signal',)), 'renamed',
+             ('binding signal:', 'binding renamed:'),
+             ('produces signal {}', 'produces renamed as signal {}'),
+             ('depends on signal {}', 'depends on renamed as signal {}'), source=event_source)
 
 
 async def run_test():

@@ -292,7 +292,7 @@ def register_name(graph, name, declaration):
 
 
 class DeclarationBinding(Declaration):
-    """A named value or resource connection with exactly one source."""
+    """A named value, event, or resource connection with exactly one source."""
 
     @check_parameters
     def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
@@ -302,8 +302,6 @@ class DeclarationBinding(Declaration):
         self.port_spec = port_spec
         if port_spec.list_spec.is_list:
             raise ProgramError(port_spec, 'Bindings cannot be multi')
-        if not self.is_resource and port_spec.kind_spec.kind != model.ConnectionKind.Value:
-            raise ProgramError(port_spec, 'Bindings support only value or resource kinds')
         self.var_type = port_spec.ty
 
     @property
@@ -330,5 +328,5 @@ class DeclarationBinding(Declaration):
         else:
             ty = self.interface.resolve_type(self.var_type)
             check_runtime_type(ty, self)
-            variable = model.TemporaryNode(new_graph, ty, name=self.name_str)
+            variable = model.TemporaryNode(new_graph, ty, name=self.name_str, port_spec=self.port_spec)
         copy_attributes(variable, self)

@@ -21,3 +21,22 @@ node type ResourceBinding {
   connect default input -> service;
   connect service -> default output;
 }
+
+// Event bindings retain their kind through reference ports and alias chains.
+node type EventBinding {
+  parameter Type: ValueType = uint8;
+  default input: event Type;
+  default output: event Type;
+  binding first: event Type;
+  binding second: event Type;
+  binding produced: event Type;
+  connect default input -> first;
+  connect first -> second;
+  procedure forward depends on second as input produces produced as output {
+    on input { emit output(input); }
+  }
+  connect produced -> default output;
+}
+node event_source: Std.DebugEventSource { Type: uint8 }
+node event_forwarded: EventBinding {}
+connect event_source -> event_forwarded;

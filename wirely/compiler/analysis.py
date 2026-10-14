@@ -245,7 +245,7 @@ class Analysis:
         return sources
 
     def value_type(self, target):
-        """Return the type of a state, value binding, constant, parameter, or port of a node type or procedure."""
+        """Return the type of a state, data binding, constant, parameter, or port of a node type or procedure."""
         path = target.procedure.path if isinstance(target, ProcedurePort) else target.path
         scope = self._compiled_scope(path[:-1])
         name = path[-1]

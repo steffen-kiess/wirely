@@ -98,7 +98,7 @@ def format_state(name, type_text, initial_text):
 
 
 def format_binding(name, kind, type_text):
-    if kind not in ('value', 'resource'):
+    if kind not in ('value', 'event', 'resource'):
         raise ValueError(f'Invalid binding kind {kind!r}')
     return _checked(f'binding {format_identifier(name)}: {kind} {type_text};')
 

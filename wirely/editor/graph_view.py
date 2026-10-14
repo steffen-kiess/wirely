@@ -53,8 +53,8 @@ _PORT_COLORS = {'value': '#3c8dd8', 'event': '#e0a020', 'resource': '#9a5cc6', N
 
 
 def _item_color(item):
-    if item.kind == 'binding' and item.inputs[0].kind == 'resource':
-        return _PORT_COLORS['resource']
+    if item.kind == 'binding' and item.inputs[0].kind in ('event', 'resource'):
+        return _PORT_COLORS[item.inputs[0].kind]
     return _KIND_COLORS.get(item.kind, '#888888')
 
 

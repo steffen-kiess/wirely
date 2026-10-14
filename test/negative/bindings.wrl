@@ -7,9 +7,6 @@ resource service: Handle; // E: Syntax error
 // TEST: missing_kind
 binding value: uint8; // E: Syntax error
 
-// TEST: event_binding
-binding event: event uint8; // E: Bindings support only value or resource kinds
-
 // TEST: multi_value_binding
 binding values: multi value uint8; // E: Bindings cannot be multi
 
@@ -23,3 +20,84 @@ binding value: value uint8 = 0; // E: Syntax error
 binding value: value uint8;
 procedure write produces value { value = 0; }
 procedure read depends on value.old as old {} // E: Binding 'value' has no output port
+
+// TEST: event_without_source
+binding event: event boolean; // E: Binding 'event' has no source
+procedure consume depends on event {}
+
+// TEST: event_multiple_sources
+binding first: event boolean;
+binding second: event boolean;
+binding target: event boolean;
+procedure produce produces first, second {}
+connect first -> target; // H: Previous connection was here
+connect second -> target; // E: already has a source
+procedure consume depends on target {}
+
+// TEST: event_binding_cycle
+binding first: event boolean;
+binding second: event boolean;
+connect first -> second; // H: Cycle continues here
+connect second -> first; // E: Circular connection
+
+// TEST: value_into_event_binding
+binding source: value boolean; // H: Source was declared here
+binding target: event boolean; // H: Target was declared here
+procedure produce produces source { source = true; }
+connect source -> target; // E: source has kind
+procedure consume depends on target {}
+
+// TEST: event_into_value_binding
+binding source: event boolean; // H: Source was declared here
+binding target: value boolean; // H: Target was declared here
+procedure produce produces source {}
+connect source -> target; // E: source has kind
+procedure consume depends on target {}
+
+// TEST: event_payload_mismatch
+binding source: event uint8; // H: Source was declared here
+binding target: event boolean; // H: Target was declared here
+procedure produce produces source {}
+connect source -> target; // E: source has type uint8 but target has type boolean
+procedure consume depends on target {}
+
+// TEST: event_binding_presence
+binding event: event boolean;
+procedure produce produces event {}
+procedure consume depends on event {
+  let payload = event; // E: can only be read inside 'on event'
+}
+
+// TEST: event_binding_assignment
+binding event: event boolean;
+procedure produce produces event {
+  event = true; // E: Cannot assign event output
+}
+procedure consume depends on event {}
+
+// TEST: repeated_event_binding_emission
+binding event: event boolean;
+state changed: boolean = false;
+procedure produce produces event, changed {
+  changed = true;
+  on changed changed {
+    emit event(true);
+    emit? event(None); // E: may be assigned more than once
+  }
+}
+procedure consume depends on event {}
+
+// TEST: changed_event_binding
+binding event: event boolean;
+procedure produce produces event {}
+procedure consume depends on event {
+  on changed event {} // E: not a direct .new dependency or state output
+}
+
+// TEST: event_binding_state_access
+binding event: event boolean;
+procedure produce produces event {}
+procedure consume depends on event.new as current {} // E: Binding 'event' has no output port
+
+// TEST: multi_event_binding
+binding events: multi event boolean; // E: Bindings cannot be multi

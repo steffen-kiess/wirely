@@ -241,5 +241,16 @@ texts = edited(program.add_declaration((), 'state extra: boolean = false;', (-2.
 checks.assertIn('#[Diagram.Position(X = -2.5, Y = 3.5)]', texts['main.wrl'])
 
 
+# Event bindings expose event sockets with the payload type.
+event_graph = graph_model.build(Program([('events.wrl', """binding event: event uint8;
+procedure produce produces event {}
+procedure consume depends on event {}
+""")]), ())
+event_item = event_graph.item(Binding(('event',)))
+checks.assertEqual(event_item.kind, 'binding')
+checks.assertEqual([(socket.kind, socket.type_text) for socket in (*event_item.inputs, *event_item.outputs)],
+                   [('event', 'uint8'), ('event', 'uint8')])
+
+
 async def run_test():
     pass

@@ -511,8 +511,10 @@ with tempfile.TemporaryDirectory() as directory:
 # Binding creation exposes only the implemented connection kinds.
 binding_dialog = DeclarationDialog('binding', 'service', ['boolean', 'Handle'])
 checks.assertEqual([binding_dialog.port_kind.itemText(index)
-                    for index in range(binding_dialog.port_kind.count())], ['value', 'resource'])
+                    for index in range(binding_dialog.port_kind.count())], ['value', 'event', 'resource'])
 checks.assertEqual(binding_dialog.declaration(), 'binding service: value boolean;')
+binding_dialog.port_kind.setCurrentText('event')
+checks.assertEqual(binding_dialog.declaration(), 'binding service: event boolean;')
 binding_dialog.port_kind.setCurrentText('resource')
 binding_dialog.type.setCurrentText('Handle')
 checks.assertEqual(binding_dialog.declaration(), 'binding service: resource Handle;')

@@ -1,7 +1,7 @@
 # Wirely value types
 
-Value types describe node parameters, data carried by ports, and values
-stored in state or value bindings. Names are case-sensitive. This reference
+Value types describe node parameters, data carried by ports and bindings,
+and values stored in state. Names are case-sensitive. This reference
 complements the [language guide](language.md) and
 [library reference](libraries.md).
 
@@ -9,8 +9,8 @@ complements the [language guide](language.md) and
 
 A runtime type represents values used during execution, for example on a
 `value` or `event` port. Parameter-only types configure a node when it is
-instantiated. Value and event ports, state, and value bindings
-require runtime types. Runtime types can also be used for parameters.
+instantiated. Value and event ports and bindings, and state, require
+runtime types. Runtime types can also be used for parameters.
 
 | Type | Allowed values | Use |
 | --- | --- | --- |

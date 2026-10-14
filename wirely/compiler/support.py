@@ -301,7 +301,7 @@ def resolve_variable(path, var, seen=None):
         if temporary.node != path[-1]:
             if isinstance(path[-1], model.InstanceNode):  # TODO: Handle singletons here?
                 raise Exception(f'temporary.node {temporary.node} != path[-1] {path[-1]}')
-        # A value binding is another name for its source.
+        # A value or event binding is another name for its source.
         if temporary.alias_of is not None:
             return resolve_variable(path, temporary.alias_of, seen)
         if temporary.producer is None:

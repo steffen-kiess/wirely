@@ -76,6 +76,7 @@ runtime_tests = [
     'wrl/and',
     'wrl/multi_forward',
     'wrl/events',
+    'wrl/event_bindings',
     'wrl/changed',
     'wrl/option',
     'wrl/gpio',

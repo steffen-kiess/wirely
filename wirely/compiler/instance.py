@@ -349,7 +349,7 @@ class InstanceTemporary(InstanceSource, InstanceTarget):
         super().__init__(node, name)
         # The procedure output port stored here, or None for declared temporaries.
         self.port = port
-        # The source a value binding refers to.
+        # The source a value or event binding refers to.
         self.alias_of = None
         if not isinstance(var_type, model.types.Type):
             raise Exception('var_type parameter is not a Type')

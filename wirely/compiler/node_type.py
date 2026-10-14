@@ -287,8 +287,10 @@ class NodeType(model.Scope):
             elif isinstance(variable, model.ast.DeclarationBinding):
                 var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
                 check_runtime_type(var_type, instantiation)
-                impl_var_type = var_type  # TODO: ?
+                impl_var_type = (model.types.TypeOption(var_type)
+                                 if model.connection_kind(variable) == model.ConnectionKind.Event else var_type)
                 storage = model.InstanceTemporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
+                storage.port_spec = variable.port_spec
                 copy_attributes(storage, variable)
                 temporaries[variable.name.id_str] = storage
             else:

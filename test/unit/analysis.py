@@ -212,5 +212,18 @@ for name in runner.negative_tests:
                             [(item.filename, item.line, item.message) for item in diagnostics], label)
 
 
+# Event binding types remain payload types; connection checks retain event kind.
+event_bindings = analyze([('events.wrl', """binding event: event uint8;
+binding forwarded: event uint8;
+binding value: value uint8;
+""")])
+checks.assertEqual(event_bindings.value_type(Binding(('event',))), uint8)
+checks.assertEqual(event_bindings.can_connect((), 'event', 'forwarded'), allowed)
+checks.assertEqual(event_bindings.can_connect((), 'value', 'forwarded'), ConnectionCheck(
+    False, 'source has kind ConnectionKind.Value but target has kind ConnectionKind.Event'))
+checks.assertIn('forwarded', event_bindings.connection_candidates((), source='event'))
+checks.assertNotIn('value', event_bindings.connection_candidates((), source='event'))
+
+
 async def run_test():
     pass

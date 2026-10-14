@@ -188,3 +188,13 @@ procedure suggest
   next = true;
   emit after; // W: available state triggers: on changed current, on changed next
 }
+
+// Event bindings share unused and guard warnings with the other event outputs.
+binding unread_event: event unit; // W: Binding 'unread_event' is never read
+procedure emit_unread produces unread_event {
+  emit unread_event; // W: [UnguardedEvent]
+}
+#[Allow(Unused)]
+binding allowed_event: event unit;
+#[Allow(UnguardedEvent)]
+procedure emit_allowed produces allowed_event { emit allowed_event; }
