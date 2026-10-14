@@ -1,4 +1,13 @@
 // Control protocol tests run requests against this program.
-node c: Std.Constant { Type: uint32, Value: 42 }
+node type CachedConstant {
+  parameter Value: uint32;
+  default output: value uint32;
+
+  procedure run produces default output as output {
+    output = Value;
+  }
+}
+
+node c: CachedConstant { Value: 42 }
 state d: uint32 = 7;
 connect c -> d;

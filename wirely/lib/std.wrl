@@ -21,7 +21,7 @@ namespace Std {
 
     default output: value Type;
 
-    native procedure run produces default output as "output" uses Value;
+    connect Value -> default output;
   }
 
   node type And {
@@ -124,7 +124,8 @@ namespace Std {
 
     default output: value Option[InnerType];
 
-    native procedure run produces default output as "output";
+    constant absent: Option[InnerType] = None;
+    connect absent -> default output;
   }
 
   node type OptionSome {

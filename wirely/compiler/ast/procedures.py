@@ -331,7 +331,7 @@ class DeclarationProcedure(Declaration):
 
     @property
     def native_name(self):
-        """The native procedure name, such as 'Std.Constant:run'."""
+        """The native procedure name, such as 'Std.OptionSome:run'."""
         if self.alias is not None:
             return self.alias.value
         prefix = self.graph.native_name if self.graph.is_native else self.graph.qualified_name

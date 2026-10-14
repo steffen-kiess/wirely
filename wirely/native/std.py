@@ -8,15 +8,6 @@ native_resource_types = {}
 
 
 @native_node_type(native_node_types, has_native_state=False)
-class Constant:
-    @staticmethod
-    def run(*, context):
-        par_value = context.values['Value']
-
-        context.set_output('output', par_value)
-
-
-@native_node_type(native_node_types, has_native_state=False)
 class DebugValuePrinter:
     @staticmethod
     def run(*, context):
@@ -141,15 +132,6 @@ class DebugEventSource(NativeState):
             print(f'Next value of {self.context.name} is {value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
-
-
-@native_node_type(native_node_types, has_native_state=False)
-class OptionNone:
-    @staticmethod
-    def run(*, context):
-        val = None
-
-        context.set_output('output', val)
 
 
 @native_node_type(native_node_types, has_native_state=False)
