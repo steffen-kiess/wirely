@@ -259,6 +259,21 @@ class ForExpression(Expression):
         self.body = body
 
 
+class OnTrigger(SourceElement):
+    def __init__(self, name, *, changed=False, source_position):
+        super().__init__(source_position=source_position)
+        self.name = name
+        self.is_changed = changed
+
+    @staticmethod
+    def changed(name, *, source_position):
+        return OnTrigger(name, changed=True, source_position=source_position)
+
+    @property
+    def description(self):
+        return f'changed {self.name.id_str!r}' if self.is_changed else repr(self.name.id_str)
+
+
 class OnExpression(Expression):
     def __init__(self, triggers, body, *, source_position):
         super().__init__(source_position=source_position)
@@ -889,6 +904,10 @@ class ExpressionCompiler:
         # Payload types of event bindings, by (operation, payload).
         self.events = {}
         self.event_outputs = set()
+        # State identities by eligible body name; old-value inputs by state identity.
+        self.changed_states = {}
+        self.old_state_inputs = {}
+        self.implicit_old_states = {}
         # Payload locals of events known to be present, by (operation, payload).
         self.present = {}
         # Multi event keys of loop variables over them, by loop variable key.
@@ -1023,10 +1042,15 @@ class ExpressionCompiler:
                  else TypedExpression(option_type, 'some', (argument,), runtime=argument.runtime))
         result = self.assign_binding(expression.target, binding, value)
         if not self.on_blocks:
+            candidates = [target for target in self.changed_states
+                          if self.names[target].operation != 'output'
+                          or self.initialization['output', target][1]]
+            suggestion = (f"; available state triggers: {', '.join('on changed ' + target for target in candidates)}"
+                          if candidates else '')
             self.scope.coordinator.warnings.warn(
                 'UnguardedEvent', expression,
                 f'Emission of {name!r} is outside an on block; '
-                'use on or suppress with #[Allow(UnguardedEvent)]',
+                f'use on or suppress with #[Allow(UnguardedEvent)]{suggestion}',
             )
         return result
 
@@ -1068,25 +1092,41 @@ class ExpressionCompiler:
     def on_expression(self, expression):
         if not self.runtime:
             raise ProgramError(expression, 'on blocks are only allowed in procedure bodies')
-        options = []
+        conditions = []
         keys = []
+        value = None
         for trigger in expression.triggers:
-            value = self.names.get(trigger.id_str)
-            if value is None or (value.operation, value.payload) not in self.events:
-                raise ProgramError(trigger, f'{trigger.id_str!r} is not an event dependency')
-            keys.append((value.operation, value.payload))
-            if value.operation == 'multi_input':
-                options += [TypedExpression(value.value_type, 'input', payload=member, runtime=True)
-                            for member in value.payload]
+            name = trigger.name.id_str
+            value = self.names.get(name)
+            if trigger.is_changed:
+                state = self.changed_states.get(name)
+                if state is None:
+                    raise ProgramError(trigger, f'{name!r} is not a direct .new dependency or state output')
+                reference = model.Reference.from_list(trigger.name, source_position=trigger.source_position)
+                current = self.compile(reference)
+                old = self.old_state_inputs.get(state)
+                if old is None:
+                    old = self.implicit_old_states.setdefault(
+                        state, TypedExpression(current.value_type, 'input', payload=state, runtime=True),
+                    )
+                conditions.append(TypedExpression(model.types.boolean, 'ne', (current, old), runtime=True))
+                keys.append(('changed', state))
             else:
-                options.append(value)
+                if value is None or (value.operation, value.payload) not in self.events:
+                    raise ProgramError(trigger, f'{name!r} is not an event dependency')
+                keys.append((value.operation, value.payload))
+                options = ([TypedExpression(value.value_type, 'input', payload=member, runtime=True)
+                            for member in value.payload] if value.operation == 'multi_input' else [value])
+                conditions.extend(TypedExpression(model.types.boolean, 'is_some', (option,), runtime=True)
+                                  for option in options)
         self.check_nesting(expression, keys)
         before = dict(self.initialization)
         previous = dict(self.present)
         slot = None
         self.on_blocks.append((expression, keys))
         try:
-            if len(expression.triggers) == 1 and value.operation != 'multi_input':
+            if (len(expression.triggers) == 1 and not expression.triggers[0].is_changed
+                    and value.operation != 'multi_input'):
                 # The only trigger is present in the block, so its name reads the payload.
                 slot = self.next_slot
                 self.next_slot += 1
@@ -1103,16 +1143,15 @@ class ExpressionCompiler:
         condition = TypedExpression(model.types.boolean, 'constant', payload=ConstantValue(
             model.types.boolean, False, ast_element=expression,
         ))
-        for option in options:
-            present = TypedExpression(model.types.boolean, 'is_some', (option,), runtime=True)
-            condition = (present if condition.operation == 'constant'
-                         else TypedExpression(model.types.boolean, 'or', (condition, present), runtime=True))
+        for trigger_condition in conditions:
+            condition = (trigger_condition if condition.operation == 'constant'
+                         else TypedExpression(model.types.boolean, 'or', (condition, trigger_condition), runtime=True))
         return TypedExpression(model.types.unit, 'if', (condition, body, absent))
 
     def check_nesting(self, expression, keys):
         """Warn when enclosing on blocks make this one always run, or run only by coincidence."""
         def names(block):
-            return ' or '.join(repr(trigger.id_str) for trigger in block.triggers)
+            return ' or '.join(trigger.description for trigger in block.triggers)
 
         def warn(name, enclosing, message):
             self.scope.coordinator.warnings.warn(
@@ -1123,7 +1162,7 @@ class ExpressionCompiler:
         # A present loop variable implies its multi event.
         for enclosing, outer_keys in self.on_blocks:
             if all(outer in keys or self.event_loops.get(outer) in keys for outer in outer_keys):
-                warn('RedundantOn', enclosing, f'Block always runs, since {names(enclosing)} is present here')
+                warn('RedundantOn', enclosing, f'Block always runs, since {names(enclosing)} holds here')
                 return
         if not self.on_blocks:
             return
@@ -1132,7 +1171,7 @@ class ExpressionCompiler:
             if (key in outer_keys or self.event_loops.get(key) in outer_keys
                     or any(self.event_loops.get(outer) == key for outer in outer_keys)):
                 return
-        warn('SimultaneousEvents', enclosing,
+        warn('CoincidentTriggers', enclosing,
              f'Block runs only if {names(expression)} occurs in the same step as {names(enclosing)}')
 
     def block(self, expression, expected):
@@ -1730,7 +1769,7 @@ def fold_constants(expression):
 
 
 def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
-                      multi_sources=None, event_sources=(), event_outputs=()):
+                      multi_sources=None, event_sources=(), event_outputs=(), changed_states=None, old_states=None):
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     multi_sources = multi_sources or {}
@@ -1756,6 +1795,8 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
         value = names[name]
         compiler.events[value.operation, value.payload] = value.value_type.inner_type
     compiler.event_outputs = set(event_outputs)
+    compiler.changed_states = changed_states or {}
+    compiler.old_state_inputs = {state: names[name] for state, name in (old_states or {}).items()}
     for name, value_type in output_types.items():
         compiler.bind(name, TypedExpression(value_type, 'output', payload=name, runtime=True))
     body = compiler.compile(declaration.body, model.types.unit)
@@ -1766,4 +1807,7 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
     procedure.static_usage = frozenset(compiler.static_usage)
     body = fold_constants(body)
     event_outputs = tuple(name for name in output_types if name in compiler.event_outputs)
-    return InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body, event_outputs)
+    for state, value in compiler.implicit_old_states.items():
+        source_types[state] = value.value_type
+    compiled = InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body, event_outputs)
+    return compiled, tuple(compiler.implicit_old_states)

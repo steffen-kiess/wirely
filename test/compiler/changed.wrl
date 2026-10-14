@@ -1,0 +1,42 @@
+// Direct state inputs and outputs, aliases, and mixed triggers.
+node type Changed {
+  input Event: event unit;
+  output Changed: event uint8;
+  state saved: uint8 = 0;
+  procedure write produces saved as next {
+    if true { next = 1; } else { next = 2; }
+    let result: unit = on changed next, {};
+  }
+  procedure read
+    depends on saved.new as first, saved.new as second, Event as event
+    produces Changed as output
+  {
+    on changed first {
+      #[Allow(RedundantOn)]
+      on changed second { emit output(first); }
+    }
+    on event, changed second, {}
+    #[Allow(CoincidentTriggers)]
+    on event {
+      on changed first { let payload: unit = event; }
+    }
+  }
+}
+node source: Std.DebugEventSource { Type: unit }
+node changed: Changed {}
+connect source -> changed.Event;
+
+// changed is a weak keyword, including as a state output's alias.
+node type Keyword {
+  state saved: uint8 = 0;
+  procedure write produces saved as changed {
+    changed = 1;
+    on changed changed {}
+  }
+  procedure names {
+    let mut changed = Some(1);
+    changed = None;
+    assert { let changed = Some(1); changed.IsSome };
+  }
+}
+node keyword: Keyword {}

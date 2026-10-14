@@ -193,7 +193,9 @@ struct_literal_field: identifier ":" expression
 ?block_expression: if_expression | expression_block | for_expression | on_expression
 for_expression: "for" identifier "in" expression_no_struct expression_block
 on_expression: "on" on_trigger_list expression_block
-on_trigger_list: _list1{identifier} -> copy_list
+on_trigger_list: _list1{on_trigger} -> copy_list
+on_trigger: identifier -> on_trigger
+    | "changed" identifier -> on_trigger__changed
 ?nonblock_atom: int_number -> copy
     | float_number -> copy
     | string_constant -> copy
@@ -223,6 +225,7 @@ reference: identifier ("." identifier)* -> reference__from_list
 !identifier: CNAME
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
+    | "changed"
     | "constant"
     | "default"
     | "event"

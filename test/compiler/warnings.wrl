@@ -17,11 +17,11 @@ procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
     if value {
       on c {} // W: Block runs only if 'c'
     }
-    on a {} // W: Block always runs, since 'a' is present here
-    on a, b {} // W: Block always runs, since 'a' is present here
+    on a {} // W: Block always runs, since 'a' holds here
+    on a, b {} // W: Block always runs, since 'a' holds here
     on b {
       // ^W: Block runs only if 'b'
-      on a {} // W: Block always runs, since 'a' is present here
+      on a {} // W: Block always runs, since 'a' holds here
     }
     for item in inputs {
       on item {} // W: Block runs only if 'item'
@@ -29,19 +29,19 @@ procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
   }
   on a, b {
     on a { value = a; }
-    on a, b {} // W: Block always runs, since 'a' or 'b' is present here
+    on a, b {} // W: Block always runs, since 'a' or 'b' holds here
   }
   on inputs {
     for item in inputs {
       on item {
-        on inputs {} // W: Block always runs, since 'inputs' is present here
-        on item {} // W: Block always runs, since 'item' is present here
+        on inputs {} // W: Block always runs, since 'inputs' holds here
+        on item {} // W: Block always runs, since 'item' holds here
       }
     }
   }
   for item in inputs {
     on item {
-      on inputs {} // W: Block always runs, since 'item' is present here
+      on inputs {} // W: Block always runs, since 'item' holds here
     }
   }
   nested = value;
@@ -52,14 +52,14 @@ connect c, d -> nest.inputs;
 state allowed: boolean = false;
 procedure allow_statements depends on a, b, c produces allowed {
   on a {
-    #[Allow(SimultaneousEvents)]
+    #[Allow(CoincidentTriggers)]
     on b {}
-    #[Allow(SimultaneousEvents)]
+    #[Allow(CoincidentTriggers)]
     if true {
       on b {}
     }
   }
-  #[Allow(SimultaneousEvents)]
+  #[Allow(CoincidentTriggers)]
   on a {
     on b {
       on c {}
@@ -68,12 +68,12 @@ procedure allow_statements depends on a, b, c produces allowed {
   allowed = false;
 }
 
-#[Allow(SimultaneousEvents)]
+#[Allow(CoincidentTriggers)]
 procedure allow_procedure depends on a, b {
   on a { on b {} }
 }
 
-#[Allow(NativeFunction, SimultaneousEvents)]
+#[Allow(NativeFunction, CoincidentTriggers)]
 node type AllowedType {
   default input: event boolean;
   input Other: event boolean;
@@ -151,3 +151,40 @@ node type EmitWarnings {
 }
 node emit_warnings: EmitWarnings {}
 connect a -> emit_warnings.Input;
+
+// State-change aliases share trigger identity; events and changes are distinct.
+state trigger_a: boolean = false;
+state trigger_b: boolean = false;
+procedure write_triggers produces trigger_a, trigger_b {
+  trigger_a = true;
+  trigger_b = false;
+}
+procedure state_nesting
+  depends on trigger_a.new as first, trigger_a.new as alias,
+    trigger_b.new as second, a as event
+{
+  on changed first {
+    on changed alias {} // W: Block always runs, since changed 'first' holds here
+    on changed second {} // W: [CoincidentTriggers]
+    on event {} // W: [CoincidentTriggers]
+  }
+  on event {
+    on changed first {} // W: [CoincidentTriggers]
+  }
+  on event, changed first {
+    on changed alias {}
+  }
+  #[Allow(CoincidentTriggers)]
+  on event { on changed first {} }
+}
+
+// Suggestions include state inputs and only definitely assigned state outputs.
+state suggested: boolean = false;
+procedure suggest
+  depends on trigger_a.new as current
+  produces suggested as next, before: event unit, after: event unit
+{
+  emit before; // W: available state triggers: on changed current
+  next = true;
+  emit after; // W: available state triggers: on changed current, on changed next
+}

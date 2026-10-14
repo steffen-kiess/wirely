@@ -1,0 +1,52 @@
+node value: Std.DebugValueSource { Type: uint8 }
+node event: Std.DebugEventSource { Type: unit }
+
+node type Watch {
+  input Value: value uint8;
+  input Event: event unit;
+  output Written: event uint8;
+  output Read: event uint8;
+  output Copied: event uint8;
+  output Mixed: event unit;
+  output Previous: event uint8;
+  output Option: event Option[uint8];
+  state saved: uint8 = 0;
+  state copied: uint8 = 0;
+  state option: Option[uint8] = None;
+  connect Value -> copied;
+
+  procedure write
+    depends on Value as value
+    produces saved as next, option, Written as output
+  {
+    next = value;
+    option = if value == 0 { None } else { Some(value) };
+    on changed next { emit output(next); }
+  }
+  procedure read
+    depends on saved.new as first, saved.new as second,
+      saved.old as previous, Event as event
+    produces Read as output, Previous as old, Mixed as mixed
+  {
+    on changed first {
+      emit output(first);
+      emit old(previous);
+    }
+    on event, changed second { emit mixed; }
+  }
+  procedure copy
+    depends on copied.new as current
+    produces Copied as output
+  {
+    on changed current { emit output(current); }
+  }
+  procedure read_option
+    depends on option.new as current
+    produces Option as output
+  {
+    on changed current { emit output(current); }
+  }
+}
+node watch: Watch {}
+connect value -> watch.Value;
+connect event -> watch.Event;

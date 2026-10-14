@@ -1,0 +1,95 @@
+// TEST: old_dependency
+state saved: boolean = false;
+procedure write produces saved { saved = true; }
+procedure read depends on saved.old as current {
+  on changed current {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: local
+procedure run {
+  let value = false;
+  on changed value {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: unassigned_output
+state saved: boolean = false;
+procedure run produces saved {
+  on changed saved {} // E: not definitely initialized
+  saved = true;
+}
+
+// TEST: partially_assigned_output
+// LIBRARIES: std
+node source: Std.DebugValueSource { Type: boolean }
+state saved: boolean = false;
+procedure run depends on source produces saved {
+  if source { saved = true; }
+  on changed saved {} // E: not definitely initialized
+}
+
+// TEST: unlisted_old_value
+state saved: boolean = false;
+procedure run produces saved {
+  saved = true;
+  on changed saved {
+    let old = saved.old; // E: has no property 'old'
+  }
+}
+
+// TEST: mixed_presence
+// LIBRARIES: std
+node source: Std.DebugEventSource { Type: boolean }
+state saved: boolean = false;
+procedure run depends on source produces saved {
+  saved = true;
+  on source, changed saved {
+    let payload = source; // E: can only be read inside 'on source'
+  }
+}
+
+// TEST: value_input_connected_to_state
+state saved: boolean = false;
+procedure write produces saved { saved = true; }
+procedure read depends on current: value boolean {
+  on changed current {} // E: is not a direct .new dependency or state output
+}
+connect saved.new -> read.current;
+
+// TEST: indirect_state_reference
+state saved: boolean = false;
+procedure write produces current: value boolean { current = true; }
+connect write.current -> saved;
+procedure read depends on write.current as current {
+  on changed current {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: value_output_connected_to_state
+state saved: boolean = false;
+procedure write produces current: value boolean {
+  current = true;
+  on changed current {} // E: is not a direct .new dependency or state output
+}
+connect write.current -> saved;
+
+// TEST: event_input
+// LIBRARIES: std
+node event: Std.DebugEventSource { Type: unit }
+procedure read depends on event {
+  on changed event {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: event_output
+procedure write produces output: event unit {
+  on changed output {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: missing_state_dependency
+state saved: boolean = false;
+procedure write produces saved { saved = true; }
+procedure read {
+  on changed saved {} // E: is not a direct .new dependency or state output
+}
+
+// TEST: old_warning_name
+#[Allow(SimultaneousEvents)] // E: Unknown warning SimultaneousEvents
+procedure run {}

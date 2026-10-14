@@ -339,14 +339,14 @@ node type T {
 #[Allow] constant C: boolean = true; // E: Allow requires warning names
 
 // TEST: Allow value argument
-#[Allow(SimultaneousEvents = 1)] constant C: boolean = true;
+#[Allow(CoincidentTriggers = 1)] constant C: boolean = true;
 // ^E: Allow arguments must be warning names
 
 // TEST: Allow on connection
 node type T {
   input A: value boolean;
   output B: value boolean;
-  #[Allow(SimultaneousEvents)] connect A -> B;
+  #[Allow(CoincidentTriggers)] connect A -> B;
   // ^E: Attribute Allow is not permitted on connection
 }
 

@@ -121,7 +121,7 @@ def _warning_names(attribute):
 
     metadata = attribute.metadata
     if metadata.kind != 'list' or not metadata.value:
-        _error(attribute, f'{attribute.name} requires warning names, as in {attribute.name}(SimultaneousEvents)')
+        _error(attribute, f'{attribute.name} requires warning names, as in {attribute.name}(CoincidentTriggers)')
     names = []
     for argument in metadata.value:
         if not isinstance(argument, Metadata) or argument.kind != 'flag':

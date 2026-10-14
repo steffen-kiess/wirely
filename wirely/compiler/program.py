@@ -334,6 +334,7 @@ def lower_program(global_node_type):
 
     # Compile .wrl bodies after instance parameters and variable types resolve.
     bodies = {}
+    old_state_dependencies = {}
 
     functions = []
     function_indices = {}
@@ -358,10 +359,22 @@ def lower_program(global_node_type):
             source_types = {}
             multi_sources = {}
             event_sources = set()
+            changed_states = {}
+            old_states = {}
             for name, source in proc.static_context._sources.items():
                 declaration = proc.declaration_procedure
                 port = next(port for port in declaration.depends.dependencies
                                if port.key == name)
+                if isinstance(source, model.StateRead):
+                    state_path, state = model.resolve_variable(path, source.state)
+                    variable = state_map[state_path, state]
+                    if source.phase == 'old':
+                        old_states.setdefault(variable, name)
+                    elif (isinstance(port, model.ast.ReferencePort)
+                          and port.reference.length == 2
+                          and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes
+                          and port.reference.identifiers[1].id_str == 'new'):
+                        changed_states[name] = variable
                 if model.ast.dependency_is_resource(source):
                     raise model.ProgramError(port, 'Procedures cannot access resources')
                 spec = getattr(source, 'port_spec', None)
@@ -396,10 +409,16 @@ def lower_program(global_node_type):
                 variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                             else variable_map[path, target.var_identifier].variable)
                 output_types[name] = variable.var_type
+                if (isinstance(target, model.InstanceStateVariable)
+                        and isinstance(port, model.ast.ReferencePort)
+                        and port.reference.length == 1
+                        and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes):
+                    changed_states[name] = variable
             with warnings.instance(instances[path].instantiation_hint()):
-                bodies[path, proc] = compile_procedure(proc, instances[path], source_types, output_types,
-                                                     intern_constant, intern_function, multi_sources,
-                                                     event_sources, event_outputs)
+                bodies[path, proc], old_state_dependencies[path, proc] = compile_procedure(
+                    proc, instances[path], source_types, output_types, intern_constant, intern_function,
+                    multi_sources, event_sources, event_outputs, changed_states, old_states,
+                )
 
     from .static_bindings import evaluate_bindings
     schedules = {}
@@ -422,6 +441,8 @@ def lower_program(global_node_type):
                 for index, (member_path, member, _) in enumerate(members(path, source)):
                     debug_name = f'{key}[{index}]' if is_list else key
                     dependencies.append((debug_name, resolve_source(member_path, member)))
+            for state in old_state_dependencies.get((path, proc), ()):
+                dependencies.append((f'<changed old {state.name}>', InputSource(state, new_state=False)))
             for name, target in proc.static_context._targets.items():
                 key = output_keys[name]
                 if isinstance(target, model.InstanceStateVariable):

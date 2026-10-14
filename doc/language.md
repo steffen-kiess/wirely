@@ -94,11 +94,11 @@ item, including everything nested in it. It can appear on files with
 `#![Allow(...)]`, namespaces, node types, node instances, constants,
 parameters, states, temporaries, resources, assertions, procedures, and
 statements. Warnings are
-reported with their name, for example `[SimultaneousEvents]`:
+reported with their name, for example `[CoincidentTriggers]`:
 
 | Name | Reported for |
 | --- | --- |
-| `SimultaneousEvents` | A nested `on` block whose triggers are all unrelated to the enclosing block's. |
+| `CoincidentTriggers` | A nested `on` block whose triggers are all unrelated to the enclosing block's. |
 | `RedundantOn` | A nested `on` block that always runs because an enclosing block guarantees one of its triggers. |
 | `UnguardedEvent` | An event emission outside an `on` block. |
 | `Unused` | A temporary or resource that nothing in its node type reads; an output of the node type counts as a reader. |
@@ -181,7 +181,7 @@ implementation, as in
 `native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
 Each native name identifies one declaration of its kind.
 
-Identifiers are case-sensitive. Weak keywords `constant`, `default`,
+Identifiers are case-sensitive. Weak keywords `changed`, `constant`, `default`,
 `emit`, `event`, `in`, `input`, `multi`, `on`, `output`, `resource`, `stage`,
 `state`, `type`, and `value` can also be used as identifiers. Other keywords
 require the `r#` prefix when used as names, for example
@@ -772,10 +772,11 @@ from holding up actions such as switching on a light. The goal is prompt,
 predictable home automation, rather than a hard real-time guarantee;
 execution cost still depends on the body and the size of its values.
 
-An `on` block runs when at least one of its comma-separated triggers is
-present in this step. A trigger directly names an event dependency or the
+An `on` block runs when at least one of its comma-separated triggers holds
+in this step. An event trigger directly names an event dependency or the
 loop variable over a multi event dependency; a multi event dependency is
-present when any of its sources is. Inside a block whose only trigger is an
+present when any of its sources is. State-change triggers are described
+below. Inside a block whose only trigger is an
 `event T` dependency, its name reads the payload as `T`, also in nested
 blocks; elsewhere, reading the name fails compilation. `optional(e)` reads
 an event dependency or a loop variable over a multi event dependency
@@ -792,8 +793,9 @@ last_reset = optional(reset).UnwrapOr(previous_reset);
 
 When several events are present in the same step, each of their blocks
 runs, in order. A block nested in another with only unrelated triggers runs
-only when the events coincide, and causes a `SimultaneousEvents` warning; a
-nested block that always runs causes a `RedundantOn` warning.
+only when those triggers hold in the same step, and causes a
+`CoincidentTriggers` warning; a nested block that always runs causes a
+`RedundantOn` warning.
 `on` blocks yield unit, have no `else`, and are available only in procedure
 bodies. Store an event's effect in state to keep it after the event ends.
 
@@ -826,6 +828,30 @@ that stays present can repeatedly cause external actions. Any enclosing
 `on` block guards an emission; an ordinary `if` does not. Use
 `#[Allow(UnguardedEvent)]` on a statement, procedure, or enclosing item for
 intentional unguarded emissions.
+
+A state-change trigger, `on changed name`, runs when the state's value in
+this step differs from its previous value. Name an explicit `.new`
+dependency or an explicit state reference in `produces`, using its
+procedure-local alias. For a state output, assign it on every path reaching
+the block:
+
+```wirely
+procedure update depends on input produces saved as next, output {
+  next = input;
+  on changed next { emit output(next); }
+}
+```
+
+The first step compares against the state's declared initial value. The
+comparison implicitly reads `.old`; reading the old value in the body
+still requires an explicit dependency. Events emitted by the block
+disappear when the state settles.
+
+Combine triggers with commas, as in `on input, changed next`. The block
+runs when any trigger holds; this does not guarantee that `input` is
+present. Aliases of the same state denote the same change condition for
+nesting warnings. State-change blocks also guard emissions. Unguarded
+emission warnings suggest available state-change targets.
 
 Use native procedures for external effects or operations outside this
 expression subset. Their `.wrl` declarations specify the interface and

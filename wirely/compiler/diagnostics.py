@@ -63,7 +63,7 @@ def error_diagnostics(error, *, always_print_stacktrace=False):
 
 
 # Warning names accepted by #[Allow(...)].
-WARNINGS = frozenset({'NativeFunction', 'RedundantOn', 'SimultaneousEvents', 'UnguardedEvent', 'Unused'})
+WARNINGS = frozenset({'NativeFunction', 'RedundantOn', 'CoincidentTriggers', 'UnguardedEvent', 'Unused'})
 
 
 class WarningSink:
