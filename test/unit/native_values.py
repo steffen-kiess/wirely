@@ -25,7 +25,8 @@ registry = {}
 
 
 def identity(*, context):
-    return context.arguments['value']
+    value, = context.arguments
+    return value
 
 
 @native_node_type(registry, has_native_state=True)
@@ -131,7 +132,7 @@ def check_values():
 namespace Example {
   enum type Mode: uint8 { On = 1, }
   struct type Pair { value: boolean, }
-  native constant function Same as "Example.Identity"(value: uint16): uint16;
+  native constant function Same as "Example.Identity"(number: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }

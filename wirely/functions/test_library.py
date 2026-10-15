@@ -8,8 +8,8 @@ native_functions = {}
 
 @native_function(native_functions, 'Clamp')
 def clamp(*, context):
-    arguments = context.arguments
-    return min(max(arguments['value'], arguments['low']), arguments['high'])
+    value, low, high = context.arguments
+    return min(max(value, low), high)
 
 
 @native_function(native_functions, 'Nothing')

@@ -5,11 +5,13 @@ from pathlib import Path
 
 
 def join(*, context):
-    return os.path.join(context.arguments['base'], context.arguments['path'])
+    base, path = context.arguments
+    return os.path.join(base, path)
 
 
 def parent(*, context):
-    return str(Path(context.arguments['path']).parent)
+    path, = context.arguments
+    return str(Path(path).parent)
 
 
 def source_file(*, context):

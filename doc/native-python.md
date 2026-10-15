@@ -362,12 +362,12 @@ native_functions = {}
 
 @native_function(native_functions, 'Clamp')
 def clamp(*, context):
-    arguments = context.arguments
-    return min(max(arguments['value'], arguments['low']), arguments['high'])
+    value, low, high = context.arguments
+    return min(max(value, low), high)
 ```
 
-The context has read-only `function_name`, `arguments` (native values by
-declared argument name), and `return_type` (a `wirely.ValueType`). Build a
+The context has read-only `function_name`, `arguments` (a tuple of native
+values in declaration order), and `return_type` (a `wirely.ValueType`). Build a
 struct result with `context.return_type.struct_type`. Implementations must
 be synchronous and pure: the result depends only on the arguments, and
 calling the function has no side effects. They must return a value of the
@@ -394,11 +394,11 @@ native_function_impls['Example.Parse'] = (
 
 
 def parse(*, context):
-    value = context.arguments['value']
+    value, = context.arguments
     try:
         return int(value)
     except ValueError:
-        raise context.error('Expected an integer', argument='value')
+        raise context.error('Expected an integer', argument=0)
 ```
 
 The compiler imports module entries when a call is evaluated. Unused
@@ -407,9 +407,9 @@ Implementations must be synchronous, accept `context=context`, and return
 one value matching the declared return type.
 
 `NativeFunctionContext` has read-only `function_name` (the native name),
-`arguments` (native values by declared argument name), `return_type`,
-`arguments_ast` (call-site expression nodes by name), and `call` (the call
-node).
+`arguments` (a tuple of native values in declaration order), `return_type`,
+`arguments_ast` (a tuple of call-site expressions in the same order), and
+`call` (the call node).
 `services` is a read-only mapping of Python objects supplied through the
 optional `services` argument to `compile_files()` or `compile_strs()`.
 The compiler copies the mapping, preserving its objects by reference, and
@@ -419,8 +419,9 @@ rather than runtime execution data. Service objects may manage mutable
 state. Treat values and AST nodes as read-only. Native value conversions
 apply, including `wirely.ValueType` for type values and `wirely.Unit()` for
 unit. Use `raise context.error(message)` for a call-site diagnostic, or
-supply `argument='name'` to point at that argument. `ValueError`,
-`ArithmeticError`, and `OSError` also produce call-site compilation errors.
+supply `argument=0` to point at the first argument (indices are zero-based).
+`ValueError`, `ArithmeticError`, and `OSError` also produce call-site
+compilation errors.
 `context.warn(message)` reports a `NativeFunction` warning at the call and
 returns; it accepts `argument=` as well. A call can be evaluated more than
 once, for example once per instance; equal warnings at one call are

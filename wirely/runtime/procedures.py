@@ -81,7 +81,7 @@ def execute_procedure(program, procedure, inputs, functions=()):
                 function = program.functions[operands[1]]
                 # Implementations must not fail; an exception is a library error.
                 result = call_native_function(
-                    functions[operands[1]], function.name, function.argument_names,
+                    functions[operands[1]], function.name,
                     function.parameter_types, function.return_type,
                     [read(argument) for argument in operands[3:]])
             elif opcode in CONVERSION_OPCODES:

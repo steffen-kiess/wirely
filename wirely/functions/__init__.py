@@ -7,9 +7,7 @@ their arguments, and they have no side effects.
 
 import importlib
 import inspect
-from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 
 from ..types import value_types
 
@@ -36,7 +34,7 @@ def native_function(registry, name):
 @dataclass(frozen=True, slots=True)
 class RuntimeFunctionContext:
     function_name: str  # Native name, such as 'Duration.CheckedAdd'.
-    arguments: Mapping[str, object]  # Native argument values by declared name.
+    arguments: tuple[object, ...]  # Native argument values in declaration order.
     return_type: value_types.ValueType  # Declared return type.
 
 
@@ -55,14 +53,14 @@ def validate_native_function(implementation, function_name):
         raise ValueError(f'Invalid native function {description!r}: {error}') from error
 
 
-def call_native_function(implementation, function_name, argument_names, parameter_types, return_type, values):
+def call_native_function(implementation, function_name, parameter_types, return_type, values):
     """Call an implementation with runtime values and return its result as a runtime value.
 
     Implementations must be total; exceptions propagate to the caller."""
-    arguments = {name: value_types._to_native(value_type, value)
-                 for name, value_type, value in zip(argument_names, parameter_types, values)}
+    arguments = tuple(value_types._to_native(value_type, value)
+                      for value_type, value in zip(parameter_types, values))
     result = implementation(context=RuntimeFunctionContext(
-        function_name, MappingProxyType(arguments), value_types.ValueType(return_type)))
+        function_name, arguments, value_types.ValueType(return_type)))
     return return_type.verify_value(value_types._from_native(return_type, result))
 
 

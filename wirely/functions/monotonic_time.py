@@ -12,18 +12,17 @@ native_functions = {}
 _MAX_TICKS = wirely.MonotonicTime.MAX_TICKS
 
 
-def _offset(context, sign):
-    time = context.arguments['time']
-    return time.generation, time.ticks + sign * context.arguments['duration'].ticks
+def _offset(time, duration, sign):
+    return time.generation, time.ticks + sign * duration.ticks
 
 
-def _saturating(context, sign):
-    generation, ticks = _offset(context, sign)
+def _saturating(time, duration, sign):
+    generation, ticks = _offset(time, duration, sign)
     return wirely.MonotonicTime(generation=generation, ticks=min(max(ticks, 0), _MAX_TICKS))
 
 
-def _checked(context, sign):
-    generation, ticks = _offset(context, sign)
+def _checked(time, duration, sign):
+    generation, ticks = _offset(time, duration, sign)
     if 0 <= ticks <= _MAX_TICKS:
         return wirely.Some(wirely.MonotonicTime(generation=generation, ticks=ticks))
     return None
@@ -31,27 +30,31 @@ def _checked(context, sign):
 
 @native_function(native_functions, 'SaturatingAdd')
 def saturating_add(*, context):
-    return _saturating(context, 1)
+    time, duration = context.arguments
+    return _saturating(time, duration, 1)
 
 
 @native_function(native_functions, 'SaturatingSub')
 def saturating_sub(*, context):
-    return _saturating(context, -1)
+    time, duration = context.arguments
+    return _saturating(time, duration, -1)
 
 
 @native_function(native_functions, 'CheckedAdd')
 def checked_add(*, context):
-    return _checked(context, 1)
+    time, duration = context.arguments
+    return _checked(time, duration, 1)
 
 
 @native_function(native_functions, 'CheckedSub')
 def checked_sub(*, context):
-    return _checked(context, -1)
+    time, duration = context.arguments
+    return _checked(time, duration, -1)
 
 
 @native_function(native_functions, 'CheckedDurationSince')
 def checked_duration_since(*, context):
-    time, earlier = context.arguments['time'], context.arguments['earlier']
+    time, earlier = context.arguments
     if time.generation != earlier.generation or earlier.ticks > time.ticks:
         return None
     return wirely.Some(wirely.Duration(ticks=time.ticks - earlier.ticks))
@@ -59,7 +62,7 @@ def checked_duration_since(*, context):
 
 @native_function(native_functions, 'CheckedLess')
 def checked_less(*, context):
-    a, b = context.arguments['a'], context.arguments['b']
+    a, b = context.arguments
     if a.generation != b.generation:
         return None
     return wirely.Some(a.ticks < b.ticks)

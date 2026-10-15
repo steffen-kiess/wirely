@@ -30,37 +30,42 @@ class TestResources(Protocol):
 
 
 def replace_knx_path(*, context):
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
-        return context.arguments['default']
+        return default
     return context.services[TEST_RESOURCES_SERVICE].get_knx_path()
 
 
 def replace_mqtt_uri(*, context):
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
-        return context.arguments['default']
+        return default
     return context.services[TEST_RESOURCES_SERVICE].get_mqtt_uri()
 
 
 def replace_output_path(*, context):
-    default = context.arguments['default']
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
     return context.services[TEST_RESOURCES_SERVICE].get_output_path(default)
 
 
 def replace_twon_host(*, context):
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
-        return context.arguments['default']
+        return default
     return context.services[TEST_RESOURCES_SERVICE].get_twon_info().host
 
 
 def replace_twon_port(*, context):
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
-        return context.arguments['default']
+        return default
     return context.services[TEST_RESOURCES_SERVICE].get_twon_info().port
 
 
 def replace_twon_tlsa(*, context):
+    default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
-        return context.arguments['default']
+        return default
     return (context.services[TEST_RESOURCES_SERVICE].get_twon_info().server.tlsa,)

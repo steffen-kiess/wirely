@@ -6,14 +6,15 @@ import wirely
 def parse_group_address(*, context):
     import xknx
 
+    address, = context.arguments
     try:
-        return xknx.telegram.GroupAddress(context.arguments['address']).raw
+        return xknx.telegram.GroupAddress(address).raw
     except xknx.exceptions.CouldNotParseAddress as error:
-        raise context.error(str(error), argument='address') from error
+        raise context.error(str(error), argument=0) from error
 
 
 def value_type_name(*, context):
-    ty = context.arguments['type']
+    ty, = context.arguments
     names = {
         wirely.value_types.boolean: 'binary',
         wirely.value_types.int16: '2byte_signed',
@@ -22,11 +23,12 @@ def value_type_name(*, context):
         wirely.value_types.uint32: '4byte_unsigned',
     }
     if ty not in names:
-        raise context.error(f'Unsupported type for KNX: {ty}', argument='type')
+        raise context.error(f'Unsupported type for KNX: {ty}', argument=0)
     return names[ty]
 
 
 def supports_value_type(*, context):
-    return context.arguments['type'] in (
+    ty, = context.arguments
+    return ty in (
         wirely.value_types.boolean, wirely.value_types.uint16,
     )

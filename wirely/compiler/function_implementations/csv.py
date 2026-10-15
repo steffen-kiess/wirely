@@ -2,4 +2,5 @@
 
 
 def supports_type(*, context):
-    return context.arguments['type'].supports_csv
+    value_type, = context.arguments
+    return value_type.supports_csv

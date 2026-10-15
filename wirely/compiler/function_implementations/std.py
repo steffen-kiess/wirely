@@ -5,15 +5,15 @@ from wirely.runtime.structs import StdFormatParts
 
 
 def parse_format(*, context):
-    value_type = context.arguments['type']
+    format_string, value_type = context.arguments
     try:
-        prefix, suffix, has_value = parse_format_string(context.arguments['format'])
+        prefix, suffix, has_value = parse_format_string(format_string)
     except ValueError as error:
-        raise context.error(str(error), argument='format') from error
+        raise context.error(str(error), argument=0) from error
     if has_value and value_type == wirely.value_types.unit:
-        raise context.error('Format with {} for unit type', argument='format')
+        raise context.error('Format with {} for unit type', argument=0)
     if not has_value and value_type != wirely.value_types.unit:
-        raise context.error(f'Format without {{}} for type {value_type}', argument='format')
+        raise context.error(f'Format without {{}} for type {value_type}', argument=0)
     return context.return_type.struct_type.from_native(StdFormatParts(prefix, suffix, has_value))
 
 

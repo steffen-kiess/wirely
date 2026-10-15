@@ -39,7 +39,6 @@ class DeclarationNativeFunction(Declaration):
         names = [argument.name.id_str for argument in self.arguments]
         if len(set(names)) != len(names):
             raise ProgramError(self, 'Duplicate function argument name')
-        self.argument_names = tuple(names)
         if self.is_constant:
             validate_entry(self.native_name, self)
         graph.native_functions[self.name.id_str] = self

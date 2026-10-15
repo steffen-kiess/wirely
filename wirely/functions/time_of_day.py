@@ -10,7 +10,8 @@ _DAY_TICKS = wirely.TimeOfDay.END_TICKS
 
 @native_function(native_functions, 'Less')
 def less(*, context):
-    return context.arguments['a'].ticks < context.arguments['b'].ticks
+    a, b = context.arguments
+    return a.ticks < b.ticks
 
 
 def _wrap(time, offset):
@@ -23,17 +24,20 @@ def _wrap(time, offset):
 
 @native_function(native_functions, 'WrappingAdd')
 def wrapping_add(*, context):
-    return _wrap(context.arguments['time'], context.arguments['duration'].ticks)
+    time, duration = context.arguments
+    return _wrap(time, duration.ticks)
 
 
 @native_function(native_functions, 'WrappingSub')
 def wrapping_sub(*, context):
-    return _wrap(context.arguments['time'], -context.arguments['duration'].ticks)
+    time, duration = context.arguments
+    return _wrap(time, -duration.ticks)
 
 
 @native_function(native_functions, 'DurationUntil')
 def duration_until(*, context):
-    difference = context.arguments['to'].ticks - context.arguments['from'].ticks
+    start, end = context.arguments
+    difference = end.ticks - start.ticks
     if difference < 0:
         difference += _DAY_TICKS
     return wirely.Duration(ticks=difference)

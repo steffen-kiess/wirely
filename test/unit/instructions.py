@@ -1,7 +1,9 @@
 import io
 from unittest import TestCase
+from unittest.mock import patch
 
 from wirely import types
+from wirely.functions.test_library import native_functions
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
@@ -150,23 +152,35 @@ def check_conversions():
 
 
 def check_calls():
-    clamp = Function('TestLibrary.Clamp', ('value', 'low', 'high'), (types.int16,) * 3, types.int16)
-    nothing = Function('TestLibrary.Nothing', (), (), types.unit)
-    outcome = execute([
-        instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
-        instruction(Opcode.CALL, output(1), 1, 0),
-        instruction(Opcode.RETURN),
-    ], output_types=(types.int16, types.unit), functions=(clamp, nothing),
-       constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)))
+    clamp = Function('TestLibrary.Clamp', (types.int16,) * 3, types.int16)
+    nothing = Function('TestLibrary.Nothing', (), types.unit)
+
+    def clamp_values(*, context):
+        assert type(context.arguments) is tuple
+        assert context.arguments == (500, 0, 100)
+        value, low, high = context.arguments
+        return min(max(value, low), high)
+
+    def no_values(*, context):
+        assert context.arguments == ()
+        return types.Unit()
+
+    with patch.dict(native_functions, {'Clamp': clamp_values, 'Nothing': no_values}):
+        outcome = execute([
+            instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
+            instruction(Opcode.CALL, output(1), 1, 0),
+            instruction(Opcode.RETURN),
+        ], output_types=(types.int16, types.unit), functions=(clamp, nothing),
+           constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)))
     assert outcome == (100, types.Unit())
 
     # Linking requires an implementation for every table entry.
-    missing = Function('TestLibrary.Missing', (), (), types.boolean)
+    missing = Function('TestLibrary.Missing', (), types.boolean)
     with checks.assertRaisesRegex(ValueError, "Cannot find native function 'TestLibrary.Missing'"):
         execute([instruction(Opcode.RETURN)], functions=(missing,))
 
     # Implementations must not fail; an exception propagates.
-    fail = Function('TestLibrary.Fail', (), (), types.boolean)
+    fail = Function('TestLibrary.Fail', (), types.boolean)
     with checks.assertRaisesRegex(RuntimeError, 'Fail always fails'):
         execute([instruction(Opcode.CALL, output(0), 0, 0), instruction(Opcode.RETURN)], functions=(fail,))
 
@@ -181,8 +195,7 @@ def check_calls():
                    'Expected type int16, got uint8', **options)
     expect_invalid([instruction(Opcode.CALL, local(1), 0, 3, local(0), local(0), local(0)), ret],
                    'Expected type int16, got uint8', **options)
-    expect_invalid([ret], 'Function func.0', functions=(Function('Test', ('a',), (types.String,),
-                                                                  types.unit),))
+    expect_invalid([ret], 'Function func.0', functions=(Function('Test', (types.String,), types.unit),))
 
 
 def check_defaults_and_equality():

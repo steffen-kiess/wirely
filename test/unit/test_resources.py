@@ -52,7 +52,7 @@ def check_provider_resources():
         assert first.get_twon_info() is info
         other_info = second.get_twon_info()
         assert info.port != other_info.port
-        context = SimpleNamespace(services={TEST_RESOURCES_SERVICE: first}, arguments={})
+        context = SimpleNamespace(services={TEST_RESOURCES_SERVICE: first}, arguments=(None,))
         assert replace_twon_host(context=context) == info.host
         assert replace_twon_port(context=context) == info.port
         assert replace_twon_tlsa(context=context) == (info.server.tlsa,)

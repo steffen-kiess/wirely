@@ -11,7 +11,8 @@ native_functions = {}
 
 @native_function(native_functions, 'Less')
 def less(*, context):
-    return context.arguments['a'].ticks < context.arguments['b'].ticks
+    a, b = context.arguments
+    return a.ticks < b.ticks
 
 
 def _saturating(ticks):
@@ -24,54 +25,60 @@ def _checked(ticks):
     return None
 
 
-def _sum(context):
-    return context.arguments['a'].ticks + context.arguments['b'].ticks
+def _sum(a, b):
+    return a.ticks + b.ticks
 
 
-def _difference(context):
-    return context.arguments['a'].ticks - context.arguments['b'].ticks
+def _difference(a, b):
+    return a.ticks - b.ticks
 
 
-def _product(context):
-    return context.arguments['duration'].ticks * context.arguments['factor']
+def _product(duration, factor):
+    return duration.ticks * factor
 
 
 @native_function(native_functions, 'SaturatingAdd')
 def saturating_add(*, context):
-    return _saturating(_sum(context))
+    a, b = context.arguments
+    return _saturating(_sum(a, b))
 
 
 @native_function(native_functions, 'SaturatingSub')
 def saturating_sub(*, context):
-    return _saturating(_difference(context))
+    a, b = context.arguments
+    return _saturating(_difference(a, b))
 
 
 @native_function(native_functions, 'SaturatingMul')
 def saturating_mul(*, context):
-    return _saturating(_product(context))
+    duration, factor = context.arguments
+    return _saturating(_product(duration, factor))
 
 
 @native_function(native_functions, 'CheckedAdd')
 def checked_add(*, context):
-    return _checked(_sum(context))
+    a, b = context.arguments
+    return _checked(_sum(a, b))
 
 
 @native_function(native_functions, 'CheckedSub')
 def checked_sub(*, context):
-    return _checked(_difference(context))
+    a, b = context.arguments
+    return _checked(_difference(a, b))
 
 
 @native_function(native_functions, 'CheckedMul')
 def checked_mul(*, context):
-    return _checked(_product(context))
+    duration, factor = context.arguments
+    return _checked(_product(duration, factor))
 
 
 @native_function(native_functions, 'CheckedDiv')
 def checked_div(*, context):
-    divisor = context.arguments['divisor']
+    duration, divisor = context.arguments
     if divisor == 0:
         return None
-    return _checked(context.arguments['duration'].ticks // divisor)
+    return _checked(duration.ticks // divisor)
 
 
 
@@ -96,39 +103,47 @@ def _as_count(duration, per_second):
 
 @native_function(native_functions, 'FromSecs')
 def from_secs(*, context):
-    return wirely.Duration(ticks=_from_count(context.arguments['secs'], 1))
+    secs, = context.arguments
+    return wirely.Duration(ticks=_from_count(secs, 1))
 
 
 @native_function(native_functions, 'FromMillis')
 def from_millis(*, context):
-    return wirely.Duration(ticks=_from_count(context.arguments['millis'], _MILLIS))
+    millis, = context.arguments
+    return wirely.Duration(ticks=_from_count(millis, _MILLIS))
 
 
 @native_function(native_functions, 'FromMicros')
 def from_micros(*, context):
-    return wirely.Duration(ticks=_from_count(context.arguments['micros'], _MICROS))
+    micros, = context.arguments
+    return wirely.Duration(ticks=_from_count(micros, _MICROS))
 
 
 @native_function(native_functions, 'FromNanos')
 def from_nanos(*, context):
-    return wirely.Duration(ticks=_from_count(context.arguments['nanos'], _NANOS))
+    nanos, = context.arguments
+    return wirely.Duration(ticks=_from_count(nanos, _NANOS))
 
 
 @native_function(native_functions, 'AsSecs')
 def as_secs(*, context):
-    return _as_count(context.arguments['duration'], 1)
+    duration, = context.arguments
+    return _as_count(duration, 1)
 
 
 @native_function(native_functions, 'AsMillis')
 def as_millis(*, context):
-    return _as_count(context.arguments['duration'], _MILLIS)
+    duration, = context.arguments
+    return _as_count(duration, _MILLIS)
 
 
 @native_function(native_functions, 'AsMicros')
 def as_micros(*, context):
-    return _as_count(context.arguments['duration'], _MICROS)
+    duration, = context.arguments
+    return _as_count(duration, _MICROS)
 
 
 @native_function(native_functions, 'AsNanos')
 def as_nanos(*, context):
-    return _as_count(context.arguments['duration'], _NANOS)
+    duration, = context.arguments
+    return _as_count(duration, _NANOS)

@@ -782,7 +782,7 @@ class InstructionCompiler:
         if operation == 'call':
             arguments = [self.snapshot(argument) for argument in expression.arguments]
             declaration = expression.payload[0]
-            function = Function(declaration.native_name, declaration.argument_names,
+            function = Function(declaration.native_name,
                                 declaration.parameter_types, declaration.return_type)
             self.emit(Opcode.CALL, destination, self.intern_function(function),
                       len(arguments), *arguments)
@@ -868,7 +868,7 @@ class InstructionCompiler:
                 self.emit(Opcode.LESS, destination, left, right)
             else:
                 assert value_type in (model.types.Duration, model.types.TimeOfDay)
-                function = Function(f'{value_type}.Less', ('a', 'b'), (value_type, value_type),
+                function = Function(f'{value_type}.Less', (value_type, value_type),
                                     model.types.boolean)
                 self.emit(Opcode.CALL, destination, self.intern_function(function), 2, left, right)
             if operation in ('le', 'ge'):

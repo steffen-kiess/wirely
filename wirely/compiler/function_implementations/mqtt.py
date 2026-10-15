@@ -4,17 +4,18 @@ from wirely.runtime.structs import MQTTTemplateParts
 
 
 def supports_type(*, context):
-    return context.arguments['type'].supports_json
+    value_type, = context.arguments
+    return value_type.supports_json
 
 
 def parse_template(*, context):
-    template = context.arguments['template']
+    template, = context.arguments
     if template is None:
         return context.return_type.struct_type.from_native(MQTTTemplateParts('', ''))
     try:
         prefix, suffix = parse_template_string(template.value)
     except ValueError as error:
-        raise context.error(str(error), argument='template') from error
+        raise context.error(str(error), argument=0) from error
     return context.return_type.struct_type.from_native(MQTTTemplateParts(prefix, suffix))
 
 

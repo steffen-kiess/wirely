@@ -4,7 +4,6 @@ import importlib
 from collections.abc import Mapping
 import inspect
 from dataclasses import dataclass
-from types import MappingProxyType
 
 
 from . import model
@@ -68,17 +67,19 @@ native_function_impls = {
 @dataclass(frozen=True, slots=True)
 class NativeFunctionContext:
     function_name: str  # Native name, such as 'KNX.ParseGroupAddress'.
-    arguments: Mapping[str, object]
-    arguments_ast: Mapping[str, object]
+    arguments: tuple[object, ...]
+    arguments_ast: tuple[object, ...]
     call: object
     services: Mapping[str, object]
     return_type: object  # Declared return type as a wirely.ValueType.
     _warnings: object  # The compilation's WarningSink.
 
     def _source(self, argument):
-        if argument is not None and argument not in self.arguments_ast:
-            raise ValueError(f'Unknown function argument {argument!r}')
-        return self.call if argument is None else self.arguments_ast[argument]
+        if argument is None:
+            return self.call
+        if type(argument) is not int or not 0 <= argument < len(self.arguments_ast):
+            raise ValueError(f'Invalid function argument index {argument!r}')
+        return self.arguments_ast[argument]
 
     def error(self, message, *, argument=None):
         return model.ProgramError(self._source(argument), message)
@@ -179,11 +180,10 @@ def resolve_implementation(function, call):
 
 def invoke(function, values, sources, call):
     implementation = resolve_implementation(function, call)
-    arguments = {name: model.value_types._to_native(ty, value)
-                 for name, ty, value in zip(function.argument_names, function.parameter_types, values)}
+    arguments = tuple(model.value_types._to_native(ty, value)
+                      for ty, value in zip(function.parameter_types, values))
     context = NativeFunctionContext(
-        function.native_name, MappingProxyType(arguments),
-        MappingProxyType(dict(zip(function.argument_names, sources))), call,
+        function.native_name, arguments, tuple(sources), call,
         function.scope.services, model.value_types.ValueType(function.return_type),
         function.scope.coordinator.warnings,
     )
@@ -212,7 +212,7 @@ def invoke_runtime_function(function, values, call):
             raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     try:
         return call_native_function(function._runtime_implementation, function.native_name,
-                                    function.argument_names, function.parameter_types,
+                                    function.parameter_types,
                                     function.return_type, values)
     except Exception as error:
         # Runtime functions must not fail, so an exception is a library error.

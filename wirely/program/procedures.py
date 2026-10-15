@@ -115,10 +115,8 @@ class Function:
     """A native function called by procedure bodies, linked by name at runtime."""
 
     name: str  # Native name, such as 'Duration.CheckedAdd'.
-    argument_names: tuple[str, ...]
     parameter_types: tuple[Type, ...]
     return_type: Type
 
     def __post_init__(self):
-        for name in ('argument_names', 'parameter_types'):
-            object.__setattr__(self, name, tuple(getattr(self, name)))
+        object.__setattr__(self, 'parameter_types', tuple(self.parameter_types))

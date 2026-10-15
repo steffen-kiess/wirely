@@ -285,8 +285,7 @@ class Program:
         line()
         line('Functions:')
         for index, function in enumerate(self.functions):
-            parameters = ', '.join(f'{name}: {value_type}' for name, value_type
-                                   in zip(function.argument_names, function.parameter_types))
+            parameters = ', '.join(str(value_type) for value_type in function.parameter_types)
             line(f'func.{index}: {function.name}({parameters}): {function.return_type}', 2)
 
         def names(label, items, indent):

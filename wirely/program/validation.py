@@ -182,9 +182,6 @@ def validate_program(program):
                 raise ValueError('Expected a Function')
             if type(function.name) is not str or not function.name:
                 raise ValueError('Expected a function name')
-            if (len(function.argument_names) != len(function.parameter_types)
-                    or len(set(function.argument_names)) != len(function.argument_names)):
-                raise ValueError('Expected one distinct name per parameter')
             for value_type in (*function.parameter_types, function.return_type):
                 _runtime_type(value_type)
         except ValueError as error:

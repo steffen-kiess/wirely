@@ -539,7 +539,7 @@ def check_native_functions():
     # Runtime native functions run in procedures and in compile-time expressions.
     # Keys select implementations by native name.
     functions = compile_program('''namespace TestLibrary {
-      native function Limit as "TestLibrary.Clamp"(value: int16, low: int16, high: int16): int16;
+      native function Limit as "TestLibrary.Clamp"(input: int16, minimum: int16, maximum: int16): int16;
       native function Nothing(): unit;
     }
     node type Clamped {
