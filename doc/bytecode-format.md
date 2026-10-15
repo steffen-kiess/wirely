@@ -81,7 +81,8 @@ their contents.
 | [`BuildIDSHA512`](#buildidsha512) | — | Buffer |
 | [`Names`](#names) | — | Buffer |
 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
-| [`EnumMembers`](#enummembers) | `EnumMember` | Table |
+| [`EnumMemberNames`](#enummembernames) | `NameRef` | Table |
+| [`EnumNumbers`](#enumnumbers) | — | Buffer |
 | [`StructFields`](#structfields) | `StructField` | Table |
 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
 | [`StaticValues`](#staticvalues) | `Variable` | Table |
@@ -256,10 +257,12 @@ struct type EnumType {
   UnderlyingType: Ref,
   // Qualified name in Names.
   Name: StringRef,
-  // Range into EnumMembers, ordered by number.
+  // Range into EnumMemberNames, ordered by number.
   Members: Range,
   // Index within Members of the default member.
   Default: uint32,
+  // Byte offset into EnumNumbers of the member numbers.
+  Numbers: uint32,
 }
 ```
 
@@ -314,22 +317,19 @@ making size calculation possible in one forward pass. `String`,
 `ValueType`, and lists, including composites and structs containing them,
 are only used for static values in this format.
 
-### EnumMembers
+### EnumMemberNames
 
-```wirely
-// One named enumeration member. EnumMembers table.
-struct type EnumMember {
-  // Member number; signed values use sign-extended bits.
-  Number: uint128,
-  // Member name in Names.
-  Name: StringRef,
-}
-```
+`EnumMemberNames` contains `NameRef` records. Entry N of an enum's
+`Members` range names the member whose number is element N of its
+`Numbers` array.
 
-Member numbers use a 128-bit representation: signed underlying integers
-are sign-extended in two's complement; unsigned integers are zero-extended.
-Interpretation follows the enum's underlying integer type, and each value
-fits that type. Runtime enum values use their underlying integer's width.
+### EnumNumbers
+
+`EnumNumbers` contains member number arrays. An enum's numbers occupy
+`[Numbers, Numbers + Members.Count * storage_size(UnderlyingType))`, in
+`Members` order and the underlying type's runtime binary representation.
+`Numbers` is aligned for the underlying type and is zero when `Members` is
+empty. Equal arrays can share bytes.
 
 ### StructFields
 
@@ -502,7 +502,7 @@ state. Entries are sorted by UTF-8 name bytes, without duplicates.
 ### InterfaceNames
 
 ```wirely
-// A name in Names. InterfaceNames table.
+// A name in Names. InterfaceNames and EnumMemberNames tables.
 struct type NameRef {
   // UTF-8 name in Names.
   Name: StringRef,
@@ -1064,9 +1064,9 @@ Bytes not referenced by any record are not checked. This includes bytes of
 `ProcedureCode` outside every instruction stream.
 
 Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
-`ByteRange` byte ranges, and `StringRef` byte ranges, whose bytes are valid
-UTF-8. Small enumerated fields such as `Bank` have listed values, and
-padding is zero.
+`ByteRange` byte ranges, `StringRef` byte ranges, whose bytes are valid
+UTF-8, and `EnumNumbers` arrays, which are aligned for their type. Small
+enumerated fields such as `Bank` have listed values, and padding is zero.
 
 ### Types and values
 
@@ -1075,8 +1075,8 @@ pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
 runtime types from static-only types. Integer types have a listed width,
 built-in types a known identifier, and underlying types are integers. Enum
-members are in strictly ascending order and fit the underlying type, and
-`Default` lies within `Members`.
+member numbers are in strictly ascending order, and `Default` lies within
+`Members`.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Sorted members let
@@ -1129,11 +1129,11 @@ Verifiers do not check these rules:
 
 A transition file carries the state of a running program over to a new
 program. It uses the same header and section directory as a program and
-contains the transition's own `ValueTypes`, `EnumMembers`, `StructFields`,
-`TypeLists`, `Names`, `StaticValues`, `ProgramData`, `NativeFunctions`, and
-`ProcedureCode`, and a `ProcedureBodies` table with one entry: the
-transition procedure. It has no stages, procedure records, bindings, or
-variable tables.
+contains the transition's own `ValueTypes`, `EnumMemberNames`, `EnumNumbers`,
+`StructFields`, `TypeLists`, `Names`, `StaticValues`, `ProgramData`,
+`NativeFunctions`, and `ProcedureCode`, and a `ProcedureBodies` table with
+one entry: the transition procedure. It has no stages, procedure records,
+bindings, or variable tables.
 
 The transition procedure reads the old program's state and writes the new
 program's state. Operand `input.N` reads entry N of the old program's
