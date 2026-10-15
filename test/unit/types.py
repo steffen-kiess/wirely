@@ -23,7 +23,7 @@ def check_parsing_and_conversions():
         wirely.value_types.boolean.parse('2')
 
     for signed in (False, True):
-        for bits in (8, 16, 32, 64):
+        for bits in (8, 16, 32, 64, 128):
             descriptor = getattr(wirely.value_types, ('int' if signed else 'uint') + str(bits))
             minimum = -(2 ** (bits - 1)) if signed else 0
             maximum = 2 ** (bits - (1 if signed else 0)) - 1
@@ -361,7 +361,7 @@ def check_default_values():
         'type': types.ValueType,
     })
     cases = [(getattr(types, prefix + str(bits)), 0)
-             for prefix in ('int', 'uint') for bits in (8, 16, 32, 64)]
+             for prefix in ('int', 'uint') for bits in (8, 16, 32, 64, 128)]
     cases += [
         (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
         (types.Duration, wirely.Duration(duration_ns=0)),

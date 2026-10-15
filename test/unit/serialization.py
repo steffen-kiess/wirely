@@ -41,7 +41,7 @@ def check_scalar_codecs():
         assert ty.deserialize(encoded) == value
         assert ty.deserialize(memoryview(encoded)) == value
 
-    for bits in (8, 16, 32, 64):
+    for bits in (8, 16, 32, 64, 128):
         for signed in (False, True):
             ty = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
             assert ty.size == ty.data_size == ty.alignment == bits // 8
@@ -57,6 +57,8 @@ def check_scalar_codecs():
     nested_uint64 = wirely.types.TypeOption(option_uint64)
     assert (option_uint64.data_size, option_uint64.size, option_uint64.alignment) == (9, 16, 8)
     assert (nested_uint64.data_size, nested_uint64.size, nested_uint64.alignment) == (10, 16, 8)
+    option_int128 = wirely.types.TypeOption(wirely.types.int128)
+    assert (option_int128.data_size, option_int128.size, option_int128.alignment) == (17, 32, 16)
     for ty, value, encoded in [
         (option_uint64, None, bytes(9)),
         (option_uint64, wirely.Some(7), b'\x07' + bytes(7) + b'\x01'),
@@ -107,7 +109,7 @@ def check_scalar_codecs():
 
     # Enum codecs support every integer width and validate their member ranges.
     for signed in (False, True):
-        for bits in (8, 16, 32, 64):
+        for bits in (8, 16, 32, 64, 128):
             underlying = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
             members = {'Minimum': underlying.min_value, 'Maximum': underlying.max_value}
             descriptor = wirely.types.TypeEnum('Boundary', members, underlying_type=underlying)

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 _PREFIX = struct.Struct('<IHH')
 _HEADER = struct.Struct('<IHHII')
 _ENTRY = struct.Struct('<IIII')
-_ALIGNMENT = 8
+_ALIGNMENT = 16
 _UINT16_MAX = 0xffff
 _UINT32_MAX = 0xffffffff
 
@@ -80,7 +80,7 @@ class SectionList:
             return cls.from_bytes(file.read())
 
     def to_bytes(self):
-        """Serialize sorted by section type, with sections zero-padded to 8-byte alignment."""
+        """Serialize sorted by section type, with sections zero-padded to 16-byte alignment."""
         major, minor = self.version
         if not (0 <= major <= _UINT16_MAX and 0 <= minor <= _UINT16_MAX):
             raise ValueError(f'Version {major}.{minor} does not fit the header')

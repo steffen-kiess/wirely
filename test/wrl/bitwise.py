@@ -1,11 +1,11 @@
 # Verify compiled procedure behavior through changing engine inputs.
 engine.get_native_state('boolean_source').set_value(False)
 engine.get_native_state('other_source').set_value(False)
-for bits in (8, 16, 32, 64):
+for bits in (8, 16, 32, 64, 128):
     for prefix in ('int', 'uint'):
         engine.get_native_state(prefix + str(bits) + '_source').set_value(0)
 
-for bits in (8, 16, 32, 64):
+for bits in (8, 16, 32, 64, 128):
     for signed in (True, False):
         name = ('int' if signed else 'uint') + str(bits)
         source = engine.get_native_state(name + '_source')

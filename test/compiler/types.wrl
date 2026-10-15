@@ -113,6 +113,16 @@ enum type Boundaryuint64: uint64 {
   Maximum = 18446744073709551615,
 }
 
+enum type Boundaryint128: int128 {
+  Minimum = -170141183460469231731687303715884105728,
+  Maximum = 170141183460469231731687303715884105727,
+}
+
+enum type Boundaryuint128: uint128 {
+  Minimum = 0,
+  Maximum = 340282366920938463463374607431768211455,
+}
+
 
 enum type Signed: int8 {
   Min = -128,

@@ -37,7 +37,7 @@ def _layout(value_type):
     elif isinstance(value_type, TypeBoolean):
         alignment, data_size = 1, 1
     elif isinstance(value_type, TypeInt):
-        if value_type.bits not in (8, 16, 32, 64):
+        if value_type.bits not in (8, 16, 32, 64, 128):
             raise ValueError(f'Unsupported integer width {value_type.bits}')
         alignment = data_size = value_type.bits // 8
     elif isinstance(value_type, TypeMonotonicTime):

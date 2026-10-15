@@ -35,6 +35,9 @@ assert uint8.CheckedFrom(-1) == None && uint8.CheckedFrom(0) == Some(0);
 constant Min64: int64 = int64.SaturatingSub(-9223372036854775807, 1);
 assert uint64.SaturatingFrom(Min64) == 0 && uint64.WrappingFrom(Min64) == 9223372036854775808;
 assert int32.CheckedFrom(Min64) == None && int64.From(Min64) == Min64;
+constant Min128: int128 = int128.From(Min64);
+assert uint128.WrappingFrom(Min128) == 340282366920938463454151235394913435648;
+assert uint64.SaturatingFrom(uint128.WrappingFrom(-1)) == 18446744073709551615;
 
 // Type parameters.
 node type Narrow {

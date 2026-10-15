@@ -797,10 +797,12 @@ int8 = TypeInt(is_signed=True, bits=8)
 int16 = TypeInt(is_signed=True, bits=16)
 int32 = TypeInt(is_signed=True, bits=32)
 int64 = TypeInt(is_signed=True, bits=64)
+int128 = TypeInt(is_signed=True, bits=128)
 uint8 = TypeInt(is_signed=False, bits=8)
 uint16 = TypeInt(is_signed=False, bits=16)
 uint32 = TypeInt(is_signed=False, bits=32)
 uint64 = TypeInt(is_signed=False, bits=64)
+uint128 = TypeInt(is_signed=False, bits=128)
 
 ValueType = TypeValueType()
 TimeOfDay = TypeTimeOfDay()
@@ -817,8 +819,8 @@ String = TypeString()
 type_by_name = {}
 for ty in [
         boolean, unit,
-        int8, int16, int32, int64,
-        uint8, uint16, uint32, uint64,
+        int8, int16, int32, int64, int128,
+        uint8, uint16, uint32, uint64, uint128,
         ValueType, Duration, TimeOfDay, MonotonicTime, String,
 ]:
     type_by_name[ty.name] = ty

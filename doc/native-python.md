@@ -193,8 +193,8 @@ values directly. After emitting an event, schedule another invocation with
 
 `wirely.ValueType` is immutable and supports equality, hashing, and `str()`
 with Wirely type names. Built-in descriptors are in `wirely.types.value_types`,
-using Python names: `unit`, `boolean`, `int8` through `int64`, `uint8` through
-`uint64`, `string`, `duration`, `time_of_day`, `monotonic_time`,
+using Python names: `unit`, `boolean`, `int8` through `int128`, `uint8` through
+`uint128`, `string`, `duration`, `time_of_day`, `monotonic_time`,
 and `value_type`.
 
 - `validate(value)` normalizes a Python value; `parse(text)` parses text.

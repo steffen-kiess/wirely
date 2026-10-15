@@ -55,7 +55,7 @@ struct type SectionEntry {
 
 The directory contains `header.SectionCount` consecutive entries with
 strictly ascending `SectionType`, so each section type occurs at most once.
-Sections occupy disjoint byte ranges starting on 8-byte boundaries. Their
+Sections occupy disjoint byte ranges starting on 16-byte boundaries. Their
 offsets locate bytes independently of directory order. Numeric
 section-type and record-type assignments will be specified when the format
 is finalized.
@@ -230,7 +230,7 @@ struct type SimpleType {
 struct type IntegerType {
   // Integer kind.
   Kind: uint8,
-  // Width: 8, 16, 32, or 64.
+  // Width: 8, 16, 32, 64, or 128.
   Bits: uint8,
   // Whether values are signed, in two's complement.
   Signed: boolean,
@@ -320,13 +320,13 @@ are only used for static values in this format.
 // One named enumeration member. EnumMembers table.
 struct type EnumMember {
   // Member number; signed values use sign-extended bits.
-  Number: uint64,
+  Number: uint128,
   // Member name in Names.
   Name: StringRef,
 }
 ```
 
-Member numbers use a 64-bit representation: signed underlying integers
+Member numbers use a 128-bit representation: signed underlying integers
 are sign-extended in two's complement; unsigned integers are zero-extended.
 Interpretation follows the enum's underlying integer type, and each value
 fits that type. Runtime enum values use their underlying integer's width.
@@ -1054,7 +1054,7 @@ its native state again.
 
 The header has the expected magic and version, and `FileLength` is the
 file length. The directory and all sections lie within the file and start
-on 8-byte boundaries. Section types are strictly ascending, and each known
+on 16-byte boundaries. Section types are strictly ascending, and each known
 section has its listed `RecordType` and a length that fits that record
 type. All ordinary sections are present. A missing symbol section counts
 as empty, so references into it fail. Unknown sections are only checked

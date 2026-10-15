@@ -48,6 +48,11 @@ enum type Bad: uint64 {
   One = 18446744073709551616, // E: Int value out of range
 }
 
+// TEST: uint128_overflow
+enum type Bad: uint128 {
+  One = 340282366920938463463374607431768211456, // E: Int value out of range
+}
+
 // TEST: duplicate_member_name
 enum type Bad: int8 {
   One = 1, // H: Previous member was here

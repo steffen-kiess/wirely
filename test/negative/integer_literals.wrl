@@ -180,3 +180,21 @@ node type Settings {
   parameter Value: uint64;
 }
 node settings: Settings { Value: +18446744073709551616 } // E: Int value out of range
+
+// TEST: int128_parameter_underflow
+node type Settings {
+  parameter Value: int128;
+}
+node settings: Settings { Value: -170141183460469231731687303715884105729 } // E: Int value out of range
+
+// TEST: int128_parameter_overflow
+node type Settings {
+  parameter Value: int128;
+}
+node settings: Settings { Value: +170141183460469231731687303715884105728 } // E: Int value out of range
+
+// TEST: uint128_parameter_overflow
+node type Settings {
+  parameter Value: uint128;
+}
+node settings: Settings { Value: +340282366920938463463374607431768211456 } // E: Int value out of range

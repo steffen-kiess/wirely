@@ -269,7 +269,7 @@ def check_bitwise_and_shifts():
     source = Operand(OperandKind.INPUT, 0)
     count_input = Operand(OperandKind.INPUT, 1)
     ret = instruction(Opcode.RETURN)
-    for bits in (8, 16, 32, 64):
+    for bits in (8, 16, 32, 64, 128):
         for signed in (True, False):
             value_type = getattr(types, ('int' if signed else 'uint') + str(bits))
             mask = (1 << bits) - 1

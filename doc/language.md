@@ -269,8 +269,9 @@ A false condition stops compilation. Unused node types have their declaration
 assertions checked but do not evaluate them. Assertions generate no runtime
 code. Messages may also use raw string literals.
 
-Built-in types are `unit`, `boolean`, signed `int8`/`int16`/`int32`/`int64`,
-unsigned `uint8`/`uint16`/`uint32`/`uint64`, `String`, `Duration`,
+Built-in types are `unit`, `boolean`, signed
+`int8`/`int16`/`int32`/`int64`/`int128`, unsigned
+`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, `String`, `Duration`,
 `TimeOfDay`, and `MonotonicTime`. `ValueType` is used for type parameters.
 `Option[T]` and `List[T]` construct types from `T`.
 See the [value type reference](value-types.md) for allowed values, runtime

@@ -97,3 +97,11 @@ connect int64_source -> int64_ops;
 node uint64_source: Std.DebugValueSource { Type: uint64 }
 node uint64_ops: Operations { Type: uint64 }
 connect uint64_source -> uint64_ops;
+
+node int128_source: Std.DebugValueSource { Type: int128 }
+node int128_ops: Operations { Type: int128 }
+connect int128_source -> int128_ops;
+
+node uint128_source: Std.DebugValueSource { Type: uint128 }
+node uint128_ops: Operations { Type: uint128 }
+connect uint128_source -> uint128_ops;

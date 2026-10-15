@@ -104,3 +104,17 @@ node uint64_bits: Bits {
   Minimum: 0,
   Signed: false,
 }
+node int128_bits: Bits {
+  Type: int128,
+  Width: 128,
+  Maximum: 170141183460469231731687303715884105727,
+  Minimum: -170141183460469231731687303715884105728,
+  Signed: true,
+}
+node uint128_bits: Bits {
+  Type: uint128,
+  Width: 128,
+  Maximum: 340282366920938463463374607431768211455,
+  Minimum: 0,
+  Signed: false,
+}

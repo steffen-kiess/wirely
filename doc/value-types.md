@@ -20,10 +20,12 @@ runtime types. Runtime types can also be used for parameters.
 | `int16` | -32,768 to 32,767 | Runtime |
 | `int32` | -2,147,483,648 to 2,147,483,647 | Runtime |
 | `int64` | -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 | Runtime |
+| `int128` | -2^127 to 2^127-1 | Runtime |
 | `uint8` | 0 to 255 | Runtime |
 | `uint16` | 0 to 65,535 | Runtime |
 | `uint32` | 0 to 4,294,967,295 | Runtime |
 | `uint64` | 0 to 18,446,744,073,709,551,615 | Runtime |
+| `uint128` | 0 to 2^128-1 | Runtime |
 | `String` | Text | Parameter-only |
 | `Duration` | Non-negative elapsed time, in nanoseconds | Runtime |
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
