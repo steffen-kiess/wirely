@@ -18,7 +18,8 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | node_type_specifier* "node" "type" identifier ["as" string_constant] "{" declaration_list "}" -> node_type__make
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
-    | "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type
+    | "open" "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type__create_open
+    | "closed" "enum" "type" identifier "{" closed_enum_member_list "}" -> declaration_enum_type__create_closed
     | "resource" "type" identifier ["as" string_constant] ";" -> declaration_resource_type
     // Native functions
     | "native" "function" _signature ";" -> declaration_native_function
@@ -56,6 +57,9 @@ bare_struct_field: identifier ":" type -> struct_field
 enum_member_list: inner_attribute* _list{enum_member} -> file_input
 enum_member: outer_attribute* bare_enum_member -> attributed
 bare_enum_member: identifier "=" expression -> enum_member
+closed_enum_member_list: inner_attribute* _list{closed_enum_member} -> file_input
+closed_enum_member: outer_attribute* bare_closed_enum_member -> attributed
+bare_closed_enum_member: identifier -> enum_member__create_closed
 
 _signature: identifier ["as" string_constant] "(" function_argument_list ")" ":" type
 function_argument_list: _list{function_argument} -> copy_list
@@ -224,6 +228,8 @@ reference: identifier ("." identifier)* -> reference__from_list
 !identifier: CNAME
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
+    | "open"
+    | "closed"
     | "binding"
     | "changed"
     | "constant"

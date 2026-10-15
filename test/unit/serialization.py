@@ -7,10 +7,10 @@ from wirely.runtime.contexts import VariableTableInstance
 
 checks = TestCase()
 thermostat_type = wirely.types.TypeEnum(
-    'Mode', {'Off': 0, 'Cool': 3, 'Heat': 4}, underlying_type=wirely.types.uint8,
+    'Mode', {'Off': 0, 'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8,
 )
-mode = wirely.types.TypeEnum('PacketMode', {'On': 1},
-                             underlying_type=wirely.types.uint8)
+mode = wirely.types.TypeEnum('PacketMode', {'Off': 0, 'On': 1},
+                             is_open=False, underlying_type=wirely.types.uint8)
 packet = wirely.types.TypeStruct('Packet', {
     'number': wirely.types.uint16, 'mode': mode, 'flag': wirely.types.boolean,
 })
@@ -87,7 +87,8 @@ def check_scalar_codecs():
         (nested_uint64, bytes(8) + b'\x01\x00'),
         (nested_uint64, b'\x01' + bytes(8) + b'\x01'),
         (nested_uint64, bytes(8) + b'\x02\x01'),
-        (thermostat_type, b'\x02'),
+        (wirely.types.TypeEnum('Closed', {'A': 0, 'B': 1},
+                               is_open=False, underlying_type=wirely.types.uint8), b'\x02'),
         (wirely.types.TimeOfDay, (wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little')),
     ]:
         with checks.assertRaises(ValueError):
@@ -117,19 +118,36 @@ def check_scalar_codecs():
         for bits in (8, 16, 32, 64, 128):
             underlying = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
             members = {'Minimum': underlying.min_value, 'Maximum': underlying.max_value}
-            descriptor = wirely.types.TypeEnum('Boundary', members, underlying_type=underlying)
+            descriptor = wirely.types.TypeEnum('Boundary', members, is_open=True, underlying_type=underlying)
             assert descriptor.json_encode(underlying.max_value, None) == 'Maximum'
             assert descriptor.json_decode('Minimum', None) == underlying.min_value
-            for number in members.values():
+            for number in (underlying.min_value, 0, 7, underlying.max_value):
                 encoded = number.to_bytes(bits // 8, 'little', signed=signed)
                 assert descriptor.serialize(number) == encoded
                 assert descriptor.deserialize(encoded) == number
 
     signed_members = {'Negative': -2, 'Positive': 300}
-    signed_type = wirely.types.TypeEnum('SignedMode', signed_members, underlying_type=wirely.types.int16)
+    signed_type = wirely.types.TypeEnum('SignedMode', signed_members, is_open=True, underlying_type=wirely.types.int16)
     assert (signed_type.size, signed_type.data_size, signed_type.alignment) == (2, 2, 2)
     with checks.assertRaises(ValueError):
-        wirely.types.TypeEnum('TooSmall', signed_members, underlying_type=wirely.types.uint8)
+        wirely.types.TypeEnum('TooSmall', signed_members, is_open=True, underlying_type=wirely.types.uint8)
+
+
+def check_closed_enum_codecs():
+    for count in (1, 256, 257, 65536, 65537):
+        underlying = wirely.types.closed_enum_underlying_type(count)
+        value_type = wirely.types.TypeEnum('Closed', {f'M{i}': i for i in range(count)},
+                                          is_open=False, underlying_type=underlying)
+        assert value_type.size == underlying.size
+        assert value_type.default_value() == 0
+        for number in (0, count - 1):
+            encoded = number.to_bytes(underlying.size, 'little')
+            assert value_type.serialize(number) == encoded
+            assert value_type.deserialize(encoded) == number
+        if count <= underlying.max_value:
+            with checks.assertRaises(ValueError):
+                value_type.deserialize(count.to_bytes(underlying.size, 'little'))
+
 
 
 def check_struct_codecs():
@@ -234,6 +252,7 @@ def check_variable_storage():
 
 
 check_scalar_codecs()
+check_closed_enum_codecs()
 check_struct_codecs()
 check_variable_storage()
 

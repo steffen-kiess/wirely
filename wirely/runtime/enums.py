@@ -42,9 +42,9 @@ class MQTTFormat(enum.IntEnum):
 
 # Std.EdgeType in wirely/lib/std.wrl
 class StdEdgeType(enum.IntEnum):
-    Rising = 1
-    Falling = 2
-    Both = 3
+    Rising = 0
+    Falling = 1
+    Both = 2
 
 
 # Python enums by enum type name.

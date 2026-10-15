@@ -18,7 +18,7 @@ constant int16: boolean = true;
 assert unit == int16; // E: Expected value of type ValueType, got boolean
 
 // TEST: mixed type and enum value
-enum type Mode: uint8 {
+open enum type Mode: uint8 {
   On = 1,
 }
 assert Mode == Mode.On; // E: Expected value of type ValueType, got Mode
@@ -51,12 +51,12 @@ constant B: Right = Right { flag: true };
 assert A == B; // E: Expected value of type Left, got Right
 
 // TEST: enum and integer
-enum type Mode: uint8 { On = 1, }
+open enum type Mode: uint8 { On = 1, }
 constant Number: uint8 = 1;
 assert Mode.On == Number; // E: Expected value of type Mode, got uint8
 
 // TEST: integer and enum
-enum type Mode: uint8 { On = 1, }
+open enum type Mode: uint8 { On = 1, }
 constant Number: uint8 = 1;
 assert Number != Mode.On; // E: Invalid int value Mode.On
 
@@ -91,7 +91,7 @@ assert false < true; // E: Ordering comparison requires an integer, Duration, or
 assert "a" <= "b"; // E: got String
 
 // TEST: ordering enums
-enum type Mode: uint8 { Off = 0, On = 1, }
+open enum type Mode: uint8 { Off = 0, On = 1, }
 assert Mode.Off < Mode.On; // E: got Mode
 
 // TEST: ordering options

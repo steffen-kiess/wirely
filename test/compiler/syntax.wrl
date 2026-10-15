@@ -56,7 +56,7 @@ struct type WeakFields {
   value: boolean,
 }
 
-enum type WeakMembers: uint8 {
+open enum type WeakMembers: uint8 {
   constant = 0,
   default = 1,
   event = 2,

@@ -12,7 +12,7 @@ assert true | 1; // E: Invalid boolean value 1
 constant Value: Duration = !"PT1S"; // E: Bitwise operation requires an integer or boolean
 
 // TEST: unsupported enum
-enum type Mode: uint8 {
+open enum type Mode: uint8 {
   Off = 0,
 }
 constant Value: Mode = Mode.Off ^ Mode.Off; // E: Bitwise operation requires an integer or boolean

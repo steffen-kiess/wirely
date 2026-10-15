@@ -662,75 +662,110 @@ class TypeString(TypePrimitive):
         return self.verify_value(expr)
 
 
+def closed_enum_underlying_type(member_count):
+    """Choose storage for a nonempty closed enum with a uint32 member count."""
+    if type(member_count) is not int or member_count < 1:
+        raise ValueError('Closed enum must declare at least one member')
+    if member_count > 0xffffffff:
+        raise ValueError('Closed enum member count must fit uint32')
+    if member_count <= 256:
+        return uint8
+    if member_count <= 65536:
+        return uint16
+    return uint32
+
+
 # TODO: Add to_csv_value?
 class TypeEnum(TypePrimitive):
-    """An enumeration whose values are member numbers of an explicit integer type."""
+    """A nominal enum with either dense closed values or an open integer range."""
 
-    def __init__(self, name, members, *, underlying_type):
-        """Define the enum and check that its member numbers are distinct and fit the integer type."""
+    def __init__(self, name, members, *, is_open, underlying_type):
+        if type(is_open) is not bool:
+            raise ValueError('Enum is_open must be a boolean')
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
-        if not members:
-            raise ValueError('Enum must declare at least one member')
+        if not is_open:
+            closed_enum_underlying_type(len(members))
+            if underlying_type.is_signed or underlying_type.bits not in (8, 16, 32):
+                raise ValueError('Closed enum underlying_type must be uint8, uint16, or uint32')
         names = {}
-        for member, number in members.items():
+        for index, (member, number) in enumerate(members.items()):
             if type(number) is not int or not underlying_type.min_value <= number <= underlying_type.max_value:
                 raise ValueError(f'Enum member {member} does not fit {underlying_type}')
+            if not is_open and number != index:
+                raise ValueError('Closed enum numbers must be consecutive from zero in declaration order')
             if number in names:
                 raise ValueError(f'Enum members {names[number]} and {member} have the same number {number}')
             names[number] = member
         super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
-        self.underlying_type = underlying_type  # Wire width and signedness of member numbers.
-        self.members = MappingProxyType(dict(members))  # Member numbers by name, in declaration order.
+        self.is_open = is_open
+        self.underlying_type = underlying_type
+        self.members = MappingProxyType(dict(members))
         self._names = names
 
     def verify_value(self, value):
-        if type(value) is not int or value not in self._names:
+        if self.is_open:
+            return self.underlying_type.verify_value(value)
+        if type(value) is not int or not 0 <= value < len(self.members):
             raise ValueError(f'Expected a member number of {self}, got {value!r}')
         return value
 
     def member_name(self, number):
-        return self._names[self.verify_value(number)]
+        number = self.verify_value(number)
+        try:
+            return self._names[number]
+        except KeyError:
+            raise ValueError(f'Unnamed value {number} of {self}') from None
 
     @functools.cached_property
     def enum_type(self):
         """The runtime view of this type for native code."""
         from .value_types import EnumType, ValueType
         from ..runtime.enums import native_enum_types
-        return EnumType(self.name, ValueType(self.underlying_type), self.members, native_enum_types.get(self.name))
+        return EnumType(self.name, ValueType(self.underlying_type), self.members,
+                        self.is_open, native_enum_types.get(self.name))
 
     def default_value(self):
-        return next(iter(self.members.values()))
+        return 0
 
     def to_text(self, value):
-        return f'{self.name}.{self.member_name(value)}'
+        value = self.verify_value(value)
+        name = self._names.get(value)
+        return str(value) if name is None else f'{self.name}.{name}'
 
-    def _parse_impl(self, s):
-        try:
-            return self.members[s]
-        except KeyError:
-            raise ValueError(f'Unknown member {s!r} of {self.name}') from None
+    def _parse_impl(self, text):
+        if text in self.members:
+            return self.members[text]
+        if self.is_open:
+            try:
+                number = int(text, 10)
+            except ValueError:
+                pass
+            else:
+                return self.verify_value(number)
+        raise ValueError(f'Unknown member {text!r} of {self.name}')
 
-    def json_encode(self, expr, format):
+    def json_encode(self, value, format):
+        if format not in (None, 'SnakeCase'):
+            raise ValueError(f'Invalid JSON format: {format!r}')
+        value = self.verify_value(value)
+        name = self._names.get(value)
+        if name is None:
+            return value
         if format == 'SnakeCase':
-            s = self.member_name(expr)
-            # https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case/1176023#1176023
-            s = re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
-            return s
-        elif format is None:
-            return self.member_name(expr)
-        else:
-            raise Exception(f'Invalid JSON format: {format!r}')
+            return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+        return name
 
-    def json_decode(self, expr, format):
+    def json_decode(self, value, format):
+        if format not in (None, 'SnakeCase'):
+            raise ValueError(f'Invalid JSON format: {format!r}')
+        if self.is_open and type(value) is int:
+            return self.verify_value(value)
         if format == 'SnakeCase':
-            raise Exception('TODO: Decoding SnakeCase not implemented')
-        elif format is None:
-            if not isinstance(expr, str):
-                raise Exception(f'Expected string for enum, got {expr!r}')
-            return self._parse_impl(expr)
-        else:
-            raise Exception(f'Invalid JSON format: {format!r}')
+            raise ValueError('Decoding SnakeCase not implemented')
+        if not isinstance(value, str):
+            raise ValueError(f'Expected string for enum, got {value!r}')
+        return self._parse_impl(value)
 
 
 _STRING_ESCAPES = {'\0': '\\0', '\t': '\\t', '\n': '\\n', '\r': '\\r', '"': '\\"', '\\': '\\\\'}

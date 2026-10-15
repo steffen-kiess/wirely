@@ -100,7 +100,7 @@ source = '''namespace Lib {
     default output: value boolean;
   }
 }
-enum type Mode: uint8 { Off = 0, }
+open enum type Mode: uint8 { Off = 0, }
 node type Box {
   parameter Type: ValueType;
   constant Zero: int32 = 0;

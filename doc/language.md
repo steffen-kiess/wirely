@@ -181,7 +181,7 @@ implementation, as in
 `native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
 Each native name identifies one declaration of its kind.
 
-Identifiers are case-sensitive. Weak keywords `binding`, `changed`,
+Identifiers are case-sensitive. Weak keywords `open`, `closed`, `binding`, `changed`,
 `constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`, `output`,
 `resource`, `stage`, `state`, `type`, and `value` can also be used as
 identifiers. Other keywords require the `r#` prefix when used as names, for example
@@ -301,20 +301,31 @@ Read a field with `value.field`, for example `reading.temperature`, also in
 procedure bodies. Field access needs a struct type known where the code is
 written, not a `ValueType` parameter.
 
-Declare an enum at top level or inside a namespace:
+Declare a closed or open enum at top level or inside a namespace:
 
 ```wirely
-enum type Mode: int8 {
-  Off = 0,
-  Heat = 1,
+closed enum type State {
+  Idle,
+  Running,
+}
+
+open enum type Protocol: uint8 {
+  TCP = 1,
+  UDP = 2,
 }
 ```
 
-Choose an underlying integer type and give each member an integer literal
-within its range. Member names and values are unique. Separate members with
-commas; a trailing comma is optional. Use `Mode.Heat` as a value, or
-`Example.Mode.Heat` when referring to an enum in namespace `Example`.
-The Matter library declares the global `ThermostatSystemModeEnum` type.
+Closed members are numbered from zero in declaration order. A closed enum
+requires at least one member and uses the smallest fitting unsigned type
+among `uint8`, `uint16`, and `uint32`.
+
+Open enums specify an underlying integer type and accept every value in
+its range. Named members have unique integer literal values within that
+range; an open enum may have no named members. Both kinds default to zero.
+
+Separate members with commas; a trailing comma is optional. Use
+`State.Running` as a value, or `Example.State.Running` for a namespaced
+enum. The Matter library declares the open `ThermostatSystemModeEnum` type.
 
 Use `()` for unit, `true` and `false` for booleans, decimal or `0x`/`0o`
 integers for integer parameters, quoted strings for `String`, and `[a, b]`

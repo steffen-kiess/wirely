@@ -19,7 +19,7 @@ struct type S {
 }
 
 // TEST: unknown member
-enum type E: uint8 {
+open enum type E: uint8 {
   #[unknown] First = 0, // E: Unknown attribute unknown
 }
 
@@ -117,7 +117,7 @@ struct type S {
 } // E: Unexpected token
 
 // TEST: dangling outer member
-enum type E: uint8 {
+open enum type E: uint8 {
   #[Diagram.Position(X = 1, Y = 2)]
 } // E: Unexpected token
 
@@ -144,7 +144,7 @@ struct type S {
 }
 
 // TEST: misplaced inner enum
-enum type E: uint8 {
+open enum type E: uint8 {
   First = 0,
   #![unknown] // E: Unexpected token
 }

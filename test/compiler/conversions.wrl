@@ -1,8 +1,8 @@
-enum type Level: uint8 {
+open enum type Level: uint8 {
   Off = 0,
   High = 200,
 }
-enum type Offset: int8 {
+open enum type Offset: int8 {
   Low = -100,
   Zero = 0,
 }

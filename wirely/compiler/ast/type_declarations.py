@@ -12,10 +12,14 @@ from .values import IntNumber, Reference, StringConstant
 
 class EnumMember(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, value: typing.Optional[Value], *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.value = value
+
+    @staticmethod
+    def create_closed(name, *, source_position):
+        return EnumMember(name, None, source_position=source_position)
 
 
 class StructField(SourceElement):
@@ -88,13 +92,22 @@ class DeclarationStructType(Declaration):
 
 class DeclarationEnumType(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, underlying_type: Value,
-                 members: list, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, underlying_type: typing.Optional[Value],
+                 members: list, *, is_open: bool, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.underlying_type = underlying_type
+        self.is_open = is_open
         self.members = members
         self.inner_attributes = getattr(members, 'inner_attributes', ())
+
+    @staticmethod
+    def create_open(name, underlying_type, members, *, source_position):
+        return DeclarationEnumType(name, underlying_type, members, is_open=True, source_position=source_position)
+
+    @staticmethod
+    def create_closed(name, members, *, source_position):
+        return DeclarationEnumType(name, None, members, is_open=False, source_position=source_position)
 
     def register_interface_declarations(self, interface):
         if interface.name is not None:
@@ -117,26 +130,33 @@ class DeclarationEnumType(Declaration):
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
-        underlying = self.underlying_type
-        if not isinstance(underlying, Reference) or underlying.length != 1:
-            raise ProgramError(underlying, 'Enum underlying type must be a supported integer type')
-        underlying = model.types.type_by_name.get(underlying.identifiers[0].id_str)
-        if not isinstance(underlying, model.types.TypeInt):
-            raise ProgramError(self.underlying_type, 'Enum underlying type must be a supported integer type')
-        if not self.members:
-            raise ProgramError(self.name, 'Enum must declare at least one member')
+        if self.is_open:
+            underlying = self.underlying_type
+            if not isinstance(underlying, Reference) or underlying.length != 1:
+                raise ProgramError(underlying, 'Enum underlying type must be a supported integer type')
+            underlying = model.types.type_by_name.get(underlying.identifiers[0].id_str)
+            if not isinstance(underlying, model.types.TypeInt):
+                raise ProgramError(self.underlying_type, 'Enum underlying type must be a supported integer type')
+        else:
+            try:
+                underlying = model.types.closed_enum_underlying_type(len(self.members))
+            except ValueError as error:
+                raise ProgramError(self.name, str(error)) from error
         names = {}
         values = {}
         numbers = {}
-        for member in self.members:
+        for index, member in enumerate(self.members):
             member_name = member.name.id_str
             if member_name in names:
                 raise ProgramError(member.name, f'Duplicate enum member {member_name}', hints=[
                     CompilerHint(names[member_name], 'Previous member was here'),
                 ])
-            if not isinstance(member.value, IntNumber):
-                raise ProgramError(member.value, 'Enum member values must be integer literals')
-            number = parse_value(underlying, member.value)
+            if self.is_open:
+                if not isinstance(member.value, IntNumber):
+                    raise ProgramError(member.value, 'Enum member values must be integer literals')
+                number = parse_value(underlying, member.value)
+            else:
+                number = index
             if number in values:
                 raise ProgramError(member.value, f'Duplicate enum value {number}', hints=[
                     CompilerHint(values[number], 'Previous member was here'),
@@ -145,7 +165,7 @@ class DeclarationEnumType(Declaration):
             values[number] = member
             numbers[member_name] = number
         fullname = graph.fullname + '.' + name if isinstance(graph, model.ast.DeclarationLibrary) else name
-        self.value_type = model.types.TypeEnum(fullname, numbers, underlying_type=underlying)
+        self.value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying)
         self.value_type.declaration = self
         graph.enum_types[name] = self.value_type
 

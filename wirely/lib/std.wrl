@@ -1,8 +1,8 @@
 namespace Std {
-  enum type EdgeType: uint8 {
-    Rising = 1,
-    Falling = 2,
-    Both = 3,
+  closed enum type EdgeType {
+    Rising,
+    Falling,
+    Both,
   }
 
   #[Internal]

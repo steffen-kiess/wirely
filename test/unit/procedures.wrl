@@ -1,5 +1,5 @@
 namespace ProcedureTests {
-  enum type Mode: uint8 { Off = 0, On = 1 }
+  open enum type Mode: uint8 { Off = 0, On = 1 }
   struct type Pair { enabled: boolean, number: uint8 }
   struct type Presence { value: Option[boolean] }
 

@@ -249,19 +249,29 @@ struct type BuiltinType {
 ```
 
 ```wirely
-// Kind Enum: a named enumeration.
-struct type EnumType {
-  // Enum kind.
+// Kind ClosedEnum: a nonempty, densely numbered enumeration.
+struct type ClosedEnumType {
+  Kind: uint8,
+  // Index into ValueTypes; uint8, uint16, or uint32, fitting all members.
+  UnderlyingType: Ref,
+  // Qualified name in Names.
+  Name: StringRef,
+  // Range into EnumMemberNames; entry N has number N.
+  Members: Range,
+}
+```
+
+```wirely
+// Kind OpenEnum: named values of an integer type.
+struct type OpenEnumType {
   Kind: uint8,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
   // Qualified name in Names.
   Name: StringRef,
-  // Range into EnumMemberNames, ordered by number.
+  // Range into EnumMemberNames, ordered by number; may be empty.
   Members: Range,
-  // Index within Members of the default member.
-  Default: uint32,
-  // Byte offset into EnumNumbers of the member numbers.
+  // Byte offset into EnumNumbers of the named member numbers.
   Numbers: uint32,
 }
 ```
@@ -296,7 +306,8 @@ will be assigned when the format is finalized.
 | `Unit`, `Boolean`, `String`, `ValueType` | `SimpleType` |
 | `Integer` | `IntegerType` |
 | `Builtin` | `BuiltinType` |
-| `Enum` | `EnumType` |
+| `ClosedEnum` | `ClosedEnumType` |
+| `OpenEnum` | `OpenEnumType` |
 | `Struct` | `StructType` |
 | `Option`, `List` | `CompositeType` |
 
@@ -307,8 +318,10 @@ defaults, and representation are described in
 Files contain only `MonotonicTime` values of generation 0.
 
 Enum and struct names support native type reconstruction, display, and
-conversions such as JSON. An enum's underlying type supplies its runtime
-integer encoding, and its default member is the first declared member.
+conversions such as JSON. Both enum kinds explicitly store their underlying
+integer type and default to zero. Closed enums accept numbers from zero
+through `Members.Count - 1`; open enums accept every underlying value.
+Member counts use the `uint32` count in `Range`.
 
 Types are equal exactly when their indices are equal. Producers intern
 structurally equal types; enums and structs have one entry per declaration.
@@ -319,13 +332,13 @@ are only used for static values in this format.
 
 ### EnumMemberNames
 
-`EnumMemberNames` contains `NameRef` records. Entry N of an enum's
-`Members` range names the member whose number is element N of its
-`Numbers` array.
+`EnumMemberNames` contains `NameRef` records. Entry N of a closed enum's
+`Members` range names member N. For an open enum, it names the member whose
+number is element N of its `Numbers` array.
 
 ### EnumNumbers
 
-`EnumNumbers` contains member number arrays. An enum's numbers occupy
+`EnumNumbers` contains open enum member number arrays. The numbers occupy
 `[Numbers, Numbers + Members.Count * storage_size(UnderlyingType))`, in
 `Members` order and the underlying type's runtime binary representation.
 `Numbers` is aligned for the underlying type and is zero when `Members` is
@@ -813,9 +826,10 @@ an integer, boolean, or enum type, and N is interpreted as follows:
   3, 4, … gives 0, −1, 1, −2, 2, …, so small values of either sign have
   short encodings.
 - A boolean is N, which is 0 or 1.
-- An enum is the member with index N within the enum's `Members` range.
+- A closed enum is member N, with N below `Members.Count`.
+- An open enum uses its underlying integer's interpretation of N.
 
-Integer values fit their type, and enum indices lie within `Members`.
+Integer and open enum values fit their underlying widths.
 Other values use `const` operands.
 
 ### Integer parameters
@@ -896,9 +910,8 @@ Ordering comparisons of `Duration` and `TimeOfDay` use native functions
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums their default member, for built-in types their
-default, and for structs the defaults of their fields. Defaults need not
-have an all-zero representation. The default `MonotonicTime` has generation
+options `None`, for enums zero, for built-in types their default, and for
+structs the defaults of their fields. The default `MonotonicTime` has generation
 0, which is never current, so it compares to no current time. Values remain
 valid and canonical, including padding and unused option payloads, as
 specified by the runtime binary representation.
@@ -1077,14 +1090,15 @@ Inner, underlying, and field types precede the types using them, so one
 pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
 runtime types from static-only types. Integer types have a listed width,
-built-in types a known identifier, and underlying types are integers. Enum
-member numbers are in strictly ascending order, and `Default` lies within
-`Members`.
+built-in types a known identifier, and open enum underlying types are
+integers. Open enum named numbers are in strictly ascending order. Closed
+enums have at least one member and an underlying type of `uint8`, `uint16`,
+or `uint32` large enough to represent `Members.Count - 1`.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
-the runtime binary representation, with zero padding. Sorted members let
-enum values be found by binary search. List elements are checked with the
-list's inner type, which precedes the list type, so checks terminate even
+the runtime binary representation, with zero padding. Closed enum values
+are below their member count; open enum values fit their underlying type.
+List elements are checked with the list's inner type, which precedes the list type, so checks terminate even
 when lists share bytes.
 
 `StateVariables` and `Temporaries` are sorted by offset, and each slot
@@ -1164,7 +1178,7 @@ Each type map has one entry per `ValueTypes` entry of its program. A mapped
 type and its transition type have the same kind, and integers the same
 width and signedness. Their inner, underlying, and field types are mapped
 to each other's. Built-in types have equal identifiers, enums and structs
-equal qualified names, enums equal members and defaults, and structs equal
+equal qualified names, enums equal member names and numbers, and structs equal
 field names.
 Dependencies precede their users, so one forward pass verifies a map.
 Operand types of inputs and outputs are looked up through the maps; the

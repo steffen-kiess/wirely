@@ -7,7 +7,7 @@ constant Value: int8 = 1;
 constant Result: uint8 = uint8.From(Value); // E: uint8.From cannot convert every int8 value
 
 // TEST: lossy From from an enum
-enum type Mode: int8 { Off = 0, On = 1, }
+open enum type Mode: int8 { Off = 0, On = 1, }
 constant Result: uint8 = uint8.From(Mode.On); // E: uint8.From cannot convert every Mode value
 
 // TEST: From literal outside the target type
@@ -24,7 +24,7 @@ constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requi
 constant Result: boolean = boolean.From(1); // E: Type boolean has no member 'From'
 
 // TEST: enum target
-enum type Mode: uint8 { Off = 0, }
+open enum type Mode: uint8 { Off = 0, }
 constant Result: Option[Mode] = Mode.CheckedFrom(0); // E: Type Mode has no member 'CheckedFrom'
 
 // TEST: argument count

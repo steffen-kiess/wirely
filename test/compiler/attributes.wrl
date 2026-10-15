@@ -82,7 +82,7 @@ namespace Implementation {
     enabled: boolean,
   }
 
-  enum type Mode: uint8 {
+  open enum type Mode: uint8 {
     #![Internal]
     #[Internal]
     On = 1,
@@ -145,7 +145,7 @@ struct type InnerRecord {
   enabled: boolean,
 }
 #[Internal]
-enum type OuterMode: uint8 {
+open enum type OuterMode: uint8 {
   On = 1,
 }
 assert InnerRecord { enabled: true } == InnerRecord { enabled: true };

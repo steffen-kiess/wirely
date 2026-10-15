@@ -34,7 +34,7 @@ connect n2.d -> n1.c;
 connect n1.d, n2.d -> n1.a;
 connect n1.d -> n2.c;
 struct type S { a: int32, b: int32, c: int32 }
-enum type E: uint8 { A = 1, B = 2, C = 3 }
+open enum type E: uint8 { A = 1, B = 2, C = 3 }
 '''
 
 

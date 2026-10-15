@@ -130,7 +130,7 @@ def check_values():
   }
 }
 namespace Example {
-  enum type Mode: uint8 { On = 1, }
+  open enum type Mode: uint8 { On = 1, }
   struct type Pair { value: boolean, }
   native constant function Same as "Example.Identity"(number: uint16): uint16;
 }

@@ -45,13 +45,13 @@ namespace Schedule {
   }
 
   #[Internal]
-  enum type TriggerAtState: uint8 {
+  closed enum type TriggerAtState {
     // Initial state, or outside both intervals.
-    Outside = 0,
+    Outside,
     // In the before interval; entering the after interval will emit an event.
-    Before = 1,
+    Before,
     // Already visited the after interval; wait until outside both to re-arm.
-    Triggered = 2,
+    Triggered,
   }
 
   // Creates an event whenever the current time changes from the range of 8

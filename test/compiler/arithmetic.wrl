@@ -19,7 +19,7 @@ assert 7 / 2 == 3 && -7 / 2 == -3 && 7 / -2 == -3 && -7 / -2 == 3;
 assert 7 % 2 == 1 && -7 % 2 == -1 && 7 % -2 == 1 && -7 % -2 == -1;
 
 // Negative literals remain accepted in enums and attributes.
-enum type Level: int8 {
+open enum type Level: int8 {
   Low = -128,
   High = 127,
 }

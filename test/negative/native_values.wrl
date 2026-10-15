@@ -37,7 +37,7 @@ node type Probe {
 
 // TEST: qualified reference requires alias
 namespace Example {
-  enum type Mode: uint8 { On = 1, }
+  open enum type Mode: uint8 { On = 1, }
 }
 node type Probe {
   native procedure run uses Example.Mode.On; // E: Static binding requires an alias

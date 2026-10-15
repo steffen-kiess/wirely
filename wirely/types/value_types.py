@@ -15,6 +15,7 @@ class EnumType:
     name: str  # Qualified name, such as 'KNX.Protocol'.
     underlying_type: 'ValueType'  # Integer type of the member numbers.
     members: Mapping[str, int]  # Member numbers by name, in declaration order.
+    is_open: bool
     python_type: type | None  # Python enum from wirely.runtime.enums, if any.
     names: Mapping[int, str] = field(init=False, repr=False)  # Member names by number.
 
@@ -28,7 +29,7 @@ class EnumType:
         return EnumValue(self, self.members[name])
 
     def from_value(self, number):
-        """Return the value of the member with this number."""
+        """Return the enum value with this number."""
         return EnumValue(self, number)
 
     def __repr__(self):
@@ -37,19 +38,23 @@ class EnumType:
 
 @dataclass(frozen=True, slots=True)
 class EnumValue:
-    """A member of an enum type; equal to another value of the same type and number."""
+    """An enum value; equal to another value of the same type and number."""
 
     type: EnumType
-    value: int  # Member number.
+    value: int  # Underlying number, possibly unnamed for an open enum.
 
     def __post_init__(self):
-        if type(self.value) is not int or self.value not in self.type.names:
+        self.type.underlying_type.validate(self.value)
+        if not self.type.is_open and not 0 <= self.value < len(self.type.members):
             raise ValueError(f'Expected a member number of {self.type.name}, got {self.value!r}')
 
     @property
     def name(self):
         """The member name."""
-        return self.type.names[self.value]
+        try:
+            return self.type.names[self.value]
+        except KeyError:
+            raise ValueError(f'Unnamed value {self.value} of {self.type.name}') from None
 
     @property
     def native(self):
@@ -59,7 +64,9 @@ class EnumValue:
         return self.type.python_type(self.value)
 
     def __repr__(self):
-        return f'EnumValue({self.type.name}.{self.name})'
+        name = self.type.names.get(self.value)
+        return (f'EnumValue({self.type.name}.{name})' if name is not None
+                else f'EnumValue({self.type.name}({self.value}))')
 
 
 @dataclass(frozen=True, slots=True, eq=False)

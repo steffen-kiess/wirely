@@ -8,7 +8,7 @@ constant Bad: boolean = (7).IsNone; // E: Value of type int32 has no property 'I
 
 // TEST: enum receiver
 namespace Names {
-  enum type Mode: uint8 { IsSome = 1, IsNone = 2, }
+  open enum type Mode: uint8 { IsSome = 1, IsNone = 2, }
 }
 constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: Value of type Names.Mode has no property 'IsNone'
 

@@ -30,7 +30,7 @@ runtime types. Runtime types can also be used for parameters.
 | `Duration` | Non-negative elapsed time, in units of 2^-64 s | Runtime |
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
-| Declared enums | A named member | Runtime |
+| Declared enums | A named member, or an unnamed open value | Runtime |
 | Declared structs | Named fields | Runtime within the limits below |
 | `ValueType` | A value type | Parameter-only |
 | `Option[T]` | No value, or one value of type `T` | Runtime within the limits below |
@@ -47,7 +47,9 @@ Types exceeding these limits remain usable for parameters and constants.
 
 Integer ranges are inclusive. For a signed integer of width `n`, the range
 is -2^(n-1) through 2^(n-1)-1; for an unsigned integer it is 0 through 2^n-1.
-Enums must declare at least one member.
+Closed enums have consecutive values from zero and require at least one
+member. Open enums accept every value of their underlying integer type
+and may have no named members. Both kinds default to zero.
 
 Value types are distinct from port kinds. `value T` carries a current
 value of type `T`; `event T` carries occurrences with payloads of type `T`.
@@ -321,7 +323,7 @@ Wirely literal syntax where it exists:
 | Type | Text |
 | --- | --- |
 | `unit`, `boolean`, integers | `()`, `true`, `-42` |
-| Declared enums | Qualified member, such as `Std.EdgeType.Falling` |
+| Declared enums | Qualified member, such as `Std.EdgeType.Falling`; unnamed open values use decimal numbers |
 | `Duration` | Unquoted canonical literal, such as `PT0S`, `PT1.5S`, or `P1DT4H` |
 | `TimeOfDay` | Unquoted literal, such as `08:00` or `08:00:30.5` |
 | `MonotonicTime` | `MonotonicTime(1, 12.5s)`; `MonotonicTime(invalid)` for generation 0 |
@@ -343,7 +345,7 @@ Serialization support is used by library nodes such as MQTT providers and
 | `boolean` | Boolean | `false` or `true` |
 | All integer types | Number | Decimal integer |
 | `String` | String | No |
-| Declared enums | Member name | No |
+| Declared enums | Member name; number for an unnamed open value | No |
 | `unit`, `Duration`, `TimeOfDay`, `MonotonicTime`, `ValueType`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
@@ -351,7 +353,9 @@ Serialization support is used by library nodes such as MQTT providers and
 For enums, the default JSON format encodes and decodes names such as
 `"Enabled"` and `"StandbyMode"`. Encoding with `Format = "SnakeCase"` uses
 strings such as `"enabled"` and `"standby_mode"`. Use the default format for
-receiving enum values.
+receiving named enum values. Unnamed open values encode as JSON numbers;
+open enums also accept numbers when decoding. Text parsing accepts member
+names and, for open enums, decimal numbers.
 
 For CSV, an absent optional value becomes an empty field; a present value
 uses the inner type's conversion. MQTT's `ValueOptionProvider` handles
@@ -382,7 +386,9 @@ complement.
 | `TimeOfDay` | 16 | 16 | `u128` units of 2^-64 s since midnight |
 | `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
 
-Each enum uses its declared underlying integer type.
+Open enums use their declared underlying integer type. Closed enums use
+`uint8` for up to 256 members, `uint16` for up to 65,536 members, and
+`uint32` thereafter; their member count must fit `uint32`.
 
 Struct fields start at offsets aligned for their types, in declaration
 order. Each field reserves its full storage size before the next field;
@@ -403,5 +409,6 @@ meaning. Times of day extend through 86,400 · 2^64 units (24:00).
 
 Boolean and presence bytes are exactly `00` or `01`. Absent payloads and
 tail padding contain only zeros. Integer values fit their encoded widths,
-and enum numbers identify declared members. Each serialized value has
+and closed enum numbers are below their member count. Open enum numbers
+need not identify named members. Each serialized value has
 exactly the data size of its resolved runtime type.

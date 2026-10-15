@@ -123,7 +123,7 @@ def check_structs_and_options():
 
 
 def check_conversions():
-    level = types.TypeEnum('Level', {'OFF': 0, 'HIGH': 200}, underlying_type=types.uint8)
+    level = types.TypeEnum('Level', {'OFF': 0, 'HIGH': 200}, is_open=True, underlying_type=types.uint8)
     boolean_option = types.TypeOption(types.boolean)
     int8_option = types.TypeOption(types.int8)
     cases = [  # opcode, source type, value, destination type, expected
@@ -199,7 +199,7 @@ def check_calls():
 
 
 def check_defaults_and_equality():
-    mode = types.TypeEnum('Mode', {'FIRST': 7, 'SECOND': 9}, underlying_type=types.uint8)
+    mode = types.TypeEnum('Mode', {'FIRST': 7, 'SECOND': 9}, is_open=True, underlying_type=types.uint8)
     option = types.TypeOption(mode)
     outcome = execute([
         instruction(Opcode.GET_OPTION_VALUE, output(0), local(0)),
@@ -208,7 +208,7 @@ def check_defaults_and_equality():
         instruction(Opcode.RETURN),
     ], local_types=(option, types.unit), output_types=(mode, mode, types.boolean))
     # Enum values are member numbers inside the runtime.
-    assert outcome == (7, 7, True)
+    assert outcome == (0, 0, True)
 
 
 def check_ordering():

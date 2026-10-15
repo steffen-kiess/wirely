@@ -156,13 +156,15 @@ Time `ticks` count units of 2^-64 s, given by
 
 An `EnumValue` has the member number as `value`, the member `name`, and its
 `type`, a `wirely.EnumType` with the enum's `name`, `underlying_type`,
-`members` (numbers by name), and `names` (names by number). Two values are
-equal when both type and number are equal; compare with numbers or Python
-enums through `value` or `native`. `native` is the member of the Python
-`IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
+`members` (numbers by name), `names` (names by number), and `is_open`.
+Open values may have unnamed numbers; reading `name` then raises
+`ValueError`. Two values are equal when both type and number are equal;
+compare with numbers or Python enums through `value` or `native`.
+`native` is the member of the Python `IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
 registers for the enum type, and raises `ValueError` for enum types without
-one, so use it only in code written for a specific enum. An enum output
-accepts only `EnumValue`s of its own enum type.
+one or when the Python enum does not recognize the number, so use it only
+in code written for a specific enum. An enum output accepts only
+`EnumValue`s of its own enum type.
 
 A `StructValue` has its field values in declaration order as `values`, and
 its `type`, a `wirely.StructType` with the struct's `name`, its `fields` as

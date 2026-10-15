@@ -35,7 +35,7 @@ constant Span: Duration = "PT1S";
 constant Value: Duration = Span * Span; // E: got Duration
 
 // TEST: enum operands
-enum type Mode: uint8 { Off = 0, }
+open enum type Mode: uint8 { Off = 0, }
 constant Value: Mode = Mode.Off + Mode.Off; // E: got Mode
 
 // TEST: member of a non-integer type

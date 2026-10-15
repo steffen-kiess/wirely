@@ -563,13 +563,16 @@ def check_unit_outputs():
 
 def check_enum_outputs():
     # Enum outputs accept only EnumValues of the output's enum type.
+    output = 'Off'
+
     def check_enum_output(context):
         mode, other = context.values['mode'], context.values['other']
         assert (mode.name, mode.value, mode.type.name) == ('On', 2, 'Example.Mode')
         for invalid in [2, other]:
             with checks.assertRaisesRegex(ValueError, 'Expected an EnumValue of Example.Mode'):
                 context.set_output('output', invalid)
-        context.set_output('output', mode.type.from_name('Off'))
+        value = mode.type.from_name(output) if isinstance(output, str) else mode.type.from_value(output)
+        context.set_output('output', value)
 
     probe = make_engine('''
     default output: value Example.Mode;
@@ -578,13 +581,17 @@ def check_enum_outputs():
       uses Example.Mode.On as mode, Example.Other.On as other;
     ''', check_enum_output, extra='''
 namespace Example {
-  enum type Mode: uint8 { Off = 1, On = 2, }
-  enum type Other: uint8 { Off = 1, On = 2, }
+  open enum type Mode: uint8 { Off = 1, On = 2, }
+  open enum type Other: uint8 { Off = 1, On = 2, }
 }
 ''')
     probe.step()
-    # Inside the runtime, enum values are member numbers.
+    # Inside the runtime, named and unnamed enum values are numbers.
     probe.assert_value_is('probe', 1)
+    output = 255
+    probe.trigger('probe', 'run')
+    probe.step()
+    probe.assert_value_is('probe', 255)
 
 
 def check_struct_outputs():

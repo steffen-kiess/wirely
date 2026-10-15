@@ -39,9 +39,9 @@ For enum and struct bodies, put each member on its own line with a trailing
 comma:
 
 ```wirely
-enum type Mode: uint8 {
-  Off = 0,
-  Heat = 1,
+closed enum type Mode {
+  Off,
+  Heat,
 }
 ```
 

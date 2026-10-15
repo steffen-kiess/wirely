@@ -35,13 +35,13 @@ run_fixture_with_std('''// A description before the first case.
 
   // TEST: duplicate members
 // Reusing names below also exercises isolation between cases.
-enum type Mode: uint8 {
+open enum type Mode: uint8 {
   On = 1, // H: Previous member was here
   On = 2, // E: Duplicate enum member On
 }
 
 // TEST: unknown member
-enum type Mode: uint8 { On = 1 }
+open enum type Mode: uint8 { On = 1 }
 node bad: Std.Constant { Type: Mode, Value: Mode.Missing }
 // ^E: Unknown member 'Missing' of Mode
 
@@ -62,23 +62,23 @@ node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 
 
 # Syntax diagnostics use the same annotations and physical line numbers.
-run_fixture_with_std('enum type Bad: int8 { One = 1; } // E: Unexpected token\n')
+run_fixture_with_std('open enum type Bad: int8 { One = 1; } // E: Unexpected token\n')
 run_fixture_with_std('''// TEST: unexpected token
-enum type Bad: int8 {
+open enum type Bad: int8 {
   One = 1; // E: Unexpected token
 }
 // TEST: unexpected character
 node bad: Std.Constant { Type: String, Value: "unterminated }
 // ^E: No terminal matches
 // TEST: unexpected end of input
-enum type Bad: int8 { One = 1 // E: Syntax error
+open enum type Bad: int8 { One = 1 // E: Syntax error
 // TEST: semantic error after syntax errors
 node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 ''')
 
 with checks.assertRaises(AssertionError) as error:
     run_fixture_with_std('''// TEST: wrong syntax expectation
-enum type Bad: int8 { One = 1; } // E: No terminal matches
+open enum type Bad: int8 { One = 1; } // E: No terminal matches
 // TEST: another mismatch
 node bad: Std.Constant { Type: uint8, Value: -1 } // E: wrong expectation
 ''')
@@ -99,7 +99,7 @@ invalid = [
      'Malformed annotation on line 3'),
     ('// TEST\n// ^E: out of range\n' + legacy,
      'Malformed annotation on line 3'),
-    ('// TEST\nenum type Mode: uint8 {\n  On = 1,\n'
+    ('// TEST\nopen enum type Mode: uint8 {\n  On = 1,\n'
      '  On = 2, // E: Duplicate enum member On\n}', 'unexpected='),
 ]
 for source, expected in invalid:
@@ -157,7 +157,7 @@ assert program_compiler.compile(compiled) is not None
 
 # Library availability is explicit, and built-in types need no library.
 run_fixture('node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find node type Std.Constant\n')
-run_fixture('enum type Mode: uint8 { Bad = -1 } // E: out of range\n')
+run_fixture('open enum type Mode: uint8 { Bad = -1 } // E: out of range\n')
 run_fixture('''// LIBRARIES: matter
 // TEST: std is absent
 node bad: Std.Constant { Type: uint8, Value: 1 } // E: Cannot find node type Std.Constant

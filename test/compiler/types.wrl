@@ -7,11 +7,11 @@ namespace Types {
     value: int16,
   }
 
-  enum type FirstMode: uint8 {
+  open enum type FirstMode: uint8 {
     On = 1,
   }
 
-  enum type SecondMode: uint8 {
+  open enum type SecondMode: uint8 {
     On = 1,
   }
 }
@@ -73,58 +73,58 @@ node type ValueNames {
 
 node value_names: ValueNames {}
 
-enum type Boundaryint8: int8 {
+open enum type Boundaryint8: int8 {
   Minimum = -128,
   Maximum = 127,
 }
 
-enum type Boundaryint16: int16 {
+open enum type Boundaryint16: int16 {
   Minimum = -32768,
   Maximum = 32767,
 }
 
-enum type Boundaryint32: int32 {
+open enum type Boundaryint32: int32 {
   Minimum = -2147483648,
   Maximum = 2147483647,
 }
 
-enum type Boundaryint64: int64 {
+open enum type Boundaryint64: int64 {
   Minimum = -9223372036854775808,
   Maximum = 9223372036854775807,
 }
 
-enum type Boundaryuint8: uint8 {
+open enum type Boundaryuint8: uint8 {
   Minimum = 0,
   Maximum = 255,
 }
 
-enum type Boundaryuint16: uint16 {
+open enum type Boundaryuint16: uint16 {
   Minimum = 0,
   Maximum = 65535,
 }
 
-enum type Boundaryuint32: uint32 {
+open enum type Boundaryuint32: uint32 {
   Minimum = 0,
   Maximum = 4294967295,
 }
 
-enum type Boundaryuint64: uint64 {
+open enum type Boundaryuint64: uint64 {
   Minimum = 0,
   Maximum = 18446744073709551615,
 }
 
-enum type Boundaryint128: int128 {
+open enum type Boundaryint128: int128 {
   Minimum = -170141183460469231731687303715884105728,
   Maximum = 170141183460469231731687303715884105727,
 }
 
-enum type Boundaryuint128: uint128 {
+open enum type Boundaryuint128: uint128 {
   Minimum = 0,
   Maximum = 340282366920938463463374607431768211455,
 }
 
 
-enum type Signed: int8 {
+open enum type Signed: int8 {
   Min = -128,
   Zero = 0,
   /* Hexadecimal /* nested comment */ value. */
@@ -132,8 +132,8 @@ enum type Signed: int8 {
   Octal = 0o77,
   r#enum = 127,
 }
-enum type Single: uint64 { Only = 9, }
-enum type r#enum: uint8 { r#node = 1, }
+open enum type Single: uint64 { Only = 9, }
+open enum type r#enum: uint8 { r#node = 1, }
 assert Signed.Hex != Signed.Octal;
 constant Escaped: r#enum = r#enum.r#node;
 assert Escaped == r#enum.r#node;
@@ -147,7 +147,7 @@ namespace Example {
   }
 }
 namespace Example {
-  enum type Mode: uint8 { Off = 0, On = 1, }
+  open enum type Mode: uint8 { Off = 0, On = 1, }
 }
 namespace Example.Inner {
   node type Settings {
@@ -189,3 +189,26 @@ node type Structs {
   assert EmptyStruct {} == EmptyStruct {};
 }
 node structs: Structs {}
+
+// Closed members have compiler-assigned dense numbers; openness is explicit.
+closed enum type State { Idle, Running, Failed, }
+assert State.Idle != State.Running;
+assert uint8.From(State.Idle) == 0;
+assert uint8.From(State.Running) == 1;
+assert uint8.From(State.Failed) == 2;
+closed enum type SingleState { Only, }
+assert uint8.From(SingleState.Only) == 0;
+open enum type EmptyUnsigned: uint8 {}
+open enum type EmptySigned: int128 {}
+
+// Modifiers remain ordinary identifiers in other positions.
+closed enum type open { open, closed, }
+open enum type closed: uint8 { open = 7, closed = 9, }
+node type WeakEnumKeywords {
+  constant open: boolean = true;
+  constant closed: boolean = open;
+  assert open && closed;
+}
+node weak_keywords: WeakEnumKeywords {}
+assert open.open != open.closed;
+assert closed.open != closed.closed;

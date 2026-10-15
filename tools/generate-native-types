@@ -96,7 +96,8 @@ def generate_enums(graph):
              'import enum', '']
     for python_name, name, value_type, declaration in classes:
         lines += ['', source_comment(name, declaration), f'class {python_name}(enum.IntEnum):']
-        lines += [f'    {member} = {number}' for member, number in value_type.members.items()]
+        lines += ([f'    {member} = {number}' for member, number in value_type.members.items()]
+                  or ['    pass'])
         lines.append('')
     lines += ['', '# Python enums by enum type name.', 'native_enum_types = {']
     lines += [f'    {name!r}: {python_name},' for python_name, name, *_ in classes]

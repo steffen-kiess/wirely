@@ -20,7 +20,7 @@ _SHUFFLED_ATTRIBUTES = {
     model.UsesDeclaration: ('bindings',),
 }
 
-# Lists whose order defines serialization or enum default values.
+# Lists whose order defines field layout or open enum metadata ordering.
 _LAYOUT_ATTRIBUTES = {
     model.DeclarationStructType: ('fields',),
     model.DeclarationEnumType: ('members',),
@@ -38,7 +38,7 @@ def shuffle_declarations(declarations, seed, *, layout=False):
 
     The same seed and input give the same order. Connections keep their
     relative order, which determines the order of multi input sources.
-    With layout, struct fields and enum members are also shuffled.
+    With layout, struct fields and open enum members are also shuffled.
     """
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
@@ -71,6 +71,9 @@ def _visit(rng, value, attributes, visited):
     visited.add(id(value))
     for cls, names in attributes.items():
         if isinstance(value, cls):
+            # Closed member order determines the numbers visible to Wirely code.
+            if cls is model.DeclarationEnumType and not value.is_open:
+                continue
             for name in names:
                 items = getattr(value, name)
                 if isinstance(items, list):
