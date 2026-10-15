@@ -335,7 +335,7 @@ node type DurationMath {
   output Scaled: value Option[Duration];
   output Divided: value Option[Duration];
   output FactorSecs: value Duration;
-  output Millis: value uint64;
+  output Millis: value uint128;
 
   procedure run depends on default input as span, Factor as factor
     produces Sum, Difference, Scaled, Divided, FactorSecs, Millis

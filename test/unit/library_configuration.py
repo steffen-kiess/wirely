@@ -173,7 +173,7 @@ def check_flipflop_behavior():
             runtime.assert_value_is(target, None)
             runtime.assert_is_idle()
 
-    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    now = [wirely.MonotonicTime(generation=1, ticks=10 * wirely.types.time.TICKS_PER_SECOND)]
     with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
         runtime, target = make_runtime()
         feedback(None)
@@ -245,14 +245,14 @@ def check_flipflop_behavior():
         runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
         command(False)
         step()
-        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        now[0] = wirely.MonotonicTime(generation=2, ticks=now[0].ticks)
         step()
         command(False)
         step(fire=True)
         runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
         command(False)
         step()
-        now[0] = wirely.MonotonicTime(3, now[0].time_ns)
+        now[0] = wirely.MonotonicTime(generation=3, ticks=now[0].ticks)
         command(False)
         step(fire=True)
 
@@ -319,7 +319,7 @@ connect input -> wrapper;
             runtime.assert_is_idle()
 
     # Fix the clock so expiration and generation changes are deterministic.
-    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    now = [wirely.MonotonicTime(generation=1, ticks=10 * wirely.types.time.TICKS_PER_SECOND)]
     with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
         runtime = make_runtime()
         source = runtime.get_native_state('input')
@@ -365,7 +365,7 @@ connect input -> wrapper;
         # Clock loss accepts the pending input immediately and clears the wait.
         source.set_value(6)
         step(5)
-        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        now[0] = wirely.MonotonicTime(generation=2, ticks=now[0].ticks)
         step(6)
 
         runtime = make_runtime(duration='PT0S')
@@ -434,7 +434,7 @@ def check_key_state():
         assert output.getvalue() == expected, output.getvalue()
 
     # Fix the clock so deadline boundaries and generation changes are exact.
-    now = [wirely.MonotonicTime(1, 10_000_000_000)]
+    now = [wirely.MonotonicTime(generation=1, ticks=10 * wirely.types.time.TICKS_PER_SECOND)]
     with patch.object(wirely.MonotonicTime, 'current_time', side_effect=lambda: now[0]):
         runtime = make_runtime()
         step(False)
@@ -488,7 +488,7 @@ def check_key_state():
         runtime.assert_is_idle()
 
         # Losing the clock generation releases the key and warns only once.
-        now[0] = wirely.MonotonicTime(2, now[0].time_ns)
+        now[0] = wirely.MonotonicTime(generation=2, ticks=now[0].ticks)
         step(False, warning=True)
         step(False)
         runtime.assert_is_idle()

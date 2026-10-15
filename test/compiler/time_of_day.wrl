@@ -2,9 +2,14 @@ constant Morning: TimeOfDay = "08:00";
 constant EndOfDay: TimeOfDay = "24:00";
 constant Midnight: TimeOfDay = "00:00";
 
-// Parsing forms and nanosecond resolution.
+// Parsing forms and 2^-64 s resolution.
 assert Morning == "08:00:00" && Morning == "08:00:00.000000000";
-assert "00:00:00.000000001" > Midnight && "23:59:59.999999999" < EndOfDay;
+constant Last: TimeOfDay = "23:59:59.99999999999999999995";
+assert "00:00:00.00000000000000000005" > Midnight && Last < EndOfDay;
+
+// Fractions round to the nearest unit; times before 24:00 stay before it.
+assert "08:00:00.00000000000000000002" == Morning;
+assert "23:59:59.99999999999999999999" == Last;
 assert EndOfDay == "24:00:00" && EndOfDay == "24:00:00.0";
 
 // 24:00 is distinct from 00:00 and ordered after all other times.

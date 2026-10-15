@@ -659,13 +659,13 @@ class TypedExpression:
         if overflow is not None:
             return integer_type.arithmetic(operation, overflow, *operands)
         if isinstance(integer_type, model.types.TypeDuration):
-            left, right = (operand.duration_ns for operand in operands)
+            left, right = (operand.ticks for operand in operands)
             result = left + right if operation == 'add' else left - right
             if result < 0:
                 raise ProgramError(self.source, 'Negative duration')
-            if result > model.Duration.MAX_NS:
+            if result > model.Duration.MAX_TICKS:
                 raise ProgramError(self.source, 'Duration overflow: result exceeds the maximum duration')
-            return model.Duration(duration_ns=result)
+            return model.Duration(ticks=result)
         # Operators fail compilation instead of overflowing.
         if operation in ('div', 'rem') and operands[1] == 0:
             raise ProgramError(self.source, 'Division by zero')

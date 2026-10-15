@@ -136,9 +136,9 @@ defaults contain their ordinary values. `ValueType` bindings provide
 | `boolean` | `bool` |
 | All integer types | `int` within the type's range; not `bool` |
 | `String` | `str` |
-| `Duration` | `wirely.types.time.Duration`, with `duration_ns` |
-| `TimeOfDay` | `wirely.TimeOfDay`, with `nanoseconds` since midnight (up to 24:00) |
-| `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `time_ns` |
+| `Duration` | `wirely.types.time.Duration`, with `ticks` |
+| `TimeOfDay` | `wirely.TimeOfDay`, with `ticks` since midnight (up to 24:00) |
+| `MonotonicTime` | `wirely.types.time.MonotonicTime`, with `generation` and `ticks` |
 | Declared enums | Immutable `wirely.EnumValue` |
 | Declared structs | Immutable `wirely.StructValue` |
 | `ValueType` | `wirely.ValueType` |
@@ -147,6 +147,10 @@ defaults contain their ordinary values. `ValueType` bindings provide
 
 `List[T]` values can be supplied as Python lists or tuples; nested lists
 are normalized into tuples.
+
+Time `ticks` count units of 2^-64 s, given by
+`wirely.types.time.TICKS_PER_SECOND`. `Duration.from_seconds()` and
+`total_seconds` convert from and to seconds.
 
 `Unit` is immutable and fieldless; all instances compare equal.
 

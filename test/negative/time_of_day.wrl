@@ -12,9 +12,6 @@ constant Value: TimeOfDay = "25:00"; // E: Invalid TimeOfDay value
 // TEST: minute out of range
 constant Value: TimeOfDay = "08:60"; // E: Invalid TimeOfDay value
 
-// TEST: below nanosecond resolution
-constant Value: TimeOfDay = "08:00:00.0000000001"; // E: Invalid TimeOfDay value
-
 // TEST: removed AddWrap
 constant Value: TimeOfDay = TimeOfDay.AddWrap("08:00", "01:00"); // E: Type TimeOfDay has no member 'AddWrap'
 

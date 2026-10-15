@@ -590,7 +590,7 @@ class TypeMonotonicTime(TypePrimitive):
 
     def default_value(self):
         # Generation 0 is never current, so the default compares to no current time.
-        return RuntimeMonotonicTime(0, 0)
+        return RuntimeMonotonicTime(generation=0, ticks=0)
 
     def _parse_impl(self, s):
         raise Exception('TODO: Implement TypeMonotonicTime.parse')
@@ -610,7 +610,7 @@ class TypeDuration(TypePrimitive):
         super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self):
-        return RuntimeDuration(duration_ns=0)
+        return RuntimeDuration(ticks=0)
 
     def _parse_impl(self, s):
         return RuntimeDuration.parse(s)
@@ -627,7 +627,7 @@ class TypeTimeOfDay(TypePrimitive):
         super().__init__(name='TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self):
-        return RuntimeTimeOfDay(0)
+        return RuntimeTimeOfDay(ticks=0)
 
     def _parse_impl(self, s):
         return RuntimeTimeOfDay.parse(s)

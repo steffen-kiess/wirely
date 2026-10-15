@@ -27,7 +27,7 @@ runtime types. Runtime types can also be used for parameters.
 | `uint64` | 0 to 18,446,744,073,709,551,615 | Runtime |
 | `uint128` | 0 to 2^128-1 | Runtime |
 | `String` | Text | Parameter-only |
-| `Duration` | Non-negative elapsed time, in nanoseconds | Runtime |
+| `Duration` | Non-negative elapsed time, in units of 2^-64 s | Runtime |
 | `TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
 | Declared enums | A named member | Runtime |
@@ -116,16 +116,19 @@ node type TextSettings {
 Duration literals are based on
 [ISO 8601-1:2019](https://www.iso.org/standard/70907.html), section 5.5.2.
 
-`Duration` represents a non-negative amount of elapsed time with nanosecond
-resolution. Its string format uses `P`, optional days (`D`), and an optional
+`Duration` represents a non-negative amount of elapsed time in units of
+2^-64 s. Its string format uses `P`, optional days (`D`), and an optional
 time part introduced by `T` containing hours (`H`), minutes (`M`), and
 seconds (`S`). At least one component is required. Seconds can have a
 decimal fraction using a dot. Examples include `"PT0S"`, `"PT1.5S"`,
-`"PT2H30M"`, and `"P1DT4H"`.
+`"PT2H30M"`, and `"P1DT4H"`. A string is rounded to the nearest unit, and
+a duration formats as the shortest decimal that rounds back to it, so
+`"PT0.1S"` stays `"PT0.1S"`.
 
 Days are fixed periods of 24 hours. Duration components use days, hours,
 minutes, and seconds rather than calendar months or years. Durations range
-from zero to 2^64 − 1 nanoseconds (`"PT18446744073.709551615S"`, about 584
+from zero to 2^128 − 1 units, just under 2^64 seconds
+(`"P213503982334601DT7H15.99999999999999999995S"`, about 584 billion
 years).
 
 ```wirely
@@ -143,7 +146,7 @@ and compile-time expressions:
 | `Duration.SaturatingMul(duration, factor)` | The product with a `uint32` factor, at most the maximum. |
 | `Duration.CheckedAdd(a, b)`, `Duration.CheckedSub(a, b)` | `Some` with the sum or difference, or `None` outside the range. |
 | `Duration.CheckedMul(duration, factor)` | `Some` with the product, or `None` above the maximum. |
-| `Duration.CheckedDiv(duration, divisor)` | `Some` with the quotient rounded down to whole nanoseconds, or `None` for divisor 0. |
+| `Duration.CheckedDiv(duration, divisor)` | `Some` with the quotient rounded down to whole units, or `None` for divisor 0. |
 
 In compile-time expressions, `a + b` and `a - b` also combine two
 durations; a result outside the range fails compilation.
@@ -153,20 +156,24 @@ milliseconds, microseconds, or nanoseconds:
 
 | Function | Result |
 | --- | --- |
-| `Duration.FromSecs(secs)`, `Duration.FromMillis(millis)`, `Duration.FromMicros(micros)` | The duration of a `uint32` count of the unit. |
-| `Duration.FromNanos(nanos)` | The duration of a `uint64` count of nanoseconds. |
-| `Duration.AsSecs(duration)`, `Duration.AsMillis(duration)`, `Duration.AsMicros(duration)`, `Duration.AsNanos(duration)` | The `uint64` count of whole units, rounded down. |
+| `Duration.FromSecs(secs)`, `Duration.FromMillis(millis)`, `Duration.FromMicros(micros)` | The duration of a `uint32` count of the unit, rounded to the nearest 2^-64 s. |
+| `Duration.FromNanos(nanos)` | The duration of a `uint64` count of nanoseconds, rounded to the nearest 2^-64 s. |
+| `Duration.AsSecs(duration)` | The `uint64` count of whole seconds, rounded down. |
+| `Duration.AsMillis(duration)`, `Duration.AsMicros(duration)`, `Duration.AsNanos(duration)` | The `uint128` count of whole units, rounded down. |
 
-For example, `Duration.AsSecs("PT1.9S")` is 1. Convert other integer types
-with `uint32.From` or `uint32.CheckedFrom`.
+For example, `Duration.AsSecs("PT1.9S")` is 1. The `As` functions invert
+the `From` functions: `Duration.AsMillis(Duration.FromMillis(n))` is `n`.
+Convert other integer types with `uint32.From` or `uint32.CheckedFrom`.
 
 ### Time of day
 
-`TimeOfDay` describes a clock time without a date or timezone, with
-nanosecond resolution. Strings use two-digit hours and minutes, optionally
-followed by seconds and up to nine fraction digits: `"08:00"`,
-`"08:00:30"`, and `"08:00:30.125"`. Hours range from 0 to 23, minutes and
-seconds from 0 to 59.
+`TimeOfDay` describes a clock time without a date or timezone, in units of
+2^-64 s since midnight. Strings use two-digit hours and minutes, optionally
+followed by seconds and a decimal fraction: `"08:00"`, `"08:00:30"`, and
+`"08:00:30.125"`. Hours range from 0 to 23, minutes and seconds from 0 to
+59. Strings round to the nearest unit and format like durations; a time
+written before 24:00 that would round to 24:00 becomes the last unit
+before it.
 
 `"24:00"` is the end of the day. It differs from `"00:00"` and orders
 after every other time, so a pair of times can describe a whole day:
@@ -203,9 +210,9 @@ Here, `End` is 06:00 and the interval crosses midnight.
 ### Monotonic time
 
 `MonotonicTime` is a point on a monotonic clock, used for deadlines and
-elapsed-time calculations. It contains a clock generation and a nanosecond
-reading. A monotonic time is distinct from a wall-clock time or a time of
-day.
+elapsed-time calculations. It contains a clock generation and a reading in
+units of 2^-64 s. A monotonic time is distinct from a wall-clock time or a
+time of day.
 
 A new generation starts whenever the runtime loses track of how much time
 has passed. For example, a device without a real-time clock may save its
@@ -232,7 +239,7 @@ Where a runtime value is needed without one, such as an uninitialized
 temporary, the default is a time from a generation that is never current,
 so it compares to no current time.
 
-Timestamps range from zero to 2^64 − 1 nanoseconds. The `std` library
+Timestamps range from zero to 2^128 − 1 units. The `std` library
 declares these functions, which work in procedure bodies and keep the
 generation of `time`:
 
@@ -370,9 +377,9 @@ complement.
 | Integer of width N bytes | N | N | Declared integer width |
 | Enum | Underlying integer size | Underlying integer alignment | Member number |
 | Struct | Through the last field's data bytes | Maximum field alignment | Fields in declaration order |
-| `Duration` | 8 | 8 | `u64` nanoseconds |
-| `MonotonicTime` | 16 | 8 | `u64` generation, then `u64` nanoseconds |
-| `TimeOfDay` | 8 | 8 | `u64` nanoseconds since midnight |
+| `Duration` | 16 | 16 | `u128` units of 2^-64 s |
+| `MonotonicTime` | 24 | 16 | `u128` units of 2^-64 s, then `u64` generation |
+| `TimeOfDay` | 16 | 16 | `u128` units of 2^-64 s since midnight |
 | `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
 
 Each enum uses its declared underlying integer type.
@@ -391,10 +398,8 @@ tail padding. For `Option[Option[uint64]]`, the flags occupy offsets 8 and
 9: data size is 10, alignment is 8, and storage size is 16. `Some(None)` ends
 in `00 01`; `None` contains ten zero bytes.
 
-Duration and monotonic fields fit unsigned 64-bit integers. Monotonic
-`(0, 0)` retains its invalid-timestamp meaning. The time-of-day format
-extends through `86_400_000_000_000` nanoseconds (24:00). Wirely currently
-accepts times before 24:00 at microsecond precision, without a timezone.
+Monotonic generation 0 with timestamp 0 retains its invalid-timestamp
+meaning. Times of day extend through 86,400 · 2^64 units (24:00).
 
 Boolean and presence bytes are exactly `00` or `01`. Absent payloads and
 tail padding contain only zeros. Integer values fit their encoded widths,

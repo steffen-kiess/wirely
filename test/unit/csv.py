@@ -17,7 +17,7 @@ class ProcedureContext:
         self.triggered = False
         self.time = SimpleNamespace(
             local=datetime.datetime(2026, 10, 15, tzinfo=datetime.timezone.utc),
-            monotonic=wirely.MonotonicTime(1, 100),
+            monotonic=wirely.MonotonicTime(generation=1, ticks=100),
         )
 
     def set_output(self, name, value):
@@ -51,7 +51,7 @@ def check_repeat_recovery():
 
     # An elapsed helper reports None when the previous clock generation is lost.
     context.inputs['last_written_at_old'] = context.outputs['last_written_at']
-    context.time.monotonic = wirely.MonotonicTime(2, 50)
+    context.time.monotonic = wirely.MonotonicTime(generation=2, ticks=50)
     ValueWriter.run(context=context)
     expected += f'{time},true,true\r\n'.encode()
     assert output.getvalue() == expected
@@ -72,7 +72,7 @@ def check_repeat_recovery():
 
     # Empty values do not repeat for an expired interval or a lost generation.
     context.inputs['last_written_at_old'] = context.outputs['last_written_at']
-    context.time.monotonic = wirely.MonotonicTime(3, 10)
+    context.time.monotonic = wirely.MonotonicTime(generation=3, ticks=10)
     for elapsed in (wirely.Some(True), None):
         context.inputs['repeat_elapsed'] = elapsed
         context.triggered = False

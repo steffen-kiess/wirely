@@ -362,15 +362,15 @@ async def run_test():
         reached_input = engine.get_native_state('reached_input')
         now = wirely.MonotonicTime.current_time()
         for time, expected in [(None, None), (wirely.Some(now + wirely.Duration.parse('PT1H')), wirely.Some(False)),
-                               (wirely.Some(wirely.MonotonicTime(now.generation, 0)), wirely.Some(True)),
-                               (wirely.Some(wirely.MonotonicTime(0, 0)), None)]:
+                               (wirely.Some(wirely.MonotonicTime(generation=now.generation, ticks=0)), wirely.Some(True)),
+                               (wirely.Some(wirely.MonotonicTime(generation=0, ticks=0)), None)]:
             reached_input.set_value(time)
             engine.step()
             engine.assert_value_is('reached', expected)
 
         # DurationElapsed preserves absence and rejects lost clock generations.
         elapsed_input = engine.get_native_state('elapsed_input')
-        for start in (None, wirely.Some(wirely.MonotonicTime(0, 0))):
+        for start in (None, wirely.Some(wirely.MonotonicTime(generation=0, ticks=0))):
             elapsed_input.set_value(start)
             engine.step()
             engine.assert_value_is('elapsed', None)
@@ -428,7 +428,7 @@ async def run_test():
         engine.assert_is_idle()
 
         # Adding the duration near the timestamp limit saturates, not overflows.
-        elapsed_input.set_value(wirely.Some(wirely.MonotonicTime(start.generation, wirely.MonotonicTime.MAX_NS - 5)))
+        elapsed_input.set_value(wirely.Some(wirely.MonotonicTime(generation=start.generation, ticks=wirely.MonotonicTime.MAX_TICKS - 5)))
         engine.step()
         engine.assert_value_is('elapsed', wirely.Some(False))
         elapsed_input.set_value(None)

@@ -25,13 +25,10 @@ def check_scalar_codecs():
         (wirely.types.boolean, True, b'\x01', 1),
         (wirely.types.uint32, 0x12345678, bytes.fromhex('78 56 34 12'), 4),
         (wirely.types.int16, -2, bytes.fromhex('fe ff'), 2),
-        (wirely.types.Duration, wirely.Duration(duration_ns=1_000_000),
-         bytes.fromhex('40 42 0f 00 00 00 00 00'), 8),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(7, 123),
-         bytes.fromhex('07 00 00 00 00 00 00 00 7b 00 00 00 00 00 00 00'), 8),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(0, 0), bytes(16), 8),
+        (wirely.types.Duration, wirely.Duration.from_seconds(1.5),
+         bytes(7) + b'\x80\x01' + bytes(7), 16),
         (wirely.types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0, 1),
-         bytes.fromhex('00 ca 9a 3b 00 00 00 00'), 8),
+         bytes(8) + b'\x01' + bytes(7), 16),
         (thermostat_type, 4, b'\x04', 1),
     ]:
         assert ty.alignment == alignment
@@ -40,6 +37,14 @@ def check_scalar_codecs():
         assert ty.serialize(value) == encoded
         assert ty.deserialize(encoded) == value
         assert ty.deserialize(memoryview(encoded)) == value
+
+    # Monotonic times store 2**-64 s units, then the generation, with tail padding.
+    monotonic = wirely.types.MonotonicTime
+    assert (monotonic.data_size, monotonic.size, monotonic.alignment) == (24, 32, 16)
+    for value, encoded in [(wirely.MonotonicTime(generation=7, ticks=123), b'\x7b' + bytes(15) + b'\x07' + bytes(7)),
+                           (wirely.MonotonicTime(generation=0, ticks=0), bytes(24))]:
+        assert monotonic.serialize(value) == encoded
+        assert monotonic.deserialize(encoded) == value
 
     for bits in (8, 16, 32, 64, 128):
         for signed in (False, True):
@@ -83,20 +88,20 @@ def check_scalar_codecs():
         (nested_uint64, b'\x01' + bytes(8) + b'\x01'),
         (nested_uint64, bytes(8) + b'\x02\x01'),
         (thermostat_type, b'\x02'),
-        (wirely.types.TimeOfDay, (86_400_000_000_001).to_bytes(8, 'little')),
+        (wirely.types.TimeOfDay, (wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little')),
     ]:
         with checks.assertRaises(ValueError):
             ty.deserialize(malformed)
 
     # Nanosecond values up to 24:00 round-trip.
-    for text in ('00:00', '00:00:00.000000001', '23:59:59.999999999', '24:00'):
+    for text in ('00:00', '00:00:00.00000000000000000005', '23:59:59.99999999999999999995', '24:00'):
         value = wirely.TimeOfDay.parse(text)
         assert wirely.types.TimeOfDay.deserialize(wirely.types.TimeOfDay.serialize(value)) == value
 
-    maximum = 2**64 - 1
     for ty, value in [
-        (wirely.types.Duration, wirely.Duration(duration_ns=maximum)),
-        (wirely.types.MonotonicTime, wirely.MonotonicTime(maximum, maximum)),
+        (wirely.types.Duration, wirely.Duration(ticks=wirely.Duration.MAX_TICKS)),
+        (wirely.types.MonotonicTime,
+         wirely.MonotonicTime(generation=wirely.MonotonicTime.MAX_GENERATION, ticks=wirely.MonotonicTime.MAX_TICKS)),
     ]:
         assert ty.deserialize(ty.serialize(value)) == value
 
@@ -193,7 +198,7 @@ def check_variable_storage():
     values = VariableTableInstance(table)
     independent = VariableTableInstance(table)
     expected = {flag: True, small: 65535, first_unit: wirely.Unit(),
-                nested: wirely.Some(None), clock: wirely.MonotonicTime(7, 123),
+                nested: wirely.Some(None), clock: wirely.MonotonicTime(generation=7, ticks=123),
                 second_unit: wirely.Unit()}
     for variable, value in expected.items():
         with checks.assertRaisesRegex(Exception, 'not yet set'):

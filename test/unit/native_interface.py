@@ -94,24 +94,24 @@ def check_wakeups():
         with checks.assertRaisesRegex(ValueError, 'already set'):
             context.set_wakeup_time(None)
 
-    for deadline in [None, wirely.MonotonicTime(1, 100),
-                     wirely.MonotonicTime(0, 0), wirely.MonotonicTime(2, 100)]:
+    for deadline in [None, wirely.MonotonicTime(generation=1, ticks=100),
+                     wirely.MonotonicTime(generation=0, ticks=0), wirely.MonotonicTime(generation=2, ticks=100)]:
         wakeup_probe = make_engine(
             'native procedure run;',
             lambda context, deadline=deadline: check_wakeup(context, deadline),
         )
-        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(1, 0)):
+        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(generation=1, ticks=0)):
             wakeup_probe.step()
         if deadline is None:
             assert wakeup_probe.next_wakeup is None
         else:
             # A wakeup from a non-current generation is due now.
-            expected = deadline if deadline.generation == 1 else wirely.MonotonicTime(1, 0)
+            expected = deadline if deadline.generation == 1 else wirely.MonotonicTime(generation=1, ticks=0)
             assert wakeup_probe.next_wakeup == expected
 
     for explicit_cancellation in [False, True]:
         wakeup_calls = []
-        deadline = wirely.MonotonicTime(1, 10)
+        deadline = wirely.MonotonicTime(generation=1, ticks=10)
 
         def schedule_wakeup(context):
             assert context.wakeup_time is None
@@ -122,7 +122,7 @@ def check_wakeups():
                 context.set_wakeup_time(None)
 
         wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
-        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(1, 0)):
+        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(generation=1, ticks=0)):
             wakeup_probe.step()
             assert wakeup_probe.next_wakeup == deadline
             wakeup_probe.step()
@@ -173,7 +173,7 @@ def check_stage_times():
     stage_snapshots = {}
     clock_contexts = []
     stages = list(RunStage)
-    monotonic_times = [wirely.MonotonicTime(7, index * 1_000_000_000)
+    monotonic_times = [wirely.MonotonicTime(generation=7, ticks=index * wirely.types.time.TICKS_PER_SECOND)
                        for index in range(1, 4)]
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
                                    tzinfo=datetime.timezone.utc)

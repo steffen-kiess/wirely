@@ -15,16 +15,16 @@ def check_main_program():
     engine.get_native_state('option_source').set_value(None)
     engine.get_native_state('nested_source').set_value(None)
     engine.get_native_state('int_source').set_value(0)
-    engine.get_native_state('duration_source').set_value(wirely.Duration(duration_ns=0))
+    engine.get_native_state('duration_source').set_value(wirely.Duration(ticks=0))
     engine.get_native_state('time_source').set_value(wirely.TimeOfDay.from_parts(0, 0))
     engine.get_native_state('int8_source').set_value(0)
     engine.get_native_state('uint8_source').set_value(0)
     engine.get_native_state('pair_source').set_value(pair(False, 0))
-    engine.get_native_state('span_source').set_value(wirely.Duration(duration_ns=0))
+    engine.get_native_state('span_source').set_value(wirely.Duration(ticks=0))
     engine.get_native_state('factor_source').set_value(1)
     for name in ('monotonic_source', 'monotonic_other'):
-        engine.get_native_state(name).set_value(wirely.MonotonicTime(0, 0))
-    engine.get_native_state('monotonic_span').set_value(wirely.Duration(duration_ns=0))
+        engine.get_native_state(name).set_value(wirely.MonotonicTime(generation=0, ticks=0))
+    engine.get_native_state('monotonic_span').set_value(wirely.Duration(ticks=0))
     engine.step()
     engine.assert_value_is('selected', False)
     engine.assert_value_is('fallback', True)
@@ -419,8 +419,8 @@ def check_option_presence():
 def check_ordering():
     cases = {
         'int': [-2, -1, 0],
-        'duration': [wirely.Duration(duration_ns=999_999_999), wirely.Duration(duration_ns=1_000_000_000),
-                     wirely.Duration(duration_ns=1_000_000_001)],
+        'duration': [wirely.Duration(ticks=2**64 - 1), wirely.Duration(ticks=2**64),
+                     wirely.Duration(ticks=2**64 + 1)],
         'time': [wirely.TimeOfDay.from_parts(7, 59), wirely.TimeOfDay.from_parts(8, 0), wirely.TimeOfDay.from_parts(8, 1)],
     }
     for name, (below, equal, above) in cases.items():
@@ -542,11 +542,11 @@ def check_native_functions():
 
 
 def check_duration_functions():
-    def duration(nanoseconds):
-        return wirely.Duration(duration_ns=nanoseconds)
+    def duration(ticks):
+        return wirely.Duration(ticks=ticks)
 
-    second = 1_000_000_000
-    maximum = wirely.Duration.MAX_NS
+    second = wirely.types.time.TICKS_PER_SECOND
+    maximum = wirely.Duration.MAX_TICKS
     span_source = engine.get_native_state('span_source')
     factor_source = engine.get_native_state('factor_source')
     some = wirely.Some
@@ -559,7 +559,7 @@ def check_duration_functions():
         engine.step()
         for output, expected in [('Sum', duration(total)), ('Difference', duration(difference)),
                                  ('Scaled', scaled), ('Divided', divided),
-                                 ('FactorSecs', duration(factor * second)), ('Millis', span // 1_000_000)]:
+                                 ('FactorSecs', duration(factor * second)), ('Millis', span * 1_000 // second)]:
             engine.assert_value_is(f'duration_math.{output}', expected)
     engine.assert_is_idle()
 
@@ -582,7 +582,10 @@ def check_time_of_day_functions():
 
 
 def check_monotonic_time_functions():
-    time, some, maximum = wirely.MonotonicTime, wirely.Some, wirely.MonotonicTime.MAX_NS
+    def time(generation, ticks):
+        return wirely.MonotonicTime(generation=generation, ticks=ticks)
+
+    some, maximum = wirely.Some, wirely.MonotonicTime.MAX_TICKS
     sources = [engine.get_native_state(name) for name in ('monotonic_source', 'monotonic_other', 'monotonic_span')]
     outputs = ('Later', 'Earlier', 'CheckedLater', 'CheckedEarlier', 'Elapsed', 'Less')
     for value, other, span, expected in [
@@ -598,12 +601,12 @@ def check_monotonic_time_functions():
             # Different generations, including the generation-0 default.
             (time(2, 100), time(0, 0), 1,
              (time(2, 101), time(2, 99), some(time(2, 101)), some(time(2, 99)), None, None))]:
-        for source, item in zip(sources, (value, other, wirely.Duration(duration_ns=span))):
+        for source, item in zip(sources, (value, other, wirely.Duration(ticks=span))):
             source.set_value(item)
         engine.step()
         for output, result in zip(outputs, expected):
             if output == 'Elapsed' and result is not None:
-                result = some(wirely.Duration(duration_ns=result.value))
+                result = some(wirely.Duration(ticks=result.value))
             engine.assert_value_is(f'monotonic_math.{output}', result)
     engine.assert_is_idle()
 

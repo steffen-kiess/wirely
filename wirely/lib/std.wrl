@@ -230,9 +230,9 @@ namespace Duration {
   native function FromMicros(micros: uint32): Duration;
   native function FromNanos(nanos: uint64): Duration;
   native function AsSecs(duration: Duration): uint64;
-  native function AsMillis(duration: Duration): uint64;
-  native function AsMicros(duration: Duration): uint64;
-  native function AsNanos(duration: Duration): uint64;
+  native function AsMillis(duration: Duration): uint128;
+  native function AsMicros(duration: Duration): uint128;
+  native function AsNanos(duration: Duration): uint128;
 }
 
 namespace MonotonicTime {

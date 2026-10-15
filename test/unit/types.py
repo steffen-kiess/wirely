@@ -53,6 +53,11 @@ def check_parsing_and_conversions():
     assert wirely.value_types.string.json_decode('hello') == 'hello'
     assert wirely.value_types.string.json_encode('hello') == 'hello'
     assert wirely.value_types.time_of_day.parse('11:17') == wirely.TimeOfDay.from_parts(11, 17)
+    # Fractions round to the nearest 2**-64 s; times before 24:00 stay before it.
+    last = wirely.TimeOfDay(ticks=wirely.TimeOfDay.END_TICKS - 1)
+    assert wirely.TimeOfDay.parse('23:59:59.99999999999999999999') == last
+    assert str(last) == '23:59:59.99999999999999999995'
+    assert wirely.TimeOfDay.parse('00:00:01.1') == wirely.TimeOfDay.from_parts(0, 0, 1, 1_844_674_407_370_955_162)
     assert wirely.value_types.unit.parse('()') == wirely.Unit()
     for descriptor, text in [(wirely.value_types.unit, '0'),
                              (wirely.value_types.time_of_day, '123')]:
@@ -183,42 +188,45 @@ def check_unit():
 
 
 def check_times():
-    instant = wirely.MonotonicTime(7, 5_000_000_000)
-    equivalent = wirely.MonotonicTime(7, 5_000_000_000)
+    second = wirely.types.time.TICKS_PER_SECOND
+    instant = wirely.MonotonicTime(generation=7, ticks=5 * second)
+    equivalent = wirely.MonotonicTime(generation=7, ticks=5 * second)
     span = wirely.Duration.from_seconds(2)
     assert {instant: 'time'}[equivalent] == 'time'
-    assert len({span, wirely.Duration(duration_ns=2_000_000_000)}) == 1
-    for value, field in [(instant, 'time_ns'), (span, 'duration_ns')]:
+    assert len({span, wirely.Duration(ticks=2 * second)}) == 1
+    for value in (instant, span):
         with checks.assertRaises(AttributeError):
-            setattr(value, field, 0)
-    assert instant != wirely.MonotonicTime(8, instant.time_ns)
-    # Generations and timestamps are limited to their uint64 storage.
-    maximum = wirely.MonotonicTime.MAX_NS
-    for generation, time_ns in [(-1, 0), (1, -1), (maximum + 1, 0), (1, maximum + 1)]:
+            value.ticks = 0
+    assert instant != wirely.MonotonicTime(generation=8, ticks=instant.ticks)
+    # Generations and timestamps are limited to their uint64 and uint128 storage.
+    max_generation, max_ticks = wirely.MonotonicTime.MAX_GENERATION, wirely.MonotonicTime.MAX_TICKS
+    for generation, ticks in [(-1, 0), (1, -1), (max_generation + 1, 0), (1, max_ticks + 1)]:
         with checks.assertRaises(ValueError):
-            wirely.MonotonicTime(generation, time_ns)
+            wirely.MonotonicTime(generation=generation, ticks=ticks)
     # The default value's generation 0 is never current.
     default = wirely.types.MonotonicTime.default_value()
-    assert default == wirely.MonotonicTime(0, 0)
+    assert default == wirely.MonotonicTime(generation=0, ticks=0)
     assert not wirely.MonotonicTime.is_comparable(instant, default)
     with checks.assertRaises(Exception):
         wirely.MonotonicTime.compare(instant, default)
     assert wirely.Duration.parse('P1DT2H3M4.5S').total_seconds == 93784.5
-    # Durations are exact and limited to the uint64 nanosecond range.
-    maximum = wirely.Duration.parse('PT18446744073.709551615S')
-    assert maximum.duration_ns == wirely.Duration.MAX_NS == 2**64 - 1
-    assert wirely.Duration.parse('PT18446744073.7S').duration_ns == 18_446_744_073_700_000_000
-    for invalid in [-1, 2**64]:
+    # Durations round to the nearest 2**-64 s and are limited to the uint128 range.
+    maximum = wirely.Duration.parse('P213503982334601DT7H15.99999999999999999995S')
+    assert maximum.ticks == wirely.Duration.MAX_TICKS == 2**128 - 1
+    assert wirely.Duration.parse('PT0.1S').ticks == 1_844_674_407_370_955_162
+    assert wirely.Duration.parse('PT0.000000000000000000027S').ticks == 0
+    assert wirely.Duration.parse('PT0.000000000000000000028S').ticks == 1
+    for invalid in [-1, 2**128]:
         with checks.assertRaises(Exception):
-            wirely.Duration(duration_ns=invalid)
+            wirely.Duration(ticks=invalid)
     with checks.assertRaises(Exception):
-        wirely.Duration.parse('PT18446744073.709551616S')
+        wirely.Duration.parse('P213503982334601DT7H16S')
     assert wirely.Duration.parse('PT2S') == span
     for text in ('P', 'PT', '-PT1S', 'P1M', 'invalid'):
         with checks.assertRaises(ValueError):
             wirely.value_types.duration.parse(text)
     with checks.assertRaises(Exception):
-        wirely.Duration(duration_ns=-1)
+        wirely.Duration(ticks=-1)
     longer = wirely.Duration.from_seconds(5)
     assert span + longer == wirely.Duration.from_seconds(7)
     assert longer - span == wirely.Duration.from_seconds(3)
@@ -231,7 +239,7 @@ def check_times():
                                   (instant, equivalent, 0)]:
         assert wirely.MonotonicTime.compare(left, right) == expected
     # Arithmetic keeps generation 0, so results stay non-comparable to current times.
-    assert default + span == wirely.MonotonicTime(0, span.duration_ns)
+    assert default + span == wirely.MonotonicTime(generation=0, ticks=span.ticks)
     assert not wirely.MonotonicTime.is_comparable(later, default + span)
     with checks.assertRaises(Exception):
         later - default
@@ -260,9 +268,9 @@ def check_to_text():
         (mode, 1, 'Example.Mode.Heat'),
         (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('08:00:30.5'), '08:00:30.5'),
         (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('24:00'), '24:00'),
-        (types.MonotonicTime, wirely.MonotonicTime(1, 12_345_678_901_234), 'MonotonicTime(1, 12345.678901234s)'),
-        (types.MonotonicTime, wirely.MonotonicTime(2, 3_000_000_000), 'MonotonicTime(2, 3s)'),
-        (types.MonotonicTime, wirely.MonotonicTime(0, 5), 'MonotonicTime(invalid)'),
+        (types.MonotonicTime, wirely.MonotonicTime(generation=1, ticks=12345 * 2**64 + 3 * 2**62), 'MonotonicTime(1, 12345.75s)'),
+        (types.MonotonicTime, wirely.MonotonicTime(generation=2, ticks=3 * 2**64), 'MonotonicTime(2, 3s)'),
+        (types.MonotonicTime, wirely.MonotonicTime(generation=0, ticks=5), 'MonotonicTime(invalid)'),
         (types.TypeOption(reading), wirely.Some((1, -5)), 'Some(Example.Reading { mode: Example.Mode.Heat, level: -5 })'),
         (types.TypeOption(types.uint8), None, 'None'),
         (types.TypeStruct('Empty', {}), (), 'Empty {}'),
@@ -273,11 +281,15 @@ def check_to_text():
     ]
     for value_type, value, text in cases:
         assert value_type.to_text(value) == text, (value_type, value_type.to_text(value))
-    for duration_ns, text in [(0, 'PT0S'), (1_500_000_000, 'PT1.5S'), (1, 'PT0.000000001S'),
-                              (9_000 * 10**9, 'PT2H30M'), (86_400 * 10**9, 'P1D'),
-                              (100_800 * 10**9, 'P1DT4H'), (3_661 * 10**9 + 5, 'PT1H1M1.000000005S'),
-                              (2**64 - 1, 'P213503DT23H34M33.709551615S')]:
-        duration = wirely.Duration(duration_ns=duration_ns)
+    # Text is the shortest decimal that parses back to the same duration.
+    second = wirely.types.time.TICKS_PER_SECOND
+    for ticks, text in [(0, 'PT0S'), (3 * second // 2, 'PT1.5S'), (1, 'PT0.00000000000000000005S'),
+                        (1_844_674_407_370_955_162, 'PT0.1S'),
+                        (9_000 * second, 'PT2H30M'), (86_400 * second, 'P1D'),
+                        (100_800 * second, 'P1DT4H'), (3_661 * second + second // 4, 'PT1H1M1.25S'),
+                        (60 * second - 1, 'PT59.99999999999999999995S'),
+                        (2**128 - 1, 'P213503982334601DT7H15.99999999999999999995S')]:
+        duration = wirely.Duration(ticks=ticks)
         assert types.Duration.to_text(duration) == text, duration.to_iso()
         assert wirely.Duration.parse(text) == duration
     # Descriptors format native values, including StructValues and EnumValues.
@@ -364,8 +376,8 @@ def check_default_values():
              for prefix in ('int', 'uint') for bits in (8, 16, 32, 64, 128)]
     cases += [
         (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
-        (types.Duration, wirely.Duration(duration_ns=0)),
-        (types.MonotonicTime, wirely.MonotonicTime(0, 0)),
+        (types.Duration, wirely.Duration(ticks=0)),
+        (types.MonotonicTime, wirely.MonotonicTime(generation=0, ticks=0)),
         (types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0)), (types.ValueType, types.unit),
         (enum_type, 99), (types.TypeList(types.String), ()),
         (types.TypeList(types.TypeList(types.uint8)), ()),

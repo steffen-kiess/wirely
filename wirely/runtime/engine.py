@@ -352,5 +352,5 @@ class Engine:
     def advance_fake_monotonic_time(self, offset):
         if self.fake_monotonic_time_offset is None:
             print('Warning: Setting fake monotonic time offset', flush=True)
-            self.fake_monotonic_time_offset = wirely.Duration(duration_ns=0)
+            self.fake_monotonic_time_offset = wirely.Duration(ticks=0)
         self.fake_monotonic_time_offset += offset

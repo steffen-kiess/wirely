@@ -209,8 +209,8 @@ def check_ordering():
         instruction(Opcode.RETURN),
     ], output_types=(types.boolean,) * 5,
        constants=(Constant(types.int16, -1), Constant(types.int16, 0),
-                  Constant(types.Duration, RuntimeDuration(duration_ns=1)),
-                  Constant(types.Duration, RuntimeDuration(duration_ns=2)),
+                  Constant(types.Duration, RuntimeDuration(ticks=1)),
+                  Constant(types.Duration, RuntimeDuration(ticks=2)),
                   Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(23, 59)),
                   Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(0, 0))))
     assert outcome == (True, False, False, True, False)

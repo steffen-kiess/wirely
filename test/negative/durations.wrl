@@ -1,14 +1,14 @@
 // LIBRARIES: std
 
 // TEST: addition overflow
-constant Max: Duration = "PT18446744073.709551615S";
-constant Value: Duration = Max + "PT0.000000001S"; // E: Duration overflow: result exceeds the maximum duration
+constant Max: Duration = "P213503982334601DT7H15.99999999999999999995S";
+constant Value: Duration = Max + "PT0.00000000000000000005S"; // E: Duration overflow: result exceeds the maximum duration
 
 // TEST: negative subtraction
 constant Value: Duration = "PT1S" - "PT2S"; // E: Negative duration
 
 // TEST: literal above the maximum
-constant Value: Duration = "PT18446744073.709551616S"; // E: Invalid Duration value
+constant Value: Duration = "P213503982334601DT7H16S"; // E: Invalid Duration value
 
 // TEST: multiplication operator
 constant Value: Duration = "PT1S" * "PT2S"; // E: Integer arithmetic requires an integer value, got Duration
