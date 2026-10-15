@@ -9,6 +9,11 @@ from wirely.types.time import TICKS_PER_SECOND
 native_functions = {}
 
 
+@native_function(native_functions, 'Less')
+def less(*, context):
+    return context.arguments['a'].ticks < context.arguments['b'].ticks
+
+
 def _saturating(ticks):
     return wirely.Duration(ticks=min(max(ticks, 0), wirely.Duration.MAX_TICKS))
 

@@ -129,8 +129,8 @@ def _validate_body(procedure, constant_types, functions):
             elif opcode in (Opcode.EQUAL, Opcode.LESS):
                 _same_type(operand_types[0], boolean)
                 _same_type(operand_types[1], operand_types[2])
-                if opcode == Opcode.LESS and not operand_types[1].is_ordered:
-                    raise ValueError(f'Type {operand_types[1]} is not ordered')
+                if opcode == Opcode.LESS and not isinstance(operand_types[1], TypeInt):
+                    raise ValueError('Ordering requires an integer type')
             elif opcode == Opcode.CALL:
                 function_index, count = operands[1], operands[2]
                 if not 0 <= function_index < len(functions):

@@ -218,6 +218,8 @@ namespace Std {
 }
 
 namespace Duration {
+  #[Internal]
+  native function Less(a: Duration, b: Duration): boolean;
   native function SaturatingAdd(a: Duration, b: Duration): Duration;
   native function SaturatingSub(a: Duration, b: Duration): Duration;
   native function SaturatingMul(duration: Duration, factor: uint32): Duration;
@@ -245,6 +247,8 @@ namespace MonotonicTime {
 }
 
 namespace TimeOfDay {
+  #[Internal]
+  native function Less(a: TimeOfDay, b: TimeOfDay): boolean;
   native function WrappingAdd(time: TimeOfDay, duration: Duration): TimeOfDay;
   native function WrappingSub(time: TimeOfDay, duration: Duration): TimeOfDay;
   native function DurationUntil(from: TimeOfDay, to: TimeOfDay): Duration;

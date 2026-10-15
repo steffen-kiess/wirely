@@ -8,7 +8,7 @@ from .types import resolve_type, check_runtime_type
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
-    BranchTarget, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
+    BranchTarget, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
 )
 
 
@@ -781,7 +781,10 @@ class InstructionCompiler:
             destination = self.allocate(expression.value_type)
         if operation == 'call':
             arguments = [self.snapshot(argument) for argument in expression.arguments]
-            self.emit(Opcode.CALL, destination, self.intern_function(expression.payload[0]),
+            declaration = expression.payload[0]
+            function = Function(declaration.native_name, declaration.argument_names,
+                                declaration.parameter_types, declaration.return_type)
+            self.emit(Opcode.CALL, destination, self.intern_function(function),
                       len(arguments), *arguments)
             return destination
         if operation == 'struct':
@@ -858,10 +861,16 @@ class InstructionCompiler:
         elif operation in ('lt', 'le', 'gt', 'ge'):
             right = self.compile(expression.arguments[1])
             # a <= b is !(b < a), and a >= b is !(a < b).
-            if operation in ('lt', 'ge'):
+            if operation in ('le', 'gt'):
+                left, right = right, left
+            value_type = expression.arguments[0].value_type
+            if isinstance(value_type, model.types.TypeInt):
                 self.emit(Opcode.LESS, destination, left, right)
             else:
-                self.emit(Opcode.LESS, destination, right, left)
+                assert value_type in (model.types.Duration, model.types.TimeOfDay)
+                function = Function(f'{value_type}.Less', ('a', 'b'), (value_type, value_type),
+                                    model.types.boolean)
+                self.emit(Opcode.CALL, destination, self.intern_function(function), 2, left, right)
             if operation in ('le', 'ge'):
                 self.emit(Opcode.NOT, destination, destination)
         else:

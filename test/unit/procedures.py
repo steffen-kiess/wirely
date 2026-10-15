@@ -435,6 +435,50 @@ def check_ordering():
 
 
 
+def check_builtin_ordering():
+    # Operators link their helpers without std and evaluate operands before reversing them.
+    maximum = 'P213503982334601DT7H15.99999999999999999995S'
+    for type_name, low, high in [('Duration', 'PT0S', maximum), ('TimeOfDay', '00:00', '24:00')]:
+        for left, right, expected in [(low, high, (True, True, False, False)),
+                                      (high, high, (False, True, False, True)),
+                                      (high, low, (False, False, True, True))]:
+            program = compile_program('''node type Ordering {
+              parameter Type: ValueType;
+              parameter Left: Type;
+              parameter Right: Type;
+              state left: Type = Left;
+              state right: Type = Right;
+              output Less: value boolean;
+              output LessEqual: value boolean;
+              output Greater: value boolean;
+              output GreaterEqual: value boolean;
+              procedure run depends on left.old as a, right.old as b
+                produces left, right, Less, LessEqual, Greater, GreaterEqual
+              {
+                left = a;
+                right = b;
+                let mut value = a;
+                Less = value < { value = b; b };
+                value = a;
+                LessEqual = value <= { value = b; b };
+                value = a;
+                Greater = value > { value = b; b };
+                value = a;
+                GreaterEqual = value >= { value = b; b };
+              }
+            }
+            node ordering: Ordering { Type: TYPE, Left: "LEFT", Right: "RIGHT" }
+            '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right))
+            machine = Engine(program)
+            with patch.object(runtime_procedures, 'call_native_function',
+                              wraps=runtime_procedures.call_native_function) as calls:
+                machine.step()
+            assert [call.args[1] for call in calls.call_args_list] == [f'{type_name}.Less'] * 4
+            for output, result in zip(('Less', 'LessEqual', 'Greater', 'GreaterEqual'), expected):
+                machine.assert_value_is(f'ordering.{output}', result)
+            machine.assert_is_idle()
+
+
 def check_arithmetic():
     some = wirely.Some
     cases = {  # input: Wrapped, Saturated, Checked, Quotient, Fallback
@@ -641,6 +685,7 @@ check_root_dependencies()
 check_root_state()
 check_option_presence()
 check_ordering()
+check_builtin_ordering()
 check_arithmetic()
 check_struct_fields()
 check_conversions()

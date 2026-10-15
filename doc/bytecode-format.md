@@ -855,7 +855,7 @@ Each name below denotes a value operand except `field`, `offset`,
 | `SHIFT_LEFT destination, value, shift_count` | Shift left, discarding outgoing bits and filling with zeros. |
 | `SHIFT_RIGHT destination, value, shift_count` | Shift right, extending the sign for signed integers and filling with zeros for unsigned integers. |
 | `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
-| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type, or the same ordered built-in type. |
+| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type. |
 | `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
 | `ADD_SATURATING`, `SUB_SATURATING`, `MUL_SATURATING` `destination, left, right` | Compute the integer result clamped to the operand type's range. |
 | `ADD_CHECKED`, `SUB_CHECKED`, `MUL_CHECKED`, `DIV_CHECKED`, `REM_CHECKED` `destination, left, right` | Assign `Some` with the integer result, or `None` when it is outside the operand type's range or the divisor is zero. |
@@ -890,6 +890,9 @@ are equal.
 parameter count so that instructions can be decoded without the table;
 they match, and the argument and destination types match the entry.
 Functions are pure and return a value for every argument.
+
+Ordering comparisons of `Duration` and `TimeOfDay` use native functions
+`Duration.Less` and `TimeOfDay.Less`, respectively.
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for

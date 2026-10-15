@@ -6,7 +6,7 @@ from wirely.compiler.types import resolve_type, check_runtime_type
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
-    Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    Constant, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
     NativeNodeType, NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding,
     RunStage, Variable, VariableTable,
 )
@@ -339,12 +339,11 @@ def lower_program(global_node_type):
     functions = []
     function_indices = {}
 
-    def intern_function(declaration):
-        if declaration.native_name not in function_indices:
-            function_indices[declaration.native_name] = len(functions)
-            functions.append(Function(declaration.native_name, declaration.argument_names,
-                                      declaration.parameter_types, declaration.return_type))
-        return function_indices[declaration.native_name]
+    def intern_function(function):
+        if function.name not in function_indices:
+            function_indices[function.name] = len(functions)
+            functions.append(function)
+        return function_indices[function.name]
 
     for stage_procs in procs.values():
         for path, proc in stage_procs:

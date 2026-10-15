@@ -8,6 +8,11 @@ native_functions = {}
 _DAY_TICKS = wirely.TimeOfDay.END_TICKS
 
 
+@native_function(native_functions, 'Less')
+def less(*, context):
+    return context.arguments['a'].ticks < context.arguments['b'].ticks
+
+
 def _wrap(time, offset):
     # Whole days leave every time unchanged, including 24:00. Other results
     # lie before 24:00.

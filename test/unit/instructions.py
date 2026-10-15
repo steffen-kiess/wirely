@@ -2,7 +2,6 @@ import io
 from unittest import TestCase
 
 from wirely import types
-from wirely.types.time import Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
@@ -204,16 +203,10 @@ def check_ordering():
         instruction(Opcode.LESS, output(0), const(0), const(1)),
         instruction(Opcode.LESS, output(1), const(1), const(0)),
         instruction(Opcode.LESS, output(2), const(0), const(0)),
-        instruction(Opcode.LESS, output(3), const(2), const(3)),
-        instruction(Opcode.LESS, output(4), const(4), const(5)),
         instruction(Opcode.RETURN),
-    ], output_types=(types.boolean,) * 5,
-       constants=(Constant(types.int16, -1), Constant(types.int16, 0),
-                  Constant(types.Duration, RuntimeDuration(ticks=1)),
-                  Constant(types.Duration, RuntimeDuration(ticks=2)),
-                  Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(23, 59)),
-                  Constant(types.TimeOfDay, RuntimeTimeOfDay.from_parts(0, 0))))
-    assert outcome == (True, False, False, True, False)
+    ], output_types=(types.boolean,) * 3,
+       constants=(Constant(types.int16, -1), Constant(types.int16, 0)))
+    assert outcome == (True, False, False)
 
 
 def check_arithmetic():
@@ -380,8 +373,9 @@ def check_validation():
                    constants=(Constant(types.uint8, 0),))
     expect_invalid([instruction(Opcode.EQUAL, output(0), output(0), const(0)), ret], 'Expected type',
                    constants=(Constant(types.uint8, 0),))
-    for value_type in (types.boolean, types.MonotonicTime, types.TypeOption(types.uint8)):
-        expect_invalid([instruction(Opcode.LESS, output(0), local(0), local(0)), ret], 'not ordered',
+    for value_type in (types.boolean, types.Duration, types.TimeOfDay, types.MonotonicTime,
+                       types.TypeOption(types.uint8)):
+        expect_invalid([instruction(Opcode.LESS, output(0), local(0), local(0)), ret], 'integer type',
                        local_types=(value_type,))
     expect_invalid([instruction(Opcode.LESS, output(0), local(0), const(0)), ret], 'Expected type',
                    local_types=(types.uint8,), constants=(Constant(types.int8, 0),))
