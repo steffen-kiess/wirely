@@ -12,7 +12,7 @@ from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
 from wirely.program import ResourceBinding
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 
 
 checks = TestCase()
@@ -49,7 +49,7 @@ node example: Uninstalled.Example {}
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
     try:
-        Engine(program)
+        test_engine(program)
     except ValueError as error:
         assert 'Uninstalled.Example' in str(error), error
     else:
@@ -80,8 +80,8 @@ node shared_again: Shared {}
 ''')], add_std=True)
     assert graph is not None
     program = replace(program_compiler.compile_nocatch(graph), graph=None)
-    first = Engine(program)
-    second = Engine(program)
+    first = test_engine(program, graph)
+    second = test_engine(program, graph)
     first.get_native_state('source').set_value(True)
     second.get_native_state('source').set_value(False)
     first.step()
@@ -145,8 +145,8 @@ connect alias -> consumer.Service;
         graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
         assert graph is not None
         program = replace(program_compiler.compile_nocatch(graph), graph=None)
-        first = Engine(program)
-        second = Engine(program)
+        first = test_engine(program, graph)
+        second = test_engine(program, graph)
     for runtime in (first, second):
         provider = runtime.get_native_state('provider')
         assert provider is runtime.get_native_state('alias')
@@ -189,7 +189,7 @@ connect service -> consumer.Service;
                              (ResourceBinding('other', 'other'), 'of type TestLibrary.Service is bound to other.other')):
         instances = {**program.instances, 'consumer': replace(consumer, initializer_bindings={'Service': binding})}
         with checks.assertRaisesRegex(ValueError, message):
-            Engine(replace(program, instances=instances))
+            test_engine(replace(program, instances=instances))
 
 
 def check_native_names():
@@ -229,7 +229,7 @@ connect source -> sink.Service;
         graph = wirely.compiler.compile_strs([('<native-names>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
-        engine = Engine(program)
+        engine = test_engine(program)
     assert program.instances['source'].type_name == 'TestLibrary.Provider'
     assert program.instances['sink'].type_name is None
     assert set(program.native_types) == {'TestLibrary.Provider'}

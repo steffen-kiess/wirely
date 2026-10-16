@@ -9,7 +9,10 @@ from wirely.program import (
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
     RunStage, Variable, VariableTable, validate_program,
 )
+from wirely.compiler.native_signatures import signature_type
+from wirely.runtime import native_interfaces
 from wirely.runtime.engine import Engine
+from wirely.runtime.signatures import Function as FunctionSignature
 from wirely.runtime.procedures import execute_procedure
 
 
@@ -57,7 +60,12 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
 
 def execute(instructions, **kwargs):
     program = make_program(instructions, **kwargs)
-    machine = Engine(program)
+    # These tests check instructions; describe their functions as they are called.
+    signatures = {function.name: FunctionSignature(
+        [signature_type(value_type, {}, function.name) for value_type in function.parameter_types],
+        signature_type(function.return_type, {}, function.name)) for function in program.functions}
+    with patch.dict(native_interfaces.native_functions, signatures):
+        machine = Engine(program)
     machine.step()
     return tuple(machine.get_value(name) for name in program.variables)
 

@@ -8,7 +8,9 @@ from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
 from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
+from wirely.types.value_types import NativeEnum, OpenIntEnum
+import wirely.runtime.enums
 
 
 checks = TestCase()
@@ -130,7 +132,7 @@ def check_values():
   }
 }
 namespace Example {
-  open enum type Mode: uint8 { On = 1, }
+  native open enum type Mode as "TestLibrary.Mode": uint8 { On = 1, }
   struct type Pair { value: boolean, }
   native constant function Same as "Example.Identity"(number: uint16): uint16;
 }
@@ -141,13 +143,18 @@ connect provider -> first.Connection;
 connect provider -> second.Connection;
 '''
     resource_types = {'Service': Provider, 'ValuesState': ValuesProbe}
+    class Mode(OpenIntEnum, minimum=0, maximum=255):
+        On = 1
+
+    enums = {'TestLibrary.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     with patch.dict(wirely.native.test_library.native_node_types, registry), \
             patch.dict(wirely.native.test_library.native_resource_types, resource_types), \
-            patch.dict(native_function_impls, {'Example.Identity': identity}):
+            patch.dict(native_function_impls, {'Example.Identity': identity}), \
+            patch.dict(wirely.runtime.enums.native_enum_types, enums):
         graph = compile_strs([('<values>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
-        runtime = Engine(program)
+        runtime = test_engine(program)
         runtime.step()
         runtime.assert_value_is('first.Result', 7)
         runtime.assert_value_is('second.Result', 8)
@@ -181,7 +188,7 @@ def check_optional_values():
     ''')])
             assert graph is not None
             program = program_compiler.compile_nocatch(graph)
-            runtime = Engine(program)
+            runtime = test_engine(program)
             values = runtime.get_native_state('forward.child').values
             assert values['Maybe'] == expected
             assert values[''] == expected

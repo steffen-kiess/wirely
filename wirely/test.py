@@ -426,6 +426,26 @@ def compile_negative_test(fn, *, verbose=True):
         print(f'Compiling negative test {fn} done')
 
 
+def test_signatures(graph):
+    """Register signatures of a program's TestLibrary native code, derived from its declarations."""
+    from unittest.mock import patch
+    from wirely.compiler.native_signatures import native_signatures
+    from wirely.runtime import native_interfaces
+
+    stack = contextlib.ExitStack()
+    tables = (native_interfaces.native_state_types, native_interfaces.native_procedures,
+              native_interfaces.native_functions)
+    for table, entries in zip(tables, native_signatures(graph, 'TestLibrary')):
+        stack.enter_context(patch.dict(table, entries))
+    return stack
+
+
+def test_engine(program, graph=None):
+    """Create an Engine for a program whose TestLibrary native code is declared in graph or program.graph."""
+    with test_signatures(program.graph if graph is None else graph):
+        return Engine(program)
+
+
 def compile_test(fn):
     print(f'Compiling {fn}')
 
@@ -434,7 +454,8 @@ def compile_test(fn):
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    eng = Engine(prog)
+    with test_signatures(prog.graph):
+        eng = Engine(prog)
 
     print(f'Compiling {fn} done')
 
@@ -694,7 +715,8 @@ async def run_runtime_test(test_name):
             print('Test requires KNX')
 
         async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(resources.twon_server) as twon_info:
-            eng = Engine(prog)
+            with test_signatures(prog.graph):
+                eng = Engine(prog)
 
             # TODO: Pass this information differently?
             eng.test_twon_fake_server_info = twon_info

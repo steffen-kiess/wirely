@@ -10,7 +10,7 @@ import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 from wirely.runtime.resources import ResourceValue
 
 
@@ -224,7 +224,7 @@ connect value_source -> typed_consumer.Value;
 '''
 native_resource_program = program_compiler.compile_nocatch(compile_resources(source))
 with native_registries():
-    native_resource_engine = Engine(native_resource_program)
+    native_resource_engine = test_engine(native_resource_program)
 consumer = native_resource_engine.get_native_state('consumer')
 provider = native_resource_engine.get_native_state('factory.source')
 shared = native_resource_engine.get_native_state('shared')
@@ -273,7 +273,7 @@ node source: TestLibrary.Provider {}
 connect source -> sink.Service;
 ''')
 with native_registries():
-    alias_engine = Engine(program_compiler.compile_nocatch(alias_graph))
+    alias_engine = test_engine(program_compiler.compile_nocatch(alias_graph))
 alias_inputs = alias_engine.get_native_state('sink').inputs
 assert alias_inputs['service'].object is alias_engine.get_native_state('source')
 # Each output supplies the object its provider wrote under the output's key.
@@ -292,7 +292,7 @@ node source: TestLibrary.Incomplete {}
 ''')
 with native_registries(), \
         checks.assertRaisesRegex(ValueError, r"did not write outputs: \['named'\]"):
-    Engine(program_compiler.compile_nocatch(incomplete_graph))
+    test_engine(program_compiler.compile_nocatch(incomplete_graph))
 
 
 # Resource inputs are typed ResourceValues; their objects are checked
@@ -323,7 +323,7 @@ node source: TestLibrary.WrongProvider {}
 ''')
 with native_registries(), checks.assertRaisesRegex(
         ValueError, "Invalid value for output 'service' on source: Resource TestLibrary.Service requires a Service"):
-    Engine(program_compiler.compile_nocatch(wrong_graph))
+    test_engine(program_compiler.compile_nocatch(wrong_graph))
 
 unknown_graph = compile_resources('''
 namespace TestLibrary {
@@ -336,7 +336,7 @@ namespace TestLibrary {
 node source: TestLibrary.Provider {}
 ''')
 with native_registries(), checks.assertRaisesRegex(ValueError, "Cannot find native resource type 'TestLibrary.Unknown'"):
-    Engine(program_compiler.compile_nocatch(unknown_graph))
+    test_engine(program_compiler.compile_nocatch(unknown_graph))
 
 
 # A resource declaration passes on its one source, like a temporary: a native
@@ -405,7 +405,7 @@ node composite: TestLibrary.AliasComposite {}
 ''')])
     assert alias_graph is not None
     alias_program = program_compiler.compile_nocatch(alias_graph)
-    alias_resource_engine = Engine(alias_program)
+    alias_resource_engine = test_engine(alias_program)
 holder = alias_resource_engine.get_native_state('holder')
 assert alias_resource_engine.get_native_state('holder.child').inputs['service'].object is holder
 source_state = alias_resource_engine.get_native_state('composite.source')

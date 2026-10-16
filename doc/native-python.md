@@ -197,6 +197,14 @@ procedure there passes every type parameter its ports use through its own
 `uses`, so each description is self-contained. Run the script after
 changing any of these.
 
+Before running a program, the runtime checks each native initializer,
+procedure, and runtime function the program uses against these
+descriptions: the stage, the keys of inputs, outputs, and `uses`, resource
+types, and value types, with each type variable replaced by the type its
+`uses` binding passes. Programs store an event of `T` as `Option[T]`, so
+an event port and a value port of `Option[T]` are not told apart. Native
+code without a description cannot run.
+
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.
 Event ports use the same representation, adding an outer option:

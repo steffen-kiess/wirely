@@ -13,7 +13,7 @@ from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 
 
 registry = {}
@@ -94,7 +94,7 @@ def check_event_payloads():
         scenarios = [(forward, case) for forward in (False, True) for case in cases]
         for forward, (output_type, output_value, expected) in scenarios:
             program, target = node_program(node_type, output_type, output_value, forward=forward)
-            runtime = Engine(program)
+            runtime = test_engine(program)
             if node_type == 'Schedule.TriggerAt':
                 clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
                 clock.set_fake_time(wirely.TimeOfDay.from_parts(11, 59))
@@ -114,7 +114,7 @@ def check_event_payloads():
 
 def check_trigger_startup_after():
     program, target = node_program('Schedule.TriggerAt', None, None)
-    runtime = Engine(program)
+    runtime = test_engine(program)
     clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
     # Starting after the scheduled time must not emit or re-arm on rollback.
     for time in ('12:30', '11:59', '12:00', '15:00', '11:59'):
@@ -133,7 +133,7 @@ def check_trigger_startup_after():
 
 def check_delayed_event():
     program, target = node_program('Memory.ToggleFlipFlopTrigger', 'boolean', 'false', forward=True)
-    runtime = Engine(program)
+    runtime = test_engine(program)
     runtime.get_native_state('feedback').set_value(wirely.Some(False))
     runtime.step()
     source = runtime.get_native_state('input')
@@ -157,7 +157,7 @@ def check_flipflop_behavior():
     def make_runtime(minimum_delay='PT2S'):
         program, target = node_program('Memory.ToggleFlipFlopTrigger', None, None,
                                        minimum_delay=minimum_delay)
-        return Engine(program), target
+        return test_engine(program), target
 
     def command(value):
         runtime.get_native_state('input').send_event(wirely.Some(value))
@@ -280,7 +280,7 @@ node input: Std.DebugValueSource { Type: uint16 }
 node wrapper: Wrapper { Span: "PT2S" }
 connect input -> wrapper;
 ''')
-    runtime = Engine(program)
+    runtime = test_engine(program)
     source = runtime.get_native_state('input')
     source.set_value(1)
     runtime.step()
@@ -308,7 +308,7 @@ node input: Std.DebugValueSource {{ Type: {value_type} }}
 node wrapper: Wrapper {{ Type: {value_type}, Span: {json.dumps(duration)} }}
 connect input -> wrapper;
 ''')
-        return Engine(program)
+        return test_engine(program)
 
     def step(expected, *, settle=True):
         runtime.step()
@@ -416,7 +416,7 @@ def check_key_state():
     def make_runtime(timeout='PT10S'):
         program = code_program('KeyState', 'Key', '%2', parameters={'Timeout': json.dumps(timeout)})
         with settings_registries():
-            return Engine(program)
+            return test_engine(program)
 
     def event(pressed):
         runtime.get_native_state('wrapper.child.key_event').handler({
@@ -507,7 +507,7 @@ def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
         with settings_registries():
-            runtime = Engine(program)
+            runtime = test_engine(program)
         runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
         runtime.assert_value_is('wrapper.child', wirely.Some(wirely.Unit()))
@@ -520,7 +520,7 @@ def check_codes_and_tracing():
             output = io.StringIO()
             with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), \
                     settings_registries(), contextlib.redirect_stdout(output):
-                Engine(program)
+                test_engine(program)
             assert (value in output.getvalue()) == (enabled == '1')
 
 
@@ -537,7 +537,7 @@ def check_prepared_credentials():
         filename.unlink()
         output = io.StringIO()
         with patch('wirely.two_n.client.Client') as client, contextlib.redirect_stdout(output):
-            Engine(program)
+            test_engine(program)
         client.assert_called_once_with(hostname='localhost', port=443, tlsa=(),
                                        http_api_username_password=('username', 'password'))
         assert 'username' not in output.getvalue() and 'password' not in output.getvalue()

@@ -6,7 +6,7 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_node_type
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 
 
 registry = {}
@@ -51,7 +51,8 @@ namespace TestLibrary {
     default output: value Type;
     native procedure run
       depends on default input as "input"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   node type Relay {
@@ -75,7 +76,8 @@ namespace TestLibrary {
     connect relay -> reader;
     native procedure write stage output
       depends on default input as "input"
-      produces saved;
+      produces saved
+      uses Type;
   }
 
   node type Feedback {
@@ -136,7 +138,7 @@ def make_engine(source, *, declarations=definitions):
     program = program_compiler.compile(graph)
     assert program is not None
     with patch.dict(wirely.native.test_library.native_node_types, registry):
-        return Engine(program)
+        return test_engine(program)
 
 
 def check_old_snapshots():
@@ -289,10 +291,12 @@ namespace TestLibrary {
     // Declare the reader first to exercise dependency ordering.
     native procedure observe
       depends on saved.old as "previous", saved.new as "current"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
     native procedure write
       depends on default input as "input"
-      produces saved;
+      produces saved
+      uses Type;
   }
 }
 '''

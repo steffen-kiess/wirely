@@ -104,6 +104,88 @@ def link_native_enums(program):
                              f'got {len(enum_type.members)}')
 
 
+def link_native_signatures(program):
+    """Check the native interfaces a program uses against the runtime's signatures."""
+    from . import native_interfaces
+    from .signatures import Builtin, Option, describe, matches
+
+    def check_keys(where, kind, actual, expected):
+        if set(actual) != set(expected):
+            raise ValueError(f'{where}: {kind} {sorted(actual)!r} do not match the expected {sorted(expected)!r}')
+
+    def check_type(where, label, signature_type, value_type, bindings):
+        if not matches(signature_type, value_type, bindings):
+            raise ValueError(f'{where}: {label} has type {value_type}, expected {describe(signature_type, bindings)}')
+
+    def check_uses(where, signature, values):
+        check_keys(where, 'uses bindings', values, signature.uses)
+        # Each ValueType binding gives the type of the type variable with its key.
+        bindings = {key: values[key].value for key, signature_type in signature.uses.items()
+                    if signature_type == Builtin('ValueType') and matches(signature_type, values[key].value_type, {})}
+        for key, signature_type in signature.uses.items():
+            check_type(where, f'uses binding {key!r}', signature_type, values[key].value_type, bindings)
+        return bindings
+
+    def check_ports(where, kind, ports, value_types, resource_types, bindings):
+        check_keys(where, kind, [*value_types, *resource_types], ports)
+        for key, port in ports.items():
+            if port.multi:
+                raise ValueError(f'{where}: multi port {key!r} is not supported')
+            if port.kind == 'resource':
+                if resource_types.get(key) != port.type.native_name:
+                    actual = resource_types.get(key, 'a value')
+                    raise ValueError(f'{where}: {key!r} is {actual}, expected resource {port.type.native_name}')
+            elif key not in value_types:
+                raise ValueError(f'{where}: {key!r} is a resource, expected a {port.kind}')
+            else:
+                # Programs store an event of T like a value of Option[T].
+                expected = Option(port.type) if port.kind == 'event' else port.type
+                check_type(where, repr(key), expected, value_types[key], bindings)
+
+    for node_id, instance in program.instances.items():
+        if not instance.has_native_state:
+            continue
+        signature = native_interfaces.native_state_types.get(instance.type_name)
+        if signature is None:
+            raise ValueError(f'Cannot find the signature of native state type {instance.type_name!r}')
+        where = f'Native state type {instance.type_name!r} of {node_id!r}'
+        native_type = program.native_types[instance.type_name]
+        bindings = check_uses(where, signature, instance.initializer_values)
+        check_ports(where, 'inputs', signature.depends, {}, native_type.initializer_resources, bindings)
+        check_ports(where, 'outputs', signature.produces, {}, native_type.resource_outputs, bindings)
+
+    for stage, schedule in program.procs.items():
+        for procedure in schedule:
+            if procedure.body is not None:
+                continue
+            signature = native_interfaces.native_procedures.get(procedure.reference)
+            if signature is None:
+                raise ValueError(f'Cannot find the signature of native procedure {procedure.reference!r}')
+            where = f'Native procedure {procedure.reference!r} of {procedure.node_id!r}'
+            if stage.name.lower() != signature.stage:
+                raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {signature.stage}')
+            inputs = {name: source.value_type for name, source in procedure.dependencies}
+            if len(inputs) != len(procedure.dependencies):
+                raise ValueError(f'{where}: multi inputs are not supported')
+            outputs = {name: target.variable.var_type for name, target in procedure.outputs.items()}
+            resources = program.native_procedures[procedure.reference].resources
+            bindings = check_uses(where, signature, procedure.values)
+            check_ports(where, 'inputs', signature.depends, inputs, resources, bindings)
+            check_ports(where, 'outputs', signature.produces, outputs, {}, bindings)
+
+    for function in program.functions:
+        signature = native_interfaces.native_functions.get(function.name)
+        if signature is None:
+            raise ValueError(f'Cannot find the signature of native function {function.name!r}')
+        where = f'Native function {function.name!r}'
+        if len(function.parameter_types) != len(signature.parameters):
+            raise ValueError(f'{where}: has {len(function.parameter_types)} parameters, '
+                             f'expected {len(signature.parameters)}')
+        for index, (value_type, signature_type) in enumerate(zip(function.parameter_types, signature.parameters)):
+            check_type(where, f'parameter {index}', signature_type, value_type, {})
+        check_type(where, 'result', signature.result, function.return_type, {})
+
+
 def link_native_functions(program):
     """Resolve the implementation of every function in the program's function table."""
     return tuple(get_native_function_by_name(function.name) for function in program.functions)

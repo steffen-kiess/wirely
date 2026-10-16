@@ -764,7 +764,10 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 
 The runtime matches the qualified names of native state types, native
 procedures, native functions, and resource types to native code, and binds
-interface names to static values, inputs, outputs, and resources.
+interface names to static values, inputs, outputs, and resources. Each
+native state type, native procedure, and native function also links only
+when the runtime's description of its interface matches the program's
+stage, interface names, resource types, and value types.
 
 An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member

@@ -103,3 +103,49 @@ class Function:
 
     def __post_init__(self):
         object.__setattr__(self, 'parameters', tuple(self.parameters))
+
+
+def _builtin_types():
+    from .. import types
+    return {'unit': types.TypeUnit, 'boolean': types.TypeBoolean, 'String': types.TypeString,
+            'Duration': types.TypeDuration, 'TimeOfDay': types.TypeTimeOfDay,
+            'MonotonicTime': types.TypeMonotonicTime, 'ValueType': types.TypeValueType}
+
+
+def matches(signature_type, value_type, bindings):
+    """Whether a value type has a signature type; bindings map type variable names to types."""
+    from .. import types
+
+    if isinstance(signature_type, TypeVar):
+        return signature_type.name in bindings and value_type == bindings[signature_type.name]
+    if isinstance(signature_type, Builtin):
+        return type(value_type) is _builtin_types().get(signature_type.name)
+    if isinstance(signature_type, Int):
+        return (isinstance(value_type, types.TypeInt) and value_type.bits == signature_type.bits
+                and value_type.is_signed == signature_type.signed)
+    if isinstance(signature_type, (Option, List)):
+        cls = types.TypeOption if isinstance(signature_type, Option) else types.TypeList
+        return isinstance(value_type, cls) and matches(signature_type.inner, value_type.inner_type, bindings)
+    if isinstance(signature_type, Enum):
+        return isinstance(value_type, types.TypeEnum) and value_type.native_name == signature_type.native_name
+    if isinstance(signature_type, Struct):
+        return isinstance(value_type, types.TypeStruct) and value_type.name == signature_type.name
+    raise ValueError(f'Unknown signature type {signature_type!r}')
+
+
+def describe(signature_type, bindings):
+    """Render a signature type in Wirely syntax, with bound type variables replaced."""
+    if isinstance(signature_type, TypeVar):
+        bound = bindings.get(signature_type.name)
+        return signature_type.name if bound is None else str(bound)
+    if isinstance(signature_type, Builtin):
+        return signature_type.name
+    if isinstance(signature_type, Int):
+        return f'{"int" if signature_type.signed else "uint"}{signature_type.bits}'
+    if isinstance(signature_type, (Option, List)):
+        return f'{type(signature_type).__name__}[{describe(signature_type.inner, bindings)}]'
+    if isinstance(signature_type, Enum):
+        return f'native enum {signature_type.native_name}'
+    if isinstance(signature_type, Struct):
+        return signature_type.name
+    raise ValueError(f'Unknown signature type {signature_type!r}')

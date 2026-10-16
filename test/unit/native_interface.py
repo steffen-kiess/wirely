@@ -13,7 +13,7 @@ import wirely.native.test_library
 from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 from wirely.types.value_types import NativeEnum, OpenIntEnum
 import wirely.runtime.enums
 
@@ -50,7 +50,7 @@ node probe: TestLibrary.Probe {{ {parameters} }}
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        return Engine(program)
+        return test_engine(program)
 
 
 def check_input_ports():
@@ -232,7 +232,7 @@ def check_stage_times():
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        clock_engine = Engine(program)
+        clock_engine = test_engine(program)
     clock_engine.fake_monotonic_time_offset = clock_offset
 
     class ClockDateTime(datetime.datetime):
@@ -346,7 +346,7 @@ def check_triggers():
     resource_types = {'ProbeState': TriggerProbe, 'Service': Provider}
     with patch.dict(wirely.native.test_library.native_node_types, trigger_registry), \
             patch.dict(wirely.native.test_library.native_resource_types, resource_types):
-        trigger_engine = Engine(trigger_program)
+        trigger_engine = test_engine(trigger_program)
     first = trigger_engine.get_native_state('first')
     second = trigger_engine.get_native_state('second')
     shared = trigger_engine.get_native_state('shared')
@@ -488,7 +488,7 @@ def check_outputs():
     parameter Type: ValueType;
     default output: value Type;
 
-    native procedure run produces default output as "output";
+    native procedure run produces default output as "output" uses Type;
     ''', check_generic_output, parameters='Type: Option[boolean]')
     probe.step()
     probe.assert_value_is('probe', wirely.Some(True))
@@ -568,6 +568,19 @@ def check_enum_outputs():
     # Enum outputs accept only EnumValues of the output's enum type.
     output = 'Off'
 
+    class Mode(OpenIntEnum, minimum=0, maximum=255):
+        Off = 1
+        On = 2
+
+    class State(enum.IntEnum):
+        Idle = 0
+        Running = 1
+        Failed = 2
+
+    registry = {'Test.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8'),
+                'Test.Other': NativeEnum(Mode, is_open=True, underlying_type='uint8'),
+                'Test.State': NativeEnum(State, is_open=False, underlying_type='uint8')}
+
     def check_enum_output(context):
         mode, other = context.values['mode'], context.values['other']
         assert (mode.name, mode.value, mode.type.name) == ('On', 2, 'Example.Mode')
@@ -581,25 +594,26 @@ def check_enum_outputs():
         value = mode.type.from_name(output) if isinstance(output, str) else mode.type.from_value(output)
         context.set_output('output', value)
 
-    probe = make_engine('''
+    with patch.dict(wirely.runtime.enums.native_enum_types, registry):
+        probe = make_engine('''
     default output: value Example.Mode;
 
     native procedure run produces default output as "output"
       uses Example.Mode.On as mode, Example.Other.On as other, Example.State.Running as state;
     ''', check_enum_output, extra='''
 namespace Example {
-  open enum type Mode: uint8 { Off = 1, On = 2, }
-  open enum type Other: uint8 { Off = 1, On = 2, }
-  closed enum type State { Idle, Running, Failed, }
+  native open enum type Mode as "Test.Mode": uint8 { Off = 1, On = 2, }
+  native open enum type Other as "Test.Other": uint8 { Off = 1, On = 2, }
+  native closed enum type State as "Test.State" { Idle, Running, Failed, }
 }
 ''')
-    probe.step()
-    # Inside the runtime, named and unnamed enum values are numbers.
-    probe.assert_value_is('probe', 1)
-    output = 255
-    probe.trigger('probe', 'run')
-    probe.step()
-    probe.assert_value_is('probe', 255)
+        probe.step()
+        # Inside the runtime, named and unnamed enum values are numbers.
+        probe.assert_value_is('probe', 1)
+        output = 255
+        probe.trigger('probe', 'run')
+        probe.step()
+        probe.assert_value_is('probe', 255)
 
 
 def check_native_enums():
@@ -624,26 +638,23 @@ def check_native_enums():
         runs.append(None)
         assert context.values['level'].native is Level.Maximum
         assert context.values['day'].native is Day.Second
-        with checks.assertRaisesRegex(ValueError, "Enum type 'Example.Plain' has no Python enum"):
-            _ = context.values['plain'].native
 
     def make(registry):
         with patch.dict(wirely.runtime.enums.native_enum_types, registry):
             probe = make_engine('''
-    native procedure run uses Example.Level.High as level, Example.Day.Tuesday as day, Example.Plain.On as plain;
+    native procedure run uses Example.Level.High as level, Example.Day.Tuesday as day;
     ''', check_values, extra='''
 namespace Example {
   native open enum type Level as "Test.Level": uint8 { Off = 0, High = 2, }
   native closed enum type Day as "Test.Day" { Monday, Tuesday, }
   native open enum type Unused as "Test.Unused": uint8 {}
-  open enum type Plain: uint8 { On = 1, }
 }
 ''')
             probe.step()
 
     level = NativeEnum(Level, is_open=True, underlying_type='uint8')
     day = NativeEnum(Day, is_open=False, underlying_type='uint8')
-    # Unused native enums and non-native enums need no runtime entry.
+    # Unused native enums need no runtime entry.
     make({'Test.Level': level, 'Test.Day': day})
     assert len(runs) == 1
     for registry, message in [
@@ -694,6 +705,110 @@ def check_native_interface_signatures():
         (Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')))
     # Constant functions run in the compiler, not the runtime.
     assert 'Std.ParseFormat' not in native_interfaces.native_functions
+
+
+def check_native_signature_linking():
+    # Linking checks the native interfaces a program uses against the
+    # runtime's signatures, with type variables bound by each entry's uses.
+    from dataclasses import replace
+    from wirely.compiler.native_signatures import native_signatures
+    from wirely.runtime import native_interfaces
+    from wirely.runtime.engine import Engine
+    from wirely.runtime.signatures import Builtin, Function, Int, Option, Port, ResourceType, TypeVar
+
+    registry = {}
+    resource_types = {}
+
+    @native_node_type(registry, has_native_state=False)
+    class Probe:
+        @staticmethod
+        def run(*, context):
+            pass
+
+    @native_node_type(registry, has_native_state=True)
+    class Stateful(NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('state', self)
+
+    resource_types['ProbeState'] = Stateful
+    source = '''
+namespace TestLibrary {
+  resource type ProbeState;
+  native function Clamp(value: int16, low: int16, high: int16): int16;
+
+  node type Probe {
+    parameter Type: ValueType;
+    input In: value Type;
+    output Out: event uint8;
+    native procedure run stage output
+      depends on In as "input" produces Out as "output" uses Type;
+  }
+
+  native node type Stateful {
+    input Number: value int16;
+    output Clamped: value int16;
+    binding state: resource ProbeState;
+    native initializer produces state as "state";
+    procedure clamp depends on Number produces Clamped { Clamped = TestLibrary.Clamp(Number, 0, 100); }
+  }
+}
+node value: Std.Constant { Type: uint16, Value: 1 }
+node probe: TestLibrary.Probe { Type: uint16 }
+connect value -> probe.In;
+node number: Std.Constant { Type: int16, Value: 500 }
+node stateful: TestLibrary.Stateful {}
+connect number -> stateful.Number;
+'''
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, resource_types):
+        graph = wirely.compiler.compile_strs([('wirely/lib/std.wrl', std_source), ('<signatures>', source)])
+        assert graph is not None
+        program = program_compiler.compile(graph)
+        state_types, procedures, functions = native_signatures(graph, 'TestLibrary')
+        run = procedures['TestLibrary.Probe:run']
+        stateful = state_types['TestLibrary.Stateful']
+        clamp = functions['TestLibrary.Clamp']
+
+        def link(state_types=state_types, procedures=procedures, functions=functions):
+            with patch.dict(native_interfaces.native_state_types, state_types, clear=True), \
+                    patch.dict(native_interfaces.native_procedures, procedures, clear=True), \
+                    patch.dict(native_interfaces.native_functions, functions, clear=True):
+                Engine(program)
+
+        link()
+        for changes, message in [
+            (dict(procedures={}), "Cannot find the signature of native procedure 'TestLibrary.Probe:run'"),
+            (dict(state_types={}), "Cannot find the signature of native state type 'TestLibrary.Stateful'"),
+            (dict(functions={}), "Cannot find the signature of native function 'TestLibrary.Clamp'"),
+            ({'procedures': {'TestLibrary.Probe:run': replace(run, stage='input')}},
+             'runs in stage output, expected input'),
+            ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('String')})}},
+             "uses binding 'Type' has type ValueType, expected String"),
+            ({'procedures': {'TestLibrary.Probe:run': replace(
+                run, depends={'input': Port('value', Int(8, False))})}},
+             "'input' has type uint16, expected uint8"),
+            # Type variables are bound to the entry's own ValueType bindings.
+            ({'procedures': {'TestLibrary.Probe:run': replace(
+                run, depends={'input': Port('value', Option(TypeVar('Type')))})}},
+             "'input' has type uint16, expected Option\\[uint16\\]"),
+            # Programs store an event of T as Option[T].
+            ({'procedures': {'TestLibrary.Probe:run': replace(
+                run, produces={'output': Port('value', Int(8, False))})}},
+             "'output' has type Option\\[uint8\\], expected uint8"),
+            ({'procedures': {'TestLibrary.Probe:run': replace(
+                run, depends={**run.depends, 'extra': Port('value', Builtin('boolean'))})}},
+             "inputs \\['input'\\] do not match the expected \\['extra', 'input'\\]"),
+            ({'state_types': {'TestLibrary.Stateful': replace(
+                stateful, produces={'state': Port('resource', ResourceType('TestLibrary.Other'))})}},
+             "'state' is TestLibrary.ProbeState, expected resource TestLibrary.Other"),
+            ({'functions': {'TestLibrary.Clamp': Function(clamp.parameters[:2], clamp.result)}},
+             'has 3 parameters, expected 2'),
+            ({'functions': {'TestLibrary.Clamp': Function((Int(16, False),) * 3, clamp.result)}},
+             'parameter 0 has type int16, expected uint16'),
+        ]:
+            with checks.assertRaisesRegex(ValueError, message):
+                link(**changes)
 
 
 def check_struct_outputs():
@@ -801,7 +916,7 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
         assert graph is not None
         program = program_compiler.compile(graph)
         assert program is not None
-        return Engine(program)
+        return test_engine(program)
 
 
 async def run_test():
@@ -887,7 +1002,7 @@ node keyed: TestLibrary.KeyedProbe {}
             patch.dict(wirely.native.test_library.native_resource_types, {'ProbeState': StateProbe}):
         graph = wirely.compiler.compile_strs([('<native-methods>', source)])
         assert graph is not None
-        runtime = Engine(program_compiler.compile_nocatch(graph))
+        runtime = test_engine(program_compiler.compile_nocatch(graph))
     runtime.step()
     expected = [
         ('shared', 'class_only'), ('ClassProbe', 'class_only'),
@@ -970,7 +1085,7 @@ node invalid: TestLibrary.InvalidProbe {{}}
         program = program_compiler.compile_nocatch(graph)
         with patch.dict(wirely.native.test_library.native_node_types, registry, clear=True):
             with checks.assertRaisesRegex(ValueError, message) as raised:
-                Engine(program)
+                test_engine(program)
             checks.assertIn('InvalidProbe', str(raised.exception))
         checks.assertEqual(constructed, [])
 
@@ -1014,7 +1129,7 @@ connect source, source -> multiple;
             ('wirely/lib/std.wrl', std_source), ('<input-length-values>', source),
         ])
         assert graph is not None
-        machine = Engine(program_compiler.compile(graph))
+        machine = test_engine(program_compiler.compile(graph))
     for value in (False, True):
         machine.get_native_state('source').set_value(value)
         machine.step()
@@ -1037,6 +1152,7 @@ check_unit_outputs()
 check_enum_outputs()
 check_native_enums()
 check_native_interface_signatures()
+check_native_signature_linking()
 check_struct_outputs()
 check_port_keys()
 check_native_methods()

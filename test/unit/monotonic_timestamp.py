@@ -7,7 +7,7 @@ from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 
 
 registry = {}
@@ -49,7 +49,7 @@ with patch.dict(wirely.native.test_library.native_node_types, registry), \
         patch.dict(wirely.native.test_library.native_resource_types, {'HeldEventState': HeldEventSource}):
     graph = compile_strs(_standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
     assert graph is not None
-    runtime = Engine(program_compiler.compile_nocatch(graph))
+    runtime = test_engine(program_compiler.compile_nocatch(graph))
 
 runtime.step()
 runtime.assert_value_is('timestamp', None)

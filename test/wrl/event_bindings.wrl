@@ -74,7 +74,8 @@ node type NativeBinding {
   binding timestamp: event MonotonicTime;
   native procedure run as "Timer.MonotonicTimestamp:run"
     depends on default input as "input"
-    produces timestamp as "output";
+    produces timestamp as "output"
+    uses unit as Type;
   connect timestamp -> default output;
 }
 node timestamp: NativeBinding {}

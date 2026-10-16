@@ -4,7 +4,7 @@ import wirely
 import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
-from wirely.runtime.engine import Engine
+from wirely.test import test_engine
 from wirely.runtime import procedures as runtime_procedures
 
 
@@ -108,7 +108,7 @@ def check_pure_stages():
     node pure: Pure {}
     ''')
 
-    pure_engine = Engine(pure)
+    pure_engine = test_engine(pure)
     pure_engine.step()
     pure_engine.assert_value_is('pure', True)
     pure_engine.assert_value_is('pure.InputStage', True)
@@ -129,7 +129,7 @@ def check_output_storage():
     node split: Split {}
     ''')
     assert 'split:run.value' in program.temporaries.variables
-    engine = Engine(program)
+    engine = test_engine(program)
     engine.step()
     engine.assert_value_is('split.Value', True)
     engine.assert_value_is('split.Value_val', False)
@@ -160,7 +160,7 @@ def check_temporary_connections():
     node reader: Copy {}
     connect n.Level -> reader;
     ''')
-    engine = Engine(program)
+    engine = test_engine(program)
     engine.step()
     assert engine.get_variable('n.Level') is engine.get_variable('n.level')
     for name, value in [('n.Level', True), ('n.Inverted', False), ('n.child', True), ('reader', True)]:
@@ -220,7 +220,7 @@ def check_procedure_ports():
     connect source -> p;
     ''', add_std=True)
     assert 'p:invert.inverted' in program.temporaries.variables
-    engine = Engine(program)
+    engine = test_engine(program)
     assert engine.get_variable('p.named') is engine.get_variable('p.Twice')
     source = engine.get_native_state('source')
     for value, previous in [(True, False), (False, False), (True, True)]:
@@ -257,7 +257,7 @@ def check_generic_copies():
     node copy: Copy {{ Type: {value_type} }}
     connect constant -> copy;
     ''')
-        generic_engine = Engine(generic)
+        generic_engine = test_engine(generic)
         generic_engine.step()
         assert generic_engine.get_value('copy') == generic_engine.get_value('constant')
 
@@ -271,7 +271,7 @@ def check_mixed_procedures():
         default output: value Type;
         binding temp: value Type;
         native procedure produce as "TestLibrary.TestNode:test_procedure"
-          produces temp as temp uses Value;
+          produces temp as temp uses Value, Type;
         procedure run depends on temp produces default output as output {
           output = temp;
         }
@@ -281,7 +281,7 @@ def check_mixed_procedures():
     '''
     with patch.object(wirely.native.test_library.TestNode, 'test_procedure',
                       staticmethod(lambda *, context: context.set_output('temp', context.values['Value']))):
-        mixed_engine = Engine(compile_program(mixed_source))
+        mixed_engine = test_engine(compile_program(mixed_source))
         mixed_engine.step()
         mixed_engine.assert_value_is('mixed', True)
         mixed_engine.assert_is_idle()
@@ -294,7 +294,7 @@ def check_root_only():
     procedure p1 produces t { t = 50; }
     procedure p2 depends on t produces sum { sum = int8.CheckedAdd(t, 100); }
     ''')
-    root_engine = Engine(root_only)
+    root_engine = test_engine(root_only)
     root_engine.step()
     root_engine.assert_value_is('t', 50)
     root_engine.assert_value_is('sum', None)
@@ -328,7 +328,7 @@ def check_root_dependencies():
     node shared_again: Shared {}
     connect second -> copied;
     ''', add_std=True)
-    chained_engine = Engine(chained)
+    chained_engine = test_engine(chained)
     chained_source = chained_engine.get_native_state('source')
     chained_source.set_value(False)
     chained_engine.step()
@@ -369,7 +369,7 @@ def check_root_state():
     connect saved.old -> old_copy;
     connect saved.new -> new_copy;
     ''', add_std=True)
-    state_engine = Engine(root_state)
+    state_engine = test_engine(root_state)
     state_source = state_engine.get_native_state('source')
     state_source.set_value(True)
     state_engine.step()
@@ -469,7 +469,7 @@ def check_builtin_ordering():
             }
             node ordering: Ordering { Type: TYPE, Left: "LEFT", Right: "RIGHT" }
             '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right))
-            machine = Engine(program)
+            machine = test_engine(program)
             with patch.object(runtime_procedures, 'call_native_function',
                               wraps=runtime_procedures.call_native_function) as calls:
                 machine.step()
@@ -558,7 +558,7 @@ def check_native_functions():
     node clamped: Clamped {}
     connect source -> clamped;
     ''', add_std=True)
-    function_engine = Engine(functions)
+    function_engine = test_engine(functions)
     source = function_engine.get_native_state('source')
     for value, expected in [(5, 5), (500, 10), (-500, -10)]:
         source.set_value(value)
@@ -699,7 +699,7 @@ check_mutation()
 def check_multi_procedures():
     # Compile the accepted language fixture as setup for runtime checks.
     graph = wirely.compiler.compile_files(['test/compiler/multi_procedures.wrl'])
-    machine = Engine(program_compiler.compile(graph))
+    machine = test_engine(program_compiler.compile(graph))
     machine.step()
     for name, expected in {'digits': 21354, 'sum': 12, 'empty': 0, 'single': 6}.items():
         machine.assert_value_is(name, expected)
@@ -717,7 +717,7 @@ def check_multi_procedures():
     node combined: Std.And {}
     connect first, second -> combined;
     ''', add_std=True)
-    machine = Engine(program)
+    machine = test_engine(program)
     first = machine.get_native_state('first')
     second = machine.get_native_state('second')
     first.set_value(False)
