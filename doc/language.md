@@ -181,12 +181,12 @@ implementation, as in
 `native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
 Each native name identifies one declaration of its kind.
 
-Identifiers are case-sensitive. Weak keywords `open`, `closed`, `binding`, `changed`,
-`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`, `output`,
-`resource`, `stage`, `state`, `type`, and `value` can also be used as
-identifiers. Other keywords require the `r#` prefix when used as names, for example
-`node r#node: Std.And {}`. Declarations end with `;`, except node instances
-and type and namespace bodies, which end at `}`.
+Identifiers are case-sensitive. Weak keywords `binding`, `changed`, `closed`,
+`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`, `open`,
+`output`, `resource`, `stage`, `state`, `type`, and `value` can also be used
+as identifiers. Other keywords require the `r#` prefix when used as names,
+for example `node r#node: Std.And {}`. Declarations end with `;`, except
+node instances and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,

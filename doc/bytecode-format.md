@@ -1098,8 +1098,8 @@ or `uint32` large enough to represent `Members.Count - 1`.
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Closed enum values
 are below their member count; open enum values fit their underlying type.
-List elements are checked with the list's inner type, which precedes the list type, so checks terminate even
-when lists share bytes.
+List elements are checked with the list's inner type, which precedes the
+list type, so checks terminate even when lists share bytes.
 
 `StateVariables` and `Temporaries` are sorted by offset, and each slot
 starts at or after the end of the previous one. Comparing each entry with

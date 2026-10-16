@@ -10,6 +10,26 @@ Replace `temporary name: T;` with `binding name: value T;`, and
 `resource name: R;` with `binding name: resource R;`. The connection kind is
 required. The old declaration forms are no longer accepted.
 
+#### Enums
+
+Declare enums as `open` or `closed`. Open enums keep an explicit underlying
+type and member values and accept unnamed values of that type. Closed enums
+omit both and number their members from zero in declaration order:
+
+```wirely
+open enum type Protocol: uint8 {
+  TCP = 1,
+  UDP = 2,
+}
+
+closed enum type State {
+  Idle,
+  Running,
+}
+```
+
+Replace `enum type` with `open enum type` to keep existing numbering.
+
 #### Std.DelayOneStep
 
 Replace `Std.DelayOneStep` with state and read its previous value with

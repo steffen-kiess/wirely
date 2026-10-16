@@ -160,10 +160,11 @@ An `EnumValue` has the member number as `value`, the member `name`, and its
 Open values may have unnamed numbers; reading `name` then raises
 `ValueError`. Two values are equal when both type and number are equal;
 compare with numbers or Python enums through `value` or `native`.
-`native` is the member of the Python `IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
-registers for the enum type, and raises `ValueError` for enum types without
-one or when the Python enum does not recognize the number, so use it only
-in code written for a specific enum. An enum output accepts only
+`native` is the member of the Python `IntEnum` that
+[`wirely/runtime/enums.py`](../wirely/runtime/enums.py) registers for the
+enum type, and raises `ValueError` for enum types without one or when the
+Python enum does not recognize the number, so use it only in code written
+for a specific enum. An enum output accepts only
 `EnumValue`s of its own enum type.
 
 A `StructValue` has its field values in declaration order as `values`, and
