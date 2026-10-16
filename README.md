@@ -101,9 +101,8 @@ tools/run-tests --timings unit/types wrl/equality
 
 To check that compilation does not depend on declaration order, set
 `WIRELY_COMPILER_SHUFFLE_SEED` to an integer. The compiler then shuffles
-declarations, node parameters, struct literal fields, procedure ports,
-`uses` bindings, and open enum members with that seed; connections keep
-their relative order. Also set `WIRELY_COMPILER_SHUFFLE_LAYOUT=1` to shuffle
+declarations, node parameters, procedure ports, `uses` bindings, and open
+enum members with that seed; connections keep their relative order. Also set `WIRELY_COMPILER_SHUFFLE_LAYOUT=1` to shuffle
 struct fields and closed enum members, which changes the runtime
 representation.
 Negative tests may report different diagnostics in this mode.

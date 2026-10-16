@@ -8,13 +8,13 @@ from wirely.compiler import model
 from .ast import SourceElement
 
 
-# Order-independent lists in each AST class. Arguments, statements, and
-# connection sources are positional, so these keep their order.
+# Order-independent lists in each AST class. Arguments, statements,
+# connection sources, and struct literal fields, which evaluate in written
+# order, keep their order.
 _SHUFFLED_ATTRIBUTES = {
     model.NodeType: ('declarations',),
     model.DeclarationLibrary: ('declarations',),
     model.Instantiation: ('parameters',),
-    model.StructLiteral: ('fields',),
     model.DependsDeclaration: ('dependencies',),
     model.ProducesDeclaration: ('outputs',),
     model.UsesDeclaration: ('bindings',),
