@@ -40,13 +40,6 @@ class MQTTFormat(enum.IntEnum):
     SnakeCase = 2
 
 
-# Std.EdgeType in wirely/lib/std.wrl
-class StdEdgeType(enum.IntEnum):
-    Rising = 0
-    Falling = 1
-    Both = 2
-
-
 # Python enums by enum type name.
 native_enum_types = {
     'GPIO.ActiveState': GPIOActiveState,
@@ -54,5 +47,4 @@ native_enum_types = {
     'GPIO.Drive': GPIODrive,
     'KNX.Protocol': KNXProtocol,
     'MQTT.Format': MQTTFormat,
-    'Std.EdgeType': StdEdgeType,
 }

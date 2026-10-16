@@ -19,7 +19,6 @@ ENUM_TYPES = (
     'GPIO.Drive',
     'KNX.Protocol',
     'MQTT.Format',
-    'Std.EdgeType',
 )
 STRUCT_TYPES = (
     'MQTT.TemplateParts',
