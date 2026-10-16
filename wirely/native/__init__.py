@@ -18,6 +18,14 @@ def native_node_type(namespace_dict, *, has_native_state: bool):
     return native_node_type_impl
 
 
+def check_state_type(context, state, name='Type'):
+    """Raise ValueError unless a procedure's ValueType matches its native state's."""
+    # TODO: Check this in an earlier stage, before the program runs, instead of on each call.
+    if context.values[name] != state.values[name]:
+        raise ValueError(f'{context.name}: procedure type {context.values[name]} does not match '
+                         f'state type {state.values[name]}')
+
+
 @check_parameters
 def native_resource_type(namespace_dict, name: str):
     """Register a class as the Python type of a resource type in a module registry."""

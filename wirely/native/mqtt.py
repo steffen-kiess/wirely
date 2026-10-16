@@ -5,7 +5,7 @@ import urllib
 import contextlib
 
 import wirely
-from wirely.native import native_node_type, native_resource_type
+from wirely.native import check_state_type, native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.enums import MQTTFormat
 
@@ -296,6 +296,7 @@ class ValueOptionProvider(NativeState):
     @staticmethod
     def set_value(*, context):
         state = context.inputs['state'].object
+        check_state_type(context, state)
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -376,6 +377,7 @@ class EventSender(NativeState):
     @staticmethod
     def send_value(*, context):
         state = context.inputs['state'].object
+        check_state_type(context, state)
         # TODO: Add checks whether everything is running?
 
         value_opt = context.inputs['input']
@@ -451,6 +453,7 @@ class EventReceiver(NativeState):
     @staticmethod
     def get_value(*, context):
         state = context.inputs['state'].object
+        check_state_type(context, state)
         # TODO: Add checks whether everything is running?
 
         if len(state.received_values) == 0:

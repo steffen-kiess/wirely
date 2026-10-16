@@ -229,11 +229,23 @@ def check_unknown_native_enum_values():
             call()
 
 
+def check_state_types():
+    # Procedures of generic native state types require the state's type.
+    from types import SimpleNamespace
+    from wirely.native import check_state_type
+
+    state = SimpleNamespace(values={'Type': wirely.value_types.uint8})
+    check_state_type(SimpleNamespace(name='node', values={'Type': wirely.value_types.uint8}), state)
+    with checks.assertRaisesRegex(ValueError, 'node: procedure type String does not match state type uint8'):
+        check_state_type(SimpleNamespace(name='node', values={'Type': wirely.value_types.string}), state)
+
+
 check_fixture()
 check_values()
 check_optional_values()
 check_type_member_collision()
 check_unknown_native_enum_values()
+check_state_types()
 
 
 async def run_test():

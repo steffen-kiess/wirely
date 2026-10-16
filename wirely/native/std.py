@@ -1,5 +1,5 @@
 import wirely
-from wirely.native import native_node_type, native_resource_type
+from wirely.native import check_state_type, native_node_type, native_resource_type
 from wirely.runtime.contexts import NativeState
 
 native_node_types = {}
@@ -61,6 +61,7 @@ class DebugValueSource(NativeState):
     @staticmethod
     def run(*, context):
         state = context.inputs['state'].object
+        check_state_type(context, state)
         context.set_output('output', state.current_value)
 
     def set_value(self, value):
@@ -101,6 +102,7 @@ class DebugEventSource(NativeState):
     @staticmethod
     def run(*, context):
         state = context.inputs['state'].object
+        check_state_type(context, state)
         context.set_output('output', state.next_value)
         if state.next_value is not None:
             state.next_value = None
