@@ -192,8 +192,10 @@ library: Python enums for its native enums, and `NamedTuple`s for the
 struct types listed in that script. It also generates
 [`wirely/runtime/native_interfaces.py`](../wirely/runtime/native_interfaces.py),
 describing the native state types, procedures, and runtime functions that
-the standard library's native code implements. Run it after changing any
-of these.
+the standard library's native code implements. Each native initializer and
+procedure there passes every type parameter its ports use through its own
+`uses`, so each description is self-contained. Run the script after
+changing any of these.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.

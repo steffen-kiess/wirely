@@ -8,7 +8,8 @@ namespace Timer {
 
     native procedure run
       depends on default input as "input"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   // Block which returns false if the current time is before input, true if the

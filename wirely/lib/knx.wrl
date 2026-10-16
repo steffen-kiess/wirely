@@ -62,7 +62,8 @@ namespace KNX {
 
     native procedure get_value stage input
       depends on state as "state"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   #[Internal]
@@ -90,7 +91,8 @@ namespace KNX {
       uses Type, group_address, value_type_name;
 
     native procedure set_value stage output
-      depends on state as "state", default input as "input";
+      depends on state as "state", default input as "input"
+      uses Type;
   }
 
   node type ValueProvider {
@@ -130,7 +132,8 @@ namespace KNX {
 
     native procedure get_value stage input
       depends on state as "state"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   #[Internal]
@@ -153,6 +156,7 @@ namespace KNX {
       uses Type, group_address, value_type_name;
 
     native procedure send_value stage output
-      depends on state as "state", default input as "input";
+      depends on state as "state", default input as "input"
+      uses Type;
   }
 }

@@ -100,7 +100,8 @@ namespace Std {
 
     native procedure run stage input
       depends on state as "state"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   #[Internal]
@@ -116,7 +117,8 @@ namespace Std {
 
     native procedure run stage input
       depends on state as "state"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 
   node type OptionNone {

@@ -663,10 +663,11 @@ namespace Example {
 
 def check_native_interface_signatures():
     # Generated signatures describe the standard library's native interfaces;
-    # types passed to native code as ValueType become type variables.
+    # types passed to native code as ValueType through an entry's own uses
+    # become type variables.
     from wirely.runtime import native_interfaces
     from wirely.runtime.signatures import (
-        Any, Builtin, Enum, Function, Initializer, Int, Option, Port, Procedure, ResourceType, Struct, TypeVar,
+        Builtin, Enum, Function, Initializer, Int, Option, Port, Procedure, ResourceType, Struct, TypeVar,
     )
 
     assert native_interfaces.native_state_types['MQTT.EventSender'] == Initializer(
@@ -679,14 +680,16 @@ def check_native_interface_signatures():
         stage='output',
         depends={'state': Port('resource', ResourceType('MQTT.EventSenderState')),
                  'input': Port('event', TypeVar('Type'))},
-        produces={}, uses={},
+        produces={}, uses={'Type': Builtin('ValueType')},
     )
     assert native_interfaces.native_procedures['Std.DebugValuePrinter:run'] == Procedure(
         stage='output', depends={'input': Port('value', TypeVar('Type'))}, produces={},
         uses={'Type': Builtin('ValueType')},
     )
-    # A type parameter not passed to native code is not described.
-    assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'].depends['input'] == Port('event', Any())
+    assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'] == Procedure(
+        stage='default', depends={'input': Port('event', TypeVar('Type'))},
+        produces={'output': Port('event', Builtin('MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
+    )
     assert native_interfaces.native_functions['Duration.CheckedMul'] == Function(
         (Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')))
     # Constant functions run in the compiler, not the runtime.

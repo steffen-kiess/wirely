@@ -161,7 +161,9 @@ def signature_type(value_type, variables, where):
 
     if isinstance(value_type, TypeParameter):
         name = variables.get(value_type.parameter)
-        return signatures.Any() if name is None else signatures.TypeVar(name)
+        if name is None:
+            raise SystemExit(f'{where} does not pass type {value_type.parameter.name.id_str} in uses')
+        return signatures.TypeVar(name)
     if isinstance(value_type, types.TypeInt):
         return signatures.Int(value_type.bits, value_type.is_signed)
     if isinstance(value_type, types.TypeOption):
@@ -201,22 +203,21 @@ def procedure_ports(ports, variables, where):
     return result
 
 
-def type_variables(node_type, uses_clauses, where):
-    """Map each ValueType parameter passed to native code to the `uses` key passing it."""
+def type_variables(node_type, uses, where):
+    """Map each ValueType parameter in a `uses` clause to the key passing it."""
     from wirely import types
     from wirely.compiler import model
 
     variables = {}
-    for uses in uses_clauses:
-        for binding in () if uses is None else uses.bindings:
-            expression = binding.expression
-            parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
-                         if isinstance(expression, model.Reference) and expression.length == 1 else None)
-            if parameter is not None and getattr(parameter, 'type_resolved', None) == types.ValueType:
-                if variables.setdefault(parameter, binding.key) != binding.key:
-                    raise SystemExit(f'{where} passes type {expression} under two names')
-            elif uses_type(node_type, binding, None, where) == types.ValueType:
-                raise SystemExit(f'{where} passes a ValueType that is not a parameter: {expression}')
+    for binding in () if uses is None else uses.bindings:
+        expression = binding.expression
+        parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
+                     if isinstance(expression, model.Reference) and expression.length == 1 else None)
+        if parameter is not None and getattr(parameter, 'type_resolved', None) == types.ValueType:
+            if variables.setdefault(parameter, binding.key) != binding.key:
+                raise SystemExit(f'{where} passes type {expression} under two names')
+        elif uses_type(node_type, binding, None, where) == types.ValueType:
+            raise SystemExit(f'{where} passes a ValueType that is not a parameter: {expression}')
     return variables
 
 
@@ -241,11 +242,10 @@ def native_interfaces(graph):
     state_types = {}
     procedures = {}
     for node_type in node_types(graph):
-        native = [procedure for procedure in node_type.procedures.values() if procedure.is_native]
         initializer = node_type.initializer if node_type.is_native else None
         if initializer is not None:
             where = f'Native state type {node_type.native_name}'
-            variables = type_variables(node_type, [initializer.uses, *(p.uses for p in native)], where)
+            variables = type_variables(node_type, initializer.uses, where)
             dependencies = zip(initializer.depends.dependencies, initializer.depends.get_resolved_dependencies())
             state_types[node_type.native_name] = signatures.Initializer(
                 depends={port.key: signature_port(dependency, variables, where) for port, dependency in dependencies},
@@ -253,10 +253,11 @@ def native_interfaces(graph):
                           for output, key in initializer.output_keys.items()},
                 uses=signature_uses(node_type, initializer.uses, variables, where),
             )
-        for procedure in native:
+        for procedure in node_type.procedures.values():
+            if not procedure.is_native:
+                continue
             where = f'Native procedure {procedure.native_name}'
-            if initializer is None:
-                variables = type_variables(node_type, [procedure.uses], where)
+            variables = type_variables(node_type, procedure.uses, where)
             procedures[procedure.native_name] = signatures.Procedure(
                 stage=procedure.stage.stage.name.lower(),
                 depends=procedure_ports(procedure.input_ports, variables, where),
@@ -308,7 +309,7 @@ def interface_lines(name, value):
 
 def generate_interfaces(graph):
     state_types, procedures, functions = native_interfaces(graph)
-    names = ['Any', 'Builtin', 'Enum', 'Function', 'Initializer', 'Int', 'List', 'Option', 'Port',
+    names = ['Builtin', 'Enum', 'Function', 'Initializer', 'Int', 'List', 'Option', 'Port',
              'Procedure', 'ResourceType', 'Struct', 'TypeVar']
     lines = [HEADER + '"""Interfaces that the native code of the standard library expects."""', '',
              f'from wirely.runtime.signatures import (', f'    {", ".join(names)},', ')', '', '',

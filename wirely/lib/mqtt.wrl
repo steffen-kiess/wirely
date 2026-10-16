@@ -49,7 +49,8 @@ namespace MQTT {
       uses Type, Topic, optional(Format) as Format, template_parts;
 
     native procedure set_value stage output
-      depends on state as "state", default input as "input";
+      depends on state as "state", default input as "input"
+      uses Type;
   }
 
   node type ValueProvider {
@@ -99,7 +100,8 @@ namespace MQTT {
       uses Type, Topic, optional(Format) as Format, template_parts;
 
     native procedure send_value stage output
-      depends on state as "state", default input as "input";
+      depends on state as "state", default input as "input"
+      uses Type;
   }
 
   #[Internal]
@@ -124,6 +126,7 @@ namespace MQTT {
 
     native procedure get_value stage input
       depends on state as "state"
-      produces default output as "output";
+      produces default output as "output"
+      uses Type;
   }
 }

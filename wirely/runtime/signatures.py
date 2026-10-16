@@ -48,14 +48,9 @@ class Struct(SignatureType):
 
 @dataclass(frozen=True, slots=True)
 class TypeVar(SignatureType):
-    """The type passed to native code as the `ValueType` bound to this `uses` key."""
+    """The `ValueType` bound to this key of the same initializer's or procedure's `uses`."""
 
     name: str
-
-
-@dataclass(frozen=True, slots=True)
-class Any(SignatureType):
-    """A type that native code is not told and must handle generically."""
 
 
 @dataclass(frozen=True, slots=True)

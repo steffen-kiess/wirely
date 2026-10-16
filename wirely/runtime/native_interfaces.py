@@ -3,7 +3,7 @@
 """Interfaces that the native code of the standard library expects."""
 
 from wirely.runtime.signatures import (
-    Any, Builtin, Enum, Function, Initializer, Int, List, Option, Port, Procedure, ResourceType, Struct, TypeVar,
+    Builtin, Enum, Function, Initializer, Int, List, Option, Port, Procedure, ResourceType, Struct, TypeVar,
 )
 
 
@@ -284,7 +284,9 @@ native_procedures = {
         produces={
             'output': Port('event', TypeVar('Type')),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'KNX.EventSender:send_value': Procedure(
         stage='output',
@@ -293,7 +295,9 @@ native_procedures = {
             'input': Port('event', TypeVar('Type')),
         },
         produces={},
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'KNX.ValueOptionProvider:set_value': Procedure(
         stage='output',
@@ -302,7 +306,9 @@ native_procedures = {
             'input': Port('value', Option(TypeVar('Type'))),
         },
         produces={},
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'KNX.ValueReceiver:get_value': Procedure(
         stage='input',
@@ -312,7 +318,9 @@ native_procedures = {
         produces={
             'output': Port('value', Option(TypeVar('Type'))),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'MQTT.EventReceiver:get_value': Procedure(
         stage='input',
@@ -322,7 +330,9 @@ native_procedures = {
         produces={
             'output': Port('event', TypeVar('Type')),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'MQTT.EventSender:send_value': Procedure(
         stage='output',
@@ -331,7 +341,9 @@ native_procedures = {
             'input': Port('event', TypeVar('Type')),
         },
         produces={},
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'MQTT.ValueOptionProvider:set_value': Procedure(
         stage='output',
@@ -340,16 +352,20 @@ native_procedures = {
             'input': Port('value', Option(TypeVar('Type'))),
         },
         produces={},
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'Process.LaunchOnEvent:run': Procedure(
         stage='output',
         depends={
             'state': Port('resource', ResourceType('Process.LaunchOnEventState')),
-            'input': Port('event', Any()),
+            'input': Port('event', TypeVar('Type')),
         },
         produces={},
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'Schedule.TimeOfDayMinute:get_value': Procedure(
         stage='default',
@@ -379,7 +395,9 @@ native_procedures = {
         produces={
             'output': Port('event', TypeVar('Type')),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'Std.DebugValuePrinter:run': Procedure(
         stage='output',
@@ -399,7 +417,9 @@ native_procedures = {
         produces={
             'output': Port('value', TypeVar('Type')),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'Std.WarnOnEvent:run': Procedure(
         stage='output',
@@ -425,12 +445,14 @@ native_procedures = {
     'Timer.MonotonicTimestamp:run': Procedure(
         stage='default',
         depends={
-            'input': Port('event', Any()),
+            'input': Port('event', TypeVar('Type')),
         },
         produces={
             'output': Port('event', Builtin('MonotonicTime')),
         },
-        uses={},
+        uses={
+            'Type': Builtin('ValueType'),
+        },
     ),
     'TwoN.CodeEnteredEvent:get_value': Procedure(
         stage='input',

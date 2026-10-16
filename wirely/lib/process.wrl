@@ -14,6 +14,7 @@ namespace Process {
     native initializer produces state as "state" uses ShellCommand;
 
     native procedure run stage output
-      depends on state as "state", default input as "input";
+      depends on state as "state", default input as "input"
+      uses Type;
   }
 }
