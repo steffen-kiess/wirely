@@ -287,6 +287,8 @@ struct type StructType {
   Kind: uint8,
   // Qualified name in Names.
   Name: StringRef,
+  // Native name in Names; empty if the struct is not native.
+  NativeName: StringRef,
   // Range into StructFields, in declaration order.
   Fields: Range,
 }
@@ -773,6 +775,11 @@ An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member
 count. Member names and numbers are not compared. Other enums need no
 linking.
+
+A struct with a `NativeName` links only when the runtime knows that native
+name with the same field types in the same order; nested native enums and
+structs match by native name. Field names are not compared. Other structs
+need no linking.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes

@@ -255,8 +255,11 @@ class TypeStruct(Type):
     is_json_serializable = False
     has_to_csv_value = False
 
-    def __init__(self, name, fields):
+    def __init__(self, name, fields, *, native_name=None):
+        if native_name is not None and (type(native_name) is not str or not native_name):
+            raise ValueError('Struct native_name must be a nonempty string or None')
         self.name = name
+        self.native_name = native_name  # None for structs native code does not rely on.
         self.fields = MappingProxyType(dict(fields))
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.fields.values()):
@@ -309,8 +312,9 @@ class TypeStruct(Type):
         """The runtime view of this type for native code."""
         from .value_types import StructType, ValueType
         from ..runtime.structs import native_struct_types
+        native = None if self.native_name is None else native_struct_types.get(self.native_name)
         return StructType(self.name, tuple((name, ValueType(field_type)) for name, field_type in self.fields.items()),
-                          native_struct_types.get(self.name))
+                          None if native is None else native.python_type)
 
     def equals(self, value1, value2):
         value1 = self.verify_value(value1)

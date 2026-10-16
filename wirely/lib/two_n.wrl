@@ -3,7 +3,7 @@ namespace TwoN {
   native constant function IsValidCode(code: String): boolean;
 
   #[Internal]
-  struct type Credentials {
+  native struct type Credentials {
     username: String,
     password: String,
   }

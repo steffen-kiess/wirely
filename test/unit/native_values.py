@@ -1,3 +1,4 @@
+from typing import NamedTuple
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -9,8 +10,10 @@ from wirely.compiler.native_functions import native_function_impls
 from wirely.native import native_node_type
 from wirely.runtime.contexts import NativeState
 from wirely.test import test_engine
-from wirely.types.value_types import NativeEnum, OpenIntEnum
+from wirely.runtime.signatures import Builtin
+from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
 import wirely.runtime.enums
+import wirely.runtime.structs
 
 
 checks = TestCase()
@@ -133,7 +136,7 @@ def check_values():
 }
 namespace Example {
   native open enum type Mode as "TestLibrary.Mode": uint8 { On = 1, }
-  struct type Pair { value: boolean, }
+  native struct type Pair as "TestLibrary.Pair" { value: boolean, }
   native constant function Same as "Example.Identity"(number: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
@@ -146,11 +149,16 @@ connect provider -> second.Connection;
     class Mode(OpenIntEnum, minimum=0, maximum=255):
         On = 1
 
+    class Pair(NamedTuple):
+        value: bool
+
     enums = {'TestLibrary.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
+    structs = {'TestLibrary.Pair': NativeStruct(Pair, (Builtin('boolean'),))}
     with patch.dict(wirely.native.test_library.native_node_types, registry), \
             patch.dict(wirely.native.test_library.native_resource_types, resource_types), \
             patch.dict(native_function_impls, {'Example.Identity': identity}), \
-            patch.dict(wirely.runtime.enums.native_enum_types, enums):
+            patch.dict(wirely.runtime.enums.native_enum_types, enums), \
+            patch.dict(wirely.runtime.structs.native_struct_types, structs):
         graph = compile_strs([('<values>', source)])
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)

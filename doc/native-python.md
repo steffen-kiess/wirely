@@ -180,16 +180,22 @@ A `StructValue` has its field values in declaration order as `values`, and
 its `type`, a `wirely.StructType` with the struct's `name`, its `fields` as
 `(name, ValueType)` pairs, and `index(name)` for a field's position. Two
 values are equal when both type and field values are equal. Build values
-with the type's `make(values)`. `native` is an instance of the `NamedTuple`
-that [`wirely/runtime/structs.py`](../wirely/runtime/structs.py) registers
-for the struct type, with fields by name, and raises `ValueError` for
-struct types without one; `from_native(value)` builds a `StructValue` from
-such an instance. A struct output accepts only `StructValue`s of its own
-struct type.
+with the type's `make(values)`. A struct output accepts only
+`StructValue`s of its own struct type.
+
+Code written for a specific struct relies on its fields, so declare that
+struct `native`. For a native struct, `native` is an instance of the
+`NamedTuple` that [`wirely/runtime/structs.py`](../wirely/runtime/structs.py)
+registers under its native name, built from the field values in order, and
+`from_native(value)` builds a `StructValue` from such an instance. Both
+raise `ValueError` for other structs. A native struct's contract is its
+field types in order; field names are not part of it. Before running a
+program, the runtime checks that it knows each native struct the program
+uses, with the same field types in the same order.
 
 `tools/generate-native-types` generates both files from the standard
-library: Python enums for its native enums, and `NamedTuple`s for the
-struct types listed in that script. It also generates
+library: Python enums for its native enums, and `NamedTuple`s for its
+native structs. It also generates
 [`wirely/runtime/native_interfaces.py`](../wirely/runtime/native_interfaces.py),
 describing the native state types, procedures, and runtime functions that
 the standard library's native code implements. Each native initializer and

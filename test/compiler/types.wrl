@@ -204,6 +204,11 @@ native open enum type NativeProtocol as "Example.Protocol": uint8 { TCP = 1, }
 native closed enum type NativeDay { Monday, Tuesday, }
 assert uint8.From(NativeProtocol.TCP) == 1 && NativeDay.Monday != NativeDay.Tuesday;
 
+// Native structs may also replace their qualified name, and may be empty.
+native struct type NativeReading as "Example.Reading" { value: uint16, valid: boolean, }
+native struct type NativeEmpty {}
+assert NativeReading { valid: true, value: 3 }.value == 3 && NativeEmpty {} == NativeEmpty {};
+
 // Modifiers remain ordinary identifiers in other positions.
 closed enum type open { open, closed, }
 open enum type closed: uint8 { open = 7, closed = 9, }

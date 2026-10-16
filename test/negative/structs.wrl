@@ -370,3 +370,16 @@ node probe: Probe { Value: Labeled { label: "a", enabled: true } }
 // TEST: struct_literal_type
 struct type Flag { set: boolean }
 state bad: Flag { set: true } = Flag { set: true }; // E: Syntax error
+
+// TEST: native name on a non-native struct
+struct type Bad as "Example.Bad" { flag: boolean } // E: Unexpected token
+
+// TEST: duplicate native struct name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Example.Pair'
+namespace Example {
+  native struct type Pair { flag: boolean } // H: Previous declaration was here
+}
+namespace Other {
+  native struct type Couple as "Example.Pair" { flag: boolean } // E: Duplicate native name 'Example.Pair'
+}

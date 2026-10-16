@@ -33,13 +33,20 @@ class StructField(SourceElement):
 class DeclarationStructType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, fields: list,
-                 *, source_position: SourcePosition):
+                 *, is_native: bool = False, alias: typing.Optional[StringConstant] = None,
+                 source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.fields = fields
+        self.is_native = is_native
+        self.alias = alias  # Native name replacing the qualified name.
         self.inner_attributes = getattr(fields, 'inner_attributes', ())
         self.value_type = None
         self.resolving = False
+
+    @staticmethod
+    def create_native(name, alias, fields, *, source_position):
+        return DeclarationStructType(name, fields, is_native=True, alias=alias, source_position=source_position)
 
     def register_interface_declarations(self, interface):
         if interface.name is not None:
@@ -81,7 +88,10 @@ class DeclarationStructType(Declaration):
                 fields[name] = self.scope.resolve_type(field.field_type)
                 previous[name] = field
             fullname = self.scope.fullname + '.' + self.name.id_str if isinstance(self.scope, model.ast.DeclarationLibrary) else self.name.id_str
-            self.value_type = model.types.TypeStruct(fullname, fields)
+            native_name = None
+            if self.is_native:
+                native_name = self.alias.value if self.alias is not None else fullname
+            self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name)
             return self.value_type
         finally:
             self.resolving = False

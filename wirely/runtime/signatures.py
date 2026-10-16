@@ -43,7 +43,7 @@ class Enum(SignatureType):
 
 @dataclass(frozen=True, slots=True)
 class Struct(SignatureType):
-    name: str  # Qualified name.
+    native_name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +129,7 @@ def matches(signature_type, value_type, bindings):
     if isinstance(signature_type, Enum):
         return isinstance(value_type, types.TypeEnum) and value_type.native_name == signature_type.native_name
     if isinstance(signature_type, Struct):
-        return isinstance(value_type, types.TypeStruct) and value_type.name == signature_type.name
+        return isinstance(value_type, types.TypeStruct) and value_type.native_name == signature_type.native_name
     raise ValueError(f'Unknown signature type {signature_type!r}')
 
 
@@ -147,5 +147,5 @@ def describe(signature_type, bindings):
     if isinstance(signature_type, Enum):
         return f'native enum {signature_type.native_name}'
     if isinstance(signature_type, Struct):
-        return signature_type.name
+        return f'native struct {signature_type.native_name}'
     raise ValueError(f'Unknown signature type {signature_type!r}')

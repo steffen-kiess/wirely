@@ -6,7 +6,7 @@ namespace Std {
   }
 
   #[Internal]
-  struct type FormatParts {
+  native struct type FormatParts {
     prefix: String,
     suffix: String,
     has_value: boolean,

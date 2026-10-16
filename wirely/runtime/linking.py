@@ -4,7 +4,8 @@ import inspect
 
 from ..functions import get_native_function_by_name
 from ..native import get_native_node_type_by_name, get_native_resource_type_by_name
-from ..program import used_enum_types
+from ..program import used_declared_types
+from ..types import TypeEnum, TypeStruct
 from .resources import ResourceType
 
 
@@ -86,8 +87,8 @@ def link_native_resource_types(program):
 def link_native_enums(program):
     """Check each native enum against the runtime's expectations; member names and numbers are not compared."""
     from .enums import native_enum_types
-    for enum_type in used_enum_types(program):
-        name = enum_type.native_name
+    for enum_type in used_declared_types(program):
+        name = enum_type.native_name if isinstance(enum_type, TypeEnum) else None
         if name is None:
             continue
         expected = native_enum_types.get(name)
@@ -102,6 +103,27 @@ def link_native_enums(program):
         if not enum_type.is_open and len(enum_type.members) != len(expected.python_type):
             raise ValueError(f'Native enum type {name!r} must have {len(expected.python_type)} members, '
                              f'got {len(enum_type.members)}')
+
+
+def link_native_structs(program):
+    """Check each native struct against the runtime's expectations; field names are not compared."""
+    from .signatures import describe, matches
+    from .structs import native_struct_types
+    for struct_type in used_declared_types(program):
+        name = struct_type.native_name if isinstance(struct_type, TypeStruct) else None
+        if name is None:
+            continue
+        expected = native_struct_types.get(name)
+        if expected is None:
+            raise ValueError(f'Cannot find native struct type {name!r}')
+        field_types = tuple(struct_type.fields.values())
+        if len(field_types) != len(expected.fields):
+            raise ValueError(f'Native struct type {name!r} must have {len(expected.fields)} fields, '
+                             f'got {len(field_types)}')
+        for index, (field_type, signature_type) in enumerate(zip(field_types, expected.fields)):
+            if not matches(signature_type, field_type, {}):
+                raise ValueError(f'Native struct type {name!r} field {index} has type {field_type}, '
+                                 f'expected {describe(signature_type, {})}')
 
 
 def link_native_signatures(program):

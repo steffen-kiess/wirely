@@ -173,8 +173,8 @@ parameters. `native node type` indicates that the implementation also owns
 Python state or resources; it requires a `native initializer`, which creates
 them. Both forms require native support when instantiated.
 
-Node types with native state, resource types, native enums, and native
-functions accept `as "Qualified.Name"` after their name. Native code
+Node types with native state, resource types, native enums, native structs,
+and native functions accept `as "Qualified.Name"` after their name. Native code
 and `Program` use this native name instead of the qualified Wirely name, so
 the declaration can be renamed or moved without changing its
 implementation, as in
@@ -297,6 +297,12 @@ Fields and literal entries are comma-separated, with an optional trailing
 comma. Literals name their type and supply every field exactly once, in any
 order. Structs are distinct named types; fields may use other structs,
 enums, options, or lists. Struct definitions cannot be recursive.
+
+Declare a struct `native` when native code reads or builds its values, as
+in `native struct type Credentials as "TwoN.Credentials" { ... }`. A
+program using a native struct runs only on a runtime that knows its native
+name with the same field types in the same order; field names are not
+compared.
 Read a field with `value.field`, for example `reading.temperature`, also in
 procedure bodies. Field access needs a struct type known where the code is
 written, not a `ValueType` parameter.

@@ -18,6 +18,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | node_type_specifier* "node" "type" identifier ["as" string_constant] "{" declaration_list "}" -> node_type__make
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
+    | "native" "struct" "type" identifier ["as" string_constant] "{" struct_field_list "}" -> declaration_struct_type__create_native
     | "open" "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type__create_open
     | "closed" "enum" "type" identifier "{" closed_enum_member_list "}" -> declaration_enum_type__create_closed
     | "native" "open" "enum" "type" identifier ["as" string_constant] ":" type "{" enum_member_list "}" -> declaration_enum_type__create_native_open

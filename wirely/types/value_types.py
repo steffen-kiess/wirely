@@ -43,6 +43,14 @@ class NativeEnum:
     underlying_type: str  # Integer type name, such as 'uint8'.
 
 
+@dataclass(frozen=True, slots=True)
+class NativeStruct:
+    """What the runtime expects of a native struct; field types in order are its contract, not names."""
+
+    python_type: type  # NamedTuple built positionally from the field values.
+    fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class EnumType:
     """The native view of an enum type, compared by identity."""

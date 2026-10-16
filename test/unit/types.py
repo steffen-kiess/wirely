@@ -440,16 +440,25 @@ def check_structs():
     with checks.assertRaises(ValueError):
         settings_descriptor.parse('{}')
 
-    # A Python type for the struct type name supplies .native.
+    # The Python type registered under a native struct's native name supplies .native.
     class Point(typing.NamedTuple):
         x: int
         y: int
 
-    with patch.dict(wirely.runtime.structs.native_struct_types, {'Native.Point': Point}):
-        point_type = wirely.types.TypeStruct('Native.Point', {'x': wirely.types.int8, 'y': wirely.types.int8}).struct_type
+    fields = (wirely.runtime.signatures.Int(8, True),) * 2
+    registry = {'Native.Point': wirely.value_types.NativeStruct(Point, fields)}
+    point_fields = {'x': wirely.types.int8, 'y': wirely.types.int8}
+    with patch.dict(wirely.runtime.structs.native_struct_types, registry):
+        point_type = wirely.types.TypeStruct('Example.Point', point_fields, native_name='Native.Point').struct_type
+        plain_type = wirely.types.TypeStruct('Native.Point', point_fields).struct_type
     assert point_type.python_type is Point
     point = point_type.from_native(Point(1, -2))
     assert point.values == (1, -2) and point.native == Point(1, -2)
+    # Structs that are not native have no Python type.
+    assert plain_type.python_type is None
+    for call in (lambda: plain_type.from_native(Point(1, -2)), lambda: plain_type.make((1, -2)).native):
+        with checks.assertRaisesRegex(ValueError, "Struct type 'Native.Point' has no Python type"):
+            call()
 
 
 def check_default_values():

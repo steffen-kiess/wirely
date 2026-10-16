@@ -8,7 +8,7 @@ namespace MQTT {
   native constant function SupportsType(type: ValueType): boolean;
 
   #[Internal]
-  struct type TemplateParts {
+  native struct type TemplateParts {
     prefix: String,
     suffix: String,
   }

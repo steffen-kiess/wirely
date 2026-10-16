@@ -4,6 +4,7 @@ import datetime
 import enum
 from pathlib import Path
 from textwrap import indent
+from typing import NamedTuple
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -14,7 +15,9 @@ from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 from wirely.test import test_engine
-from wirely.types.value_types import NativeEnum, OpenIntEnum
+from wirely.runtime.signatures import Builtin, Enum, Int
+from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
+import wirely.runtime.structs
 import wirely.runtime.enums
 
 
@@ -813,15 +816,23 @@ connect number -> stateful.Number;
 
 def check_struct_outputs():
     # Struct outputs accept only StructValues of the output's struct type.
+    class Pair(NamedTuple):
+        enabled: bool
+        number: int
+
+    fields = (Builtin('boolean'), Int(8, False))
+    registry = {'Test.Pair': NativeStruct(Pair, fields), 'Test.Other': NativeStruct(Pair, fields)}
+
     def check_struct_output(context):
         pair, other = context.values['pair'], context.values['other']
-        assert (pair.type.name, pair.values) == ('Example.Pair', (True, 7))
+        assert (pair.type.name, pair.values, pair.native) == ('Example.Pair', (True, 7), Pair(True, 7))
         for invalid in [(True, 7), other]:
             with checks.assertRaisesRegex(ValueError, 'Expected a StructValue of Example.Pair'):
                 context.set_output('output', invalid)
         context.set_output('output', pair.type.make((False, 8)))
 
-    probe = make_engine('''
+    with patch.dict(wirely.runtime.structs.native_struct_types, registry):
+        probe = make_engine('''
     default output: value Example.Pair;
 
     native procedure run produces default output as "output"
@@ -829,13 +840,63 @@ def check_struct_outputs():
         Example.Other { enabled: true, number: 7 } as other;
     ''', check_struct_output, extra='''
 namespace Example {
-  struct type Pair { enabled: boolean, number: uint8 }
-  struct type Other { enabled: boolean, number: uint8 }
+  native struct type Pair as "Test.Pair" { enabled: boolean, number: uint8 }
+  native struct type Other as "Test.Other" { enabled: boolean, number: uint8 }
 }
 ''')
-    probe.step()
-    # Inside the runtime, a struct is a tuple of its field values.
-    probe.assert_value_is('probe', (False, 8))
+        probe.step()
+        # Inside the runtime, a struct is a tuple of its field values.
+        probe.assert_value_is('probe', (False, 8))
+
+
+def check_native_structs():
+    # Native structs link by native name and field types in order; field
+    # names are not compared, and nested enums and structs match by native name.
+    class Level(OpenIntEnum, minimum=0, maximum=255):
+        High = 2
+
+    class Reading(NamedTuple):
+        first: int
+        second: object
+
+    class Empty(NamedTuple):
+        pass
+
+    def check_values(context):
+        reading = context.values['reading'].native
+        assert type(reading) is Reading and reading.first == 5 and reading.second.native is Level.High
+        assert context.values['empty'].native == Empty()
+
+    def make(registry):
+        enums = {'Test.Level': NativeEnum(Level, is_open=True, underlying_type='uint8')}
+        with patch.dict(wirely.runtime.enums.native_enum_types, enums), \
+                patch.dict(wirely.runtime.structs.native_struct_types, registry):
+            probe = make_engine('''
+    native procedure run uses Example.Reading { value: 5, level: Example.Level.High } as reading,
+      Example.Empty {} as empty;
+    ''', check_values, extra='''
+namespace Example {
+  native open enum type Level as "Test.Level": uint8 { High = 2, }
+  native struct type Reading as "Test.Reading" { value: uint16, level: Example.Level }
+  native struct type Empty as "Test.Empty" {}
+}
+''')
+            probe.step()
+
+    reading = NativeStruct(Reading, (Int(16, False), Enum('Test.Level')))
+    empty = NativeStruct(Empty, ())
+    make({'Test.Reading': reading, 'Test.Empty': empty})
+    for registry, message in [
+        ({'Test.Empty': empty}, "Cannot find native struct type 'Test.Reading'"),
+        ({'Test.Reading': NativeStruct(Reading, (Int(16, False),)), 'Test.Empty': empty},
+         "Native struct type 'Test.Reading' must have 1 fields, got 2"),
+        ({'Test.Reading': NativeStruct(Reading, (Int(8, False), Enum('Test.Level'))), 'Test.Empty': empty},
+         "Native struct type 'Test.Reading' field 0 has type uint16, expected uint8"),
+        ({'Test.Reading': NativeStruct(Reading, (Int(16, False), Enum('Test.Other'))), 'Test.Empty': empty},
+         "Native struct type 'Test.Reading' field 1 has type Example.Level, expected native enum Test.Other"),
+    ]:
+        with checks.assertRaisesRegex(ValueError, message):
+            make(registry)
 
 
 def check_port_keys():
@@ -1154,5 +1215,6 @@ check_native_enums()
 check_native_interface_signatures()
 check_native_signature_linking()
 check_struct_outputs()
+check_native_structs()
 check_port_keys()
 check_native_methods()
