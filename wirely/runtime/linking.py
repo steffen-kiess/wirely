@@ -4,6 +4,7 @@ import inspect
 
 from ..functions import get_native_function_by_name
 from ..native import get_native_node_type_by_name, get_native_resource_type_by_name
+from ..program import used_enum_types
 from .resources import ResourceType
 
 
@@ -80,6 +81,27 @@ def link_native_resource_types(program):
     for interface in program.native_procedures.values():
         names.update(interface.resources.values())
     return {name: ResourceType(name, get_native_resource_type_by_name(name)) for name in sorted(names)}
+
+
+def link_native_enums(program):
+    """Check each native enum against the runtime's expectations; member names and numbers are not compared."""
+    from .enums import native_enum_types
+    for enum_type in used_enum_types(program):
+        name = enum_type.native_name
+        if name is None:
+            continue
+        expected = native_enum_types.get(name)
+        if expected is None:
+            raise ValueError(f'Cannot find native enum type {name!r}')
+        kind, expected_kind = ('open' if is_open else 'closed' for is_open in (enum_type.is_open, expected.is_open))
+        if kind != expected_kind:
+            raise ValueError(f'Native enum type {name!r} must be {expected_kind}, got {kind}')
+        if str(enum_type.underlying_type) != expected.underlying_type:
+            raise ValueError(f'Native enum type {name!r} must have underlying type {expected.underlying_type}, '
+                             f'got {enum_type.underlying_type}')
+        if not enum_type.is_open and len(enum_type.members) != len(expected.python_type):
+            raise ValueError(f'Native enum type {name!r} must have {len(expected.python_type)} members, '
+                             f'got {len(enum_type.members)}')
 
 
 def link_native_functions(program):

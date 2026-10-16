@@ -17,7 +17,9 @@ def _native_values(bindings):
 
 class Engine:
     def __init__(self, program):
-        from .linking import link_native_classes, link_native_functions, link_native_resource_types
+        from .linking import (
+            link_native_classes, link_native_enums, link_native_functions, link_native_resource_types,
+        )
 
         if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
@@ -55,6 +57,7 @@ class Engine:
 
         self.fake_monotonic_time_offset = None
 
+        link_native_enums(program)
         self.native_classes = link_native_classes(program)
         self.native_functions = link_native_functions(program)
         # Keys of the procedures depending on each resource, by (provider node ID, output).

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pprint import pformat
 from types import MappingProxyType
 
-from ..types import Type
+from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
 from .procedures import Constant, Function, ProcedureBody
 
 
@@ -361,3 +361,36 @@ class Program:
             line(label + ':')
             for name, target in sorted(aliases.items()):
                 line(f'{name!r}: {target}', 2)
+
+
+def _component_enum_types(value_type, seen):
+    if id(value_type) in seen:
+        return
+    seen.add(id(value_type))
+    if isinstance(value_type, TypeEnum):
+        yield value_type
+    elif isinstance(value_type, (TypeOption, TypeList)):
+        yield from _component_enum_types(value_type.inner_type, seen)
+    elif isinstance(value_type, TypeStruct):
+        for field_type in value_type.fields.values():
+            yield from _component_enum_types(field_type, seen)
+
+
+def used_enum_types(program):
+    """Yield each enum type that occurs in the runtime types of a program once."""
+    constants = [*program.constants]
+    value_types = [variable.var_type for table in (program.state_variables, program.temporaries)
+                   for variable in table.variables.values()]
+    for function in program.functions:
+        value_types += [*function.parameter_types, function.return_type]
+    for instance in program.instances.values():
+        constants += instance.initializer_values.values()
+    for schedule in program.procs.values():
+        for procedure in schedule:
+            constants += procedure.values.values()
+            if procedure.body is not None:
+                value_types += procedure.body.local_types
+    value_types += [constant.value_type for constant in constants]
+    seen = set()
+    for value_type in value_types:
+        yield from _component_enum_types(value_type, seen)

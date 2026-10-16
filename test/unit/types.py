@@ -111,15 +111,21 @@ def check_enum_values():
     with checks.assertRaisesRegex(ValueError, 'is not an enum type'):
         wirely.value_types.uint8.enum_type
 
-    # A Python enum for the type name supplies .native.
+    # The Python enum registered under a native enum's native name supplies .native.
     class Mode(enum.IntEnum):
         Cool = 3
         Heat = 4
 
-    with patch.dict(wirely.runtime.enums.native_enum_types, {'Native.Mode': Mode}):
-        native = wirely.types.TypeEnum('Native.Mode', {'Cool': 3, 'Heat': 4},
-                                       is_open=True, underlying_type=wirely.types.uint8).enum_type
+    registry = {'Native.Mode': wirely.value_types.NativeEnum(Mode, is_open=True, underlying_type='uint8')}
+    with patch.dict(wirely.runtime.enums.native_enum_types, registry):
+        native = wirely.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
+                                       underlying_type=wirely.types.uint8, native_name='Native.Mode').enum_type
+        other = wirely.types.TypeEnum('Native.Mode', {'Cool': 3, 'Heat': 4},
+                                      is_open=True, underlying_type=wirely.types.uint8).enum_type
     assert native.python_type is Mode
+    assert other.python_type is None
+    with checks.assertRaises(ValueError):
+        _ = other.from_value(4).native
     assert native.from_value(4).native is Mode.Heat
     with checks.assertRaises(ValueError):
         _ = native.from_value(5).native

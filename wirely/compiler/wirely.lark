@@ -20,6 +20,8 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
     | "open" "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type__create_open
     | "closed" "enum" "type" identifier "{" closed_enum_member_list "}" -> declaration_enum_type__create_closed
+    | "native" "open" "enum" "type" identifier ["as" string_constant] ":" type "{" enum_member_list "}" -> declaration_enum_type__create_native_open
+    | "native" "closed" "enum" "type" identifier ["as" string_constant] "{" closed_enum_member_list "}" -> declaration_enum_type__create_native_closed
     | "resource" "type" identifier ["as" string_constant] ";" -> declaration_resource_type
     // Native functions
     | "native" "function" _signature ";" -> declaration_native_function

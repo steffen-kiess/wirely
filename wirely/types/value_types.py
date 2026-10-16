@@ -8,6 +8,15 @@ from .. import types as _types
 from .option import Some
 
 
+@dataclass(frozen=True, slots=True)
+class NativeEnum:
+    """What the runtime expects of a native enum; numbers are its contract, not names."""
+
+    python_type: type  # IntEnum of the known members; its length is a closed enum's member count.
+    is_open: bool
+    underlying_type: str  # Integer type name, such as 'uint8'.
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class EnumType:
     """The native view of an enum type, compared by identity."""

@@ -1,5 +1,5 @@
 namespace MQTT {
-  open enum type Format: uint8 {
+  native open enum type Format: uint8 {
     Default = 1,
     SnakeCase = 2,
   }

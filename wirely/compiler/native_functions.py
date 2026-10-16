@@ -125,7 +125,7 @@ def validate_collisions(declarations):
 
 
 def validate_native_names(declarations):
-    """Reject native names shared by two node types, resource types, or functions."""
+    """Reject native names shared by two node types, resource types, enum types, or functions."""
     names = {}
 
     def register(kind, item, path):
@@ -149,6 +149,8 @@ def validate_native_names(declarations):
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.DeclarationResourceType):
                 register('resource type', item, path)
+            elif isinstance(item, model.DeclarationEnumType) and item.is_native:
+                register('enum type', item, path)
             elif isinstance(item, model.DeclarationNativeFunction):
                 register('function', item, path)
 

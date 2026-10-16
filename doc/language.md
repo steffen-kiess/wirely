@@ -173,8 +173,8 @@ parameters. `native node type` indicates that the implementation also owns
 Python state or resources; it requires a `native initializer`, which creates
 them. Both forms require native support when instantiated.
 
-Node types with native state, resource types, and native functions accept
-`as "Qualified.Name"` after their name. Native code
+Node types with native state, resource types, native enums, and native
+functions accept `as "Qualified.Name"` after their name. Native code
 and `Program` use this native name instead of the qualified Wirely name, so
 the declaration can be renamed or moved without changing its
 implementation, as in
@@ -324,6 +324,12 @@ range; an open enum may have no named members. Both kinds default to zero.
 Separate members with commas; a trailing comma is optional. Use
 `State.Running` as a value, or `Example.State.Running` for a namespaced
 enum. The Matter library declares the open `ThermostatSystemModeEnum` type.
+
+Declare an enum `native` when native code relies on its numbers, as in
+`native open enum type Protocol as "KNX.Protocol": uint8 { ... }`. A program
+using a native enum runs only on a runtime that knows its native name, with
+the same kind, underlying type, and, for a closed enum, member count. Use
+closed native enums only for member lists that cannot change.
 
 Use `()` for unit, `true` and `false` for booleans, decimal or `0x`/`0o`
 integers for integer parameters, quoted strings for `String`, and `[a, b]`

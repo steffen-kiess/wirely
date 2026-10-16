@@ -1,16 +1,16 @@
 namespace GPIO {
-  open enum type ActiveState: uint8 {
+  native open enum type ActiveState: uint8 {
     High = 1,
     Low = 2,
   }
 
-  open enum type Drive: uint8 {
+  native open enum type Drive: uint8 {
     PushPull = 1,
     OpenDrain = 2,
     OpenSource = 3,
   }
 
-  open enum type Bias: uint8 {
+  native open enum type Bias: uint8 {
     AsIs = 1,
     Disable = 2,
     PullDown = 3,

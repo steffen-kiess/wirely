@@ -679,9 +679,11 @@ def closed_enum_underlying_type(member_count):
 class TypeEnum(TypePrimitive):
     """A nominal enum with either dense closed values or an open integer range."""
 
-    def __init__(self, name, members, *, is_open, underlying_type):
+    def __init__(self, name, members, *, is_open, underlying_type, native_name=None):
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
+        if native_name is not None and (type(native_name) is not str or not native_name):
+            raise ValueError('Enum native_name must be a nonempty string or None')
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
         if not is_open:
@@ -700,6 +702,7 @@ class TypeEnum(TypePrimitive):
         super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
         self.is_open = is_open
         self.underlying_type = underlying_type
+        self.native_name = native_name  # None for enums native code does not rely on.
         self.members = MappingProxyType(dict(members))
         self._names = names
 
@@ -722,8 +725,9 @@ class TypeEnum(TypePrimitive):
         """The runtime view of this type for native code."""
         from .value_types import EnumType, ValueType
         from ..runtime.enums import native_enum_types
+        native = None if self.native_name is None else native_enum_types.get(self.native_name)
         return EnumType(self.name, ValueType(self.underlying_type), self.members,
-                        self.is_open, native_enum_types.get(self.name))
+                        self.is_open, None if native is None else native.python_type)
 
     def default_value(self):
         return 0

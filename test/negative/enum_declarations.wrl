@@ -272,3 +272,16 @@ closed enum type Bad {
   One, // H: Previous member was here
   One, // E: Duplicate enum member One
 }
+
+// TEST: native name on a non-native enum
+open enum type Bad as "Example.Bad": uint8 { One = 1, } // E: Unexpected token
+
+// TEST: duplicate native enum name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Example.Mode'
+namespace Example {
+  native open enum type Mode: uint8 { On = 1, } // H: Previous declaration was here
+}
+namespace Other {
+  native closed enum type State as "Example.Mode" { On, } // E: Duplicate native name 'Example.Mode'
+}

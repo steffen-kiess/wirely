@@ -199,6 +199,11 @@ assert SingleState.Only == SingleState.Only;
 open enum type EmptyUnsigned: uint8 {}
 open enum type EmptySigned: int128 {}
 
+// Native enums may replace their qualified name in native interfaces.
+native open enum type NativeProtocol as "Example.Protocol": uint8 { TCP = 1, }
+native closed enum type NativeDay { Monday, Tuesday, }
+assert uint8.From(NativeProtocol.TCP) == 1 && NativeDay.Monday != NativeDay.Tuesday;
+
 // Modifiers remain ordinary identifiers in other positions.
 closed enum type open { open, closed, }
 open enum type closed: uint8 { open = 7, closed = 9, }

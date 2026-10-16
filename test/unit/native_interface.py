@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import datetime
+import enum
 from pathlib import Path
 from textwrap import indent
 from unittest import TestCase
@@ -13,6 +14,8 @@ from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
+from wirely.types.value_types import NativeEnum
+import wirely.runtime.enums
 
 
 checks = TestCase()
@@ -599,6 +602,65 @@ namespace Example {
     probe.assert_value_is('probe', 255)
 
 
+def check_native_enums():
+    # Native enums link by native name, kind, underlying type, and closed
+    # member count; member names and numbers are not compared.
+    class Level(enum.IntEnum):
+        Minimum = 0
+        Maximum = 2
+
+    class Day(enum.IntEnum):
+        First = 0
+        Second = 1
+
+    class Week(enum.IntEnum):
+        First = 0
+        Second = 1
+        Third = 2
+
+    runs = []
+
+    def check_values(context):
+        runs.append(None)
+        assert context.values['level'].native is Level.Maximum
+        assert context.values['day'].native is Day.Second
+        with checks.assertRaisesRegex(ValueError, "Enum type 'Example.Plain' has no Python enum"):
+            _ = context.values['plain'].native
+
+    def make(registry):
+        with patch.dict(wirely.runtime.enums.native_enum_types, registry):
+            probe = make_engine('''
+    native procedure run uses Example.Level.High as level, Example.Day.Tuesday as day, Example.Plain.On as plain;
+    ''', check_values, extra='''
+namespace Example {
+  native open enum type Level as "Test.Level": uint8 { Off = 0, High = 2, }
+  native closed enum type Day as "Test.Day" { Monday, Tuesday, }
+  native open enum type Unused as "Test.Unused": uint8 {}
+  open enum type Plain: uint8 { On = 1, }
+}
+''')
+            probe.step()
+
+    level = NativeEnum(Level, is_open=True, underlying_type='uint8')
+    day = NativeEnum(Day, is_open=False, underlying_type='uint8')
+    # Unused native enums and non-native enums need no runtime entry.
+    make({'Test.Level': level, 'Test.Day': day})
+    assert len(runs) == 1
+    for registry, message in [
+        ({'Test.Day': day}, "Cannot find native enum type 'Test.Level'"),
+        ({'Test.Level': NativeEnum(Level, is_open=False, underlying_type='uint8'), 'Test.Day': day},
+         "Native enum type 'Test.Level' must be closed, got open"),
+        ({'Test.Level': NativeEnum(Level, is_open=True, underlying_type='int8'), 'Test.Day': day},
+         "Native enum type 'Test.Level' must have underlying type int8, got uint8"),
+        ({'Test.Level': level, 'Test.Day': NativeEnum(Day, is_open=False, underlying_type='uint16')},
+         "Native enum type 'Test.Day' must have underlying type uint16, got uint8"),
+        ({'Test.Level': level, 'Test.Day': NativeEnum(Week, is_open=False, underlying_type='uint8')},
+         "Native enum type 'Test.Day' must have 3 members, got 2"),
+    ]:
+        with checks.assertRaisesRegex(ValueError, message):
+            make(registry)
+
+
 def check_struct_outputs():
     # Struct outputs accept only StructValues of the output's struct type.
     def check_struct_output(context):
@@ -938,6 +1000,7 @@ check_outputs()
 check_events()
 check_unit_outputs()
 check_enum_outputs()
+check_native_enums()
 check_struct_outputs()
 check_port_keys()
 check_native_methods()

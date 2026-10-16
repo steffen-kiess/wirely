@@ -256,6 +256,8 @@ struct type ClosedEnumType {
   UnderlyingType: Ref,
   // Qualified name in Names.
   Name: StringRef,
+  // Native name in Names; empty if the enum is not native.
+  NativeName: StringRef,
   // Range into EnumMemberNames; entry N has number N.
   Members: Range,
 }
@@ -269,6 +271,8 @@ struct type OpenEnumType {
   UnderlyingType: Ref,
   // Qualified name in Names.
   Name: StringRef,
+  // Native name in Names; empty if the enum is not native.
+  NativeName: StringRef,
   // Range into EnumMemberNames, ordered by number; may be empty.
   Members: Range,
   // Byte offset into EnumNumbers of the named member numbers.
@@ -761,6 +765,11 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 The runtime matches the qualified names of native state types, native
 procedures, native functions, and resource types to native code, and binds
 interface names to static values, inputs, outputs, and resources.
+
+An enum with a `NativeName` links only when the runtime knows that native
+name with the same kind, underlying type, and, for a closed enum, member
+count. Member names and numbers are not compared. Other enums need no
+linking.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes

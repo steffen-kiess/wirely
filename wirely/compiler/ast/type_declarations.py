@@ -93,11 +93,14 @@ class DeclarationStructType(Declaration):
 class DeclarationEnumType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, underlying_type: typing.Optional[Value],
-                 members: list, *, is_open: bool, source_position: SourcePosition):
+                 members: list, *, is_open: bool, is_native: bool = False,
+                 alias: typing.Optional[StringConstant] = None, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.underlying_type = underlying_type
         self.is_open = is_open
+        self.is_native = is_native
+        self.alias = alias  # Native name replacing the qualified name.
         self.members = members
         self.inner_attributes = getattr(members, 'inner_attributes', ())
 
@@ -108,6 +111,16 @@ class DeclarationEnumType(Declaration):
     @staticmethod
     def create_closed(name, members, *, source_position):
         return DeclarationEnumType(name, None, members, is_open=False, source_position=source_position)
+
+    @staticmethod
+    def create_native_open(name, alias, underlying_type, members, *, source_position):
+        return DeclarationEnumType(name, underlying_type, members, is_open=True, is_native=True, alias=alias,
+                                   source_position=source_position)
+
+    @staticmethod
+    def create_native_closed(name, alias, members, *, source_position):
+        return DeclarationEnumType(name, None, members, is_open=False, is_native=True, alias=alias,
+                                   source_position=source_position)
 
     def register_interface_declarations(self, interface):
         if interface.name is not None:
@@ -165,7 +178,11 @@ class DeclarationEnumType(Declaration):
             values[number] = member
             numbers[member_name] = number
         fullname = graph.fullname + '.' + name if isinstance(graph, model.ast.DeclarationLibrary) else name
-        self.value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying)
+        native_name = None
+        if self.is_native:
+            native_name = self.alias.value if self.alias is not None else fullname
+        self.value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
+                                               native_name=native_name)
         self.value_type.declaration = self
         graph.enum_types[name] = self.value_type
 

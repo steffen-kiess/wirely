@@ -159,13 +159,20 @@ An `EnumValue` has the member number as `value`, the member `name`, and its
 `members` (numbers by name), `names` (names by number), and `is_open`.
 Open values may have unnamed numbers; reading `name` then raises
 `ValueError`. Two values are equal when both type and number are equal;
-compare with numbers or Python enums through `value` or `native`.
-`native` is the member of the Python `IntEnum` that
-[`wirely/runtime/enums.py`](../wirely/runtime/enums.py) registers for the
-enum type, and raises `ValueError` for enum types without one or when the
-Python enum does not recognize the number, so use it only in code written
-for a specific enum. An enum output accepts only
-`EnumValue`s of its own enum type.
+compare with numbers or Python enums through `value` or `native`. An enum
+output accepts only `EnumValue`s of its own enum type.
+
+Code written for a specific enum relies on its numbers, so declare that
+enum `native`. For a native enum, `native` is the member of the Python
+`IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
+registers under its native name. It raises `ValueError` for other enums
+and for numbers the Python enum does not recognize. Code handling any enum
+generically, through `EnumType`, works with every enum.
+
+The numbers are a native enum's contract with native code; member names are
+not part of it. Before running a program, the runtime checks that it knows
+each native enum the program uses, with the same kind, underlying type,
+and, for a closed enum, member count.
 
 A `StructValue` has its field values in declaration order as `values`, and
 its `type`, a `wirely.StructType` with the struct's `name`, its `fields` as
@@ -179,8 +186,8 @@ such an instance. A struct output accepts only `StructValue`s of its own
 struct type.
 
 `tools/generate-native-types` generates both files from the standard
-library. To give a library enum or struct type a Python type, add it to the
-lists in that script and run it.
+library: Python enums for its native enums, and `NamedTuple`s for the
+struct types listed in that script. Run it after changing either.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.

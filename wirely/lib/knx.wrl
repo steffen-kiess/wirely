@@ -1,5 +1,5 @@
 namespace KNX {
-  open enum type Protocol: uint8 {
+  native open enum type Protocol: uint8 {
     TCP = 1,
     UDP = 2,
     Unix = 3,
