@@ -22,7 +22,9 @@ _SHUFFLED_ATTRIBUTES = {
 }
 
 # Lists whose order defines the runtime representation. Closed enum members
-# also define it and are handled in _visit.
+# also define it and are handled in _visit. The order of native struct fields
+# and native closed enum members is the contract with native code, so they
+# are never shuffled.
 _LAYOUT_ATTRIBUTES = {
     model.DeclarationStructType: ('fields',),
 }
@@ -39,7 +41,8 @@ def shuffle_declarations(declarations, seed, *, layout=False):
 
     The same seed and input give the same order. Connections keep their
     relative order, which determines the order of multi input sources.
-    With layout, struct fields and closed enum members are also shuffled.
+    With layout, fields of structs and members of closed enums that are not
+    native are also shuffled.
     """
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
@@ -73,7 +76,9 @@ def _visit(rng, value, attributes, visited, layout):
     for cls, names in attributes.items():
         if isinstance(value, cls):
             # Closed member order defines member numbers.
-            if cls is model.DeclarationEnumType and not value.is_open and not layout:
+            if cls is model.DeclarationEnumType and not value.is_open and (value.is_native or not layout):
+                continue
+            if cls is model.DeclarationStructType and value.is_native:
                 continue
             for name in names:
                 items = getattr(value, name)

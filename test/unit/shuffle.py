@@ -36,6 +36,8 @@ connect n1.d -> n2.c;
 struct type S { a: int32, b: int32, c: int32 }
 open enum type E: uint8 { A = 1, B = 2, C = 3 }
 closed enum type F { A, B, C }
+native struct type NS { a: int32, b: int32, c: int32 }
+native closed enum type NF { A, B, C }
 '''
 
 
@@ -48,9 +50,14 @@ def names(items):
             for item in items]
 
 
-def enum_members(declarations, *, is_open):
+def enum_members(declarations, *, is_open, is_native=False):
+    return names(next(d for d in declarations if isinstance(d, model.DeclarationEnumType)
+                      and d.is_open == is_open and d.is_native == is_native).members)
+
+
+def struct_fields(declarations, *, is_native=False):
     return names(next(d for d in declarations
-                      if isinstance(d, model.DeclarationEnumType) and d.is_open == is_open).members)
+                      if isinstance(d, model.DeclarationStructType) and d.is_native == is_native).fields)
 
 
 def order(declarations):
@@ -64,8 +71,11 @@ def order(declarations):
 
 
 def layout_order(declarations):
-    struct = next(d for d in declarations if isinstance(d, model.DeclarationStructType))
-    return names(struct.fields), enum_members(declarations, is_open=False)
+    return struct_fields(declarations), enum_members(declarations, is_open=False)
+
+
+def native_order(declarations):
+    return struct_fields(declarations, is_native=True), enum_members(declarations, is_open=False, is_native=True)
 
 
 # The same seed gives the same order; some seed changes each shuffled list.
@@ -99,15 +109,19 @@ for seed in range(20):
     checks.assertEqual(str(statements[1].expression.target), 'd')
     checks.assertEqual(names(statements[0].initializer.parameters), ['a', 'b'])
 
-# Struct fields and closed enum members are shuffled only with layout.
+# Struct fields and closed enum members are shuffled only with layout, and
+# never for native structs and enums.
 original_layout = layout_order(parse())
+original_native = native_order(parse())
 layout_results = []
 for seed in range(20):
     declarations = parse()
     shuffle_declarations(declarations, seed)
     checks.assertEqual(layout_order(declarations), original_layout)
+    checks.assertEqual(native_order(declarations), original_native)
     declarations = parse()
     shuffle_declarations(declarations, seed, layout=True)
+    checks.assertEqual(native_order(declarations), original_native)
     again = parse()
     shuffle_declarations(again, seed, layout=True)
     checks.assertEqual(layout_order(declarations), layout_order(again))

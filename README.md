@@ -103,8 +103,8 @@ To check that compilation does not depend on declaration order, set
 `WIRELY_COMPILER_SHUFFLE_SEED` to an integer. The compiler then shuffles
 declarations, node parameters, procedure ports, `uses` bindings, and open
 enum members with that seed; connections keep their relative order. Also set `WIRELY_COMPILER_SHUFFLE_LAYOUT=1` to shuffle
-struct fields and closed enum members, which changes the runtime
-representation.
+fields of structs and members of closed enums that are not native, which
+changes the runtime representation.
 Negative tests may report different diagnostics in this mode.
 
 ```
