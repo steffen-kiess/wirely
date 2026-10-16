@@ -2,19 +2,17 @@
 # do not edit. Declare enums native or list structs in that script, then run it again.
 """Python enums for the native enum types of the standard library."""
 
-import enum
-
-from wirely.types.value_types import NativeEnum
+from wirely.types.value_types import NativeEnum, OpenIntEnum
 
 
 # GPIO.ActiveState in wirely/lib/gpio.wrl
-class GPIOActiveState(enum.IntEnum):
+class GPIOActiveState(OpenIntEnum, minimum=0, maximum=255):
     High = 1
     Low = 2
 
 
 # GPIO.Bias in wirely/lib/gpio.wrl
-class GPIOBias(enum.IntEnum):
+class GPIOBias(OpenIntEnum, minimum=0, maximum=255):
     AsIs = 1
     Disable = 2
     PullDown = 3
@@ -22,14 +20,14 @@ class GPIOBias(enum.IntEnum):
 
 
 # GPIO.Drive in wirely/lib/gpio.wrl
-class GPIODrive(enum.IntEnum):
+class GPIODrive(OpenIntEnum, minimum=0, maximum=255):
     PushPull = 1
     OpenDrain = 2
     OpenSource = 3
 
 
 # KNX.Protocol in wirely/lib/knx.wrl
-class KNXProtocol(enum.IntEnum):
+class KNXProtocol(OpenIntEnum, minimum=0, maximum=255):
     TCP = 1
     UDP = 2
     Unix = 3
@@ -37,7 +35,7 @@ class KNXProtocol(enum.IntEnum):
 
 
 # MQTT.Format in wirely/lib/mqtt.wrl
-class MQTTFormat(enum.IntEnum):
+class MQTTFormat(OpenIntEnum, minimum=0, maximum=255):
     Default = 1
     SnakeCase = 2
 

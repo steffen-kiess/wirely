@@ -1,11 +1,37 @@
 """Value type descriptors for native Python implementations."""
 
+import enum
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
 from .. import types as _types
 from .option import Some
+
+
+class OpenIntEnum(enum.IntEnum):
+    """An IntEnum that also represents unnamed numbers of its underlying type."""
+
+    def __init_subclass__(cls, *, minimum, maximum, **kwargs):
+        super().__init_subclass__(**kwargs)
+        cls._range = range(minimum, maximum + 1)
+
+    @classmethod
+    def _missing_(cls, value):
+        # Unnamed numbers become uncached pseudo-members whose name is None.
+        if type(value) is not int:
+            return None
+        if value not in cls._range:
+            raise ValueError(f'{value} does not fit {cls.__name__}')
+        member = int.__new__(cls, value)
+        member._name_ = None
+        member._value_ = value
+        return member
+
+    def __repr__(self):
+        if self._name_ is None:
+            return f'<{type(self).__name__}: {self._value_}>'
+        return super().__repr__()
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +93,7 @@ class EnumValue:
 
     @property
     def native(self):
-        """The member of the enum type's Python enum."""
+        """The member of a native enum's Python enum; unknown open numbers have no name."""
         if self.type.python_type is None:
             raise ValueError(f'Enum type {self.type.name!r} has no Python enum')
         return self.type.python_type(self.value)

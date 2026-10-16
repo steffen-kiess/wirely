@@ -9,6 +9,15 @@ native_node_types = {}
 native_resource_types = {}
 
 
+def _protocol_name(option):
+    if option is None:
+        return None
+    name = option.value.native.name
+    if name is None:
+        raise ValueError(f'Unsupported KNX protocol {option.value.value}')
+    return name
+
+
 @native_resource_type(native_resource_types, 'Bus')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
@@ -25,10 +34,9 @@ class Connection(NativeState):
             value = context.values[name]
             return None if value is None else value.value
 
-        protocol = parameter('Protocol')
         self.connection_config = create_connection_config(
             host=parameter('Host'),
-            protocol=None if protocol is None else protocol.native.name,
+            protocol=_protocol_name(context.values['Protocol']),
             port=parameter('Port'),
             unix_path=parameter('UnixPath'),
             ssh_target=parameter('SSHTarget'),

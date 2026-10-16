@@ -6,6 +6,13 @@ native_node_types = {}
 native_resource_types = {}
 
 
+def _setting(value, mapping, description):
+    native = value.native
+    if native not in mapping:
+        raise ValueError(f'Unsupported GPIO {description} {value.value}')
+    return mapping[native]
+
+
 @native_resource_type(native_resource_types, 'OutputState')
 @native_node_type(native_node_types, has_native_state=True)
 class Output(NativeState):
@@ -40,7 +47,7 @@ class Output(NativeState):
             ) from exc
         self.gpio_request = async_exit_stack.enter_context(chip.request_lines(
             config={self.gpio_offset: gpiod.LineSettings(
-                direction=Direction.INPUT, bias=bias[self.values['Bias'].native])},
+                direction=Direction.INPUT, bias=_setting(self.values['Bias'], bias, 'bias'))},
             consumer='Wirely',
         ))
         self.direction_set = False
@@ -70,9 +77,10 @@ class Output(NativeState):
                 state.gpio_offset: gpiod.LineSettings(
                     direction=Direction.OUTPUT,
                     output_value=logical_value,
-                    active_low=state.values['ActiveState'].native is GPIOActiveState.Low,
-                    drive=drive[state.values['Drive'].native],
-                    bias=bias[state.values['Bias'].native],
+                    active_low=_setting(state.values['ActiveState'],
+                                        {GPIOActiveState.High: False, GPIOActiveState.Low: True}, 'active state'),
+                    drive=_setting(state.values['Drive'], drive, 'drive'),
+                    bias=_setting(state.values['Bias'], bias, 'bias'),
                 ),
             })
             state.direction_set = True

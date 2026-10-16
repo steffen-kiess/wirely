@@ -165,8 +165,10 @@ output accepts only `EnumValue`s of its own enum type.
 Code written for a specific enum relies on its numbers, so declare that
 enum `native`. For a native enum, `native` is the member of the Python
 `IntEnum` that [`wirely/runtime/enums.py`](../wirely/runtime/enums.py)
-registers under its native name. It raises `ValueError` for other enums
-and for numbers the Python enum does not recognize. Code handling any enum
+registers under its native name, and raises `ValueError` for other enums.
+An open enum may carry numbers the runtime does not know, for example from
+a newer library; `native` then gives an unnamed member whose `name` is
+`None`, so report such values as unsupported. Code handling any enum
 generically, through `EnumType`, works with every enum.
 
 The numbers are a native enum's contract with native code; member names are

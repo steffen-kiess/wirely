@@ -204,10 +204,36 @@ def check_type_member_collision():
                for diagnostic in diagnostics), diagnostics
 
 
+def check_unknown_native_enum_values():
+    # Library native code reports numbers its runtime does not know.
+    from wirely.native.gpio import _setting
+    from wirely.native.knx import _protocol_name
+    from wirely.native.mqtt import _json_format
+    from wirely.runtime.enums import GPIOBias
+
+    def value(name, members):
+        enum_type = wirely.types.TypeEnum(name, members, is_open=True, underlying_type=wirely.types.uint8,
+                                          native_name=name).enum_type
+        return lambda number: enum_type.from_value(number)
+
+    protocol = value('KNX.Protocol', {'TCP': 1, 'WebSocket': 9})
+    json_format = value('MQTT.Format', {'Default': 1})
+    bias = value('GPIO.Bias', {'AsIs': 1})
+    assert _protocol_name(wirely.Some(protocol(1))) == 'TCP' and _protocol_name(None) is None
+    assert _json_format(wirely.Some(json_format(2))) == 'SnakeCase'
+    assert _setting(bias(1), {GPIOBias.AsIs: 'as is'}, 'bias') == 'as is'
+    for call, message in ((lambda: _protocol_name(wirely.Some(protocol(9))), 'Unsupported KNX protocol 9'),
+                          (lambda: _json_format(wirely.Some(json_format(7))), 'Unsupported MQTT format 7'),
+                          (lambda: _setting(bias(7), {GPIOBias.AsIs: 'as is'}, 'bias'), 'Unsupported GPIO bias 7')):
+        with checks.assertRaisesRegex(ValueError, message):
+            call()
+
+
 check_fixture()
 check_values()
 check_optional_values()
 check_type_member_collision()
+check_unknown_native_enum_values()
 
 
 async def run_test():

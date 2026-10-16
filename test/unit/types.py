@@ -112,7 +112,7 @@ def check_enum_values():
         wirely.value_types.uint8.enum_type
 
     # The Python enum registered under a native enum's native name supplies .native.
-    class Mode(enum.IntEnum):
+    class Mode(wirely.value_types.OpenIntEnum, minimum=0, maximum=255):
         Cool = 3
         Heat = 4
 
@@ -127,8 +127,31 @@ def check_enum_values():
     with checks.assertRaises(ValueError):
         _ = other.from_value(4).native
     assert native.from_value(4).native is Mode.Heat
-    with checks.assertRaises(ValueError):
-        _ = native.from_value(5).native
+    unknown = native.from_value(5).native
+    assert type(unknown) is Mode and unknown == 5 and unknown.name is None
+
+
+def check_open_int_enums():
+    from wirely.runtime.enums import KNXProtocol
+    from wirely.types.value_types import OpenIntEnum
+
+    class Offset(OpenIntEnum, minimum=-128, maximum=127):
+        Zero = 0
+
+    # Unknown numbers of the underlying type are unnamed members; known
+    # numbers remain the declared members.
+    for unknown in (Offset(-128), Offset(127), KNXProtocol(9)):
+        assert isinstance(unknown, type(unknown)) and unknown.name is None
+        assert unknown == unknown.value and hash(unknown) == hash(unknown.value)
+        assert unknown not in list(type(unknown))
+    assert Offset(0) is Offset.Zero and KNXProtocol(1) is KNXProtocol.TCP
+    assert repr(Offset(-5)) == '<Offset: -5>' and repr(Offset.Zero) == '<Offset.Zero: 0>'
+    for value, error in ((128, '128 does not fit Offset'), (-129, '-129 does not fit Offset'),
+                         (5.0, 'is not a valid .*Offset'), ('5', 'is not a valid .*Offset')):
+        with checks.assertRaisesRegex(ValueError, error):
+            Offset(value)
+    with checks.assertRaisesRegex(ValueError, '256 does not fit KNXProtocol'):
+        KNXProtocol(256)
 
 
 def check_open_and_closed_enums():
@@ -582,6 +605,7 @@ def check_runtime_limits():
 
 check_parsing_and_conversions()
 check_enum_values()
+check_open_int_enums()
 check_open_and_closed_enums()
 check_descriptors_and_lists()
 check_unit()

@@ -14,7 +14,7 @@ from wirely.native import native_node_type
 from wirely.program import RunStage
 from wirely.runtime.contexts import NativeState
 from wirely.runtime.engine import Engine
-from wirely.types.value_types import NativeEnum
+from wirely.types.value_types import NativeEnum, OpenIntEnum
 import wirely.runtime.enums
 
 
@@ -605,7 +605,7 @@ namespace Example {
 def check_native_enums():
     # Native enums link by native name, kind, underlying type, and closed
     # member count; member names and numbers are not compared.
-    class Level(enum.IntEnum):
+    class Level(OpenIntEnum, minimum=0, maximum=255):
         Minimum = 0
         Maximum = 2
 

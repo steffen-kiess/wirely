@@ -95,12 +95,19 @@ def annotation(value_type):
 def generate_enums(graph):
     classes = sorted((class_name(value_type.native_name), value_type.native_name, value_type, declaration)
                      for value_type, declaration in native_enums(graph))
-    lines = [HEADER + '"""Python enums for the native enum types of the standard library."""', '',
-             'import enum', '', 'from wirely.types.value_types import NativeEnum', '']
+    lines = [HEADER + '"""Python enums for the native enum types of the standard library."""', '']
+    if not all(value_type.is_open for _, _, value_type, _ in classes):
+        lines += ['import enum', '']
+    lines += ['from wirely.types.value_types import NativeEnum, OpenIntEnum', '']
     for python_name, name, value_type, declaration in classes:
-        lines += ['', source_comment(value_type.name, declaration), f'class {python_name}(enum.IntEnum):']
-        lines += ([f'    {member} = {number}' for member, number in value_type.members.items()]
-                  or ['    pass'])
+        if not value_type.members:
+            # Python cannot look up values of an enum without members.
+            raise SystemExit(f'Native enum {value_type.name} must have members')
+        underlying = value_type.underlying_type
+        base = (f'OpenIntEnum, minimum={underlying.min_value}, maximum={underlying.max_value}'
+                if value_type.is_open else 'enum.IntEnum')
+        lines += ['', source_comment(value_type.name, declaration), f'class {python_name}({base}):']
+        lines += [f'    {member} = {number}' for member, number in value_type.members.items()]
         lines.append('')
     lines += ['', '# Expected native enums by native name.', 'native_enum_types = {']
     lines += [f'    {name!r}: NativeEnum({python_name}, is_open={value_type.is_open}, '

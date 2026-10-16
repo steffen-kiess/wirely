@@ -13,10 +13,16 @@ native_node_types = {}
 native_resource_types = {}
 
 
+_JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}
+
+
 def _json_format(option):
     if option is None:
         return None
-    return {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}[option.value.native]
+    native = option.value.native
+    if native not in _JSON_FORMATS:
+        raise ValueError(f'Unsupported MQTT format {option.value.value}')
+    return _JSON_FORMATS[native]
 
 
 aiomqtt_module = None
