@@ -189,7 +189,11 @@ struct type.
 
 `tools/generate-native-types` generates both files from the standard
 library: Python enums for its native enums, and `NamedTuple`s for the
-struct types listed in that script. Run it after changing either.
+struct types listed in that script. It also generates
+[`wirely/runtime/native_interfaces.py`](../wirely/runtime/native_interfaces.py),
+describing the native state types, procedures, and runtime functions that
+the standard library's native code implements. Run it after changing any
+of these.
 
 Read a present option's payload with `.value`. A present optional unit is
 `wirely.Some(wirely.Unit())`, distinct from absence, `None`.

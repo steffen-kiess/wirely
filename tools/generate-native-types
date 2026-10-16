@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate wirely/runtime/enums.py and structs.py from the standard library."""
+"""Generate wirely/runtime/enums.py, structs.py, and native_interfaces.py from the standard library."""
 
 import argparse
 import difflib
@@ -135,12 +135,202 @@ def generate_structs(graph):
     return '\n'.join(lines)
 
 
+def node_types(scope):
+    """Yield the node types declared in a scope, its namespaces, and its node types."""
+    for node_type in scope.node_types.values():
+        yield node_type
+        yield from node_types(node_type)
+    for library in getattr(scope, 'libraries', {}).values():
+        yield from node_types(library)
+
+
+def runtime_functions(scope):
+    """Yield the runtime native functions declared in a scope and its namespaces."""
+    for function in scope.native_functions.values():
+        if not function.is_constant:
+            yield function
+    for library in getattr(scope, 'libraries', {}).values():
+        yield from runtime_functions(library)
+
+
+def signature_type(value_type, variables, where):
+    """Describe a compiler value type; type parameters become their type variables."""
+    from wirely import types
+    from wirely.compiler.types import TypeParameter
+    from wirely.runtime import signatures
+
+    if isinstance(value_type, TypeParameter):
+        name = variables.get(value_type.parameter)
+        return signatures.Any() if name is None else signatures.TypeVar(name)
+    if isinstance(value_type, types.TypeInt):
+        return signatures.Int(value_type.bits, value_type.is_signed)
+    if isinstance(value_type, types.TypeOption):
+        return signatures.Option(signature_type(value_type.inner_type, variables, where))
+    if isinstance(value_type, types.TypeList):
+        return signatures.List(signature_type(value_type.inner_type, variables, where))
+    if isinstance(value_type, types.TypeEnum):
+        if value_type.native_name is None:
+            raise SystemExit(f'{where} uses enum {value_type}, which is not native')
+        return signatures.Enum(value_type.native_name)
+    if isinstance(value_type, types.TypeStruct):
+        return signatures.Struct(value_type.name)
+    if str(value_type) in ('unit', 'boolean', 'String', 'Duration', 'TimeOfDay', 'MonotonicTime', 'ValueType'):
+        return signatures.Builtin(str(value_type))
+    raise SystemExit(f'{where} uses unsupported type {value_type}')
+
+
+def signature_port(port, variables, where):
+    from wirely.compiler.ast.specifiers import ConnectionKind
+    from wirely.compiler.graph import port_specification
+    from wirely.runtime import signatures
+
+    specification = port_specification(port)
+    if specification.resource_type is not None:
+        return signatures.Port('resource', signatures.ResourceType(specification.resource_type.native_name),
+                               specification.is_list)
+    kind_spec = getattr(specification.port_spec, 'kind_spec', None)
+    kind = 'event' if kind_spec is not None and kind_spec.kind is ConnectionKind.Event else 'value'
+    return signatures.Port(kind, signature_type(specification.var_type, variables, where), specification.is_list)
+
+
+def procedure_ports(ports, variables, where):
+    result = {}
+    for port in ports.values():
+        port.resolve_reference()
+        result[port.declaration.python_key] = signature_port(port, variables, where)
+    return result
+
+
+def type_variables(node_type, uses_clauses, where):
+    """Map each ValueType parameter passed to native code to the `uses` key passing it."""
+    from wirely import types
+    from wirely.compiler import model
+
+    variables = {}
+    for uses in uses_clauses:
+        for binding in () if uses is None else uses.bindings:
+            expression = binding.expression
+            parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
+                         if isinstance(expression, model.Reference) and expression.length == 1 else None)
+            if parameter is not None and getattr(parameter, 'type_resolved', None) == types.ValueType:
+                if variables.setdefault(parameter, binding.key) != binding.key:
+                    raise SystemExit(f'{where} passes type {expression} under two names')
+            elif uses_type(node_type, binding, None, where) == types.ValueType:
+                raise SystemExit(f'{where} passes a ValueType that is not a parameter: {expression}')
+    return variables
+
+
+def uses_type(node_type, binding, variables, where):
+    from wirely.compiler.expressions import compile_constant
+
+    with binding.expression.context:
+        value_type = compile_constant(node_type, binding.expression, None, node_type.parsed_parameters).value_type
+    return value_type if variables is None else signature_type(value_type, variables, where)
+
+
+def signature_uses(node_type, uses, variables, where):
+    if uses is None:
+        return {}
+    return {binding.key: uses_type(node_type, binding, variables, where) for binding in uses.bindings}
+
+
+def native_interfaces(graph):
+    """Return the signatures of native state types, procedures, and runtime functions."""
+    from wirely.runtime import signatures
+
+    state_types = {}
+    procedures = {}
+    for node_type in node_types(graph):
+        native = [procedure for procedure in node_type.procedures.values() if procedure.is_native]
+        initializer = node_type.initializer if node_type.is_native else None
+        if initializer is not None:
+            where = f'Native state type {node_type.native_name}'
+            variables = type_variables(node_type, [initializer.uses, *(p.uses for p in native)], where)
+            dependencies = zip(initializer.depends.dependencies, initializer.depends.get_resolved_dependencies())
+            state_types[node_type.native_name] = signatures.Initializer(
+                depends={port.key: signature_port(dependency, variables, where) for port, dependency in dependencies},
+                produces={key: signature_port(output, variables, where)
+                          for output, key in initializer.output_keys.items()},
+                uses=signature_uses(node_type, initializer.uses, variables, where),
+            )
+        for procedure in native:
+            where = f'Native procedure {procedure.native_name}'
+            if initializer is None:
+                variables = type_variables(node_type, [procedure.uses], where)
+            procedures[procedure.native_name] = signatures.Procedure(
+                stage=procedure.stage.stage.name.lower(),
+                depends=procedure_ports(procedure.input_ports, variables, where),
+                produces=procedure_ports(procedure.output_ports, variables, where),
+                uses=signature_uses(node_type, procedure.uses, variables, where),
+            )
+    functions = {}
+    for function in runtime_functions(graph):
+        where = f'Native function {function.native_name}'
+        function.resolve_signature()
+        functions[function.native_name] = signatures.Function(
+            [signature_type(value_type, {}, where) for value_type in function.parameter_types],
+            signature_type(function.return_type, {}, where))
+    return state_types, procedures, functions
+
+
+def signature_code(value):
+    """Return Python code constructing a signature description."""
+    from wirely.runtime import signatures
+
+    if isinstance(value, signatures.Port):
+        arguments = [repr(value.kind), signature_code(value.type)] + (['multi=True'] if value.multi else [])
+        return f'Port({", ".join(arguments)})'
+    if isinstance(value, signatures.Function):
+        parameters = ', '.join(signature_code(parameter) for parameter in value.parameters)
+        return f'Function(({parameters}{"," if len(value.parameters) == 1 else ""}), {signature_code(value.result)})'
+    fields = [getattr(value, name) for name in value.__dataclass_fields__]
+    arguments = ', '.join(signature_code(field) if isinstance(field, (signatures.SignatureType, signatures.ResourceType))
+                          else repr(field) for field in fields)
+    return f'{type(value).__name__}({arguments})'
+
+
+def interface_lines(name, value):
+    """Return the lines of an Initializer or Procedure entry, one port or binding per line."""
+    lines = [f'    {name!r}: {type(value).__name__}(']
+    if hasattr(value, 'stage'):
+        lines.append(f'        stage={value.stage!r},')
+    for field in ('depends', 'produces', 'uses'):
+        items = getattr(value, field)
+        if not items:
+            lines.append(f'        {field}={{}},')
+            continue
+        lines.append(f'        {field}={{')
+        lines += [f'            {key!r}: {signature_code(item)},' for key, item in items.items()]
+        lines.append('        },')
+    lines.append('    ),')
+    return lines
+
+
+def generate_interfaces(graph):
+    state_types, procedures, functions = native_interfaces(graph)
+    names = ['Any', 'Builtin', 'Enum', 'Function', 'Initializer', 'Int', 'List', 'Option', 'Port',
+             'Procedure', 'ResourceType', 'Struct', 'TypeVar']
+    lines = [HEADER + '"""Interfaces that the native code of the standard library expects."""', '',
+             f'from wirely.runtime.signatures import (', f'    {", ".join(names)},', ')', '', '',
+             '# Native initializers by native state type name.', 'native_state_types = {']
+    for name, initializer in sorted(state_types.items()):
+        lines += interface_lines(name, initializer)
+    lines += ['}', '', '# Native procedures by native name.', 'native_procedures = {']
+    for name, procedure in sorted(procedures.items()):
+        lines += interface_lines(name, procedure)
+    lines += ['}', '', '# Runtime native functions by native name.', 'native_functions = {']
+    lines += [f'    {name!r}: {signature_code(function)},' for name, function in sorted(functions.items())]
+    lines += ['}', '']
+    return '\n'.join(lines)
+
+
 def generated_files():
     """Return the generated content of each file, keyed by path."""
     graph = compile_library()
     return {
         repository_root / 'wirely/runtime/enums.py': generate_enums(graph),
         repository_root / 'wirely/runtime/structs.py': generate_structs(graph),
+        repository_root / 'wirely/runtime/native_interfaces.py': generate_interfaces(graph),
     }
 
 

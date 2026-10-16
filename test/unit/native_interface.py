@@ -661,6 +661,38 @@ namespace Example {
             make(registry)
 
 
+def check_native_interface_signatures():
+    # Generated signatures describe the standard library's native interfaces;
+    # types passed to native code as ValueType become type variables.
+    from wirely.runtime import native_interfaces
+    from wirely.runtime.signatures import (
+        Any, Builtin, Enum, Function, Initializer, Int, Option, Port, Procedure, ResourceType, Struct, TypeVar,
+    )
+
+    assert native_interfaces.native_state_types['MQTT.EventSender'] == Initializer(
+        depends={'Broker': Port('resource', ResourceType('MQTT.Broker'))},
+        produces={'state': Port('resource', ResourceType('MQTT.EventSenderState'))},
+        uses={'Type': Builtin('ValueType'), 'Topic': Builtin('String'), 'Format': Option(Enum('MQTT.Format')),
+              'template_parts': Struct('MQTT.TemplateParts')},
+    )
+    assert native_interfaces.native_procedures['MQTT.EventSender:send_value'] == Procedure(
+        stage='output',
+        depends={'state': Port('resource', ResourceType('MQTT.EventSenderState')),
+                 'input': Port('event', TypeVar('Type'))},
+        produces={}, uses={},
+    )
+    assert native_interfaces.native_procedures['Std.DebugValuePrinter:run'] == Procedure(
+        stage='output', depends={'input': Port('value', TypeVar('Type'))}, produces={},
+        uses={'Type': Builtin('ValueType')},
+    )
+    # A type parameter not passed to native code is not described.
+    assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'].depends['input'] == Port('event', Any())
+    assert native_interfaces.native_functions['Duration.CheckedMul'] == Function(
+        (Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')))
+    # Constant functions run in the compiler, not the runtime.
+    assert 'Std.ParseFormat' not in native_interfaces.native_functions
+
+
 def check_struct_outputs():
     # Struct outputs accept only StructValues of the output's struct type.
     def check_struct_output(context):
@@ -1001,6 +1033,7 @@ check_events()
 check_unit_outputs()
 check_enum_outputs()
 check_native_enums()
+check_native_interface_signatures()
 check_struct_outputs()
 check_port_keys()
 check_native_methods()
