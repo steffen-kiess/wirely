@@ -568,6 +568,10 @@ def check_enum_outputs():
     def check_enum_output(context):
         mode, other = context.values['mode'], context.values['other']
         assert (mode.name, mode.value, mode.type.name) == ('On', 2, 'Example.Mode')
+        # Closed members are numbered in declaration order with inferred storage.
+        state = context.values['state']
+        assert dict(state.type.members) == {'Idle': 0, 'Running': 1, 'Failed': 2}
+        assert (state.value, str(state.type.underlying_type)) == (1, 'uint8')
         for invalid in [2, other]:
             with checks.assertRaisesRegex(ValueError, 'Expected an EnumValue of Example.Mode'):
                 context.set_output('output', invalid)
@@ -578,11 +582,12 @@ def check_enum_outputs():
     default output: value Example.Mode;
 
     native procedure run produces default output as "output"
-      uses Example.Mode.On as mode, Example.Other.On as other;
+      uses Example.Mode.On as mode, Example.Other.On as other, Example.State.Running as state;
     ''', check_enum_output, extra='''
 namespace Example {
   open enum type Mode: uint8 { Off = 1, On = 2, }
   open enum type Other: uint8 { Off = 1, On = 2, }
+  closed enum type State { Idle, Running, Failed, }
 }
 ''')
     probe.step()

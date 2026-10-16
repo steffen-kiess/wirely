@@ -18,12 +18,13 @@ _SHUFFLED_ATTRIBUTES = {
     model.DependsDeclaration: ('dependencies',),
     model.ProducesDeclaration: ('outputs',),
     model.UsesDeclaration: ('bindings',),
+    model.DeclarationEnumType: ('members',),
 }
 
-# Lists whose order defines field layout or open enum metadata ordering.
+# Lists whose order defines the runtime representation. Closed enum members
+# also define it and are handled in _visit.
 _LAYOUT_ATTRIBUTES = {
     model.DeclarationStructType: ('fields',),
-    model.DeclarationEnumType: ('members',),
 }
 
 
@@ -38,14 +39,14 @@ def shuffle_declarations(declarations, seed, *, layout=False):
 
     The same seed and input give the same order. Connections keep their
     relative order, which determines the order of multi input sources.
-    With layout, struct fields and open enum members are also shuffled.
+    With layout, struct fields and closed enum members are also shuffled.
     """
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
     _shuffle_list(rng, declarations)
     visited = set()
     for declaration in declarations:
-        _visit(rng, declaration, attributes, visited)
+        _visit(rng, declaration, attributes, visited, layout)
 
 
 def _shuffled(rng, items):
@@ -61,18 +62,18 @@ def _shuffle_list(rng, items):
     items[:] = _shuffled(rng, items)
 
 
-def _visit(rng, value, attributes, visited):
+def _visit(rng, value, attributes, visited, layout):
     if isinstance(value, (list, tuple)):
         for item in value:
-            _visit(rng, item, attributes, visited)
+            _visit(rng, item, attributes, visited, layout)
         return
     if not isinstance(value, SourceElement) or id(value) in visited:
         return
     visited.add(id(value))
     for cls, names in attributes.items():
         if isinstance(value, cls):
-            # Closed member order determines the numbers visible to Wirely code.
-            if cls is model.DeclarationEnumType and not value.is_open:
+            # Closed member order defines member numbers.
+            if cls is model.DeclarationEnumType and not value.is_open and not layout:
                 continue
             for name in names:
                 items = getattr(value, name)
@@ -81,4 +82,4 @@ def _visit(rng, value, attributes, visited):
                 else:
                     setattr(value, name, type(items)(_shuffled(rng, items)))
     for child in vars(value).values():
-        _visit(rng, child, attributes, visited)
+        _visit(rng, child, attributes, visited, layout)

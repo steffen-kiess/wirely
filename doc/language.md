@@ -315,9 +315,7 @@ open enum type Protocol: uint8 {
 }
 ```
 
-Closed members are numbered from zero in declaration order. A closed enum
-requires at least one member and uses the smallest fitting unsigned type
-among `uint8`, `uint16`, and `uint32`.
+A closed enum has exactly its named members and requires at least one.
 
 Open enums specify an underlying integer type and accept every value in
 its range. Named members have unique integer literal values within that
@@ -691,7 +689,8 @@ Negate with subtraction from zero, for example
 `int16.SaturatingSub(0, value)`. Members also work in compile-time
 expressions.
 
-Convert an integer or enum value to an integer type `T` with these members:
+Convert an integer or open enum value to an integer type `T` with these
+members:
 
 | Member | Result |
 | --- | --- |
@@ -700,7 +699,7 @@ Convert an integer or enum value to an integer type `T` with these members:
 | `SaturatingFrom` | The value clamped to `T`'s minimum or maximum. |
 | `CheckedFrom` | `Some(value)`, or `None` when it does not fit `T`. |
 
-An enum converts through its member number. `From` accepts an enum when
+An open enum converts through its underlying number. `From` accepts it when
 every value of its underlying integer type fits `T`, for example
 `uint16.From(mode)` for an enum with underlying type `uint8`. A literal
 argument has type `T` for `From`, as in `int8.From(5)`, and `int32`

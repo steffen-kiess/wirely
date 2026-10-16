@@ -181,7 +181,7 @@ INTEGER_MEMBERS = {
                                    ('rem', 'Rem', ('checked',))]
     for mode in modes
 }
-# Conversions take one integer or enum argument; 'lossless' requires that every source value fits.
+# Conversions take one integer or open enum argument; 'lossless' requires that every source value fits.
 INTEGER_MEMBERS.update({
     'From': ('convert', 'lossless'), 'CheckedFrom': ('convert', 'checked'),
     'WrappingFrom': ('convert', 'wrapping'), 'SaturatingFrom': ('convert', 'saturating'),
@@ -532,9 +532,11 @@ class TypedExpression:
                 return
             if not isinstance(target_type, model.types.TypeInt):
                 raise ProgramError(self.source, f'Conversion requires an integer target, got {target_type}')
-            if not isinstance(source_type, (model.types.TypeInt, model.types.TypeEnum)):
+            # Closed enum numbers follow declaration order and are hidden from Wirely code.
+            if not (isinstance(source_type, model.types.TypeInt)
+                    or isinstance(source_type, model.types.TypeEnum) and source_type.is_open):
                 raise ProgramError(self.arguments[0].source,
-                                   f'Conversion requires an integer or enum value, got {source_type}')
+                                   f'Conversion requires an integer or open enum value, got {source_type}')
             source_min, source_max = model.types.integer_range(source_type)
             if self.payload == 'lossless' and not (target_type.min_value <= source_min
                                                    and source_max <= target_type.max_value):

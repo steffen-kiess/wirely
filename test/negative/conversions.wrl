@@ -10,15 +10,28 @@ constant Result: uint8 = uint8.From(Value); // E: uint8.From cannot convert ever
 open enum type Mode: int8 { Off = 0, On = 1, }
 constant Result: uint8 = uint8.From(Mode.On); // E: uint8.From cannot convert every Mode value
 
+// TEST: closed enum source
+closed enum type State { Idle, Running, }
+constant Result: uint32 = uint32.From(State.Running); // E: Conversion requires an integer or open enum value, got State
+
+// TEST: closed enum source through a type parameter
+closed enum type State { Idle, }
+node type Convert {
+  parameter Type: ValueType;
+  parameter Value: Type;
+  constant Result: uint32 = uint32.WrappingFrom(Value); // E: Conversion requires an integer or open enum value, got State
+}
+node convert: Convert { Type: State, Value: State.Idle } // H: While instantiating 'convert'
+
 // TEST: From literal outside the target type
 constant Result: int8 = int8.From(128); // E: Int value out of range: 128
 
 // TEST: boolean source
-constant Result: uint8 = uint8.WrappingFrom(true); // E: Conversion requires an integer or enum value, got boolean
+constant Result: uint8 = uint8.WrappingFrom(true); // E: Conversion requires an integer or open enum value, got boolean
 
 // TEST: duration source
 constant Span: Duration = "PT1S";
-constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requires an integer or enum value, got Duration
+constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requires an integer or open enum value, got Duration
 
 // TEST: boolean target
 constant Result: boolean = boolean.From(1); // E: Type boolean has no member 'From'

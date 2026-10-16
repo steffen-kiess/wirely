@@ -190,14 +190,12 @@ node type Structs {
 }
 node structs: Structs {}
 
-// Closed members have compiler-assigned dense numbers; openness is explicit.
+// Closed members compare by name; openness is explicit.
 closed enum type State { Idle, Running, Failed, }
-assert State.Idle != State.Running;
-assert uint8.From(State.Idle) == 0;
-assert uint8.From(State.Running) == 1;
-assert uint8.From(State.Failed) == 2;
+assert State.Idle != State.Running && State.Running != State.Failed;
+assert State.Failed == State.Failed;
 closed enum type SingleState { Only, }
-assert uint8.From(SingleState.Only) == 0;
+assert SingleState.Only == SingleState.Only;
 open enum type EmptyUnsigned: uint8 {}
 open enum type EmptySigned: int128 {}
 

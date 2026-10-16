@@ -35,6 +35,7 @@ connect n1.d, n2.d -> n1.a;
 connect n1.d -> n2.c;
 struct type S { a: int32, b: int32, c: int32 }
 open enum type E: uint8 { A = 1, B = 2, C = 3 }
+closed enum type F { A, B, C }
 '''
 
 
@@ -47,19 +48,24 @@ def names(items):
             for item in items]
 
 
+def enum_members(declarations, *, is_open):
+    return names(next(d for d in declarations
+                      if isinstance(d, model.DeclarationEnumType) and d.is_open == is_open).members)
+
+
 def order(declarations):
     node_type = next(d for d in declarations if isinstance(d, model.NodeType))
     procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
     nodes = [d for d in declarations if isinstance(d, model.DeclarationInstance)]
     return (names(declarations), names(node_type.declarations),
             names(procedure.depends.dependencies),
-            [names(node.instantiation.parameters) for node in nodes])
+            [names(node.instantiation.parameters) for node in nodes],
+            enum_members(declarations, is_open=True))
 
 
 def layout_order(declarations):
     struct = next(d for d in declarations if isinstance(d, model.DeclarationStructType))
-    enum = next(d for d in declarations if isinstance(d, model.DeclarationEnumType))
-    return names(struct.fields), names(enum.members)
+    return names(struct.fields), enum_members(declarations, is_open=False)
 
 
 # The same seed gives the same order; some seed changes each shuffled list.
@@ -93,7 +99,7 @@ for seed in range(20):
     checks.assertEqual(str(statements[1].expression.target), 'd')
     checks.assertEqual(names(statements[0].initializer.parameters), ['a', 'b'])
 
-# Struct fields and enum members are shuffled only with layout.
+# Struct fields and closed enum members are shuffled only with layout.
 original_layout = layout_order(parse())
 layout_results = []
 for seed in range(20):
