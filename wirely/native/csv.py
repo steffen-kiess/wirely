@@ -5,11 +5,14 @@ import os
 import sys
 import typing
 from collections.abc import Iterator, Sequence
+from typing import Any
 
 import wirely
+from wirely import DynamicValue, MonotonicTime, Some, ValueType
+from wirely.contracts import csv as contracts
 from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
+from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -53,16 +56,16 @@ class MyCsvWriter:
 
 @native_resource_type(native_resource_types, 'ValueWriterState')
 @native_node_type(native_node_types, has_native_state=True)
-class ValueWriter(NativeState):
+class ValueWriter(contracts.ValueWriterInitializer):
     # TODO: Should writing to the file be done on a background thread?
 
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+    def initialize(self, *, services: StateServices[typing.Literal['state']],
+                   filename: str) -> contracts.ValueWriterInitializerResult:
+        self.filename = filename
         self.file: typing.BinaryIO | None = None
 
         self.last_value_csv = ('', False)
+        return contracts.ValueWriterInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -74,8 +77,8 @@ class ValueWriter(NativeState):
         if self.file is not None:
             raise Exception('File already open')
 
-        print(f"Opening CSV file {self.values['Filename']!r}", flush=True)
-        with open(self.values['Filename'], 'a+b', buffering=0) as file:
+        print(f'Opening CSV file {self.filename!r}', flush=True)
+        with open(self.filename, 'a+b', buffering=0) as file:
             size = file.seek(0, 2)
             if size != 0:
                 last_byte = os.pread(file.fileno(), 1, size - 1)
@@ -95,14 +98,14 @@ class ValueWriter(NativeState):
                 try:
                     yield
                 finally:
-                    time = self._shutdown_time
+                    time = self.services.shutdown_time
                     if time is None:
                         if self.last_value_csv != ('', False):
                             print(f'CSV.ValueWriter: Warning: shutdown time is unavailable during shutdown but a value has been written', flush=True, file=sys.stderr)
                     else:
                         self.write_value(('', False), time)
                         # Make sure that if after the shutdown another step is run run() will be called again
-                        self.trigger('state')
+                        self.services.trigger('state')
             finally:
                 self.writer = None
                 self.file = None
@@ -129,30 +132,33 @@ class ValueWriter(NativeState):
         return True
 
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
-            new_value = context.inputs['input']
-            elapsed = context.inputs['repeat_elapsed']
-            last_written_at = context.inputs['last_written_at_old']
+    class Run(contracts.ValueWriterRun):
+        def prepare(self, *, services: PreparationServices, state: 'ValueWriter', type: ValueType[Any]) -> None:
+            pass
 
-            new_value_csv = context.values['Type'].to_csv_value(new_value)
+        def run(self, *, services: ProcedureServices, state: 'ValueWriter',
+                last_written_at_old: Some[MonotonicTime] | None, input: DynamicValue,
+                repeat_elapsed: Some[bool] | None) -> contracts.ValueWriterRunResult:
+            elapsed = repeat_elapsed
+            last_written_at = last_written_at_old
+
+            new_value_csv = input.to_csv_value()
 
             # If elapsed is None or Some(True), the value has to be repeated
             # Note: The empty value is not repeated
             force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
 
             # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
-            time = context.start_time_for_stage(RunStage.DEFAULT).local
+            time = services.start_time_for_stage(RunStage.DEFAULT).local
 
             if force:
                 # Re-evaluate the repeat decision next step after recording this write.
                 # TODO: Should this simply be done whenever write_value() is called?
-                context.trigger_self()
+                services.trigger_self()
 
             written = state.write_value(new_value_csv, time, force=force)
             if written:
                 # TODO: Think what happens if new_value_csv is ('', False)
-                last_written_at = wirely.Some(context.start_time_for_stage(RunStage.DEFAULT).monotonic)
+                last_written_at = wirely.Some(services.start_time_for_stage(RunStage.DEFAULT).monotonic)
 
-            context.set_output('last_written_at', last_written_at)
+            return contracts.ValueWriterRunResult(last_written_at=last_written_at)

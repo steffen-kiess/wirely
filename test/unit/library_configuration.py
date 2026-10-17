@@ -12,39 +12,37 @@ import wirely.native.two_n
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type
-from wirely.runtime.contexts import NativeState
-from wirely.test import test_engine
+from wirely.runtime.engine import Engine
+from wirely.test import test_contracts, test_engine
 
 
-registry = {}
 libraries = _standard_library_sources(['std', 'schedule', 'timer', 'memory', 'two_n', 'path'])
 
 
-@native_node_type(registry, has_native_state=True)
-class SettingsDevice(NativeState):
-    def __init__(self, *, context):
-        super().__init__(context=context)
-        context.set_output('device', self)
-        self.log_receiver = self
-        self.handlers = []
+def settings_engine(program):
+    """Create an Engine whose TestLibrary.SettingsDevice provides TwoN.Device resources."""
+    with test_contracts(program.graph) as contracts:
+        registry = {}
 
-    def add_handler(self, events, handler):
-        self.handlers.append((events, handler))
+        @native_node_type(registry, has_native_state=True)
+        class SettingsDevice(contracts.SettingsDeviceInitializer):
+            def initialize(self, *, services):
+                self.log_receiver = self
+                self.handlers = []
+                return contracts.SettingsDeviceInitializerResult(device=self)
 
+            def add_handler(self, events, handler):
+                self.handlers.append((events, handler))
 
-def settings_registries():
-    """Patch in SettingsDevice as the provider of TwoN.Device resources."""
-    stack = contextlib.ExitStack()
-    stack.enter_context(patch.dict(wirely.native.test_library.native_node_types, registry))
-    stack.enter_context(patch.dict(wirely.native.two_n.native_resource_types, {'Device': SettingsDevice}))
-    return stack
+        with patch.dict(wirely.native.test_library.native_node_types, registry), \
+                patch.dict(wirely.native.two_n.native_resource_types, {'Device': SettingsDevice}):
+            return Engine(program)
 
 
 def compile_program(source, *, filename='<configuration>'):
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
-        graph = compile_strs(libraries + [(filename, source)])
-        assert graph is not None
-        return program_compiler.compile_nocatch(graph)
+    graph = compile_strs(libraries + [(filename, source)])
+    assert graph is not None
+    return program_compiler.compile_nocatch(graph)
 
 
 def node_program(node_type, output_type, output_value, *, forward=False, minimum_delay='PT2S'):
@@ -415,8 +413,7 @@ connect device -> wrapper.Device;
 def check_key_state():
     def make_runtime(timeout='PT10S'):
         program = code_program('KeyState', 'Key', '%2', parameters={'Timeout': json.dumps(timeout)})
-        with settings_registries():
-            return test_engine(program)
+        return settings_engine(program)
 
     def event(pressed):
         runtime.get_native_state('wrapper.child.key_event').handler({
@@ -506,8 +503,7 @@ def check_key_state():
 def check_codes_and_tracing():
     for code in ('', '123456789012345'):
         program = code_program('CodeEnteredEvent', 'Code', code)
-        with settings_registries():
-            runtime = test_engine(program)
+        runtime = settings_engine(program)
         runtime.get_native_state('wrapper.child').handler({'event': 'CodeEntered', 'params': {'code': code}})
         runtime.step()
         runtime.assert_value_is('wrapper.child', wirely.Some(wirely.Unit()))
@@ -518,9 +514,8 @@ def check_codes_and_tracing():
                                        ('CodeEnteredEvent', 'Code', '019283')]:
             program = code_program(node_type, parameter, value)
             output = io.StringIO()
-            with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), \
-                    settings_registries(), contextlib.redirect_stdout(output):
-                test_engine(program)
+            with patch.dict(os.environ, {'WIRELY_TWON_TRACE_KEYS': enabled}), contextlib.redirect_stdout(output):
+                settings_engine(program)
             assert (value in output.getvalue()) == (enabled == '1')
 
 

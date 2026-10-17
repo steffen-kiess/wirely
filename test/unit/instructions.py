@@ -2,7 +2,10 @@ import io
 from unittest import TestCase
 from unittest.mock import patch
 
+import wirely
 from wirely import types
+from wirely.contracts import test_library as contracts
+from wirely.functions import RegisteredFunction
 from wirely.functions.test_library import native_functions
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
@@ -60,10 +63,11 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
 
 def execute(instructions, **kwargs):
     program = make_program(instructions, **kwargs)
-    # These tests check instructions; describe their functions as they are called.
+    # These tests check instructions; describe functions without generated interfaces as they are called.
     signatures = {function.name: FunctionSignature(
         [signature_type(value_type, {}, function.name) for value_type in function.parameter_types],
-        signature_type(function.return_type, {}, function.name)) for function in program.functions}
+        signature_type(function.return_type, {}, function.name)) for function in program.functions
+        if function.name not in native_interfaces.native_functions}
     with patch.dict(native_interfaces.native_functions, signatures):
         machine = Engine(program)
     machine.step()
@@ -163,17 +167,15 @@ def check_calls():
     clamp = Function('TestLibrary.Clamp', (types.int16,) * 3, types.int16)
     nothing = Function('TestLibrary.Nothing', (), types.unit)
 
-    def clamp_values(*, context):
-        assert type(context.arguments) is tuple
-        assert context.arguments == (500, 0, 100)
-        value, low, high = context.arguments
+    def clamp_values(value, low, high):
+        assert (value, low, high) == (wirely.Int16(500), wirely.Int16(0), wirely.Int16(100))
         return min(max(value, low), high)
 
-    def no_values(*, context):
-        assert context.arguments == ()
+    def no_values():
         return types.Unit()
 
-    with patch.dict(native_functions, {'Clamp': clamp_values, 'Nothing': no_values}):
+    with patch.dict(native_functions, {'Clamp': RegisteredFunction(clamp_values, contracts.Clamp),
+                                       'Nothing': RegisteredFunction(no_values, contracts.Nothing)}):
         outcome = execute([
             instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
             instruction(Opcode.CALL, output(1), 1, 0),

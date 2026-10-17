@@ -1,49 +1,52 @@
 import asyncio
 import contextlib
-from typing import Any
+from typing import Any, Literal
 
 import wirely
+from wirely import DynamicValue, Some, UInt16, ValueType
+from wirely.contracts import knx as contracts
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
+from wirely.runtime.enums import KNXProtocol
+from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
 
 
-def _protocol_name(option: Any) -> str | None:
+def _protocol_name(option: Some[KNXProtocol] | None) -> str | None:
     if option is None:
         return None
-    name = option.value.native.name
+    name = option.value.name
     if name is None:
-        raise ValueError(f'Unsupported KNX protocol {option.value.value}')
+        raise ValueError(f'Unsupported KNX protocol {int(option.value)}')
     return name
 
 
 @native_resource_type(native_resource_types, 'Bus')
 @native_node_type(native_node_types, has_native_state=True)
-class Connection(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('bus', self)
-
+class Connection(contracts.ConnectionInitializer):
+    def initialize(self, *, services: StateServices[Literal['bus']], host: Some[str] | None,
+                   protocol: Some[KNXProtocol] | None, port: Some[UInt16] | None, unix_path: Some[str] | None,
+                   ssh_target: Some[str] | None,
+                   individual_address: Some[str] | None) -> contracts.ConnectionInitializerResult:
         from wirely.knx.connection_config import create_connection_config
         from wirely.knx.connection_adapter import create_xknx
 
         print('Create KNX connection', flush=True)
 
-        def parameter(name: str) -> Any:
-            value = context.values[name]
+        def parameter(value: Some[str] | None) -> str | None:
             return None if value is None else value.value
 
         self.connection_config = create_connection_config(
-            host=parameter('Host'),
-            protocol=_protocol_name(context.values['Protocol']),
-            port=parameter('Port'),
-            unix_path=parameter('UnixPath'),
-            ssh_target=parameter('SSHTarget'),
-            individual_address=parameter('IndividualAddress'),
+            host=parameter(host),
+            protocol=_protocol_name(protocol),
+            port=None if port is None else port.value.value,
+            unix_path=parameter(unix_path),
+            ssh_target=parameter(ssh_target),
+            individual_address=parameter(individual_address),
         )
         self.knx = create_xknx(self.connection_config)
+        return contracts.ConnectionInitializerResult(bus=self)
 
     # TODO: Do start() later, while everything is already running?
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -56,28 +59,25 @@ class Connection(NativeState):
 
 @native_resource_type(native_resource_types, 'ValueReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
-class ValueReceiver(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-        self.current_value = None
+class ValueReceiver(contracts.ValueReceiverInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+                   group_address: UInt16, value_type_name: str) -> contracts.ValueReceiverInitializerResult:
+        self.current_value: DynamicValue | None = None
 
         import xknx
 
         print('Create KNX ValueReceiver', flush=True)
 
-        group_address = context.values['group_address']
-        ty = context.values['Type']
-        print(f'  Using group address: {group_address!r}', flush=True)
-        print(f'  Using type: {ty!r}', flush=True)
+        print(f'  Using group address: {group_address.value!r}', flush=True)
+        print(f'  Using type: {type!r}', flush=True)
 
-        self.native_bus = context.inputs['Bus'].object
+        self.native_bus = bus
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(group_address)
+        self.address = xknx.telegram.GroupAddress(group_address.value)
 
-        self.value_type = ty
-        self.value_type_knx = context.values['value_type_name']
+        self.value_type = type
+        self.value_type_knx = value_type_name
 
         # TODO: Where does this get cleaned up?
         if self.value_type_knx == "binary":
@@ -85,6 +85,7 @@ class ValueReceiver(NativeState):
         else:
             self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.update_callback)
         self.native_bus.knx.devices.async_add(self.sensor)
+        return contracts.ValueReceiverInitializerResult(state=self)
 
     # TODO: Make sure exceptions here are handled somehow?
     def update_callback(self, device: Any) -> None:
@@ -94,19 +95,17 @@ class ValueReceiver(NativeState):
         else:
             val = device.sensor_value.value
         # print(f'  got value: {val!r}', flush=True)
-        self.values['Type'].validate(val)
+        self.current_value = self.value_type.json_decode(val)
 
-        self.current_value = val
-
-        self.trigger('state')
+        self.services.trigger('state')
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class GetValue(contracts.ValueReceiverGetValue):
+        def prepare(self, *, services: PreparationServices, state: 'ValueReceiver', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices,
+                state: 'ValueReceiver') -> contracts.ValueReceiverGetValueResult:
             # TODO: Add checks whether everything is running?
 
             res = state.current_value
@@ -117,22 +116,21 @@ class ValueReceiver(NativeState):
                 res_opt = wirely.Some(res)
             # print(f'get_value: {res_opt}')
 
-            context.set_output('output', res_opt)
+            return contracts.ValueReceiverGetValueResult(output=res_opt)
 
 
 @native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
-class ValueOptionProvider(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+                   group_address: UInt16,
+                   value_type_name: str) -> contracts.ValueOptionProviderInitializerResult:
         # TODO: Is this needed?
         self.current_value = None
 
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
-        self.value_to_send = None
+        self.value_to_send: Any = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
@@ -141,22 +139,21 @@ class ValueOptionProvider(NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        group_address = context.values['group_address']
-        ty = context.values['Type']
-        print(f'  Using group address: {group_address!r}', flush=True)
-        print(f'  Using type: {ty!r}', flush=True)
+        print(f'  Using group address: {group_address.value!r}', flush=True)
+        print(f'  Using type: {type!r}', flush=True)
 
-        self.native_bus = context.inputs['Bus'].object
+        self.native_bus = bus
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(group_address)
+        self.address = xknx.telegram.GroupAddress(group_address.value)
 
-        self.value_type = ty
-        self.value_type_knx = context.values['value_type_name']
+        self.value_type = type
+        self.value_type_knx = value_type_name
 
         # TODO: Where does this get cleaned up?
         self.expose = xknx.devices.ExposeSensor(self.native_bus.knx, name="Expose", group_address=self.address, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.expose)  # TODO: Is this needed?
+        return contracts.ValueOptionProviderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -167,21 +164,20 @@ class ValueOptionProvider(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('set_value')
-    class SetValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class SetValue(contracts.ValueOptionProviderSetValue):
+        def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
+                    type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices, state: 'ValueOptionProvider',
+                input: Some[DynamicValue] | None) -> contracts.ValueOptionProviderSetValueResult:
             # TODO: Add checks whether everything is running?
 
-            value_opt = context.inputs['input']
-
-            if value_opt is None:
+            if input is None:
                 # TODO: Somehow reset the state.expose value in this case?
                 value = None
             else:
-                value = value_opt.value
+                value = input.value.json_encode()
                 # TODO: Any checks needed here?
 
             print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
@@ -193,6 +189,7 @@ class ValueOptionProvider(NativeState):
             # TODO: Provide some notification if this is happening?
             state.value_to_send = value
             state.event.set()
+            return contracts.ValueOptionProviderSetValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -210,28 +207,26 @@ class ValueOptionProvider(NativeState):
 
 @native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
-class EventReceiver(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+class EventReceiver(contracts.EventReceiverInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+                   group_address: UInt16, value_type_name: str) -> contracts.EventReceiverInitializerResult:
         self.task: asyncio.Task | None = None
-        self.received_values: list[object] = []
+        self.received_values: list[DynamicValue] = []
 
-        self.value_type = context.values['Type']
-        self.value_type_knx = context.values['value_type_name']
+        self.value_type = type
+        self.value_type_knx = value_type_name
 
         print('Create KNX EventReceiver', flush=True)
 
         import xknx
 
-        print(f"  Using group address: {context.values['group_address']!r}", flush=True)
+        print(f'  Using group address: {group_address.value!r}', flush=True)
         print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
-        self.native_bus = context.inputs['Bus'].object
+        self.native_bus = bus
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(context.values['group_address'])
+        self.address = xknx.telegram.GroupAddress(group_address.value)
 
         # TODO: Where does this get cleaned up?
         # TODO: Use RemoteValue directly?
@@ -241,6 +236,7 @@ class EventReceiver(NativeState):
         else:
             self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
         self.native_bus.knx.devices.async_add(self.sensor)
+        return contracts.EventReceiverInitializerResult(state=self)
 
     # TODO: Make sure exceptions here are handled somehow?
     def event_callback(self, device: Any) -> None:
@@ -250,40 +246,37 @@ class EventReceiver(NativeState):
         else:
             val = device.sensor_value.value
         print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
-        value = self.values['Type'].validate(val)
+        value = self.value_type.json_decode(val)
 
         self.received_values.append(value)
-        self.trigger('state')
+        self.services.trigger('state')
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class GetValue(contracts.EventReceiverGetValue):
+        def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices,
+                state: 'EventReceiver') -> contracts.EventReceiverGetValueResult:
             # TODO: Add checks whether everything is running?
 
             if len(state.received_values) == 0:
-                context.set_output('output', None)
-                return
+                return contracts.EventReceiverGetValueResult(output=None)
             value = state.received_values.pop(0)
 
             res_opt = wirely.Some(value)
             # print(f'get_value: {res_opt}')
 
-            context.set_output('output', res_opt)
+            services.trigger_self()
 
-            context.trigger_self()
+            return contracts.EventReceiverGetValueResult(output=res_opt)
 
 
 @native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
-class EventSender(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+class EventSender(contracts.EventSenderInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+                   group_address: UInt16, value_type_name: str) -> contracts.EventSenderInitializerResult:
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
         self.values_to_send: list[object] = []
@@ -295,18 +288,19 @@ class EventSender(NativeState):
 
         print('Create KNX ValueOptionProvider', flush=True)
 
-        self.value_type = context.values['Type']
-        self.value_type_knx = context.values['value_type_name']
+        self.value_type = type
+        self.value_type_knx = value_type_name
 
-        self.native_bus = context.inputs['Bus'].object
+        self.native_bus = bus
         print(f'  Using native bus object: {self.native_bus}', flush=True)
 
-        self.address = xknx.telegram.GroupAddress(context.values['group_address'])
+        self.address = xknx.telegram.GroupAddress(group_address.value)
 
         # TODO: Where does this get cleaned up?
         # Use ExposeSensor instead of Sensor because Sensor does not support binary and BinarySensor does not support writing values
         self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.sensor)  # TODO: Is this needed?
+        return contracts.EventSenderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -317,21 +311,19 @@ class EventSender(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('send_value')
-    class SendValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class SendValue(contracts.EventSenderSendValue):
+        def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices, state: 'EventSender',
+                input: Some[DynamicValue] | None) -> contracts.EventSenderSendValueResult:
             # TODO: Add checks whether everything is running?
 
-            value_opt = context.inputs['input']
-
             # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if value_opt is None:
-                return
+            if input is None:
+                return contracts.EventSenderSendValueResult()
             else:
-                value = value_opt.value
+                value = input.value.json_encode()
                 # TODO: Any checks needed here?
 
             print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
@@ -342,7 +334,8 @@ class EventSender(NativeState):
             state.event.set()
 
             # This makes sure that the value is sent again if the input does not change
-            context.trigger_self()
+            services.trigger_self()
+            return contracts.EventSenderSendValueResult()
 
     async def run_task(self) -> None:
         while True:

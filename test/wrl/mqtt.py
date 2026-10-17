@@ -219,13 +219,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('Off')))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.members['Off']))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'"off"'))
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('Off')))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.members['Off']))
             await expect_msgs()
 
             engine.step()
@@ -234,7 +234,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.from_name('EmergencyHeat')))
+            engine.get_native_state('enum_event_source').send_event(wirely.Some(modes.members['EmergencyHeat']))
             await expect_msgs()
 
             engine.step()
@@ -254,13 +254,13 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('Off')))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.members['Off']))
             await expect_msgs()
 
             engine.step()
             await expect_msgs(('test/t5', b'{"value": "off", "other": "%s"}'))
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('Off')))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.members['Off']))
             await expect_msgs()
 
             engine.step()
@@ -269,7 +269,7 @@ async def run_test():
             engine.step()
             await expect_msgs()
 
-            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.from_name('EmergencyHeat')))
+            engine.get_native_state('template_event_source').send_event(wirely.Some(modes.members['EmergencyHeat']))
             await expect_msgs()
 
             engine.step()

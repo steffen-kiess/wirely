@@ -6,30 +6,8 @@ from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type, native_procedure
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeProcedure, NativeState
-from wirely.test import test_engine
-
-
-registry = {}
-
-
-@native_node_type(registry, has_native_state=True)
-class HeldEventSource(NativeState):
-    def __init__(self, *, context):
-        super().__init__(context=context)
-        context.set_output('state', self)
-        self.value = None
-
-    def set_value(self, value):
-        if self.value != value:
-            self.value = value
-            self.trigger('state')
-
-    @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context):
-            # The timestamp node must keep stepping even when this output is cached.
-            context.set_output('output', context.inputs['state'].object.value)
+from wirely.runtime.engine import Engine
+from wirely.test import test_contracts
 
 
 source = '''namespace TestLibrary {
@@ -46,11 +24,31 @@ node input: TestLibrary.HeldEventSource {}
 node timestamp: Timer.MonotonicTimestamp { Type: boolean }
 connect input -> timestamp;
 '''
-with patch.dict(wirely.native.test_library.native_node_types, registry), \
-        patch.dict(wirely.native.test_library.native_resource_types, {'HeldEventState': HeldEventSource}):
-    graph = compile_strs(_standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
-    assert graph is not None
-    runtime = test_engine(program_compiler.compile_nocatch(graph))
+graph = compile_strs(_standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
+assert graph is not None
+with test_contracts(graph) as contracts:
+    registry = {}
+
+    @native_node_type(registry, has_native_state=True)
+    class HeldEventSource(contracts.HeldEventSourceInitializer):
+        def initialize(self, *, services):
+            self.value = None
+            return contracts.HeldEventSourceInitializerResult(state=self)
+
+        def set_value(self, value):
+            if self.value != value:
+                self.value = value
+                self.services.trigger('state')
+
+        @native_procedure('run')
+        class Run(contracts.HeldEventSourceRun):
+            def run(self, *, services, state):
+                # The timestamp node must keep stepping even when this output is cached.
+                return contracts.HeldEventSourceRunResult(output=state.value)
+
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, {'HeldEventState': HeldEventSource}):
+        runtime = Engine(program_compiler.compile_nocatch(graph))
 
 runtime.step()
 runtime.assert_value_is('timestamp', None)

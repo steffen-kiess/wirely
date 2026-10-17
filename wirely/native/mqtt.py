@@ -4,12 +4,15 @@ import dataclasses
 import urllib
 import contextlib
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Literal
 
 import wirely
+from wirely import DynamicValue, Some, ValueType
+from wirely.contracts import mqtt as contracts
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
 from wirely.runtime.enums import MQTTFormat
+from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.runtime.structs import MQTTTemplateParts
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -18,13 +21,12 @@ native_resource_types: dict[str, type] = {}
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}
 
 
-def _json_format(option: Any) -> str | None:
+def _json_format(option: Some[MQTTFormat] | None) -> str | None:
     if option is None:
         return None
-    native = option.value.native
-    if native not in _JSON_FORMATS:
-        raise ValueError(f'Unsupported MQTT format {option.value.value}')
-    return _JSON_FORMATS[native]
+    if option.value not in _JSON_FORMATS:
+        raise ValueError(f'Unsupported MQTT format {int(option.value)}')
+    return _JSON_FORMATS[option.value]
 
 
 aiomqtt_module = None
@@ -142,22 +144,20 @@ def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
 
 @native_resource_type(native_resource_types, 'Broker')
 @native_node_type(native_node_types, has_native_state=True)
-class Connection(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('broker', self)
-
+class Connection(contracts.ConnectionInitializer):
+    def initialize(self, *, services: StateServices[Literal['broker']],
+                   uri: str) -> contracts.ConnectionInitializerResult:
         aiomqtt = get_aiomqtt()
 
         print('Create MQTT connection', flush=True)
 
-        uri = context.values['URI']
         print(f'  Using URI: {uri!r}', flush=True)
 
         self.parsed_uri = parse_mqtt_uri(uri)
 
         self.all_subscriptions: dict[str, int] = {}
         self.message_queues: dict[str, list[asyncio.Queue]] = {}
+        return contracts.ConnectionInitializerResult(broker=self)
 
     def create_client(self) -> Any:
         # Note: Has to be called from the async loop so that asyncio.get_event_loop() is correct
@@ -255,24 +255,23 @@ class Connection(NativeState):
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 @native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
-class ValueOptionProvider(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+                   topic: str, format: Some[MQTTFormat] | None,
+                   template_parts: MQTTTemplateParts) -> contracts.ValueOptionProviderInitializerResult:
         self.current_value = None
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
-        self.value_to_send = None
+        self.value_to_send: bytes | None = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.value_type = context.values['Type']
-        self.topic = context.values['Topic']
-        self.format = _json_format(context.values['Format'])
-        parts = context.values['template_parts'].native
-        self.template_prefix = parts.prefix
-        self.template_suffix = parts.suffix
+        self.value_type = type
+        self.topic = topic
+        self.format = _json_format(format)
+        self.template_prefix = template_parts.prefix
+        self.template_suffix = template_parts.suffix
 
         aiomqtt = get_aiomqtt()
 
@@ -282,10 +281,9 @@ class ValueOptionProvider(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker'].object
+        self.native_server = broker
         print(f'  Using native server object: {self.native_server}', flush=True)
-
-        self.json_encode = self.value_type.json_encode
+        return contracts.ValueOptionProviderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -296,32 +294,31 @@ class ValueOptionProvider(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('set_value')
-    class SetValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class SetValue(contracts.ValueOptionProviderSetValue):
+        def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
+                    type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices, state: 'ValueOptionProvider',
+                input: Some[DynamicValue] | None) -> contracts.ValueOptionProviderSetValueResult:
             # TODO: Add checks whether everything is running?
 
-            value_opt = context.inputs['input']
-
             # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if value_opt is None:
+            if input is None:
                 value_bytes = b''
             else:
-                value = value_opt.value
-                value = state.json_encode(value, state.format)
-                value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+                value = json.dumps(input.value.json_encode(state.format),
+                                   ensure_ascii=False, allow_nan=False, sort_keys=True)
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
-            print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send}', flush=True)
+            print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
 
             # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
             # TODO: Provide some notification if this is happening?
             state.value_to_send = value_bytes
             state.event.set()
+            return contracts.ValueOptionProviderSetValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -332,17 +329,17 @@ class ValueOptionProvider(NativeState):
             value = self.value_to_send
             self.value_to_send = None
 
-            print(f'Sending {value} to {self.topic}', flush=True)
+            print(f'Sending {value!r} to {self.topic}', flush=True)
             await self.native_server.client.publish(self.topic, payload=value)
-            print(f'Sending {value} to {self.topic} done', flush=True)
+            print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
 @native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
-class EventSender(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class EventSender(contracts.EventSenderInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+                   topic: str, format: Some[MQTTFormat] | None,
+                   template_parts: MQTTTemplateParts) -> contracts.EventSenderInitializerResult:
         self.current_value = None
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
@@ -351,12 +348,11 @@ class EventSender(NativeState):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        self.value_type = context.values['Type']
-        self.topic = context.values['Topic']
-        self.format = _json_format(context.values['Format'])
-        parts = context.values['template_parts'].native
-        self.template_prefix = parts.prefix
-        self.template_suffix = parts.suffix
+        self.value_type = type
+        self.topic = topic
+        self.format = _json_format(format)
+        self.template_prefix = template_parts.prefix
+        self.template_suffix = template_parts.suffix
 
         aiomqtt = get_aiomqtt()
 
@@ -366,10 +362,9 @@ class EventSender(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker'].object
+        self.native_server = broker
         print(f'  Using native server object: {self.native_server}', flush=True)
-
-        self.json_encode = self.value_type.json_encode
+        return contracts.EventSenderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -380,23 +375,20 @@ class EventSender(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('send_value')
-    class SendValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class SendValue(contracts.EventSenderSendValue):
+        def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices, state: 'EventSender',
+                input: Some[DynamicValue] | None) -> contracts.EventSenderSendValueResult:
             # TODO: Add checks whether everything is running?
 
-            value_opt = context.inputs['input']
-
             # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if value_opt is None:
-                return
+            if input is None:
+                return contracts.EventSenderSendValueResult()
             else:
-                value = value_opt.value
-                value = state.json_encode(value, state.format)
-                value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+                value = json.dumps(input.value.json_encode(state.format),
+                                   ensure_ascii=False, allow_nan=False, sort_keys=True)
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
@@ -408,7 +400,8 @@ class EventSender(NativeState):
             state.event.set()
 
             # This makes sure that the value is sent again if the input does not change
-            context.trigger_self()
+            services.trigger_self()
+            return contracts.EventSenderSendValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -425,17 +418,15 @@ class EventSender(NativeState):
 
 @native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
-class EventReceiver(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+class EventReceiver(contracts.EventReceiverInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+                   topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverInitializerResult:
         self.task: asyncio.Task | None = None
-        self.received_values: list[object] = []
+        self.received_values: list[DynamicValue] = []
 
-        self.value_type = context.values['Type']
-        self.topic = context.values['Topic']
-        self.format = _json_format(context.values['Format'])
+        self.value_type = type
+        self.topic = topic
+        self.format = _json_format(format)
         self.template_prefix = ''
         self.template_suffix = ''
 
@@ -447,8 +438,9 @@ class EventReceiver(NativeState):
         print(f'  Using type: {self.value_type!r}', flush=True)
         print(f'  Using format: {self.format!r}', flush=True)
 
-        self.native_server = context.inputs['Broker'].object
+        self.native_server = broker
         print(f'  Using native server object: {self.native_server}', flush=True)
+        return contracts.EventReceiverInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -459,25 +451,24 @@ class EventReceiver(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class GetValue(contracts.EventReceiverGetValue):
+        def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+        def run(self, *, services: ProcedureServices,
+                state: 'EventReceiver') -> contracts.EventReceiverGetValueResult:
             # TODO: Add checks whether everything is running?
 
             if len(state.received_values) == 0:
-                context.set_output('output', None)
-                return
+                return contracts.EventReceiverGetValueResult(output=None)
             value = state.received_values.pop(0)
 
             res_opt = wirely.Some(value)
             # print(f'get_value: {res_opt}')
 
-            context.set_output('output', res_opt)
+            services.trigger_self()
 
-            context.trigger_self()
+            return contracts.EventReceiverGetValueResult(output=res_opt)
 
     async def run_task(self) -> None:
         # TODO: Should subscribing be done here or in start_tasks()?
@@ -501,10 +492,8 @@ class EventReceiver(NativeState):
                                 value = value[:-len(self.template_suffix)]
 
                             value = json.loads(value)
-                            value = self.values['Type'].json_decode(value, self.format)
-
-                            self.received_values.append(value)
-                            self.trigger('state')
+                            self.received_values.append(self.value_type.json_decode(value, self.format))
+                            self.services.trigger('state')
                     except Exception as e:
                         # TODO: Do something else here?
                         # TODO: Print stack trace?

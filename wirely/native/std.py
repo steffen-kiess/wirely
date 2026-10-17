@@ -1,8 +1,13 @@
 from collections.abc import Sequence
+from typing import Any, Literal
 
 import wirely
+from wirely import DynamicValue, Some, ValueType
+from wirely.contracts import std as contracts
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
+from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.runtime.structs import StdFormatParts
+from wirely.types import InternalValue
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -11,71 +16,83 @@ native_resource_types: dict[str, type] = {}
 @native_node_type(native_node_types, has_native_state=False)
 class DebugValuePrinter:
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            text = context.values['Type'].to_text(context.inputs['input'])
+    class Run(contracts.DebugValuePrinterRun):
+        def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
+            pass
 
-            print(f'[{context.name}]: Got value {text}', flush=True)
+        def run(self, *, services: ProcedureServices, input: DynamicValue) -> contracts.DebugValuePrinterRunResult:
+            print(f'[{services.name}]: Got value {input.to_text()}', flush=True)
+            return contracts.DebugValuePrinterRunResult()
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class DebugEventPrinter:
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            event = context.inputs['input']
+    class Run(contracts.DebugEventPrinterRun):
+        def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
+            pass
 
-            if event is None:
-                return
-
-            text = context.values['Type'].to_text(event.value)
-            print(f'[{context.name}]: Got event {text}', flush=True)
+        def run(self, *, services: ProcedureServices,
+                input: Some[DynamicValue] | None) -> contracts.DebugEventPrinterRunResult:
+            if input is not None:
+                print(f'[{services.name}]: Got event {input.value.to_text()}', flush=True)
+            return contracts.DebugEventPrinterRunResult()
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class WarnOnEvent:
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            event = context.inputs['input']
+    class Run(contracts.WarnOnEventRun):
+        def prepare(self, *, services: PreparationServices, type: ValueType[Any],
+                    format_parts: StdFormatParts) -> None:
+            self.parts = format_parts
 
-            if event is None:
-                return
+        def run(self, *, services: ProcedureServices,
+                input: Some[DynamicValue] | None) -> contracts.WarnOnEventRunResult:
+            if input is None:
+                return contracts.WarnOnEventRunResult()
 
-            parts = context.values['format_parts'].native
+            parts = self.parts
             if parts.has_value:
-                message = parts.prefix + context.values['Type'].to_text(event.value) + parts.suffix
+                message = parts.prefix + input.value.to_text() + parts.suffix
             else:
                 message = parts.prefix
-            print(f'Warning: [{context.name}]: {message}', flush=True)
+            print(f'Warning: [{services.name}]: {message}', flush=True)
 
             # This makes sure that an identical event in the next step is not skipped
-            context.trigger_self()
+            services.trigger_self()
+            return contracts.WarnOnEventRunResult()
 
 
 @native_resource_type(native_resource_types, 'DebugValueSourceState')
 @native_node_type(native_node_types, has_native_state=True)
-class DebugValueSource(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-        self.current_value: object = None
-
-        self.out_type = context.values['Type']
+class DebugValueSource(contracts.DebugValueSourceInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']],
+                   type: ValueType[Any]) -> contracts.DebugValueSourceInitializerResult:
+        self.value_type = type
+        self.current_value: DynamicValue | None = None  # None until a value is set.
+        return contracts.DebugValueSourceInitializerResult(state=self)
 
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class Run(contracts.DebugValueSourceRun):
+        def prepare(self, *, services: PreparationServices, state: 'DebugValueSource', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
-            context.set_output('output', state.current_value)
+        def run(self, *, services: ProcedureServices,
+                state: 'DebugValueSource') -> contracts.DebugValueSourceRunResult:
+            value = state.current_value
+            if value is None:
+                # Option types start without a value; others need one to be set.
+                value = DynamicValue._make(state.value_type._type, None)
+            return contracts.DebugValueSourceRunResult(output=value)
 
-    def set_value(self, value: object) -> None:
+    def set_value(self, value: InternalValue) -> None:
+        """Set the value, in the representation of Engine.get_value()."""
+        self._set(DynamicValue._make(self.value_type._type, value))
+
+    def _set(self, value: DynamicValue) -> None:
         self.current_value = value
-
-        self.trigger('state')
+        self.services.trigger('state')
 
     def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
@@ -85,47 +102,52 @@ class DebugValueSource(NativeState):
         if cmd == 'set':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = self.values['Type'].parse(parameters[1])
-            self.set_value(value)
+            self._set(self.value_type.parse(parameters[1]))
         elif cmd == 'get':
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
             value = self.current_value
-            print(f'Current value of {self.context.name} is {value!r}', flush=True)
+            print(f'Current value of {self.services.name} is {value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
 
 
 @native_resource_type(native_resource_types, 'DebugEventSourceState')
 @native_node_type(native_node_types, has_native_state=True)
-class DebugEventSource(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class DebugEventSource(contracts.DebugEventSourceInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']],
+                   type: ValueType[Any]) -> contracts.DebugEventSourceInitializerResult:
+        self.value_type = type
         # TODO: Allow a queue of values?
-        self.next_value: object = None
-
-        self.out_type = context.values['Type']
+        self.next_value: Some[DynamicValue] | None = None
+        return contracts.DebugEventSourceInitializerResult(state=self)
 
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __init__(self, *, context: ProcedureLoadContext) -> None:
-            check_state_type(context, context.resources['state'].object)
+    class Run(contracts.DebugEventSourceRun):
+        def prepare(self, *, services: PreparationServices, state: 'DebugEventSource', type: ValueType[Any]) -> None:
+            check_state_type(services.name, type, state.value_type)
 
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
-            context.set_output('output', state.next_value)
-            if state.next_value is not None:
+        def run(self, *, services: ProcedureServices,
+                state: 'DebugEventSource') -> contracts.DebugEventSourceRunResult:
+            value = state.next_value
+            if value is not None:
                 state.next_value = None
-                context.trigger_self()
+                services.trigger_self()
+            return contracts.DebugEventSourceRunResult(output=value)
 
-    def send_event(self, value: object) -> None:
+    def send_event(self, value: InternalValue) -> None:
+        """Send an event given as Some(payload), in the representation of Engine.get_value()."""
+        if value is not None and type(value) is not wirely.Some:
+            raise ValueError(f'Expected None or wirely.Some, got {value!r}')
+        self._send(None if value is None else wirely.Some(DynamicValue._make(self.value_type._type, value.value)))
+
+    def _send(self, value: Some[DynamicValue] | None) -> None:
         if self.next_value is not None:
             raise Exception(f'DebugEventSource already has an event set: {self.next_value!r}, trying to set {value!r}')
 
         self.next_value = value
 
-        self.trigger('state')
+        self.services.trigger('state')
 
     def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
@@ -135,12 +157,11 @@ class DebugEventSource(NativeState):
         if cmd == 'send':
             if len(parameters) != 2:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = wirely.Some(self.values['Type'].parse(parameters[1]))
-            self.send_event(value)
+            self._send(wirely.Some(self.value_type.parse(parameters[1])))
         elif cmd == 'get':
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
             next_value = self.next_value
-            print(f'Next value of {self.context.name} is {next_value!r}', flush=True)
+            print(f'Next value of {self.services.name} is {next_value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')

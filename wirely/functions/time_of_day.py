@@ -1,18 +1,16 @@
 """Time-of-day arithmetic, wrapping at midnight."""
 
-from collections.abc import Callable
-
 import wirely
-from wirely.functions import RuntimeFunctionContext, native_function
+from wirely.contracts import time_of_day as contracts
+from wirely.functions import RegisteredFunction, native_function
 
-native_functions: dict[str, Callable[..., object]] = {}
+native_functions: dict[str, RegisteredFunction] = {}
 
 _DAY_TICKS = wirely.TimeOfDay.END_TICKS
 
 
-@native_function(native_functions, 'Less')
-def less(*, context: RuntimeFunctionContext) -> object:
-    a, b = context.arguments
+@native_function(native_functions, contracts.Less)
+def less(a: wirely.TimeOfDay, b: wirely.TimeOfDay) -> bool:
     return a.ticks < b.ticks
 
 
@@ -24,21 +22,18 @@ def _wrap(time: wirely.TimeOfDay, offset: int) -> wirely.TimeOfDay:
     return wirely.TimeOfDay(ticks=(time.ticks + offset) % _DAY_TICKS)
 
 
-@native_function(native_functions, 'WrappingAdd')
-def wrapping_add(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.WrappingAdd)
+def wrapping_add(time: wirely.TimeOfDay, duration: wirely.Duration) -> wirely.TimeOfDay:
     return _wrap(time, duration.ticks)
 
 
-@native_function(native_functions, 'WrappingSub')
-def wrapping_sub(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.WrappingSub)
+def wrapping_sub(time: wirely.TimeOfDay, duration: wirely.Duration) -> wirely.TimeOfDay:
     return _wrap(time, -duration.ticks)
 
 
-@native_function(native_functions, 'DurationUntil')
-def duration_until(*, context: RuntimeFunctionContext) -> object:
-    start, end = context.arguments
+@native_function(native_functions, contracts.DurationUntil)
+def duration_until(start: wirely.TimeOfDay, end: wirely.TimeOfDay) -> wirely.Duration:
     difference = end.ticks - start.ticks
     if difference < 0:
         difference += _DAY_TICKS

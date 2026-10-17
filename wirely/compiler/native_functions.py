@@ -227,17 +227,16 @@ def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], 
 def invoke_runtime_function(function: model.DeclarationNativeFunction, values: Sequence[object],
                             call: model.ast.SourceElement) -> object:
     """Evaluate a runtime-callable native function during compilation."""
-    from wirely.functions import call_native_function, get_native_function_by_name
+    from wirely.functions import bind_native_function
     name = function.function_name
     if not hasattr(function, '_runtime_implementation'):
         try:
-            function._runtime_implementation = get_native_function_by_name(function.native_name)
+            function._runtime_implementation = bind_native_function(
+                function.native_name, function.parameter_types, function.return_type)
         except (ImportError, ValueError) as error:
             raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     try:
-        return call_native_function(function._runtime_implementation, function.native_name,
-                                    function.parameter_types,
-                                    function.return_type, values)
+        return function._runtime_implementation(values)
     except Exception as error:
         # Runtime functions must not fail, so an exception is a library error.
         inner = RuntimeError(f'Internal error in function {name!r}: {type(error).__name__}: {error}')

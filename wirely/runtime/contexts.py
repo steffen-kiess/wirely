@@ -1,143 +1,15 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import datetime
-from collections.abc import Coroutine, Iterator, Mapping
-from dataclasses import dataclass, field
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import wirely
-from ..types import value_types
-from ..program import InputSource, Procedure, RunStage, Variable, VariableTable
+from ..program import RunStage, Variable, VariableTable
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
-from .resources import ResourceType, ResourceValue
 
 if TYPE_CHECKING:
     from .engine import Engine
-
-
-@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
-class NativeNodeContext:
-    """Information available for the lifetime of a native node."""
-
-    name: str
-    values: Mapping[str, Any]
-    inputs: Mapping[str, Any]
-    _engine: 'Engine' = field(repr=False)
-    _node_id: str = field(repr=False)
-    # Resource types of the outputs produced by the initializer, by key.
-    _output_types: Mapping[str, ResourceType] = field(default_factory=dict, repr=False)
-    _outputs: dict = field(default_factory=dict, repr=False)  # Resource outputs written by the initializer.
-    _constructed: bool = field(default=False, repr=False)  # Whether the initializer has returned.
-
-    def __post_init__(self) -> None:
-        for name in ('values', 'inputs'):
-            value = getattr(self, name)
-            if not isinstance(value, MappingProxyType):
-                object.__setattr__(self, name, MappingProxyType(dict(value)))
-
-    def set_output(self, name: str, value: object) -> None:
-        if self._constructed:
-            raise ValueError(f'Outputs of {self.name} can only be written by the native initializer')
-        if not isinstance(name, str) or name not in self._output_types:
-            raise ValueError(f'Unknown output name {name!r} in initializer on {self.name}')
-        if name in self._outputs:
-            raise ValueError(f'Output {name!r} on {self.name} was already written')
-        try:
-            self._outputs[name] = ResourceValue(self._output_types[name], value)
-        except TypeError as error:
-            raise ValueError(f'Invalid value for output {name!r} on {self.name}: {error}') from error
-
-    def _finish_construction(self) -> dict[str, ResourceValue]:
-        """End the initializer's output phase and return the written outputs."""
-        object.__setattr__(self, '_constructed', True)
-        missing = self._output_types.keys() - self._outputs.keys()
-        if missing:
-            raise ValueError(f'Native initializer on {self.name} did not write outputs: {sorted(missing)!r}')
-        return self._outputs
-
-
-class NativeState:
-    def __init__(self, *, context: NativeNodeContext):
-        self._context = context
-
-    @property
-    def context(self) -> NativeNodeContext:
-        return self._context
-
-    @property
-    def inputs(self) -> Mapping[str, Any]:
-        return self.context.inputs
-
-    @property
-    def values(self) -> Mapping[str, Any]:
-        return self.context.values
-
-    @property
-    def _shutdown_time(self) -> datetime.datetime | None:
-        return self.context._engine.shutdown_time
-
-    def trigger(self, output: str) -> None:
-        """Schedule each procedure that depends on this state's resource `output`."""
-        context = self.context
-        if output not in context._output_types:
-            raise ValueError(f'Unknown output name {output!r} on {context.name}')
-        context._engine.trigger_dependents(context._node_id, output)
-
-    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
-        pass
-
-    # TODO: Merge start_tasks and start_tasks_async?
-    # TODO: Allow blocking behavior during startup?
-    # TODO: Use an AsyncExitStack or an ExitStack?
-    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
-                                async_exit_stack: contextlib.AsyncExitStack) -> None:
-        pass
-
-    @staticmethod
-    @contextlib.contextmanager
-    def start_task_context(task_group: asyncio.TaskGroup,
-                           coroutine: Coroutine[Any, Any, object]) -> Iterator[asyncio.Task]:
-        import wirely.misc.service
-
-        task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
-        try:
-            yield task
-        finally:
-            task.cancel()
-
-    @staticmethod
-    def start_task(task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack,
-                   coroutine: Coroutine[Any, Any, object]) -> asyncio.Task:
-        return async_exit_stack.enter_context(NativeState.start_task_context(task_group, coroutine))
-
-
-@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
-class ProcedureLoadContext:
-    """Static information available when a native procedure is constructed."""
-
-    name: str
-    values: Mapping[str, Any]
-    resources: Mapping[str, ResourceValue]
-
-    def __post_init__(self) -> None:
-        for name in ('values', 'resources'):
-            value = getattr(self, name)
-            if not isinstance(value, MappingProxyType):
-                object.__setattr__(self, name, MappingProxyType(dict(value)))
-
-
-class NativeProcedure:
-    """Base class of native procedure implementations, constructed once per procedure at load time."""
-
-    def __init__(self, *, context: ProcedureLoadContext):
-        pass
-
-    def __call__(self, *, context: ProcedureContext) -> None:
-        raise NotImplementedError
 
 
 class VariableTableInstance:
@@ -179,73 +51,6 @@ class VariableTableInstance:
         if any(self.data[end:offset + variable.var_type.size]) or any(self.data[self._padding_start:]):
             raise ValueError(f'Non-zero padding in VariableTable {self.variable_table.name}')
         return variable.var_type.deserialize(memoryview(self.data)[offset:end])
-
-
-class ProcedureContext:
-    __slots__ = (
-        '_inputs', '_outputs', '_written_outputs', '_static', '_values',
-        '_step_info', '_wakeup_time', '_wakeup_time_set', '_engine',
-    )
-
-    def __init__(self, *, inputs: Mapping[str, Any], outputs: dict[str, object], static: Procedure,
-                 step_info: StepContext, engine: Engine, values: Mapping[str, Any]) -> None:
-        self._inputs: Mapping[str, Any] = MappingProxyType(dict(inputs))
-        self._values = values
-        self._outputs = outputs
-        self._written_outputs: set[str] = set()
-        self._static = static
-        self._step_info = step_info
-        self._engine = engine
-        self._wakeup_time: MonotonicTime | None = None
-        self._wakeup_time_set = False
-
-    @property
-    def inputs(self) -> Mapping[str, Any]:
-        return self._inputs
-
-    def trigger_self(self) -> None:
-        self._engine._trigger_key(self._static.key)
-
-    @property
-    def wakeup_time(self) -> MonotonicTime | None:
-        return self._wakeup_time
-
-    def set_wakeup_time(self, deadline: MonotonicTime | None) -> None:
-        if self._wakeup_time_set:
-            raise ValueError(f'Wakeup time on {self.name} was already set')
-        if deadline is not None and not isinstance(deadline, MonotonicTime):
-            raise ValueError(f'Expected a MonotonicTime or None, got {deadline!r}')
-        self._wakeup_time = deadline
-        self._wakeup_time_set = True
-
-    @property
-    def name(self) -> str:
-        return self._static.node_context.name
-
-    @property
-    def values(self) -> Mapping[str, Any]:
-        return self._values
-
-    def start_time_for_stage(self, stage: 'RunStage') -> TimeSnapshot:
-        if not isinstance(stage, RunStage):
-            raise ValueError(f'Expected a RunStage, got {stage!r}')
-        return self._step_info._stage_times[stage]
-
-    def set_output(self, name: str, value: object) -> None:
-        if not isinstance(name, str) or name not in self._static.outputs:
-            raise ValueError(f'Unknown output name {name!r} in procedure on {self.name}')
-        if name in self._written_outputs:
-            raise ValueError(f'Output {name!r} on {self.name} was already written')
-        try:
-            value_type = self._static.outputs[name].variable.var_type
-            value = value_type.verify_value(value_types._from_native(value_type, value))
-        except Exception as exc:
-            raise ValueError(f'Invalid value for output {name!r} on {self.name}: {exc}') from exc
-        self._outputs[name] = value
-        self._written_outputs.add(name)
-
-    def __repr__(self) -> str:
-        return f'ProcedureContext(name={self.name!r})'
 
 
 class StepContext:

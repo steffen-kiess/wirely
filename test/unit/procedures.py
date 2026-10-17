@@ -1,13 +1,32 @@
+import contextlib
+import importlib
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import wirely
 import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
+from wirely.functions import RegisteredFunction, function_pkgs
 from wirely.native import native_procedure
-from wirely.runtime.contexts import NativeProcedure
-from wirely.test import test_engine
-from wirely.runtime import procedures as runtime_procedures
+from wirely.runtime.engine import Engine
+from wirely.test import test_contracts, test_engine
+
+
+@contextlib.contextmanager
+def counted_calls(function_name: str) -> Iterator[list]:
+    """Record the arguments of each call of a runtime function in engines created meanwhile."""
+    namespace, _, name = function_name.rpartition('.')
+    registry = importlib.import_module('wirely.functions.' + function_pkgs[namespace]).native_functions
+    registered = registry[name]
+    calls = []
+
+    def counted(*arguments):
+        calls.append(arguments)
+        return registered.implementation(*arguments)
+
+    with patch.dict(registry, {name: RegisteredFunction(counted, registered.contract)}):
+        yield calls
 
 
 def check_main_program():
@@ -281,16 +300,21 @@ def check_mixed_procedures():
     }
     node mixed: Std.Constant { Type: boolean, Value: true }
     '''
-    @native_procedure('test_procedure')
-    class Produce(NativeProcedure):
-        def __call__(self, *, context):
-            context.set_output('temp', context.values['Value'])
+    mixed_program = compile_program(mixed_source)
+    with test_contracts(mixed_program.graph) as contracts:
+        @native_procedure('test_procedure')
+        class Produce(contracts.TestNodeTestProcedure):
+            def prepare(self, *, services, value, type):
+                self.value = value
 
-    with patch.object(wirely.native.test_library.TestNode, 'TestProcedure', Produce):
-        mixed_engine = test_engine(compile_program(mixed_source))
-        mixed_engine.step()
-        mixed_engine.assert_value_is('mixed', True)
-        mixed_engine.assert_is_idle()
+            def run(self, *, services):
+                return contracts.TestNodeTestProcedureResult(temp=self.value)
+
+        with patch.object(wirely.native.test_library.TestNode, 'TestProcedure', Produce):
+            mixed_engine = Engine(mixed_program)
+    mixed_engine.step()
+    mixed_engine.assert_value_is('mixed', True)
+    mixed_engine.assert_is_idle()
 
 
 def check_root_only():
@@ -475,11 +499,10 @@ def check_builtin_ordering():
             }
             node ordering: Ordering { Type: TYPE, Left: "LEFT", Right: "RIGHT" }
             '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right))
-            machine = test_engine(program)
-            with patch.object(runtime_procedures, 'call_native_function',
-                              wraps=runtime_procedures.call_native_function) as calls:
-                machine.step()
-            assert [call.args[1] for call in calls.call_args_list] == [f'{type_name}.Less'] * 4
+            with counted_calls(f'{type_name}.Less') as calls:
+                machine = test_engine(program)
+            machine.step()
+            assert len(calls) == 4
             for output, result in zip(('Less', 'LessEqual', 'Greater', 'GreaterEqual'), expected):
                 machine.assert_value_is(f'ordering.{output}', result)
             machine.assert_is_idle()
@@ -505,22 +528,20 @@ def check_arithmetic():
 
 
 def pair(enabled, number):
-    """Return a Pair as native code passes it."""
-    pair_type = wirely.ValueType(engine.get_variable('pair_source').var_type).struct_type
+    """Return a Pair as the runtime represents it: a tuple of its field values."""
     fields = {'enabled': enabled, 'number': number}
-    return pair_type.make(tuple(fields[name] for name, _ in pair_type.fields))
+    return tuple(fields[name] for name in engine.get_variable('pair_source').var_type.fields)
 
 
 def check_struct_fields():
-    # Native sources take StructValues; inside the runtime, structs are tuples.
     source = engine.get_native_state('pair_source')
     for enabled, number, expected_next in [(True, 7, 8), (False, 255, 255), (True, 0, 1)]:
         source.set_value(pair(enabled, number))
         engine.step()
         engine.assert_value_is('pair_fields.Enabled', enabled)
         engine.assert_value_is('pair_fields.Next', expected_next)
-        engine.assert_value_is('pair_fields.Built', pair(not enabled, number if enabled else 0).values)
-        engine.assert_value_is('pair_fields.Wrapped', wirely.Some(pair(enabled, number).values))
+        engine.assert_value_is('pair_fields.Built', pair(not enabled, number if enabled else 0))
+        engine.assert_value_is('pair_fields.Wrapped', wirely.Some(pair(enabled, number)))
         engine.assert_value_is('pair_fields.Nested',
                                None if number == 0 else wirely.Some(wirely.Some(enabled)))
     engine.assert_is_idle()
@@ -565,14 +586,15 @@ def check_native_functions():
     node clamped: Clamped {}
     connect source -> clamped;
     ''', add_std=True)
-    function_engine = test_engine(functions)
+    with counted_calls('TestLibrary.Clamp') as calls, counted_calls('TestLibrary.Nothing') as nothing_calls:
+        function_engine = test_engine(functions)
     source = function_engine.get_native_state('source')
     for value, expected in [(5, 5), (500, 10), (-500, -10)]:
         source.set_value(value)
-        with patch.object(runtime_procedures, 'call_native_function',
-                          wraps=runtime_procedures.call_native_function) as calls:
-            function_engine.step()
-        assert [call.args[1] for call in calls.call_args_list] == ['TestLibrary.Clamp']
+        calls.clear()
+        function_engine.step()
+        assert calls == [(wirely.Int16(value), wirely.Int16(-10), wirely.Int16(10))]
+        assert not nothing_calls
         function_engine.assert_value_is('clamped', expected)
         function_engine.assert_value_is('clamped.Done', wirely.Unit())
     function_engine.assert_is_idle()
@@ -672,7 +694,7 @@ def check_mutation():
                 'Saved': value, 'Changed': not value, 'Shadowed': not value,
                 'Chosen': value, 'ReadOutput': not value, 'ShortCircuit': value,
                 'Pattern': value, 'Difference': 8, 'SelfUpdate': 8, 'Snapshot': True,
-                'Fields': pair(True, 2).values, 'Fallback': value, 'FallbackRan': True,
+                'Fields': pair(True, 2), 'Fallback': value, 'FallbackRan': True,
                 'Unit': wirely.Unit()}.items():
             engine.assert_value_is(f'mutation.{output}', expected)
     engine.step()

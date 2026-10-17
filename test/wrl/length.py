@@ -1,13 +1,9 @@
-import wirely
-
-
 source = engine.get_native_state('source')
 measurement = engine.get_native_state('measurement')
-measurement_type = wirely.ValueType(engine.get_variable('measurement').var_type).struct_type
 
 for enabled, length in [(False, 7), (True, 9), (False, 0)]:
     source.set_value(enabled)
-    measurement.set_value(measurement_type.make((length,)))
+    measurement.set_value((length,))
     engine.step()
     for name, expected in [('empty', 0), ('single', 1), ('repeated', 2),
                            ('forwarded.child', 3)]:

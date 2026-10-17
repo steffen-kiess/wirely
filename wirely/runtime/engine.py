@@ -1,31 +1,29 @@
 import asyncio
 import contextlib
 import datetime
+import functools
 from collections.abc import Iterable, Mapping
-from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
 import wirely
-from wirely.program import Constant, InputSource, Program, ResourceBinding, Variable, validate_program
-from wirely.runtime.contexts import (
-    NativeNodeContext, NativeState, ProcedureContext, ProcedureLoadContext, StepContext, VariableTableInstance,
+from wirely.program import InputSource, Procedure, Program, ResourceBinding, Variable, validate_program
+from wirely.runtime.contexts import StepContext, VariableTableInstance
+from wirely.runtime.native_api import (
+    InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter, ProcedureServices,
+    StateServices,
 )
 from wirely.runtime.resources import ResourceValue
+from wirely.runtime.signatures import Procedure as SignatureProcedure
+from wirely.types import InternalValue
 from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
-
-
-def _native_values(bindings: Mapping[str, Constant]) -> Mapping[str, Any]:
-    """Convert typed static bindings to the values native code receives."""
-    return MappingProxyType({name: wirely.value_types._to_native(constant.value_type, constant.value)
-                             for name, constant in bindings.items()})
 
 
 class Engine:
     def __init__(self, program: Program) -> None:
         from .linking import (
-            link_native_classes, link_native_enums, link_native_functions, link_native_resource_types,
-            link_native_signatures, link_native_structs,
+            link_native_classes, link_native_contracts, link_native_enums, link_native_functions,
+            link_native_resource_types, link_native_signatures, link_native_structs,
         )
 
         if not isinstance(program, Program):
@@ -68,8 +66,10 @@ class Engine:
         link_native_enums(program)
         link_native_structs(program)
         self.native_classes, procedure_classes = link_native_classes(program)
-        self.native_functions = link_native_functions(program)
         link_native_signatures(program)
+        self.resource_types = link_native_resource_types(program)
+        linked_states, linked_procedures = link_native_contracts(program, self.native_classes, procedure_classes)
+        self.native_functions = link_native_functions(program)
         # Keys of the procedures depending on each resource, by (provider node ID, output).
         self._resource_triggers: dict[tuple[str, str], list[tuple]] = {}
         for schedule in program.procs.values():
@@ -78,45 +78,58 @@ class Engine:
                     keys = self._resource_triggers.setdefault((binding.provider, binding.output), [])
                     if proc.key not in keys:
                         keys.append(proc.key)
-        # Native `uses` values of each native procedure, keyed by procedure identity.
-        self._procedure_values = {
-            id(proc): _native_values(proc.values)
-            for schedule in program.procs.values() for proc in schedule if proc.body is None
-        }
-        self.resource_types = link_native_resource_types(program)
         self.resource_outputs = {}  # ResourceValues written by native initializers, by (node ID, output key).
         for node_id in program.native_construction_order:
             instance = program.instances[node_id]
             native_state = None
             if instance.has_native_state:
                 assert instance.type_name is not None
-                native_class = self.native_classes[instance.type_name]
-                context = NativeNodeContext(
-                    name=instance.name, values=_native_values(instance.initializer_values),
-                    inputs=MappingProxyType(self._resource_inputs(instance.initializer_bindings)),
-                    _engine=self, _node_id=node_id,
-                    _output_types={key: self.resource_types[name] for key, name
-                                   in program.native_types[instance.type_name].resource_outputs.items()},
+                linked = linked_states[instance.type_name]
+                interface = InterfaceBinding(
+                    where=f'Native state type {instance.type_name!r} of {instance.name}',
+                    signature=linked.signature,
+                    use_types={key: constant.value_type for key, constant in instance.initializer_values.items()},
+                    use_values={key: cast(InternalValue, constant.value)
+                                for key, constant in instance.initializer_values.items()},
+                    resources=self._resource_inputs(instance.initializer_bindings), port_types={},
+                    output_resource_types={key: self.resource_types[name] for key, name
+                                           in program.native_types[instance.type_name].resource_outputs.items()},
                 )
-                native_state = native_class(context=context)
-                for key, resource in context._finish_construction().items():
+                services: StateServices[Any] = StateServices(
+                    name=instance.name, output_keys=linked.adapter.output_keys,
+                    trigger=functools.partial(self.trigger_dependents, node_id),
+                    shutdown_time=lambda: self.shutdown_time,
+                )
+                native_state, outputs = linked.adapter.construct(linked.implementation, services, interface)
+                for key, resource in outputs.items():
                     self.resource_outputs[node_id, key] = resource
             self.native_states[node_id] = native_state
-        # Native procedure implementations, constructed after all native states; keyed by procedure identity.
-        self._native_procedures = {}
+        # Native procedure implementations, prepared after all native states; keyed by procedure identity.
+        self._native_procedures: dict[int, tuple[NativeProcedure, ProcedureAdapter, InterfaceBinding]] = {}
         for schedule in program.procs.values():
             for proc in schedule:
                 if proc.body is None:
-                    load_context = ProcedureLoadContext(
-                        name=proc.node_context.name, values=self._procedure_values[id(proc)],
-                        resources=self._resource_inputs(proc.resources),
-                    )
-                    self._native_procedures[id(proc)] = procedure_classes[proc.reference](context=load_context)
+                    linked_procedure = linked_procedures[proc.reference]
+                    interface = self._procedure_binding(proc, linked_procedure.signature)
+                    implementation = linked_procedure.implementation()
+                    linked_procedure.adapter.prepare(
+                        implementation, PreparationServices(name=proc.node_context.name), interface)
+                    self._native_procedures[id(proc)] = implementation, linked_procedure.adapter, interface
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
 
     def _resource_inputs(self, bindings: Mapping[str, ResourceBinding]) -> dict[str, ResourceValue]:
         return {name: self.resource_outputs[binding.provider, binding.output] for name, binding in bindings.items()}
+
+    def _procedure_binding(self, proc: Procedure, signature: SignatureProcedure) -> InterfaceBinding:
+        port_types = {name: source.value_type for name, source in proc.dependencies}
+        port_types.update((name, target.variable.var_type) for name, target in proc.outputs.items())
+        return InterfaceBinding(
+            where=f'Native procedure {proc.reference!r} of {proc.node_context.name}', signature=signature,
+            use_types={key: constant.value_type for key, constant in proc.values.items()},
+            use_values={key: cast(InternalValue, constant.value) for key, constant in proc.values.items()},
+            resources=self._resource_inputs(proc.resources), port_types=port_types, output_resource_types={},
+        )
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup,
                                 async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -197,9 +210,9 @@ class Engine:
             now = step_info.stage_start_time_monotonic[stage]
             for proc in stage_procs:
                 key = proc.key
-                inputs = self._resource_inputs(proc.resources)
+                # Bytecode procedures read multi inputs, which repeat names, positionally.
+                values: list[InternalValue] = []
                 skip_step = cache is not None and key not in self.triggered_procs
-                body_inputs = []
                 for name, input_source in proc.dependencies:
                     variable = input_source.variable
                     if input_source.constant is not None:
@@ -222,11 +235,7 @@ class Engine:
                             assert self.last_step_state is not None
                             if not variable.var_type.equals(value, self.last_step_state[variable]):
                                 skip_step = False
-                    native_value = wirely.value_types._to_native(input_source.value_type, value)
-                    if proc.body is None:
-                        inputs[name] = native_value
-                    else:
-                        body_inputs.append(native_value)
+                    values.append(value)
                 if key in self.wakeups:
                     deadline = self.wakeups[key]
                     if not wirely.MonotonicTime.is_comparable(now, deadline) or wirely.MonotonicTime.compare(now, deadline) >= 0:
@@ -246,24 +255,21 @@ class Engine:
                     print(f'Running procedure {proc.node_id} {proc.reference}')
                 run_count += 1
                 self.triggered_procs.discard(key)
-                outputs: dict[str, object] = {}
-                context = ProcedureContext(
-                    inputs=inputs, outputs=outputs, static=proc, step_info=step_info, engine=self,
-                    values=self._procedure_values.get(id(proc), MappingProxyType({})),
-                )
                 if proc.body is None:
-                    self._native_procedures[id(proc)](context=context)
+                    implementation, adapter, binding = self._native_procedures[id(proc)]
+                    services = ProcedureServices(name=proc.node_context.name, stage_times=step_info._stage_times,
+                                                 trigger_self=functools.partial(self._trigger_key, key))
+                    inputs = {name: value for (name, _), value in zip(proc.dependencies, values)}
+                    outputs = adapter.run(implementation, services, binding, inputs)
+                    wakeup_time = services.wakeup_time
                 else:
-                    for name, value in execute_procedure(self.program, proc, body_inputs, self.native_functions).items():
-                        context.set_output(name, value)
-                missing = set(proc.outputs) - context._written_outputs
-                if missing:
-                    raise ValueError(f'Procedure {proc.reference!r} on {context.name} did not write outputs: {sorted(missing)!r}')
-                if context.wakeup_time is None:
+                    outputs = execute_procedure(self.program, proc, values, self.native_functions)
+                    wakeup_time = None
+                if wakeup_time is None:
                     self.wakeups.pop(key, None)
                 else:
-                    self.wakeups[key] = context.wakeup_time
-                self.update_next_wakeup(now, context.wakeup_time)
+                    self.wakeups[key] = wakeup_time
+                self.update_next_wakeup(now, wakeup_time)
                 for name, output in proc.outputs.items():
                     variable = output.variable
                     value = outputs[name]

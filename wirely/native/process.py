@@ -1,9 +1,11 @@
 import contextlib
 import asyncio
+from typing import Any, Literal
 
-import wirely
+from wirely import DynamicValue, Some, ValueType
+from wirely.contracts import process as contracts
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
+from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -11,14 +13,14 @@ native_resource_types: dict[str, type] = {}
 
 @native_resource_type(native_resource_types, 'LaunchOnEventState')
 @native_node_type(native_node_types, has_native_state=True)
-class LaunchOnEvent(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
-
+class LaunchOnEvent(contracts.LaunchOnEventInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']],
+                   shell_command: str) -> contracts.LaunchOnEventInitializerResult:
+        self.shell_command = shell_command
         self.task: asyncio.Task | None = None
         self.pending = False
         self.event = asyncio.Event()
+        return contracts.LaunchOnEventInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -29,13 +31,14 @@ class LaunchOnEvent(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
-            inp = context.inputs['input']
+    class Run(contracts.LaunchOnEventRun):
+        def prepare(self, *, services: PreparationServices, state: 'LaunchOnEvent', type: ValueType[Any]) -> None:
+            pass
 
-            if inp is None:
-                return
+        def run(self, *, services: ProcedureServices, state: 'LaunchOnEvent',
+                input: Some[DynamicValue] | None) -> contracts.LaunchOnEventRunResult:
+            if input is None:
+                return contracts.LaunchOnEventRunResult()
 
             if state.pending:
                 print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
@@ -43,7 +46,8 @@ class LaunchOnEvent(NativeState):
             state.event.set()
 
             # This makes sure that the value is sent again if the input does not change
-            context.trigger_self()
+            services.trigger_self()
+            return contracts.LaunchOnEventRunResult()
 
     async def run_task(self) -> None:
         while True:
@@ -53,7 +57,7 @@ class LaunchOnEvent(NativeState):
                 await self.event.wait()
             self.pending = False
 
-            print(f"Launching command {self.values['ShellCommand']!r}", flush=True)
-            proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.values['ShellCommand'])
+            print(f"Launching command {self.shell_command!r}", flush=True)
+            proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.shell_command)
             code = await proc.wait()
-            print(f"Command {self.values['ShellCommand']!r} finished with exit code {code}", flush=True)
+            print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)

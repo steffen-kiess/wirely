@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-from dataclasses import replace
 import enum
 import sys
 import types
@@ -129,9 +128,7 @@ async def run_test():
         assert chip.request.closed
         assert chip.closed
 
-        output._context = replace(
-            output.context, values={**output.values, 'Name': 'missing'},
-        )
+        output.name = 'missing'
         async with asyncio.TaskGroup() as tasks, contextlib.AsyncExitStack() as stack:
             try:
                 await engine.start_tasks_async(tasks, stack)

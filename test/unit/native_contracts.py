@@ -1,7 +1,6 @@
 import sys
 import types
 from unittest import TestCase
-from unittest.mock import patch
 
 import wirely
 import wirely.compiler
@@ -9,7 +8,6 @@ from wirely import types as wirely_types
 from wirely.compiler import native_contracts
 from wirely.compiler.native_signatures import native_signatures
 from wirely.program import RunStage
-from wirely.runtime import signatures
 from wirely.runtime.native_api import (
     FunctionBinding, InterfaceBinding, PreparationServices, ProcedureServices, StateServices,
 )
@@ -33,8 +31,12 @@ def load_contracts(interfaces, resource_classes=None):
     sources = native_contracts.contract_sources(interfaces, resource_classes=resource_classes or {}, strict=False)
     assert list(sources) == ['test_library']
     module = types.ModuleType('test_contracts')
-    with patch.dict(sys.modules, {module.__name__: module}):
+    # Dataclasses look up their module while being created.
+    sys.modules[module.__name__] = module
+    try:
         exec(compile(sources['test_library'], '<test_contracts>', 'exec'), module.__dict__)
+    finally:
+        del sys.modules[module.__name__]
     return module
 
 

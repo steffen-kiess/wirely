@@ -4,12 +4,11 @@ Times from different generations are not comparable, so operations relating
 two times return None for them.
 """
 
-from collections.abc import Callable
-
 import wirely
-from wirely.functions import RuntimeFunctionContext, native_function
+from wirely.contracts import monotonic_time as contracts
+from wirely.functions import RegisteredFunction, native_function
 
-native_functions: dict[str, Callable[..., object]] = {}
+native_functions: dict[str, RegisteredFunction] = {}
 
 _MAX_TICKS = wirely.MonotonicTime.MAX_TICKS
 
@@ -23,48 +22,42 @@ def _saturating(time: wirely.MonotonicTime, duration: wirely.Duration, sign: int
     return wirely.MonotonicTime(generation=generation, ticks=min(max(ticks, 0), _MAX_TICKS))
 
 
-def _checked(time: wirely.MonotonicTime, duration: wirely.Duration, sign: int) -> wirely.Some | None:
+def _checked(time: wirely.MonotonicTime, duration: wirely.Duration, sign: int) -> wirely.Some[wirely.MonotonicTime] | None:
     generation, ticks = _offset(time, duration, sign)
     if 0 <= ticks <= _MAX_TICKS:
         return wirely.Some(wirely.MonotonicTime(generation=generation, ticks=ticks))
     return None
 
 
-@native_function(native_functions, 'SaturatingAdd')
-def saturating_add(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.SaturatingAdd)
+def saturating_add(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.MonotonicTime:
     return _saturating(time, duration, 1)
 
 
-@native_function(native_functions, 'SaturatingSub')
-def saturating_sub(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.SaturatingSub)
+def saturating_sub(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.MonotonicTime:
     return _saturating(time, duration, -1)
 
 
-@native_function(native_functions, 'CheckedAdd')
-def checked_add(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.CheckedAdd)
+def checked_add(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.Some[wirely.MonotonicTime] | None:
     return _checked(time, duration, 1)
 
 
-@native_function(native_functions, 'CheckedSub')
-def checked_sub(*, context: RuntimeFunctionContext) -> object:
-    time, duration = context.arguments
+@native_function(native_functions, contracts.CheckedSub)
+def checked_sub(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.Some[wirely.MonotonicTime] | None:
     return _checked(time, duration, -1)
 
 
-@native_function(native_functions, 'CheckedDurationSince')
-def checked_duration_since(*, context: RuntimeFunctionContext) -> object:
-    time, earlier = context.arguments
+@native_function(native_functions, contracts.CheckedDurationSince)
+def checked_duration_since(time: wirely.MonotonicTime, earlier: wirely.MonotonicTime) -> wirely.Some[wirely.Duration] | None:
     if time.generation != earlier.generation or earlier.ticks > time.ticks:
         return None
     return wirely.Some(wirely.Duration(ticks=time.ticks - earlier.ticks))
 
 
-@native_function(native_functions, 'CheckedLess')
-def checked_less(*, context: RuntimeFunctionContext) -> object:
-    a, b = context.arguments
+@native_function(native_functions, contracts.CheckedLess)
+def checked_less(a: wirely.MonotonicTime, b: wirely.MonotonicTime) -> wirely.Some[bool] | None:
     if a.generation != b.generation:
         return None
     return wirely.Some(a.ticks < b.ticks)

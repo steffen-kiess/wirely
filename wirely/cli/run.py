@@ -12,6 +12,7 @@ import wirely.misc.service
 
 # TODO: Where should this import be done?
 import wirely.compiler
+from wirely.native.std import DebugValueSource
 from wirely.runtime.engine import Engine
 
 
@@ -128,7 +129,7 @@ def main() -> None:
             assert isinstance(value_type, wirely.value_types.ValueType)
             ty = value_type._type
             native_inst = eng.native_states[node_id]
-            assert native_inst is not None
+            assert isinstance(native_inst, DebugValueSource)
             if ty == wirely.types.boolean:
                 native_inst.set_value(False)
             elif isinstance(ty, wirely.types.TypeOption):

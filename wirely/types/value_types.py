@@ -97,7 +97,7 @@ class EnumValue:
     value: int  # Underlying number, possibly unnamed for an open enum.
 
     def __post_init__(self) -> None:
-        self.type.underlying_type.validate(self.value)
+        self.type.underlying_type._validate(self.value)
         if not self.type.is_open and not 0 <= self.value < len(self.type.members):
             raise ValueError(f'Expected a member number of {self.type.name}, got {self.value!r}')
 
@@ -142,7 +142,7 @@ class StructType:
         values = tuple(values)
         if len(values) != len(self.fields):
             raise ValueError(f'Expected {len(self.fields)} field values for {self.name}, got {len(values)}')
-        return StructValue(self, tuple(field_type.validate(value)
+        return StructValue(self, tuple(field_type._validate(value)
                                        for (_, field_type), value in zip(self.fields, values)))
 
     def from_native(self, value: object) -> 'StructValue':
@@ -243,7 +243,8 @@ class ValueType(Generic[N]):
     def __repr__(self) -> str:
         return f'ValueType({self})'
 
-    def validate(self, value: Any) -> Any:
+    def _validate(self, value: Any) -> Any:
+        """Normalize a value in the representation of compile-time functions."""
         try:
             value = self._type.verify_value(_from_native(self._type, value))
             return _to_native(self._type, value)
@@ -264,52 +265,31 @@ class ValueType(Generic[N]):
             raise ValueError(f'{self} is not an enum type')
         return self._type.enum_type
 
-    def parse(self, text: str) -> Any:
+    def parse(self, text: str) -> DynamicValue:
+        """Parse a value in the text format."""
         try:
-            return _to_native(self._type, self._type.parse(text))
+            value = self._type.parse(text)
         except Exception as error:
             raise ValueError(str(error)) from error
-
-    def to_text(self, value: Any) -> str:
-        try:
-            return self._type.to_text(_from_native(self._type, value))
-        except Exception as error:
-            raise ValueError(str(error)) from error
+        return DynamicValue._make(self._type, value)
 
     @property
     def supports_json(self) -> bool:
         return getattr(self._type, 'is_json_serializable', False)
 
-    def json_encode(self, value: Any, format: str | None = None) -> Any:
+    def json_decode(self, value: Any, format: str | None = None) -> DynamicValue:
+        """Convert a JSON-compatible Python value."""
         if not self.supports_json:
             raise ValueError(f'{self} does not support JSON conversion')
         try:
-            value = self._type.verify_value(_from_native(self._type, value))
-            return self._type.json_encode(value, format)
+            value = self._type.json_decode(value, format)
         except Exception as error:
             raise ValueError(str(error)) from error
-
-    def json_decode(self, value: Any, format: str | None = None) -> Any:
-        if not self.supports_json:
-            raise ValueError(f'{self} does not support JSON conversion')
-        try:
-            value = self._type.verify_value(self._type.json_decode(value, format))
-            return _to_native(self._type, value)
-        except Exception as error:
-            raise ValueError(str(error)) from error
+        return DynamicValue._make(self._type, value)
 
     @property
     def supports_csv(self) -> bool:
         return getattr(self._type, 'has_to_csv_value', False)
-
-    def to_csv_value(self, value: Any) -> tuple[str, bool]:
-        if not self.supports_csv:
-            raise ValueError(f'{self} does not support CSV conversion')
-        try:
-            value = self._type.verify_value(_from_native(self._type, value))
-            return self._type.to_csv_value(value)
-        except Exception as error:
-            raise ValueError(str(error)) from error
 
 
 class DynamicValue:

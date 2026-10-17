@@ -2,8 +2,8 @@ import wirely
 
 
 def make(struct_type, **fields):
-    """Return the StructValue with these fields by name."""
-    return struct_type.make(tuple(fields[name] for name, _ in struct_type.fields))
+    """Return the value of a struct type with these fields by name."""
+    return tuple(fields[name] for name in struct_type.fields)
 
 
 def check_equality():
@@ -15,9 +15,8 @@ def check_equality():
     next_instant = wirely.MonotonicTime(generation=1, ticks=101)
     other_generation = wirely.MonotonicTime(generation=2, ticks=100)
     default = wirely.MonotonicTime(generation=0, ticks=0)
-    packet_type = wirely.ValueType(engine.get_variable('packet_left').var_type).struct_type
-    nested_type = wirely.ValueType(engine.get_variable('nested_left').var_type.inner_type).struct_type
-    empty_type = wirely.ValueType(engine.get_variable('empty_left').var_type).struct_type
+    packet_type = engine.get_variable('packet_left').var_type
+    nested_type = engine.get_variable('nested_left').var_type.inner_type
 
     def packet(**changes):
         return make(packet_type, **{'flag': True, 'at': at, 'span': span, 'instant': instant, **changes})
@@ -52,7 +51,7 @@ def check_equality():
                    (nested_value, nested(None, wirely.Some(None)), False),
                    (nested_value, nested(wirely.Some(value), None), False),
                    (nested_value, nested(wirely.Some(packet(instant=default)), wirely.Some(None)), False)],
-        'empty': [(empty_type.make(()), empty_type.make(()), True)],
+        'empty': [((), (), True)],
     }
 
     # Initialize every source so the shared engine can run all comparators.

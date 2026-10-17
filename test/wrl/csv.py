@@ -69,8 +69,8 @@ async def check_repeat_boundaries(filename):
 
 
 async def run_test():
-    fn = engine.get_native_state('test_value_writer').values['Filename']
-    fn2 = engine.get_native_state('test_option_value_writer').values['Filename']
+    fn = engine.get_native_state('test_value_writer').filename
+    fn2 = engine.get_native_state('test_option_value_writer').filename
 
     # TODO: Move some of this code to test infrastructure
     async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:

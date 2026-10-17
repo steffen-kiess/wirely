@@ -1,31 +1,38 @@
 import asyncio
 import contextlib
+import enum
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
+from wirely.contracts import gpio as contracts
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 from wirely.runtime.enums import GPIOActiveState, GPIOBias, GPIODrive
+from wirely.runtime.native_api import ProcedureServices, StateServices
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
 
 
-def _setting(value: Any, mapping: Mapping[Any, Any], description: str) -> Any:
-    native = value.native
-    if native not in mapping:
-        raise ValueError(f'Unsupported GPIO {description} {value.value}')
-    return mapping[native]
+def _setting(value: enum.IntEnum, mapping: Mapping[Any, Any], description: str) -> Any:
+    if value not in mapping:
+        raise ValueError(f'Unsupported GPIO {description} {int(value)}')
+    return mapping[value]
 
 
 @native_resource_type(native_resource_types, 'OutputState')
 @native_node_type(native_node_types, has_native_state=True)
-class Output(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class Output(contracts.OutputInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], chip_device_file: str, name: str,
+                   active_state: GPIOActiveState, drive: GPIODrive,
+                   bias: GPIOBias) -> contracts.OutputInitializerResult:
+        self.chip_device_file = chip_device_file
+        self.name = name
+        self.active_state = active_state
+        self.drive = drive
+        self.bias = bias
         self.gpio_request: Any = None  # A gpiod LineRequest once started.
         self.direction_set = False
+        return contracts.OutputInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -39,33 +46,32 @@ class Output(NativeState):
             GPIOBias.PullDown: Bias.PULL_DOWN,
             GPIOBias.PullUp: Bias.PULL_UP,
         }
-        chip = async_exit_stack.enter_context(gpiod.Chip(self.values['ChipDeviceFile']))
+        chip = async_exit_stack.enter_context(gpiod.Chip(self.chip_device_file))
         try:
-            line_info = chip.get_line_info(self.values['Name'])
-            if line_info.name != self.values['Name']:
+            line_info = chip.get_line_info(self.name)
+            if line_info.name != self.name:
                 raise ValueError('Line name does not match')
             self.gpio_offset = line_info.offset
         except (OSError, ValueError) as exc:
             raise ValueError(
-                f"Cannot find GPIO {self.values['Name']!r} on chip "
-                f"{self.values['ChipDeviceFile']!r}"
+                f"Cannot find GPIO {self.name!r} on chip "
+                f"{self.chip_device_file!r}"
             ) from exc
         self.gpio_request = async_exit_stack.enter_context(chip.request_lines(
             config={self.gpio_offset: gpiod.LineSettings(
-                direction=Direction.INPUT, bias=_setting(self.values['Bias'], bias, 'bias'))},
+                direction=Direction.INPUT, bias=_setting(self.bias, bias, 'bias'))},
             consumer='Wirely',
         ))
         self.direction_set = False
 
     @native_procedure('set_value')
-    class SetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class SetValue(contracts.OutputSetValue):
+        def run(self, *, services: ProcedureServices, state: 'Output',
+                input: bool) -> contracts.OutputSetValueResult:
             import gpiod
             from gpiod.line import Bias, Direction, Drive, Value
 
-            value = context.inputs['input']
-            logical_value = Value.ACTIVE if value else Value.INACTIVE
+            logical_value = Value.ACTIVE if input else Value.INACTIVE
 
             if not state.direction_set:
                 bias = {
@@ -83,12 +89,13 @@ class Output(NativeState):
                     state.gpio_offset: gpiod.LineSettings(
                         direction=Direction.OUTPUT,
                         output_value=logical_value,
-                        active_low=_setting(state.values['ActiveState'],
+                        active_low=_setting(state.active_state,
                                             {GPIOActiveState.High: False, GPIOActiveState.Low: True}, 'active state'),
-                        drive=_setting(state.values['Drive'], drive, 'drive'),
-                        bias=_setting(state.values['Bias'], bias, 'bias'),
+                        drive=_setting(state.drive, drive, 'drive'),
+                        bias=_setting(state.bias, bias, 'bias'),
                     ),
                 })
                 state.direction_set = True
             else:
                 state.gpio_request.set_value(state.gpio_offset, logical_value)
+            return contracts.OutputSetValueResult()

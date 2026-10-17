@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from wirely.util import check_parameters
 
 if TYPE_CHECKING:
-    from wirely.runtime.contexts import ProcedureLoadContext
+    from wirely.types.value_types import ValueType
 
 C = TypeVar('C', bound=type)
 
@@ -51,11 +51,10 @@ def find_native_procedure(native_class: type, name: str) -> type | None:
     return None
 
 
-def check_state_type(context: 'ProcedureLoadContext', state: Any, name: str = 'Type') -> None:
-    """Raise ValueError unless a procedure's ValueType matches its native state's; call it at load time."""
-    if context.values[name] != state.values[name]:
-        raise ValueError(f'{context.name}: procedure type {context.values[name]} does not match '
-                         f'state type {state.values[name]}')
+def check_state_type(name: str, procedure_type: 'ValueType[Any]', state_type: 'ValueType[Any]') -> None:
+    """Raise ValueError unless a procedure's ValueType matches its native state's; call it in prepare()."""
+    if procedure_type != state_type:
+        raise ValueError(f'{name}: procedure type {procedure_type} does not match state type {state_type}')
 
 
 @check_parameters

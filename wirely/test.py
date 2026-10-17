@@ -16,6 +16,9 @@ import pwd
 import shlex
 import signal
 import argparse
+import dataclasses
+import itertools
+import types
 from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import AsyncIterator, Callable, Iterable, Iterator, Mapping, Sequence
@@ -442,24 +445,49 @@ def compile_negative_test(fn: str, *, verbose: bool = True) -> None:
         print(f'Compiling negative test {fn} done')
 
 
-def test_signatures(graph: object) -> contextlib.ExitStack:
-    """Register signatures of a program's TestLibrary native code, derived from its declarations."""
+_test_contract_modules = itertools.count()
+
+
+@contextlib.contextmanager
+def test_contracts(graph: object) -> Iterator[types.ModuleType]:
+    """Register the signatures and contracts of a program's TestLibrary native interfaces.
+
+    Interfaces declared like in wirely/native/test_library.wrl keep their generated contracts.
+    Contracts of the others are generated into the returned module, which exists while the
+    context is active; implementations derive from its classes.
+    """
     from unittest.mock import patch
+    from wirely.compiler import native_contracts
     from wirely.compiler.native_signatures import native_signatures
     from wirely.runtime import native_interfaces
 
-    stack = contextlib.ExitStack()
-    tables = (native_interfaces.native_state_types, native_interfaces.native_procedures,
-              native_interfaces.native_functions)
+    tables: tuple[dict[str, Any], ...] = (native_interfaces.native_state_types, native_interfaces.native_procedures,
+                                          native_interfaces.native_functions)
     # Some tests supply graph stand-ins with the same interface.
-    for table, entries in zip(tables, native_signatures(cast(model.Scope, graph), 'TestLibrary')):
-        stack.enter_context(patch.dict(table, entries))
-    return stack
+    declared = native_signatures(cast(model.Scope, graph), 'TestLibrary')
+    generated = [{name: entry for name, entry in cast(Mapping[str, Any], entries).items() if table.get(name) != entry}
+                 for table, entries in zip(tables, declared)]
+    module = types.ModuleType(f'_wirely_test_contracts_{next(_test_contract_modules)}')
+    interfaces = cast(native_contracts.Interfaces, tuple(generated))
+    sources = native_contracts.contract_sources(
+        interfaces, resource_classes=native_contracts.resource_classes(), strict=False)
+    located = native_contracts.with_contracts(interfaces)
+    with contextlib.ExitStack() as stack:
+        # Patching sys.modules as a whole would also remove modules imported meanwhile.
+        sys.modules[module.__name__] = module
+        stack.callback(sys.modules.pop, module.__name__, None)
+        for source in sources.values():
+            exec(compile(source, f'<{module.__name__}>', 'exec'), module.__dict__)
+        for table, located_entries in zip(tables, located):
+            stack.enter_context(patch.dict(table, {
+                name: dataclasses.replace(entry, contract=module.__name__ + ':' + entry.contract.partition(':')[2])
+                for name, entry in cast(Mapping[str, Any], located_entries).items()}))
+        yield module
 
 
 def test_engine(program: Program, graph: object = None) -> Engine:
     """Create an Engine for a program whose TestLibrary native code is declared in graph or program.graph."""
-    with test_signatures(program.graph if graph is None else graph):
+    with test_contracts(program.graph if graph is None else graph):
         return Engine(program)
 
 
@@ -471,7 +499,7 @@ def compile_test(fn: str) -> None:
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    with test_signatures(prog.graph):
+    with test_contracts(prog.graph):
         eng = Engine(prog)
 
     print(f'Compiling {fn} done')
@@ -732,7 +760,7 @@ async def run_runtime_test(test_name: str) -> None:
             print('Test requires KNX')
 
         async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(resources.twon_server) as twon_info:
-            with test_signatures(prog.graph):
+            with test_contracts(prog.graph):
                 eng = Engine(prog)
 
             # TODO: Pass this information differently?

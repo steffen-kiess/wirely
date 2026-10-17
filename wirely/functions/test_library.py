@@ -1,25 +1,23 @@
 """Native functions used by tests."""
 
-from collections.abc import Callable
-
 import wirely
-from wirely.functions import RuntimeFunctionContext, native_function
+from wirely.contracts import test_library as contracts
+from wirely.functions import RegisteredFunction, native_function
 
-native_functions: dict[str, Callable[..., object]] = {}
+native_functions: dict[str, RegisteredFunction] = {}
 
 
-@native_function(native_functions, 'Clamp')
-def clamp(*, context: RuntimeFunctionContext) -> object:
-    value, low, high = context.arguments
+@native_function(native_functions, contracts.Clamp)
+def clamp(value: wirely.Int16, low: wirely.Int16, high: wirely.Int16) -> wirely.Int16:
     return min(max(value, low), high)
 
 
-@native_function(native_functions, 'Nothing')
-def nothing(*, context: RuntimeFunctionContext) -> object:
+@native_function(native_functions, contracts.Nothing)
+def nothing() -> wirely.Unit:
     return wirely.Unit()
 
 
 # Violates the contract on purpose, to test how failures are reported.
-@native_function(native_functions, 'Fail')
-def fail(*, context: RuntimeFunctionContext) -> object:
+@native_function(native_functions, contracts.Fail)
+def fail() -> bool:
     raise RuntimeError('Fail always fails')

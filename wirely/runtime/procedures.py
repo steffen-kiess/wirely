@@ -4,20 +4,22 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind, Procedure, Program
-from ..functions import call_native_function
-from ..types import Some, convert
-from ..types.value_types import _from_native, _to_native
+from ..types import InternalValue, Some, convert
+
+NativeFunction = Callable[[Sequence[InternalValue]], InternalValue]
 
 
-def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[object],
-                      functions: Sequence[Callable[..., object]] = ()) -> dict[str, object]:
-    """Run a bytecode procedure; functions are the linked implementations of program.functions."""
+def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[InternalValue],
+                      functions: Sequence[NativeFunction] = ()) -> dict[str, InternalValue]:
+    """Run a bytecode procedure on internal values.
+
+    functions call the linked implementations of program.functions."""
     body = procedure.body
     assert body is not None
     input_types = tuple(source.value_type for _, source in procedure.dependencies)
     output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     values = {
-        OperandKind.INPUT: [_from_native(value_type, value) for value_type, value in zip(input_types, inputs)],
+        OperandKind.INPUT: list(inputs),
         OperandKind.OUTPUT: [value_type.default_value() for value_type in output_types],
         OperandKind.LOCAL: [value_type.default_value() for value_type in body.local_types],
     }
@@ -84,12 +86,8 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[o
                 left, right = read(operands[1]), read(operands[2])
                 result = value_type(operands[1]).equals(left, right)
             elif opcode == Opcode.CALL:
-                function = program.functions[operands[1]]
                 # Implementations must not fail; an exception is a library error.
-                result = call_native_function(
-                    functions[operands[1]], function.name,
-                    function.parameter_types, function.return_type,
-                    [read(argument) for argument in operands[3:]])
+                result = functions[operands[1]]([read(argument) for argument in operands[3:]])
             elif opcode in CONVERSION_OPCODES:
                 target_type = value_type(destination)
                 if CONVERSION_OPCODES[opcode] == 'checked':
@@ -104,5 +102,4 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[o
                 result = value_type(operands[1]).less(left, right)
             values[destination.kind][destination.index] = result
         index += 1
-    return {name: _to_native(value_type, value)
-            for name, value_type, value in zip(procedure.outputs, output_types, values[OperandKind.OUTPUT])}
+    return dict(zip(procedure.outputs, values[OperandKind.OUTPUT]))

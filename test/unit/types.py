@@ -13,52 +13,56 @@ checks = TestCase()
 
 
 def check_parsing_and_conversions():
+    boolean = wirely.value_types.boolean
     for text, expected in [('0', False), ('false', False), ('tRUE', True)]:
-        assert wirely.value_types.boolean.parse(text) is expected
+        assert boolean.parse(text).extract(boolean) is expected
     for value in (False, True):
-        descriptor = wirely.value_types.boolean
-        assert descriptor.json_decode(descriptor.json_encode(value)) is value
-        assert descriptor.to_csv_value(value) == (str(value).lower(), False)
+        dynamic = boolean.from_native(value)
+        assert boolean.json_decode(dynamic.json_encode()) == dynamic
+        assert dynamic.to_csv_value() == (str(value).lower(), False)
     with checks.assertRaises(ValueError):
-        wirely.value_types.boolean.parse('2')
+        boolean.parse('2')
 
     for signed in (False, True):
         for bits in (8, 16, 32, 64, 128):
             descriptor = getattr(wirely.value_types, ('int' if signed else 'uint') + str(bits))
+            integer = wirely.types.integers.integer_class(bits, signed)
             minimum = -(2 ** (bits - 1)) if signed else 0
             maximum = 2 ** (bits - (1 if signed else 0)) - 1
             for value in (minimum, 0, maximum):
-                assert descriptor.parse(str(value)) == value
-                assert descriptor.json_decode(descriptor.json_encode(value)) == value
-                assert descriptor.to_csv_value(value) == (str(value), False)
+                dynamic = descriptor.from_native(integer(value))
+                assert descriptor.parse(str(value)) == dynamic
+                assert descriptor.json_decode(dynamic.json_encode()) == dynamic
+                assert dynamic.json_encode() == value
+                assert dynamic.to_csv_value() == (str(value), False)
             for text in (str(minimum - 1), str(maximum + 1), 'false'):
                 with checks.assertRaises(ValueError):
                     descriptor.parse(text)
             # Integers are checked against their type's range; booleans are not integers.
             internal = getattr(wirely.types, ('int' if signed else 'uint') + str(bits))
             for value in (minimum, maximum):
-                assert internal.verify_value(value) == value and descriptor.validate(value) == value
+                assert internal.verify_value(value) == value
             for value in (minimum - 1, maximum + 1, True):
-                for check in (internal.verify_value, descriptor.validate):
+                for check in (internal.verify_value, descriptor.json_decode):
                     with checks.assertRaises(ValueError):
                         check(value)
     integer = wirely.value_types.uint16
-    for operation in (lambda: integer.json_encode('invalid'),
-                      lambda: integer.json_decode('invalid'),
-                      lambda: integer.to_csv_value('invalid'),
-                      lambda: integer.json_encode(42, 'invalid'),
+    for operation in (lambda: integer.json_decode('invalid'),
+                      lambda: integer.from_native(wirely.UInt16(42)).json_encode('invalid'),
                       lambda: integer.json_decode(42, 'invalid')):
         with checks.assertRaises(ValueError):
             operation()
-    assert wirely.value_types.string.json_decode('hello') == 'hello'
-    assert wirely.value_types.string.json_encode('hello') == 'hello'
-    assert wirely.value_types.time_of_day.parse('11:17') == wirely.TimeOfDay.from_parts(11, 17)
+    string = wirely.value_types.string
+    assert string.json_decode('hello').extract(string) == 'hello'
+    assert string.from_native('hello').json_encode() == 'hello'
+    time_of_day = wirely.value_types.time_of_day
+    assert time_of_day.parse('11:17').extract(time_of_day) == wirely.TimeOfDay.from_parts(11, 17)
     # Fractions round to the nearest 2**-64 s; times before 24:00 stay before it.
     last = wirely.TimeOfDay(ticks=wirely.TimeOfDay.END_TICKS - 1)
     assert wirely.TimeOfDay.parse('23:59:59.99999999999999999999') == last
     assert str(last) == '23:59:59.99999999999999999995'
     assert wirely.TimeOfDay.parse('00:00:01.1') == wirely.TimeOfDay.from_parts(0, 0, 1, 1_844_674_407_370_955_162)
-    assert wirely.value_types.unit.parse('()') == wirely.Unit()
+    assert wirely.value_types.unit.parse('()').extract(wirely.value_types.unit) == wirely.Unit()
     for descriptor, text in [(wirely.value_types.unit, '0'),
                              (wirely.value_types.time_of_day, '123')]:
         with checks.assertRaises(ValueError):
@@ -67,11 +71,10 @@ def check_parsing_and_conversions():
     descriptor = wirely.ValueType(wirely.types.TypeEnum(
         'Mode', {'Cool': 3, 'EmergencyHeat': 5}, is_open=True, underlying_type=wirely.types.uint8,
     ))
-    mode = descriptor.enum_type
-    cool = mode.from_name('Cool')
-    assert descriptor.parse('Cool') == cool
-    assert descriptor.json_encode(cool) == 'Cool'
-    assert descriptor.json_encode(mode.from_value(5), 'SnakeCase') == 'emergency_heat'
+    cool = descriptor.parse('Cool')
+    assert cool.to_text() == 'Mode.Cool'
+    assert cool.json_encode() == 'Cool'
+    assert descriptor.parse('EmergencyHeat').json_encode('SnakeCase') == 'emergency_heat'
     assert descriptor.json_decode('Cool') == cool
     for text in ('NotCool', 'cool', 'Mode.Cool'):
         with checks.assertRaises(ValueError):
@@ -79,7 +82,7 @@ def check_parsing_and_conversions():
 
 
 def check_enum_values():
-    # Native code gets EnumValues: a member number and its EnumType.
+    # Compile-time functions get EnumValues: a member number and its EnumType.
     descriptor = wirely.ValueType(wirely.types.TypeEnum(
         'Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8,
     ))
@@ -104,10 +107,6 @@ def check_enum_values():
         'Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8,
     ))
     assert cool != other.enum_type.from_value(3)
-    for value in (3, other.enum_type.from_value(3)):
-        with checks.assertRaisesRegex(ValueError, 'Expected an EnumValue of Mode'):
-            descriptor.validate(value)
-    assert descriptor.validate(cool) == cool
     with checks.assertRaisesRegex(ValueError, 'is not an enum type'):
         wirely.value_types.uint8.enum_type
 
@@ -191,12 +190,11 @@ def check_open_and_closed_enums():
             assert descriptor.enum_type.is_open
             for number in (underlying.min_value, 0, underlying.max_value):
                 value = descriptor.enum_type.from_value(number)
-                assert descriptor.validate(value) == value
-                assert descriptor.to_text(value) == str(number)
-                assert descriptor.parse(str(number)) == value
-                assert descriptor.json_encode(value) == number
-                assert descriptor.json_encode(value, 'SnakeCase') == number
-                assert descriptor.json_decode(number) == value
+                dynamic = descriptor.parse(str(number))
+                assert dynamic.to_text() == str(number)
+                assert dynamic.json_encode() == number
+                assert dynamic.json_encode('SnakeCase') == number
+                assert descriptor.json_decode(number) == dynamic
                 assert repr(value) == f'EnumValue(Open({number}))'
                 with checks.assertRaises(ValueError):
                     _ = value.name
@@ -212,7 +210,7 @@ def check_open_and_closed_enums():
     nested_type = types.TypeStruct('Packet', {'mode': types.TypeOption(opened)})
     nested = wirely.ValueType(nested_type)
     value = nested.struct_type.make((wirely.Some(opened.enum_type.from_value(255)),))
-    assert nested.validate(value) == value
+    assert nested.struct_type.make(value.values) == value
 
 
 
@@ -224,46 +222,41 @@ def check_descriptors_and_lists():
     assert len({first, second, wirely.value_types.uint16}) == 2
     assert str(first) == 'Option[List[uint16]]'
     assert not first.supports_json and not first.supports_csv
-    assert first.validate(wirely.Some([1, 7])) == wirely.Some((1, 7))
-    assert first.validate(None) is None
-    for value in ([7], wirely.Some(['invalid']), wirely.Some([True, 7]), wirely.Some([70000])):
+    number = wirely.UInt16
+    assert first.from_native(wirely.Some((number(1), number(7)))).extract(first) == wirely.Some((number(1), number(7)))
+    assert first.from_native(None).extract(first) is None
+    for value in ((number(7),), wirely.Some([number(1)]), wirely.Some(('invalid',)),
+                  wirely.Some((True, number(7))), wirely.Some((7,))):
         with checks.assertRaises(ValueError):
-            first.validate(value)
-    for operation in (lambda: first.json_encode(None),
+            first.from_native(value)
+    for operation in (lambda: first.from_native(None).json_encode(),
                       lambda: first.json_decode(None),
-                      lambda: first.to_csv_value(None), lambda: first.parse('7')):
+                      lambda: first.from_native(None).to_csv_value(), lambda: first.parse('7')):
         with checks.assertRaises(ValueError):
             operation()
 
     nested = wirely.ValueType(wirely.types.TypeList(list_type))
-    supplied = [[1, 2], [3]]
-    normalized = nested.validate(supplied)
-    supplied[0].append(4)
-    assert normalized == ((1, 2), (3,))
-    with checks.assertRaises(TypeError):
-        normalized[0][0] = 7
-    for invalid in ('12', {1, 2}, iter([1, 2]), ['invalid']):
+    native = ((number(1), number(2)), (number(3),))
+    assert nested.from_native(native).extract(nested) == native
+    for invalid in ('12', {1, 2}, iter([1, 2]), [number(1)], ('invalid',)):
         with checks.assertRaises(ValueError):
-            wirely.ValueType(list_type).validate(invalid)
+            wirely.ValueType(list_type).from_native(invalid)
 
     optional = wirely.ValueType(wirely.types.TypeOption(wirely.types.uint16))
-    assert optional.parse('none') is None
-    assert optional.parse('7') == wirely.Some(7)
+    assert optional.parse('none').extract(optional) is None
+    assert optional.parse('7').extract(optional) == wirely.Some(number(7))
     assert optional.supports_csv
-    assert optional.to_csv_value(None) == ('', False)
-    assert optional.to_csv_value(wirely.Some(7)) == ('7', False)
-    with checks.assertRaises(ValueError):
-        optional.to_csv_value(wirely.Some('invalid'))
+    assert optional.from_native(None).to_csv_value() == ('', False)
+    assert optional.parse('7').to_csv_value() == ('7', False)
     values = wirely.ValueType(wirely.types.TypeList(wirely.types.TypeOption(wirely.types.ValueType)))
-    supplied = [wirely.Some(wirely.value_types.uint16), None]
-    validated = values.validate(supplied)
-    supplied.append(wirely.Some(wirely.value_types.uint8))
-    assert validated == (wirely.Some(wirely.value_types.uint16), None)
+    supplied = (wirely.Some(wirely.value_types.uint16), None)
+    assert values.from_native(supplied).extract(values) == supplied
     with checks.assertRaises(ValueError):
-        values.validate([wirely.Some(wirely.types.uint16)])
+        values.from_native((wirely.Some(wirely.types.uint16),))
+    value_type = wirely.value_types.value_type
     with checks.assertRaises(ValueError):
-        wirely.value_types.value_type.validate(wirely.types.uint16)
-    assert wirely.value_types.value_type.validate(wirely.value_types.uint16) == wirely.value_types.uint16
+        value_type.from_native(wirely.types.uint16)
+    assert value_type.from_native(wirely.value_types.uint16).extract(value_type) == wirely.value_types.uint16
 
 
 def check_integers():
@@ -360,9 +353,9 @@ def check_unit():
         unit.value = True
     for invalid in (None, (), False, wirely.Some(unit)):
         with checks.assertRaises(ValueError):
-            wirely.value_types.unit.validate(invalid)
+            wirely.value_types.unit.from_native(invalid)
     with checks.assertRaises(ValueError):
-        wirely.value_types.unit.json_encode(unit)
+        wirely.value_types.unit.from_native(unit).json_encode()
 
 
 def check_times():
@@ -470,17 +463,15 @@ def check_to_text():
         duration = wirely.Duration(ticks=ticks)
         assert types.Duration.to_text(duration) == text, duration.to_iso()
         assert wirely.Duration.parse(text) == duration
-    # Descriptors format native values, including StructValues and EnumValues.
-    heat = wirely.ValueType(mode).enum_type.from_name('Heat')
-    value = wirely.Some(wirely.ValueType(reading).struct_type.make((heat, 3)))
-    text = wirely.ValueType(types.TypeOption(reading)).to_text(value)
-    assert text == 'Some(Example.Reading { mode: Example.Mode.Heat, level: 3 })', text
+    # DynamicValues format the same way.
+    optional = wirely.value_types.option(wirely.value_types.uint8)
+    assert optional.from_native(wirely.Some(wirely.UInt8(3))).to_text() == 'Some(3)'
     with checks.assertRaises(ValueError):
-        wirely.value_types.uint8.to_text(256)
+        wirely.value_types.uint8.from_native(256)
 
 
 def check_structs():
-    # Native code gets StructValues: field values by ordinal and their StructType.
+    # Compile-time functions get StructValues: field values by ordinal and their StructType.
     packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean, 'count': wirely.types.uint8})
     descriptor = wirely.ValueType(packet_type)
     packet_struct = descriptor.struct_type
@@ -505,10 +496,6 @@ def check_structs():
     # Values of another struct type with the same fields are different.
     other = wirely.ValueType(wirely.types.TypeStruct('Packet', dict(packet_type.fields))).struct_type
     assert packet != other.make((True, 7))
-    for value in (other.make((True, 7)), (True, 7), {'flag': True, 'count': 7}):
-        with checks.assertRaisesRegex(ValueError, 'Expected a StructValue of Packet'):
-            descriptor.validate(value)
-    assert descriptor.validate(packet) == packet
 
     settings_type = wirely.types.TypeStruct('Settings', {
         'text': wirely.types.String,
@@ -520,7 +507,6 @@ def check_structs():
     settings = settings_descriptor.struct_type.make(('hello', items, packet, wirely.value_types.uint8))
     items.append(None)
     assert settings.values == ('hello', (wirely.Some(packet), None), packet, wirely.value_types.uint8)
-    assert settings_descriptor.validate(settings) == settings
     assert not settings_descriptor.supports_json and not settings_descriptor.supports_csv
     with checks.assertRaises(ValueError):
         settings_descriptor.parse('{}')

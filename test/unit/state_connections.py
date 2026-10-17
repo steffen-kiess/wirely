@@ -2,50 +2,80 @@ from collections import Counter
 from pathlib import Path
 from unittest.mock import patch
 
+import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
 from wirely.native import native_node_type, native_procedure
-from wirely.runtime.contexts import NativeProcedure
-from wirely.test import test_engine
+from wirely.runtime.engine import Engine
+from wirely.test import test_contracts
 
 
-registry = {}
 calls = Counter()
 observations = {}
 
 
-@native_node_type(registry, has_native_state=False)
-class Owner:
-    @native_procedure('write')
-    class Write(NativeProcedure):
-        def __call__(self, *, context):
-            context.set_output('saved', context.inputs['input'])
+def implementations(contracts):
+    """Return the native classes of the TestLibrary node types that a program declares."""
+    registry = {}
 
+    def define(name, procedures):
+        procedures = {procedure: implementation for procedure, implementation in procedures.items()
+                      if hasattr(contracts, name + procedure.title())}
+        if procedures:
+            native_node_type(registry, has_native_state=False)(type(name, (), {
+                procedure.title(): native_procedure(procedure)(implementation(getattr(contracts, name + procedure.title())))
+                for procedure, implementation in procedures.items()}))
 
-@native_node_type(registry, has_native_state=False)
-class Forward:
-    @native_procedure('run')
-    class Run(NativeProcedure):
-        def __call__(self, *, context):
-            calls[context.name] += 1
-            context.set_output('output', context.inputs['input'])
+    def forward(contract):
+        class Run(contract):
+            def prepare(self, *, services, type):
+                pass
 
+            def run(self, *, services, input):
+                calls[services.name] += 1
+                return getattr(contracts, contract.__name__ + 'Result')(output=input)
+        return Run
 
-@native_node_type(registry, has_native_state=False)
-class Feedback:
-    @native_procedure('advance')
-    class Advance(NativeProcedure):
-        def __call__(self, *, context):
-            context.set_output('saved', min(context.inputs['input'] + 1, 2))
+    def write(counted):
+        def make(contract):
+            class Write(contract):
+                def prepare(self, *, services, type):
+                    pass
 
+                def run(self, *, services, input):
+                    if counted:
+                        calls[services.name + '.write'] += 1
+                    return getattr(contracts, contract.__name__ + 'Result')(saved=input)
+            return Write
+        return make
 
-@native_node_type(registry, has_native_state=False)
-class Shared:
-    @native_procedure('advance')
-    class Advance(NativeProcedure):
-        def __call__(self, *, context):
-            context.set_output('saved', min(context.inputs['old'] + 1, 2))
+    def advance(key):
+        def make(contract):
+            class Advance(contract):
+                def run(self, *, services, **inputs):
+                    saved = wirely.UInt8(min(inputs[key].value + 1, 2))
+                    return getattr(contracts, contract.__name__ + 'Result')(saved=saved)
+            return Advance
+        return make
+
+    def observe(contract):
+        class Observe(contract):
+            def prepare(self, *, services, type):
+                pass
+
+            def run(self, *, services, previous, current):
+                observations[services.name] = tuple(value.extract(wirely.value_types.uint8).value
+                                                    for value in (previous, current))
+                return getattr(contracts, contract.__name__ + 'Result')(output=True)
+        return Observe
+
+    define('Owner', {'write': write(False)})
+    define('Forward', {'run': forward})
+    define('Feedback', {'advance': advance('input')})
+    define('Shared', {'advance': advance('old')})
+    define('Current', {'write': write(True), 'observe': observe})
+    return registry
 
 
 definitions = '''
@@ -130,11 +160,10 @@ std_source = Path('wirely/lib/std.wrl').read_text()
 
 
 def compile_graph(source):
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
-        return wirely.compiler.compile_strs([
-            ('wirely/lib/std.wrl', std_source),
-            ('<state-connections>', source),
-        ])
+    return wirely.compiler.compile_strs([
+        ('wirely/lib/std.wrl', std_source),
+        ('<state-connections>', source),
+    ])
 
 
 def make_engine(source, *, declarations=definitions):
@@ -142,8 +171,9 @@ def make_engine(source, *, declarations=definitions):
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
-    with patch.dict(wirely.native.test_library.native_node_types, registry):
-        return test_engine(program)
+    with test_contracts(graph) as contracts, \
+            patch.dict(wirely.native.test_library.native_node_types, implementations(contracts)):
+        return Engine(program)
 
 
 def check_old_snapshots():
@@ -239,21 +269,6 @@ def check_old_snapshots():
     nested.assert_value_is('second', 9)
     nested.assert_value_is('first.owner.reader', 8)
     nested.assert_value_is('second.owner.reader', 9)
-
-
-@native_node_type(registry, has_native_state=False)
-class Current(Owner):
-    @native_procedure('write')
-    class Write(Owner.Write):
-        def __call__(self, *, context):
-            calls[context.name + '.write'] += 1
-            super().__call__(context=context)
-
-    @native_procedure('observe')
-    class Observe(NativeProcedure):
-        def __call__(self, *, context):
-            observations[context.name] = (context.inputs['previous'], context.inputs['current'])
-            context.set_output('output', True)
 
 
 current_definitions = definitions + '''

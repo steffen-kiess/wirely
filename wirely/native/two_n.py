@@ -2,11 +2,14 @@ import asyncio
 import sys
 import json
 import contextlib
-from typing import Any
+from typing import Any, Literal
 
 import wirely
+from wirely import Int32, Some, UInt16
+from wirely.contracts import two_n as contracts
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
+from wirely.runtime.native_api import ProcedureServices, StateServices
+from wirely.runtime.structs import TwoNCredentials
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -14,24 +17,20 @@ native_resource_types: dict[str, type] = {}
 
 @native_resource_type(native_resource_types, 'Device')
 @native_node_type(native_node_types, has_native_state=True)
-class Connection(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('device', self)
-
+class Connection(contracts.ConnectionInitializer):
+    def initialize(self, *, services: StateServices[Literal['device']], host: str, port: UInt16,
+                   tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionInitializerResult:
         import wirely.two_n.client
 
         print('Create TwoN Connection', flush=True)
 
-        hostname = context.values['Host']
-        port = context.values['Port']
-        tlsa = context.values['TLSA']
-        credentials = context.values['credentials']
-        print(f'  Connecting to: {hostname!r}:{port}', flush=True)
+        hostname = host
+        print(f'  Connecting to: {hostname!r}:{port.value}', flush=True)
         print(f'  Using TLSA: {tlsa!r}', flush=True)
 
-        self.client = wirely.two_n.client.Client(hostname=hostname, port=port, tlsa=tlsa, http_api_username_password=(credentials.native.username, credentials.native.password))
+        self.client = wirely.two_n.client.Client(hostname=hostname, port=port.value, tlsa=tlsa, http_api_username_password=(credentials.username, credentials.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
+        return contracts.ConnectionInitializerResult(device=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -46,23 +45,24 @@ class Connection(NativeState):
 
 @native_resource_type(native_resource_types, 'KeyEventState')
 @native_node_type(native_node_types, has_native_state=True)
-class KeyEvent(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class KeyEvent(contracts.KeyEventInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+                   key: str) -> contracts.KeyEventInitializerResult:
+        self.key = key
 
         self.received_value: bool | None = None
 
         print('Create TwoN KeyEvent', flush=True)
 
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
-            print(f"  Key: {self.values['Key']!r}", flush=True)
+            print(f'  Key: {self.key!r}', flush=True)
 
-        self.native_device = context.inputs['Device'].object
+        self.native_device = device
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['KeyPressed', 'KeyReleased'], self.handler)
+        return contracts.KeyEventInitializerResult(state=self)
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -78,7 +78,7 @@ class KeyEvent(NativeState):
             print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['key'] != self.values['Key']:
+        if event['params']['key'] != self.key:
             return
 
         # Note: This will override older events which generally should not be a problem.
@@ -86,43 +86,42 @@ class KeyEvent(NativeState):
             print(f'Warning: TwoN.KeyEvent: Got event while old event is pending: {self.received_value} -> {new_value}', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('state')
+        self.services.trigger('state')
         self.received_value = new_value
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class GetValue(contracts.KeyEventGetValue):
+        def run(self, *, services: ProcedureServices, state: 'KeyEvent') -> contracts.KeyEventGetValueResult:
             value = state.received_value
             state.received_value = None
 
             if value is None:
-                context.set_output('output', None)
-            else:
-                context.set_output('output', wirely.Some(value))
-                # Trigger to set value to None again
-                context.trigger_self()
+                return contracts.KeyEventGetValueResult(output=None)
+            # Trigger to set value to None again
+            services.trigger_self()
+            return contracts.KeyEventGetValueResult(output=wirely.Some(value))
 
 
 @native_resource_type(native_resource_types, 'CodeEnteredEventState')
 @native_node_type(native_node_types, has_native_state=True)
-class CodeEnteredEvent(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+                   code: str) -> contracts.CodeEnteredEventInitializerResult:
+        self.code = code
 
         self.pending = False
 
         print('Create TwoN CodeEnteredEvent', flush=True)
 
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
-            print(f"  Code: {self.values['Code']!r}", flush=True)
+            print(f'  Code: {self.code!r}', flush=True)
 
-        self.native_device = context.inputs['Device'].object
+        self.native_device = device
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['CodeEntered'], self.handler)
+        return contracts.CodeEnteredEventInitializerResult(state=self)
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -134,7 +133,7 @@ class CodeEnteredEvent(NativeState):
             print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['code'] != self.values['Code']:
+        if event['params']['code'] != self.code:
             return
 
         # Note: This will override older events which generally should not be a problem.
@@ -142,30 +141,29 @@ class CodeEnteredEvent(NativeState):
             print('Warning: TwoN.CodeEnteredEvent: Got event while old event is pending', flush=True)
 
         # print(f'New value: {new_value}')
-        self.trigger('state')
+        self.services.trigger('state')
         self.pending = True
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class GetValue(contracts.CodeEnteredEventGetValue):
+        def run(self, *, services: ProcedureServices,
+                state: 'CodeEnteredEvent') -> contracts.CodeEnteredEventGetValueResult:
             value = state.pending
             state.pending = False
 
             if not value:
-                context.set_output('output', None)
-            else:
-                context.set_output('output', wirely.Some(wirely.Unit()))
-                # Trigger to set value to None again
-                context.trigger_self()
+                return contracts.CodeEnteredEventGetValueResult(output=None)
+            # Trigger to set value to None again
+            services.trigger_self()
+            return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
 @native_resource_type(native_resource_types, 'IOStateState')
 @native_node_type(native_node_types, has_native_state=True)
-class IOState(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class IOState(contracts.IOStateInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+                   port: str) -> contracts.IOStateInitializerResult:
+        self.port = port
 
         # TODO: What value should this provide while there is no connection?
         self.current_value: bool | None = None
@@ -174,13 +172,14 @@ class IOState(NativeState):
 
         print('Create TwoN IOState', flush=True)
 
-        print(f"  Port: {self.values['Port']!r}", flush=True)
+        print(f'  Port: {self.port!r}', flush=True)
 
-        self.native_device = context.inputs['Device'].object
+        self.native_device = device
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['InputChanged', 'OutputChanged'], self.handler)
+        return contracts.IOStateInitializerResult(state=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -189,15 +188,15 @@ class IOState(NativeState):
             raise Exception('Attempting to start up IOState without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/io/status", params={
-            'port': self.values['Port'],
+            'port': self.port,
         })
         # print('RESPONSE', response)
         ports = response['ports']
         if len(ports) != 1:
             raise Exception('TwoN.IOState: len(ports) != 1')
         port = ports[0]
-        if port['port'] != self.values['Port']:
-            raise Exception("TwoN.IOState: port['port'] != self.values['Port']")
+        if port['port'] != self.port:
+            raise Exception("TwoN.IOState: port['port'] != self.port")
         state = port['state']
         if type(state) != int:
             raise Exception('TwoN.IOState: type(state) != int')
@@ -215,7 +214,7 @@ class IOState(NativeState):
             print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['port'] != self.values['Port']:
+        if event['params']['port'] != self.port:
             return
 
         new_value = event['params']['state']
@@ -224,26 +223,25 @@ class IOState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('state')
+        self.services.trigger('state')
         self.current_value = new_value
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class GetValue(contracts.IOStateGetValue):
+        def run(self, *, services: ProcedureServices, state: 'IOState') -> contracts.IOStateGetValueResult:
             value = state.current_value
             if value is None:
                 raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
-            context.set_output('output', value)
+            return contracts.IOStateGetValueResult(output=value)
 
 
 @native_resource_type(native_resource_types, 'SwitchStateState')
 @native_node_type(native_node_types, has_native_state=True)
-class SwitchState(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class SwitchState(contracts.SwitchStateInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+                   switch_number: Int32) -> contracts.SwitchStateInitializerResult:
+        self.switch_number = switch_number.value
 
         # TODO: What value should this provide while there is no connection?
         self.current_value: bool | None = None
@@ -252,13 +250,14 @@ class SwitchState(NativeState):
 
         print('Create TwoN SwitchState', flush=True)
 
-        print(f"  SwitchNumber: {self.values['SwitchNumber']!r}", flush=True)
+        print(f'  SwitchNumber: {self.switch_number!r}', flush=True)
 
-        self.native_device = context.inputs['Device'].object
+        self.native_device = device
         print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['SwitchStateChanged'], self.handler)
+        return contracts.SwitchStateInitializerResult(state=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -267,15 +266,15 @@ class SwitchState(NativeState):
             raise Exception('Attempting to start up SwitchState without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
-            'switch': self.values['SwitchNumber'],
+            'switch': self.switch_number,
         })
         # print('RESPONSE', response)
         switches = response['switches']
         if len(switches) != 1:
             raise Exception('TwoN.SwitchState: len(switches) != 1')
         switch = switches[0]
-        if switch['switch'] != self.values['SwitchNumber']:
-            raise Exception("TwoN.SwitchState: switch['switch'] != self.values['SwitchNumber']")
+        if switch['switch'] != self.switch_number:
+            raise Exception("TwoN.SwitchState: switch['switch'] != self.switch_number")
         active = switch['active']
         if type(active) != bool:
             raise Exception('TwoN.SwitchState: type(active) != bool')
@@ -291,7 +290,7 @@ class SwitchState(NativeState):
             print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
-        if event['params']['switch'] != self.values['SwitchNumber']:
+        if event['params']['switch'] != self.switch_number:
             return
 
         new_value = event['params']['state']
@@ -300,40 +299,40 @@ class SwitchState(NativeState):
             return
 
         # print(f'New value: {new_value}')
-        self.trigger('state')
+        self.services.trigger('state')
         self.current_value = new_value
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class GetValue(contracts.SwitchStateGetValue):
+        def run(self, *, services: ProcedureServices, state: 'SwitchState') -> contracts.SwitchStateGetValueResult:
             value = state.current_value
             if value is None:
                 raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
-            context.set_output('output', value)
+            return contracts.SwitchStateGetValueResult(output=value)
 
 
 @native_resource_type(native_resource_types, 'OutputControlState')
 @native_node_type(native_node_types, has_native_state=True)
-class OutputControl(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class OutputControl(contracts.OutputControlInitializer):
+    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+                   port: str) -> contracts.OutputControlInitializerResult:
+        self.port = port
 
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
-        self.value_to_send = None
+        self.value_to_send: bool | None = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
         print('Create TwoN OutputControl', flush=True)
 
-        print(f"  Port: {self.values['Port']!r}", flush=True)
+        print(f'  Port: {self.port!r}', flush=True)
 
-        self.native_device = context.inputs['Device'].object
+        self.native_device = device
         print(f'  Using native device object: {self.native_device}', flush=True)
+        return contracts.OutputControlInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -344,15 +343,14 @@ class OutputControl(NativeState):
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
     @native_procedure('send_value')
-    class SendValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class SendValue(contracts.OutputControlSendValue):
+        def run(self, *, services: ProcedureServices, state: 'OutputControl',
+                input: Some[bool] | None) -> contracts.OutputControlSendValueResult:
             # TODO: Add checks whether everything is running?
 
-            value_opt = context.inputs['input']
-            if value_opt is None:
-                return
-            value = value_opt.value
+            if input is None:
+                return contracts.OutputControlSendValueResult()
+            value = input.value
 
             if state.value_to_send is not None:
                 print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
@@ -360,7 +358,8 @@ class OutputControl(NativeState):
             state.event.set()
 
             # This makes sure that the value is sent again if the input does not change
-            context.trigger_self()
+            services.trigger_self()
+            return contracts.OutputControlSendValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -379,11 +378,11 @@ class OutputControl(NativeState):
                 print(f'Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
                 continue
 
-            print(f"Sending {value} to port {self.values['Port']}", flush=True)
+            print(f"Sending {value} to port {self.port}", flush=True)
             # response = await self.native_device.client.json_request("GET", "/api/io/ctrl", params={
             # response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={}, params={
             response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={
-                'port': self.values['Port'],
+                'port': self.port,
                 'action': action,
             })
-            print(f"Sending {value} to port {self.values['Port']} done with result {response}", flush=True)
+            print(f"Sending {value} to port {self.port} done with result {response}", flush=True)

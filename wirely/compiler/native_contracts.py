@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import contextlib
 import dataclasses
+import importlib
 import io
 import keyword
 import re
@@ -167,10 +168,14 @@ def annotation(signature: signatures.SignatureType | signatures.ResourceType, im
         return f'{imports.add("wirely.types.option", "Some")}[{inner}] | None'
     if isinstance(signature, signatures.List):
         return f'tuple[{annotation(signature.inner, imports, resource_classes, strict)}, ...]'
-    if isinstance(signature, signatures.Enum):
-        return imports.add('wirely.runtime.enums', class_name(signature.native_name))
-    if isinstance(signature, signatures.Struct):
-        return imports.add('wirely.runtime.structs', class_name(signature.native_name))
+    if isinstance(signature, (signatures.Enum, signatures.Struct)):
+        module = 'wirely.runtime.enums' if isinstance(signature, signatures.Enum) else 'wirely.runtime.structs'
+        name = class_name(signature.native_name)
+        if not strict and not hasattr(importlib.import_module(module), name):
+            # Enums and structs that only tests declare have no generated class.
+            imports.add('typing', 'Any')
+            return 'Any'
+        return imports.add(module, name)
     if isinstance(signature, signatures.ResourceType):
         location = resource_classes.get(signature.native_name)
         if location is not None:

@@ -11,8 +11,8 @@ import wirely.native.test_library
 from wirely.compiler import program as program_compiler
 from wirely.native import native_node_type, native_procedure
 from wirely.program import ResourceBinding
-from wirely.runtime.contexts import NativeProcedure, NativeState
-from wirely.test import test_engine
+from wirely.runtime.engine import Engine
+from wirely.test import test_contracts, test_engine
 
 
 checks = TestCase()
@@ -98,28 +98,6 @@ node shared_again: Shared {}
 
 
 def check_resource_isolation():
-    registry = {}
-
-    @native_node_type(registry, has_native_state=True)
-    class Provider(NativeState):
-        def __init__(self, *, context):
-            super().__init__(context=context)
-            context.set_output('service', self)
-
-    @native_node_type(registry, has_native_state=True)
-    class Consumer(NativeState):
-        def __init__(self, *, context):
-            super().__init__(context=context)
-            context.set_output('state', self)
-            self.count = 0
-
-        @native_procedure('run')
-        class Run(NativeProcedure):
-            def __call__(self, *, context):
-                state = context.inputs['state'].object
-                state.count += 1
-                context.set_output('output', state.count)
-
     source = '''namespace TestLibrary {
   resource type Service;
   resource type ConsumerState;
@@ -140,18 +118,39 @@ node alias: TestLibrary.Provider {}
 node consumer: TestLibrary.Consumer {}
 connect alias -> consumer.Service;
 '''
-    resource_types = {'Service': Provider, 'ConsumerState': Consumer}
-    with patch.dict(wirely.native.test_library.native_node_types, registry), \
-            patch.dict(wirely.native.test_library.native_resource_types, resource_types):
-        graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
-        assert graph is not None
-        program = replace(program_compiler.compile_nocatch(graph), graph=None)
-        first = test_engine(program, graph)
-        second = test_engine(program, graph)
+    graph = wirely.compiler.compile_strs([('<resource-isolation>', source)])
+    assert graph is not None
+    program = replace(program_compiler.compile_nocatch(graph), graph=None)
+    with test_contracts(graph) as contracts:
+        registry = {}
+
+        @native_node_type(registry, has_native_state=True)
+        class Provider(contracts.ProviderInitializer):
+            def initialize(self, *, services):
+                return contracts.ProviderInitializerResult(service=self)
+
+        @native_node_type(registry, has_native_state=True)
+        class Consumer(contracts.ConsumerInitializer):
+            def initialize(self, *, services, service):
+                self.service = service
+                self.count = 0
+                return contracts.ConsumerInitializerResult(state=self)
+
+            @native_procedure('run')
+            class Run(contracts.ConsumerRun):
+                def run(self, *, services, state):
+                    state.count += 1
+                    return contracts.ConsumerRunResult(output=wirely.UInt8(state.count))
+
+        resource_types = {'Service': Provider, 'ConsumerState': Consumer}
+        with patch.dict(wirely.native.test_library.native_node_types, registry), \
+                patch.dict(wirely.native.test_library.native_resource_types, resource_types):
+            first = Engine(program)
+            second = Engine(program)
     for runtime in (first, second):
         provider = runtime.get_native_state('provider')
         assert provider is runtime.get_native_state('alias')
-        assert runtime.get_native_state('consumer').inputs['service'].object is provider
+        assert runtime.get_native_state('consumer').service is provider
     assert first.get_native_state('provider') is not second.get_native_state('provider')
     first.step()
     first.trigger('consumer', 'run')
@@ -195,21 +194,6 @@ connect service -> consumer.Service;
 
 def check_native_names():
     # Native names replace qualified names in native interfaces and linking.
-    registry = {}
-
-    @native_node_type(registry, has_native_state=True)
-    class Provider(NativeState):
-        def __init__(self, *, context):
-            super().__init__(context=context)
-            context.set_output('service', self)
-
-    @native_node_type(registry, has_native_state=False)
-    class Consumer:
-        @native_procedure('run')
-        class Run(NativeProcedure):
-            def __call__(self, *, context):
-                context.set_output('output', 7)
-
     source = '''namespace Renamed {
   resource type Link as "TestLibrary.Service";
   native node type Source as "TestLibrary.Provider" {
@@ -226,12 +210,27 @@ node source: Renamed.Source {}
 node sink: Renamed.Sink {}
 connect source -> sink.Service;
 '''
-    with patch.dict(wirely.native.test_library.native_node_types, registry), \
-            patch.dict(wirely.native.test_library.native_resource_types, {'Service': Provider}):
-        graph = wirely.compiler.compile_strs([('<native-names>', source)])
-        assert graph is not None
-        program = program_compiler.compile_nocatch(graph)
-        engine = test_engine(program)
+    graph = wirely.compiler.compile_strs([('<native-names>', source)])
+    assert graph is not None
+    program = program_compiler.compile_nocatch(graph)
+    with test_contracts(graph) as contracts:
+        registry = {}
+
+        @native_node_type(registry, has_native_state=True)
+        class Provider(contracts.ProviderInitializer):
+            def initialize(self, *, services):
+                return contracts.ProviderInitializerResult(service=self)
+
+        @native_node_type(registry, has_native_state=False)
+        class Consumer:
+            @native_procedure('run')
+            class Run(contracts.ConsumerRun):
+                def run(self, *, services, service):
+                    return contracts.ConsumerRunResult(output=wirely.UInt8(7))
+
+        with patch.dict(wirely.native.test_library.native_node_types, registry), \
+                patch.dict(wirely.native.test_library.native_resource_types, {'Service': Provider}):
+            engine = Engine(program)
     assert program.instances['source'].type_name == 'TestLibrary.Provider'
     assert program.instances['sink'].type_name is None
     assert set(program.native_types) == {'TestLibrary.Provider'}

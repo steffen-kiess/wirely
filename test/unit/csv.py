@@ -5,82 +5,90 @@ from types import SimpleNamespace
 import wirely
 from wirely.native.csv import MyCsvWriter, ValueWriter
 from wirely.program import RunStage
+from wirely.runtime.native_api import ProcedureServices, StateServices
 
 
-class ProcedureContext:
-    def __init__(self):
-        self.values = {
-            'Type': wirely.ValueType(wirely.types.TypeOption(wirely.types.boolean)),
-        }
+class Invocation:
+    """Calls a ValueWriter's procedure with chosen inputs and stage time."""
+
+    def __init__(self, writer):
+        self.writer = writer
+        self.procedure = ValueWriter.Run()
+        self.value_type = wirely.value_types.option(wirely.value_types.boolean)
         self.inputs = {}
-        self.outputs = {}
+        self.last_written_at = None
         self.triggered = False
         self.time = SimpleNamespace(
             local=datetime.datetime(2026, 10, 15, tzinfo=datetime.timezone.utc),
             monotonic=wirely.MonotonicTime(generation=1, ticks=100),
         )
 
-    def set_output(self, name, value):
-        self.outputs[name] = value
+    def run(self):
+        def trigger_self():
+            self.triggered = True
 
-    def trigger_self(self):
-        self.triggered = True
-
-    def start_time_for_stage(self, stage):
-        assert stage is RunStage.DEFAULT
-        return self.time
+        services = ProcedureServices(name='writer', stage_times={RunStage.DEFAULT: self.time},
+                                     trigger_self=trigger_self)
+        result = self.procedure.run(
+            services=services, state=self.writer,
+            last_written_at_old=self.inputs['last_written_at_old'],
+            input=self.value_type.from_native(self.inputs['input']),
+            repeat_elapsed=self.inputs['repeat_elapsed'],
+        )
+        self.last_written_at = result.last_written_at
 
 
 def check_repeat_recovery():
-    context = ProcedureContext()
-    writer = ValueWriter(context=context)
-    run = ValueWriter.Run(context=context)
+    writer = ValueWriter()
+    writer.initialize(services=StateServices(name='writer', output_keys={'state': 'state'},
+                                             trigger=lambda key: None, shutdown_time=lambda: None),
+                      filename='unused.csv')
+    invocation = Invocation(writer)
     output = io.BytesIO()
     writer.writer = MyCsvWriter(output)
-    context.inputs = {
-        'state': SimpleNamespace(object=writer),
+    invocation.inputs = {
         'input': wirely.Some(True),
         'repeat_elapsed': None,
         'last_written_at_old': None,
     }
-    time = context.time.local.isoformat()
+    time = invocation.time.local.isoformat()
     expected = f'{time},,true\r\n'.encode()
-    run(context=context)
+    invocation.run()
     assert output.getvalue() == expected
-    assert context.outputs['last_written_at'] == wirely.Some(context.time.monotonic)
-    assert context.triggered
+    assert invocation.last_written_at == wirely.Some(invocation.time.monotonic)
+    assert invocation.triggered
 
     # An elapsed helper reports None when the previous clock generation is lost.
-    context.inputs['last_written_at_old'] = context.outputs['last_written_at']
-    context.time.monotonic = wirely.MonotonicTime(generation=2, ticks=50)
-    run(context=context)
+    invocation.inputs['last_written_at_old'] = invocation.last_written_at
+    invocation.time.monotonic = wirely.MonotonicTime(generation=2, ticks=50)
+    invocation.run()
     expected += f'{time},true,true\r\n'.encode()
     assert output.getvalue() == expected
-    assert context.outputs['last_written_at'] == wirely.Some(context.time.monotonic)
+    assert invocation.last_written_at == wirely.Some(invocation.time.monotonic)
 
     # The next invocation sees a running interval and does not repeat again.
-    context.inputs['last_written_at_old'] = context.outputs['last_written_at']
-    context.inputs['repeat_elapsed'] = wirely.Some(False)
-    context.triggered = False
-    run(context=context)
+    invocation.inputs['last_written_at_old'] = invocation.last_written_at
+    invocation.inputs['repeat_elapsed'] = wirely.Some(False)
+    invocation.triggered = False
+    invocation.run()
     assert output.getvalue() == expected
-    assert not context.triggered
+    assert not invocation.triggered
 
-    context.inputs['input'] = None
-    run(context=context)
+    invocation.inputs['input'] = None
+    invocation.run()
     expected += f'{time},true,\r\n'.encode()
     assert output.getvalue() == expected
 
     # Empty values do not repeat for an expired interval or a lost generation.
-    context.inputs['last_written_at_old'] = context.outputs['last_written_at']
-    context.time.monotonic = wirely.MonotonicTime(generation=3, ticks=10)
+    invocation.inputs['last_written_at_old'] = invocation.last_written_at
+    invocation.time.monotonic = wirely.MonotonicTime(generation=3, ticks=10)
     for elapsed in (wirely.Some(True), None):
-        context.inputs['repeat_elapsed'] = elapsed
-        context.triggered = False
-        run(context=context)
+        invocation.inputs['repeat_elapsed'] = elapsed
+        invocation.triggered = False
+        invocation.run()
         assert output.getvalue() == expected
-        assert context.outputs['last_written_at'] == context.inputs['last_written_at_old']
-        assert not context.triggered
+        assert invocation.last_written_at == invocation.inputs['last_written_at_old']
+        assert not invocation.triggered
 
 
 async def run_test():

@@ -5,8 +5,9 @@ import typing
 from collections.abc import Sequence
 
 import wirely
+from wirely.contracts import schedule as contracts
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
+from wirely.runtime.native_api import ProcedureServices, StateServices
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -14,15 +15,15 @@ native_resource_types: dict[str, type] = {}
 
 @native_resource_type(native_resource_types, 'TimeOfDayMinuteState')
 @native_node_type(native_node_types, has_native_state=True)
-class TimeOfDayMinute(NativeState):
-    def __init__(self, *, context: NativeNodeContext) -> None:
-        super().__init__(context=context)
-        context.set_output('state', self)
+class TimeOfDayMinute(contracts.TimeOfDayMinuteInitializer):
+    def initialize(self, *, services: StateServices[typing.Literal['state']]
+                   ) -> contracts.TimeOfDayMinuteInitializerResult:
         self.task: asyncio.Task | None = None
         self._fake_time: wirely.TimeOfDay | None = None
 
         # Make sure current_value is always initialized
         self._update_value()
+        return contracts.TimeOfDayMinuteInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -43,7 +44,7 @@ class TimeOfDayMinute(NativeState):
         self.current_value = now_min
         # TODO: Should this avoid triggering if the value doesn't change?
         # TODO: Should this avoid triggering while _fake_time is set?
-        self.trigger('state')
+        self.services.trigger('state')
 
         return wait_time_s
 
@@ -59,30 +60,29 @@ class TimeOfDayMinute(NativeState):
             await asyncio.sleep(wait_time_s)
 
     @native_procedure('get_value')
-    class GetValue(NativeProcedure):
-        def __call__(self, *, context: ProcedureContext) -> None:
-            state = context.inputs['state'].object
+    class GetValue(contracts.TimeOfDayMinuteGetValue):
+        def run(self, *, services: ProcedureServices,
+                state: 'TimeOfDayMinute') -> contracts.TimeOfDayMinuteGetValueResult:
             if state._fake_time is not None:
-                context.set_output('output', state._fake_time)
-                return
+                return contracts.TimeOfDayMinuteGetValueResult(output=state._fake_time)
 
             if state.task is None:
                 raise Exception('start_tasks() was never called')
 
-            context.set_output('output', state.current_value)
+            return contracts.TimeOfDayMinuteGetValueResult(output=state.current_value)
 
     # TODO: Is this used anywhere?
     def update_value(self) -> None:
         import datetime
 
-        self.trigger('state')
+        self.services.trigger('state')
 
     def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]) -> None:
         self._fake_time = fake_time
 
         # TODO: Make sure that seconds/microseconds are 0?
 
-        self.trigger('state')
+        self.services.trigger('state')
 
     def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
@@ -96,7 +96,7 @@ class TimeOfDayMinute(NativeState):
                 self.set_fake_time(None)
             else:
                 value = wirely.value_types.time_of_day.parse(parameters[1])
-                self.set_fake_time(value)
+                self.set_fake_time(value.extract(wirely.value_types.time_of_day))
         elif cmd == 'get':
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
