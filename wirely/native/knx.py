@@ -5,6 +5,7 @@ from typing import Any, Literal
 import wirely
 from wirely import DynamicValue, Some, UInt16, ValueType
 from wirely.contracts import knx as contracts
+from wirely.knx.value_types import get_value_type
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
 from wirely.runtime.enums import KNXProtocol
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
@@ -62,6 +63,7 @@ class Connection(contracts.ConnectionInitializer):
 class ValueReceiver(contracts.ValueReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.ValueReceiverInitializerResult:
+        self.knx_type = get_value_type(type, value_type_name)
         self.current_value: DynamicValue | None = None
 
         import xknx
@@ -95,7 +97,7 @@ class ValueReceiver(contracts.ValueReceiverInitializer):
         else:
             val = device.sensor_value.value
         # print(f'  got value: {val!r}', flush=True)
-        self.current_value = self.value_type.json_decode(val)
+        self.current_value = self.knx_type.from_knx(val)
 
         self.services.trigger('state')
 
@@ -125,6 +127,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16,
                    value_type_name: str) -> contracts.ValueOptionProviderInitializerResult:
+        self.knx_type = get_value_type(type, value_type_name)
         # TODO: Is this needed?
         self.current_value = None
 
@@ -177,8 +180,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
                 # TODO: Somehow reset the state.expose value in this case?
                 value = None
             else:
-                value = input.value.json_encode()
-                # TODO: Any checks needed here?
+                value = state.knx_type.to_knx(input.value)
 
             print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
 
@@ -210,6 +212,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 class EventReceiver(contracts.EventReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventReceiverInitializerResult:
+        self.knx_type = get_value_type(type, value_type_name)
         self.task: asyncio.Task | None = None
         self.received_values: list[DynamicValue] = []
 
@@ -246,7 +249,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
         else:
             val = device.sensor_value.value
         print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
-        value = self.value_type.json_decode(val)
+        value = self.knx_type.from_knx(val)
 
         self.received_values.append(value)
         self.services.trigger('state')
@@ -277,6 +280,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
 class EventSender(contracts.EventSenderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventSenderInitializerResult:
+        self.knx_type = get_value_type(type, value_type_name)
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
         self.values_to_send: list[object] = []
@@ -323,8 +327,7 @@ class EventSender(contracts.EventSenderInitializer):
             if input is None:
                 return contracts.EventSenderSendValueResult()
             else:
-                value = input.value.json_encode()
-                # TODO: Any checks needed here?
+                value = state.knx_type.to_knx(input.value)
 
             print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
 

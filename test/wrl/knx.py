@@ -111,6 +111,50 @@ class MessageReceiver:
             raise Exception(f'Got unexpected messages: {self.values!r}')
 
 
+async def check_type_conversions(knx):
+    cases = (
+        ('boolean', 'binary', (False, True)),
+        ('int16', '2byte_signed', (-32768, 0, 32767)),
+        ('uint16', '2byte_unsigned', (0, 1, 65535)),
+        ('int32', '4byte_signed', (-2147483648, 0, 2147483647)),
+        ('uint32', '4byte_unsigned', (0, 1, 4294967295)),
+    )
+
+    async def wait_for(predicate):
+        async with asyncio.timeout(5):
+            while not predicate():
+                await asyncio.sleep(0.01)
+
+    for index, (ty, dpt, values) in enumerate(cases):
+        prefix = f'case_{ty}'
+        expose = xknx.devices.ExposeSensor(knx, name=prefix, group_address=f'1/{index}/1', value_type=dpt)
+        value_monitor = MessageReceiver(knx, prefix + '_value', f'1/{index}/2', dpt)
+        event_monitor = MessageReceiver(knx, prefix + '_event', f'1/{index}/4', dpt)
+        receiver = engine.get_native_state(prefix + '.value_receiver')
+        event_receiver = engine.get_native_state(prefix + '.event_receiver')
+        for value in values:
+            await expose.set(value)
+            await wait_for(lambda: receiver.current_value is not None
+                           and receiver.current_value == receiver.knx_type.from_knx(value))
+            engine.step()
+            engine.assert_value_is(prefix + '.value_receiver', wirely.Some(value))
+
+            xknx.tools.group_value_write(knx, f'1/{index}/3', value, None if dpt == 'binary' else dpt)
+            await wait_for(lambda: len(event_receiver.received_values) > 0)
+            engine.step()
+            engine.assert_value_is(prefix + '.event_receiver', wirely.Some(value))
+            engine.step()
+            engine.assert_value_is(prefix + '.event_receiver', None)
+
+            engine.get_native_state(prefix + '.value_input').set_value(wirely.Some(value))
+            engine.step()
+            await value_monitor.expect(value)
+
+            engine.get_native_state(prefix + '.event_input').send_event(wirely.Some(value))
+            engine.step()
+            await event_monitor.expect(value)
+
+
 async def run_test():
     await check_connection_parameters()
 
@@ -446,6 +490,8 @@ async def run_test():
 
             engine.step()
             await event_sensor_recv.expect()
+
+            await check_type_conversions(knx)
 
             print('c', flush=True)
         print('d', flush=True)

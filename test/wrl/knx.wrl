@@ -105,3 +105,86 @@ connect bus -> int_event_receiver.Bus;
 
 node int_event_receiver_prnt: Std.DebugEventPrinter { Type: int32 }
 connect int_event_receiver -> int_event_receiver_prnt;
+
+// Exercise each native node with every supported datapoint type.
+node type KNXConversionCase {
+  parameter Type: ValueType;
+  parameter ValueReceiveAddress: String;
+  parameter ValueSendAddress: String;
+  parameter EventReceiveAddress: String;
+  parameter EventSendAddress: String;
+  input Bus: resource KNX.Bus;
+
+  node value_receiver: KNX.ValueReceiver {
+    Type: Type,
+    GroupAddress: ValueReceiveAddress,
+  }
+  connect Bus -> value_receiver.Bus;
+
+  node value_input: Std.DebugValueSource { Type: Option[Type] }
+  node value_sender: KNX.ValueOptionProvider {
+    Type: Type,
+    GroupAddress: ValueSendAddress,
+  }
+  connect Bus -> value_sender.Bus;
+  connect value_input -> value_sender;
+
+  node event_receiver: KNX.EventReceiver {
+    Type: Type,
+    GroupAddress: EventReceiveAddress,
+  }
+  connect Bus -> event_receiver.Bus;
+
+  node event_input: Std.DebugEventSource { Type: Type }
+  node event_sender: KNX.EventSender {
+    Type: Type,
+    GroupAddress: EventSendAddress,
+  }
+  connect Bus -> event_sender.Bus;
+  connect event_input -> event_sender;
+}
+
+node case_boolean: KNXConversionCase {
+  Type: boolean,
+  ValueReceiveAddress: "1/0/1",
+  ValueSendAddress: "1/0/2",
+  EventReceiveAddress: "1/0/3",
+  EventSendAddress: "1/0/4",
+}
+connect bus -> case_boolean.Bus;
+
+node case_int16: KNXConversionCase {
+  Type: int16,
+  ValueReceiveAddress: "1/1/1",
+  ValueSendAddress: "1/1/2",
+  EventReceiveAddress: "1/1/3",
+  EventSendAddress: "1/1/4",
+}
+connect bus -> case_int16.Bus;
+
+node case_uint16: KNXConversionCase {
+  Type: uint16,
+  ValueReceiveAddress: "1/2/1",
+  ValueSendAddress: "1/2/2",
+  EventReceiveAddress: "1/2/3",
+  EventSendAddress: "1/2/4",
+}
+connect bus -> case_uint16.Bus;
+
+node case_int32: KNXConversionCase {
+  Type: int32,
+  ValueReceiveAddress: "1/3/1",
+  ValueSendAddress: "1/3/2",
+  EventReceiveAddress: "1/3/3",
+  EventSendAddress: "1/3/4",
+}
+connect bus -> case_int32.Bus;
+
+node case_uint32: KNXConversionCase {
+  Type: uint32,
+  ValueReceiveAddress: "1/4/1",
+  ValueSendAddress: "1/4/2",
+  EventReceiveAddress: "1/4/3",
+  EventSendAddress: "1/4/4",
+}
+connect bus -> case_uint32.Bus;

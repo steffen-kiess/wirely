@@ -2,14 +2,14 @@
 
 // TEST: invalid KNX address
 constant Address: uint16 = KNX.ParseGroupAddress("invalid");
-// ^E: CouldNotParseAddress
+// ^E: Invalid format for KNX group address
 
 // TEST: unsupported KNX mapping
 constant Name: String = KNX.ValueTypeName(String);
 // ^E: Unsupported type for KNX
 
 // TEST: unsupported KNX value type
-assert KNX.SupportsValueType(int16), "Unsupported value type for KNX";
+assert KNX.SupportsValueType(String), "Unsupported value type for KNX";
 // ^E: Compile-time assertion failed: Unsupported value type for KNX
 
 // TEST: unsupported MQTT JSON type
@@ -66,20 +66,32 @@ constant Credentials: TwoN.Credentials = TwoN.ReadCredentials("relative");
 
 // TEST: invalid group address 1/2/3/4
 constant Address: uint16 = KNX.ParseGroupAddress("1/2/3/4");
-// ^E: CouldNotParseAddress
+// ^E: Invalid format for KNX group address
 
 // TEST: invalid group address 1/2/256
 constant Address: uint16 = KNX.ParseGroupAddress("1/2/256");
-// ^E: CouldNotParseAddress
+// ^E: Sub group out of range
 
 // TEST: invalid group address 32/0/0
 constant Address: uint16 = KNX.ParseGroupAddress("32/0/0");
-// ^E: CouldNotParseAddress
+// ^E: Main group out of range
 
 // TEST: invalid group address 1/2048
 constant Address: uint16 = KNX.ParseGroupAddress("1/2048");
-// ^E: CouldNotParseAddress
+// ^E: Sub group out of range
 
 // TEST: invalid group address 65536
 constant Address: uint16 = KNX.ParseGroupAddress("65536");
-// ^E: CouldNotParseAddress
+// ^E: Address out of range
+
+// TEST: invalid middle group
+constant Address: uint16 = KNX.ParseGroupAddress("1/8/0");
+// ^E: Middle group out of range
+
+// TEST: negative group address
+constant Address: uint16 = KNX.ParseGroupAddress("-1");
+// ^E: Invalid format for KNX group address
+
+// TEST: empty group address
+constant Address: uint16 = KNX.ParseGroupAddress("");
+// ^E: Invalid format for KNX group address
