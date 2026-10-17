@@ -2,6 +2,8 @@
 
 import typing
 import re
+from collections.abc import Collection
+from typing import Any
 
 import lark
 
@@ -13,13 +15,13 @@ from .specifiers import PortDirection, PortDirectionSpecifier
 
 
 class UnitLiteral(Value):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return 'UnitLiteral()'
 
 
 class IntNumber(Value):
     @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.token = token
         text = str(token)
@@ -35,10 +37,10 @@ class IntNumber(Value):
             raise ProgramError(self, f'Invalid integer literal: {text!r}') from None
 
     @classmethod
-    def positive(cls, token, *, source_position):
+    def positive(cls, token: lark.Token, *, source_position: SourcePosition) -> 'IntNumber':
         return cls(token, source_position=source_position)
 
-    def negated(self, *, source_position):
+    def negated(self, *, source_position: SourcePosition) -> 'IntNumber':
         result = IntNumber(self.token, source_position=source_position)
         result.value = -self.value
         return result
@@ -46,7 +48,7 @@ class IntNumber(Value):
 
 class FloatNumber(Value):
     @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.token = token
         # TODO: Does this parse the value correctly?
@@ -55,7 +57,7 @@ class FloatNumber(Value):
 
 class StringConstant(Value):
     @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition):
+    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.token = token
 
@@ -83,7 +85,7 @@ class StringConstant(Value):
                 raise ProgramError(self, 'Invalid string literal')
             self.value = self._decode_quoted(val[1:-1])
 
-    def _decode_quoted(self, value):
+    def _decode_quoted(self, value: str) -> str:
         escapes = {
             '0': '\0', 't': '\t', 'n': '\n', 'r': '\r',
             '"': '"', "'": "'", '\\': '\\',
@@ -137,18 +139,18 @@ class StringConstant(Value):
 
 class Reference(Value):
     @check_parameters
-    def __init__(self, identifiers: typing.List[Identifier], *, source_position: SourcePosition):
+    def __init__(self, identifiers: typing.List[Identifier], *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.identifiers = identifiers
 
     @staticmethod
     @check_parameters
-    def from_list(*identifiers, source_position: SourcePosition):
+    def from_list(*identifiers: Identifier, source_position: SourcePosition) -> 'Reference':
         return Reference(list(identifiers), source_position=source_position)
 
     @staticmethod
     @check_parameters
-    def create_default(direction_spec: PortDirectionSpecifier, *, source_position: SourcePosition):
+    def create_default(direction_spec: PortDirectionSpecifier, *, source_position: SourcePosition) -> 'Reference':
         direction = direction_spec.direction
         # TODO: Clean up
         if direction == PortDirection.Input:
@@ -160,17 +162,17 @@ class Reference(Value):
         identifier = Identifier(name, source_position=source_position)
         return Reference([identifier], source_position=source_position)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # TODO: Somehow show which enclosing node a parameter belongs to?
         # return '.'.join([i.id_str for i in self.identifiers]) + f' [{self.source_position.start_line}]'
         return '.'.join([i.id_str for i in self.identifiers])
 
     @property
-    def length(self):
+    def length(self) -> int:
         return len(self.identifiers)
 
     @check_parameters
-    def resolve(self, graph, direction: PortDirection, purpose: str):
+    def resolve(self, graph: 'model.NodeType', direction: PortDirection, purpose: str) -> 'ResolvedPortReference':
         if direction in [PortDirection.Input, PortDirection.Output]:
             if self.length == 1:
                 node_name_id = self.identifiers[0]
@@ -187,14 +189,14 @@ class Reference(Value):
 
 class ListLiteral(Value):
     @check_parameters
-    def __init__(self, values: list[Value], *, source_position: SourcePosition):
+    def __init__(self, values: list[Value], *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.values = values
 
 
 class FunctionCall(Value):
     @check_parameters
-    def __init__(self, fun: Value, parameters: list[Value], *, source_position: SourcePosition):
+    def __init__(self, fun: Value, parameters: list[Value], *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.fun = fun
         self.parameters = parameters
@@ -203,16 +205,17 @@ class FunctionCall(Value):
 class OptionalExpression(Value):
     """optional(x): an optional parameter, or an event in a procedure body, as an option."""
 
-    def __init__(self, parameters, *, source_position):
+    def __init__(self, parameters: list[Value], *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.parameters = parameters
 
-    def argument(self):
+    def argument(self) -> Value:
         if len(self.parameters) != 1:
             raise ProgramError(self, 'optional expects exactly one argument')
         return self.parameters[0]
 
-    def declaration(self, scope, local_names=(), *, events=False):
+    def declaration(self, scope: 'model.NodeType', local_names: Collection[str] = (), *,
+                    events: bool = False) -> 'model.DeclarationParameter':
         """Return the optional parameter the argument names.
 
         events mentions event dependencies as alternatives in errors, for
@@ -231,7 +234,7 @@ class OptionalExpression(Value):
 
 class BracketOperator(Value):
     @check_parameters
-    def __init__(self, base: Value, parameter: Value, *, source_position: SourcePosition):
+    def __init__(self, base: Value, parameter: Value, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.base = base
         self.parameter = parameter
@@ -241,7 +244,8 @@ class BracketOperator(Value):
 class ResolvedPortReference(SourceElement):
     @check_parameters
     # TODO: port_name should not be typing.Optional
-    def __init__(self, graph, direction: PortDirection, node_name: Identifier, port_name: typing.Optional[Identifier], purpose: str):
+    def __init__(self, graph: 'model.NodeType', direction: PortDirection, node_name: Identifier,
+                 port_name: typing.Optional[Identifier], purpose: str) -> None:
         if direction == PortDirection.Input:
             port_direction = 'input'
             port_dict_lambda = lambda node: node.input_ports_byname
@@ -274,7 +278,7 @@ class ResolvedPortReference(SourceElement):
         # print(direction, repr(self.node_name_str), repr(self.port_name_str))
         static = graph.static_declarations.get(self.node_name_str)
         if static is not None:
-            self.port = static_source(static, self.node_name, self.port_name, direction)
+            self.port: Any = static_source(static, self.node_name, self.port_name, direction)  # Any connection source or target.
             return
 
         local = getattr(graph, 'local_resources', {}).get(self.node_name_str)
@@ -338,7 +342,8 @@ class ResolvedPortReference(SourceElement):
                 raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
 
 
-def static_source(declaration, name, port_name, direction):
+def static_source(declaration: 'model.DeclarationParameter', name: Identifier, port_name: Identifier | None,
+                  direction: PortDirection) -> 'model.StaticSource':
     """Return the connection source for a parameter or constant."""
     kind = 'Constant' if isinstance(declaration, model.ast.DeclarationConstant) else 'Parameter'
     if direction == PortDirection.Input:
@@ -353,7 +358,7 @@ def static_source(declaration, name, port_name, direction):
 
 class StructLiteralField(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.value = value
@@ -362,13 +367,14 @@ class StructLiteralField(SourceElement):
 class StructLiteral(Value):
     @check_parameters
     def __init__(self, struct_type: Reference, fields: typing.List[StructLiteralField],
-                 *, source_position: SourcePosition):
+                 *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.struct_type = struct_type
         self.fields = fields
 
 
-def check_struct_literal(value_type, literal, scope):
+def check_struct_literal(value_type: 'model.types.Type', literal: 'StructLiteral',
+                         scope: 'model.Scope | None') -> dict[str, 'StructLiteralField']:
     if not isinstance(value_type, model.types.TypeStruct):
         raise ProgramError(literal, f'Expected {value_type}, got struct literal')
     if scope is None or scope.resolve_type(literal.struct_type) is not value_type:

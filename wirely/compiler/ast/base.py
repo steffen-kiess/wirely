@@ -3,6 +3,8 @@
 import typing
 import contextlib
 import os
+from collections.abc import Iterator
+from typing import Any
 
 import lark
 
@@ -12,7 +14,7 @@ from wirely.util import check_parameters
 _UNSET_SOURCE_PATH = object()
 
 
-def capture_source_path(filename):
+def capture_source_path(filename: str | os.PathLike | None) -> str | None:
     if not filename or (str(filename).startswith('<') and str(filename).endswith('>')):
         return None
     return os.path.abspath(filename)
@@ -20,34 +22,41 @@ def capture_source_path(filename):
 
 class SourcePosition:
     @check_parameters
-    def __init__(self, *, filename, meta, input_data, source_path=_UNSET_SOURCE_PATH):
+    def __init__(self, *, filename: str | os.PathLike | None, meta: lark.tree.Meta | None, input_data: str,
+                 source_path: object = _UNSET_SOURCE_PATH) -> None:
         self.filename = filename
         self.meta = meta
         self.input_data = input_data
-        self.source_path = (capture_source_path(filename)
-                            if source_path is _UNSET_SOURCE_PATH else source_path)
+        self.source_path: str | None
+        if source_path is _UNSET_SOURCE_PATH:
+            self.source_path = capture_source_path(filename)
+        else:
+            assert source_path is None or isinstance(source_path, str)
+            self.source_path = source_path
 
     @property
-    def start_pos(self):
+    def start_pos(self) -> int:
         # TODO: Handle source elements which were created without any token where e.g. start_pos is not set?
+        assert self.meta is not None
         return self.meta.start_pos
 
     @property
-    def start_line(self):
+    def start_line(self) -> int:
+        assert self.meta is not None
         return self.meta.line
 
 
 class SourceElement:
     @check_parameters
-    def __init__(self, *, source_position: SourcePosition):
+    def __init__(self, *, source_position: SourcePosition) -> None:
         self.source_position = source_position
-        self.outer_attributes = ()
-        self.inner_attributes = ()
-        self.attributes = ()
+        self.outer_attributes: tuple = ()
+        self.inner_attributes: tuple = ()
+        self.attributes: tuple = ()
 
     @property
     @contextlib.contextmanager
-    def context(self):
+    def context(self) -> Iterator[None]:
         exc = None
         try:
             yield None
@@ -58,7 +67,7 @@ class SourceElement:
         if exc is not None:
             raise InternalCompilerError(self, exc)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # The source text reads naturally in diagnostics; subclasses may refine it.
         position = getattr(self, 'source_position', None)
         meta = getattr(position, 'meta', None)
@@ -69,23 +78,24 @@ class SourceElement:
 
 class CompilerHint:
     @check_parameters
-    def __init__(self, source_element: SourceElement, msg):
+    def __init__(self, source_element: SourceElement, msg: str) -> None:
         self.source_element = source_element
         self.msg = msg
         self.fake_ui = lark.exceptions.UnexpectedInput()
-        self.fake_ui.pos_in_stream = self.source_element.source_position.start_pos
+        self.fake_ui.pos_in_stream = self.source_element.source_position.start_pos  # type: ignore[assignment]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.msg
 
-    def get_context(self):
+    def get_context(self) -> str:
         assert self.source_element is not None
         return self.fake_ui.get_context(self.source_element.source_position.input_data)
 
 
 class ProgramError(Exception):
     @check_parameters
-    def __init__(self, source_element: typing.Optional[SourceElement], msg, inner_exception=None, *, hints: typing.List[CompilerHint] = []):
+    def __init__(self, source_element: typing.Optional[SourceElement], msg: str,
+                 inner_exception: BaseException | None = None, *, hints: typing.List[CompilerHint] = []) -> None:
         # raise Exception()
         self.source_element = source_element
         self.msg = msg
@@ -93,22 +103,23 @@ class ProgramError(Exception):
         self.hints = hints
         if self.source_element is not None:
             self.fake_ui = lark.exceptions.UnexpectedInput()
-            self.fake_ui.pos_in_stream = self.source_element.source_position.start_pos
+            self.fake_ui.pos_in_stream = self.source_element.source_position.start_pos  # type: ignore[assignment]
 
         if self.source_element is None and not isinstance(self, InternalCompilerError):
             raise Exception('self.source_element is None and not isinstance(self, InternalCompilerError)')
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.msg
 
-    def get_context(self):
+    def get_context(self) -> str:
         assert self.source_element is not None
         return self.fake_ui.get_context(self.source_element.source_position.input_data)
 
 
 class InternalCompilerError(ProgramError):
     @check_parameters
-    def __init__(self, source_element: typing.Optional[SourceElement], inner_exception, *, msg=None):
+    def __init__(self, source_element: typing.Optional[SourceElement], inner_exception: BaseException, *,
+                 msg: str | None = None) -> None:
         if msg is None:
             msg = 'Internal Compiler Error: ' + str(inner_exception)
         super().__init__(source_element, msg, inner_exception)
@@ -116,34 +127,34 @@ class InternalCompilerError(ProgramError):
 
 class Identifier(SourceElement):
     @check_parameters
-    def __init__(self, s: str, *, source_position: SourcePosition):
+    def __init__(self, s: str, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         if s.startswith('r#'):
             s = s[2:]
         self.id_str = s
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f'{self.id_str} [{self.source_position.start_line}]'
         return self.id_str
 
 
 class Value(SourceElement):
     @check_parameters
-    def __init__(self, *, source_position: SourcePosition):
+    def __init__(self, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
 
 
 class Declaration(SourceElement):
     """Declarations implement only the preparation operations they need."""
 
-    def register_interface_declarations(self, scope):
+    def register_interface_declarations(self, scope: Any) -> None:
         pass
 
-    def collect_declarations(self, scope):
+    def collect_declarations(self, scope: Any) -> None:
         pass
 
-    def prepare_interface(self, scope):
+    def prepare_interface(self, scope: Any) -> None:
         pass
 
-    def bind_body(self, scope):
+    def bind_body(self, scope: Any) -> None:
         pass

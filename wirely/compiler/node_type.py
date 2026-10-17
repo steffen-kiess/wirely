@@ -39,7 +39,7 @@ class NodeType(model.Scope):
         # Nodes, named ports, parameters, and constants share names.
         self.name_declarations: dict[str, model.Declaration] = {}
         self.initializer: model.DeclarationInitializer | None = None
-        self.value_nodes: dict[str, model.Declaration] = {}
+        self.value_nodes: dict[str, model.DeclarationState | model.DeclarationBinding] = {}
         # TODO: Clarify what is the key here (name or input_name)
         self.input_ports: dict[str, model.TypeInputPort] = {}
         self.output_ports: dict[str, model.TypeOutputPort] = {}
@@ -354,7 +354,7 @@ class NodeType(model.Scope):
         node.initializer_sources = {}
         if self.initializer is not None:
             depends = self.initializer.depends
-            for port, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
+            for dependency_port, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
                 if isinstance(dep, model.TypeInputPort):
                     source_port = node.custom_inputs[dep]
                 elif isinstance(dep, model.InstanceNode):
@@ -363,18 +363,18 @@ class NodeType(model.Scope):
                     source_port = source(dep)
                 else:
                     source_port = dep
-                node.initializer_sources[port.key] = (source_port, port)
+                node.initializer_sources[dependency_port.key] = (source_port, dependency_port)
 
         # TODO: Probably more stuff should be done at an earlier stage
         for procedure in self.procedures.values():
             sources = {}
-            for key, port in procedure.input_ports.items():
-                if port.connected_source is not None:
-                    sources[key] = source(port.connected_source)
+            for key, input_port in procedure.input_ports.items():
+                if input_port.connected_source is not None:
+                    sources[key] = source(input_port.connected_source)
                 else:
                     sources[key] = model.PortSources(
                         node, f'{procedure.name.id_str}.{key}',
-                        [source(member) for member in port.sources], port_spec=port.port_spec,
+                        [source(member) for member in input_port.sources], port_spec=input_port.port_spec,
                     )
             targets = {key: node.port_storage[port] for key, port in procedure.output_ports.items()}
 
@@ -385,7 +385,7 @@ class NodeType(model.Scope):
                 static_context=static_context, declaration_procedure=procedure,
             )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.fullname
 
     @property

@@ -17,10 +17,10 @@ class ResourceType:
         self.declaration = declaration
         self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ResourceType({self.name})'
 
 
@@ -63,19 +63,19 @@ class TypeParameter(Type):
                 ]
             raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f'TypeParameter({self.parameter})'
         return f'TypeParameter({self.parameter.interface.name}.{self.parameter.name})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.parameter.name.id_str
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, TypeParameter):
             return False
         return self.parameter == other.parameter
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('TypeParameter', self.parameter))
 
     def default_value(self):

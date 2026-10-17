@@ -5,13 +5,15 @@ import typing
 from wirely.compiler import model
 from wirely.util import check_parameters
 
-from .base import SourcePosition, ProgramError, Identifier, Declaration
+from .base import SourcePosition, ProgramError, Identifier, Declaration, Value
 from .specifiers import OptionalSpecifier
+from .values import StringConstant
 
 
 class DeclarationParameter(Declaration):
     @check_parameters
-    def __init__(self, optional_specifier: typing.Optional[OptionalSpecifier], name: Identifier, ty, *, default_value=None, source_position: SourcePosition):
+    def __init__(self, optional_specifier: typing.Optional[OptionalSpecifier], name: Identifier, ty: Value, *,
+                 default_value: Value | None = None, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.ty = ty
@@ -24,13 +26,14 @@ class DeclarationParameter(Declaration):
         self.is_optional = self.optional_specifier is not None or self.default_value is not None
 
     @staticmethod
-    def with_default_value(name: Identifier, ty, default_value, *, source_position: SourcePosition):
+    def with_default_value(name: Identifier, ty: Value, default_value: Value, *,
+                           source_position: SourcePosition) -> 'DeclarationParameter':
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         self.interface = interface
 
-    def resolve_type(self):
+    def resolve_type(self) -> None:
         # Types may refer to parameters declared later, which resolve on demand.
         if hasattr(self, 'type_resolved'):
             return
@@ -41,7 +44,7 @@ class DeclarationParameter(Declaration):
         finally:
             self.resolving_type = False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f'Parameter <{self.name}> [{self.name.source_position.start_line}] : <{self.ty}>'
         if not hasattr(self, 'interface'):
             # return f'Parameter <(unknown node).{self.name}> : <{self.ty}>'
@@ -49,19 +52,20 @@ class DeclarationParameter(Declaration):
         else:
             return f'{self.interface.name}.{self.name}'
 
-    def bind_body(self, graph):
+    def bind_body(self, graph: 'model.NodeType') -> None:
         if self.default_value is not None:
             from ..expressions import compile_constant
             compile_constant(graph, self.default_value, self.type_resolved, {})
 
 
 class DeclarationConstant(DeclarationParameter):
-    def __init__(self, name, ty, initializer, *, source_position):
+    def __init__(self, name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> None:
         super().__init__(None, name, ty, default_value=initializer,
                          source_position=source_position)
 
-    def bind_body(self, graph):
+    def bind_body(self, graph: 'model.NodeType') -> None:
         # Check concrete types and expression syntax without running initializers.
+        assert self.default_value is not None
         if self.type_resolved == model.types.ValueType:
             graph.get_const_value(self.default_value, self.type_resolved)
         else:
@@ -70,19 +74,19 @@ class DeclarationConstant(DeclarationParameter):
 
 
 class DeclarationAssertion(Declaration):
-    def __init__(self, condition, message, *, source_position):
+    def __init__(self, condition: Value, message: StringConstant | None, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.condition = condition
         self.message = message
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         interface.assertions.append(self)
 
-    def bind_body(self, graph):
+    def bind_body(self, graph: 'model.NodeType') -> None:
         from ..expressions import compile_constant
         compile_constant(graph, self.condition, model.types.boolean, {})
 
-    def evaluate(self, instance):
+    def evaluate(self, instance: 'model.NodeTypeInstance') -> None:
         from ..expressions import compile_constant
         with self.context:
             try:

@@ -1,6 +1,8 @@
 """Instances, connections, state, and bindings."""
 
 import typing
+from collections.abc import Iterable
+from typing import Any
 
 from wirely.compiler.attributes import copy_attributes
 from wirely.compiler.stages import ResolutionState
@@ -15,17 +17,18 @@ from .values import Reference
 
 class ParameterBinding(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition, is_optional=False):
+    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition,
+                 is_optional: bool = False) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.value = value
         self.is_optional = is_optional
 
     @staticmethod
-    def optional(name, value, *, source_position):
+    def optional(name: Identifier, value: Value, *, source_position: SourcePosition) -> 'ParameterBinding':
         return ParameterBinding(name, value, source_position=source_position, is_optional=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Parameter <{self.name}> = <{self.value}>'
 
 
@@ -35,7 +38,7 @@ class ParameterBinding(SourceElement):
 class Instantiation(SourceElement):
     @check_parameters
     def __init__(self, type_name: Reference, parameters: list,
-                 *, source_position: SourcePosition):
+                 *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.type_name = type_name
         self.parameters = parameters
@@ -44,13 +47,13 @@ class Instantiation(SourceElement):
 
 class DeclarationInstance(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, instantiation: Instantiation, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, instantiation: Instantiation, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.instantiation = instantiation
         self.inner_attributes = instantiation.inner_attributes
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name.id_str
         if name in graph.node_declarations:
             raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
@@ -59,7 +62,7 @@ class DeclarationInstance(Declaration):
         register_name(graph, self.name, self)
         graph.node_declarations[name] = self
 
-    def resolve_instance_arguments(self, graph):
+    def resolve_instance_arguments(self, graph: 'model.NodeType') -> None:
         name = self.name
         inst = self.instantiation
 
@@ -73,11 +76,11 @@ class DeclarationInstance(Declaration):
         if self.node_type.interface_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance arguments require a prepared child interface')
 
-        self.par_values = {}
+        self.par_values: dict['model.DeclarationParameter', Any] = {}
         # Parameters whose bindings failed, when the coordinator continues after errors.
-        self.failed_parameters = set()
+        self.failed_parameters: set['model.DeclarationParameter'] = set()
         coordinator = graph.coordinator
-        seen = set()
+        seen: set['model.DeclarationParameter'] = set()
         for parameter in parameter_bindings:
             key = parameter.name
             value = parameter.value
@@ -86,7 +89,7 @@ class DeclarationInstance(Declaration):
                 if key.id_str in self.node_type.parsed_constants:
                     raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
                 if par is None:
-                    raise ProgramError(key, f'Unknown parameter for {self.node_type.name.id_str}: {key}')
+                    raise ProgramError(key, f'Unknown parameter for {self.node_type.name}: {key}')
                 if par in seen:
                     raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
                 seen.add(par)
@@ -107,7 +110,7 @@ class DeclarationInstance(Declaration):
                    for parameter in parameter_bindings
                    if not parameter.is_optional and not getattr(parameter, 'failed', False)}
 
-        def bind(par):
+        def bind(par: 'model.DeclarationParameter') -> None:
             parameter = pending.pop(par, None)
             if parameter is None:
                 return
@@ -130,7 +133,7 @@ class DeclarationInstance(Declaration):
         for par in list(pending):
             bind(par)
 
-    def create_instance_interface(self, graph):
+    def create_instance_interface(self, graph: 'model.NodeType') -> None:
         self.node_type.create_instance_interface(
             graph=graph, par_values=self.par_values, name=self.node_name, instantiation=self,
         )
@@ -140,12 +143,12 @@ class DeclarationConnection(Declaration):
     edge_attributes: tuple  # Validated attributes of each edge, set by the attribute pass.
 
     @check_parameters
-    def __init__(self, sources: typing.List[Reference], target: Reference, *, source_position: SourcePosition):
+    def __init__(self, sources: typing.List[Reference], target: Reference, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.sources = sources
         self.target = target
 
-    def bind_body(self, graph):
+    def bind_body(self, graph: 'model.NodeType') -> None:
         sources = self.sources
         target = self.target
 
@@ -162,7 +165,7 @@ class DeclarationConnection(Declaration):
 
 class DeclarationState(Declaration):
     @check_parameters
-    def __init__(self, name: Identifier, var_type: Value, initial_value: Value, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, var_type: Value, initial_value: Value, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.var_type = var_type
@@ -170,7 +173,7 @@ class DeclarationState(Declaration):
 
         self.name_str = self.name.id_str
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name.id_str
         if name in graph.value_nodes:
             hints = [
@@ -180,10 +183,10 @@ class DeclarationState(Declaration):
         register_name(graph, self.name, self)
         graph.value_nodes[name] = self
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         self.interface = interface
 
-    def prepare_interface(self, new_graph):
+    def prepare_interface(self, new_graph: 'model.NodeType') -> None:
         ty = self.interface.resolve_type(self.var_type)
         check_runtime_type(ty, self)
         # TODO: Resolve initial_value
@@ -191,23 +194,25 @@ class DeclarationState(Declaration):
         copy_attributes(variable, self)
 
 
-def validate_nodes(graph):
+def validate_nodes(graph: 'model.NodeType') -> None:
     """Require a source for each procedure input port, variable, and native resource output."""
     for procedure in graph.procedures.values():
         procedure.validate_ports()
     for name, variable in graph.value_nodes.items():
         is_state = isinstance(variable, DeclarationState)
-        node = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
-        if node.connected_source is None:
+        storage = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
+        if storage.connected_source is None:
             raise ProgramError(variable, f'{"State" if is_state else "Binding"} {name!r} has no source')
-    produced = graph.initializer.output_keys if getattr(graph, 'initializer', None) is not None else {}
+    initializer = getattr(graph, 'initializer', None)
+    produced = initializer.output_keys if initializer is not None else {}
     for resource in graph.local_resources.values():
         if resource.connected_source is None and resource not in produced:
             raise ProgramError(resource.declaration, f'Binding {resource.name!r} has no source')
         if resource.connected_source is not None and resource in produced:
             connection = next(connection.source_element for connection in graph.connections
                               if connection.target is resource)
-            port = next(port for port in graph.initializer.produces.outputs if port.key == produced[resource])
+            assert initializer is not None
+            port = next(port for port in initializer.produces.outputs if port.key == produced[resource])
             raise ProgramError(connection, f'Binding {resource.name!r} is both produced and connected', hints=[
                 CompilerHint(port, 'Produced by the native initializer here'),
             ])
@@ -218,11 +223,12 @@ def validate_nodes(graph):
     check_unused(graph)
 
 
-def check_unused(graph):
+def check_unused(graph: 'model.NodeType') -> None:
     """Warn about bindings of the node type that nothing reads."""
     read = {id(connection.source) for connection in graph.connections}
-    if getattr(graph, 'initializer', None) is not None:
-        read.update(id(dependency) for dependency in graph.initializer.depends.get_resolved_dependencies())
+    initializer = getattr(graph, 'initializer', None)
+    if initializer is not None:
+        read.update(id(dependency) for dependency in initializer.depends.get_resolved_dependencies())
     warnings = graph.coordinator.warnings
     for name, node in graph.temporary_nodes.items():
         if id(node) not in read:
@@ -234,7 +240,7 @@ def check_unused(graph):
                           instance_trace=False)
 
 
-def validate_resource_outputs(graph):
+def validate_resource_outputs(graph: 'model.NodeType') -> None:
     """Require one source for each resource output of a native node type."""
     if graph.initializer is None:
         raise ProgramError(graph.name, 'Native node types require a native initializer')
@@ -254,7 +260,7 @@ def validate_resource_outputs(graph):
             ])
 
 
-def passed_on_variable(source):
+def passed_on_variable(source: object) -> Any:
     """Return the temporary, resource, or copied state whose value source passes on, if any."""
     if isinstance(source, (model.TemporaryNode, model.LocalResource)):
         return source
@@ -263,7 +269,7 @@ def passed_on_variable(source):
     return None
 
 
-def check_alias_cycle(graph, start):
+def check_alias_cycle(graph: 'model.NodeType', start: Any) -> None:
     """Reject a variable whose value is passed back to it without a procedure."""
     node = start
     seen = []
@@ -276,14 +282,14 @@ def check_alias_cycle(graph, start):
             raise circular_connection(connections[0], reversed(connections[1:]))
 
 
-def circular_connection(connection, others):
+def circular_connection(connection: 'model.Connection', others: Iterable['model.Connection']) -> ProgramError:
     """Return the error for a cycle reported at connection, with the others in data-flow order."""
     return ProgramError(connection.source_element, 'Circular connection', hints=[
         CompilerHint(other.source_element, 'Cycle continues here') for other in others
     ])
 
 
-def register_name(graph, name, declaration):
+def register_name(graph: 'model.NodeType', name: Identifier, declaration: Declaration) -> None:
     """Give nodes and named ports one namespace."""
     previous = graph.name_declarations.get(name.id_str)
     if previous is not None:
@@ -297,7 +303,7 @@ class DeclarationBinding(Declaration):
     """A named value, event, or resource connection with exactly one source."""
 
     @check_parameters
-    def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.name_str = name.id_str
@@ -307,10 +313,10 @@ class DeclarationBinding(Declaration):
         self.var_type = port_spec.ty
 
     @property
-    def is_resource(self):
+    def is_resource(self) -> bool:
         return isinstance(self.port_spec, PortTypeSpecificationResource)
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name_str
         if not self.is_resource and name in graph.value_nodes:
             raise ProgramError(self, f'Duplicate name {name!r}', hints=[
@@ -320,10 +326,10 @@ class DeclarationBinding(Declaration):
         if not self.is_resource:
             graph.value_nodes[name] = self
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         self.interface = interface
 
-    def prepare_interface(self, new_graph):
+    def prepare_interface(self, new_graph: 'model.NodeType') -> None:
         variable: model.LocalResource | model.TemporaryNode
         if self.is_resource:
             resource_type = self.interface.resolve_resource_type(self.port_spec.ty)

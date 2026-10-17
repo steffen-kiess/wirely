@@ -69,11 +69,11 @@ class InstanceNode(model.GraphElement):
                 names.append(node.fullname if qualified else node.name.id_str)
         return '.'.join(names)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         # return f"{type(self).__name__}{{{self.graph}.{self.name}}}"
         return f"{self.graph}.{self.name}[{type(self).__name__}]"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.graph}.{self.name}"
 
     @property
@@ -205,7 +205,7 @@ class InstanceElement(abc.ABC):
         self.node = node
         self.name = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.node}.{self.name}"
 
 
@@ -261,7 +261,7 @@ class InstanceInputPort(InstanceSource):
             raise Exception(f'Duplicate input name {name!r}')
         self.node.input_ports_byname[self.name] = self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.node}.{self.name}"
 
     @property
@@ -343,7 +343,7 @@ class InstanceOutputPort(InstanceTarget):
         else:
             return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.node}.{self.name}"
 
     # TODO: Remove and replace with self, InstanceOutputPort should contain a reference to NodeType, not to InstanceNode
@@ -373,7 +373,7 @@ class InstanceTemporary(InstanceSource, InstanceTarget):
 
         self.node.temporaries.append(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.node}.{self.name}"
 
     @property
@@ -418,10 +418,10 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
 
         self.node.state_variables.append(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"StateVariable[{self}]"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.node}.{self.name}"
 
     # TODO
@@ -485,7 +485,7 @@ class InstanceProcedure:
 
         self.node.procedures.append(self)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.name is not None:
             return f"{self.node}.{self.name}"
         else:

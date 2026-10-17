@@ -12,19 +12,19 @@ from .values import IntNumber, Reference, StringConstant
 
 class EnumMember(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, value: typing.Optional[Value], *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, value: typing.Optional[Value], *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.value = value
 
     @staticmethod
-    def create_closed(name, *, source_position):
+    def create_closed(name: Identifier, *, source_position: SourcePosition) -> 'EnumMember':
         return EnumMember(name, None, source_position=source_position)
 
 
 class StructField(SourceElement):
     @check_parameters
-    def __init__(self, name: Identifier, field_type: Value, *, source_position: SourcePosition):
+    def __init__(self, name: Identifier, field_type: Value, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.field_type = field_type
@@ -34,7 +34,7 @@ class DeclarationStructType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, fields: list,
                  *, is_native: bool = False, alias: typing.Optional[StringConstant] = None,
-                 source_position: SourcePosition):
+                 source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.fields = fields
@@ -45,14 +45,15 @@ class DeclarationStructType(Declaration):
         self.resolving = False
 
     @staticmethod
-    def create_native(name, alias, fields, *, source_position):
+    def create_native(name: Identifier, alias: typing.Optional[StringConstant], fields: list, *,
+                      source_position: SourcePosition) -> 'DeclarationStructType':
         return DeclarationStructType(name, fields, is_native=True, alias=alias, source_position=source_position)
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:
             raise ProgramError(self, 'Struct type declaration not allowed inside node type')
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
             raise ProgramError(self.name, f'Struct type {name} conflicts with built-in type')
@@ -61,7 +62,7 @@ class DeclarationStructType(Declaration):
                 ('node type', graph.node_types), ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
-                previous = declarations[name]
+                previous: typing.Any = declarations[name]
                 if kind in ('enum type', 'resource type'):
                     previous = previous.declaration
                 raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
@@ -70,7 +71,7 @@ class DeclarationStructType(Declaration):
         self.scope = graph
         graph.struct_types[name] = self
 
-    def resolve_fields(self):
+    def resolve_fields(self) -> 'model.types.TypeStruct':
         if self.value_type is not None:
             return self.value_type
         if self.resolving:
@@ -96,7 +97,7 @@ class DeclarationStructType(Declaration):
         finally:
             self.resolving = False
 
-    def prepare_interface(self, graph):
+    def prepare_interface(self, graph: 'model.Scope') -> None:
         self.resolve_fields()
 
 
@@ -104,7 +105,7 @@ class DeclarationEnumType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, underlying_type: typing.Optional[Value],
                  members: list, *, is_open: bool, is_native: bool = False,
-                 alias: typing.Optional[StringConstant] = None, source_position: SourcePosition):
+                 alias: typing.Optional[StringConstant] = None, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.underlying_type = underlying_type
@@ -115,28 +116,31 @@ class DeclarationEnumType(Declaration):
         self.inner_attributes = getattr(members, 'inner_attributes', ())
 
     @staticmethod
-    def create_open(name, underlying_type, members, *, source_position):
+    def create_open(name: Identifier, underlying_type: Value, members: list, *,
+                    source_position: SourcePosition) -> 'DeclarationEnumType':
         return DeclarationEnumType(name, underlying_type, members, is_open=True, source_position=source_position)
 
     @staticmethod
-    def create_closed(name, members, *, source_position):
+    def create_closed(name: Identifier, members: list, *, source_position: SourcePosition) -> 'DeclarationEnumType':
         return DeclarationEnumType(name, None, members, is_open=False, source_position=source_position)
 
     @staticmethod
-    def create_native_open(name, alias, underlying_type, members, *, source_position):
+    def create_native_open(name: Identifier, alias: typing.Optional[StringConstant], underlying_type: Value,
+                           members: list, *, source_position: SourcePosition) -> 'DeclarationEnumType':
         return DeclarationEnumType(name, underlying_type, members, is_open=True, is_native=True, alias=alias,
                                    source_position=source_position)
 
     @staticmethod
-    def create_native_closed(name, alias, members, *, source_position):
+    def create_native_closed(name: Identifier, alias: typing.Optional[StringConstant], members: list, *,
+                             source_position: SourcePosition) -> 'DeclarationEnumType':
         return DeclarationEnumType(name, None, members, is_open=False, is_native=True, alias=alias,
                                    source_position=source_position)
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:
             raise ProgramError(self, 'Enum type declaration not allowed inside node type')
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
             raise ProgramError(self.name, f'Enum type {name} conflicts with built-in type')
@@ -147,7 +151,7 @@ class DeclarationEnumType(Declaration):
                 ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
-                previous = declarations[name]
+                previous: typing.Any = declarations[name]
                 if kind in ('enum type', 'resource type'):
                     previous = previous.declaration
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
@@ -201,16 +205,16 @@ class DeclarationEnumType(Declaration):
 class DeclarationResourceType(Declaration):
     @check_parameters
     def __init__(self, name: Identifier, alias: typing.Optional[StringConstant] = None, *,
-                 source_position: SourcePosition):
+                 source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.alias = alias  # Native name replacing the qualified name.
 
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:
             raise ProgramError(self, 'Resource type declaration not allowed inside node type')
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in graph.struct_types:
             raise model.ProgramError(self.name, f'Resource type {name} conflicts with struct type', hints=[

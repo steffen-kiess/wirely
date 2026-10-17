@@ -396,7 +396,7 @@ class StaticNodeContext:
         self.parameters: Mapping[str, object] = parameters
         self.name = name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'StaticNodeContext({self.__dict__!r})'
 
 
@@ -411,5 +411,5 @@ class StaticProcedureContext:
         self.node_context = node_context
         self.node_parameter_values = node_parameter_values
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'StaticProcedureContext({self.__dict__!r})'

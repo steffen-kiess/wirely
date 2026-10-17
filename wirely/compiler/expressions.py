@@ -154,7 +154,7 @@ def property_reference(scope, expression, local_names=()):
                 break
         else:
             return expression
-    receiver = model.Reference.from_list(*identifiers[:split],
+    receiver: AstValue = model.Reference.from_list(*identifiers[:split],
                                          source_position=expression.source_position)
     for name in identifiers[split:]:
         receiver = PropertyAccess(receiver, name, source_position=expression.source_position)

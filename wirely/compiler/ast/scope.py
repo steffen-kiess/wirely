@@ -1,12 +1,17 @@
 """Scopes holding declarations, with name and type resolution."""
 
 import abc
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..coordinator import CompilerCoordinator
 
 from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import parse_value
 
-from .base import SourcePosition, ProgramError, Declaration
+from .base import SourcePosition, ProgramError, Declaration, Value
 from .values import Reference, FunctionCall, OptionalExpression, BracketOperator, StructLiteral, check_struct_literal
 
 
@@ -14,6 +19,8 @@ from .values import Reference, FunctionCall, OptionalExpression, BracketOperator
 class Scope(Declaration, abc.ABC):
     # Set by the subclasses.
     name: 'model.Identifier | None'
+    services: Mapping[str, object]
+    coordinator: 'CompilerCoordinator'
     libraries: 'dict[str, model.DeclarationLibrary]'
     parent_graph: 'Scope | None'
 
@@ -35,16 +42,16 @@ class Scope(Declaration, abc.ABC):
     # TODO: Move to Declaration?
     @property
     @abc.abstractmethod
-    def fullname(self):
+    def fullname(self) -> str:
         ...
 
     @property
-    def static_declarations(self):
+    def static_declarations(self) -> dict[str, Any]:
         return {**getattr(self, 'parsed_parameters', {}),
                 **getattr(self, 'parsed_constants', {})}
 
     # TODO: Handle parameters for parent types properly? Does this even make sense?
-    def resolve_type(self, ty, par_values={}):
+    def resolve_type(self, ty: Value, par_values: Mapping[Any, Any] = {}) -> 'model.types.Type':
         with ty.context:
             # TODO: Clean up
             if isinstance(ty, BracketOperator):
@@ -106,7 +113,8 @@ class Scope(Declaration, abc.ABC):
                 scope = scope.parent_graph
             raise model.ProgramError(ty, f'Cannot find type {ty}')
 
-    def resolve_function(self, reference, *, required=True):
+    def resolve_function(self, reference: Reference, *,
+                         required: bool = True) -> 'model.DeclarationNativeFunction | None':
         scope: Scope | None = self
         names = tuple(identifier.id_str for identifier in reference.identifiers)
         while scope is not None:
@@ -123,7 +131,8 @@ class Scope(Declaration, abc.ABC):
             raise ProgramError(reference, f'Cannot find function {".".join(names)!r}')
         return None
 
-    def resolve_resource_type(self, name):
+    def resolve_resource_type(self, name: Value) -> 'model.ResourceType':
+        assert isinstance(name, Reference)
         scope: Scope | None = self
         while scope is not None:
             candidate: Scope | None = scope
@@ -140,7 +149,8 @@ class Scope(Declaration, abc.ABC):
         raise model.ProgramError(name, f'Cannot find resource type {name}')
 
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
-    def get_const_value(self, value, value_type, par_values={}):
+    def get_const_value(self, value: Value, value_type: 'model.types.Type',
+                        par_values: Mapping[Any, Any] = {}) -> 'model.value.Value':
         with value.context:
             from ..expressions import (
                 Expression, PropertyAccess, compile_constant, property_reference, type_member,
@@ -153,6 +163,7 @@ class Scope(Declaration, abc.ABC):
                     and isinstance(property_reference(self, value.fun), PropertyAccess)):
                 return compile_constant(self, value, value_type, par_values)
             if isinstance(value, OptionalExpression):
+                assert isinstance(self, model.NodeType)
                 parameter = value.declaration(self)
                 result = model.value.ParameterOptionValue(parameter, ast_element=value)
                 model.value.check_value_type(result.value_type, value_type, value)
@@ -175,6 +186,7 @@ class Scope(Declaration, abc.ABC):
                                             ast_element=value)
             if isinstance(value, StructLiteral):
                 fields = check_struct_literal(value_type, value, self)
+                assert isinstance(value_type, model.types.TypeStruct)
                 return model.value.ValueStruct(
                     value_type,
                     {name: self.get_const_value(field.value, value_type.fields[name], par_values=par_values)
@@ -196,6 +208,7 @@ class Scope(Declaration, abc.ABC):
                     inner = self.get_const_value(value.parameters[0], value_type.inner_type, par_values=par_values)
                     return model.value.ValueOptionSome(value_type, inner, ast_element=value)
                 function = self.resolve_function(value.fun)
+                assert function is not None
                 model.value.check_value_type(function.return_type, value_type, value)
                 if len(value.parameters) != len(function.parameter_types):
                     raise model.ProgramError(value, f'Function {function_name!r} expected {len(function.parameter_types)} parameters, but got {len(value.parameters)}')
@@ -224,7 +237,7 @@ class Scope(Declaration, abc.ABC):
             return model.ConstantValue(value_type, parse_value(value_type, value, scope=self), ast_element=value)
             # raise model.ProgramError(value, f'Cannot turn {value!r} into constant value of type {value_type}')
 
-    def resolve_node_type(self, name, par_values={}):
+    def resolve_node_type(self, name: Reference, par_values: Mapping[Any, Any] = {}) -> 'model.NodeType':
         # print(self, 'resolve_node_type', name)
 
         if name.length >= 2:

@@ -104,7 +104,7 @@ class TypeInputPort(GraphElement):
         # TODO: Remove
         self.node = self
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Input "{self.input_name}">'
 
 
@@ -144,7 +144,7 @@ class TypeOutputPort(GraphElement):
 
             self.connected_source = source
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<Output "{self.output_name}">'
 
 
@@ -168,7 +168,7 @@ class TemporaryNode(GraphElement):
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<TemporaryNode "{self.name}">'
 
 
@@ -193,7 +193,7 @@ class LocalResource(GraphElement):
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<LocalResource "{self.name}">'
 
 
@@ -216,7 +216,7 @@ class InstanceLocalResource:
     def resource_type(self):
         return self.resource.resource_type
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<InstanceLocalResource "{self.node.name}.{self.resource.name}">'
 
 
@@ -248,7 +248,7 @@ class StateNode(GraphElement):
             return None
         return source
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<StateNode "{self.name}">'
 
 
@@ -346,7 +346,7 @@ class ProcedurePort(GraphElement):
     def description(self):
         return f'port {self.name!r} of procedure {self.procedure.name.id_str!r}'
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{type(self).__name__} {self.procedure.name.id_str}.{self.name}>'
 
 

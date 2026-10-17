@@ -25,6 +25,15 @@ def collect(*values: int, **options: int):
     return values, options
 
 
+@check_parameters
+def forward(value: 'Later | None'):
+    return value
+
+
+class Later:
+    pass
+
+
 def check_conversion():
     # Subclasses of str, int, and bool become the exact type, also inside unions and lists.
     name, count, label, items = describe(Text('a'), True, label=Text('b'), items=[False])
@@ -51,6 +60,15 @@ def check_errors():
         describe('a', 1, items=['1'])
 
 
+def check_forward_references():
+    # String annotations are resolved when the function is first called.
+    later = Later()
+    checks.assertIs(forward(later), later)
+    checks.assertIsNone(forward(None))
+    with checks.assertRaisesRegex(TypeError, "argument 'value' of forward"):
+        forward(1)
+
+
 def check_unchecked_variadics():
     checks.assertEqual(collect('a', b='c'), (('a',), {'b': 'c'}))
 
@@ -65,6 +83,7 @@ def check_unsupported_annotations():
 check_conversion()
 check_unions_and_tuples()
 check_errors()
+check_forward_references()
 check_unchecked_variadics()
 check_unsupported_annotations()
 

@@ -1,5 +1,7 @@
 """Namespace declarations."""
 
+from typing import Any
+
 from wirely.compiler import model
 from wirely.util import check_parameters
 
@@ -24,7 +26,7 @@ class DeclarationLibrary(Scope):
         self.libraries: dict[str, DeclarationLibrary] = {}
 
     @staticmethod
-    def make(*args, source_position: SourcePosition):
+    def make(*args: Any, source_position: SourcePosition) -> 'DeclarationLibrary':
         names = args[:-1]
         declarations = args[-1]
         for name in reversed(names):
@@ -33,18 +35,18 @@ class DeclarationLibrary(Scope):
         return declarations[0]
 
     @property
-    def fullname(self):
+    def fullname(self) -> str:
         if isinstance(self.parent_graph, DeclarationLibrary):
             return self.parent_graph.fullname + '.' + self.name.id_str
         return self.name.id_str
 
     @property
-    def fullname_tuple(self):
+    def fullname_tuple(self) -> tuple[str, ...]:
         if isinstance(self.parent_graph, DeclarationLibrary):
             return self.parent_graph.fullname_tuple + (self.name.id_str,)
         return (self.name.id_str,)
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: Scope) -> None:
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
@@ -78,5 +80,5 @@ class DeclarationLibrary(Scope):
                 decl.collect_declarations(self.compiled_scope)
                 
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return self.fullname

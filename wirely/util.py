@@ -75,10 +75,11 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
     """Check the arguments of a function against its parameter annotations when it is called.
 
     Arguments of str, int, or bool parameters are converted to the exact type. *args and **kwargs are
-    not checked.
+    not checked. String annotations, such as forward references, are resolved at the first call.
     """
     annotations = inspect.get_annotations(f)
     checks = {}
+    pending = []  # Parameters with string annotations.
     positional = []  # Names of the parameters that positional arguments fill, in order.
     for parameter in inspect.signature(f).parameters.values():
         if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
@@ -86,7 +87,10 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
         if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD):
             positional.append(parameter.name)
         if parameter.name in annotations:
-            checks[parameter.name] = (_checker(annotations[parameter.name]), annotations[parameter.name])
+            if isinstance(annotations[parameter.name], str):
+                pending.append(parameter.name)
+            else:
+                checks[parameter.name] = (_checker(annotations[parameter.name]), annotations[parameter.name])
 
     def check(name: str, value: object) -> object:
         checker, annotation = checks[name]
@@ -99,6 +103,11 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
 
     @functools.wraps(f)
     def wrapper(*args: object, **kwargs: object) -> object:
+        if pending:
+            hints = typing.get_type_hints(f)
+            for name in pending:
+                checks[name] = (_checker(hints[name]), hints[name])
+            pending.clear()
         arguments = list(args)
         for index, name in enumerate(positional[:len(arguments)]):
             if name in checks:

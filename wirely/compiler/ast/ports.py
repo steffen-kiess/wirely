@@ -46,22 +46,23 @@ class DeclarationPort(Declaration):
 
     @staticmethod
     @check_parameters
-    def create(direction_spec: PortDirectionSpecifier, name: Identifier, port_spec : PortTypeSpecification, *, source_position: SourcePosition):
+    def create(direction_spec: PortDirectionSpecifier, name: Identifier, port_spec : PortTypeSpecification, *,
+               source_position: SourcePosition) -> 'DeclarationPort':
         return DeclarationPort(name, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
 
     @staticmethod
     @check_parameters
-    def create_default(direction_spec: PortDirectionSpecifier, port_spec : PortTypeSpecification, *, source_position: SourcePosition):
+    def create_default(direction_spec: PortDirectionSpecifier, port_spec : PortTypeSpecification, *,
+                       source_position: SourcePosition) -> 'DeclarationPort':
         return DeclarationPort(None, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
 
-    @check_parameters
-    def register_interface_declarations(self, interface):
+    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         self.interface = interface
 
         if self.interface.is_singleton and self.direction_spec.direction == PortDirection.Input:
             raise model.ProgramError(self, 'Singleton node type cannot have inputs')
 
-    def prepare_interface(self, new_graph):
+    def prepare_interface(self, new_graph: 'model.NodeType') -> None:
         # TODO: Use self.kind ConnectionKind
         # TODO: Pass par_values to resolve_type?
         # TODO: Should the entires port_spec instance be passed?
@@ -98,7 +99,7 @@ class DeclarationPort(Declaration):
 
         copy_attributes(port, self)
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.NodeType') -> None:
         if self.name is None:
             return
         previous = graph.name_declarations.get(self.name.id_str)

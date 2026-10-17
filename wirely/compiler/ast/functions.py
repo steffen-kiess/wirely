@@ -1,19 +1,24 @@
 """Native function declarations."""
 
+from collections.abc import Sequence
+from typing import Any
+
 from wirely.compiler import model
 
-from .base import SourceElement, ProgramError, Declaration
+from .base import SourceElement, ProgramError, Declaration, Identifier, SourcePosition, Value
+from .values import StringConstant
 
 
 class FunctionArgument(SourceElement):
-    def __init__(self, name, ty, *, source_position):
+    def __init__(self, name: Identifier, ty: Value, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.ty = ty
 
 
 class DeclarationNativeFunction(Declaration):
-    def __init__(self, name, alias, arguments, return_type, *, is_constant=False, source_position):
+    def __init__(self, name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
+                 return_type: Value, *, is_constant: bool = False, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.alias = alias  # Native name replacing the qualified name.
@@ -23,11 +28,12 @@ class DeclarationNativeFunction(Declaration):
         self.is_constant = is_constant
 
     @staticmethod
-    def create_constant(name, alias, arguments, return_type, *, source_position):
+    def create_constant(name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
+                        return_type: Value, *, source_position: SourcePosition) -> 'DeclarationNativeFunction':
         return DeclarationNativeFunction(name, alias, arguments, return_type, is_constant=True,
                                          source_position=source_position)
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: Any) -> None:
         from ..native_functions import validate_entry
         if not isinstance(graph, model.ast.DeclarationLibrary) and graph.name is not None:
             raise ProgramError(self, 'Native functions are only allowed at root or in namespaces')
@@ -43,7 +49,7 @@ class DeclarationNativeFunction(Declaration):
             validate_entry(self.native_name, self)
         graph.native_functions[self.name.id_str] = self
 
-    def resolve_signature(self):
+    def resolve_signature(self) -> 'DeclarationNativeFunction':
         if not hasattr(self, 'parameter_types'):
             self.parameter_types = [self.scope.resolve_type(argument.ty) for argument in self.arguments]
             self.return_type = self.scope.resolve_type(self.return_type_ast)
@@ -56,12 +62,12 @@ class DeclarationNativeFunction(Declaration):
                                            'declare it native constant function')
         return self
 
-    def invoke(self, values, sources, call):
+    def invoke(self, values: Sequence[object], sources: Sequence[object], call: SourceElement) -> object:
         if self.is_constant:
             from ..native_functions import invoke
             return invoke(self, values, sources, call)
         from ..native_functions import invoke_runtime_function
         return invoke_runtime_function(self, values, call)
 
-    def prepare_interface(self, graph):
+    def prepare_interface(self, graph: Any) -> None:
         self.resolve_signature()

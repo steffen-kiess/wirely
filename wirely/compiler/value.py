@@ -41,7 +41,7 @@ class ConstantValue(Value):
             raise Exception('Type for ConstantValue must not contain parameters')
         # TODO: Call verify_value for value?
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ConstantValue({self.value_type}, {self.value})'
 
     @property
@@ -64,7 +64,7 @@ class ValueParameter(Value):
         self.value_type = value_type
         self.parameter = parameter
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ValueParameter({self.value_type}, {self.parameter})'
 
     @property
@@ -219,7 +219,7 @@ class ValueFunctionCall(ComputedValue):
         if len(self.parameters) != len(self.function.parameter_types):
             raise Exception('Unexpected number of parameters')
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ValueFunctionCall({self.function}, {self.parameters})'
 
     @property
