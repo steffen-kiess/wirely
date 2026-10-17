@@ -74,6 +74,7 @@ class DeclarationPort(Declaration):
             resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
         else:
             raise InternalCompilerError(self, Exception('Unknown port type specification'))
+        port: model.TypeInputPort | model.TypeOutputPort
         if self.direction == PortDirection.Input:
             name = self.name_str
             if name == '':

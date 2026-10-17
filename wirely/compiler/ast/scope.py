@@ -13,8 +13,13 @@ from .values import Reference, FunctionCall, OptionalExpression, BracketOperator
 # This class contains methods for resolving references in a scope
 class Scope(Declaration, abc.ABC):
     # Set by the subclasses.
+    name: 'model.Identifier | None'
     libraries: 'dict[str, model.DeclarationLibrary]'
     parent_graph: 'Scope | None'
+
+    @property
+    def fullname_tuple(self) -> tuple[str, ...]:
+        raise NotImplementedError
 
     @check_parameters
     def __init__(self, source_position: SourcePosition):

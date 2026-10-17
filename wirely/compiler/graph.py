@@ -79,7 +79,7 @@ class GraphElement:
         self.name = name
         self.outer_attributes = ()
         self.inner_attributes = ()
-        self.attributes = ()
+        self.attributes: tuple = ()
 
 
 # TODO: Move TypeInputPort and TypeOutputPort somewhere else?

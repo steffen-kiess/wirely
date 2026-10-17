@@ -80,7 +80,7 @@ class CompilerCoordinator:
 
     def prepare_interfaces(self):
         for node_type in self.node_types:
-            node_type.prepare_interface()
+            node_type.prepare_type_interface()
         for scope, declarations in self.declaration_groups:
             if not isinstance(scope, model.DeclarationLibrary):
                 continue
@@ -150,7 +150,7 @@ class CompilerCoordinator:
     def bind_bodies(self):
         self.resolve_procedure_ports()
         for node_type in self.node_types:
-            node_type.bind_body()
+            node_type.bind_type_body()
 
     def validate_bodies(self):
         for node_type in self.node_types:

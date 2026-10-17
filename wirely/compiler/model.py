@@ -1,11 +1,13 @@
 """Compiler-facing AST, graph, parameter, and diagnostic objects."""
 
 import importlib
+from typing import TYPE_CHECKING
 
 from wirely import Some, Unit, MonotonicTime, Duration, types, value_types, Type, ValueType
 from wirely.program import Program, RunStage, Variable, VariableTable, InputSource
 
 
+# Names exported lazily; add new names to the TYPE_CHECKING imports below too.
 _exports = {
     'ResourceType': 'compiler.types',
     'TypeParameter': 'compiler.types',
@@ -111,6 +113,122 @@ _modules = {
     'parser': 'compiler.parser',
     'util': 'util',
 }
+
+if TYPE_CHECKING:
+    from wirely.compiler.types import (
+        ResourceType,
+        TypeParameter,
+    )
+    from wirely.compiler.value import (
+        Value,
+        ConstantValue,
+        ValueParameter,
+    )
+    from wirely.compiler.parameters import (
+        ParameterValues,
+    )
+    from wirely.compiler.graph import (
+        GraphElement,
+        TypeInputPort,
+        TypeOutputPort,
+        TemporaryNode,
+        LocalResource,
+        InstanceLocalResource,
+        StateNode,
+        StateRead,
+        StaticSource,
+        PortSpecification,
+        ProcedureInputPort,
+        ProcedureOutputPort,
+        Connection,
+    )
+    from wirely.compiler.instance import (
+        InstanceNode,
+        NodeInstance,
+        InstanceElement,
+        InstanceSource,
+        InstanceTarget,
+        InstanceInputPort,
+        InstanceOutputPort,
+        InstanceTemporary,
+        PortSources,
+        InstanceStateVariable,
+        InstanceProcedure,
+        NodeTypeInstance,
+    )
+    from wirely.compiler.support import (
+        connect,
+        connection_kind,
+        forwards_multi_input,
+        list_members,
+        path_resolve_singleton,
+        resolve_variable,
+        traced_connections,
+        StaticNodeContext,
+        StaticProcedureContext,
+    )
+    from wirely.compiler.ast import (
+        UnitLiteral,
+        ReferencePort,
+        TypedPort,
+        UsesDeclaration,
+        StaticBinding,
+        DeclarationInitializer,
+        ProgramError,
+        InternalCompilerError,
+        CompilerHint,
+        SourcePosition,
+        Declaration,
+        PortDirectionSpecifier,
+        ListSpecifier,
+        Identifier,
+        IntNumber,
+        FloatNumber,
+        StringConstant,
+        Reference,
+        DeclarationPort,
+        DeclarationParameter,
+        DeclarationConstant,
+        DeclarationAssertion,
+        Instantiation,
+        DeclarationInstance,
+        DeclarationConnection,
+        DeclarationState,
+        DeclarationBinding,
+        DeclarationProcedure,
+        NativeSpecifier,
+        OptionalSpecifier,
+        StageDeclaration,
+        DependsDeclaration,
+        ProducesDeclaration,
+        ConnectionKindSpecifier,
+        PortTypeSpecification,
+        PortTypeSpecificationData,
+        PortTypeSpecificationResource,
+        DeclarationResourceType,
+        DeclarationEnumType,
+        EnumMember,
+        DeclarationStructType,
+        StructField,
+        StructLiteral,
+        StructLiteralField,
+        DeclarationLibrary,
+        ParameterBinding,
+        Scope,
+        NodeTypeSpecifier,
+        ListLiteral,
+        DeclarationNativeFunction,
+        FunctionArgument,
+        FunctionCall,
+        OptionalExpression,
+        BracketOperator,
+        ConnectionKind,
+    )
+    from wirely.compiler.node_type import (
+        NodeType,
+    )
+    from wirely import compiler, util
+    from wirely.compiler import ast, parser, value
 
 
 def __getattr__(name):

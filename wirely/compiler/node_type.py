@@ -125,7 +125,7 @@ class NodeType(model.Scope):
                 with self.coordinator.contain(decl), decl.context:
                     decl.collect_declarations(self)
 
-    def prepare_interface(self):
+    def prepare_type_interface(self):
         if self.interface_state is ResolutionState.COMPLETE:
             return
         if self.interface_state is not ResolutionState.PENDING:
@@ -163,7 +163,7 @@ class NodeType(model.Scope):
             raise
         self.instance_declarations_state = ResolutionState.COMPLETE
 
-    def bind_body(self):
+    def bind_type_body(self):
         if self.body_state is not ResolutionState.PENDING:
             raise RuntimeError('Body binding requires an unbound body')
         if self.instance_declarations_state is not ResolutionState.COMPLETE:
@@ -290,10 +290,10 @@ class NodeType(model.Scope):
                 check_runtime_type(var_type, instantiation)
                 impl_var_type = (model.types.TypeOption(var_type)
                                  if model.connection_kind(variable) == model.ConnectionKind.Event else var_type)
-                storage = model.InstanceTemporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
-                storage.port_spec = variable.port_spec
-                copy_attributes(storage, variable)
-                temporaries[variable.name.id_str] = storage
+                temporary = model.InstanceTemporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
+                temporary.port_spec = variable.port_spec
+                copy_attributes(temporary, variable)
+                temporaries[variable.name.id_str] = temporary
             else:
                 raise Exception(f'Got unexpected variable: {variable}')
 

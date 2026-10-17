@@ -324,6 +324,7 @@ class DeclarationBinding(Declaration):
         self.interface = interface
 
     def prepare_interface(self, new_graph):
+        variable: model.LocalResource | model.TemporaryNode
         if self.is_resource:
             resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
             variable = model.LocalResource(new_graph, self, resource_type)

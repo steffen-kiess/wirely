@@ -145,6 +145,7 @@ def path_resolve_singleton(path):
 
 def incoming_connection(var):
     """Return the connection supplying var, or None for a lookup step of resolve_variable()."""
+    target: object
     if isinstance(var, model.InstanceInputPort):
         graph, target = var.node.graph, var
     elif isinstance(var, model.InstanceOutputPort):

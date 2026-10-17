@@ -11,6 +11,13 @@ from wirely.program import InputSource, Variable
 
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
+    # Set by NodeType.instantiate().
+    parameter_values: dict
+    custom_inputs: dict
+    custom_outputs: dict
+    population_state: ResolutionState
+    port_storage: 'dict[typing.Any, InstanceTemporary | InstanceStateVariable]'
+
     def __init__(self, graph, *, name, node_type, par_values, instantiation, register=True):
         super().__init__(graph=graph, name=name)
 
@@ -217,7 +224,8 @@ class InstanceTarget(InstanceElement, abc.ABC):
 # TODO: Handle var_type == None better
 # TODO: Clean up, move more functionality to TypeInputPort
 class InstanceInputPort(InstanceSource):
-    def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *, type_input_port: model.TypeInputPort):
+    def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *,
+                 type_input_port: 'model.TypeInputPort | InstanceInputPort'):
         super().__init__(node, name)
         if not isinstance(is_list, bool):
             raise Exception('is_list parameter is not of type bool')
@@ -229,8 +237,8 @@ class InstanceInputPort(InstanceSource):
         self.type_input_port = type_input_port
         copy_attributes(self, type_input_port)
 
-        self.port_spec = self.type_input_port.port_spec
-        self.resource_type = self.type_input_port.resource_type
+        self.port_spec: model.PortTypeSpecification = self.type_input_port.port_spec
+        self.resource_type: model.ResourceType | None = self.type_input_port.resource_type
 
         self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):
@@ -347,6 +355,8 @@ class InstanceOutputPort(InstanceTarget):
 
 # TODO: Allow both temporaries and output values to be references to other values
 class InstanceTemporary(InstanceSource, InstanceTarget):
+    port_spec: typing.Any  # Set by NodeType.instantiate().
+
     def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *, impl_var_type, port=None):
         super().__init__(node, name)
         # The procedure output port stored here, or None for declared temporaries.
@@ -525,7 +535,7 @@ class NodeTypeInstance(NodeInstance):
         if self.is_singleton:
             self.parameter_values = {}
         else:
-            assert self.node is not None
+            assert isinstance(self.node, InstanceNode)
             self.parameter_values = dict(self.node.par_values)
 
         all_par_values: dict = {}
@@ -581,6 +591,7 @@ class NodeTypeInstance(NodeInstance):
     def instantiation_hint(self):
         """Return a hint at the instantiation of this instance, or None for the root."""
         owner = self.node or self.node_type.singleton_instance
+        assert isinstance(owner, InstanceNode)
         if owner.is_root:
             return None
         name = InstanceNode.path_name(self.path, qualified=True)

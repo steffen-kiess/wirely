@@ -11,6 +11,8 @@ from .functions import DeclarationNativeFunction
 
 # TODO: Should this to some extend be merged with NodeType? Should there be a common base class?
 class DeclarationLibrary(Scope):
+    name: Identifier
+
     @check_parameters
     def __init__(self, name: Identifier, declarations: list, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)

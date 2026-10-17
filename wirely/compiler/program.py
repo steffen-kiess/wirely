@@ -231,6 +231,7 @@ def lower_program(global_node_type):
                     connections = model.traced_connections(list(trace.values()))
                     if isinstance(variable, model.StateRead):
                         if variable.phase == 'new':
+                            assert isinstance(variable.state, model.InstanceStateVariable)
                             do(producer_path, variable.state.producer, variable.reference, connections)
                         continue
                     if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
