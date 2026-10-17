@@ -1,17 +1,29 @@
 """Compiler messages independent of compiler objects and output streams."""
 
+from __future__ import annotations
+
 import contextlib
+import os
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 import sys
 import traceback
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, TextIO, TypedDict
+
+if TYPE_CHECKING:
+    from . import model
+
+
+class _Offsets(TypedDict, total=False):
+    start: int
+    end: int
 
 
 @dataclass(frozen=True)
 class Diagnostic:
     kind: Literal['error', 'syntax_error', 'internal_error', 'hint', 'warning', 'info']
     message: str
-    filename: str | None = None
+    filename: str | os.PathLike | None = None
     line: int | None = None
     context: str | None = None
     traceback: str | None = None
@@ -20,7 +32,8 @@ class Diagnostic:
     end: int | None = None
 
 
-def print_diagnostic(diagnostic, *, file=None, traceback_file=None):
+def print_diagnostic(diagnostic: Diagnostic, *, file: TextIO | None = None,
+                     traceback_file: TextIO | None = None) -> None:
     if diagnostic.kind == 'syntax_error':
         print(f'Error in {diagnostic.filename}:{diagnostic.line}', file=file)
         print(diagnostic.message, file=file)
@@ -39,7 +52,7 @@ def print_diagnostic(diagnostic, *, file=None, traceback_file=None):
         print(diagnostic.traceback, end='', file=destination)
 
 
-def error_diagnostics(error, *, always_print_stacktrace=False):
+def error_diagnostics(error: model.ProgramError, *, always_print_stacktrace: bool = False) -> Iterator[Diagnostic]:
     from . import model
 
     internal = isinstance(error, model.InternalCompilerError)
@@ -74,19 +87,20 @@ class WarningSink:
     phases.
     """
 
-    def __init__(self, report):
+    def __init__(self, report: Callable[[Diagnostic], None]) -> None:
         self.report = report
-        self._allowed = []
-        self._reported = set()
+        self._allowed: list[tuple[str, str | os.PathLike | None, int | None, int | None]] = []
+        self._reported: set[tuple[str, str | os.PathLike | None, int, str]] = set()
         # Instantiation hints of the instances being evaluated, innermost last.
-        self._instances = []
+        self._instances: list[model.CompilerHint] = []
 
-    def allow(self, name, filename, start=None, end=None):
+    def allow(self, name: str, filename: str | os.PathLike | None, start: int | None = None,
+              end: int | None = None) -> None:
         """Suppress name in filename between the offsets, or in the whole file."""
         self._allowed.append((name, filename, start, end))
 
     @contextlib.contextmanager
-    def instance(self, hint):
+    def instance(self, hint: model.CompilerHint | None) -> Iterator[None]:
         """Add hint, if not None, to instance-dependent warnings reported inside."""
         if hint is None:
             yield
@@ -97,15 +111,19 @@ class WarningSink:
         finally:
             self._instances.pop()
 
-    def warn(self, name, element, message, *, hints=(), instance_trace=True):
+    def warn(self, name: str, element: model.ast.SourceElement, message: str, *,
+             hints: Iterable[model.CompilerHint] = (), instance_trace: bool = True) -> None:
         if name not in WARNINGS:
             raise ValueError(f'Unknown warning {name!r}')
         position = element.source_position
         offset = position.start_pos
-        if any(allowed == name and filename == position.filename
-               and (start is None or start <= offset < end)
-               for allowed, filename, start, end in self._allowed):
-            return
+        for allowed, filename, start, end in self._allowed:
+            if allowed == name and filename == position.filename:
+                if start is None:
+                    return
+                assert end is not None
+                if start <= offset < end:
+                    return
         key = name, position.filename, offset, message
         if key in self._reported:
             return
@@ -116,7 +134,8 @@ class WarningSink:
             self.report(diagnostic)
 
 
-def warning_diagnostics(name, element, message, hints=()):
+def warning_diagnostics(name: str, element: model.ast.SourceElement, message: str,
+                        hints: Iterable[model.CompilerHint] = ()) -> Iterator[Diagnostic]:
     position = element.source_position
     yield Diagnostic('warning', f'{message} [{name}]', filename=position.filename,
                      line=position.start_line, context=_context(element), **_offsets(position))
@@ -124,21 +143,21 @@ def warning_diagnostics(name, element, message, hints=()):
         yield _hint_diagnostic(hint)
 
 
-def _context(element):
+def _context(element: model.ast.SourceElement) -> str:
     import lark
 
     error = lark.exceptions.UnexpectedInput()
-    error.pos_in_stream = element.source_position.start_pos
+    error.pos_in_stream = element.source_position.start_pos  # type: ignore[assignment]
     return error.get_context(element.source_position.input_data)
 
 
-def _hint_diagnostic(hint):
+def _hint_diagnostic(hint: model.CompilerHint) -> Diagnostic:
     position = hint.source_element.source_position
     return Diagnostic('hint', str(hint), filename=position.filename,
                       line=position.start_line, context=hint.get_context(), **_offsets(position))
 
 
-def _offsets(position):
+def _offsets(position: model.SourcePosition | None) -> _Offsets:
     meta = None if position is None else position.meta
     if meta is None or getattr(meta, 'empty', True):
         return {}

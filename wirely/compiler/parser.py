@@ -1,5 +1,13 @@
+from __future__ import annotations
+
 import sys
 import os
+from collections.abc import Iterable
+from typing import Any, TypeVar
+
+from lark.common import LexerConf
+from lark.lexer import LexerState
+from lark.parsers.lalr_parser import ParserState
 
 import lark
 
@@ -13,12 +21,15 @@ from .expressions import (
 )
 
 
+T = TypeVar('T')
+
+
 with open(os.path.dirname(__file__) + '/wirely.lark', 'r') as file:
     grammar = file.read()
 
 # TODO: Move somewhere else?
 
-ast_classes = [
+ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factories.
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression, OnTrigger, EmitExpression,
     ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
     model.ConnectionKindSpecifier,
@@ -95,7 +106,7 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
     terminal_names = {'COMMENT_START', 'COMMENT_NEST', 'COMMENT_CONTENT', 'COMMENT_END'}
     shared_terminal_names = {'COMMENT_START'}
 
-    def __init__(self, conf):
+    def __init__(self, conf: LexerConf) -> None:
         # Get comment terminals
         comment_terminals = list([terminal for terminal in conf.terminals if terminal.name in self.terminal_names])
         # Check whether any terminals are missing
@@ -112,7 +123,7 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
         # Create a scanner which is used while in comment mode
         self.comment_scanner = lark.lexer.Scanner(comment_terminals, self.g_regex_flags, self.re, self.use_bytes)
 
-    def parse_comment(self, lex_state, parser_state):
+    def parse_comment(self, lex_state: LexerState, parser_state: ParserState | None) -> None:
         level = 1
         while lex_state.line_ctr.char_pos < len(lex_state.text):
             res = self.comment_scanner.match(lex_state.text, lex_state.line_ctr.char_pos)
@@ -136,7 +147,7 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
 
         raise lark.exceptions.UnexpectedEOF(self.terminal_names)
 
-    def next_token(self, lex_state, parser_state):  # type: ignore[override]
+    def next_token(self, lex_state: LexerState, parser_state: ParserState | None) -> lark.Token:  # type: ignore[override]
         while True:
             token = super().next_token(lex_state, parser_state)
             # print(repr(token.type))
@@ -148,24 +159,24 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
 
 @lark.v_args(inline=True)
 class Transformer(lark.Transformer):
-    def __init__(self, filename, input_data):
+    def __init__(self, filename: str | os.PathLike, input_data: str) -> None:
         self.filename = filename
         self.input_data = input_data
         self.source_path = capture_source_path(filename)
 
-    def copy(self, arg):
+    def copy(self, arg: T) -> T:
         return arg
     @lark.v_args()
-    def copy_list(self, arg):
+    def copy_list(self, arg: list[T]) -> list[T]:
         return arg
 
     @lark.v_args()
-    def file_input(self, decls):
+    def file_input(self, decls: list[Any]) -> ParsedFile:
         inner = [item for item in decls if isinstance(item, Attribute)]
         return ParsedFile([item for item in decls if not isinstance(item, Attribute)],
                           inner_attributes=inner)
 
-    def attributed(self, *items):
+    def attributed(self, *items: Any) -> Any:
         item = items[-1]
         # A dotted namespace declaration denotes its innermost namespace.
         if isinstance(item, model.DeclarationLibrary):
@@ -174,17 +185,17 @@ class Transformer(lark.Transformer):
         item.outer_attributes = tuple(items[:-1])
         return items[-1]
 
-    def metadata_path(self, *identifiers):
+    def metadata_path(self, *identifiers: model.Identifier) -> tuple[str, ...]:
         return tuple(identifier.id_str for identifier in identifiers)
 
     @lark.v_args()
-    def metadata_arguments(self, arguments):
+    def metadata_arguments(self, arguments: list[Metadata | MetadataLiteral]) -> list[Metadata | MetadataLiteral]:
         return [MetadataLiteral(argument.name == 'true', argument.source_position)
                 if isinstance(argument, Metadata) and argument.kind == 'flag'
                 and argument.name in ('true', 'false') else argument
                 for argument in arguments]
 
-    def __default__(self, data, children, meta):
+    def __default__(self, data: str, children: list[Any], meta: lark.tree.Meta) -> Any:
         if data.startswith('__'):
             return lark.Tree(data, children, meta)
 
@@ -237,12 +248,12 @@ opts = {
 parser = lark.Lark(grammar, **opts)
 
 
-def parse_str(input_data, *, filename):
+def parse_str(input_data: str, *, filename: str | os.PathLike) -> ParsedFile:
     t = Transformer(filename, input_data=input_data)
     return t.transform(parser.parse(input_data))
 
 
-def parse_sources(filename_inputdatas):
+def parse_sources(filename_inputdatas: Iterable[tuple[str | os.PathLike, str]]) -> list[tuple[str | os.PathLike, ParsedFile]]:
     """Parse source files while retaining syntax diagnostic context."""
     parsed_files = []
     for filename, input_data in filename_inputdatas:

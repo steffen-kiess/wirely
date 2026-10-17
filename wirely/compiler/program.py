@@ -1,12 +1,21 @@
 """Translate compiler structures into runtime programs."""
 
+from __future__ import annotations
+
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .instance import NodePath
+    from .parameters import StaticValue
+
 from wirely.compiler import model
-from wirely.compiler.diagnostics import error_diagnostics, print_diagnostic
+from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
-    Constant, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
     NativeNodeType, NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding,
     RunStage, Variable, VariableTable,
 )
@@ -18,7 +27,9 @@ COPY_BODY = ProcedureBody((
 ))
 
 
-def cycle_error(element, message, steps, via):
+def cycle_error(element: model.ast.SourceElement, message: str,
+                steps: Sequence[tuple[model.ast.SourceElement | None, Sequence[model.Connection]]],
+                via: Sequence[model.Connection]) -> model.ProgramError:
     """Report a dependency cycle at element, with hints following the data around it.
 
     steps are the (element, via) pairs from the start of the cycle to the
@@ -31,13 +42,16 @@ def cycle_error(element, message, steps, via):
     hints: list = []
     for hint_element in elements:
         if hint_element is not element and all(hint_element is not hint.source_element for hint in hints):
+            assert hint_element is not None
             hints.append(model.CompilerHint(hint_element, 'Cycle continues here'))
     return model.ProgramError(element, message, hints=hints)
 
 
-def compile(global_node_type, *, on_diagnostic=None):
+def compile(global_node_type: model.NodeType, *,
+            on_diagnostic: Callable[[Diagnostic], None] | None = None) -> Program | None:
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
     warnings = global_node_type.coordinator.warnings
+    assert warnings is not None
     previous_report, warnings.report = warnings.report, report
     try:
         return compile_nocatch(global_node_type)
@@ -50,13 +64,15 @@ def compile(global_node_type, *, on_diagnostic=None):
         warnings.report = previous_report
 
 
-def compile_nocatch(global_node_type):
+def compile_nocatch(global_node_type: model.NodeType) -> Program:
     return lower_program(global_node_type)
 
 
-def specialize_instances(graph, root, *, variable_map, all_variables, state_map,
-                         state_variables, instances):
-    singletons: dict = {}
+def specialize_instances(graph: model.NodeType, root: model.InstanceNode | None, *,
+                         variable_map: dict[tuple[NodePath, str], InputSource], all_variables: list[Variable],
+                         state_map: dict[tuple[NodePath, model.InstanceStateVariable], Variable],
+                         state_variables: list[Variable], instances: dict[NodePath, model.NodeTypeInstance]) -> None:
+    singletons: dict[model.NodeType, model.InstanceNode] = {}
     top_nodes = (root,) if root is not None else tuple(graph.instance_nodes.values())
     for node in top_nodes:
         node.specialize(singletons=singletons, variable_map=variable_map,
@@ -65,17 +81,19 @@ def specialize_instances(graph, root, *, variable_map, all_variables, state_map,
                         path=(node,), parent_instance=None)
 
 
-def members(path, source):
+# Sources may be data ports, state reads, static values, or resource ports.
+def members(path: NodePath, source: Any) -> list[tuple[NodePath, Any, tuple[tuple[NodePath, Any], ...]]]:
     """Return (path, port, steps) for each source of a dependency, see list_members()."""
     if getattr(source, 'is_list', False):
         return model.list_members(path, source)
     return [(path, source, ())]
 
 
-def lower_program(global_node_type):
+def lower_program(global_node_type: model.NodeType) -> Program:
     # TODO: More checks, e.g. that global_node_type has not parameters or inputs / outputs
     graph = global_node_type
     warnings = graph.coordinator.warnings
+    assert warnings is not None
     if graph.body_state is not ResolutionState.COMPLETE:
         raise RuntimeError('Program lowering requires a bound and validated global graph')
     root = None
@@ -84,14 +102,14 @@ def lower_program(global_node_type):
                                                instantiation=graph, register=False)
         graph.populate_instance(root)
 
-    variable_map: dict = {}
-    all_variables = []
-    state_map: dict = {}
-    state_variables: list = []
+    variable_map: dict[tuple[NodePath, str], InputSource] = {}
+    all_variables: list[Variable] = []
+    state_map: dict[tuple[NodePath, model.InstanceStateVariable], Variable] = {}
+    state_variables: list[Variable] = []
     # TODO: Try to avoid needing this by making sure everyone uses instance values instead of paths?
-    instances: dict = {}
+    instances: dict[NodePath, model.NodeTypeInstance] = {}
 
-    def add_var(path, var):
+    def add_var(path: NodePath, var: Any) -> InputSource:
         # TODO: Clean up handling of singletons (vars probably should contain a reference to a NodeType, not to an InstanceNode)
         if (path, var.var_identifier) in variable_map:
             return variable_map[path, var.var_identifier]
@@ -101,8 +119,8 @@ def lower_program(global_node_type):
             if isinstance(path[-1], model.InstanceNode):  # TODO: Handle singletons here?
                 raise Exception('path[-1] != var.node')
         # TODO: Move this code somewhere else?
-        parameters = {}
-        instance = instances[path]
+        parameters: dict[model.DeclarationParameter, StaticValue] = {}
+        instance: model.NodeTypeInstance | None = instances[path]
         while instance is not None:
             parameters.update(instance.static_values)
             instance = instance.parent_instance
@@ -137,9 +155,9 @@ def lower_program(global_node_type):
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
     constants: list[Constant] = []
-    constant_indices = {}
+    constant_indices: dict[tuple[model.Type, bytes], int] = {}
 
-    def intern_constant(value_type, value):
+    def intern_constant(value_type: model.Type, value: object) -> int:
         value = value_type.verify_value(value)
         key = value_type, value_type.serialize(value)
         if key not in constant_indices:
@@ -147,10 +165,12 @@ def lower_program(global_node_type):
             constants.append(Constant(value_type, value))
         return constant_indices[key]
 
-    def static_source(path, source):
+    def static_source(path: NodePath, source: model.StaticSource) -> InputSource:
         """Return the constant supplying a parameter or constant connected as a source."""
         instance = instances[path]
         reference = source.reference
+        assert isinstance(reference, model.Identifier)
+        assert source.var_type is not None
         with reference.context, warnings.instance(instance.instantiation_hint()):
             try:
                 value_type = resolve_type(source.var_type, instance.static_values)
@@ -167,7 +187,7 @@ def lower_program(global_node_type):
                 raise
         return InputSource(constant=constants[intern_constant(value_type, concrete)])
 
-    def resolve_source(path, source):
+    def resolve_source(path: NodePath, source: Any) -> InputSource:
         source_path, variable = model.resolve_variable(path, source)
         if isinstance(variable, model.StaticSource):
             return static_source(source_path, variable)
@@ -183,10 +203,11 @@ def lower_program(global_node_type):
             node = node.singleton_instance
         node.bind_variables(path=path, variable_map=variable_map, resolve_source=resolve_source)
 
-    procs: dict = {}
-    done = set()
-    doing: list = []
-    def do(path, proc, reference=None, via=()):
+    procs: dict[RunStage, list[tuple[NodePath, model.InstanceProcedure]]] = {}
+    done: set[tuple[NodePath, str]] = set()
+    doing: list[tuple[tuple[NodePath, str], model.ast.SourceElement | None, Sequence[model.Connection]]] = []
+    def do(path: NodePath, proc: model.InstanceProcedure, reference: model.ast.SourceElement | None = None,
+           via: Sequence[model.Connection] = ()) -> None:
         """Schedule proc after its producers; via has the connections from proc to reference."""
         # TODO: Clean this up (this makes sure that the correct Procedure instance is used for singletons)
         if proc.node.node_type.is_singleton and proc.node.node_type.singleton_instance != proc.node:
@@ -225,13 +246,15 @@ def lower_program(global_node_type):
             if model.ast.dependency_is_resource(dep):
                 continue
             else:
-                for member_path, member, steps in members(path, dep):
-                    trace = {(step_path, id(step)): step for step_path, step in steps}
+                for member_path, member, member_steps in members(path, dep):
+                    trace = {(step_path, id(step)): step for step_path, step in member_steps}
                     producer_path, variable = model.resolve_variable(member_path, member, trace)
                     connections = model.traced_connections(list(trace.values()))
                     if isinstance(variable, model.StateRead):
                         if variable.phase == 'new':
                             assert isinstance(variable.state, model.InstanceStateVariable)
+                            assert variable.state.producer is not None
+                            assert isinstance(variable.reference, model.ast.SourceElement)
                             do(producer_path, variable.state.producer, variable.reference, connections)
                         continue
                     if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
@@ -263,7 +286,8 @@ def lower_program(global_node_type):
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
-    def resource_path(path, source, port):
+    def resource_path(path: NodePath, source: Any,
+                      port: model.ast.SourceElement) -> tuple[NodePath, ResourceBinding, list[model.Connection]]:
         """Return a resource provider, its binding, and the connections leading to it."""
         trace: dict = {}
         provider_path, output = model.resolve_variable(path, source, trace)
@@ -273,27 +297,29 @@ def lower_program(global_node_type):
                 model.CompilerHint(output.port_spec, 'Resource output was declared here'),
             ])
         produced = output.resource if isinstance(output, model.InstanceLocalResource) else output.type_output_port
+        assert node_type.initializer is not None
         binding = ResourceBinding(node_ids[provider_path], node_type.initializer.output_keys[produced])
         return provider_path, binding, model.traced_connections(list(trace.values()))
 
-    initializer_bindings = {}
-    construction_dependencies = {}
+    initializer_bindings: dict[NodePath, dict[str, ResourceBinding]] = {}
+    construction_dependencies: dict[NodePath, list[tuple[NodePath, model.ast.SourceElement, list[model.Connection]]]] = {}
     for path, instance in instances.items():
         node = instance.node if instance.node is not None else instance.node_type.singleton_instance
         bindings = {}
-        providers = []
+        providers: list[tuple[NodePath, model.ast.SourceElement, list[model.Connection]]] = []
         for name, (source, port) in node.initializer_sources.items():
             provider, bindings[name], via = resource_path(path, source, port)
             providers.append((provider, port, via))
         initializer_bindings[path] = bindings
         construction_dependencies[path] = providers
 
-    construction_order = []
-    constructed = set()
+    construction_order: list[NodePath] = []
+    constructed: set[NodePath] = set()
     # (path, port, via) of each node being constructed and how it was reached.
-    constructing = []
+    constructing: list[tuple[NodePath, model.ast.SourceElement | None, Sequence[model.Connection]]] = []
 
-    def order_construction(path, port=None, via=()):
+    def order_construction(path: NodePath, port: model.ast.SourceElement | None = None,
+                           via: Sequence[model.Connection] = ()) -> None:
         if path in constructed:
             return
         constructing.append((path, port, via))
@@ -334,13 +360,13 @@ def lower_program(global_node_type):
                     raise model.ProgramError(state.initial_value, str(error)) from error
 
     # Compile .wrl bodies after instance parameters and variable types resolve.
-    bodies = {}
-    old_state_dependencies = {}
+    bodies: dict[tuple[NodePath, model.InstanceProcedure], ProcedureBody] = {}
+    old_state_dependencies: dict[tuple[NodePath, model.InstanceProcedure], tuple[Variable, ...]] = {}
 
-    functions: list = []
-    function_indices = {}
+    functions: list[Function] = []
+    function_indices: dict[str, int] = {}
 
-    def intern_function(function):
+    def intern_function(function: Function) -> int:
         if function.name not in function_indices:
             function_indices[function.name] = len(functions)
             functions.append(function)
@@ -392,9 +418,9 @@ def lower_program(global_node_type):
                         value_type = model.types.TypeOption(value_type)
                     keys = []
                     for index, (member_path, member, _) in enumerate(members(path, source)):
-                        key = name, index
-                        source_types[key] = resolve_source(member_path, member).value_type
-                        keys.append(key)
+                        member_key = name, index
+                        source_types[member_key] = resolve_source(member_path, member).value_type
+                        keys.append(member_key)
                     multi_sources[name] = value_type, tuple(keys)
                 else:
                     source_types[name] = resolve_source(path, source).value_type
@@ -408,14 +434,15 @@ def lower_program(global_node_type):
                     raise model.ProgramError(port, 'Procedures cannot produce resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_outputs.add(name)
-                variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
-                            else variable_map[path, target.var_identifier].variable)
-                output_types[name] = variable.var_type
+                output_variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
+                                   else variable_map[path, target.var_identifier].variable)
+                assert output_variable is not None
+                output_types[name] = output_variable.var_type
                 if (isinstance(target, model.InstanceStateVariable)
                         and isinstance(port, model.ast.ReferencePort)
                         and port.reference.length == 1
                         and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes):
-                    changed_states[name] = variable
+                    changed_states[name] = output_variable
             with warnings.instance(instances[path].instantiation_hint()):
                 bodies[path, proc], old_state_dependencies[path, proc] = compile_procedure(
                     proc, instances[path], source_types, output_types, intern_constant, intern_function,
@@ -423,7 +450,7 @@ def lower_program(global_node_type):
                 )
 
     from .static_bindings import evaluate_bindings
-    schedules = {}
+    schedules: dict[RunStage, tuple[Procedure, ...]] = {}
     for stage, stage_procs in procs.items():
         schedule = []
         for path, proc in stage_procs:
@@ -443,14 +470,16 @@ def lower_program(global_node_type):
                 for index, (member_path, member, _) in enumerate(members(path, source)):
                     debug_name = f'{key}[{index}]' if is_list else key
                     dependencies.append((debug_name, resolve_source(member_path, member)))
-            for state in old_state_dependencies.get((path, proc), ()):
-                dependencies.append((f'<changed old {state.name}>', InputSource(state, new_state=False)))
+            for old_state in old_state_dependencies.get((path, proc), ()):
+                dependencies.append((f'<changed old {old_state.name}>', InputSource(old_state, new_state=False)))
             for name, target in proc.static_context._targets.items():
                 key = output_keys[name]
                 if isinstance(target, model.InstanceStateVariable):
                     outputs[key] = OutputTarget(state_map[path, target])
                 else:
-                    outputs[key] = OutputTarget(variable_map[path, target.var_identifier].variable)
+                    output_variable = variable_map[path, target.var_identifier].variable
+                    assert output_variable is not None
+                    outputs[key] = OutputTarget(output_variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(declaration.native_name if declaration.is_native
@@ -479,15 +508,15 @@ def lower_program(global_node_type):
                 body=COPY_BODY,
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)
-    node_aliases = {}
+    node_aliases: dict[str, str] = {}
     variables: dict[str, InputSource] = {}
 
-    def aliased_items(items):
+    def aliased_items(items: Iterable[Any]) -> list[Any]:
         # Default outputs are aliased by their node, other outputs by their own name.
         return [item for item in items
                 if item.name != '' and getattr(item, 'port', None) is None]
 
-    def add_aliases(scope, path=(), prefix=''):
+    def add_aliases(scope: model.NodeType, path: NodePath = (), prefix: str = '') -> None:
         for name, node in scope.instance_nodes.items():
             child_path = model.path_resolve_singleton(path + (node,))
             alias = prefix + name
@@ -514,12 +543,13 @@ def lower_program(global_node_type):
         instance.node_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton
     }
-    native_types = {}
+    native_types: dict[str, NativeNodeType] = {}
     native_procedures: dict[str, NativeProcedureInterface] = {}
-    native_declarations: dict = {}
+    native_declarations: dict[str, model.DeclarationProcedure] = {}
     for instance in instances.values():
         node_type = instance.node_type
         if node_type.is_native:
+            assert node_type.native_name is not None
             native_types[node_type.native_name] = native_node_type(node_type)
         for procedure in node_type.procedures.values():
             if not procedure.is_native:
@@ -544,11 +574,11 @@ def lower_program(global_node_type):
     )
 
 
-def uses_names(uses):
+def uses_names(uses: model.UsesDeclaration | None) -> tuple[str, ...]:
     return () if uses is None else tuple(binding.key for binding in uses.bindings)
 
 
-def native_procedure_interface(procedure):
+def native_procedure_interface(procedure: model.DeclarationProcedure) -> NativeProcedureInterface:
     """Return the declared interface of a native procedure."""
     return NativeProcedureInterface(
         uses=uses_names(procedure.uses),
@@ -560,7 +590,7 @@ def native_procedure_interface(procedure):
     )
 
 
-def native_node_type(node_type):
+def native_node_type(node_type: model.NodeType) -> NativeNodeType:
     """Return the declared native interface of a node type with native state."""
     initializer = node_type.initializer
     initializer_resources = {}
@@ -571,7 +601,11 @@ def native_node_type(node_type):
             if isinstance(dependency, model.InstanceNode):
                 dependency = dependency.output_ports_byname['']
             initializer_resources[port.key] = dependency.resource_type.native_name
-        resource_outputs = {key: output.resource_type.native_name for output, key in initializer.output_keys.items()}
+        for output, key in initializer.output_keys.items():
+            assert isinstance(output, (model.TypeOutputPort, model.LocalResource))
+            assert output.resource_type is not None
+            resource_outputs[key] = output.resource_type.native_name
+    assert node_type.native_name is not None
     return NativeNodeType(
         name=node_type.native_name,
         initializer_uses=uses_names(initializer.uses) if initializer is not None else (),

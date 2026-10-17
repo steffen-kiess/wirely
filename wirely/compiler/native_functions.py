@@ -1,10 +1,12 @@
 """Implementations and invocation of declared native functions."""
 
+from __future__ import annotations
+
 import importlib
-from collections.abc import Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 import inspect
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 
 from . import model
@@ -13,7 +15,12 @@ if TYPE_CHECKING:
     from .diagnostics import WarningSink
 
 
-native_function_impls = {
+class NativeFunctionImplementation(Protocol):
+    def __call__(self, *, context: NativeFunctionContext) -> object:
+        ...
+
+
+native_function_impls: dict[str, tuple[str, str] | NativeFunctionImplementation] = {
     'KNX.ParseGroupAddress': (
         'wirely.compiler.function_implementations.knx', 'parse_group_address',
     ),
@@ -71,28 +78,30 @@ native_function_impls = {
 @dataclass(frozen=True, slots=True)
 class NativeFunctionContext:
     function_name: str  # Native name, such as 'KNX.ParseGroupAddress'.
-    arguments: tuple[object, ...]
+    arguments: tuple[Any, ...]  # Native values are used dynamically by implementations.
     arguments_ast: tuple[object, ...]
-    call: object
+    call: model.ast.SourceElement
     services: Mapping[str, object]
-    return_type: object  # Declared return type as a wirely.ValueType.
+    return_type: model.value_types.ValueType
     _warnings: 'WarningSink'  # The compilation's WarningSink.
 
-    def _source(self, argument):
+    def _source(self, argument: int | None) -> model.ast.SourceElement:
         if argument is None:
             return self.call
         if type(argument) is not int or not 0 <= argument < len(self.arguments_ast):
             raise ValueError(f'Invalid function argument index {argument!r}')
-        return self.arguments_ast[argument]
+        source = self.arguments_ast[argument]
+        assert isinstance(source, model.ast.SourceElement)
+        return source
 
-    def error(self, message, *, argument=None):
+    def error(self, message: str, *, argument: int | None = None) -> model.ProgramError:
         return model.ProgramError(self._source(argument), message)
 
-    def warn(self, message, *, argument=None):
+    def warn(self, message: str, *, argument: int | None = None) -> None:
         self._warnings.warn('NativeFunction', self._source(argument), message)
 
 
-def validate_entry(name, declaration):
+def validate_entry(name: str, declaration: model.DeclarationNativeFunction) -> None:
     if name not in native_function_impls:
         raise model.ProgramError(declaration, f'Missing implementation for function {name!r}')
     entry = native_function_impls[name]
@@ -106,10 +115,10 @@ def validate_entry(name, declaration):
     raise model.ProgramError(declaration, f'Invalid implementation entry for function {name!r}')
 
 
-def validate_collisions(declarations):
+def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
     scopes: dict[Any, dict] = {}
 
-    def visit(items, scope):
+    def visit(items: Iterable[model.Declaration], scope: tuple[str | model.NodeType, ...]) -> None:
         names = scopes.setdefault(scope, {})
         for item in items:
             name = getattr(item, 'name', None)
@@ -128,11 +137,12 @@ def validate_collisions(declarations):
     visit(declarations, ())
 
 
-def validate_native_names(declarations):
+def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
     """Reject native names shared by two node types, resource types, enum types, struct types, or functions."""
     names: dict[tuple[str, str], Any] = {}
 
-    def register(kind, item, path):
+    # Native declarations have different concrete classes but share name and alias fields.
+    def register(kind: str, item: Any, path: tuple[str, ...]) -> None:
         name = item.alias.value if item.alias is not None else '.'.join(path + (item.name.id_str,))
         previous = names.setdefault((kind, name), item)
         # Wirely name checks report clashes between unkeyed declarations.
@@ -141,7 +151,7 @@ def validate_native_names(declarations):
                 model.CompilerHint(previous.alias or previous.name, 'Previous declaration was here'),
             ])
 
-    def visit(items, path):
+    def visit(items: Iterable[model.Declaration], path: tuple[str, ...]) -> None:
         for item in items:
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, path + (item.name.id_str,))
@@ -164,7 +174,8 @@ def validate_native_names(declarations):
     visit(declarations, ())
 
 
-def resolve_implementation(function, call):
+def resolve_implementation(function: model.DeclarationNativeFunction,
+                           call: model.ast.SourceElement) -> NativeFunctionImplementation:
     # Declaration objects belong to one compilation, so this cache cannot leak.
     if hasattr(function, '_resolved_implementation'):
         return function._resolved_implementation
@@ -187,14 +198,17 @@ def resolve_implementation(function, call):
     return implementation
 
 
-def invoke(function, values, sources, call):
+def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], sources: Sequence[object],
+           call: model.ast.SourceElement) -> object:
     implementation = resolve_implementation(function, call)
     arguments = tuple(model.value_types._to_native(ty, value)
                       for ty, value in zip(function.parameter_types, values))
+    warnings = function.scope.coordinator.warnings
+    assert warnings is not None
     context = NativeFunctionContext(
         function.native_name, arguments, tuple(sources), call,
         function.scope.services, model.value_types.ValueType(function.return_type),
-        function.scope.coordinator.warnings,
+        warnings,
     )
     try:
         result = implementation(context=context)
@@ -210,7 +224,8 @@ def invoke(function, values, sources, call):
         raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
 
 
-def invoke_runtime_function(function, values, call):
+def invoke_runtime_function(function: model.DeclarationNativeFunction, values: Sequence[object],
+                            call: model.ast.SourceElement) -> object:
     """Evaluate a runtime-callable native function during compilation."""
     from wirely.functions import call_native_function, get_native_function_by_name
     name = function.function_name

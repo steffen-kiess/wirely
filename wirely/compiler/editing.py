@@ -14,7 +14,11 @@ Added declarations are set apart from their neighbours by blank lines;
 consecutive connect statements stay together.
 """
 
+from __future__ import annotations
+
 import math
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from typing import TypeAlias, TypeVar, cast
 import re
 from dataclasses import dataclass, replace
 
@@ -22,7 +26,8 @@ import lark
 
 from . import ast
 from . import parser
-from .attributes import ParsedFile
+from .attributes import Attribute, ParsedFile
+from . import outline as _outline
 from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, PropertyAccess
 from .node_type import NodeType as _NodeType
 from wirely import types as _types
@@ -30,6 +35,13 @@ from .outline import (
     Binding, Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State,
     outline,
 )
+
+
+Sources: TypeAlias = Iterable[tuple[str, str]]
+EndpointKey: TypeAlias = tuple[_outline.ElementId | None, str | None]
+RenameSummary: TypeAlias = tuple[list[tuple[EndpointKey, EndpointKey]], list[NodeType | None]]
+T = TypeVar('T')
+IdT = TypeVar('IdT', bound=_outline.ElementId | None)
 
 
 @dataclass(frozen=True)
@@ -41,7 +53,7 @@ class TextEdit:
     text: str
 
 
-def apply_edits(sources, edits):
+def apply_edits(sources: Sources, edits: Iterable[TextEdit]) -> list[tuple[str, str]]:
     """Return the (filename, text) pairs with the edits applied.
 
     Insertions at the same offset keep their order in edits.
@@ -64,7 +76,7 @@ def apply_edits(sources, edits):
     return result
 
 
-def format_metadata(name, **arguments):
+def format_metadata(name: str, **arguments: int | float | bool) -> str:
     """Return attribute metadata such as 'Diagram.Position(X = 1, Y = 2.5)'.
 
     Argument values must be integers, finite floats, or booleans.
@@ -75,40 +87,41 @@ def format_metadata(name, **arguments):
     return f'{name}({formatted})'
 
 
-def format_identifier(name):
+def format_identifier(name: str) -> str:
     """Return name as an identifier, as a raw identifier r#name for keywords."""
     for candidate in (name, f'r#{name}'):
         try:
             parsed = parser.parse_str(f'binding {candidate}: value T;', filename='<identifier>')
         except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError):
             continue
+        assert isinstance(parsed[0], ast.DeclarationBinding)
         if parsed[0].name_str == name:
             return candidate
     raise ValueError(f'Invalid identifier {name!r}')
 
 
-def format_node(name, type_text, parameters=()):
+def format_node(name: str, type_text: str, parameters: Iterable[tuple[str, str]] = ()) -> str:
     """Return a node declaration; parameters are (name, value text) pairs."""
     bindings = ', '.join(f'{format_identifier(key)}: {value}' for key, value in parameters)
     return _checked(f'node {format_identifier(name)}: {type_text} {{ {bindings} }}' if bindings
                     else f'node {format_identifier(name)}: {type_text} {{}}')
 
 
-def format_state(name, type_text, initial_text):
+def format_state(name: str, type_text: str, initial_text: str) -> str:
     return _checked(f'state {format_identifier(name)}: {type_text} = {initial_text};')
 
 
-def format_binding(name, kind, type_text):
+def format_binding(name: str, kind: str, type_text: str) -> str:
     if kind not in ('value', 'event', 'resource'):
         raise ValueError(f'Invalid binding kind {kind!r}')
     return _checked(f'binding {format_identifier(name)}: {kind} {type_text};')
 
 
-def format_constant(name, type_text, value_text):
+def format_constant(name: str, type_text: str, value_text: str) -> str:
     return _checked(f'constant {format_identifier(name)}: {type_text} = {value_text};')
 
 
-def format_parameter(name, type_text, default_text=None, optional=False):
+def format_parameter(name: str, type_text: str, default_text: str | None = None, optional: bool = False) -> str:
     if optional and default_text is not None:
         raise ValueError('An optional parameter cannot have a default value')
     prefix = 'optional ' if optional else ''
@@ -116,7 +129,7 @@ def format_parameter(name, type_text, default_text=None, optional=False):
     return _checked(f'{prefix}parameter {format_identifier(name)}: {type_text}{default};')
 
 
-def format_port(direction, name, kind, type_text, is_list=False):
+def format_port(direction: str, name: str | None, kind: str, type_text: str, is_list: bool = False) -> str:
     """Return a port declaration; name is None for the default port.
 
     direction is 'input' or 'output', kind 'value', 'event', or 'resource'.
@@ -130,7 +143,7 @@ def format_port(direction, name, kind, type_text, is_list=False):
     return _checked(f'{head}: {multi}{kind} {type_text};')
 
 
-def fresh_name(sources, scope, base):
+def fresh_name(sources: Sources, scope: Sequence[str], base: str) -> str:
     """Return base, or base followed by a number, unused in the scope."""
     used = _used_names(_scope(outline(sources), scope))
     name = base
@@ -141,7 +154,8 @@ def fresh_name(sources, scope, base):
     return name
 
 
-def add_declaration(sources, scope, declaration, *, attributes=(), filename=None):
+def add_declaration(sources: Sources, scope: Sequence[str], declaration: str, *, attributes: Sequence[str] = (),
+                    filename: str | None = None) -> list[TextEdit]:
     """Insert one declaration into a scope with attributes.
 
     Attributes are inner attributes of nodes and node types and outer
@@ -187,7 +201,7 @@ def add_declaration(sources, scope, declaration, *, attributes=(), filename=None
     return [_insert_at_body_start(texts, _block(record, filename), lines, 'declaration')]
 
 
-def remove_declaration(sources, target, *, cascade=True):
+def remove_declaration(sources: Sources, target: _outline.DeclarationId, *, cascade: bool = True) -> list[TextEdit]:
     """Remove a declaration and, with cascade, the connections referencing it."""
     if not isinstance(target, (Node, NodeType, State, Binding, Constant, Parameter, Port, Procedure)):
         raise TypeError(f'Unsupported declaration target {target!r}')
@@ -205,7 +219,8 @@ def remove_declaration(sources, target, *, cascade=True):
     return _merge_removals(texts, edits)
 
 
-def connect(sources, scope, source, target, *, index=None, attributes=()):
+def connect(sources: Sources, scope: Sequence[str], source: str, target: str, *, index: int | None = None,
+            attributes: Sequence[str] = ()) -> list[TextEdit]:
     """Add a connection from source to target, written as in a connect statement.
 
     It follows the target's last connection, or with index, precedes the
@@ -227,6 +242,7 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
     if index is not None and index < len(existing):
         edge = existing[index]
         statement = edge._declaration
+        assert isinstance(statement, ast.DeclarationConnection)
         if len(statement.sources) > 1:
             start = _outer_start(edge._source)
             return [TextEdit(edge.filename, start, start, f'{attribute_text}{source}, ')]
@@ -235,11 +251,14 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
     if declaration is not None:
         return [_insert_after(texts, declaration.filename, _outer_start(declaration._declaration),
                               _attached_end(texts, record, declaration), lines, 'connect', attached=True)]
+    anchor: _outline.Edge | _outline.DeclarationRecord
     if existing:
         anchor = existing[-1]
     else:
         filename = _block(record, None)[0]
-        candidates = [edge for edge in connects if edge.filename == filename]
+        candidates: list[_outline.Edge | _outline.DeclarationRecord] = [
+            edge for edge in connects if edge.filename == filename
+        ]
         if not candidates:
             candidates = [candidate for group in _kind_records(record) for candidate in group
                           if candidate.filename == filename]
@@ -251,13 +270,14 @@ def connect(sources, scope, source, target, *, index=None, attributes=()):
                           lines, 'connect')]
 
 
-def disconnect(sources, connection):
+def disconnect(sources: Sources, connection: Connection) -> list[TextEdit]:
     """Remove one connection, and its connect statement if it has no other sources."""
     edge = _single(outline(sources).find(connection), connection)
     return _disconnect_edges(dict(sources), [edge])
 
 
-def reconnect(sources, connection, *, source=None, target=None):
+def reconnect(sources: Sources, connection: Connection, *, source: str | None = None,
+              target: str | None = None) -> list[TextEdit]:
     """Change the source or target of one connection.
 
     A connection moved to another target is added to that target like a new
@@ -274,6 +294,8 @@ def reconnect(sources, connection, *, source=None, target=None):
         start, end = edge.source_span
         return [TextEdit(edge.filename, start, end, new_source)]
     statement = edge._declaration
+    assert isinstance(statement, ast.DeclarationConnection)
+    assert edge._source is not None
     text = texts[edge.filename]
     attributes = [text[_start(attribute) + 2:_end(attribute) - 1]
                   for attribute in (*statement.outer_attributes, *edge._source.outer_attributes)]
@@ -284,7 +306,8 @@ def reconnect(sources, connection, *, source=None, target=None):
     return [edit for filename, new in added for edit in _diff_edit(filename, texts[filename], new)]
 
 
-def set_parameter_binding(sources, node, name, value_text, *, optional=False):
+def set_parameter_binding(sources: Sources, node: Node, name: str, value_text: str, *,
+                          optional: bool = False) -> list[TextEdit]:
     """Set a parameter binding of a node, replacing bindings with the same name.
 
     A new binding follows the style of the existing ones; in a multi-line
@@ -295,6 +318,7 @@ def set_parameter_binding(sources, node, name, value_text, *, optional=False):
     record = _single(outline(sources).find(node), node)
     filename = record.filename
     text = dict(sources)[filename]
+    assert record._declaration is not None
     instantiation = record._declaration.instantiation
     bindings = instantiation.parameters
     matching = [item for item in bindings if item.name.id_str == name]
@@ -326,25 +350,28 @@ def set_parameter_binding(sources, node, name, value_text, *, optional=False):
     return _diff_edit(filename, text, _insert_inner(text, site, [binding + ',']))
 
 
-def remove_parameter_binding(sources, node, name):
+def remove_parameter_binding(sources: Sources, node: Node, name: str) -> list[TextEdit]:
     """Remove the bindings called name; there are no edits if none exist."""
     record = _single(outline(sources).find(node), node)
     text = dict(sources)[record.filename]
+    assert record._declaration is not None
     bindings = record._declaration.instantiation.parameters
     removed = [item for item in bindings if item.name.id_str == name]
     return _merge_removals(dict(sources), _binding_removals(record.filename, text, bindings, removed))
 
 
-def set_node_type(sources, node, type_text):
+def set_node_type(sources: Sources, node: Node, type_text: str) -> list[TextEdit]:
     """Change the node type a node instantiates."""
     type_text = type_text.strip()
     _parse_declaration(f'node x: {type_text} {{}}')
     record = _single(outline(sources).find(node), node)
+    assert record._declaration is not None
     type_name = record._declaration.instantiation.type_name
     return [TextEdit(record.filename, _start(type_name), _end(type_name), type_text)]
 
 
-def replace_declaration(sources, target, declaration):
+def replace_declaration(sources: Sources, target: State | Binding | Constant | Parameter | Port,
+                        declaration: str) -> list[TextEdit]:
     """Replace a state, binding, constant, parameter, or port declaration.
 
     The new declaration must be of the same kind and name, and a port must
@@ -360,12 +387,14 @@ def replace_declaration(sources, target, declaration):
     old = record._declaration
     if type(item) is not type(old) or _declaration_name(item) != _declaration_name(old):
         raise ValueError(f'Expected a declaration of the same kind and name as {target}')
-    if isinstance(item, ast.DeclarationPort) and item.direction != old.direction:
-        raise ValueError('A replaced port must keep its direction')
+    if isinstance(item, ast.DeclarationPort):
+        assert isinstance(old, ast.DeclarationPort)
+        if item.direction != old.direction:
+            raise ValueError('A replaced port must keep its direction')
     return [TextEdit(record.filename, _start(old), _end(old), declaration)]
 
 
-def rename(sources, target, new_name):
+def rename(sources: Sources, target: _outline.DeclarationId, new_name: str) -> list[TextEdit]:
     """Rename a declaration and update the references to it.
 
     Procedure ports that referred to the declaration without an alias get
@@ -377,14 +406,17 @@ def rename(sources, target, new_name):
     before = outline(sources)
     record = _single(before.find(target), target)
     declaration = record._declaration
+    assert declaration is not None
     old = target.path[-1]
     if isinstance(target, Port) and declaration.name is None:
         raise ValueError('Default ports cannot be renamed')
+    assert declaration.name is not None
     new_text = format_identifier(new_name)
     if new_name == old:
         return []
     parent = _scope(before, target.path[:-1])
     if isinstance(target, NodeType):
+        assert isinstance(record, _outline.NodeTypeInfo)
         if record.is_native:
             raise ValueError('Native node types cannot be renamed')
         if any(item.name == new_name for item in parent.node_types) or any(
@@ -394,17 +426,21 @@ def rename(sources, target, new_name):
         raise ValueError(f'Name {new_name!r} is already used')
     texts = dict(sources)
     edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
-    if isinstance(target, Procedure) and declaration.is_native and declaration.alias is None:
-        # Keep the native procedure name.
-        owner = _single(before.find(NodeType(target.path[:-1])), NodeType(target.path[:-1]))._declaration
-        prefix = (owner.alias.value if owner.is_native and owner.alias is not None
-                  else '.'.join(target.path[:-1]))
-        edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
-                              f' as {_format_string(f"{prefix}:{old}")}'))
+    if isinstance(target, Procedure):
+        assert isinstance(declaration, ast.DeclarationProcedure)
+        if declaration.is_native and declaration.alias is None:
+            # Keep the native procedure name.
+            owner = _single(before.find(NodeType(target.path[:-1])), NodeType(target.path[:-1]))._declaration
+            assert owner is not None
+            prefix = (owner.alias.value if owner.is_native and owner.alias is not None
+                      else '.'.join(target.path[:-1]))
+            edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
+                                  f' as {_format_string(f"{prefix}:{old}")}'))
     if isinstance(target, NodeType):
         for scope in _scopes(before.scope):
             for node in scope.nodes:
                 if node.node_type == target:
+                    assert node._declaration is not None
                     name = node._declaration.instantiation.type_name.identifiers[-1]
                     edits.append(TextEdit(node.filename, _start(name), _end(name), new_text))
     else:
@@ -425,6 +461,7 @@ def rename(sources, target, new_name):
             for scope in _scopes(before.scope):
                 for node in scope.nodes:
                     if node.node_type == NodeType(target.path[:-1]):
+                        assert node._declaration is not None
                         for binding in node._declaration.instantiation.parameters:
                             if binding.name.id_str == old:
                                 edits.append(TextEdit(node.filename, _start(binding.name), _end(binding.name),
@@ -433,14 +470,14 @@ def rename(sources, target, new_name):
     return edits
 
 
-def add_attribute(sources, target, metadata):
+def add_attribute(sources: Sources, target: _outline.DeclarationId | Connection, metadata: str) -> list[TextEdit]:
     """Add an attribute, preferring an inner attribute on its own line."""
     _metadata_name(metadata)
     filename, text, site = _locate(sources, target)
     return _diff_edit(filename, text, _insert(text, site, metadata))
 
 
-def set_attribute(sources, target, metadata):
+def set_attribute(sources: Sources, target: _outline.DeclarationId | Connection, metadata: str) -> list[TextEdit]:
     """Replace the attributes named like metadata in place, or add one."""
     name = _metadata_name(metadata)
     filename, original, site = _locate(sources, target)
@@ -456,7 +493,7 @@ def set_attribute(sources, target, metadata):
     return _diff_edit(filename, original, text)
 
 
-def remove_attribute(sources, target, name):
+def remove_attribute(sources: Sources, target: _outline.DeclarationId | Connection, name: str) -> list[TextEdit]:
     """Remove all attributes called name; there are no edits if none exist."""
     filename, original, site = _locate(sources, target)
     text = original
@@ -474,12 +511,12 @@ _KIND_ORDER = (
 )
 
 
-def _kind_records(scope):
+def _kind_records(scope: _outline.Scope) -> list[tuple[_outline.DeclarationRecord, ...]]:
     return [scope.parameters, scope.constants, scope.ports, scope.states, scope.bindings,
             scope.nodes, scope.procedures, scope.node_types]
 
 
-def _scopes(scope):
+def _scopes(scope: _outline.Scope) -> Iterator[_outline.Scope]:
     yield scope
     for node_type in scope.node_types:
         yield from _scopes(node_type.scope)
@@ -487,18 +524,18 @@ def _scopes(scope):
         yield from _scopes(namespace)
 
 
-def _scope(result, path):
+def _scope(result: _outline.Outline, path: Sequence[str]) -> _outline.Scope:
     return _single(result.find_scope(path), f'scope {tuple(path)}')
 
 
-def _block(scope, filename):
+def _block(scope: _outline.Scope, filename: str | None) -> tuple[str, _outline.Block]:
     blocks = [block for block in scope._blocks if filename is None or block[0] == filename]
     if not blocks:
         raise ValueError(f'No part of scope {scope.path} in {filename!r}')
     return blocks[-1]
 
 
-def _references(result, edge, target):
+def _references(result: _outline.Outline, edge: _outline.Edge, target: _outline.DeclarationId) -> bool:
     for endpoint in (edge.source, edge.target):
         if endpoint.element == target:
             return True
@@ -511,15 +548,17 @@ def _references(result, edge, target):
     return False
 
 
-def _used_names(scope):
+def _used_names(scope: _outline.Scope) -> set[str]:
     """Return the names of a scope's nodes, ports, statics, and procedures."""
-    used = {item.name for item in (*scope.nodes, *scope.parameters, *scope.constants,
-                                   *scope.states, *scope.bindings, *scope.procedures)}
+    records: tuple[_outline.DeclarationRecord, ...] = (
+        *scope.nodes, *scope.parameters, *scope.constants, *scope.states, *scope.bindings, *scope.procedures,
+    )
+    used = {item.name for item in records if item.name is not None}
     used.update(port.name for port in scope.ports if port.name is not None)
     return used
 
 
-def _scope_items(scope):
+def _scope_items(scope: _outline.Scope) -> Iterator[tuple[str, ast.Declaration]]:
     """Yield (filename, declaration) for the declarations directly in a scope."""
     for filename, block in scope._blocks:
         declarations = block if isinstance(block, list) else block.declarations
@@ -528,7 +567,7 @@ def _scope_items(scope):
                 yield filename, item
 
 
-def _endpoint_references(item):
+def _endpoint_references(item: ast.Declaration) -> Iterator[tuple[ast.Reference, ast.ReferencePort | None]]:
     """Yield (reference, reference port or None) for connection and procedure port references."""
     if isinstance(item, ast.DeclarationConnection):
         for source in item.sources:
@@ -541,7 +580,7 @@ def _endpoint_references(item):
                 yield port.reference, port
 
 
-def _port_reference_edits(result, node_type, old, new_text):
+def _port_reference_edits(result: _outline.Outline, node_type: NodeType, old: str, new_text: str) -> list[TextEdit]:
     """Rename node.old references to a port of node_type in all scopes."""
     edits = []
     for scope in _scopes(result.scope):
@@ -556,7 +595,7 @@ def _port_reference_edits(result, node_type, old, new_text):
     return edits
 
 
-def _static_rename_edits(scope, old, new, new_text):
+def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: str) -> list[TextEdit]:
     """Rename expression references to a parameter or constant within its scope."""
     if new in ('true', 'false', 'None') or new in _types.type_by_name:
         raise ValueError(f'Name {new!r} is reserved')
@@ -583,7 +622,7 @@ def _static_rename_edits(scope, old, new, new_text):
     return edits + uses
 
 
-def _expression_fields(item):
+def _expression_fields(item: ast.Declaration) -> Iterator[ast.Value | None]:
     """Yield the expressions of a declaration that can refer to statics of its scope."""
     if isinstance(item, ast.DeclarationParameter):
         yield item.ty
@@ -623,7 +662,8 @@ def _expression_fields(item):
 _SYNTAX_SKIPPED = ('source_position', 'outer_attributes', 'inner_attributes', 'attributes')
 
 
-def _reference_roots(element, bound=frozenset()):
+def _reference_roots(element: object,
+                     bound: frozenset[str] = frozenset()) -> Iterator[tuple[ast.Identifier, frozenset[str]]]:
     """Yield (identifier, locally bound names) for the root of each value reference."""
     if isinstance(element, ast.Reference):
         yield element.identifiers[0], bound
@@ -659,32 +699,35 @@ def _reference_roots(element, bound=frozenset()):
                 yield from _reference_roots(child, bound)
 
 
-def _map_id(element, target, new_target):
+def _map_id(element: IdT, target: _outline.DeclarationId, new_target: _outline.DeclarationId) -> IdT:
     """Map an ID from before a rename to the ID afterwards."""
     if element == target:
-        return new_target
+        return cast(IdT, new_target)
     if isinstance(element, ProcedurePort):
         return replace(element, procedure=_map_id(element.procedure, target, new_target))
     path = getattr(element, 'path', None)
     if isinstance(target, NodeType) and path is not None and path[:len(target.path)] == target.path:
-        return replace(element, path=new_target.path + path[len(target.path):])
+        path_element = cast(_outline.DeclarationId, element)
+        return cast(IdT, replace(path_element, path=new_target.path + path[len(target.path):]))
     return element
 
 
-def _verify_rename(sources, edits, before, target, new_name):
+def _verify_rename(sources: Sources, edits: Sequence[TextEdit], before: _outline.Outline,
+                   target: _outline.DeclarationId, new_name: str) -> None:
     """Check that references resolve to the same declarations after a rename."""
     new_target = replace(target, path=target.path[:-1] + (new_name,))
     after = outline(apply_edits(sources, edits))
     port_type = NodeType(target.path[:-1]) if isinstance(target, Port) else None
 
-    def renamed(endpoint):
+    def renamed(endpoint: _outline.Endpoint) -> EndpointKey:
         port = endpoint.port
         if (port_type is not None and port == target.path[-1] and isinstance(endpoint.element, Node)
                 and any(node.node_type == port_type for node in before.find(endpoint.element))):
             port = new_name
         return _map_id(endpoint.element, target, new_target), port
 
-    def summary(result, endpoint_key, node_type_key):
+    def summary(result: _outline.Outline, endpoint_key: Callable[[_outline.Endpoint], EndpointKey],
+                node_type_key: Callable[[NodeType | None], NodeType | None]) -> RenameSummary:
         scopes = list(_scopes(result.scope))
         return ([(endpoint_key(edge.source), endpoint_key(edge.target)) for scope in scopes for edge in scope.edges],
                 [node_type_key(node.node_type) for scope in scopes for node in scope.nodes])
@@ -695,11 +738,16 @@ def _verify_rename(sources, edits, before, target, new_name):
         raise ValueError('Renaming would change what references resolve to')
 
 
-def _declaration_name(item):
-    return item.name_str if isinstance(item, ast.DeclarationPort) else item.name.id_str
+def _declaration_name(item: ast.Declaration) -> str:
+    if isinstance(item, ast.DeclarationPort):
+        return item.name_str
+    name = getattr(item, 'name')
+    assert isinstance(name, ast.Identifier)
+    return name.id_str
 
 
-def _binding_removals(filename, text, bindings, removed):
+def _binding_removals(filename: str, text: str, bindings: Sequence[ast.ParameterBinding],
+                      removed: Iterable[ast.ParameterBinding]) -> list[TextEdit]:
     """Remove bindings with their commas, and lines they leave empty."""
     removed_ids = {id(item) for item in removed}
     edits = []
@@ -735,7 +783,7 @@ def _binding_removals(filename, text, bindings, removed):
     return edits
 
 
-def _single(matches, target):
+def _single(matches: Sequence[T], target: object) -> T:
     if not matches:
         raise ValueError(f'No match for {target}')
     if len(matches) > 1:
@@ -743,12 +791,12 @@ def _single(matches, target):
     return matches[0]
 
 
-def _checked(declaration):
+def _checked(declaration: str) -> str:
     _parse_declaration(declaration)
     return declaration
 
 
-def _parse_declaration(declaration):
+def _parse_declaration(declaration: str) -> ast.Declaration:
     try:
         parsed = parser.parse_str(declaration, filename='<declaration>')
     except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError) as error:
@@ -758,24 +806,27 @@ def _parse_declaration(declaration):
     return parsed[0]
 
 
-def _parse_references(source, target):
+def _parse_references(source: str, target: str) -> tuple[str, str]:
     source, target = source.strip(), target.strip()
     item = _parse_declaration(f'connect {source} -> {target};')
+    assert isinstance(item, ast.DeclarationConnection)
     if len(item.sources) != 1 or item.outer_attributes or item.sources[0].outer_attributes:
         raise ValueError(f'Malformed connection {source!r} -> {target!r}')
     return source, target
 
 
-def _normalized(reference):
+def _normalized(reference: str) -> str:
     item = _parse_declaration(f'connect x -> {reference};')
+    assert isinstance(item, ast.DeclarationConnection)
     return '.'.join(identifier.id_str for identifier in item.target.identifiers)
 
 
-def _outer_start(element):
+def _outer_start(element: ast.SourceElement | None) -> int:
+    assert element is not None
     return min([_start(element), *map(_start, element.outer_attributes)])
 
 
-def _diff_edit(filename, old, new):
+def _diff_edit(filename: str, old: str, new: str) -> list[TextEdit]:
     if old == new:
         return []
     prefix = 0
@@ -788,7 +839,8 @@ def _diff_edit(filename, old, new):
     return [TextEdit(filename, prefix, len(old) - suffix, new[prefix:len(new) - suffix])]
 
 
-def _insert_after(texts, filename, start, end, lines, kind=None, *, attached=False):
+def _insert_after(texts: Mapping[str, str], filename: str, start: int, end: int, lines: Sequence[str],
+                  kind: str | None = None, *, attached: bool = False) -> TextEdit:
     """Insert lines after the item at start:end, on new lines when possible.
 
     kind is the _item_kind() of the inserted item, which decides the blank lines
@@ -809,9 +861,11 @@ def _insert_after(texts, filename, start, end, lines, kind=None, *, attached=Fal
     return TextEdit(filename, line_end, line_end, inserted)
 
 
-def _target_record(scope, target):
+def _target_record(scope: _outline.Scope, target: str) -> _outline.DeclarationRecord | None:
     """Return the declaration in scope that a connection target refers to, or None."""
-    reference = _parse_declaration(f'connect x -> {target};').target
+    connection = _parse_declaration(f'connect x -> {target};')
+    assert isinstance(connection, ast.DeclarationConnection)
+    reference = connection.target
     name = reference.identifiers[0].id_str
     if reference.length == 1:
         for port in scope.ports:
@@ -825,7 +879,7 @@ def _target_record(scope, target):
     return None
 
 
-def _attached_end(texts, scope, record):
+def _attached_end(texts: Mapping[str, str], scope: _outline.Scope, record: _outline.DeclarationRecord) -> int:
     """Return the end of a declaration and the connect statements to it directly below.
 
     The statements form a block without blank lines and target the
@@ -845,7 +899,7 @@ def _attached_end(texts, scope, record):
         end = statements[following]
 
 
-def _item_kind(text, position):
+def _item_kind(text: str, position: int) -> str | None:
     """Return 'connect' or 'declaration' for the next item at position, or None if there is none."""
     position = _skip_trivia(text, position)
     while text.startswith('#[', position):
@@ -861,12 +915,12 @@ def _item_kind(text, position):
     return 'connect' if re.match(r'connect\b', text[position:position + 8]) else 'declaration'
 
 
-def _blank_between(first, second):
+def _blank_between(first: str | None, second: str | None) -> bool:
     """Whether adjacent items of these kinds are separated by a blank line."""
     return first is not None and second is not None and not first == second == 'connect'
 
 
-def _insert_before(texts, filename, start, lines):
+def _insert_before(texts: Mapping[str, str], filename: str, start: int, lines: Sequence[str]) -> TextEdit:
     text = texts[filename]
     line_start = _line_start(text, start)
     indent = text[line_start:start]
@@ -875,7 +929,8 @@ def _insert_before(texts, filename, start, lines):
     return TextEdit(filename, line_start, line_start, ''.join(f'{indent}{line}\n' for line in lines))
 
 
-def _insert_at_body_start(texts, block, lines, kind):
+def _insert_at_body_start(texts: Mapping[str, str], block: tuple[str, _outline.Block], lines: Sequence[str],
+                          kind: str) -> TextEdit:
     filename, element = block
     text = texts[filename]
     if isinstance(element, list):
@@ -901,7 +956,7 @@ def _insert_at_body_start(texts, block, lines, kind):
     return _diff_edit(filename, text, _insert_inner(text, site, lines, blank_after=blank_after))[0]
 
 
-def _removal(texts, filename, start, end):
+def _removal(texts: Mapping[str, str], filename: str, start: int, end: int) -> TextEdit:
     """Remove an item and the lines it empties, leaving no doubled blank line behind."""
     text = texts[filename]
     start, end = _removal_range(text, start, end)
@@ -916,7 +971,7 @@ def _removal(texts, filename, start, end):
     return TextEdit(filename, start, end, '')
 
 
-def _merge_removals(texts, edits):
+def _merge_removals(texts: Mapping[str, str], edits: Iterable[TextEdit]) -> list[TextEdit]:
     """Merge overlapping removals, e.g. of declarations sharing a line."""
     merged: list[TextEdit] = []
     for edit in sorted(edits, key=lambda edit: (edit.filename, edit.start)):
@@ -935,7 +990,7 @@ def _merge_removals(texts, edits):
     return merged
 
 
-def _disconnect_edges(texts, edges):
+def _disconnect_edges(texts: Mapping[str, str], edges: Iterable[_outline.Edge]) -> list[TextEdit]:
     """Remove the given connections, grouped by connect statement."""
     statements: dict[int, tuple] = {}
     for edge in edges:
@@ -943,6 +998,7 @@ def _disconnect_edges(texts, edges):
     edits = []
     for edge, removed in statements.values():
         statement = edge._declaration
+        assert isinstance(statement, ast.DeclarationConnection)
         filename = edge.filename
         sources = statement.sources
         if len(removed) == len(sources):
@@ -954,7 +1010,8 @@ def _disconnect_edges(texts, edges):
     return edits
 
 
-def _list_item_removals(filename, starts, ends, removed):
+def _list_item_removals(filename: str, starts: Sequence[int], ends: Sequence[int],
+                        removed: Sequence[bool]) -> list[TextEdit]:
     """Remove some items of a comma-separated list along with their commas."""
     edits = []
     tail = len(removed)
@@ -970,9 +1027,9 @@ def _list_item_removals(filename, starts, ends, removed):
 
 @dataclass
 class _Site:
-    attributes: list
+    attributes: list[Attribute]
     # Same-named attributes here also apply to other edges.
-    shared_attributes: list
+    shared_attributes: list[Attribute]
     # 'inner' inserts into the body; 'outer' and 'source' insert before anchor.
     kind: str
     anchor: int
@@ -981,11 +1038,11 @@ class _Site:
     close_brace: int | None = None
 
 
-def _format_string(value):
+def _format_string(value: str) -> str:
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
-def _format_literal(value):
+def _format_literal(value: object) -> str:
     if isinstance(value, bool):
         return 'true' if value else 'false'
     if isinstance(value, int):
@@ -997,7 +1054,7 @@ def _format_literal(value):
     raise TypeError(f'Unsupported attribute value {value!r}')
 
 
-def _metadata_name(metadata):
+def _metadata_name(metadata: str) -> str:
     try:
         parsed = parser.parse_str(f'#![{metadata}]', filename='<metadata>')
     except (lark.UnexpectedInput, lark.exceptions.VisitError, ast.ProgramError) as error:
@@ -1007,39 +1064,48 @@ def _metadata_name(metadata):
     return parsed.inner_attributes[0].name
 
 
-def _matching(site, name):
+def _matching(site: _Site, name: str) -> list[Attribute]:
     if any(attribute.name == name for attribute in site.shared_attributes):
         raise ValueError(f'Attribute {name} applies to the whole connect statement')
     return [attribute for attribute in site.attributes if attribute.name == name]
 
 
-def _start(element):
+def _start(element: ast.SourceElement | Attribute | None) -> int:
+    assert element is not None and element.source_position.meta is not None
     return element.source_position.meta.start_pos
 
 
-def _end(element):
+def _end(element: ast.SourceElement | Attribute | None) -> int:
+    assert element is not None and element.source_position.meta is not None
     return element.source_position.meta.end_pos
 
 
-def _locate(sources, target):
+def _locate(sources: Sources, target: _outline.DeclarationId | Connection) -> tuple[str, str, _Site]:
     if not isinstance(target, (Node, NodeType, Connection, *_OUTER_TARGETS)):
         raise TypeError(f'Unsupported attribute target {target!r}')
     record = _single(outline(sources).find(target), target)
     text = dict(sources)[record.filename]
+    assert not isinstance(record, _outline.ProcedurePortInfo)
     declaration = record._declaration
+    assert declaration is not None
     if isinstance(target, Node):
+        assert isinstance(declaration, ast.DeclarationInstance)
         instantiation = declaration.instantiation
         site = _body_site(text, declaration,
                           declaration.outer_attributes + instantiation.inner_attributes,
                           _end(instantiation.type_name), _end(instantiation) - 1)
     elif isinstance(target, NodeType):
+        assert isinstance(declaration, _NodeType)
         site = _body_site(text, declaration,
                           declaration.outer_attributes + declaration.inner_attributes,
                           _end(declaration.name), _end(declaration) - 1)
     elif isinstance(target, _OUTER_TARGETS):
         site = _Site(list(declaration.outer_attributes), [], 'outer', _start(declaration))
     else:
+        assert isinstance(record, _outline.Edge)
+        assert isinstance(declaration, ast.DeclarationConnection)
         source = record._source
+        assert source is not None
         if len(declaration.sources) == 1:
             site = _Site(list(declaration.outer_attributes + source.outer_attributes), [],
                          'outer', _start(declaration))
@@ -1049,7 +1115,8 @@ def _locate(sources, target):
     return record.filename, text, site
 
 
-def _body_site(text, declaration, attributes, brace_search_start, close_brace):
+def _body_site(text: str, declaration: ast.SourceElement, attributes: Sequence[Attribute], brace_search_start: int,
+               close_brace: int) -> _Site:
     open_brace = _skip_trivia(text, brace_search_start)
     if text[open_brace] != '{':
         raise ValueError(f'Expected {{ at offset {open_brace}')
@@ -1062,7 +1129,7 @@ def _body_site(text, declaration, attributes, brace_search_start, close_brace):
 _comment_delimiter = re.compile(r'/+\*|\*+/')
 
 
-def _skip_trivia(text, position):
+def _skip_trivia(text: str, position: int) -> int:
     while position < len(text):
         if text[position] in ' \t\f\r\n':
             position += 1
@@ -1083,16 +1150,16 @@ def _skip_trivia(text, position):
     return position
 
 
-def _line_start(text, position):
+def _line_start(text: str, position: int) -> int:
     return text.rfind('\n', 0, position) + 1
 
 
-def _line_end(text, position):
+def _line_end(text: str, position: int) -> int:
     newline = text.find('\n', position)
     return len(text) if newline == -1 else newline
 
 
-def _indentation(text, position):
+def _indentation(text: str, position: int) -> str:
     start = _line_start(text, position)
     end = start
     while end < len(text) and text[end] in ' \t':
@@ -1100,7 +1167,7 @@ def _indentation(text, position):
     return text[start:end]
 
 
-def _indent_unit(text):
+def _indent_unit(text: str) -> str:
     lines = text.split('\n')
     for index, line in enumerate(lines):
         if not line.rstrip().endswith('{'):
@@ -1115,7 +1182,7 @@ def _indent_unit(text):
     return '  '
 
 
-def _insert(text, site, metadata):
+def _insert(text: str, site: _Site, metadata: str) -> str:
     if site.kind == 'inner':
         return _insert_inner(text, site, [f'#![{metadata}]'])
     attribute = f'#[{metadata}]'
@@ -1126,9 +1193,11 @@ def _insert(text, site, metadata):
     return text[:anchor] + attribute + ' ' + text[anchor:]
 
 
-def _insert_inner(text, site, lines, *, blank_after=False, indent_unit=None):
+def _insert_inner(text: str, site: _Site, lines: Sequence[str], *, blank_after: bool = False,
+                  indent_unit: str | None = None) -> str:
     """Insert lines at the start of a body; with blank_after, a blank line separates them from its members."""
     open_brace, close_brace, anchor = site.open_brace, site.close_brace, site.anchor
+    assert open_brace is not None and close_brace is not None and site.declaration_start is not None
     outer_indent = _indentation(text, site.declaration_start)
     indent_unit = indent_unit or _indent_unit(text)
     if '\n' not in text[open_brace:close_brace]:
@@ -1156,13 +1225,13 @@ def _insert_inner(text, site, lines, *, blank_after=False, indent_unit=None):
     return text[:insert_at] + ''.join(f'{indent}{line}\n' for line in lines) + blank + text[insert_at:]
 
 
-def _skip_whitespace(text, position):
+def _skip_whitespace(text: str, position: int) -> int:
     while position < len(text) and text[position] in ' \t\f\r\n':
         position += 1
     return position
 
 
-def _removal_range(text, start, end) -> tuple[int, int]:
+def _removal_range(text: str, start: int, end: int) -> tuple[int, int]:
     """Return the range removing text[start:end] and lines it leaves empty."""
     line_start = _line_start(text, start)
     line_end = _line_end(text, end)
@@ -1177,6 +1246,6 @@ def _removal_range(text, start, end) -> tuple[int, int]:
     return start, end
 
 
-def _remove_span(text, start, end):
+def _remove_span(text: str, start: int, end: int) -> str:
     start, end = _removal_range(text, start, end)
     return text[:start] + text[end:]

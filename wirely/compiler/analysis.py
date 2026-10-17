@@ -10,6 +10,14 @@ To preview the ports a node would have, apply the edits adding it with
 wirely.compiler.editing in memory and analyze the result.
 """
 
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .parameters import StaticValue
+
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
@@ -18,7 +26,7 @@ from wirely import types as _types
 from . import outline as _outline
 from . import support
 from .ast import PortDirection
-from .attributes import validate_files
+from .attributes import Attribute, ParsedFile, validate_files
 from .coordinator import CompilerCoordinator
 from .diagnostics import Diagnostic, WarningSink
 from .native_functions import validate_collisions, validate_native_names
@@ -30,7 +38,7 @@ from .types import resolve_type
 class ElementDiagnostic:
     diagnostic: Diagnostic
     # The ID of the innermost outline element containing the diagnostic, if any.
-    element: object
+    element: _outline.ElementId | None
 
 
 @dataclass(frozen=True)
@@ -41,15 +49,15 @@ class ResolvedPort:
     kind: str
     is_list: bool
     # None if the type did not resolve, or for resources.
-    type: object
-    resource_type: object
+    type: model.Type | None
+    resource_type: model.ResourceType | None
 
 
 @dataclass(frozen=True)
 class ResolvedParameter:
     name: str
     # None if the type did not resolve.
-    type: object
+    type: model.Type | None
     optional: bool
     bound: bool
 
@@ -65,7 +73,7 @@ class ConnectionCheck:
 class ParameterEntry:
     name: str
     # None if the type did not resolve.
-    type: object
+    type: model.Type | None
     type_text: str
     default_text: str | None
     optional: bool
@@ -86,9 +94,9 @@ class NodeTypeEntry:
 class Analysis:
     outline: _outline.Outline
     diagnostics: tuple[ElementDiagnostic, ...]
-    _global: object = field(default=None, compare=False, repr=False)
+    _global: model.NodeType | None = field(default=None, compare=False, repr=False)
 
-    def ports(self, target):
+    def ports(self, target: Node | NodeType) -> tuple[ResolvedPort, ...] | None:
         """Return the ports of a node with resolved types, or of a node type with declared types.
 
         It returns None if the node or node type failed to resolve.
@@ -110,7 +118,7 @@ class Analysis:
                          for port in ports.values())
         raise TypeError(f'Unsupported port target {target!r}')
 
-    def parameters(self, target):
+    def parameters(self, target: Node) -> tuple[ResolvedParameter, ...] | None:
         """Return the parameters of a node's type, with types resolved for the node."""
         node = self._instance(target)
         if node is None:
@@ -119,7 +127,8 @@ class Analysis:
                                        parameter.is_optional, parameter in node.par_values)
                      for name, parameter in node.node_type.parsed_parameters.items())
 
-    def can_connect(self, scope, source, target, *, replacing=None):
+    def can_connect(self, scope: Sequence[str], source: str, target: str, *,
+                    replacing: _outline.Connection | None = None) -> ConnectionCheck:
         """Check whether a connection from source to target is allowed in a scope.
 
         References are written as in a connect statement. A replaced
@@ -128,6 +137,7 @@ class Analysis:
         from .editing import _parse_declaration, _parse_references
         source, target = _parse_references(source, target)
         statement = _parse_declaration(f'connect {source} -> {target};')
+        assert isinstance(statement, model.DeclarationConnection)
         graph = self._compiled_scope(scope)
         if graph is None:
             return ConnectionCheck(False, f'Scope {tuple(scope)} did not resolve')
@@ -152,7 +162,8 @@ class Analysis:
             return ConnectionCheck(False, f'{source} -> {target} did not resolve')
         return ConnectionCheck(True, None)
 
-    def connection_candidates(self, scope, *, source=None, target=None):
+    def connection_candidates(self, scope: Sequence[str], *, source: str | None = None,
+                              target: str | None = None) -> tuple[str, ...]:
         """Return the references that can be connected to a source or from a target."""
         if (source is None) == (target is None):
             raise ValueError('Give either source or target')
@@ -162,14 +173,15 @@ class Analysis:
         if source is not None:
             return tuple(candidate for candidate in _target_references(graph)
                          if self.can_connect(scope, source, candidate).allowed)
+        assert target is not None
         return tuple(candidate for candidate in _source_references(graph)
                      if self.can_connect(scope, candidate, target).allowed)
 
-    def node_types(self, scope=(), *, include_internal=False):
+    def node_types(self, scope: Sequence[str] = (), *, include_internal: bool = False) -> tuple[NodeTypeEntry, ...]:
         """Return the node types that nodes in a scope can instantiate."""
         entries = []
 
-        def add(record, type_text, internal):
+        def add(record: _outline.NodeTypeInfo, type_text: str, internal: bool) -> None:
             internal = internal or _is_internal(record.attributes)
             compiled = record._declaration
             if (internal and not include_internal) or len(self.outline.find(record.id)) != 1 \
@@ -178,10 +190,11 @@ class Analysis:
             parameters = tuple(ParameterEntry(parameter.name, self.value_type(parameter.id), parameter.type_text,
                                               parameter.default_text, parameter.is_optional)
                                for parameter in record.parameters)
-            entries.append(NodeTypeEntry(record.id, type_text, record.is_native, record.is_singleton,
-                                         parameters, self.ports(record.id)))
+            ports = self.ports(record.id)
+            assert ports is not None
+            entries.append(NodeTypeEntry(record.id, type_text, record.is_native, record.is_singleton, parameters, ports))
 
-        def visit(namespace, internal):
+        def visit(namespace: _outline.Scope, internal: bool) -> None:
             for record in namespace.node_types:
                 add(record, '.'.join(record.id.path), internal)
             for child in namespace.namespaces:
@@ -194,18 +207,19 @@ class Analysis:
                     add(record, record.name, False)
         return tuple(sorted(entries, key=lambda entry: entry.type_text))
 
-    def type_names(self, scope=(), *, include_internal=False):
+    def type_names(self, scope: Sequence[str] = (), *, include_internal: bool = False) -> tuple[str, ...]:
         """Return the names of value types usable in a scope, as written in declarations."""
         names = [name for name in _types.type_by_name if name != 'ValueType'] + ['Option', 'List']
         declared = []
 
-        def add(declarations, prefix, internal):
+        def add(declarations: Mapping[str, model.DeclarationStructType | model.types.TypeEnum], prefix: str,
+                internal: bool) -> None:
             for name, declaration in declarations.items():
-                declaration = getattr(declaration, 'declaration', declaration)
-                if include_internal or not (internal or _is_internal(declaration.attributes)):
+                item = declaration.declaration if isinstance(declaration, model.types.TypeEnum) else declaration
+                if include_internal or not (internal or _is_internal(item.attributes)):
                     declared.append(prefix + name)
 
-        def visit(library, prefix, internal):
+        def visit(library: model.Scope, prefix: str, internal: bool) -> None:
             for name, child in library.libraries.items():
                 child_internal = internal or _is_internal(child.attributes)
                 add(child.struct_types, f'{prefix}{name}.', child_internal)
@@ -215,17 +229,19 @@ class Analysis:
         compiled = self._compiled_scope(scope)
         if compiled is None:
             return tuple(names)
-        current = compiled
+        current: model.Scope | None = compiled
         while current is not None:
             add(current.struct_types, '', False)
             add(current.enum_types, '', False)
             current = current.parent_graph
+        assert self._global is not None
         visit(self._global, '', False)
         parameters = [name for name, parameter in compiled.parsed_parameters.items()
                       if getattr(parameter, 'type_resolved', None) == model.types.ValueType]
         return tuple(names + sorted(set(declared)) + parameters)
 
-    def _sources_of(self, scope, graph, target, replacing):
+    def _sources_of(self, scope: Sequence[str], graph: model.NodeType, target: model.Reference,
+                    replacing: _outline.Connection | None) -> list[Any]:
         """Return the compiled sources of the existing connections to a target reference."""
         replaced = self.outline.find(replacing) if replacing is not None else ()
         text = '.'.join(identifier.id_str for identifier in target.identifiers)
@@ -244,13 +260,14 @@ class Analysis:
             sources.append(port)
         return sources
 
-    def value_type(self, target):
+    def value_type(self, target: State | Binding | Constant | Parameter | Port | ProcedurePort) -> model.Type | None:
         """Return the type of a state, data binding, constant, parameter, or port of a node type or procedure."""
         path = target.procedure.path if isinstance(target, ProcedurePort) else target.path
         scope = self._compiled_scope(path[:-1])
         name = path[-1]
         if scope is None:
             return None
+        node: model.StateNode | model.TemporaryNode | model.TypeInputPort | model.TypeOutputPort | None
         if isinstance(target, State):
             node = scope.state_nodes.get(name)
         elif isinstance(target, Binding):
@@ -264,7 +281,8 @@ class Analysis:
             procedure = scope.procedures.get(target.procedure.path[-1])
             if procedure is None or getattr(procedure, 'failed', False):
                 return None
-            port = (procedure.input_ports if target.direction == 'input' else procedure.output_ports).get(target.key)
+            port = ((procedure.input_ports if target.direction == 'input' else procedure.output_ports).get(target.key)
+                    if target.key is not None else None)
             try:
                 return None if port is None else port.var_type
             except RuntimeError:
@@ -274,15 +292,16 @@ class Analysis:
             raise TypeError(f'Unsupported value target {target!r}')
         return None if node is None else node.var_type
 
-    def _compiled_scope(self, path):
+    def _compiled_scope(self, path: Sequence[str]) -> model.NodeType | None:
         if not path:
             return self._global
         records = self.outline.find(NodeType(tuple(path)))
         if len(records) != 1 or not hasattr(records[0]._declaration, 'input_ports'):
             return None
+        assert records[0]._declaration is not None
         return records[0]._declaration
 
-    def _instance(self, target):
+    def _instance(self, target: Node) -> model.InstanceNode | None:
         records = self.outline.find(target)
         scope = self._compiled_scope(target.path[:-1])
         if len(records) != 1 or scope is None:
@@ -293,7 +312,7 @@ class Analysis:
         return node
 
 
-def analyze(sources, *, add_std=False):
+def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Analysis:
     """Resolve the types of (filename, text) pairs, continuing after errors."""
     files, parsed_files = _outline.parse(sources, add_std=add_std)
     result = _outline.outline_parsed(files, parsed_files)
@@ -315,20 +334,20 @@ def analyze(sources, *, add_std=False):
                                   for diagnostic in diagnostics), global_node_type)
 
 
-def _is_internal(attributes):
+def _is_internal(attributes: Iterable[Attribute]) -> bool:
     return any(attribute.name == 'Internal' for attribute in attributes)
 
 
-def _block_attributes(block):
+def _block_attributes(block: _outline.Block) -> tuple[Attribute, ...]:
     return (*getattr(block, 'outer_attributes', ()), *getattr(block, 'inner_attributes', ()))
 
 
-def _reference(*names):
+def _reference(*names: str) -> str:
     from .editing import format_identifier
     return '.'.join(name if name.startswith('default ') else format_identifier(name) for name in names)
 
 
-def _target_references(graph):
+def _target_references(graph: model.NodeType) -> Iterator[str]:
     for name, node in graph.instance_nodes.items():
         for port in node.custom_inputs:
             yield _reference(name) if port.name == 'default input' else _reference(name, port.name)
@@ -339,7 +358,7 @@ def _target_references(graph):
             yield from (_reference(name, key) for key in procedure.input_ports)
 
 
-def _source_references(graph):
+def _source_references(graph: model.NodeType) -> Iterator[str]:
     for name, node in graph.instance_nodes.items():
         for port in node.custom_outputs:
             yield _reference(name) if port.name == 'default output' else _reference(name, port.name)
@@ -353,7 +372,8 @@ def _source_references(graph):
     yield from (_reference(name) for name in graph.static_declarations)
 
 
-def _resolve(value_type, parameter_values):
+def _resolve(value_type: model.Type | None,
+             parameter_values: Mapping[model.DeclarationParameter, StaticValue] | None) -> model.Type | None:
     if value_type is None or parameter_values is None:
         return value_type
     try:
@@ -362,23 +382,28 @@ def _resolve(value_type, parameter_values):
         return None
 
 
-def _resolved_port(port, direction, parameter_values):
+def _resolved_port(port: model.TypeInputPort | model.TypeOutputPort, direction: str,
+                   parameter_values: Mapping[model.DeclarationParameter, StaticValue] | None) -> ResolvedPort:
     spec = port.port_spec
     if isinstance(spec, model.PortTypeSpecificationResource):
         kind = 'resource'
     else:
+        assert isinstance(spec, model.PortTypeSpecificationData)
         kind = 'value' if spec.kind_spec.kind == model.ConnectionKind.Value else 'event'
     name = port.name
     return ResolvedPort(None if name == f'default {direction}' else name, direction, kind,
                         spec.list_spec.is_list, _resolve(port.var_type, parameter_values), port.resource_type)
 
 
-def _element_spans(result):
-    elements = []
+def _element_spans(result: _outline.Outline) -> list[tuple[str, tuple[int, int], _outline.ElementId]]:
+    elements: list[tuple[str, tuple[int, int], _outline.ElementId]] = []
 
-    def visit(scope):
-        for record in (*scope.nodes, *scope.states, *scope.bindings, *scope.constants,
-                       *scope.parameters, *scope.ports, *scope.procedures, *scope.node_types):
+    def visit(scope: _outline.Scope) -> None:
+        records: tuple[_outline.DeclarationRecord, ...] = (
+            *scope.nodes, *scope.states, *scope.bindings, *scope.constants,
+            *scope.parameters, *scope.ports, *scope.procedures, *scope.node_types,
+        )
+        for record in records:
             elements.append((record.filename, record.span, record.id))
         for edge in scope.edges:
             if edge.id is not None:
@@ -392,7 +417,8 @@ def _element_spans(result):
     return elements
 
 
-def _element(elements, diagnostic):
+def _element(elements: Iterable[tuple[str, tuple[int, int], _outline.ElementId]],
+             diagnostic: Diagnostic) -> _outline.ElementId | None:
     """Return the ID of the smallest element containing the diagnostic."""
     if diagnostic.start is None:
         return None

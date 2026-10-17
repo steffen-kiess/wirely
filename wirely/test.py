@@ -19,7 +19,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from collections.abc import AsyncIterator, Callable, Iterable, Iterator, Mapping, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import lark
 
@@ -399,11 +399,11 @@ def compile_negative_case(full_fn: str, case: NegativeTestCase) -> None:
 
     diagnostics: list = []
     sources = model.compiler._standard_library_sources(case.libraries)
-    result = model.compiler.compile_strs(
+    graph = model.compiler.compile_strs(
         sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
     )
-    if result is not None:
-        result = program_compiler.compile(result, on_diagnostic=diagnostics.append)
+    result = (program_compiler.compile(graph, on_diagnostic=diagnostics.append)
+              if graph is not None else None)
 
     output = io.StringIO()
     for diagnostic in diagnostics:
@@ -450,7 +450,8 @@ def test_signatures(graph: object) -> contextlib.ExitStack:
     stack = contextlib.ExitStack()
     tables = (native_interfaces.native_state_types, native_interfaces.native_procedures,
               native_interfaces.native_functions)
-    for table, entries in zip(tables, native_signatures(graph, 'TestLibrary')):
+    # Some tests supply graph stand-ins with the same interface.
+    for table, entries in zip(tables, native_signatures(cast(model.Scope, graph), 'TestLibrary')):
         stack.enter_context(patch.dict(table, entries))
     return stack
 

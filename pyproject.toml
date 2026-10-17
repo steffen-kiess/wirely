@@ -53,13 +53,8 @@ check_untyped_defs = true
 # These packages are fully annotated.
 module = [
     "wirely", "wirely.__main__", "wirely.test", "wirely.util",
-    "wirely.cli.*", "wirely.compiler.ast.*", "wirely.control.*", "wirely.functions.*", "wirely.knx.*", "wirely.misc.*",
+    "wirely.cli.*", "wirely.compiler.*", "wirely.control.*", "wirely.functions.*", "wirely.knx.*", "wirely.misc.*",
     "wirely.native.*", "wirely.program.*", "wirely.runtime.*", "wirely.two_n.*", "wirely.types.*",
-    "wirely.compiler.graph", "wirely.compiler.instance", "wirely.compiler.node_type",
-    "wirely.compiler.support", "wirely.compiler.parameters", "wirely.compiler.coordinator",
-    "wirely.compiler.stages", "wirely.compiler.static_bindings", "wirely.compiler.shuffle",
-    "wirely.compiler.model",
-    "wirely.compiler.expressions", "wirely.compiler.value", "wirely.compiler.types",
 ]
 disallow_untyped_defs = true
 

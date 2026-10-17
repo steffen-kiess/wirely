@@ -1,28 +1,36 @@
 """Parsed attribute metadata and compiler attribute definitions."""
 
+from __future__ import annotations
+
 import contextlib
+import os
 import math
 from dataclasses import dataclass
 from types import MappingProxyType
-from collections.abc import Callable
-from typing import Any, NoReturn
+from collections.abc import Callable, Iterable, Sequence
+from contextlib import AbstractContextManager
+from typing import TYPE_CHECKING, Any, NoReturn, TypeGuard
+
+if TYPE_CHECKING:
+    from . import model
+    from .diagnostics import WarningSink
 
 
 @dataclass(frozen=True)
 class MetadataLiteral:
     value: object
-    source_position: object
+    source_position: model.SourcePosition
 
 
 @dataclass(frozen=True)
 class Metadata:
     path: tuple[str, ...]
     kind: str
-    value: object
-    source_position: object
+    value: Any  # A literal, a tuple of arguments, or None, according to kind.
+    source_position: model.SourcePosition
 
     @property
-    def name(self):
+    def name(self) -> str:
         return '.'.join(self.path)
 
 
@@ -30,10 +38,10 @@ class Metadata:
 class Attribute:
     metadata: Metadata
     style: str
-    source_position: object
+    source_position: model.SourcePosition
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.metadata.name
 
 
@@ -42,7 +50,7 @@ class ValidatedAttribute:
     name: str
     value: object
     style: str
-    source_position: object
+    source_position: model.SourcePosition
 
 
 @dataclass(frozen=True)
@@ -54,29 +62,30 @@ class AttributeDefinition:
 
 @dataclass(frozen=True)
 class FileMetadata:
-    filename: str
+    filename: str | os.PathLike
     inner_attributes: tuple[Attribute, ...]
     attributes: tuple[ValidatedAttribute, ...]
 
 
-class ParsedFile(list):
+class ParsedFile(list['model.Declaration']):
     """A declaration list retaining the enclosing file/body's attributes."""
 
-    def __init__(self, declarations=(), *, inner_attributes=()):
+    def __init__(self, declarations: Iterable[model.Declaration] = (), *,
+                 inner_attributes: Iterable[Attribute] = ()) -> None:
         super().__init__(declarations)
         self.inner_attributes = tuple(inner_attributes)
 
 
-def _error(source, message) -> NoReturn:
+def _error(source: Attribute | Metadata | MetadataLiteral | model.ast.SourceElement, message: str) -> NoReturn:
     from .ast import ProgramError, SourceElement
     raise ProgramError(SourceElement(source_position=source.source_position), message)
 
 
-def _number(value):
-    return type(value) in (int, float) and math.isfinite(value)
+def _number(value: object) -> TypeGuard[int | float]:
+    return isinstance(value, (int, float)) and type(value) in (int, float) and math.isfinite(value)
 
 
-def _position(attribute):
+def _position(attribute: Attribute) -> tuple[int | float, int | float]:
     metadata = attribute.metadata
     if metadata.kind != 'list':
         _error(attribute, f'{attribute.name} requires X and Y arguments')
@@ -90,34 +99,35 @@ def _position(attribute):
         if argument.kind != 'value' or not isinstance(argument.value, MetadataLiteral) \
                 or not _number(argument.value.value):
             _error(argument, f'{attribute.name} {name} requires a finite numeric literal')
+        assert _number(argument.value.value)
         coordinates[name] = argument.value.value
     if set(coordinates) != {'X', 'Y'}:
         _error(attribute, f'{attribute.name} requires X and Y arguments')
     return coordinates['X'], coordinates['Y']
 
 
-def _literal(attribute):
+def _literal(attribute: Attribute) -> object:
     metadata = attribute.metadata
     if metadata.kind != 'value' or not isinstance(metadata.value, MetadataLiteral):
         return None
     return metadata.value.value
 
 
-def _size(attribute):
+def _size(attribute: Attribute) -> int | float:
     value = _literal(attribute)
     if not _number(value) or value <= 0:
         _error(attribute, f'{attribute.name} requires a positive finite number, as in {attribute.name} = 8')
     return value
 
 
-def _row(attribute):
+def _row(attribute: Attribute) -> int:
     value = _literal(attribute)
     if type(value) is not int or value < 0:
         _error(attribute, f'{attribute.name} requires a non-negative integer, as in {attribute.name} = 0')
     return value
 
 
-def _warning_names(attribute):
+def _warning_names(attribute: Attribute) -> tuple[str, ...]:
     from .diagnostics import WARNINGS
 
     metadata = attribute.metadata
@@ -133,7 +143,7 @@ def _warning_names(attribute):
     return tuple(names)
 
 
-def _flag(attribute):
+def _flag(attribute: Attribute) -> bool:
     if attribute.metadata.kind != 'flag':
         _error(attribute, f'{attribute.name} must be a flag without arguments or a value')
     return True
@@ -167,12 +177,12 @@ ATTRIBUTE_REGISTRY = {
 }
 
 
-def _direction_name(port):
+def _direction_name(port: model.DeclarationPort) -> str:
     from . import ast
     return 'input' if port.direction == ast.PortDirection.Input else 'output'
 
 
-def _immutable(value):
+def _immutable(value: object) -> object:
     if isinstance(value, dict):
         return MappingProxyType({key: _immutable(item) for key, item in value.items()})
     if isinstance(value, (list, tuple)):
@@ -182,7 +192,7 @@ def _immutable(value):
     return value
 
 
-def validate_attributes(attributes, target):
+def validate_attributes(attributes: Iterable[Attribute], target: str) -> tuple[ValidatedAttribute, ...]:
     result = []
     seen = set()
     for attribute in attributes:
@@ -201,7 +211,9 @@ def validate_attributes(attributes, target):
     return tuple(result)
 
 
-def validate_files(files, *, contain=None, warnings):
+def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
+                   contain: Callable[[model.ast.SourceElement | None], AbstractContextManager[None]] | None = None,
+                   warnings: WarningSink) -> tuple[FileMetadata, ...]:
     """Validate all metadata before the ordinary compilation passes.
 
     contain is CompilerCoordinator.contain when continuing after errors.
@@ -213,14 +225,16 @@ def validate_files(files, *, contain=None, warnings):
     from .expressions import ExpressionBlock
     from .node_type import NodeType
 
-    def allow(item, attributes):
+    def allow(item: model.ast.SourceElement, attributes: Iterable[ValidatedAttribute]) -> None:
         position = item.source_position
         for attribute in attributes:
             if attribute.name == 'Allow':
+                assert isinstance(attribute.value, tuple)
+                assert position.meta is not None
                 for name in attribute.value:
                     warnings.allow(name, position.filename, position.meta.start_pos, position.meta.end_pos)
 
-    def visit_blocks(element):
+    def visit_blocks(element: model.ast.SourceElement) -> None:
         """Validate the attributes of statements in blocks inside element."""
         if isinstance(element, ExpressionBlock):
             for statement in element.statements:
@@ -253,7 +267,7 @@ def validate_files(files, *, contain=None, warnings):
     }
     namespaces: dict[Any, Any] = {}
 
-    def visit(item, scope):
+    def visit(item: model.ast.SourceElement, scope: tuple[str | model.NodeType, ...]) -> None:
         target = targets[type(item)]
         with contain(None):
             item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
@@ -295,14 +309,14 @@ def validate_files(files, *, contain=None, warnings):
         if isinstance(item, ast.DeclarationPort):
             check_unordered(item)
 
-    def check_unordered(port):
+    def check_unordered(port: model.DeclarationPort) -> None:
         for attribute in getattr(port, 'attributes', ()):
             if attribute.name == 'Unordered' and not (
                     port.direction == ast.PortDirection.Input and port.port_spec.list_spec.is_list):
                 with contain(None):
                     _error(attribute, 'Unordered requires a multi input')
 
-    def check_rows(declarations):
+    def check_rows(declarations: Iterable[model.Declaration]) -> None:
         """Reject two ports on the same side of a diagram item with the same row."""
         used: dict[Any, str] = {}
         for declaration in declarations:
@@ -320,11 +334,12 @@ def validate_files(files, *, contain=None, warnings):
 
     metadata = []
     for filename, parsed in files:
-        attributes = ()
+        attributes: tuple[ValidatedAttribute, ...] = ()
         with contain(None):
             attributes = validate_attributes(parsed.inner_attributes, 'file')
         for attribute in attributes:
             if attribute.name == 'Allow':
+                assert isinstance(attribute.value, tuple)
                 for name in attribute.value:
                     warnings.allow(name, filename)
         metadata.append(FileMetadata(filename, parsed.inner_attributes, attributes))
@@ -334,7 +349,8 @@ def validate_files(files, *, contain=None, warnings):
     return tuple(metadata)
 
 
-def copy_attributes(target, source):
+# AST objects and instantiated graph objects share these metadata fields.
+def copy_attributes(target: Any, source: Any) -> None:
     target.outer_attributes = source.outer_attributes
     target.inner_attributes = source.inner_attributes
     target.attributes = source.attributes

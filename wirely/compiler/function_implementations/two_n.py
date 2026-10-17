@@ -2,15 +2,18 @@
 
 import os
 
+from wirely.types.value_types import StructValue
 from wirely.runtime.structs import TwoNCredentials
 
+from ..native_functions import NativeFunctionContext
 
-def is_valid_code(*, context):
+
+def is_valid_code(*, context: NativeFunctionContext) -> bool:
     code, = context.arguments
     return len(code) <= 15 and all('0' <= digit <= '9' for digit in code)
 
 
-def read_credentials(*, context):
+def read_credentials(*, context: NativeFunctionContext) -> StructValue:
     filename, = context.arguments
     if not os.path.isabs(filename):
         raise context.error(

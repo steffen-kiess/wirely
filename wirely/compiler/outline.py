@@ -11,14 +11,18 @@ their index in source order; it is None for a unique connection.
 wirely.compiler.editing changes sources using these IDs.
 """
 
+from __future__ import annotations
+
 import dataclasses
+from collections.abc import Iterable, Iterator, Sequence
 import functools
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeAlias, TypeVar, cast, overload
 
 import lark
 
 from . import ast
+from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
 from . import parser
 from .diagnostics import Diagnostic, error_diagnostics
@@ -92,6 +96,10 @@ class Connection:
     occurrence: int | None = None
 
 
+DeclarationId: TypeAlias = Node | NodeType | State | Binding | Constant | Parameter | Port | Procedure
+ElementId: TypeAlias = DeclarationId | ProcedurePort | Connection
+
+
 @dataclass(frozen=True)
 class PortInfo:
     id: Port
@@ -105,7 +113,7 @@ class PortInfo:
     kind: str
     is_list: bool
     type_text: str
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationPort | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -129,7 +137,7 @@ class NodeInfo:
     # None if the type is not declared in the sources.
     node_type: NodeType | None
     ports: tuple[PortInfo, ...] | None
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationInstance | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -142,7 +150,7 @@ class StateInfo:
     name: str
     type_text: str
     initial_text: str
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationState | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -155,7 +163,7 @@ class BindingInfo:
     name: str
     type_text: str
     kind: str
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationBinding | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -168,7 +176,7 @@ class ConstantInfo:
     name: str
     type_text: str
     value_text: str
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationConstant | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -182,7 +190,7 @@ class ParameterInfo:
     type_text: str
     default_text: str | None
     is_optional: bool
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationParameter | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -212,14 +220,14 @@ class ProcedureInfo:
     stage: str
     inputs: tuple[ProcedurePortInfo, ...]
     outputs: tuple[ProcedurePortInfo, ...]
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationProcedure | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
 class Endpoint:
     """A connection end; element is None if the reference is unresolved."""
     text: str
-    element: object
+    element: ElementId | None
     # A port name, 'old' or 'new', or None.
     port: str | None
 
@@ -236,8 +244,8 @@ class Edge:
     source_span: tuple[int, int] | None
     target_span: tuple[int, int] | None
     attributes: tuple
-    _declaration: object = field(default=None, compare=False, repr=False)
-    _source: object = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationConnection | ast.ReferencePort | None = field(default=None, compare=False, repr=False)
+    _source: ast.Reference | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -255,10 +263,10 @@ class Scope:
     procedures: tuple[ProcedureInfo, ...]
     edges: tuple[Edge, ...]
     # (filename, block) for each file, namespace block, or node type body.
-    _blocks: tuple = field(default=(), compare=False, repr=False)
+    _blocks: tuple[tuple[str, Block], ...] = field(default=(), compare=False, repr=False)
 
     @property
-    def filenames(self):
+    def filenames(self) -> tuple[str, ...]:
         """The files containing a part of the scope, in order."""
         return tuple(dict.fromkeys(filename for filename, _ in self._blocks))
 
@@ -273,15 +281,21 @@ class NodeTypeInfo:
     is_native: bool
     is_singleton: bool
     scope: Scope
-    _declaration: object = field(default=None, compare=False, repr=False)
+    _declaration: _NodeType | None = field(default=None, compare=False, repr=False)
 
     @property
-    def ports(self):
+    def ports(self) -> tuple[PortInfo, ...]:
         return self.scope.ports
 
     @property
-    def parameters(self):
+    def parameters(self) -> tuple[ParameterInfo, ...]:
         return self.scope.parameters
+
+
+DeclarationRecord: TypeAlias = NodeInfo | NodeTypeInfo | StateInfo | BindingInfo | ConstantInfo | ParameterInfo | PortInfo | ProcedureInfo
+Record: TypeAlias = DeclarationRecord | ProcedurePortInfo | Edge
+RecordT = TypeVar('RecordT')
+Block: TypeAlias = _attributes.ParsedFile | _NodeType | ast.DeclarationLibrary
 
 
 @dataclass(frozen=True)
@@ -296,7 +310,43 @@ class Outline:
     files: tuple[SourceFile, ...]
     scope: Scope
 
-    def find(self, target):
+    @overload
+    def find(self, target: Node) -> tuple[NodeInfo, ...]: ...
+
+    @overload
+    def find(self, target: NodeType) -> tuple[NodeTypeInfo, ...]: ...
+
+    @overload
+    def find(self, target: State) -> tuple[StateInfo, ...]: ...
+
+    @overload
+    def find(self, target: Binding) -> tuple[BindingInfo, ...]: ...
+
+    @overload
+    def find(self, target: Constant) -> tuple[ConstantInfo, ...]: ...
+
+    @overload
+    def find(self, target: Parameter) -> tuple[ParameterInfo, ...]: ...
+
+    @overload
+    def find(self, target: Port) -> tuple[PortInfo, ...]: ...
+
+    @overload
+    def find(self, target: Procedure) -> tuple[ProcedureInfo, ...]: ...
+
+    @overload
+    def find(self, target: ProcedurePort) -> tuple[ProcedurePortInfo, ...]: ...
+
+    @overload
+    def find(self, target: Connection) -> tuple[Edge, ...]: ...
+
+    @overload
+    def find(self, target: DeclarationId) -> tuple[DeclarationRecord, ...]: ...
+
+    @overload
+    def find(self, target: ElementId) -> tuple[Record, ...]: ...
+
+    def find(self, target: ElementId) -> tuple[Record, ...]:
         """Return the records with the given ID, several for duplicate names."""
         if isinstance(target, Connection):
             edges = self._index.get(dataclasses.replace(target, occurrence=None), ())
@@ -307,9 +357,9 @@ class Outline:
             return ()
         return tuple(self._index.get(target, ()))
 
-    def find_scope(self, path):
+    def find_scope(self, path: Sequence[str]) -> tuple[Scope, ...]:
         """Return the scopes with the given path, several for duplicate node types."""
-        def visit(scope):
+        def visit(scope: Scope) -> Iterator[Scope]:
             if scope.path == tuple(path):
                 yield scope
             for node_type in scope.node_types:
@@ -320,15 +370,16 @@ class Outline:
         return tuple(visit(self.scope))
 
     @functools.cached_property
-    def _index(self):
-        index: dict[Any, list] = {}
+    def _index(self) -> dict[ElementId, list[Record]]:
+        index: dict[ElementId, list[Record]] = {}
 
-        def add(key, record):
+        def add(key: ElementId, record: Record) -> None:
             index.setdefault(key, []).append(record)
 
-        def visit(scope):
-            for record in (*scope.nodes, *scope.states, *scope.bindings,
-                           *scope.constants, *scope.parameters, *scope.ports):
+        def visit(scope: Scope) -> None:
+            records: tuple[DeclarationRecord, ...] = (*scope.nodes, *scope.states, *scope.bindings,
+                                                     *scope.constants, *scope.parameters, *scope.ports)
+            for record in records:
                 add(record.id, record)
             for procedure in scope.procedures:
                 add(procedure.id, procedure)
@@ -347,12 +398,13 @@ class Outline:
         return index
 
 
-def outline(sources, *, add_std=False):
+def outline(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Outline:
     """Outline (filename, text) pairs; files that fail to parse are skipped."""
     return outline_parsed(*parse(sources, add_std=add_std))
 
 
-def parse(sources, *, add_std=False):
+def parse(sources: Iterable[tuple[str, str]], *,
+          add_std: bool = False) -> tuple[tuple[SourceFile, ...], list[tuple[str, _attributes.ParsedFile]]]:
     """Return the file records and the (filename, declarations) of files that parse."""
     if add_std:
         from . import _standard_library_sources
@@ -377,7 +429,8 @@ def parse(sources, *, add_std=False):
     return tuple(files), parsed_files
 
 
-def outline_parsed(files, parsed_files):
+def outline_parsed(files: tuple[SourceFile, ...],
+                   parsed_files: Iterable[tuple[str, _attributes.ParsedFile]]) -> Outline:
     """Outline the result of parse()."""
     root = _Builder('global', (), None)
     for filename, declarations in parsed_files:
@@ -387,19 +440,19 @@ def outline_parsed(files, parsed_files):
 
 
 class _Builder:
-    def __init__(self, kind, path, parent):
+    def __init__(self, kind: str, path: tuple[str, ...], parent: _Builder | None) -> None:
         self.kind = kind
         self.path = path
         self.parent = parent
-        self.items = []
-        self.namespaces = {}
-        self.node_types = []
-        self.blocks = []
-        self.port_records = None
-        self.name_table = None
+        self.items: list[ast.Declaration] = []
+        self.namespaces: dict[str, _Builder] = {}
+        self.node_types: list[tuple[_NodeType, _Builder]] = []
+        self.blocks: list[tuple[str, Block]] = []
+        self.port_records: tuple[PortInfo, ...] | None = None
+        self.name_table: dict[str, dict[str, ElementId]] | None = None
 
 
-def _collect(builder, declarations):
+def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None:
     for item in declarations:
         if isinstance(item, ast.DeclarationLibrary):
             name = item.name.id_str
@@ -420,25 +473,27 @@ def _collect(builder, declarations):
             builder.items.append(item)
 
 
-def _text(element):
+def _text(element: ast.SourceElement) -> str:
     position = element.source_position
+    assert position.meta is not None
     return position.input_data[position.meta.start_pos:position.meta.end_pos]
 
 
-def _span(element):
+def _span(element: ast.SourceElement) -> tuple[int,int]:
     meta = element.source_position.meta
+    assert meta is not None
     return (meta.start_pos, meta.end_pos)
 
 
-def _filename(element):
-    return element.source_position.filename
+def _filename(element: ast.SourceElement) -> str:
+    return cast(str, element.source_position.filename)
 
 
-def _reference_text(reference):
+def _reference_text(reference: ast.Reference) -> str:
     return '.'.join(identifier.id_str for identifier in reference.identifiers)
 
 
-def attribute_value(attributes, name):
+def attribute_value(attributes: Iterable[_attributes.Attribute], name: str) -> Any:
     """Return the validated value of the first attribute called name, or None if missing or invalid."""
     for attribute in attributes:
         if attribute.name == name:
@@ -449,21 +504,22 @@ def attribute_value(attributes, name):
     return None
 
 
-def _position(attributes):
+def _position(attributes: Iterable[_attributes.Attribute]) -> tuple | None:
     return attribute_value(attributes, 'Diagram.Position')
 
 
-def _direction(direction):
+def _direction(direction: ast.PortDirection) -> str:
     return 'input' if direction == ast.PortDirection.Input else 'output'
 
 
-def _port_kind(spec):
+def _port_kind(spec: ast.PortTypeSpecification) -> str:
     if isinstance(spec, ast.PortTypeSpecificationResource):
         return 'resource'
+    assert isinstance(spec, ast.PortTypeSpecificationData)
     return 'value' if spec.kind_spec.kind == ast.ConnectionKind.Value else 'event'
 
 
-def _ports(builder):
+def _ports(builder: _Builder) -> tuple[PortInfo, ...]:
     if builder.port_records is None:
         builder.port_records = tuple(
             PortInfo(Port(builder.path + (item.name_str,), _direction(item.direction)),
@@ -475,10 +531,10 @@ def _ports(builder):
     return builder.port_records
 
 
-def _names(builder):
+def _names(builder: _Builder) -> dict[str, dict[str, ElementId]]:
     """Map each kind of name in a scope to the IDs of its declarations."""
     if builder.name_table is None:
-        table: dict[str, dict[str, Any]] = {key: {} for key in ('static', 'input', 'output', 'state', 'binding', 'procedure',
+        table: dict[str, dict[str, ElementId]] = {key: {} for key in ('static', 'input', 'output', 'state', 'binding', 'procedure',
                                      'node')}
         for item in builder.items:
             if isinstance(item, ast.DeclarationConstant):
@@ -500,10 +556,10 @@ def _names(builder):
     return builder.name_table
 
 
-def _resolve_node_type(builder, reference):
+def _resolve_node_type(builder: _Builder, reference: ast.Reference) -> _Builder | None:
     """Return the builder of the referenced node type, like Scope.resolve_node_type."""
     names = [identifier.id_str for identifier in reference.identifiers]
-    scope = builder
+    scope: _Builder | None = builder
     while scope is not None:
         if len(names) >= 2:
             namespace = scope.namespaces.get(names[0])
@@ -512,18 +568,18 @@ def _resolve_node_type(builder, reference):
                     break
                 namespace = namespace.namespaces.get(name)
             if namespace is not None:
-                matches = [child for item, child in namespace.node_types if item.name.id_str == names[-1]]
+                matches = [child for item, child in namespace.node_types if item.name is not None and item.name.id_str == names[-1]]
                 if matches:
                     return matches[0] if len(matches) == 1 else None
         else:
-            matches = [child for item, child in scope.node_types if item.name.id_str == names[0]]
+            matches = [child for item, child in scope.node_types if item.name is not None and item.name.id_str == names[0]]
             if matches:
                 return matches[0] if len(matches) == 1 else None
         scope = scope.parent
     return None
 
 
-def _resolve_endpoint(builder, reference, is_target):
+def _resolve_endpoint(builder: _Builder, reference: ast.Reference, is_target: bool) -> Endpoint:
     """Resolve a connection end like ResolvedPortReference, within one scope."""
     text = _reference_text(reference)
     if reference.length > 2:
@@ -544,23 +600,24 @@ def _resolve_endpoint(builder, reference, is_target):
     return Endpoint(text, None, port)
 
 
-def _port_key(port):
+def _port_key(port: AstPort) -> str | None:
     try:
         return port.key
     except ast.ProgramError:
         return None
 
 
-def _procedure_port(procedure_id, port, direction):
+def _procedure_port(procedure_id: Procedure, port: AstPort, direction: str) -> ProcedurePortInfo:
     common = (ProcedurePort(procedure_id, _port_key(port), direction), _filename(port), _span(port),
               _port_key(port), direction)
     if isinstance(port, ast.TypedPort):
         spec = port.port_spec
         return ProcedurePortInfo(*common, None, _port_kind(spec), spec.list_spec.is_list, _text(spec.ty))
+    assert isinstance(port, ast.ReferencePort)
     return ProcedurePortInfo(*common, _text(port.reference), None, False, None)
 
 
-def _record(builder, item):
+def _record(builder: _Builder, item: ast.Declaration) -> Record | None:
     path = builder.path
     attributes = item.outer_attributes
     common = (_filename(item), _span(item))
@@ -583,6 +640,7 @@ def _record(builder, item):
                            _position(attributes), item.name_str, _text(item.port_spec.ty),
                            _port_kind(item.port_spec), item)
     if isinstance(item, ast.DeclarationConstant):
+        assert item.default_value is not None
         return ConstantInfo(Constant(path + (item.name.id_str,)), *common, attributes,
                             _position(attributes), item.name.id_str, _text(item.ty),
                             _text(item.default_value), item)
@@ -602,13 +660,13 @@ def _record(builder, item):
     return None
 
 
-def _procedure_endpoint(procedure_id, port):
+def _procedure_endpoint(procedure_id: Procedure, port: AstPort) -> Endpoint:
     key = _port_key(port)
     name = procedure_id.path[-1]
     return Endpoint(name if key is None else f'{name}.{key}', procedure_id, key)
 
 
-def _edges(builder, item):
+def _edges(builder: _Builder, item: ast.Declaration) -> Iterator[Edge]:
     if isinstance(item, ast.DeclarationConnection):
         target = _resolve_endpoint(builder, item.target, True)
         for source in item.sources:
@@ -631,12 +689,12 @@ def _edges(builder, item):
                            _filename(port), _span(port), None, _span(port.reference), (), port)
 
 
-def _with_occurrences(edges):
-    counts: dict[Any, int] = {}
+def _with_occurrences(edges: Sequence[Edge]) -> tuple[Edge, ...]:
+    counts: dict[Connection, int] = {}
     for edge in edges:
         if edge.id is not None:
             counts[edge.id] = counts.get(edge.id, 0) + 1
-    seen: dict[Any, int] = {}
+    seen: dict[Connection, int] = {}
     result = []
     for edge in edges:
         if edge.id is not None and counts[edge.id] > 1:
@@ -647,19 +705,22 @@ def _with_occurrences(edges):
     return tuple(result)
 
 
-def _build_scope(builder):
+def _build_scope(builder: _Builder) -> Scope:
     records = [record for record in (_record(builder, item) for item in builder.items) if record is not None]
 
-    def of_type(record_type):
+    def of_type(record_type: type[RecordT]) -> tuple[RecordT, ...]:
         return tuple(record for record in records if isinstance(record, record_type))
 
-    node_types = tuple(
-        NodeTypeInfo(NodeType(child.path), _filename(item), _span(item),
-                     item.outer_attributes + item.inner_attributes, item.name.id_str,
-                     item.is_native, item.is_singleton, _build_scope(child), item)
-        for item, child in builder.node_types)
+    node_types = []
+    for item, child in builder.node_types:
+        assert item.name is not None
+        node_types.append(NodeTypeInfo(
+            NodeType(child.path), _filename(item), _span(item),
+            item.outer_attributes + item.inner_attributes, item.name.id_str,
+            item.is_native, item.is_singleton, _build_scope(child), item,
+        ))
     return Scope(
-        builder.kind, builder.path, of_type(NodeInfo), node_types,
+        builder.kind, builder.path, of_type(NodeInfo), tuple(node_types),
         tuple(_build_scope(child) for child in builder.namespaces.values()),
         of_type(StateInfo), of_type(BindingInfo), of_type(ConstantInfo),
         of_type(ParameterInfo),

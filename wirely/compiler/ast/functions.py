@@ -1,7 +1,10 @@
 """Native function declarations."""
 
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ..native_functions import NativeFunctionImplementation
 
 from wirely.compiler import model
 
@@ -17,6 +20,8 @@ class FunctionArgument(SourceElement):
 
 
 class DeclarationNativeFunction(Declaration):
+    _resolved_implementation: 'NativeFunctionImplementation'
+    _runtime_implementation: Callable[..., object]
     def __init__(self, name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
                  return_type: Value, *, is_constant: bool = False, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)

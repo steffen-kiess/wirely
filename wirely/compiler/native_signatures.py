@@ -1,5 +1,10 @@
 """Describe native interfaces declared in a compiled graph with wirely.runtime.signatures."""
 
+from __future__ import annotations
+
+from collections.abc import Iterator, Mapping
+from typing import Any, overload
+
 from wirely import types
 from wirely.compiler import model
 from wirely.compiler.ast.specifiers import ConnectionKind
@@ -9,7 +14,7 @@ from wirely.compiler.types import TypeParameter
 from wirely.runtime import signatures
 
 
-def node_types(scope):
+def node_types(scope: model.Scope) -> Iterator[model.NodeType]:
     """Yield the node types declared in a scope, its namespaces, and its node types."""
     for node_type in scope.node_types.values():
         yield node_type
@@ -18,7 +23,7 @@ def node_types(scope):
         yield from node_types(library)
 
 
-def runtime_functions(scope):
+def runtime_functions(scope: model.Scope) -> Iterator[model.DeclarationNativeFunction]:
     """Yield the runtime native functions declared in a scope and its namespaces."""
     for function in scope.native_functions.values():
         if not function.is_constant:
@@ -27,7 +32,8 @@ def runtime_functions(scope):
         yield from runtime_functions(library)
 
 
-def signature_type(value_type, variables, where):
+def signature_type(value_type: types.Type, variables: Mapping[model.DeclarationParameter, str],
+                   where: str) -> signatures.SignatureType:
     """Describe a compiler value type; type parameters become their type variables."""
     if isinstance(value_type, TypeParameter):
         name = variables.get(value_type.parameter)
@@ -53,17 +59,20 @@ def signature_type(value_type, variables, where):
     raise ValueError(f'{where} uses unsupported type {value_type}')
 
 
-def signature_port(port, variables, where):
+# Data and resource ports expose different interfaces.
+def signature_port(port: Any, variables: Mapping[model.DeclarationParameter, str], where: str) -> signatures.Port:
     specification = port_specification(port)
     if specification.resource_type is not None:
         return signatures.Port('resource', signatures.ResourceType(specification.resource_type.native_name),
                                specification.is_list)
     kind_spec = getattr(specification.port_spec, 'kind_spec', None)
     kind = 'event' if kind_spec is not None and kind_spec.kind is ConnectionKind.Event else 'value'
+    assert specification.var_type is not None
     return signatures.Port(kind, signature_type(specification.var_type, variables, where), specification.is_list)
 
 
-def procedure_ports(ports, variables, where):
+def procedure_ports(ports: Mapping[str, model.ProcedureInputPort | model.ProcedureOutputPort],
+                    variables: Mapping[model.DeclarationParameter, str], where: str) -> dict[str, signatures.Port]:
     result = {}
     for port in ports.values():
         port.resolve_reference()
@@ -71,9 +80,10 @@ def procedure_ports(ports, variables, where):
     return result
 
 
-def type_variables(node_type, uses, where):
+def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None,
+                   where: str) -> dict[model.DeclarationParameter, str]:
     """Map each ValueType parameter in a `uses` clause to the key passing it."""
-    variables: dict[str, str] = {}
+    variables: dict[model.DeclarationParameter, str] = {}
     for binding in () if uses is None else uses.bindings:
         expression = binding.expression
         parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
@@ -86,25 +96,38 @@ def type_variables(node_type, uses, where):
     return variables
 
 
-def uses_type(node_type, binding, variables, where):
+@overload
+def uses_type(node_type: model.NodeType, binding: model.StaticBinding, variables: None, where: str) -> types.Type: ...
+
+@overload
+def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
+              variables: Mapping[model.DeclarationParameter, str], where: str) -> signatures.SignatureType: ...
+
+def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
+              variables: Mapping[model.DeclarationParameter, str] | None,
+              where: str) -> types.Type | signatures.SignatureType:
     with binding.expression.context:
         value_type = compile_constant(node_type, binding.expression, None, {}).value_type
     return value_type if variables is None else signature_type(value_type, variables, where)
 
 
-def signature_uses(node_type, uses, variables, where):
+def signature_uses(node_type: model.NodeType, uses: model.UsesDeclaration | None,
+                   variables: Mapping[model.DeclarationParameter, str],
+                   where: str) -> dict[str, signatures.SignatureType]:
     if uses is None:
         return {}
     return {binding.key: uses_type(node_type, binding, variables, where) for binding in uses.bindings}
 
 
-def native_signatures(graph, namespace=None):
+def native_signatures(graph: model.Scope,
+                      namespace: str | None = None) -> tuple[dict[str, signatures.Initializer], dict[str, signatures.Procedure], dict[str, signatures.Function]]:
     """Return the signatures of native state types, procedures, and runtime functions in a graph.
 
     With a namespace, only declarations whose native names are in it are described.
     Raises ValueError for interfaces that cannot be described.
     """
-    def included(name):
+    def included(name: str | None) -> bool:
+        assert name is not None
         return namespace is None or name.startswith(namespace + '.')
 
     state_types = {}
@@ -112,6 +135,7 @@ def native_signatures(graph, namespace=None):
     for node_type in node_types(graph):
         initializer = node_type.initializer if node_type.is_native else None
         if initializer is not None and included(node_type.native_name):
+            assert node_type.native_name is not None
             where = f'Native state type {node_type.native_name}'
             variables = type_variables(node_type, initializer.uses, where)
             depends = {}

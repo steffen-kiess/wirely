@@ -1,14 +1,17 @@
 """Compile-time MQTT configuration functions."""
 
+from wirely.types.value_types import StructValue
 from wirely.runtime.structs import MQTTTemplateParts
 
+from ..native_functions import NativeFunctionContext
 
-def supports_type(*, context):
+
+def supports_type(*, context: NativeFunctionContext) -> bool:
     value_type, = context.arguments
     return value_type.supports_json
 
 
-def parse_template(*, context):
+def parse_template(*, context: NativeFunctionContext) -> StructValue:
     template, = context.arguments
     if template is None:
         return context.return_type.struct_type.from_native(MQTTTemplateParts('', ''))
@@ -19,7 +22,7 @@ def parse_template(*, context):
     return context.return_type.struct_type.from_native(MQTTTemplateParts(prefix, suffix))
 
 
-def parse_json_str_simple(s):
+def parse_json_str_simple(s: str) -> list[tuple[bool, str]]:
     in_str = False
     backslash_count = 0
     res = []
@@ -45,7 +48,7 @@ def parse_json_str_simple(s):
     return res
 
 
-def parse_template_string(st):
+def parse_template_string(st: str) -> tuple[str, str]:
     prefix = ''
     suffix = ''
     found_ref = False

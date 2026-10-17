@@ -1,6 +1,9 @@
 """Compile-time functions selecting test resources when supplied."""
 
-from typing import TYPE_CHECKING, Protocol
+from typing import cast, TYPE_CHECKING, Protocol
+
+from ..native_functions import NativeFunctionContext
+
 
 if TYPE_CHECKING:
     from wirely.two_n.fake_server import ServerInfo
@@ -29,43 +32,43 @@ class TestResources(Protocol):
         ...
 
 
-def replace_knx_path(*, context):
+def replace_knx_path(*, context: NativeFunctionContext) -> str:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return context.services[TEST_RESOURCES_SERVICE].get_knx_path()
+    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_knx_path()
 
 
-def replace_mqtt_uri(*, context):
+def replace_mqtt_uri(*, context: NativeFunctionContext) -> str:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return context.services[TEST_RESOURCES_SERVICE].get_mqtt_uri()
+    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_mqtt_uri()
 
 
-def replace_output_path(*, context):
+def replace_output_path(*, context: NativeFunctionContext) -> str:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return context.services[TEST_RESOURCES_SERVICE].get_output_path(default)
+    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_output_path(default)
 
 
-def replace_twon_host(*, context):
+def replace_twon_host(*, context: NativeFunctionContext) -> str:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return context.services[TEST_RESOURCES_SERVICE].get_twon_info().host
+    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().host
 
 
-def replace_twon_port(*, context):
+def replace_twon_port(*, context: NativeFunctionContext) -> int:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return context.services[TEST_RESOURCES_SERVICE].get_twon_info().port
+    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().port
 
 
-def replace_twon_tlsa(*, context):
+def replace_twon_tlsa(*, context: NativeFunctionContext) -> tuple[str]:
     default, = context.arguments
     if TEST_RESOURCES_SERVICE not in context.services:
         return default
-    return (context.services[TEST_RESOURCES_SERVICE].get_twon_info().server.tlsa,)
+    return (cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().server.tlsa,)

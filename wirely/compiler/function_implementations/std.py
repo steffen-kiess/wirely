@@ -1,10 +1,13 @@
 """Compile-time standard library functions."""
 
+from wirely.types.value_types import StructValue
 import wirely
 from wirely.runtime.structs import StdFormatParts
 
+from ..native_functions import NativeFunctionContext
 
-def parse_format(*, context):
+
+def parse_format(*, context: NativeFunctionContext) -> StructValue:
     format_string, value_type = context.arguments
     try:
         prefix, suffix, has_value = parse_format_string(format_string)
@@ -17,7 +20,7 @@ def parse_format(*, context):
     return context.return_type.struct_type.from_native(StdFormatParts(prefix, suffix, has_value))
 
 
-def parse_format_string(text):
+def parse_format_string(text: str) -> tuple[str, str, bool]:
     """Split a format string with at most one {} into prefix and suffix."""
     parts = ['']
     pos = 0

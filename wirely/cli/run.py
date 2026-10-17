@@ -124,7 +124,9 @@ def main() -> None:
 
     for node_id, instance in prog.instances.items():
         if instance.type_name == 'Std.DebugValueSource':
-            ty = instance.parameters['Type']._type
+            value_type = instance.parameters['Type']
+            assert isinstance(value_type, wirely.value_types.ValueType)
+            ty = value_type._type
             native_inst = eng.native_states[node_id]
             assert native_inst is not None
             if ty == wirely.types.boolean:

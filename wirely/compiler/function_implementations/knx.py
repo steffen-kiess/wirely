@@ -2,8 +2,10 @@
 
 import wirely
 
+from ..native_functions import NativeFunctionContext
 
-def parse_group_address(*, context):
+
+def parse_group_address(*, context: NativeFunctionContext) -> int:
     import xknx
 
     address, = context.arguments
@@ -13,7 +15,7 @@ def parse_group_address(*, context):
         raise context.error(str(error), argument=0) from error
 
 
-def value_type_name(*, context):
+def value_type_name(*, context: NativeFunctionContext) -> str:
     ty, = context.arguments
     names = {
         wirely.value_types.boolean: 'binary',
@@ -27,7 +29,7 @@ def value_type_name(*, context):
     return names[ty]
 
 
-def supports_value_type(*, context):
+def supports_value_type(*, context: NativeFunctionContext) -> bool:
     ty, = context.arguments
     return ty in (
         wirely.value_types.boolean, wirely.value_types.uint16,

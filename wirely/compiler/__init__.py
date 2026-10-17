@@ -1,4 +1,9 @@
+from __future__ import annotations
+
 import os
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any
+
 from types import MappingProxyType
 
 import lark
@@ -7,29 +12,34 @@ import wirely
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
+from .attributes import FileMetadata, ParsedFile
 
 
 class _DiagnosticCallbackError(Exception):
-    def __init__(self, error):
+    def __init__(self, error: Exception) -> None:
         self.error = error
 
 
 # Default of compile_strs's shuffle_seed: read WIRELY_COMPILER_SHUFFLE_SEED.
-_FROM_ENVIRONMENT = object()
+_FROM_ENVIRONMENT: Any = object()  # Omission differs from an explicit None.
 
 
-def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, always_print_stacktrace=None,
-                 services=None, on_diagnostic=None, shuffle_seed=_FROM_ENVIRONMENT, shuffle_layout=None):
+def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *, add_std: bool = False,
+                 verbose_passes: bool | None = None, always_print_stacktrace: bool | None = None,
+                 services: Mapping[str, object] | None = None,
+                 on_diagnostic: Callable[[Diagnostic], None] | None = None,
+                 shuffle_seed: int | None = _FROM_ENVIRONMENT,
+                 shuffle_layout: bool | None = None) -> model.NodeType | None:
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
-    def report_escaping(diagnostic):
+    def report_escaping(diagnostic: Diagnostic) -> None:
         try:
             report(diagnostic)
         except Exception as error:
             # Callback failures must escape the compiler's exception handling.
             raise _DiagnosticCallbackError(error) from error
 
-    def report_progress(message):
+    def report_progress(message: str) -> None:
         report_escaping(Diagnostic('info', message))
 
     compilation_services = MappingProxyType(dict(services if services is not None else {}))
@@ -95,7 +105,9 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
     return None
 
 
-def validate_source_metadata(parsed_files, declarations, warnings):
+def validate_source_metadata(parsed_files: Sequence[tuple[str | os.PathLike, ParsedFile]],
+                             declarations: Iterable[model.Declaration],
+                             warnings: WarningSink) -> tuple[FileMetadata, ...]:
     from .attributes import validate_files
     from .native_functions import validate_collisions, validate_native_names
 
@@ -111,7 +123,7 @@ _STANDARD_LIBRARY_NAMES = (
 )
 
 
-def _standard_library_sources(names=None):
+def _standard_library_sources(names: Iterable[str] | None = None) -> list[tuple[str, str]]:
     names = _STANDARD_LIBRARY_NAMES if names is None else tuple(names)
     for name in names:
         if name not in _STANDARD_LIBRARY_NAMES:
@@ -125,7 +137,9 @@ def _standard_library_sources(names=None):
     return sources
 
 
-def compile_files(input_filenames, *, add_std=True, services=None, on_diagnostic=None):
+def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool = True,
+                  services: Mapping[str, object] | None = None,
+                  on_diagnostic: Callable[[Diagnostic], None] | None = None) -> model.NodeType | None:
     filename_inpudatas = []
     for input_filename in input_filenames:
         with open(input_filename, encoding='utf-8') as file:
