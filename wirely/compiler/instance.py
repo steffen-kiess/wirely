@@ -247,7 +247,7 @@ class InstanceInputPort(InstanceSource):
         if self.is_list:
             self.members: list[InstanceInputPort] = []
         else:
-            self.connected_source = None
+            self.connected_source: typing.Any = None  # One of the sources accepted by connect().
 
         self.node.input_ports.append(self)
         if self.name in self.node.input_ports_byname:
@@ -509,7 +509,7 @@ class NodeTypeInstance(NodeInstance):
 
             self.is_singleton = False
 
-            self.node_type = self.node.node_type
+            self.node_type = node.node_type
         elif isinstance(node, model.NodeType):
             if parent_instance != None:
                 raise Exception('parent_instance != None')
@@ -525,9 +525,10 @@ class NodeTypeInstance(NodeInstance):
         if self.is_singleton:
             self.parameter_values = {}
         else:
+            assert self.node is not None
             self.parameter_values = dict(self.node.par_values)
 
-        all_par_values = {}
+        all_par_values: dict = {}
         next_parent = self.parent_instance
         while next_parent is not None:
             for key, value in next_parent.static_values.items():

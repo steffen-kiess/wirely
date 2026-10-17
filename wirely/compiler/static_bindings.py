@@ -10,7 +10,7 @@ from .types import resolve_type
 
 def evaluate_bindings(uses, instance):
     """Return the typed values bound by a `uses` clause, keyed by name."""
-    values = {}
+    values: dict[str, Constant] = {}
     if uses is None:
         return MappingProxyType(values)
     scope = instance.node_type

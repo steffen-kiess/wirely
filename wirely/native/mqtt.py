@@ -59,8 +59,8 @@ def parse_mqtt_uri(uri):
         raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty fragment'.format(uri))
     query = urllib.parse.parse_qs(split.query, keep_blank_values=True, errors='strict', strict_parsing=False)
 
-    def check_query(*allowed):
-        allowed = set(allowed)
+    def check_query(*allowed_keys):
+        allowed = set(allowed_keys)
         for key in query:
             if key not in allowed:
                 raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got unknown parameter {!r}'.format(uri, key))
@@ -213,7 +213,7 @@ class Connection(NativeState):
     def add_message_queue(self, topic):
         if topic not in self.message_queues:
             self.message_queues[topic] = []
-        queue = asyncio.Queue()
+        queue: asyncio.Queue = asyncio.Queue()
         self.message_queues[topic].append(queue)
         return queue
 
@@ -314,7 +314,7 @@ class ValueOptionProvider(NativeState):
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
-            print(f'Setting output {state.topic} to {value_bytes}, old value_to_send is {state.value_to_send}', flush=True)
+            print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send}', flush=True)
 
             # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
             # TODO: Provide some notification if this is happening?
@@ -398,7 +398,7 @@ class EventSender(NativeState):
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
-            print(f'Sending event {state.topic} to {value_bytes}, old values_to_send is {state.values_to_send}', flush=True)
+            print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
 
             # Note: If sending is too slow, there might be multiple events queued up.
             # TODO: Provide a notification in this case?

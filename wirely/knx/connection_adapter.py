@@ -70,6 +70,7 @@ class StreamKNXIPInterface(KNXIPInterface):
 
     async def start(self):
         config = self.connection_config
+        assert isinstance(config, StreamConnectionConfig)
         self.xknx.cemi_handler.data_secure_init(keyring=None)
         self._interface = StreamTCPTunnel(
             self.xknx,

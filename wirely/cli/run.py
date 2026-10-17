@@ -69,15 +69,15 @@ async def read_loop(engine):
         if line == b'':
             raise wirely.misc.service.TerminateProgram()
 
-        line = str(line, 'utf-8').strip()
-        if line == '':
+        text = str(line, 'utf-8').strip()
+        if text == '':
             continue
 
-        # print(f'Got {line!r}', flush=True)
+        # print(f'Got {text!r}', flush=True)
         try:
-            await execute(engine, line)
+            await execute(engine, text)
         except Exception as e:
-            print(f'Error executing {line!r}: {e}', flush=True)
+            print(f'Error executing {text!r}: {e}', flush=True)
             if not isinstance(e, CommandException):
                 traceback.print_exception(e)
 
@@ -125,6 +125,7 @@ def main():
         if instance.type_name == ('Std', 'DebugValueSource'):
             ty = instance.parameters['Type']._type
             native_inst = eng.native_states[node_id]
+            assert native_inst is not None
             if ty == wirely.types.boolean:
                 native_inst.set_value(False)
             elif isinstance(ty, wirely.types.TypeOption):

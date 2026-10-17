@@ -12,6 +12,8 @@ from .option import Some
 class OpenIntEnum(enum.IntEnum):
     """An IntEnum that also represents unnamed numbers of its underlying type."""
 
+    _range: range
+
     def __init_subclass__(cls, *, minimum, maximum, **kwargs):
         super().__init_subclass__(**kwargs)
         cls._range = range(minimum, maximum + 1)
@@ -24,7 +26,7 @@ class OpenIntEnum(enum.IntEnum):
         if value not in cls._range:
             raise ValueError(f'{value} does not fit {cls.__name__}')
         member = int.__new__(cls, value)
-        member._name_ = None
+        member._name_ = None  # type: ignore[assignment]
         member._value_ = value
         return member
 
@@ -38,7 +40,7 @@ class OpenIntEnum(enum.IntEnum):
 class NativeEnum:
     """What the runtime expects of a native enum; numbers are its contract, not names."""
 
-    python_type: type  # IntEnum of the known members; its length is a closed enum's member count.
+    python_type: type[enum.IntEnum]  # IntEnum of the known members; its length is a closed enum's member count.
     is_open: bool
     underlying_type: str  # Integer type name, such as 'uint8'.
 
@@ -118,7 +120,7 @@ class StructType:
 
     name: str  # Qualified name, such as 'MQTT.TemplateParts'.
     fields: tuple  # (name, ValueType) of each field, in declaration order.
-    python_type: type | None  # NamedTuple from wirely.runtime.structs, if any.
+    python_type: type[tuple] | None  # NamedTuple from wirely.runtime.structs, if any.
 
     def index(self, name):
         """Return the position of a field."""

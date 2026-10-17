@@ -62,7 +62,7 @@ class SourceElement:
         # The source text reads naturally in diagnostics; subclasses may refine it.
         position = getattr(self, 'source_position', None)
         meta = getattr(position, 'meta', None)
-        if meta is not None and not getattr(meta, 'empty', True) and position.input_data:
+        if meta is not None and position is not None and not getattr(meta, 'empty', True) and position.input_data:
             return position.input_data[meta.start_pos:meta.end_pos]
         return f'{type(self).__name__}()'
 
@@ -79,6 +79,7 @@ class CompilerHint:
         return self.msg
 
     def get_context(self):
+        assert self.source_element is not None
         return self.fake_ui.get_context(self.source_element.source_position.input_data)
 
 
@@ -101,6 +102,7 @@ class ProgramError(Exception):
         return self.msg
 
     def get_context(self):
+        assert self.source_element is not None
         return self.fake_ui.get_context(self.source_element.source_position.input_data)
 
 

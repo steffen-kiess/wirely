@@ -47,7 +47,7 @@ class VariableTable:
     name: str  # Collection name for diagnostics.
     variables: Mapping[str, Variable]  # Variables indexed by qualified name.
     variable_set: frozenset[Variable]  # Variables allowed in a runtime instance.
-    offsets: Mapping[Variable, int]  # Byte offsets, ordered by decreasing alignment.
+    offsets: MappingProxyType[Variable, int]  # Byte offsets, ordered by decreasing alignment.
     size: int  # Buffer size in bytes, including final alignment padding.
     alignment: int  # Required alignment of the table's starting byte offset.
 
@@ -92,7 +92,10 @@ class InputSource:
 
     @property
     def value_type(self):
-        return self.variable.var_type if self.constant is None else self.constant.value_type
+        if self.constant is not None:
+            return self.constant.value_type
+        assert self.variable is not None
+        return self.variable.var_type
 
 
 @dataclass(frozen=True, slots=True)
@@ -392,6 +395,6 @@ def used_declared_types(program):
             if procedure.body is not None:
                 value_types += procedure.body.local_types
     value_types += [constant.value_type for constant in constants]
-    seen = set()
+    seen: set[int] = set()  # Identities of visited types.
     for value_type in value_types:
         yield from _declared_types(value_type, seen)

@@ -14,6 +14,7 @@ wirely.compiler.editing changes sources using these IDs.
 import dataclasses
 import functools
 from dataclasses import dataclass, field
+from typing import Any
 
 import lark
 
@@ -320,7 +321,7 @@ class Outline:
 
     @functools.cached_property
     def _index(self):
-        index = {}
+        index: dict[Any, list] = {}
 
         def add(key, record):
             index.setdefault(key, []).append(record)
@@ -476,7 +477,7 @@ def _ports(builder):
 def _names(builder):
     """Map each kind of name in a scope to the IDs of its declarations."""
     if builder.name_table is None:
-        table = {key: {} for key in ('static', 'input', 'output', 'state', 'binding', 'procedure',
+        table: dict[str, dict[str, Any]] = {key: {} for key in ('static', 'input', 'output', 'state', 'binding', 'procedure',
                                      'node')}
         for item in builder.items:
             if isinstance(item, ast.DeclarationConstant):
@@ -630,11 +631,11 @@ def _edges(builder, item):
 
 
 def _with_occurrences(edges):
-    counts = {}
+    counts: dict[Any, int] = {}
     for edge in edges:
         if edge.id is not None:
             counts[edge.id] = counts.get(edge.id, 0) + 1
-    seen = {}
+    seen: dict[Any, int] = {}
     result = []
     for edge in edges:
         if edge.id is not None and counts[edge.id] > 1:

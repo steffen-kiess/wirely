@@ -4,9 +4,13 @@ import importlib
 from collections.abc import Mapping
 import inspect
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 
 from . import model
+
+if TYPE_CHECKING:
+    from .diagnostics import WarningSink
 
 
 native_function_impls = {
@@ -72,7 +76,7 @@ class NativeFunctionContext:
     call: object
     services: Mapping[str, object]
     return_type: object  # Declared return type as a wirely.ValueType.
-    _warnings: object  # The compilation's WarningSink.
+    _warnings: 'WarningSink'  # The compilation's WarningSink.
 
     def _source(self, argument):
         if argument is None:
@@ -103,7 +107,7 @@ def validate_entry(name, declaration):
 
 
 def validate_collisions(declarations):
-    scopes = {}
+    scopes: dict[Any, dict] = {}
 
     def visit(items, scope):
         names = scopes.setdefault(scope, {})
@@ -126,7 +130,7 @@ def validate_collisions(declarations):
 
 def validate_native_names(declarations):
     """Reject native names shared by two node types, resource types, enum types, struct types, or functions."""
-    names = {}
+    names: dict[tuple[str, str], Any] = {}
 
     def register(kind, item, path):
         name = item.alias.value if item.alias is not None else '.'.join(path + (item.name.id_str,))
@@ -166,8 +170,8 @@ def resolve_implementation(function, call):
     name = function.function_name
     entry = native_function_impls[function.native_name]
     try:
-        implementation = (entry if callable(entry)
-                          else getattr(importlib.import_module(entry[0]), entry[1]))
+        implementation: Any = (entry if callable(entry)
+                               else getattr(importlib.import_module(entry[0]), entry[1]))
         if not callable(implementation):
             raise ValueError('implementation is not callable')
         target = implementation if inspect.isroutine(implementation) else implementation.__call__

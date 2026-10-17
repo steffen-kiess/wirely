@@ -137,6 +137,8 @@ class DeclarationInstance(Declaration):
 
 
 class DeclarationConnection(Declaration):
+    edge_attributes: tuple  # Validated attributes of each edge, set by the attribute pass.
+
     @check_parameters
     def __init__(self, sources: typing.List[Reference], target: Reference, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)

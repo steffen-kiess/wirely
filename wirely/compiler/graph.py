@@ -10,7 +10,7 @@ from .stages import ResolutionState
 class StateRead:
     """A read of a declared or instantiated state's old or new value."""
 
-    state: object
+    state: 'StateNode | model.InstanceStateVariable'
     phase: str
     reference: object
 
@@ -35,7 +35,7 @@ class StateRead:
 class StaticSource:
     """A parameter or constant used as a connection source."""
 
-    declaration: object
+    declaration: 'model.DeclarationParameter'
     reference: object
 
     # TODO: Remove

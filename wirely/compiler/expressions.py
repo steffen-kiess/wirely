@@ -1,6 +1,7 @@
 """Shared expression syntax, checking, and restricted procedure bodies."""
 
 from dataclasses import dataclass, replace
+from typing import Any
 
 from . import model
 from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
@@ -346,12 +347,12 @@ class ExpressionClassification:
     """Resolve runtime dependencies, including cycles through block locals."""
 
     def __init__(self, expression, names, scope, multi_names):
-        self.dependencies = {}
-        self.runtime = set()
+        self.dependencies: dict[Any, set] = {}
+        self.runtime: set = set()
         self.scope = scope
         self.multi_names = multi_names
         self.visit(expression, names)
-        dependents = {}
+        dependents: dict[Any, set] = {}
         for source, dependencies in self.dependencies.items():
             for dependency in dependencies:
                 dependents.setdefault(dependency, set()).add(source)
@@ -435,12 +436,12 @@ class ExpressionClassification:
 
 @dataclass(frozen=True, slots=True)
 class TypedExpression:
-    value_type: object
+    value_type: Any
     operation: str
     arguments: tuple = ()
-    payload: object = None
-    source: object = None
-    expected_type: object = None
+    payload: Any = None  # Depends on the operation.
+    source: Any = None
+    expected_type: Any = None
     runtime: bool = False
 
     @property
@@ -989,7 +990,11 @@ class ExpressionCompiler:
             raise ProgramError(binding, 'Uninitialized locals require a type annotation')
         expression = (self.compile(binding.initializer, expected)
                       if binding.initializer is not None else None)
-        value_type = expected or expression.value_type
+        if expected:
+            value_type = expected
+        else:
+            assert expression is not None
+            value_type = expression.value_type
         if self.is_runtime(binding):
             check_runtime_type(value_type, binding)
         slot = self.next_slot
@@ -1137,7 +1142,7 @@ class ExpressionCompiler:
         self.on_blocks.append((expression, keys))
         try:
             if (len(expression.triggers) == 1 and not expression.triggers[0].is_changed
-                    and value.operation != 'multi_input'):
+                    and value is not None and value.operation != 'multi_input'):
                 # The only trigger is present in the block, so its name reads the payload.
                 slot = self.next_slot
                 self.next_slot += 1
@@ -1651,11 +1656,11 @@ class ExpressionCompiler:
                 reference = model.Reference.from_list(*expression.identifiers[:-1],
                                                        source_position=expression.source_position)
                 try:
-                    value_type = self.scope.resolve_type(reference, par_values=self.parameters)
+                    enum_type = self.scope.resolve_type(reference, par_values=self.parameters)
                 except ProgramError:
-                    value_type = None
-                if isinstance(value_type, model.types.TypeEnum):
-                    return value_type
+                    enum_type = None
+                if isinstance(enum_type, model.types.TypeEnum):
+                    return enum_type
         if isinstance(expression, (model.Reference, model.BracketOperator)):
             try:
                 self.scope.resolve_type(expression, par_values=self.parameters)

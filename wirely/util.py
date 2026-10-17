@@ -76,11 +76,11 @@ def check_parameters(f):
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        args = list(args)
-        for i, value in enumerate(args):
+        arguments = list(args)
+        for i, value in enumerate(arguments):
             if i in positional_types:
                 check_ty = positional_types[i]
-                args[i] = check_ty(value, True, i)
+                arguments[i] = check_ty(value, True, i)
 
         kwargs = dict(kwargs)
         for name in kwargs:
@@ -89,7 +89,7 @@ def check_parameters(f):
                 value = kwargs[name]
                 kwargs[name] = check_type(value, False, name)
 
-        return f(*args, **kwargs)
+        return f(*arguments, **kwargs)
     return wrapper
 
 

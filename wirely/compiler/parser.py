@@ -136,7 +136,7 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
 
         raise lark.exceptions.UnexpectedEOF(self.terminal_names)
 
-    def next_token(self, lex_state, parser_state):
+    def next_token(self, lex_state, parser_state):  # type: ignore[override]
         while True:
             token = super().next_token(lex_state, parser_state)
             # print(repr(token.type))
@@ -198,7 +198,7 @@ class Transformer(lark.Transformer):
             kind = {'metadata_flag': 'flag', 'metadata_value': 'value', 'metadata_list': 'list'}[data]
             value = None if kind == 'flag' else children[1]
             if kind == 'list':
-                value = tuple(value)
+                value = tuple(children[1])
             return Metadata(children[0], kind, value, source_position)
         if data == 'metadata_named_literal':
             if children[0] not in (('true',), ('false',)):
@@ -249,8 +249,8 @@ def parse_sources(filename_inputdatas):
         try:
             parsed = parse_str(input_data, filename=filename)
         except lark.UnexpectedInput as error:
-            error.source_filename = filename
-            error.source_input_data = input_data
+            error.source_filename = filename  # type: ignore[attr-defined]
+            error.source_input_data = input_data  # type: ignore[attr-defined]
             raise
         parsed_files.append((filename, parsed))
     return parsed_files

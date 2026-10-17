@@ -49,7 +49,7 @@ def check_certificate_fingerprint(conn, sslsocket, tlsa, require_all=False):
             actualHash = actual
         else:
             if matching == 1:
-                hash = cryptography.hazmat.primitives.hashes.SHA256()
+                hash: cryptography.hazmat.primitives.hashes.HashAlgorithm = cryptography.hazmat.primitives.hashes.SHA256()
             elif matching == 2:
                 hash = cryptography.hazmat.primitives.hashes.SHA512()
             else:
@@ -97,7 +97,7 @@ def build_certificate_fingerprint(server_certificate, usage=3, selector=1, match
         actualHash = actual
     else:
         if matching == 1:
-            hash = cryptography.hazmat.primitives.hashes.SHA256()
+            hash: cryptography.hazmat.primitives.hashes.HashAlgorithm = cryptography.hazmat.primitives.hashes.SHA256()
         elif matching == 2:
             hash = cryptography.hazmat.primitives.hashes.SHA512()
         else:

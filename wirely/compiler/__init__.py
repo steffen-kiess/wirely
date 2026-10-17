@@ -71,8 +71,8 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
                                           shuffle_seed=shuffle_seed, warnings=warnings)
         coordinator.compile()
     except lark.UnexpectedInput as e:
-        report(Diagnostic('syntax_error', str(e), filename=e.source_filename, line=e.line,
-                          context=e.get_context(e.source_input_data),
+        report(Diagnostic('syntax_error', str(e), filename=e.source_filename,  # type: ignore[attr-defined]
+                          line=e.line, context=e.get_context(e.source_input_data),  # type: ignore[attr-defined]
                           start=getattr(e, 'pos_in_stream', None)))
         return None
     except _DiagnosticCallbackError as e:

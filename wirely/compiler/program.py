@@ -28,7 +28,7 @@ def cycle_error(element, message, steps, via):
     for step_element, step_via in reversed(steps):
         elements += [connection.source_element for connection in step_via] + [step_element]
     elements += [connection.source_element for connection in via]
-    hints = []
+    hints: list = []
     for hint_element in elements:
         if hint_element is not element and all(hint_element is not hint.source_element for hint in hints):
             hints.append(model.CompilerHint(hint_element, 'Cycle continues here'))
@@ -56,7 +56,7 @@ def compile_nocatch(global_node_type):
 
 def specialize_instances(graph, root, *, variable_map, all_variables, state_map,
                          state_variables, instances):
-    singletons = {}
+    singletons: dict = {}
     top_nodes = (root,) if root is not None else tuple(graph.instance_nodes.values())
     for node in top_nodes:
         node.specialize(singletons=singletons, variable_map=variable_map,
@@ -84,12 +84,12 @@ def lower_program(global_node_type):
                                                instantiation=graph, register=False)
         graph.populate_instance(root)
 
-    variable_map = {}
+    variable_map: dict = {}
     all_variables = []
-    state_map = {}
-    state_variables = []
+    state_map: dict = {}
+    state_variables: list = []
     # TODO: Try to avoid needing this by making sure everyone uses instance values instead of paths?
-    instances = {}
+    instances: dict = {}
 
     def add_var(path, var):
         # TODO: Clean up handling of singletons (vars probably should contain a reference to a NodeType, not to an InstanceNode)
@@ -136,7 +136,7 @@ def lower_program(global_node_type):
     specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
-    constants = []
+    constants: list[Constant] = []
     constant_indices = {}
 
     def intern_constant(value_type, value):
@@ -183,9 +183,9 @@ def lower_program(global_node_type):
             node = node.singleton_instance
         node.bind_variables(path=path, variable_map=variable_map, resolve_source=resolve_source)
 
-    procs = {}
+    procs: dict = {}
     done = set()
-    doing = []
+    doing: list = []
     def do(path, proc, reference=None, via=()):
         """Schedule proc after its producers; via has the connections from proc to reference."""
         # TODO: Clean this up (this makes sure that the correct Procedure instance is used for singletons)
@@ -264,7 +264,7 @@ def lower_program(global_node_type):
 
     def resource_path(path, source, port):
         """Return a resource provider, its binding, and the connections leading to it."""
-        trace = {}
+        trace: dict = {}
         provider_path, output = model.resolve_variable(path, source, trace)
         node_type = instances[provider_path].node_type
         if not node_type.is_native:
@@ -280,12 +280,12 @@ def lower_program(global_node_type):
     for path, instance in instances.items():
         node = instance.node if instance.node is not None else instance.node_type.singleton_instance
         bindings = {}
-        dependencies = []
+        providers = []
         for name, (source, port) in node.initializer_sources.items():
             provider, bindings[name], via = resource_path(path, source, port)
-            dependencies.append((provider, port, via))
+            providers.append((provider, port, via))
         initializer_bindings[path] = bindings
-        construction_dependencies[path] = dependencies
+        construction_dependencies[path] = providers
 
     construction_order = []
     constructed = set()
@@ -336,7 +336,7 @@ def lower_program(global_node_type):
     bodies = {}
     old_state_dependencies = {}
 
-    functions = []
+    functions: list = []
     function_indices = {}
 
     def intern_function(function):
@@ -359,7 +359,7 @@ def lower_program(global_node_type):
             multi_sources = {}
             event_sources = set()
             changed_states = {}
-            old_states = {}
+            old_states: dict = {}
             for name, source in proc.static_context._sources.items():
                 declaration = proc.declaration_procedure
                 port = next(port for port in declaration.depends.dependencies
@@ -380,10 +380,12 @@ def lower_program(global_node_type):
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_sources.add(name)
                 if getattr(source, 'is_list', False):
-                    value_type = (resolve_type(source.var_type, instances[path].static_values)
-                                  if hasattr(source, 'var_type') else
-                                  instances[path].node_type.resolve_type(
-                                      spec.ty, par_values=instances[path].static_values))
+                    if hasattr(source, 'var_type'):
+                        value_type = resolve_type(source.var_type, instances[path].static_values)
+                    else:
+                        assert spec is not None
+                        value_type = instances[path].node_type.resolve_type(
+                            spec.ty, par_values=instances[path].static_values)
                     if name in event_sources:
                         # Each event source holds None while absent.
                         value_type = model.types.TypeOption(value_type)
@@ -424,7 +426,7 @@ def lower_program(global_node_type):
     for stage, stage_procs in procs.items():
         schedule = []
         for path, proc in stage_procs:
-            dependencies = []
+            dependencies: list[tuple[str, InputSource]] = []
             resources = {}
             outputs = {}
             declaration = proc.declaration_procedure
@@ -477,7 +479,7 @@ def lower_program(global_node_type):
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)
     node_aliases = {}
-    variables = {}
+    variables: dict[str, InputSource] = {}
 
     def aliased_items(items):
         # Default outputs are aliased by their node, other outputs by their own name.
@@ -512,8 +514,8 @@ def lower_program(global_node_type):
         for path, instance in instances.items() if instance.is_singleton
     }
     native_types = {}
-    native_procedures = {}
-    native_declarations = {}
+    native_procedures: dict[str, NativeProcedureInterface] = {}
+    native_declarations: dict = {}
     for instance in instances.values():
         node_type = instance.node_type
         if node_type.is_native:

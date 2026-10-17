@@ -60,7 +60,7 @@ class SectionList:
         if _HEADER.size + section_count * _ENTRY.size > file_length:
             raise ContainerError(f'Directory of {section_count} entries extends past the end of the file')
 
-        sections = []
+        sections: list[Section] = []
         for index in range(section_count):
             offset, length, section_type, record_type = _ENTRY.unpack_from(
                 data, _HEADER.size + index * _ENTRY.size)

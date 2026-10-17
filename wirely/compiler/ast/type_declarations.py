@@ -41,7 +41,7 @@ class DeclarationStructType(Declaration):
         self.is_native = is_native
         self.alias = alias  # Native name replacing the qualified name.
         self.inner_attributes = getattr(fields, 'inner_attributes', ())
-        self.value_type = None
+        self.value_type: model.types.TypeStruct | None = None
         self.resolving = False
 
     @staticmethod
@@ -78,7 +78,7 @@ class DeclarationStructType(Declaration):
         self.resolving = True
         try:
             fields = {}
-            previous = {}
+            previous: dict[str, typing.Any] = {}
             for field in self.fields:
                 name = field.name.id_str
                 if name in fields:
@@ -153,6 +153,7 @@ class DeclarationEnumType(Declaration):
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
+        underlying: typing.Any
         if self.is_open:
             underlying = self.underlying_type
             if not isinstance(underlying, Reference) or underlying.length != 1:
@@ -165,8 +166,8 @@ class DeclarationEnumType(Declaration):
                 underlying = model.types.closed_enum_underlying_type(len(self.members))
             except ValueError as error:
                 raise ProgramError(self.name, str(error)) from error
-        names = {}
-        values = {}
+        names: dict[str, typing.Any] = {}
+        values: dict[int, typing.Any] = {}
         numbers = {}
         for index, member in enumerate(self.members):
             member_name = member.name.id_str

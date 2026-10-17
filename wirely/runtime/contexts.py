@@ -3,7 +3,7 @@ import datetime
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import wirely
 from ..types import value_types
@@ -21,8 +21,8 @@ class NativeNodeContext:
     """Information available for the lifetime of a native node."""
 
     name: str
-    values: Mapping[str, object]
-    inputs: Mapping[str, object]
+    values: Mapping[str, Any]
+    inputs: Mapping[str, Any]
     _engine: 'Engine' = field(repr=False)
     _node_id: str = field(repr=False)
     # Resource types of the outputs produced by the initializer, by key.
@@ -66,11 +66,11 @@ class NativeState:
         return self._context
 
     @property
-    def inputs(self) -> Mapping[str, object]:
+    def inputs(self) -> Mapping[str, Any]:
         return self.context.inputs
 
     @property
-    def values(self) -> Mapping[str, object]:
+    def values(self) -> Mapping[str, Any]:
         return self.context.values
 
     @property
@@ -114,7 +114,7 @@ class ProcedureLoadContext:
     """Static information available when a native procedure is constructed."""
 
     name: str
-    values: Mapping[str, object]
+    values: Mapping[str, Any]
     resources: Mapping[str, ResourceValue]
 
     def __post_init__(self):
@@ -181,9 +181,9 @@ class ProcedureContext:
         '_step_info', '_wakeup_time', '_wakeup_time_set', '_engine',
     )
 
-    def __init__(self, *, inputs: Mapping[str, object], outputs, static, step_info, engine,
-                 values: Mapping[str, object]):
-        self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
+    def __init__(self, *, inputs: Mapping[str, Any], outputs, static, step_info, engine,
+                 values: Mapping[str, Any]):
+        self._inputs: Mapping[str, Any] = MappingProxyType(dict(inputs))
         self._values = values
         self._outputs = outputs
         self._written_outputs: set[str] = set()
@@ -194,7 +194,7 @@ class ProcedureContext:
         self._wakeup_time_set = False
 
     @property
-    def inputs(self) -> Mapping[str, object]:
+    def inputs(self) -> Mapping[str, Any]:
         return self._inputs
 
     def trigger_self(self) -> None:
@@ -217,7 +217,7 @@ class ProcedureContext:
         return self._static.node_context.name
 
     @property
-    def values(self) -> Mapping[str, object]:
+    def values(self) -> Mapping[str, Any]:
         return self._values
 
     def start_time_for_stage(self, stage: 'RunStage') -> TimeSnapshot:

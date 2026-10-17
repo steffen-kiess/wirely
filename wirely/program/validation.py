@@ -91,6 +91,7 @@ def _validate_body(procedure, constant_types, functions):
                     if type(operand.index) is not int or not index < operand.index < len(instructions):
                         raise ValueError(f'Branch target must identify a later instruction: {operand}')
             if opcode not in (*_BRANCHES, Opcode.RETURN):
+                assert isinstance(operands[0], Operand)
                 if operands[0].kind not in (OperandKind.LOCAL, OperandKind.OUTPUT):
                     raise ValueError('Destination must be local or output')
             if opcode == Opcode.COPY:
@@ -100,6 +101,7 @@ def _validate_body(procedure, constant_types, functions):
                 if not isinstance(struct_type, TypeStruct):
                     raise ValueError('Field access requires a struct')
                 field = operands[2]
+                assert isinstance(field, int)
                 if not 0 <= field < len(struct_type.fields):
                     raise ValueError('Field index out of range')
                 field_type = tuple(struct_type.fields.values())[field]
@@ -133,6 +135,7 @@ def _validate_body(procedure, constant_types, functions):
                     raise ValueError('Ordering requires an integer type')
             elif opcode == Opcode.CALL:
                 function_index, count = operands[1], operands[2]
+                assert isinstance(function_index, int)
                 if not 0 <= function_index < len(functions):
                     raise ValueError(f'Function index out of range: {function_index}')
                 function = functions[function_index]
@@ -205,7 +208,7 @@ def validate_program(program):
                 raise ValueError(f'Resource input {name!r} is not a ResourceBinding')
             provider = program.instances.get(binding.provider)
             provider_type = (program.native_types.get(provider.type_name)
-                             if provider is not None and provider.has_native_state else None)
+                             if provider is not None and provider.type_name is not None else None)
             output_type = None if provider_type is None else provider_type.resource_outputs.get(binding.output)
             if output_type is None:
                 raise ValueError(f'Resource input {name!r} is bound to unknown output {binding}')
@@ -215,10 +218,11 @@ def validate_program(program):
 
     for node_id, instance in program.instances.items():
         try:
-            native_type = program.native_types.get(instance.type_name)
+            native_type = None if instance.type_name is None else program.native_types.get(instance.type_name)
             if instance.has_native_state and native_type is None:
                 raise ValueError(f'Unknown native type {instance.type_name!r}')
             if instance.has_native_state:
+                assert native_type is not None
                 check_bindings(instance.initializer_values, native_type.initializer_uses)
                 check_resources(instance.initializer_bindings, native_type.initializer_resources)
             else:

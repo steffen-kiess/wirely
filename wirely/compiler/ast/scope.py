@@ -12,6 +12,10 @@ from .values import Reference, FunctionCall, OptionalExpression, BracketOperator
 
 # This class contains methods for resolving references in a scope
 class Scope(Declaration, abc.ABC):
+    # Set by the subclasses.
+    libraries: 'dict[str, model.DeclarationLibrary]'
+    parent_graph: 'Scope | None'
+
     @check_parameters
     def __init__(self, source_position: SourcePosition):
         super().__init__(source_position=source_position)
@@ -41,6 +45,7 @@ class Scope(Declaration, abc.ABC):
             if isinstance(ty, BracketOperator):
                 if not isinstance(ty.base, Reference):
                     raise model.ProgramError(ty, f'Expected Reference as generic type base, got {ty}')
+                gen_type: type[model.types.TypeOption] | type[model.types.TypeList]
                 if ty.base.length == 1 and ty.base.identifiers[0].id_str == 'Option':
                     gen_type = model.types.TypeOption
                 elif ty.base.length == 1 and ty.base.identifiers[0].id_str == 'List':
@@ -78,10 +83,11 @@ class Scope(Declaration, abc.ABC):
                         return result
                 if name in model.types.type_by_name:
                     return model.types.type_by_name[name]
-            scope = self
+            scope: Scope | None = self
             while scope is not None:
-                candidate = scope
+                candidate: Scope | None = scope
                 for identifier in ty.identifiers[:-1]:
+                    assert candidate is not None
                     candidate = candidate.libraries.get(identifier.id_str)
                     if candidate is None:
                         break
@@ -96,11 +102,12 @@ class Scope(Declaration, abc.ABC):
             raise model.ProgramError(ty, f'Cannot find type {ty}')
 
     def resolve_function(self, reference, *, required=True):
-        scope = self
+        scope: Scope | None = self
         names = tuple(identifier.id_str for identifier in reference.identifiers)
         while scope is not None:
-            candidate = scope
+            candidate: Scope | None = scope
             for name in names[:-1]:
+                assert candidate is not None
                 candidate = candidate.libraries.get(name)
                 if candidate is None:
                     break
@@ -112,10 +119,11 @@ class Scope(Declaration, abc.ABC):
         return None
 
     def resolve_resource_type(self, name):
-        scope = self
+        scope: Scope | None = self
         while scope is not None:
-            candidate = scope
+            candidate: Scope | None = scope
             for identifier in name.identifiers[:-1]:
+                assert candidate is not None
                 candidate = candidate.libraries.get(identifier.id_str)
                 if candidate is None:
                     break

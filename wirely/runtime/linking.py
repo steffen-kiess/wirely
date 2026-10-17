@@ -177,32 +177,32 @@ def link_native_signatures(program):
         for procedure in schedule:
             if procedure.body is not None:
                 continue
-            signature = native_interfaces.native_procedures.get(procedure.reference)
-            if signature is None:
+            procedure_signature = native_interfaces.native_procedures.get(procedure.reference)
+            if procedure_signature is None:
                 raise ValueError(f'Cannot find the signature of native procedure {procedure.reference!r}')
             where = f'Native procedure {procedure.reference!r} of {procedure.node_id!r}'
-            if stage.name.lower() != signature.stage:
-                raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {signature.stage}')
+            if stage.name.lower() != procedure_signature.stage:
+                raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {procedure_signature.stage}')
             inputs = {name: source.value_type for name, source in procedure.dependencies}
             if len(inputs) != len(procedure.dependencies):
                 raise ValueError(f'{where}: multi inputs are not supported')
             outputs = {name: target.variable.var_type for name, target in procedure.outputs.items()}
             resources = program.native_procedures[procedure.reference].resources
-            bindings = check_uses(where, signature, procedure.values)
-            check_ports(where, 'inputs', signature.depends, inputs, resources, bindings)
-            check_ports(where, 'outputs', signature.produces, outputs, {}, bindings)
+            bindings = check_uses(where, procedure_signature, procedure.values)
+            check_ports(where, 'inputs', procedure_signature.depends, inputs, resources, bindings)
+            check_ports(where, 'outputs', procedure_signature.produces, outputs, {}, bindings)
 
     for function in program.functions:
-        signature = native_interfaces.native_functions.get(function.name)
-        if signature is None:
+        function_signature = native_interfaces.native_functions.get(function.name)
+        if function_signature is None:
             raise ValueError(f'Cannot find the signature of native function {function.name!r}')
         where = f'Native function {function.name!r}'
-        if len(function.parameter_types) != len(signature.parameters):
+        if len(function.parameter_types) != len(function_signature.parameters):
             raise ValueError(f'{where}: has {len(function.parameter_types)} parameters, '
-                             f'expected {len(signature.parameters)}')
-        for index, (value_type, signature_type) in enumerate(zip(function.parameter_types, signature.parameters)):
+                             f'expected {len(function_signature.parameters)}')
+        for index, (value_type, signature_type) in enumerate(zip(function.parameter_types, function_signature.parameters)):
             check_type(where, f'parameter {index}', signature_type, value_type, {})
-        check_type(where, 'result', signature.result, function.return_type, {})
+        check_type(where, 'result', function_signature.result, function.return_type, {})
 
 
 def link_native_functions(program):

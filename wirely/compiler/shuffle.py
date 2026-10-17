@@ -47,7 +47,7 @@ def shuffle_declarations(declarations, seed, *, layout=False):
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
     _shuffle_list(rng, declarations)
-    visited = set()
+    visited: set[int] = set()
     for declaration in declarations:
         _visit(rng, declaration, attributes, visited, layout)
 

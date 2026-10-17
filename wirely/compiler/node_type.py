@@ -55,6 +55,7 @@ class NodeType(model.Scope):
 
     def _register_in(self, graph):
         """Register this node type in its enclosing scope."""
+        assert self.name is not None
         if self.name.id_str in graph.struct_types:
             raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
                 model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
@@ -88,9 +89,9 @@ class NodeType(model.Scope):
             with self.coordinator.contain(None):
                 self._register_in(graph)
 
-        parsed_parameters = {}
-        parsed_constants = {}
-        static_declarations = {}
+        parsed_parameters: dict[str, model.DeclarationParameter] = {}
+        parsed_constants: dict[str, model.DeclarationConstant] = {}
+        static_declarations: dict[str, model.DeclarationParameter] = {}
         for decl in self.declarations:
             with self.coordinator.contain(decl):
                 decl.register_interface_declarations(self)
@@ -216,7 +217,7 @@ class NodeType(model.Scope):
         node.parameter_values = dict(par_values)
 
         # Parameters without a value because of an earlier error are not reported again.
-        failed = getattr(instantiation, 'failed_parameters', set())
+        failed: set[model.DeclarationParameter] = getattr(instantiation, 'failed_parameters', set())
         # Port types are not checked again without all parameter values.
         incomplete = bool(failed)
         for par in self.parsed_parameters.values():
@@ -383,7 +384,8 @@ class NodeType(model.Scope):
     def fullname(self):
         if self.name is None and self.parent_graph is None:
             return '<global>'
-        elif self.parent_graph.name is None:
+        assert self.name is not None and self.parent_graph is not None
+        if self.parent_graph.name is None:
             return self.name.id_str
         else:
             return self.parent_graph.fullname + '.' + self.name.id_str
@@ -404,7 +406,8 @@ class NodeType(model.Scope):
     def fullname_tuple(self):
         if self.name is None and self.parent_graph is None:
             return ()
-        elif self.parent_graph.name is None:
+        assert self.name is not None and self.parent_graph is not None
+        if self.parent_graph.name is None:
             return (self.name.id_str),
         else:
             return self.parent_graph.fullname_tuple + (self.name.id_str,)

@@ -59,6 +59,7 @@ class Engine:
         self.native_states = {}
 
         self.fake_monotonic_time_offset = None
+        self.test_twon_fake_server_info = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program)
         link_native_structs(program)
@@ -66,7 +67,7 @@ class Engine:
         self.native_functions = link_native_functions(program)
         link_native_signatures(program)
         # Keys of the procedures depending on each resource, by (provider node ID, output).
-        self._resource_triggers = {}
+        self._resource_triggers: dict[tuple[str, str], list[tuple]] = {}
         for schedule in program.procs.values():
             for proc in schedule:
                 for binding in proc.resources.values():
@@ -84,6 +85,7 @@ class Engine:
             instance = program.instances[node_id]
             native_state = None
             if instance.has_native_state:
+                assert instance.type_name is not None
                 native_class = self.native_classes[instance.type_name]
                 context = NativeNodeContext(
                     name=instance.name, values=_native_values(instance.initializer_values),
@@ -101,11 +103,11 @@ class Engine:
         for schedule in program.procs.values():
             for proc in schedule:
                 if proc.body is None:
-                    context = ProcedureLoadContext(
+                    load_context = ProcedureLoadContext(
                         name=proc.node_context.name, values=self._procedure_values[id(proc)],
                         resources=self._resource_inputs(proc.resources),
                     )
-                    self._native_procedures[id(proc)] = procedure_classes[proc.reference](context=context)
+                    self._native_procedures[id(proc)] = procedure_classes[proc.reference](context=load_context)
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
 
@@ -200,8 +202,10 @@ class Engine:
                         value = input_source.constant.value
                     elif input_source.new_state is None:
                         value = variables[variable]
-                        if skip_step and not variable.var_type.equals(value, cache[variable]):
-                            skip_step = False
+                        if skip_step:
+                            assert cache is not None
+                            if not variable.var_type.equals(value, cache[variable]):
+                                skip_step = False
                     elif input_source.new_state:
                         value = state_new[variable]
                         # The old state is the previous step's new state.
@@ -209,8 +213,10 @@ class Engine:
                             skip_step = False
                     else:
                         value = state_old[variable]
-                        if skip_step and not variable.var_type.equals(value, self.last_step_state[variable]):
-                            skip_step = False
+                        if skip_step:
+                            assert self.last_step_state is not None
+                            if not variable.var_type.equals(value, self.last_step_state[variable]):
+                                skip_step = False
                     native_value = wirely.value_types._to_native(input_source.value_type, value)
                     if proc.body is None:
                         inputs[name] = native_value
@@ -221,6 +227,7 @@ class Engine:
                     if not wirely.MonotonicTime.is_comparable(now, deadline) or wirely.MonotonicTime.compare(now, deadline) >= 0:
                         skip_step = False
                 if skip_step:
+                    assert cache is not None
                     for output in proc.outputs.values():
                         variable = output.variable
                         if variable in self.program.state_variables.variable_set:
@@ -234,7 +241,7 @@ class Engine:
                     print(f'Running procedure {proc.node_id} {proc.reference}')
                 run_count += 1
                 self.triggered_procs.discard(key)
-                outputs = {}
+                outputs: dict[str, object] = {}
                 context = ProcedureContext(
                     inputs=inputs, outputs=outputs, static=proc, step_info=step_info, engine=self,
                     values=self._procedure_values.get(id(proc), MappingProxyType({})),
@@ -351,9 +358,11 @@ class Engine:
         if input_source.constant is not None:
             return input_source.constant.value
         if input_source.new_state is None:
+            assert self.cache is not None
             return self.cache[input_source.variable]
         if input_source.new_state:
             return self.state[input_source.variable]
+        assert self.last_step_state is not None
         return self.last_step_state[input_source.variable]
 
     def assert_value_is(self, name, expected_value):

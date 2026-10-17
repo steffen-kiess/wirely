@@ -2,8 +2,9 @@ import abc
 import functools
 import re
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
+from typing import Any
 
 from .option import Some
 from .unit import Unit
@@ -14,8 +15,16 @@ from .time import (
 
 # A value type supporting runtime validation, equality, and text parsing.
 class Type(abc.ABC):
-    has_runtime_representation = False
     is_ordered = False  # Whether less() defines a total order on values.
+
+    # Defined by types whose is_json_serializable or has_to_csv_value is true.
+    json_encode: Callable[..., Any]
+    json_decode: Callable[..., Any]
+    to_csv_value: Callable[..., Any]
+
+    @property
+    def has_runtime_representation(self):
+        return False
 
     @property
     def nesting_depth(self):
@@ -132,11 +141,15 @@ class TypePrimitive(Type):
         self.name = name
         self.python_type = python_type
 
-        self.has_runtime_representation = is_runtime_type
+        self._has_runtime_representation = is_runtime_type
 
         self.is_json_serializable = is_json_serializable
 
         self.has_to_csv_value = has_to_csv_value
+
+    @property
+    def has_runtime_representation(self):
+        return self._has_runtime_representation
 
     @property
     def contains_parameters(self):
@@ -683,6 +696,8 @@ def closed_enum_underlying_type(member_count):
 class TypeEnum(TypePrimitive):
     """A nominal enum with either dense closed values or an open integer range."""
 
+    declaration: Any  # The compiler's declaration, set by the compiler.
+
     def __init__(self, name, members, *, is_open, underlying_type, native_name=None):
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
@@ -694,7 +709,7 @@ class TypeEnum(TypePrimitive):
             closed_enum_underlying_type(len(members))
             if underlying_type.is_signed or underlying_type.bits not in (8, 16, 32):
                 raise ValueError('Closed enum underlying_type must be uint8, uint16, or uint32')
-        names = {}
+        names: dict[int, str] = {}
         for index, (member, number) in enumerate(members.items()):
             if type(number) is not int or not underlying_type.min_value <= number <= underlying_type.max_value:
                 raise ValueError(f'Enum member {member} does not fit {underlying_type}')
@@ -801,7 +816,7 @@ def _fit_integer(value, min_value, max_value, overflow):
     raise ValueError(f'Unknown overflow mode {overflow!r}')
 
 
-def integer_range(value_type):
+def integer_range(value_type) -> tuple[int, int]:
     """Return the (min, max) numbers of an integer, enum, or boolean type."""
     if isinstance(value_type, TypeInt):
         return value_type.min_value, value_type.max_value

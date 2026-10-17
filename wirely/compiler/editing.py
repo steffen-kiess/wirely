@@ -22,6 +22,7 @@ import lark
 
 from . import ast
 from . import parser
+from .attributes import ParsedFile
 from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, PropertyAccess
 from .node_type import NodeType as _NodeType
 from wirely import types as _types
@@ -46,7 +47,7 @@ def apply_edits(sources, edits):
     Insertions at the same offset keep their order in edits.
     """
     sources = list(sources)
-    by_file = {filename: [] for filename, _ in sources}
+    by_file: dict[str, list[TextEdit]] = {filename: [] for filename, _ in sources}
     for edit in edits:
         if edit.filename not in by_file:
             raise ValueError(f'Unknown file {edit.filename!r}')
@@ -267,7 +268,11 @@ def reconnect(sources, connection, *, source=None, target=None):
     texts = dict(sources)
     new_source, new_target = _parse_references(source or edge.source.text, target or edge.target.text)
     if target is None or _normalized(new_target) == edge.target.text:
-        return [TextEdit(edge.filename, *edge.source_span, new_source)] if source is not None else []
+        if source is None:
+            return []
+        assert edge.source_span is not None
+        start, end = edge.source_span
+        return [TextEdit(edge.filename, start, end, new_source)]
     statement = edge._declaration
     text = texts[edge.filename]
     attributes = [text[_start(attribute) + 2:_end(attribute) - 1]
@@ -885,6 +890,7 @@ def _insert_at_body_start(texts, block, lines, kind):
                 return TextEdit(filename, line_start, line_start,
                                 ''.join(f'{indent}{line}\n' for line in lines) + blank)
             return TextEdit(filename, start, start, ' '.join(lines) + ' ')
+        assert isinstance(element, ParsedFile)
         if element.inner_attributes:
             end = _end(element.inner_attributes[-1])
             return _insert_after(texts, filename, _start(element.inner_attributes[0]), end, lines, kind)
@@ -912,7 +918,7 @@ def _removal(texts, filename, start, end):
 
 def _merge_removals(texts, edits):
     """Merge overlapping removals, e.g. of declarations sharing a line."""
-    merged = []
+    merged: list[TextEdit] = []
     for edit in sorted(edits, key=lambda edit: (edit.filename, edit.start)):
         previous = merged[-1] if merged else None
         if previous is None or previous.filename != edit.filename or previous.end <= edit.start:
@@ -931,7 +937,7 @@ def _merge_removals(texts, edits):
 
 def _disconnect_edges(texts, edges):
     """Remove the given connections, grouped by connect statement."""
-    statements = {}
+    statements: dict[int, tuple] = {}
     for edge in edges:
         statements.setdefault(id(edge._declaration), (edge, set()))[1].add(id(edge._source))
     edits = []
@@ -1156,7 +1162,7 @@ def _skip_whitespace(text, position):
     return position
 
 
-def _removal_range(text, start, end):
+def _removal_range(text, start, end) -> tuple[int, int]:
     """Return the range removing text[start:end] and lines it leaves empty."""
     line_start = _line_start(text, start)
     line_end = _line_end(text, end)

@@ -34,7 +34,7 @@ class ControlClient:
                 path, ssl=ssl, server_hostname=(server_hostname or '') if ssl is not None else None,
             )
             writer.write(STREAM_PREFACE)
-            framing = StreamFraming(reader, writer)
+            framing: StreamFraming | SerialFraming = StreamFraming(reader, writer)
         elif protocol == 'serial':
             if ssl is not None:
                 raise ValueError('TLS requires the stream protocol')
@@ -85,7 +85,7 @@ class ControlClient:
         if self.window <= 1 or not self.framing.reliable:
             return [await self.request(op, body) for op, body in items]
         results = []
-        pending = []  # Sequence numbers and operations awaiting responses, in order.
+        pending: list[tuple[int, str]] = []  # Sequence numbers and operations awaiting responses, in order.
         for op, body in items:
             if len(pending) >= self.window:
                 results.append(await self._receive(*pending.pop(0)))

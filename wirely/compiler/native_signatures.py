@@ -73,7 +73,7 @@ def procedure_ports(ports, variables, where):
 
 def type_variables(node_type, uses, where):
     """Map each ValueType parameter in a `uses` clause to the key passing it."""
-    variables = {}
+    variables: dict[str, str] = {}
     for binding in () if uses is None else uses.bindings:
         expression = binding.expression
         parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
@@ -144,6 +144,6 @@ def native_signatures(graph, namespace=None):
         where = f'Native function {function.native_name}'
         function.resolve_signature()
         functions[function.native_name] = signatures.Function(
-            [signature_type(value_type, {}, where) for value_type in function.parameter_types],
+            tuple(signature_type(value_type, {}, where) for value_type in function.parameter_types),
             signature_type(function.return_type, {}, where))
     return state_types, procedures, functions

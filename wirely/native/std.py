@@ -138,7 +138,7 @@ class DebugEventSource(NativeState):
         elif cmd == 'get':
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')
-            value = self.next_value
-            print(f'Next value of {self.context.name} is {value!r}', flush=True)
+            next_value = self.next_value
+            print(f'Next value of {self.context.name} is {next_value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')

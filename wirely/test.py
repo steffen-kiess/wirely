@@ -233,7 +233,7 @@ class NegativeTestCase:
 
 
 def negative_test_libraries(lines, *, start_line):
-    libraries = None
+    libraries: tuple[str, ...] | None = None
     for offset, line in enumerate(lines):
         line = line.rstrip('\r\n')
         if not library_metadata_prefix_pattern.match(line):
@@ -313,7 +313,7 @@ def match_diagnostics(expected, actual, full_fn, start_line, end_line, *, relaxe
     relaxed matches any line between start_line and end_line, for shuffled
     expectations.
     """
-    matched = {}
+    matched: dict[int, int] = {}
 
     def match_expectation(expected_index, seen):
         kind, line_number, fragment = expected[expected_index]
@@ -384,7 +384,7 @@ def compile_negative_case(full_fn, case):
     if relaxed:
         expected = shuffled_expected
 
-    diagnostics = []
+    diagnostics: list = []
     sources = model.compiler._standard_library_sources(case.libraries)
     result = model.compiler.compile_strs(
         sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
@@ -690,7 +690,7 @@ async def run_python_test(filename, *, engine=None):
         raise ImportError(f'Unable to load Python test {filename!r}')
     module = importlib.util.module_from_spec(spec)
     if engine is not None:
-        module.engine = engine
+        setattr(module, 'engine', engine)
     spec.loader.exec_module(module)
     await module.run_test()
 

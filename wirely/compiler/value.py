@@ -1,4 +1,5 @@
 import abc
+from typing import Any
 
 from wirely.compiler import model
 from wirely.compiler.types import resolve_type
@@ -8,6 +9,8 @@ from wirely.compiler.types import resolve_type
 
 # A value which can be either a concrete value or value type parameter / a value depending in some way on a value parameter
 class Value(abc.ABC):
+    value_type: Any  # Set by the subclasses.
+
     def __init__(self, *, ast_element):
         self.ast_element = ast_element
 

@@ -4,6 +4,7 @@ import asyncio
 import signal
 import socket
 import subprocess
+from typing import Any
 
 import xknx
 
@@ -31,7 +32,7 @@ def _ssh_connect_callback(target, path):
         ]
         try:
             subprocess.Popen(
-                command, stdin=remote_socket, stdout=remote_socket,
+                command, stdin=remote_socket.fileno(), stdout=remote_socket.fileno(),
                 preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_IGN),
             )
         except BaseException:
@@ -40,7 +41,7 @@ def _ssh_connect_callback(target, path):
         finally:
             remote_socket.close()
 
-        result = [None, None]
+        result: list[Any] = [None, None]  # The error and the received byte.
         event = asyncio.Event()
 
         def reader():

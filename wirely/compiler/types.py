@@ -1,5 +1,8 @@
 """Compiler types, source literals, and parameter resolution."""
 
+from collections.abc import Callable
+from typing import Any
+
 from ..types import Type, TypeOption, TypeList
 from .. import types
 from . import model
@@ -219,7 +222,7 @@ def _parse_struct(self, value, *, scope=None):
                             for name, field in fields.items()})
 
 
-_literal_parsers = {
+_literal_parsers: dict[type, Callable[..., Any]] = {
     types.TypeOption: _parse_option,
     types.TypeList: _parse_list,
     types.TypeUnit: _parse_unit,

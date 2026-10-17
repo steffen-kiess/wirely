@@ -373,7 +373,7 @@ def check_struct_literal(value_type, literal, scope):
         raise ProgramError(literal, f'Expected {value_type}, got struct literal')
     if scope is None or scope.resolve_type(literal.struct_type) is not value_type:
         raise ProgramError(literal.struct_type, f'Expected struct type {value_type}, got {literal.struct_type}')
-    fields = {}
+    fields: dict[str, StructLiteralField] = {}
     for field in literal.fields:
         name = field.name.id_str
         if name in fields:

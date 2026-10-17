@@ -32,7 +32,23 @@ class StageDeclaration(SourceElement):
         return StageDeclaration(stage=RunStage.OUTPUT, source_position=source_position)
 
 
-class ReferencePort(SourceElement):
+class Port(SourceElement):
+    """A port in a depends or produces clause."""
+
+    reference: Reference | None
+
+    @property
+    def key(self) -> str:
+        raise NotImplementedError
+
+    @property
+    def python_key(self) -> str:
+        raise NotImplementedError
+
+
+class ReferencePort(Port):
+    reference: Reference
+
     def __init__(self, reference: Reference, alias: typing.Optional[typing.Union[StringConstant, Identifier]] = None, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.reference = reference
@@ -40,9 +56,11 @@ class ReferencePort(SourceElement):
 
     @property
     def key(self):
-        if self.alias is not None:
-            return (self.alias.id_str if isinstance(self.alias, Identifier)
-                    else self.alias.value)
+        alias = self.alias
+        if isinstance(alias, Identifier):
+            return alias.id_str
+        if isinstance(alias, StringConstant):
+            return alias.value
         names = [identifier.id_str for identifier in self.reference.identifiers]
         if len(names) != 1 or names[0] in ('default input', 'default output'):
             raise ProgramError(self, 'Default ports and complex references require an explicit alias')
@@ -53,7 +71,7 @@ class ReferencePort(SourceElement):
         return self.key
 
 
-class TypedPort(SourceElement):
+class TypedPort(Port):
     """A typed procedure port, which connections supply or consume.
 
     In native procedures, a string alias gives the Python key.
@@ -84,7 +102,7 @@ class TypedPort(SourceElement):
 
 
 def check_port_keys(ports, *, python=False):
-    keys = {}
+    keys: dict[str, typing.Any] = {}
     for port in ports:
         key = port.python_key if python else port.key
         if key in keys:
@@ -96,7 +114,7 @@ def check_port_keys(ports, *, python=False):
 
 class DependsDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *dependencies: SourceElement, source_position: SourcePosition):
+    def __init__(self, *dependencies: Port, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.dependencies = dependencies
 
@@ -104,7 +122,7 @@ class DependsDeclaration(SourceElement):
             if isinstance(port, TypedPort) and isinstance(port.port_spec, PortTypeSpecificationResource):
                 port.port_spec.check_supported_input()
 
-        self.resolved_dependencies_value = None
+        self.resolved_dependencies_value: list | None = None
         self.resolved_dependencies_value_in_process = False
 
     def collect_declarations(self, graph, proc):
@@ -123,6 +141,7 @@ class DependsDeclaration(SourceElement):
         check_port_keys(self.dependencies)
         for port in self.dependencies:
             dep = port.reference
+            assert dep is not None
             if dep.length == 2:
                 name, member = [identifier.id_str for identifier in dep.identifiers]
                 variable = self.graph.value_nodes.get(name)
@@ -165,7 +184,7 @@ class DependsDeclaration(SourceElement):
 
 class ProducesDeclaration(SourceElement):
     @check_parameters
-    def __init__(self, *outputs: SourceElement, source_position: SourcePosition):
+    def __init__(self, *outputs: Port, source_position: SourcePosition):
         super().__init__(source_position=source_position)
         self.outputs = outputs
 
@@ -245,8 +264,9 @@ class DeclarationInitializer(Declaration):
             if isinstance(port, TypedPort):
                 raise ProgramError(port, 'Initializer outputs must reference resource outputs')
         check_port_keys(self.produces.outputs)
-        declarations = {}
+        declarations: dict[typing.Any, typing.Any] = {}
         for port in self.produces.outputs:
+            assert port.reference is not None
             with port.context:
                 output = port.reference.resolve(graph, PortDirection.Input, 'destination').port
             if not isinstance(output, model.LocalResource) and (
@@ -410,6 +430,7 @@ class DeclarationProcedure(Declaration):
             purpose = 'dependency' if is_input else 'destination'
 
             def counterpart():
+                assert declaration.reference is not None
                 with declaration.context:
                     return declaration.reference.resolve(graph, direction, purpose).port
             return port_type(graph, self, declaration, counterpart=counterpart)

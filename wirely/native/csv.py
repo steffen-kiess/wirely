@@ -87,7 +87,7 @@ class ValueWriter(NativeState):
 
             try:
                 self.file = file
-                self.writer = MyCsvWriter(file)
+                self.writer: MyCsvWriter | None = MyCsvWriter(file)
 
                 try:
                     yield

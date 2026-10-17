@@ -100,7 +100,7 @@ class CompilerCoordinator:
         """Only child instantiation creates a dependency between type bodies."""
         complete = set()
         active = []
-        edges = []
+        edges: list = []
 
         def visit(node_type):
             if node_type in complete:

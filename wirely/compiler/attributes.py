@@ -5,6 +5,7 @@ import math
 from dataclasses import dataclass
 from types import MappingProxyType
 from collections.abc import Callable
+from typing import Any, NoReturn
 
 
 @dataclass(frozen=True)
@@ -66,7 +67,7 @@ class ParsedFile(list):
         self.inner_attributes = tuple(inner_attributes)
 
 
-def _error(source, message):
+def _error(source, message) -> NoReturn:
     from .ast import ProgramError, SourceElement
     raise ProgramError(SourceElement(source_position=source.source_position), message)
 
@@ -250,7 +251,7 @@ def validate_files(files, *, contain=None, warnings):
         ast.DeclarationNativeFunction: 'function',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',
     }
-    namespaces = {}
+    namespaces: dict[Any, Any] = {}
 
     def visit(item, scope):
         target = targets[type(item)]
@@ -303,7 +304,7 @@ def validate_files(files, *, contain=None, warnings):
 
     def check_rows(declarations):
         """Reject two ports on the same side of a diagram item with the same row."""
-        used = {}
+        used: dict[Any, str] = {}
         for declaration in declarations:
             if not isinstance(declaration, ast.DeclarationPort):
                 continue

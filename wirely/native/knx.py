@@ -80,7 +80,7 @@ class ValueReceiver(NativeState):
 
         # TODO: Where does this get cleaned up?
         if self.value_type_knx == "binary":
-            self.sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.update_callback)
+            self.sensor: xknx.devices.BinarySensor | xknx.devices.Sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.update_callback)
         else:
             self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.update_callback)
         self.native_bus.knx.devices.async_add(self.sensor)
@@ -236,7 +236,7 @@ class EventReceiver(NativeState):
         # TODO: Use RemoteValue directly?
         # TODO: Try to make sure that GroupValueResponses are ignored and only GroupValueWrites are used?
         if self.value_type_knx == "binary":
-            self.sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.event_callback, sync_state=False, ignore_internal_state=True)
+            self.sensor: xknx.devices.BinarySensor | xknx.devices.Sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.event_callback, sync_state=False, ignore_internal_state=True)
         else:
             self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
         self.native_bus.knx.devices.async_add(self.sensor)

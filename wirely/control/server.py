@@ -241,7 +241,12 @@ async def _peek_byte(conn):
     loop = asyncio.get_running_loop()
     conn.setblocking(False)
     readable = loop.create_future()
-    loop.add_reader(conn.fileno(), lambda: readable.done() or readable.set_result(None))
+
+    def set_readable():
+        if not readable.done():
+            readable.set_result(None)
+
+    loop.add_reader(conn.fileno(), set_readable)
     try:
         await readable
     finally:

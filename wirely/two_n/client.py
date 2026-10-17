@@ -83,13 +83,14 @@ class Client:
         self.ajax_username_password = ajax_username_password
 
         if enable_logging:
-            self.logging_middleware = LoggingMiddleware()
+            self.logging_middleware: LoggingMiddleware | None = LoggingMiddleware()
         else:
             self.logging_middleware = None
 
         if self.http_api_username_password is not None:
             username, password = self.http_api_username_password
-            self.digest_middleware = aiohttp.DigestAuthMiddleware(login=username, password=password)
+            self.digest_middleware: aiohttp.DigestAuthMiddleware | None = aiohttp.DigestAuthMiddleware(
+                login=username, password=password)
         else:
             self.digest_middleware = None
 
@@ -326,6 +327,7 @@ class LogReceiver:
         timeout = 60
         http_timeout = aiohttp.ClientTimeout(total=timeout + 30, connect=30, sock_connect=30)
 
+        assert self.subscription is not None
         id = int(self.subscription['id'])
         initial_handled = False
 
