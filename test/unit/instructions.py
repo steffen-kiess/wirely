@@ -5,8 +5,7 @@ from unittest.mock import patch
 import wirely
 from wirely import types
 from wirely.contracts import test_library as contracts
-from wirely.functions import RegisteredFunction
-from wirely.functions.test_library import native_functions
+from wirely.test import test_native_bindings
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
@@ -174,8 +173,8 @@ def check_calls():
     def no_values():
         return types.Unit()
 
-    with patch.dict(native_functions, {'Clamp': RegisteredFunction(clamp_values, contracts.Clamp),
-                                       'Nothing': RegisteredFunction(no_values, contracts.Nothing)}):
+    with test_native_bindings(functions={'TestLibrary.Clamp': contracts.Clamp.implementation(clamp_values),
+                                        'TestLibrary.Nothing': contracts.Nothing.implementation(no_values)}):
         outcome = execute([
             instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
             instruction(Opcode.CALL, output(1), 1, 0),

@@ -21,14 +21,14 @@ from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
-    from wirely.native.mqtt import Connection, EventReceiver, EventSender, ValueOptionProvider
+    from wirely.native.mqtt import Broker, EventReceiverState, EventSenderState, ValueOptionProviderState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ConnectionInitializerResult:
     """Resource outputs of native state type MQTT.Connection."""
 
-    broker: Connection
+    broker: Broker
 
 
 class ConnectionInitializer(NativeState[Literal['broker']], abc.ABC):
@@ -66,7 +66,7 @@ ConnectionInitializer._adapter = _ConnectionInitializerAdapter()
 class EventReceiverInitializerResult:
     """Resource outputs of native state type MQTT.EventReceiver."""
 
-    state: EventReceiver
+    state: EventReceiverState
 
 
 class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
@@ -76,7 +76,7 @@ class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        broker: Connection,
+        broker: Broker,
         type: ValueType[Any],
         topic: str,
         format: Some[MQTTFormat] | None,
@@ -92,7 +92,7 @@ class _EventReceiverInitializerAdapter(InitializerAdapter):
         assert isinstance(state, EventReceiverInitializer)
         result = state.initialize(
             services=services,
-            broker=cast('Connection', binding.resource('Broker')),
+            broker=cast('Broker', binding.resource('Broker')),
             type=cast('ValueType[Any]', binding.use('Type')),
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
@@ -110,7 +110,7 @@ EventReceiverInitializer._adapter = _EventReceiverInitializerAdapter()
 class EventSenderInitializerResult:
     """Resource outputs of native state type MQTT.EventSender."""
 
-    state: EventSender
+    state: EventSenderState
 
 
 class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
@@ -120,7 +120,7 @@ class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        broker: Connection,
+        broker: Broker,
         type: ValueType[Any],
         topic: str,
         format: Some[MQTTFormat] | None,
@@ -137,7 +137,7 @@ class _EventSenderInitializerAdapter(InitializerAdapter):
         assert isinstance(state, EventSenderInitializer)
         result = state.initialize(
             services=services,
-            broker=cast('Connection', binding.resource('Broker')),
+            broker=cast('Broker', binding.resource('Broker')),
             type=cast('ValueType[Any]', binding.use('Type')),
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
@@ -156,7 +156,7 @@ EventSenderInitializer._adapter = _EventSenderInitializerAdapter()
 class ValueOptionProviderInitializerResult:
     """Resource outputs of native state type MQTT.ValueOptionProvider."""
 
-    state: ValueOptionProvider
+    state: ValueOptionProviderState
 
 
 class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
@@ -166,7 +166,7 @@ class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        broker: Connection,
+        broker: Broker,
         type: ValueType[Any],
         topic: str,
         format: Some[MQTTFormat] | None,
@@ -183,7 +183,7 @@ class _ValueOptionProviderInitializerAdapter(InitializerAdapter):
         assert isinstance(state, ValueOptionProviderInitializer)
         result = state.initialize(
             services=services,
-            broker=cast('Connection', binding.resource('Broker')),
+            broker=cast('Broker', binding.resource('Broker')),
             type=cast('ValueType[Any]', binding.use('Type')),
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
@@ -212,7 +212,7 @@ class EventReceiverGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: EventReceiver,
+        state: EventReceiverState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -221,7 +221,7 @@ class EventReceiverGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: EventReceiver,
+        state: EventReceiverState,
     ) -> EventReceiverGetValueResult:
         ...
 
@@ -232,7 +232,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventReceiverGetValue)
         procedure.prepare(
             services=services,
-            state=cast('EventReceiver', binding.resource('state')),
+            state=cast('EventReceiverState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -241,7 +241,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventReceiverGetValue)
         result = procedure.run(
             services=services,
-            state=cast('EventReceiver', binding.resource('state')),
+            state=cast('EventReceiverState', binding.resource('state')),
         )
         binding.check_result(result, EventReceiverGetValueResult)
         return {
@@ -264,7 +264,7 @@ class EventSenderSendValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: EventSender,
+        state: EventSenderState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -273,7 +273,7 @@ class EventSenderSendValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: EventSender,
+        state: EventSenderState,
         input: Some[DynamicValue] | None,
     ) -> EventSenderSendValueResult:
         ...
@@ -285,7 +285,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventSenderSendValue)
         procedure.prepare(
             services=services,
-            state=cast('EventSender', binding.resource('state')),
+            state=cast('EventSenderState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -294,7 +294,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventSenderSendValue)
         result = procedure.run(
             services=services,
-            state=cast('EventSender', binding.resource('state')),
+            state=cast('EventSenderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
         )
         binding.check_result(result, EventSenderSendValueResult)
@@ -316,7 +316,7 @@ class ValueOptionProviderSetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: ValueOptionProvider,
+        state: ValueOptionProviderState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -325,7 +325,7 @@ class ValueOptionProviderSetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: ValueOptionProvider,
+        state: ValueOptionProviderState,
         input: Some[DynamicValue] | None,
     ) -> ValueOptionProviderSetValueResult:
         ...
@@ -337,7 +337,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueOptionProviderSetValue)
         procedure.prepare(
             services=services,
-            state=cast('ValueOptionProvider', binding.resource('state')),
+            state=cast('ValueOptionProviderState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -346,7 +346,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueOptionProviderSetValue)
         result = procedure.run(
             services=services,
-            state=cast('ValueOptionProvider', binding.resource('state')),
+            state=cast('ValueOptionProviderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
         )
         binding.check_result(result, ValueOptionProviderSetValueResult)

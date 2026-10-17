@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the native enums, structs, interfaces, and contracts in wirely/ from the libraries."""
+"""Generate the native enums, structs, interfaces, contracts, and bindings in wirely/ from the libraries."""
 
 import argparse
 import difflib

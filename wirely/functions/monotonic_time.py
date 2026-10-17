@@ -5,10 +5,7 @@ two times return None for them.
 """
 
 import wirely
-from wirely.contracts import monotonic_time as contracts
-from wirely.functions import RegisteredFunction, native_function
 
-native_functions: dict[str, RegisteredFunction] = {}
 
 _MAX_TICKS = wirely.MonotonicTime.MAX_TICKS
 
@@ -29,34 +26,28 @@ def _checked(time: wirely.MonotonicTime, duration: wirely.Duration, sign: int) -
     return None
 
 
-@native_function(native_functions, contracts.SaturatingAdd)
 def saturating_add(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.MonotonicTime:
     return _saturating(time, duration, 1)
 
 
-@native_function(native_functions, contracts.SaturatingSub)
 def saturating_sub(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.MonotonicTime:
     return _saturating(time, duration, -1)
 
 
-@native_function(native_functions, contracts.CheckedAdd)
 def checked_add(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.Some[wirely.MonotonicTime] | None:
     return _checked(time, duration, 1)
 
 
-@native_function(native_functions, contracts.CheckedSub)
 def checked_sub(time: wirely.MonotonicTime, duration: wirely.Duration) -> wirely.Some[wirely.MonotonicTime] | None:
     return _checked(time, duration, -1)
 
 
-@native_function(native_functions, contracts.CheckedDurationSince)
 def checked_duration_since(time: wirely.MonotonicTime, earlier: wirely.MonotonicTime) -> wirely.Some[wirely.Duration] | None:
     if time.generation != earlier.generation or earlier.ticks > time.ticks:
         return None
     return wirely.Some(wirely.Duration(ticks=time.ticks - earlier.ticks))
 
 
-@native_function(native_functions, contracts.CheckedLess)
 def checked_less(a: wirely.MonotonicTime, b: wirely.MonotonicTime) -> wirely.Some[bool] | None:
     if a.generation != b.generation:
         return None

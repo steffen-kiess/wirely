@@ -20,14 +20,14 @@ from wirely.types.time import MonotonicTime
 from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
-    from wirely.native.csv import ValueWriter
+    from wirely.native.csv import ValueWriterState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ValueWriterInitializerResult:
     """Resource outputs of native state type CSV.ValueWriter."""
 
-    state: ValueWriter
+    state: ValueWriterState
 
 
 class ValueWriterInitializer(NativeState[Literal['state']], abc.ABC):
@@ -75,7 +75,7 @@ class ValueWriterRun(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: ValueWriter,
+        state: ValueWriterState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -84,7 +84,7 @@ class ValueWriterRun(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: ValueWriter,
+        state: ValueWriterState,
         last_written_at_old: Some[MonotonicTime] | None,
         input: DynamicValue,
         repeat_elapsed: Some[bool] | None,
@@ -98,7 +98,7 @@ class _ValueWriterRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueWriterRun)
         procedure.prepare(
             services=services,
-            state=cast('ValueWriter', binding.resource('state')),
+            state=cast('ValueWriterState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -107,7 +107,7 @@ class _ValueWriterRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueWriterRun)
         result = procedure.run(
             services=services,
-            state=cast('ValueWriter', binding.resource('state')),
+            state=cast('ValueWriterState', binding.resource('state')),
             last_written_at_old=cast('Some[MonotonicTime] | None', binding.input(inputs, 'last_written_at_old')),
             input=cast('DynamicValue', binding.input(inputs, 'input')),
             repeat_elapsed=cast('Some[bool] | None', binding.input(inputs, 'repeat_elapsed')),

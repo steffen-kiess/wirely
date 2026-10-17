@@ -8,11 +8,9 @@ from unittest.mock import patch
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
-import wirely.native.test_library
-from wirely.native import native_node_type, native_procedure
 from wirely.runtime.engine import Engine
 from wirely.runtime.resources import ResourceValue
-from wirely.test import test_contracts
+from wirely.test import test_native_bindings, test_contracts
 
 
 checks = TestCase()
@@ -26,43 +24,29 @@ class Service:
 
 def native_classes(contracts):
     """Return the native classes of the TestLibrary node types whose contracts a program has."""
-    registry = {}
-
-    def register(has_native_state):
-        def decorator(cls):
-            if any(hasattr(contracts, cls.__name__ + suffix) for suffix in ('Initializer', 'Read', 'Poll')):
-                native_node_type(registry, has_native_state=has_native_state)(cls)
-            return cls
-        return decorator
-
     def contract(name):
         # Classes of interfaces a program does not declare are not registered.
         return getattr(contracts, name, None) or type(name, (), {})
 
-    @register(True)
     class Provider(contract('ProviderInitializer'), Service):
         def initialize(self, *, services):
             self.value = 7
             self.named = Service()
             return contracts.ProviderInitializerResult(service=self, named=self.named)
 
-    @register(True)
     class Shared(contract('SharedInitializer'), Service):
         def initialize(self, *, services):
             self.value = 7
             return contracts.SharedInitializerResult(service=self)
 
-    @register(True)
     class Incomplete(contract('IncompleteInitializer'), Service):
         def initialize(self, *, services):
             return None
 
-    @register(True)
     class WrongProvider(contract('WrongProviderInitializer')):
         def initialize(self, *, services):
             return contracts.WrongProviderInitializerResult(service=object())
 
-    @register(True)
     class Consumer(contract('ConsumerInitializer')):
         def initialize(self, *, services, service, other_service, repeated_service, implicit, child):
             assert other_service is implicit
@@ -76,14 +60,12 @@ def native_classes(contracts):
         def start_tasks(self, task_group, async_exit_stack):
             startup_inputs.append(self.resources)
 
-        @native_procedure('read')
         class Read(contract('ConsumerRead')):
             def run(self, *, services, state, **resources):
                 assert resources == state.resources
                 procedure_calls.append(('read', resources['service']))
                 return contracts.ConsumerReadResult(count=wirely.UInt8(resources['service'].value))
 
-        @native_procedure('poll')
         class Poll(contract('ConsumerPoll')):
             def run(self, *, services, state, service):
                 assert service is state.resources['service']
@@ -95,35 +77,40 @@ def native_classes(contracts):
         assert isinstance(value, wirely.UInt8)
         return wirely.UInt8(service.value)
 
-    @register(False)
     class ProcedureConsumer:
-        @native_procedure('read')
         class Read(contract('ProcedureConsumerRead')):
             def run(self, *, services, service, value, child):
                 return contracts.ProcedureConsumerReadResult(count=read_count(service, value, child))
 
-    @register(False)
     class TypedProcedureConsumer:
-        @native_procedure('read')
         class Read(contract('TypedProcedureConsumerRead')):
             def run(self, *, services, service, value, child):
                 return contracts.TypedProcedureConsumerReadResult(count=read_count(service, value, child))
 
-    @register(True)
     class Dependent(contract('DependentInitializer')):
         def initialize(self, *, services, service, child):
             self.resources = dict(service=service, child=child)
             return contracts.DependentInitializerResult()
 
-    return registry, {'Service': Service, 'ConsumerState': Consumer}
+    initializers = {f'TestLibrary.{cls.__name__}': cls
+                    for cls in (Provider, Shared, Incomplete, WrongProvider, Consumer, Dependent)
+                    if hasattr(contracts, cls.__name__ + 'Initializer')}
+    procedures = {name: cls for name, contract_name, cls in (
+        ('TestLibrary.Consumer:read', 'ConsumerRead', Consumer.Read),
+        ('TestLibrary.Consumer:poll', 'ConsumerPoll', Consumer.Poll),
+        ('TestLibrary.ProcedureConsumer:read', 'ProcedureConsumerRead', ProcedureConsumer.Read),
+        ('TestLibrary.TypedProcedureConsumer:read', 'TypedProcedureConsumerRead', TypedProcedureConsumer.Read))
+        if hasattr(contracts, contract_name)}
+    return {'initializers': initializers, 'procedures': procedures}, {
+        'TestLibrary.Service': Service, 'TestLibrary.ConsumerState': Consumer}
 
 
 def make_engine(graph):
     """Construct an Engine for a graph with this test's native node and resource types."""
     with test_contracts(graph) as contracts:
         registry, resource_types = native_classes(contracts)
-        with patch.dict(wirely.native.test_library.native_node_types, registry), \
-                patch.dict(wirely.native.test_library.native_resource_types, resource_types):
+        with test_native_bindings(**registry), \
+                test_native_bindings(resources=resource_types):
             return Engine(program_compiler.compile_nocatch(graph))
 
 
@@ -379,34 +366,33 @@ node composite: TestLibrary.AliasComposite {}
 assert alias_graph is not None
 alias_program = program_compiler.compile_nocatch(alias_graph)
 with test_contracts(alias_graph) as contracts:
-    alias_registry = {}
+    alias_registry = {'initializers': {}, 'procedures': {}}
 
-    @native_node_type(alias_registry, has_native_state=True)
     class AliasSource(contracts.AliasSourceInitializer, Service):
         def initialize(self, *, services):
             return contracts.AliasSourceInitializerResult(service=self)
+    alias_registry['initializers']['TestLibrary.AliasSource'] = AliasSource
 
-    @native_node_type(alias_registry, has_native_state=True)
     class AliasChild(contracts.AliasChildInitializer):
         def initialize(self, *, services, service):
             self.service = service
             return contracts.AliasChildInitializerResult()
+    alias_registry['initializers']['TestLibrary.AliasChild'] = AliasChild
 
-    @native_node_type(alias_registry, has_native_state=True)
     class AliasHolder(contracts.AliasHolderInitializer, Service):
         def initialize(self, *, services):
             return contracts.AliasHolderInitializerResult(state=self)
+    alias_registry['initializers']['TestLibrary.AliasHolder'] = AliasHolder
 
-    @native_node_type(alias_registry, has_native_state=False)
     class AliasComposite:
-        @native_procedure('read')
         class Read(contracts.AliasCompositeRead):
             def run(self, *, services, service):
                 alias_reads.append(service)
                 return contracts.AliasCompositeReadResult()
+    alias_registry['procedures']['TestLibrary.AliasComposite:read'] = AliasComposite.Read
 
-    with patch.dict(wirely.native.test_library.native_node_types, alias_registry), \
-            patch.dict(wirely.native.test_library.native_resource_types, {'Service': Service}):
+    with test_native_bindings(**alias_registry), \
+            test_native_bindings(resources={'TestLibrary.Service': Service}):
         alias_resource_engine = Engine(alias_program)
 holder = alias_resource_engine.get_native_state('holder')
 assert alias_resource_engine.get_native_state('holder.child').service is holder

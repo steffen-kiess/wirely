@@ -14,7 +14,7 @@ import aiohttp
 import wirely
 
 from wirely.compiler.function_implementations.test import (
-    TEST_RESOURCES_SERVICE, replace_twon_host, replace_twon_port, replace_twon_tlsa,
+    TEST_RESOURCES_SERVICE, replace_two_n_host, replace_two_n_port, replace_two_ntlsa,
 )
 from wirely.test import (
     TestResourceProvider, run_runtime_test as runner_run_test,
@@ -55,9 +55,9 @@ def check_provider_resources():
         other_info = second.get_twon_info()
         assert info.port != other_info.port
         services = SimpleNamespace(services={TEST_RESOURCES_SERVICE: first})
-        assert replace_twon_host('default', services=services) == info.host
-        assert replace_twon_port(wirely.UInt16(1), services=services) == wirely.UInt16(info.port)
-        assert replace_twon_tlsa(('default',), services=services) == (info.server.tlsa,)
+        assert replace_two_n_host('default', services=services) == info.host
+        assert replace_two_n_port(wirely.UInt16(1), services=services) == wirely.UInt16(info.port)
+        assert replace_two_ntlsa(('default',), services=services) == (info.server.tlsa,)
     assert all(not Path(path).parent.exists() for path in paths + other_paths)
     assert_closed(info.server)
     assert_closed(other_info.server)

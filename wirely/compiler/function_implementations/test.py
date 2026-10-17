@@ -3,9 +3,8 @@
 from typing import cast, TYPE_CHECKING, Protocol
 
 from wirely import UInt16
-from wirely.compiler.contracts import test as contracts
 
-from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+from ..native_functions import FunctionServices
 
 
 if TYPE_CHECKING:
@@ -13,8 +12,6 @@ if TYPE_CHECKING:
 
 
 TEST_RESOURCES_SERVICE = 'wirely.test_resources'
-
-native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
 class TestResources(Protocol):
@@ -37,43 +34,37 @@ class TestResources(Protocol):
         ...
 
 
-@constant_function(native_functions, contracts.ReplaceKNXPath)
 def replace_knx_path(default: str, *, services: FunctionServices) -> str:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_knx_path()
 
 
-@constant_function(native_functions, contracts.ReplaceMQTTURI)
-def replace_mqtt_uri(default: str, *, services: FunctionServices) -> str:
+def replace_mqtturi(default: str, *, services: FunctionServices) -> str:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_mqtt_uri()
 
 
-@constant_function(native_functions, contracts.ReplaceOutputPath)
 def replace_output_path(default: str, *, services: FunctionServices) -> str:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_output_path(default)
 
 
-@constant_function(native_functions, contracts.ReplaceTwoNHost)
-def replace_twon_host(default: str, *, services: FunctionServices) -> str:
+def replace_two_n_host(default: str, *, services: FunctionServices) -> str:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().host
 
 
-@constant_function(native_functions, contracts.ReplaceTwoNPort)
-def replace_twon_port(default: UInt16, *, services: FunctionServices) -> UInt16:
+def replace_two_n_port(default: UInt16, *, services: FunctionServices) -> UInt16:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return UInt16(cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().port)
 
 
-@constant_function(native_functions, contracts.ReplaceTwoNTLSA)
-def replace_twon_tlsa(default: tuple[str, ...], *, services: FunctionServices) -> tuple[str, ...]:
+def replace_two_ntlsa(default: tuple[str, ...], *, services: FunctionServices) -> tuple[str, ...]:
     if TEST_RESOURCES_SERVICE not in services.services:
         return default
     return (cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().server.tlsa,)

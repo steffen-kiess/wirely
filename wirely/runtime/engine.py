@@ -22,7 +22,7 @@ from wirely.runtime.procedures import execute_procedure
 class Engine:
     def __init__(self, program: Program) -> None:
         from .linking import (
-            link_native_classes, link_native_contracts, link_native_enums, link_native_functions,
+            link_native_contracts, link_native_enums, link_native_functions,
             link_native_resource_types, link_native_signatures, link_native_structs,
         )
 
@@ -65,10 +65,9 @@ class Engine:
 
         link_native_enums(program)
         link_native_structs(program)
-        self.native_classes, procedure_classes = link_native_classes(program)
         link_native_signatures(program)
         self.resource_types = link_native_resource_types(program)
-        linked_states, linked_procedures = link_native_contracts(program, self.native_classes, procedure_classes)
+        linked_states, linked_procedures = link_native_contracts(program)
         self.native_functions = link_native_functions(program)
         # Keys of the procedures depending on each resource, by (provider node ID, output).
         self._resource_triggers: dict[tuple[str, str], list[tuple]] = {}
@@ -100,7 +99,7 @@ class Engine:
                     trigger=functools.partial(self.trigger_dependents, node_id),
                     shutdown_time=lambda: self.shutdown_time,
                 )
-                native_state, outputs = linked.adapter.construct(linked.implementation, services, interface)
+                native_state, outputs = linked.adapter.construct(linked.factory, services, interface)
                 for key, resource in outputs.items():
                     self.resource_outputs[node_id, key] = resource
             self.native_states[node_id] = native_state
@@ -111,7 +110,7 @@ class Engine:
                 if proc.body is None:
                     linked_procedure = linked_procedures[proc.reference]
                     interface = self._procedure_binding(proc, linked_procedure.signature)
-                    implementation = linked_procedure.implementation()
+                    implementation = linked_procedure.factory()
                     linked_procedure.adapter.prepare(
                         implementation, PreparationServices(name=proc.node_context.name), interface)
                     self._native_procedures[id(proc)] = implementation, linked_procedure.adapter, interface

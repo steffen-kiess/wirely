@@ -10,12 +10,8 @@ from typing import Any
 import wirely
 from wirely import DynamicValue, MonotonicTime, Some, ValueType
 from wirely.contracts import csv as contracts
-from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
-
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
 
 class CsvValue:
@@ -54,8 +50,6 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
-@native_resource_type(native_resource_types, 'ValueWriterState')
-@native_node_type(native_node_types, has_native_state=True)
 class ValueWriter(contracts.ValueWriterInitializer):
     # TODO: Should writing to the file be done on a background thread?
 
@@ -131,7 +125,6 @@ class ValueWriter(contracts.ValueWriterInitializer):
         self.last_value_csv = new_value_csv
         return True
 
-    @native_procedure('run')
     class Run(contracts.ValueWriterRun):
         def prepare(self, *, services: PreparationServices, state: 'ValueWriter', type: ValueType[Any]) -> None:
             pass
@@ -162,3 +155,6 @@ class ValueWriter(contracts.ValueWriterInitializer):
                 last_written_at = wirely.Some(services.start_time_for_stage(RunStage.DEFAULT).monotonic)
 
             return contracts.ValueWriterRunResult(last_written_at=last_written_at)
+
+
+ValueWriterState = ValueWriter  # Used as a resource type.

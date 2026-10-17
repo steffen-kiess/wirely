@@ -5,12 +5,8 @@ from collections.abc import Mapping
 from typing import Any, Literal
 
 from wirely.contracts import gpio as contracts
-from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.runtime.enums import GPIOActiveState, GPIOBias, GPIODrive
 from wirely.runtime.native_api import ProcedureServices, StateServices
-
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
 
 def _setting(value: enum.IntEnum, mapping: Mapping[Any, Any], description: str) -> Any:
@@ -19,8 +15,6 @@ def _setting(value: enum.IntEnum, mapping: Mapping[Any, Any], description: str) 
     return mapping[value]
 
 
-@native_resource_type(native_resource_types, 'OutputState')
-@native_node_type(native_node_types, has_native_state=True)
 class Output(contracts.OutputInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], chip_device_file: str, name: str,
                    active_state: GPIOActiveState, drive: GPIODrive,
@@ -64,7 +58,6 @@ class Output(contracts.OutputInitializer):
         ))
         self.direction_set = False
 
-    @native_procedure('set_value')
     class SetValue(contracts.OutputSetValue):
         def run(self, *, services: ProcedureServices, state: 'Output',
                 input: bool) -> contracts.OutputSetValueResult:
@@ -99,3 +92,6 @@ class Output(contracts.OutputInitializer):
             else:
                 state.gpio_request.set_value(state.gpio_offset, logical_value)
             return contracts.OutputSetValueResult()
+
+
+OutputState = Output  # Used as a resource type.

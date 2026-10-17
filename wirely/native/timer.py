@@ -3,16 +3,12 @@ from typing import Any
 import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.contracts import timer as contracts
-from wirely.native import native_node_type, native_procedure
 from wirely.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
 
-native_node_types: dict[str, type] = {}
 
-
-@native_node_type(native_node_types, has_native_state=False)
 class MonotonicTimestamp:
-    @native_procedure('run')
+
     class Run(contracts.MonotonicTimestampRun):
         def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
             pass
@@ -26,9 +22,8 @@ class MonotonicTimestamp:
                 output=wirely.Some(services.start_time_for_stage(RunStage.DEFAULT).monotonic))
 
 
-@native_node_type(native_node_types, has_native_state=False)
 class MonotonicTimeReached:
-    @native_procedure('run')
+
     class Run(contracts.MonotonicTimeReachedRun):
         def run(self, *, services: ProcedureServices,
                 input: Some[wirely.MonotonicTime] | None) -> contracts.MonotonicTimeReachedRunResult:

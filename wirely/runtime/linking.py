@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import importlib
-import inspect
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from ..functions import bind_native_function, get_native_function_by_name
-from ..native import find_native_procedure, get_native_node_type_by_name, get_native_resource_type_by_name
+from ..functions import bind_native_function
 from ..program import Constant, Program, used_declared_types
 from ..types import Type, TypeEnum, TypeStruct
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
@@ -22,7 +19,7 @@ if TYPE_CHECKING:
 class LinkedState(NamedTuple):
     """A native state class with the adapter and signature of its contract."""
 
-    implementation: type[NativeState[Any]]
+    factory: Callable[[], NativeState[Any]]
     adapter: InitializerAdapter
     signature: Initializer
 
@@ -30,90 +27,9 @@ class LinkedState(NamedTuple):
 class LinkedProcedure(NamedTuple):
     """A native procedure class with the adapter and signature of its contract."""
 
-    implementation: type[NativeProcedure]
+    factory: Callable[[], NativeProcedure]
     adapter: ProcedureAdapter
     signature: SignatureProcedure
-
-
-def validate_native_procedure(native_class: type, name: str) -> type[NativeProcedure]:
-    """Return the NativeProcedure class registered under a name."""
-    description = f'{native_class.__name__}:{name}'
-    procedure_class = find_native_procedure(native_class, name)
-    if procedure_class is None:
-        raise ValueError(f'Cannot find native procedure {description!r}')
-    if not issubclass(procedure_class, NativeProcedure):
-        raise ValueError(f'Native procedure {description!r} must be a NativeProcedure subclass')
-    return procedure_class
-
-
-def resolve_contract(where: str, location: str | None) -> object:
-    """Return the contract at a 'module:attribute' location of a native interface."""
-    if location is None:
-        raise ValueError(f'{where} has no contract')
-    module, _, attribute = location.partition(':')
-    try:
-        return getattr(importlib.import_module(module), attribute)
-    except (ImportError, AttributeError) as error:
-        raise ValueError(f'{where}: cannot load contract {location!r}: {error}') from error
-
-
-def check_implementation(description: str, implementation: type, contract: object, methods: Iterable[str]) -> None:
-    """Check that a class implements a contract with synchronous methods and can be constructed."""
-    assert isinstance(contract, type)
-    if not issubclass(implementation, contract):
-        raise ValueError(f'{description} must derive from {contract.__module__}.{contract.__qualname__}')
-    if inspect.isabstract(implementation):
-        missing = ', '.join(sorted(getattr(implementation, '__abstractmethods__')))
-        raise ValueError(f'{description} must implement {missing}')
-    for name in methods:
-        method = inspect.unwrap(getattr(implementation, name))
-        if (inspect.iscoroutinefunction(method) or inspect.isgeneratorfunction(method)
-                or inspect.isasyncgenfunction(method)):
-            raise ValueError(f'{description} must implement {name} synchronously, without a generator')
-        # Adapters pass the keyword arguments of the contract's method.
-        keywords = [parameter.name for parameter in inspect.signature(getattr(contract, name)).parameters.values()
-                    if parameter.kind is inspect.Parameter.KEYWORD_ONLY]
-        try:
-            inspect.signature(method).bind(None, **dict.fromkeys(keywords))
-        except TypeError as error:
-            raise ValueError(f'{description} must accept the arguments of {name}: {error}') from error
-    try:
-        inspect.signature(implementation).bind()
-    except (TypeError, ValueError) as error:
-        raise ValueError(f'{description} must be constructible without arguments: {error}') from error
-
-
-def link_native_classes(program: Program) -> tuple[dict[str, type], dict[str, type[NativeProcedure]]]:
-    """Validate all required implementations before constructing native objects.
-
-    Return the native state classes by type name and the procedure classes by procedure reference.
-    """
-    classes: dict[str, type] = {}  # By native state type name or stateless procedure prefix.
-
-    def resolve(name: str, has_native_state: bool) -> None:
-        if name not in classes:
-            classes[name] = get_native_node_type_by_name(name)
-        if getattr(classes[name], 'native_node_has_native_state', None) != has_native_state:
-            raise ValueError(f'Node type {name!r} requires has_native_state={has_native_state}')
-
-    for node_id in program.native_construction_order:
-        instance = program.instances[node_id]
-        if instance.type_name is not None:
-            resolve(instance.type_name, True)
-
-    # Native procedures are nested classes; any registered class may hold them.
-    methods = set()
-    for schedule in program.procs.values():
-        for procedure in schedule:
-            if procedure.body is None:
-                prefix, _, method = procedure.reference.rpartition(':')
-                if prefix not in classes:
-                    classes[prefix] = get_native_node_type_by_name(prefix)
-                methods.add((prefix, method))
-
-    procedures = {f'{prefix}:{method}': validate_native_procedure(classes[prefix], method)
-                  for prefix, method in sorted(methods)}
-    return classes, procedures
 
 
 def link_native_resource_types(program: Program) -> dict[str, ResourceType]:
@@ -124,7 +40,14 @@ def link_native_resource_types(program: Program) -> dict[str, ResourceType]:
         names.update(native_type.resource_outputs.values())
     for interface in program.native_procedures.values():
         names.update(interface.resources.values())
-    return {name: ResourceType(name, get_native_resource_type_by_name(name)) for name in sorted(names)}
+    from .native_bindings import resources
+    result = {}
+    for name in sorted(names):
+        loader = resources.get(name)
+        if loader is None:
+            raise ValueError(f'Cannot find native resource type {name!r}')
+        result[name] = ResourceType(name, loader())
+    return result
 
 
 def link_native_enums(program: Program) -> None:
@@ -260,42 +183,32 @@ def link_native_signatures(program: Program) -> None:
         check_type(where, 'result', function_signature.result, function.return_type, {})
 
 
-def link_native_contracts(program: Program, state_classes: Mapping[str, type],
-                          procedure_classes: Mapping[str, type[NativeProcedure]]) -> tuple[dict[str, LinkedState], dict[str, LinkedProcedure]]:
-    """Check native implementations against their contracts; run after link_native_signatures().
-
-    Return the linked native states by type name and procedures by reference.
-    """
-    from . import native_interfaces
+def link_native_contracts(program: Program) -> tuple[dict[str, LinkedState], dict[str, LinkedProcedure]]:
+    """Load the required typed factories and adapters before constructing any native objects."""
+    from . import native_bindings, native_interfaces
 
     states = {}
-    for type_name in sorted({instance.type_name for instance in program.instances.values()
-                             if instance.type_name is not None}):
-        signature = native_interfaces.native_state_types[type_name]
-        contract = resolve_contract(f'Native state type {type_name!r}', signature.contract)
-        check_implementation(f'Native state type {type_name!r}', state_classes[type_name], contract, ['initialize'])
-        assert isinstance(contract, type) and issubclass(contract, NativeState)
-        states[type_name] = LinkedState(state_classes[type_name], contract._adapter, signature)
+    for name in sorted({instance.type_name for instance in program.instances.values()
+                        if instance.type_name is not None}):
+        loader = native_bindings.states.get(name)
+        if loader is None:
+            raise ValueError(f'Cannot find native initializer {name!r}')
+        implementation = loader()
+        states[name] = LinkedState(implementation.factory, implementation.adapter,
+                                   native_interfaces.native_state_types[name])
     procedures = {}
-    for reference, procedure_class in procedure_classes.items():
-        procedure_signature = native_interfaces.native_procedures[reference]
-        contract = resolve_contract(f'Native procedure {reference!r}', procedure_signature.contract)
-        check_implementation(f'Native procedure {reference!r}', procedure_class, contract, ['prepare', 'run'])
-        assert isinstance(contract, type) and issubclass(contract, NativeProcedure)
-        procedures[reference] = LinkedProcedure(procedure_class, contract._adapter, procedure_signature)
+    for reference in sorted({procedure.reference for schedule in program.procs.values()
+                             for procedure in schedule if procedure.body is None}):
+        procedure_loader = native_bindings.procedures.get(reference)
+        if procedure_loader is None:
+            raise ValueError(f'Cannot find native procedure {reference!r}')
+        procedure = procedure_loader()
+        procedures[reference] = LinkedProcedure(procedure.factory, procedure.adapter,
+                                                native_interfaces.native_procedures[reference])
     return states, procedures
 
 
 def link_native_functions(program: Program) -> tuple[NativeFunction, ...]:
-    """Bind the implementation of every function in the program's function table; run after link_native_signatures()."""
-    from . import native_interfaces
-
-    functions = []
-    for function in program.functions:
-        where = f'Native function {function.name!r}'
-        registered = get_native_function_by_name(function.name)
-        location = native_interfaces.native_functions[function.name].contract
-        if registered.contract is not resolve_contract(where, location):
-            raise ValueError(f'{where} must be registered with the contract {location}')
-        functions.append(bind_native_function(function.name, function.parameter_types, function.return_type))
-    return tuple(functions)
+    """Bind the implementation of every function after checking the program's signatures."""
+    return tuple(bind_native_function(function.name, function.parameter_types, function.return_type)
+                 for function in program.functions)

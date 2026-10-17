@@ -5,29 +5,23 @@ implements native behavior in [`wirely/native/`](../wirely/native/).
 See the [language guide](language.md) for `.wrl` syntax and the
 [value type reference](value-types.md) for literals and type rules.
 
-## Registration and procedures
+## Implementations and procedures
 
-`native_node_pkgs` in
-[`wirely/native/__init__.py`](../wirely/native/__init__.py) maps namespaces
-to modules: `Std` maps to `std`, and `KNX` to `knx`. A new namespace
-needs a map entry. Each module supplies a `native_node_types` dictionary;
-`@native_node_type` registers a class under its Python name. The
-[native name](language.md#declarations-and-names) of a node type with
-native state selects its class: the namespace part selects the map entry,
-and the last component the class.
+Implementation modules use the snake-case namespace name: `Std` uses
+`wirely.native.std`, and `TwoN` uses `wirely.native.two_n`. A node's
+[native name](language.md#declarations-and-names) selects the class with
+its last component's name. For example, `KNX.Connection` selects
+`wirely.native.knx.Connection`.
 
-A native procedure's
-[native name](language.md#state-and-execution), such as
-`Std.DebugEventPrinter:run`, selects a class: the part before `:` names a
-registered class, and the part after it the name under which
-`@native_procedure` registers a class nested in that class or one of its
-bases. Procedures receive a native state only through a resource
-dependency, as shown [below](#native-objects-resources-and-tasks).
+A procedure such as `Std.DebugEventPrinter:run` selects the nested class
+`DebugEventPrinter.Run`; snake-case procedure names become CamelCase.
+Nested classes can be inherited. Procedures receive native state through
+resource dependencies, as shown [below](#native-objects-resources-and-tasks).
 
-Native registries must be available when constructing an `Engine` from
-`wirely.runtime.engine`. It resolves classes using the native type names
-stored in `Program`, such as `"ABB.JRA.Blind"`. Each engine creates its own
-native states and procedure objects.
+Run `tools/generate-native-types` after changing native declarations.
+Generated bindings import implementations lazily, and mypy checks their
+names, signatures, and constructors. Each engine creates its own native
+states and procedure objects.
 
 For example, `Std.DebugEventPrinter` declares:
 
@@ -52,15 +46,10 @@ from typing import Any
 
 from wirely import DynamicValue, Some, ValueType
 from wirely.contracts import std as contracts
-from wirely.native import native_node_type, native_procedure
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
 
-native_node_types: dict[str, type] = {}
 
-
-@native_node_type(native_node_types, has_native_state=False)
 class DebugEventPrinter:
-    @native_procedure('run')
     class Run(contracts.DebugEventPrinterRun):
         def prepare(self, *, services: PreparationServices,
                     type: ValueType[Any]) -> None:
@@ -73,11 +62,6 @@ class DebugEventPrinter:
                 print(f'[{services.name}]: {input.value.to_text()}')
             return contracts.DebugEventPrinterRunResult()
 ```
-
-Register the class of a `native node type` with `has_native_state=True`,
-and other classes with `has_native_state=False`, as above. Either kind of
-class can implement procedures. Node types of either kind can also
-declare `.wrl` state.
 
 ## Contracts
 
@@ -100,19 +84,17 @@ key `""` becomes `_`, and Python keywords, `self`, and `services` get a
 `_` suffix. Result classes are frozen dataclasses whose fields, named the
 same way, are all required keyword arguments.
 
-Implementations derive from their contract, so mypy checks argument and
-result types. Before running a program, the runtime also checks that each
-implementation derives from its contract, implements every method
-synchronously, accepts the contract's keyword arguments, and can be
-constructed without arguments.
+Initializer and procedure classes derive from their generated contract.
+Mypy checks method signatures and the generated factories’ calls to
+constructors. The runtime checks the compiled
+program's interfaces and values against the installed contracts.
 
-`tools/generate-native-types` generates the contracts from the standard
-library and from [`wirely/native/test_library.wrl`](../wirely/native/test_library.wrl),
-which declares the interfaces of the repository's test implementations.
-Tests declaring other `TestLibrary` interfaces get contracts generated in
-memory from `wirely.test.test_contracts(graph)`. They register constant
-functions they declare in `TestLibrary` with
-`wirely.test.test_constant_function()`.
+`tools/generate-native-types` reads the standard library and
+[`wirely/native/test_library.wrl`](../wirely/native/test_library.wrl).
+Tests declaring other `TestLibrary` interfaces use
+`wirely.test.test_contracts(graph)` and supply explicit factories and
+resource classes with `wirely.test.test_native_bindings()`. Constant
+function overrides use `wirely.test.test_constant_function()`.
 
 ## Inputs, outputs, and state
 
@@ -297,15 +279,20 @@ native initializer depends on Broker produces default output as "topic";
 Dependencies and outputs use the same key rules as procedure ports. An
 initializer accepts only resource dependencies and outputs. Providers are
 constructed before their consumers. Each output must be an instance of the
-Python type registered for the output's resource type, and the contract
+Python type exported for the output's resource type, and the contract
 annotates it with that type. See [`mqtt.py`](../wirely/native/mqtt.py) for
 provider and client examples.
 
-Register the Python type of each resource type in the module's
-`native_resource_types` dictionary with `@native_resource_type`, under the
-last component of the resource type's name. A program using a resource
-type without a registered Python type fails when its `Engine` is
-constructed.
+Export the Python class under the resource type's last name component.
+Use an ordinary type alias when the names differ, with a short comment:
+
+```python
+Bus = Connection  # Used as a resource type.
+```
+
+When the class itself has the resource's name, put the comment above its
+class declaration. Resource objects may differ from the initializer
+object, and an initializer may return several resources.
 
 To give procedures access to the native object, produce it as a
 [resource](language.md#opaque-resource-ports) and depend on it:
@@ -324,11 +311,8 @@ native node type Receiver {
 ```
 
 ```python
-native_resource_types: dict[str, type] = {}
 
 
-@native_resource_type(native_resource_types, 'ReceiverState')
-@native_node_type(native_node_types, has_native_state=True)
 class Receiver(contracts.ReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']]
                    ) -> contracts.ReceiverInitializerResult:
@@ -339,12 +323,14 @@ class Receiver(contracts.ReceiverInitializer):
         self.value = value
         self.services.trigger('state')
 
-    @native_procedure('get_value')
     class GetValue(contracts.ReceiverGetValue):
         def run(self, *, services: ProcedureServices, state: 'Receiver'
                 ) -> contracts.ReceiverGetValueResult:
             value = None if state.value is None else Some(state.value)
             return contracts.ReceiverGetValueResult(output=value)
+
+
+ReceiverState = Receiver  # Used as a resource type.
 ```
 
 `self.services` is the `StateServices` object that `initialize()` also
@@ -398,20 +384,14 @@ generation also causes a rerun; handle that case as
 A `native function` runs in procedure bodies and in compile-time
 expressions, so its implementation is shared by the compiler and the
 runtime and lives in [`wirely/functions/`](../wirely/functions/) rather
-than with the runtime-only native node types. `function_pkgs` in
-[`wirely/functions/__init__.py`](../wirely/functions/__init__.py) maps each
-namespace to a module there. Register the implementation in that module's
-`native_functions` dictionary with its contract:
+than with the runtime-only native node types. The module name is the
+snake-case namespace name, and the function name is the snake-case last
+component of its native name:
 
 ```python
 from wirely import Int16
-from wirely.contracts import test_library as contracts
-from wirely.functions import RegisteredFunction, native_function
-
-native_functions: dict[str, RegisteredFunction] = {}
 
 
-@native_function(native_functions, contracts.Clamp)
 def clamp(value: Int16, low: Int16, high: Int16) -> Int16:
     return min(max(value, low), high)
 ```
@@ -429,32 +409,22 @@ program calls when it is constructed.
 
 A `native constant function` runs only in compile-time expressions. It can
 take and return types without a runtime representation, such as `String`
-and `ValueType`. `function_pkgs` in
-[`wirely/compiler/native_functions.py`](../wirely/compiler/native_functions.py)
-maps each namespace to a module of
-[`wirely/compiler/function_implementations/`](../wirely/compiler/function_implementations/).
-Register the implementation in that module's `native_functions`
-dictionary with its contract from `wirely.compiler.contracts`:
+and `ValueType`. Implementations live in the snake-case namespace module
+under [`wirely/compiler/function_implementations/`](../wirely/compiler/function_implementations/),
+with the snake-case function name:
 
 ```python
-from wirely import UInt16
-from wirely.compiler.contracts import knx as contracts
+from typing import Any
 
-from ..native_functions import (
-    FunctionServices, RegisteredConstantFunction, constant_function,
-)
-
-native_functions: dict[str, RegisteredConstantFunction] = {}
+from wirely import ValueType
+from wirely.compiler.native_functions import FunctionServices
+from wirely.knx.value_types import get_value_type
 
 
-@constant_function(native_functions, contracts.ParseGroupAddress)
-def parse_group_address(address: str, *,
-                        services: FunctionServices) -> UInt16:
-    import xknx
-
+def value_type_name(type: ValueType[Any], *, services: FunctionServices) -> str:
     try:
-        return UInt16(xknx.telegram.GroupAddress(address).raw)
-    except xknx.exceptions.CouldNotParseAddress as error:
+        return get_value_type(type).name
+    except ValueError as error:
         raise services.error(str(error), argument=0) from error
 ```
 

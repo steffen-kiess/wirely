@@ -473,32 +473,70 @@ def test_contracts(graph: object) -> Iterator[types.ModuleType]:
     interfaces = cast(native_contracts.Interfaces, tuple(generated))
     sources = native_contracts.contract_sources(
         interfaces, resource_classes=native_contracts.resource_classes(), strict=False)
-    located = native_contracts.with_contracts(interfaces)
     with contextlib.ExitStack() as stack:
-        # Patching sys.modules as a whole would also remove modules imported meanwhile.
         sys.modules[module.__name__] = module
         stack.callback(sys.modules.pop, module.__name__, None)
         for source in sources.values():
             exec(compile(source, f'<{module.__name__}>', 'exec'), module.__dict__)
-        for table, located_entries in zip(tables, located):
-            stack.enter_context(patch.dict(table, {
-                name: dataclasses.replace(entry, contract=module.__name__ + ':' + entry.contract.partition(':')[2])
-                for name, entry in cast(Mapping[str, Any], located_entries).items()}))
+        contracts = {}
+        for kind, table, entries in zip(('initializer', 'procedure', 'function'), tables, interfaces):
+            stack.enter_context(patch.dict(table, entries))
+            for name in cast(Mapping[str, Any], entries):
+                _, attribute = native_contracts.contract_location(kind, name)
+                contracts[name] = getattr(module, attribute)
+        stack.enter_context(patch.dict(_test_native_contracts, contracts))
         yield module
 
 
+_test_native_contracts: dict[str, Any] = {}
+
+
+@contextlib.contextmanager
+def test_native_bindings(*, initializers: Mapping[str, Any] = {}, procedures: Mapping[str, Any] = {},
+                         resources: Mapping[str, type] = {}, functions: Mapping[str, Any] = {},
+                         constant_functions: Mapping[str, Any] = {}) -> Iterator[None]:
+    """Temporarily supply explicit native implementations under their full native names."""
+    from unittest.mock import patch
+    from wirely.compiler import native_bindings as constants
+    from wirely.runtime import native_bindings
+    from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
+
+    def state(name: str, factory: Any) -> StateImplementation:
+        contract = _test_native_contracts.get(name, factory)
+        return StateImplementation(factory, contract._adapter)
+
+    def procedure(name: str, factory: Any) -> ProcedureImplementation:
+        contract = _test_native_contracts.get(name, factory)
+        return ProcedureImplementation(factory, contract._adapter)
+
+    def loader(value: Any) -> Callable[[], Any]:
+        return lambda: value
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch.dict(native_bindings.states,
+                                       {name: loader(state(name, factory)) for name, factory in initializers.items()}))
+        stack.enter_context(patch.dict(native_bindings.procedures,
+                                       {name: loader(procedure(name, factory)) for name, factory in procedures.items()}))
+        stack.enter_context(patch.dict(native_bindings.resources,
+                                       {name: loader(cls) for name, cls in resources.items()}))
+        stack.enter_context(patch.dict(native_bindings.functions,
+                                       {name: loader(value) for name, value in functions.items()}))
+        stack.enter_context(patch.dict(constants.functions, constant_functions))
+        yield
+
+
 def test_constant_function(native_name: str, implementation: Callable[..., object]) -> Any:
-    """Return a registry entry of a constant function that only tests declare.
+    """Return a loader for a constant function that only tests declare.
 
     The implementation receives native arguments positionally and services as a keyword
-    argument; register it in wirely.compiler.function_implementations.test_library.
+    argument; supply it with test_native_bindings(constant_functions=...).
     """
-    from wirely.compiler.native_functions import ConstantFunctionContract, RegisteredConstantFunction
+    from wirely.compiler.native_functions import ConstantFunctionContract, ConstantFunctionImplementation
 
     def call(implementation: Callable[..., object], arguments: Sequence[object], services: object) -> object:
         return implementation(*arguments, services=services)
 
-    return RegisteredConstantFunction(implementation, ConstantFunctionContract(native_name, call))
+    return lambda: ConstantFunctionImplementation(implementation, ConstantFunctionContract(native_name, call))
 
 
 def test_engine(program: Program, graph: object = None) -> Engine:

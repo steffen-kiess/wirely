@@ -4,15 +4,11 @@ from typing import Any
 
 import wirely
 from wirely import ValueType
-from wirely.compiler.contracts import std as contracts
 from wirely.runtime.structs import StdFormatParts
 
-from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
-
-native_functions: dict[str, RegisteredConstantFunction] = {}
+from ..native_functions import FunctionServices
 
 
-@constant_function(native_functions, contracts.ParseFormat)
 def parse_format(format_string: str, value_type: ValueType[Any], *, services: FunctionServices) -> StdFormatParts:
     try:
         prefix, suffix, has_value = parse_format_string(format_string)

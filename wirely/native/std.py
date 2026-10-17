@@ -4,18 +4,14 @@ from typing import Any, Literal
 import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.contracts import std as contracts
-from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.native import check_state_type
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.runtime.structs import StdFormatParts
 from wirely.types import InternalValue
 
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
-
-@native_node_type(native_node_types, has_native_state=False)
 class DebugValuePrinter:
-    @native_procedure('run')
+
     class Run(contracts.DebugValuePrinterRun):
         def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
             pass
@@ -25,9 +21,8 @@ class DebugValuePrinter:
             return contracts.DebugValuePrinterRunResult()
 
 
-@native_node_type(native_node_types, has_native_state=False)
 class DebugEventPrinter:
-    @native_procedure('run')
+
     class Run(contracts.DebugEventPrinterRun):
         def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
             pass
@@ -39,9 +34,8 @@ class DebugEventPrinter:
             return contracts.DebugEventPrinterRunResult()
 
 
-@native_node_type(native_node_types, has_native_state=False)
 class WarnOnEvent:
-    @native_procedure('run')
+
     class Run(contracts.WarnOnEventRun):
         def prepare(self, *, services: PreparationServices, type: ValueType[Any],
                     format_parts: StdFormatParts) -> None:
@@ -64,8 +58,6 @@ class WarnOnEvent:
             return contracts.WarnOnEventRunResult()
 
 
-@native_resource_type(native_resource_types, 'DebugValueSourceState')
-@native_node_type(native_node_types, has_native_state=True)
 class DebugValueSource(contracts.DebugValueSourceInitializer):
     def initialize(self, *, services: StateServices[Literal['state']],
                    type: ValueType[Any]) -> contracts.DebugValueSourceInitializerResult:
@@ -73,7 +65,6 @@ class DebugValueSource(contracts.DebugValueSourceInitializer):
         self.current_value: DynamicValue | None = None  # None until a value is set.
         return contracts.DebugValueSourceInitializerResult(state=self)
 
-    @native_procedure('run')
     class Run(contracts.DebugValueSourceRun):
         def prepare(self, *, services: PreparationServices, state: 'DebugValueSource', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -112,8 +103,6 @@ class DebugValueSource(contracts.DebugValueSourceInitializer):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-@native_resource_type(native_resource_types, 'DebugEventSourceState')
-@native_node_type(native_node_types, has_native_state=True)
 class DebugEventSource(contracts.DebugEventSourceInitializer):
     def initialize(self, *, services: StateServices[Literal['state']],
                    type: ValueType[Any]) -> contracts.DebugEventSourceInitializerResult:
@@ -122,7 +111,6 @@ class DebugEventSource(contracts.DebugEventSourceInitializer):
         self.next_value: Some[DynamicValue] | None = None
         return contracts.DebugEventSourceInitializerResult(state=self)
 
-    @native_procedure('run')
     class Run(contracts.DebugEventSourceRun):
         def prepare(self, *, services: PreparationServices, state: 'DebugEventSource', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -165,3 +153,7 @@ class DebugEventSource(contracts.DebugEventSourceInitializer):
             print(f'Next value of {self.services.name} is {next_value!r}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
+
+
+DebugValueSourceState = DebugValueSource  # Used as a resource type.
+DebugEventSourceState = DebugEventSource  # Used as a resource type.

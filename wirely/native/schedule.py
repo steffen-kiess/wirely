@@ -6,15 +6,9 @@ from collections.abc import Sequence
 
 import wirely
 from wirely.contracts import schedule as contracts
-from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
-
-@native_resource_type(native_resource_types, 'TimeOfDayMinuteState')
-@native_node_type(native_node_types, has_native_state=True)
 class TimeOfDayMinute(contracts.TimeOfDayMinuteInitializer):
     def initialize(self, *, services: StateServices[typing.Literal['state']]
                    ) -> contracts.TimeOfDayMinuteInitializerResult:
@@ -59,7 +53,6 @@ class TimeOfDayMinute(contracts.TimeOfDayMinuteInitializer):
             # print(f'Waiting for {wait_time_s}', flush=True)
             await asyncio.sleep(wait_time_s)
 
-    @native_procedure('get_value')
     class GetValue(contracts.TimeOfDayMinuteGetValue):
         def run(self, *, services: ProcedureServices,
                 state: 'TimeOfDayMinute') -> contracts.TimeOfDayMinuteGetValueResult:
@@ -103,3 +96,6 @@ class TimeOfDayMinute(contracts.TimeOfDayMinuteInitializer):
             print(f'Current real time of day is {self.current_value}, fake time is {self._fake_time}', flush=True)
         else:
             raise Exception(f'Unknown command: {parameters!r}')
+
+
+TimeOfDayMinuteState = TimeOfDayMinute  # Used as a resource type.

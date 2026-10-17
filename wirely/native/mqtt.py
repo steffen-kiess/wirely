@@ -9,13 +9,10 @@ from typing import Any, Literal
 import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.contracts import mqtt as contracts
-from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.native import check_state_type
 from wirely.runtime.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.runtime.structs import MQTTTemplateParts
-
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
 
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}
@@ -30,6 +27,8 @@ def _json_format(option: Some[MQTTFormat] | None) -> str | None:
 
 
 aiomqtt_module = None
+
+
 def get_aiomqtt() -> Any:
     global aiomqtt_module
     if aiomqtt_module is not None:
@@ -142,8 +141,6 @@ def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
-@native_resource_type(native_resource_types, 'Broker')
-@native_node_type(native_node_types, has_native_state=True)
 class Connection(contracts.ConnectionInitializer):
     def initialize(self, *, services: StateServices[Literal['broker']],
                    uri: str) -> contracts.ConnectionInitializerResult:
@@ -253,8 +250,8 @@ class Connection(contracts.ConnectionInitializer):
 
 
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
-@native_resource_type(native_resource_types, 'ValueOptionProviderState')
-@native_node_type(native_node_types, has_native_state=True)
+
+
 class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
@@ -293,7 +290,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('set_value')
     class SetValue(contracts.ValueOptionProviderSetValue):
         def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
                     type: ValueType[Any]) -> None:
@@ -334,8 +330,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
-@native_resource_type(native_resource_types, 'EventSenderState')
-@native_node_type(native_node_types, has_native_state=True)
 class EventSender(contracts.EventSenderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
@@ -374,7 +368,6 @@ class EventSender(contracts.EventSenderInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('send_value')
     class SendValue(contracts.EventSenderSendValue):
         def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -416,8 +409,6 @@ class EventSender(contracts.EventSenderInitializer):
             print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-@native_resource_type(native_resource_types, 'EventReceiverState')
-@native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(contracts.EventReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverInitializerResult:
@@ -450,7 +441,6 @@ class EventReceiver(contracts.EventReceiverInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('get_value')
     class GetValue(contracts.EventReceiverGetValue):
         def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -498,3 +488,9 @@ class EventReceiver(contracts.EventReceiverInitializer):
                         # TODO: Do something else here?
                         # TODO: Print stack trace?
                         print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {e}', flush=True)
+
+
+Broker = Connection  # Used as a resource type.
+ValueOptionProviderState = ValueOptionProvider  # Used as a resource type.
+EventSenderState = EventSender  # Used as a resource type.
+EventReceiverState = EventReceiver  # Used as a resource type.

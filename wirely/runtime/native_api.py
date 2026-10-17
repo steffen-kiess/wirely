@@ -12,7 +12,7 @@ import contextlib
 import datetime
 from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 from ..program import RunStage
 from ..types import InternalValue, Type
@@ -21,6 +21,9 @@ from . import signatures
 from .native_values import from_native, to_native
 from .resources import ResourceType, ResourceValue
 from .time_snapshot import TimeSnapshot
+
+if TYPE_CHECKING:
+    from ..functions import FunctionImplementation
 
 K = TypeVar('K', bound=str)  # Python names of a native state's resource outputs.
 F = TypeVar('F', bound=Callable[..., object])
@@ -208,10 +211,10 @@ class InitializerAdapter(abc.ABC):
 
     output_keys: ClassVar[Mapping[str, str]]  # Binding keys of the resource outputs by Python name.
 
-    def construct(self, state_class: type[NativeState[Any]], services: StateServices[Any],
+    def construct(self, state_factory: Callable[[], NativeState[Any]], services: StateServices[Any],
                   binding: InterfaceBinding) -> tuple[NativeState[Any], dict[str, ResourceValue]]:
         """Construct and initialize a native state; return it and its resource outputs."""
-        state = state_class()
+        state = state_factory()
         state._services = services
         return state, self.initialize(state, services, binding)
 
@@ -265,5 +268,22 @@ class FunctionContract(Generic[F]):
         """Call an implementation with internal values and return its internal result."""
         return self._call(implementation, binding, arguments)
 
+    def implementation(self, implementation: F) -> 'FunctionImplementation':
+        """Bind a statically checked implementation to this contract."""
+        from ..functions import FunctionImplementation
+        return FunctionImplementation(implementation, self)
+
     def __repr__(self) -> str:
         return f'FunctionContract({self.name!r})'
+
+
+@dataclass(frozen=True, slots=True)
+class StateImplementation:
+    factory: Callable[[], NativeState[Any]]
+    adapter: InitializerAdapter
+
+
+@dataclass(frozen=True, slots=True)
+class ProcedureImplementation:
+    factory: Callable[[], NativeProcedure]
+    adapter: ProcedureAdapter

@@ -18,14 +18,14 @@ from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 
 if TYPE_CHECKING:
-    from wirely.native.gpio import Output
+    from wirely.native.gpio import OutputState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class OutputInitializerResult:
     """Resource outputs of native state type GPIO.Output."""
 
-    state: Output
+    state: OutputState
 
 
 class OutputInitializer(NativeState[Literal['state']], abc.ABC):
@@ -78,7 +78,7 @@ class OutputSetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: Output,
+        state: OutputState,
     ) -> None:
         pass
 
@@ -86,7 +86,7 @@ class OutputSetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: Output,
+        state: OutputState,
         input: bool,
     ) -> OutputSetValueResult:
         ...
@@ -98,7 +98,7 @@ class _OutputSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputSetValue)
         procedure.prepare(
             services=services,
-            state=cast('Output', binding.resource('state')),
+            state=cast('OutputState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -106,7 +106,7 @@ class _OutputSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputSetValue)
         result = procedure.run(
             services=services,
-            state=cast('Output', binding.resource('state')),
+            state=cast('OutputState', binding.resource('state')),
             input=cast('bool', binding.input(inputs, 'input')),
         )
         binding.check_result(result, OutputSetValueResult)

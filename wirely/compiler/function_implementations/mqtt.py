@@ -3,20 +3,15 @@
 from typing import Any
 
 from wirely import Some, ValueType
-from wirely.compiler.contracts import mqtt as contracts
 from wirely.runtime.structs import MQTTTemplateParts
 
-from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
-
-native_functions: dict[str, RegisteredConstantFunction] = {}
+from ..native_functions import FunctionServices
 
 
-@constant_function(native_functions, contracts.SupportsType)
 def supports_type(value_type: ValueType[Any], *, services: FunctionServices) -> bool:
     return value_type.supports_json
 
 
-@constant_function(native_functions, contracts.ParseTemplate)
 def parse_template(template: Some[str] | None, *, services: FunctionServices) -> MQTTTemplateParts:
     if template is None:
         return MQTTTemplateParts('', '')

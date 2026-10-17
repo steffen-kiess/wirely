@@ -7,16 +7,10 @@ from typing import Any, Literal
 import wirely
 from wirely import Int32, Some, UInt16
 from wirely.contracts import two_n as contracts
-from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.runtime.native_api import ProcedureServices, StateServices
 from wirely.runtime.structs import TwoNCredentials
 
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
-
-@native_resource_type(native_resource_types, 'Device')
-@native_node_type(native_node_types, has_native_state=True)
 class Connection(contracts.ConnectionInitializer):
     def initialize(self, *, services: StateServices[Literal['device']], host: str, port: UInt16,
                    tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionInitializerResult:
@@ -43,8 +37,6 @@ class Connection(contracts.ConnectionInitializer):
         print('Starting TwoN client done', flush=True)
 
 
-@native_resource_type(native_resource_types, 'KeyEventState')
-@native_node_type(native_node_types, has_native_state=True)
 class KeyEvent(contracts.KeyEventInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
                    key: str) -> contracts.KeyEventInitializerResult:
@@ -89,7 +81,6 @@ class KeyEvent(contracts.KeyEventInitializer):
         self.services.trigger('state')
         self.received_value = new_value
 
-    @native_procedure('get_value')
     class GetValue(contracts.KeyEventGetValue):
         def run(self, *, services: ProcedureServices, state: 'KeyEvent') -> contracts.KeyEventGetValueResult:
             value = state.received_value
@@ -102,8 +93,6 @@ class KeyEvent(contracts.KeyEventInitializer):
             return contracts.KeyEventGetValueResult(output=wirely.Some(value))
 
 
-@native_resource_type(native_resource_types, 'CodeEnteredEventState')
-@native_node_type(native_node_types, has_native_state=True)
 class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
                    code: str) -> contracts.CodeEnteredEventInitializerResult:
@@ -144,7 +133,6 @@ class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
         self.services.trigger('state')
         self.pending = True
 
-    @native_procedure('get_value')
     class GetValue(contracts.CodeEnteredEventGetValue):
         def run(self, *, services: ProcedureServices,
                 state: 'CodeEnteredEvent') -> contracts.CodeEnteredEventGetValueResult:
@@ -158,8 +146,6 @@ class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
             return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
-@native_resource_type(native_resource_types, 'IOStateState')
-@native_node_type(native_node_types, has_native_state=True)
 class IOState(contracts.IOStateInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
                    port: str) -> contracts.IOStateInitializerResult:
@@ -226,7 +212,6 @@ class IOState(contracts.IOStateInitializer):
         self.services.trigger('state')
         self.current_value = new_value
 
-    @native_procedure('get_value')
     class GetValue(contracts.IOStateGetValue):
         def run(self, *, services: ProcedureServices, state: 'IOState') -> contracts.IOStateGetValueResult:
             value = state.current_value
@@ -236,8 +221,6 @@ class IOState(contracts.IOStateInitializer):
             return contracts.IOStateGetValueResult(output=value)
 
 
-@native_resource_type(native_resource_types, 'SwitchStateState')
-@native_node_type(native_node_types, has_native_state=True)
 class SwitchState(contracts.SwitchStateInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
                    switch_number: Int32) -> contracts.SwitchStateInitializerResult:
@@ -302,7 +285,6 @@ class SwitchState(contracts.SwitchStateInitializer):
         self.services.trigger('state')
         self.current_value = new_value
 
-    @native_procedure('get_value')
     class GetValue(contracts.SwitchStateGetValue):
         def run(self, *, services: ProcedureServices, state: 'SwitchState') -> contracts.SwitchStateGetValueResult:
             value = state.current_value
@@ -312,8 +294,6 @@ class SwitchState(contracts.SwitchStateInitializer):
             return contracts.SwitchStateGetValueResult(output=value)
 
 
-@native_resource_type(native_resource_types, 'OutputControlState')
-@native_node_type(native_node_types, has_native_state=True)
 class OutputControl(contracts.OutputControlInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
                    port: str) -> contracts.OutputControlInitializerResult:
@@ -342,7 +322,6 @@ class OutputControl(contracts.OutputControlInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('send_value')
     class SendValue(contracts.OutputControlSendValue):
         def run(self, *, services: ProcedureServices, state: 'OutputControl',
                 input: Some[bool] | None) -> contracts.OutputControlSendValueResult:
@@ -386,3 +365,11 @@ class OutputControl(contracts.OutputControlInitializer):
                 'action': action,
             })
             print(f"Sending {value} to port {self.port} done with result {response}", flush=True)
+
+
+Device = Connection  # Used as a resource type.
+KeyEventState = KeyEvent  # Used as a resource type.
+CodeEnteredEventState = CodeEnteredEvent  # Used as a resource type.
+IOStateState = IOState  # Used as a resource type.
+SwitchStateState = SwitchState  # Used as a resource type.
+OutputControlState = OutputControl  # Used as a resource type.

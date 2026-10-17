@@ -21,14 +21,16 @@ from wirely.types.option import Some
 from wirely.types.unit import Unit
 
 if TYPE_CHECKING:
-    from wirely.native.two_n import CodeEnteredEvent, Connection, IOState, KeyEvent, OutputControl, SwitchState
+    from wirely.native.two_n import (
+    CodeEnteredEventState, Device, IOStateState, KeyEventState, OutputControlState, SwitchStateState,
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class CodeEnteredEventInitializerResult:
     """Resource outputs of native state type TwoN.CodeEnteredEvent."""
 
-    state: CodeEnteredEvent
+    state: CodeEnteredEventState
 
 
 class CodeEnteredEventInitializer(NativeState[Literal['state']], abc.ABC):
@@ -38,7 +40,7 @@ class CodeEnteredEventInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        device: Connection,
+        device: Device,
         code: str,
     ) -> CodeEnteredEventInitializerResult:
         ...
@@ -52,7 +54,7 @@ class _CodeEnteredEventInitializerAdapter(InitializerAdapter):
         assert isinstance(state, CodeEnteredEventInitializer)
         result = state.initialize(
             services=services,
-            device=cast('Connection', binding.resource('Device')),
+            device=cast('Device', binding.resource('Device')),
             code=cast('str', binding.use('Code')),
         )
         binding.check_result(result, CodeEnteredEventInitializerResult)
@@ -68,7 +70,7 @@ CodeEnteredEventInitializer._adapter = _CodeEnteredEventInitializerAdapter()
 class ConnectionInitializerResult:
     """Resource outputs of native state type TwoN.Connection."""
 
-    device: Connection
+    device: Device
 
 
 class ConnectionInitializer(NativeState[Literal['device']], abc.ABC):
@@ -112,7 +114,7 @@ ConnectionInitializer._adapter = _ConnectionInitializerAdapter()
 class IOStateInitializerResult:
     """Resource outputs of native state type TwoN.IOState."""
 
-    state: IOState
+    state: IOStateState
 
 
 class IOStateInitializer(NativeState[Literal['state']], abc.ABC):
@@ -122,7 +124,7 @@ class IOStateInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        device: Connection,
+        device: Device,
         port: str,
     ) -> IOStateInitializerResult:
         ...
@@ -136,7 +138,7 @@ class _IOStateInitializerAdapter(InitializerAdapter):
         assert isinstance(state, IOStateInitializer)
         result = state.initialize(
             services=services,
-            device=cast('Connection', binding.resource('Device')),
+            device=cast('Device', binding.resource('Device')),
             port=cast('str', binding.use('Port')),
         )
         binding.check_result(result, IOStateInitializerResult)
@@ -152,7 +154,7 @@ IOStateInitializer._adapter = _IOStateInitializerAdapter()
 class KeyEventInitializerResult:
     """Resource outputs of native state type TwoN.KeyEvent."""
 
-    state: KeyEvent
+    state: KeyEventState
 
 
 class KeyEventInitializer(NativeState[Literal['state']], abc.ABC):
@@ -162,7 +164,7 @@ class KeyEventInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        device: Connection,
+        device: Device,
         key: str,
     ) -> KeyEventInitializerResult:
         ...
@@ -176,7 +178,7 @@ class _KeyEventInitializerAdapter(InitializerAdapter):
         assert isinstance(state, KeyEventInitializer)
         result = state.initialize(
             services=services,
-            device=cast('Connection', binding.resource('Device')),
+            device=cast('Device', binding.resource('Device')),
             key=cast('str', binding.use('Key')),
         )
         binding.check_result(result, KeyEventInitializerResult)
@@ -192,7 +194,7 @@ KeyEventInitializer._adapter = _KeyEventInitializerAdapter()
 class OutputControlInitializerResult:
     """Resource outputs of native state type TwoN.OutputControl."""
 
-    state: OutputControl
+    state: OutputControlState
 
 
 class OutputControlInitializer(NativeState[Literal['state']], abc.ABC):
@@ -202,7 +204,7 @@ class OutputControlInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        device: Connection,
+        device: Device,
         port: str,
     ) -> OutputControlInitializerResult:
         ...
@@ -216,7 +218,7 @@ class _OutputControlInitializerAdapter(InitializerAdapter):
         assert isinstance(state, OutputControlInitializer)
         result = state.initialize(
             services=services,
-            device=cast('Connection', binding.resource('Device')),
+            device=cast('Device', binding.resource('Device')),
             port=cast('str', binding.use('Port')),
         )
         binding.check_result(result, OutputControlInitializerResult)
@@ -232,7 +234,7 @@ OutputControlInitializer._adapter = _OutputControlInitializerAdapter()
 class SwitchStateInitializerResult:
     """Resource outputs of native state type TwoN.SwitchState."""
 
-    state: SwitchState
+    state: SwitchStateState
 
 
 class SwitchStateInitializer(NativeState[Literal['state']], abc.ABC):
@@ -242,7 +244,7 @@ class SwitchStateInitializer(NativeState[Literal['state']], abc.ABC):
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
-        device: Connection,
+        device: Device,
         switch_number: Int32,
     ) -> SwitchStateInitializerResult:
         ...
@@ -256,7 +258,7 @@ class _SwitchStateInitializerAdapter(InitializerAdapter):
         assert isinstance(state, SwitchStateInitializer)
         result = state.initialize(
             services=services,
-            device=cast('Connection', binding.resource('Device')),
+            device=cast('Device', binding.resource('Device')),
             switch_number=cast('Int32', binding.use('SwitchNumber')),
         )
         binding.check_result(result, SwitchStateInitializerResult)
@@ -281,7 +283,7 @@ class CodeEnteredEventGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: CodeEnteredEvent,
+        state: CodeEnteredEventState,
     ) -> None:
         pass
 
@@ -289,7 +291,7 @@ class CodeEnteredEventGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: CodeEnteredEvent,
+        state: CodeEnteredEventState,
     ) -> CodeEnteredEventGetValueResult:
         ...
 
@@ -300,7 +302,7 @@ class _CodeEnteredEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, CodeEnteredEventGetValue)
         procedure.prepare(
             services=services,
-            state=cast('CodeEnteredEvent', binding.resource('state')),
+            state=cast('CodeEnteredEventState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -308,7 +310,7 @@ class _CodeEnteredEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, CodeEnteredEventGetValue)
         result = procedure.run(
             services=services,
-            state=cast('CodeEnteredEvent', binding.resource('state')),
+            state=cast('CodeEnteredEventState', binding.resource('state')),
         )
         binding.check_result(result, CodeEnteredEventGetValueResult)
         return {
@@ -332,7 +334,7 @@ class IOStateGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: IOState,
+        state: IOStateState,
     ) -> None:
         pass
 
@@ -340,7 +342,7 @@ class IOStateGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: IOState,
+        state: IOStateState,
     ) -> IOStateGetValueResult:
         ...
 
@@ -351,7 +353,7 @@ class _IOStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, IOStateGetValue)
         procedure.prepare(
             services=services,
-            state=cast('IOState', binding.resource('state')),
+            state=cast('IOStateState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -359,7 +361,7 @@ class _IOStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, IOStateGetValue)
         result = procedure.run(
             services=services,
-            state=cast('IOState', binding.resource('state')),
+            state=cast('IOStateState', binding.resource('state')),
         )
         binding.check_result(result, IOStateGetValueResult)
         return {
@@ -383,7 +385,7 @@ class KeyEventGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: KeyEvent,
+        state: KeyEventState,
     ) -> None:
         pass
 
@@ -391,7 +393,7 @@ class KeyEventGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: KeyEvent,
+        state: KeyEventState,
     ) -> KeyEventGetValueResult:
         ...
 
@@ -402,7 +404,7 @@ class _KeyEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, KeyEventGetValue)
         procedure.prepare(
             services=services,
-            state=cast('KeyEvent', binding.resource('state')),
+            state=cast('KeyEventState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -410,7 +412,7 @@ class _KeyEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, KeyEventGetValue)
         result = procedure.run(
             services=services,
-            state=cast('KeyEvent', binding.resource('state')),
+            state=cast('KeyEventState', binding.resource('state')),
         )
         binding.check_result(result, KeyEventGetValueResult)
         return {
@@ -432,7 +434,7 @@ class OutputControlSendValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: OutputControl,
+        state: OutputControlState,
     ) -> None:
         pass
 
@@ -440,7 +442,7 @@ class OutputControlSendValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: OutputControl,
+        state: OutputControlState,
         input: Some[bool] | None,
     ) -> OutputControlSendValueResult:
         ...
@@ -452,7 +454,7 @@ class _OutputControlSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputControlSendValue)
         procedure.prepare(
             services=services,
-            state=cast('OutputControl', binding.resource('state')),
+            state=cast('OutputControlState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -460,7 +462,7 @@ class _OutputControlSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputControlSendValue)
         result = procedure.run(
             services=services,
-            state=cast('OutputControl', binding.resource('state')),
+            state=cast('OutputControlState', binding.resource('state')),
             input=cast('Some[bool] | None', binding.input(inputs, 'input')),
         )
         binding.check_result(result, OutputControlSendValueResult)
@@ -483,7 +485,7 @@ class SwitchStateGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: SwitchState,
+        state: SwitchStateState,
     ) -> None:
         pass
 
@@ -491,7 +493,7 @@ class SwitchStateGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: SwitchState,
+        state: SwitchStateState,
     ) -> SwitchStateGetValueResult:
         ...
 
@@ -502,7 +504,7 @@ class _SwitchStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, SwitchStateGetValue)
         procedure.prepare(
             services=services,
-            state=cast('SwitchState', binding.resource('state')),
+            state=cast('SwitchStateState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -510,7 +512,7 @@ class _SwitchStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, SwitchStateGetValue)
         result = procedure.run(
             services=services,
-            state=cast('SwitchState', binding.resource('state')),
+            state=cast('SwitchStateState', binding.resource('state')),
         )
         binding.check_result(result, SwitchStateGetValueResult)
         return {

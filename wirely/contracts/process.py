@@ -19,14 +19,14 @@ from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
-    from wirely.native.process import LaunchOnEvent
+    from wirely.native.process import LaunchOnEventState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class LaunchOnEventInitializerResult:
     """Resource outputs of native state type Process.LaunchOnEvent."""
 
-    state: LaunchOnEvent
+    state: LaunchOnEventState
 
 
 class LaunchOnEventInitializer(NativeState[Literal['state']], abc.ABC):
@@ -72,7 +72,7 @@ class LaunchOnEventRun(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: LaunchOnEvent,
+        state: LaunchOnEventState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -81,7 +81,7 @@ class LaunchOnEventRun(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: LaunchOnEvent,
+        state: LaunchOnEventState,
         input: Some[DynamicValue] | None,
     ) -> LaunchOnEventRunResult:
         ...
@@ -93,7 +93,7 @@ class _LaunchOnEventRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, LaunchOnEventRun)
         procedure.prepare(
             services=services,
-            state=cast('LaunchOnEvent', binding.resource('state')),
+            state=cast('LaunchOnEventState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -102,7 +102,7 @@ class _LaunchOnEventRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, LaunchOnEventRun)
         result = procedure.run(
             services=services,
-            state=cast('LaunchOnEvent', binding.resource('state')),
+            state=cast('LaunchOnEventState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
         )
         binding.check_result(result, LaunchOnEventRunResult)

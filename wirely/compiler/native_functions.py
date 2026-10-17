@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
-import inspect
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
@@ -16,19 +14,6 @@ if TYPE_CHECKING:
 
 F = TypeVar('F', bound=Callable[..., object])
 
-# Maps namespaces to modules of wirely.compiler.function_implementations,
-# each with a native_functions registry of constant functions.
-function_pkgs = {
-    'CSV': 'csv',
-    'KNX': 'knx',
-    'MQTT': 'mqtt',
-    'Path': 'path',
-    'Schedule': 'schedule',
-    'Std': 'std',
-    'Test': 'test',
-    'TestLibrary': 'test_library',
-    'TwoN': 'two_n',
-}
 
 
 class FunctionServices:
@@ -93,31 +78,23 @@ class ConstantFunctionContract(Generic[F]):
         """Call an implementation with native arguments and return its native result."""
         return self._call(implementation, arguments, services)
 
+    def implementation(self, implementation: F) -> ConstantFunctionImplementation:
+        """Bind a statically checked implementation to this contract."""
+        return ConstantFunctionImplementation(implementation, self)
+
     def __repr__(self) -> str:
         return f'ConstantFunctionContract({self.name!r})'
 
 
 @dataclass(frozen=True, slots=True)
-class RegisteredConstantFunction:
+class ConstantFunctionImplementation:
     implementation: Callable[..., object]
     contract: ConstantFunctionContract[Any]
 
 
-def constant_function(registry: dict[str, RegisteredConstantFunction],
-                      contract: ConstantFunctionContract[F]) -> Callable[[F], F]:
-    """Register an implementation of a constant function contract in a module registry."""
-    name = contract.name.rpartition('.')[2]
-
-    def register(implementation: F) -> F:
-        if name in registry:
-            raise ValueError(f'Duplicate native function name {name!r}')
-        registry[name] = RegisteredConstantFunction(implementation, contract)
-        return implementation
-    return register
-
-
 def validate_entry(name: str, declaration: model.DeclarationNativeFunction) -> None:
-    if name.rpartition('.')[0] not in function_pkgs:
+    # Loading is deferred until evaluation; generation must work before bindings exist.
+    if not name.rpartition('.')[0]:
         raise model.ProgramError(declaration, f'Missing implementation for function {name!r}')
 
 
@@ -180,44 +157,33 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
     visit(declarations, ())
 
 
-def get_constant_function(native_name: str) -> RegisteredConstantFunction:
-    """Return the registered implementation of a constant function, importing its module."""
-    namespace, _, name = native_name.rpartition('.')
-    module = importlib.import_module(f'wirely.compiler.function_implementations.{function_pkgs[namespace]}')
-    registered: RegisteredConstantFunction | None = module.native_functions.get(name)
-    if registered is None:
+def get_constant_function(native_name: str) -> ConstantFunctionImplementation:
+    """Load the generated binding of a constant function."""
+    from .native_bindings import functions
+    loader = functions.get(native_name)
+    if loader is None:
         raise ValueError(f'Cannot find native function {native_name!r}')
-    if registered.contract.name != native_name:
-        raise ValueError(f'Native function {native_name!r} is registered with the contract of '
-                         f'{registered.contract.name!r}')
-    return registered
+    return loader()
 
 
 def resolve_implementation(function: model.DeclarationNativeFunction,
-                           call: model.ast.SourceElement) -> RegisteredConstantFunction:
+                           call: model.ast.SourceElement) -> ConstantFunctionImplementation:
     # Declaration objects belong to one compilation, so this cache cannot leak.
     if hasattr(function, '_resolved_implementation'):
         return function._resolved_implementation
     try:
-        registered = get_constant_function(function.native_name)
-        implementation = registered.implementation
-        target = implementation if inspect.isroutine(implementation) else getattr(implementation, '__call__')
-        if any(check(candidate) for candidate in (implementation, target)
-               for check in (inspect.iscoroutinefunction, inspect.isgeneratorfunction,
-                             inspect.isasyncgenfunction)):
-            raise ValueError('implementation must be synchronous and return one value')
-        inspect.signature(implementation).bind(*(None,) * len(function.arguments), services=None)
+        binding = get_constant_function(function.native_name)
     except (ImportError, TypeError, ValueError) as error:
         raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
-    function._resolved_implementation = registered
-    return registered
+    function._resolved_implementation = binding
+    return binding
 
 
 def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], sources: Sequence[object],
            call: model.ast.SourceElement) -> object:
     from wirely.runtime.native_values import from_native, to_native
 
-    registered = resolve_implementation(function, call)
+    binding = resolve_implementation(function, call)
     name = function.function_name
     try:
         arguments = [to_native(None, value_type, value)  # type: ignore[arg-type]  # Values are internal.
@@ -229,7 +195,7 @@ def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], 
     services = FunctionServices(function_name=function.native_name, services=function.scope.services, call=call,
                                 arguments=sources, warnings=warnings)
     try:
-        result = registered.contract.call(registered.implementation, arguments, services)
+        result = binding.contract.call(binding.implementation, arguments, services)
     except model.ProgramError:
         raise
     except (ValueError, ArithmeticError, OSError) as error:

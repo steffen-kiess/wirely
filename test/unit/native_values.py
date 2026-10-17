@@ -3,13 +3,11 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import wirely
-import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler.function_implementations import test_library
-from wirely.native import native_node_type, native_procedure
+from wirely.compiler import native_bindings as test_library
 from wirely.runtime.engine import Engine
-from wirely.test import test_constant_function, test_contracts
+from wirely.test import test_native_bindings, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
 import wirely.runtime.enums
@@ -32,9 +30,8 @@ def identity(value, *, services):
 
 def value_classes(contracts):
     """Return the native classes of check_values() and their resource types."""
-    registry = {}
+    registry = {'initializers': {}, 'procedures': {}}
 
-    @native_node_type(registry, has_native_state=True)
     class ValuesProbe(contracts.ValuesProbeInitializer):
         def initialize(self, *, services, connection, number, seed, retained, missing, absent):
             assert missing is None
@@ -44,7 +41,6 @@ def value_classes(contracts):
             self.seed = seed
             return contracts.ValuesProbeInitializerResult(state=self)
 
-        @native_procedure('run')
         class Run(contracts.ValuesProbeRun):
             def prepare(self, *, services, state, connection, seed, missing, alias, absent, default, type, mode,
                         number, call, block, items, pair, unit, option, at, span, instant, descriptors):
@@ -70,22 +66,24 @@ def value_classes(contracts):
             def run(self, *, services, state, connection):
                 return contracts.ValuesProbeRunResult(number=self.seed)
 
-        @native_procedure('empty')
         class Empty(contracts.ValuesProbeEmpty):
             def run(self, *, services):
                 return contracts.ValuesProbeEmptyResult()
 
-        @native_procedure('omitted')
         class Omitted(contracts.ValuesProbeOmitted):
             def run(self, *, services):
                 return contracts.ValuesProbeOmittedResult()
+    registry['initializers']['TestLibrary.ValuesProbe'] = ValuesProbe
+    registry['procedures']['TestLibrary.ValuesProbe:run'] = ValuesProbe.Run
+    registry['procedures']['TestLibrary.ValuesProbe:empty'] = ValuesProbe.Empty
+    registry['procedures']['TestLibrary.ValuesProbe:omitted'] = ValuesProbe.Omitted
 
-    @native_node_type(registry, has_native_state=True)
     class Provider(contracts.ProviderInitializer):
         def initialize(self, *, services):
             return contracts.ProviderInitializerResult(service=self)
+    registry['initializers']['TestLibrary.Provider'] = Provider
 
-    return registry, {'Service': Provider, 'ValuesState': ValuesProbe}
+    return registry, {'TestLibrary.Service': Provider, 'TestLibrary.ValuesState': ValuesProbe}
 
 
 def check_values():
@@ -146,8 +144,8 @@ connect provider -> second.Connection;
 
     enums = {'TestLibrary.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     structs = {'TestLibrary.Pair': NativeStruct(Pair, (Builtin('boolean'),))}
-    with patch.dict(test_library.native_functions,
-                    {'Identity': test_constant_function('TestLibrary.Identity', identity)}), \
+    with patch.dict(test_library.functions,
+                    {'TestLibrary.Identity': test_constant_function('TestLibrary.Identity', identity)}), \
             patch.dict(wirely.runtime.enums.native_enum_types, enums), \
             patch.dict(wirely.runtime.structs.native_struct_types, structs):
         graph = compile_strs([('<values>', source)])
@@ -155,8 +153,8 @@ connect provider -> second.Connection;
         program = program_compiler.compile_nocatch(graph)
         with test_contracts(graph) as contracts:
             registry, resource_types = value_classes(contracts)
-            with patch.dict(wirely.native.test_library.native_node_types, registry), \
-                    patch.dict(wirely.native.test_library.native_resource_types, resource_types):
+            with test_native_bindings(**registry), \
+                    test_native_bindings(resources=resource_types):
                 runtime = Engine(program)
         runtime.step()
         runtime.assert_value_is('first.Result', 7)
@@ -191,16 +189,16 @@ def check_optional_values():
         assert graph is not None
         program = program_compiler.compile_nocatch(graph)
         with test_contracts(graph) as contracts:
-            registry = {}
+            registry = {'initializers': {}, 'procedures': {}}
 
             # The empty key becomes the keyword argument _.
-            @native_node_type(registry, has_native_state=True)
             class OptionalProbe(contracts.OptionalProbeInitializer):
                 def initialize(self, *, services, maybe, _, type, default):
                     self.values = {'Maybe': maybe, '': _, 'Type': type, 'Default': default}
                     return contracts.OptionalProbeInitializerResult()
+            registry['initializers']['TestLibrary.OptionalProbe'] = OptionalProbe
 
-            with patch.dict(wirely.native.test_library.native_node_types, registry):
+            with test_native_bindings(**registry):
                 runtime = Engine(program)
         values = runtime.get_native_state('forward.child').values
         assert values['Maybe'] == expected
@@ -212,8 +210,8 @@ def check_optional_values():
 def check_type_member_collision():
     # A namespace function named like a type member is ambiguous at the call.
     diagnostics = []
-    with patch.dict(test_library.native_functions,
-                    {'WrappingAdd': test_constant_function('TestLibrary.WrappingAdd', identity)}):
+    with patch.dict(test_library.functions,
+                    {'TestLibrary.WrappingAdd': test_constant_function('TestLibrary.WrappingAdd', identity)}):
         graph = compile_strs([('<collision>', '''namespace int16 {
       native constant function WrappingAdd as "TestLibrary.WrappingAdd"(a: int16, b: int16): int16;
     }

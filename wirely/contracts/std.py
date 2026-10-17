@@ -20,14 +20,14 @@ from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
-    from wirely.native.std import DebugEventSource, DebugValueSource
+    from wirely.native.std import DebugEventSourceState, DebugValueSourceState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class DebugEventSourceInitializerResult:
     """Resource outputs of native state type Std.DebugEventSource."""
 
-    state: DebugEventSource
+    state: DebugEventSourceState
 
 
 class DebugEventSourceInitializer(NativeState[Literal['state']], abc.ABC):
@@ -65,7 +65,7 @@ DebugEventSourceInitializer._adapter = _DebugEventSourceInitializerAdapter()
 class DebugValueSourceInitializerResult:
     """Resource outputs of native state type Std.DebugValueSource."""
 
-    state: DebugValueSource
+    state: DebugValueSourceState
 
 
 class DebugValueSourceInitializer(NativeState[Literal['state']], abc.ABC):
@@ -161,7 +161,7 @@ class DebugEventSourceRun(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: DebugEventSource,
+        state: DebugEventSourceState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -170,7 +170,7 @@ class DebugEventSourceRun(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: DebugEventSource,
+        state: DebugEventSourceState,
     ) -> DebugEventSourceRunResult:
         ...
 
@@ -181,7 +181,7 @@ class _DebugEventSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugEventSourceRun)
         procedure.prepare(
             services=services,
-            state=cast('DebugEventSource', binding.resource('state')),
+            state=cast('DebugEventSourceState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -190,7 +190,7 @@ class _DebugEventSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugEventSourceRun)
         result = procedure.run(
             services=services,
-            state=cast('DebugEventSource', binding.resource('state')),
+            state=cast('DebugEventSourceState', binding.resource('state')),
         )
         binding.check_result(result, DebugEventSourceRunResult)
         return {
@@ -263,7 +263,7 @@ class DebugValueSourceRun(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: DebugValueSource,
+        state: DebugValueSourceState,
         type: ValueType[Any],
     ) -> None:
         ...
@@ -272,7 +272,7 @@ class DebugValueSourceRun(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: DebugValueSource,
+        state: DebugValueSourceState,
     ) -> DebugValueSourceRunResult:
         ...
 
@@ -283,7 +283,7 @@ class _DebugValueSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugValueSourceRun)
         procedure.prepare(
             services=services,
-            state=cast('DebugValueSource', binding.resource('state')),
+            state=cast('DebugValueSourceState', binding.resource('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -292,7 +292,7 @@ class _DebugValueSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugValueSourceRun)
         result = procedure.run(
             services=services,
-            state=cast('DebugValueSource', binding.resource('state')),
+            state=cast('DebugValueSourceState', binding.resource('state')),
         )
         binding.check_result(result, DebugValueSourceRunResult)
         return {

@@ -2,20 +2,15 @@
 
 import os
 
-from wirely.compiler.contracts import two_n as contracts
 from wirely.runtime.structs import TwoNCredentials
 
-from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
-
-native_functions: dict[str, RegisteredConstantFunction] = {}
+from ..native_functions import FunctionServices
 
 
-@constant_function(native_functions, contracts.IsValidCode)
 def is_valid_code(code: str, *, services: FunctionServices) -> bool:
     return len(code) <= 15 and all('0' <= digit <= '9' for digit in code)
 
 
-@constant_function(native_functions, contracts.ReadCredentials)
 def read_credentials(filename: str, *, services: FunctionServices) -> TwoNCredentials:
     if not os.path.isabs(filename):
         raise services.error(

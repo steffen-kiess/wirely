@@ -17,7 +17,6 @@ native_state_types = {
         uses={
             'Filename': Builtin('String'),
         },
-        contract='wirely.contracts.csv:ValueWriterInitializer',
     ),
     'GPIO.Output': Initializer(
         depends={},
@@ -31,7 +30,6 @@ native_state_types = {
             'Drive': Enum('GPIO.Drive'),
             'Bias': Enum('GPIO.Bias'),
         },
-        contract='wirely.contracts.gpio:OutputInitializer',
     ),
     'KNX.Connection': Initializer(
         depends={},
@@ -46,7 +44,6 @@ native_state_types = {
             'SSHTarget': Option(Builtin('String')),
             'IndividualAddress': Option(Builtin('String')),
         },
-        contract='wirely.contracts.knx:ConnectionInitializer',
     ),
     'KNX.EventReceiver': Initializer(
         depends={
@@ -60,7 +57,6 @@ native_state_types = {
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
-        contract='wirely.contracts.knx:EventReceiverInitializer',
     ),
     'KNX.EventSender': Initializer(
         depends={
@@ -74,7 +70,6 @@ native_state_types = {
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
-        contract='wirely.contracts.knx:EventSenderInitializer',
     ),
     'KNX.ValueOptionProvider': Initializer(
         depends={
@@ -88,7 +83,6 @@ native_state_types = {
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
-        contract='wirely.contracts.knx:ValueOptionProviderInitializer',
     ),
     'KNX.ValueReceiver': Initializer(
         depends={
@@ -102,7 +96,6 @@ native_state_types = {
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
-        contract='wirely.contracts.knx:ValueReceiverInitializer',
     ),
     'MQTT.Connection': Initializer(
         depends={},
@@ -112,7 +105,6 @@ native_state_types = {
         uses={
             'URI': Builtin('String'),
         },
-        contract='wirely.contracts.mqtt:ConnectionInitializer',
     ),
     'MQTT.EventReceiver': Initializer(
         depends={
@@ -126,7 +118,6 @@ native_state_types = {
             'Topic': Builtin('String'),
             'Format': Option(Enum('MQTT.Format')),
         },
-        contract='wirely.contracts.mqtt:EventReceiverInitializer',
     ),
     'MQTT.EventSender': Initializer(
         depends={
@@ -141,7 +132,6 @@ native_state_types = {
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
         },
-        contract='wirely.contracts.mqtt:EventSenderInitializer',
     ),
     'MQTT.ValueOptionProvider': Initializer(
         depends={
@@ -156,7 +146,6 @@ native_state_types = {
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
         },
-        contract='wirely.contracts.mqtt:ValueOptionProviderInitializer',
     ),
     'Process.LaunchOnEvent': Initializer(
         depends={},
@@ -166,7 +155,6 @@ native_state_types = {
         uses={
             'ShellCommand': Builtin('String'),
         },
-        contract='wirely.contracts.process:LaunchOnEventInitializer',
     ),
     'Schedule.TimeOfDayMinute': Initializer(
         depends={},
@@ -174,7 +162,6 @@ native_state_types = {
             'state': Port('resource', ResourceType('Schedule.TimeOfDayMinuteState')),
         },
         uses={},
-        contract='wirely.contracts.schedule:TimeOfDayMinuteInitializer',
     ),
     'Std.DebugEventSource': Initializer(
         depends={},
@@ -184,7 +171,6 @@ native_state_types = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugEventSourceInitializer',
     ),
     'Std.DebugValueSource': Initializer(
         depends={},
@@ -194,7 +180,6 @@ native_state_types = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugValueSourceInitializer',
     ),
     'TwoN.CodeEnteredEvent': Initializer(
         depends={
@@ -206,7 +191,6 @@ native_state_types = {
         uses={
             'Code': Builtin('String'),
         },
-        contract='wirely.contracts.two_n:CodeEnteredEventInitializer',
     ),
     'TwoN.Connection': Initializer(
         depends={},
@@ -219,7 +203,6 @@ native_state_types = {
             'TLSA': List(Builtin('String')),
             'credentials': Struct('TwoN.Credentials'),
         },
-        contract='wirely.contracts.two_n:ConnectionInitializer',
     ),
     'TwoN.IOState': Initializer(
         depends={
@@ -231,7 +214,6 @@ native_state_types = {
         uses={
             'Port': Builtin('String'),
         },
-        contract='wirely.contracts.two_n:IOStateInitializer',
     ),
     'TwoN.KeyEvent': Initializer(
         depends={
@@ -243,7 +225,6 @@ native_state_types = {
         uses={
             'Key': Builtin('String'),
         },
-        contract='wirely.contracts.two_n:KeyEventInitializer',
     ),
     'TwoN.OutputControl': Initializer(
         depends={
@@ -255,7 +236,6 @@ native_state_types = {
         uses={
             'Port': Builtin('String'),
         },
-        contract='wirely.contracts.two_n:OutputControlInitializer',
     ),
     'TwoN.SwitchState': Initializer(
         depends={
@@ -267,7 +247,6 @@ native_state_types = {
         uses={
             'SwitchNumber': Int(32, True),
         },
-        contract='wirely.contracts.two_n:SwitchStateInitializer',
     ),
 }
 
@@ -287,7 +266,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.csv:ValueWriterRun',
     ),
     'GPIO.Output:set_value': Procedure(
         stage='output',
@@ -297,7 +275,6 @@ native_procedures = {
         },
         produces={},
         uses={},
-        contract='wirely.contracts.gpio:OutputSetValue',
     ),
     'KNX.EventReceiver:get_value': Procedure(
         stage='input',
@@ -310,7 +287,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.knx:EventReceiverGetValue',
     ),
     'KNX.EventSender:send_value': Procedure(
         stage='output',
@@ -322,7 +298,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.knx:EventSenderSendValue',
     ),
     'KNX.ValueOptionProvider:set_value': Procedure(
         stage='output',
@@ -334,7 +309,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.knx:ValueOptionProviderSetValue',
     ),
     'KNX.ValueReceiver:get_value': Procedure(
         stage='input',
@@ -347,7 +321,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.knx:ValueReceiverGetValue',
     ),
     'MQTT.EventReceiver:get_value': Procedure(
         stage='input',
@@ -360,7 +333,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.mqtt:EventReceiverGetValue',
     ),
     'MQTT.EventSender:send_value': Procedure(
         stage='output',
@@ -372,7 +344,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.mqtt:EventSenderSendValue',
     ),
     'MQTT.ValueOptionProvider:set_value': Procedure(
         stage='output',
@@ -384,7 +355,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.mqtt:ValueOptionProviderSetValue',
     ),
     'Process.LaunchOnEvent:run': Procedure(
         stage='output',
@@ -396,7 +366,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.process:LaunchOnEventRun',
     ),
     'Schedule.TimeOfDayMinute:get_value': Procedure(
         stage='default',
@@ -407,7 +376,6 @@ native_procedures = {
             'output': Port('value', Builtin('TimeOfDay')),
         },
         uses={},
-        contract='wirely.contracts.schedule:TimeOfDayMinuteGetValue',
     ),
     'Std.DebugEventPrinter:run': Procedure(
         stage='output',
@@ -418,7 +386,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugEventPrinterRun',
     ),
     'Std.DebugEventSource:run': Procedure(
         stage='input',
@@ -431,7 +398,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugEventSourceRun',
     ),
     'Std.DebugValuePrinter:run': Procedure(
         stage='output',
@@ -442,7 +408,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugValuePrinterRun',
     ),
     'Std.DebugValueSource:run': Procedure(
         stage='input',
@@ -455,7 +420,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.std:DebugValueSourceRun',
     ),
     'Std.WarnOnEvent:run': Procedure(
         stage='output',
@@ -467,14 +431,12 @@ native_procedures = {
             'Type': Builtin('ValueType'),
             'format_parts': Struct('Std.FormatParts'),
         },
-        contract='wirely.contracts.std:WarnOnEventRun',
     ),
     'TestLibrary.TestNode:test_procedure': Procedure(
         stage='default',
         depends={},
         produces={},
         uses={},
-        contract='wirely.contracts.test_library:TestNodeTestProcedure',
     ),
     'Timer.MonotonicTimeReached:run': Procedure(
         stage='default',
@@ -485,7 +447,6 @@ native_procedures = {
             'output': Port('value', Option(Builtin('boolean'))),
         },
         uses={},
-        contract='wirely.contracts.timer:MonotonicTimeReachedRun',
     ),
     'Timer.MonotonicTimestamp:run': Procedure(
         stage='default',
@@ -498,7 +459,6 @@ native_procedures = {
         uses={
             'Type': Builtin('ValueType'),
         },
-        contract='wirely.contracts.timer:MonotonicTimestampRun',
     ),
     'TwoN.CodeEnteredEvent:get_value': Procedure(
         stage='input',
@@ -509,7 +469,6 @@ native_procedures = {
             'output': Port('event', Builtin('unit')),
         },
         uses={},
-        contract='wirely.contracts.two_n:CodeEnteredEventGetValue',
     ),
     'TwoN.IOState:get_value': Procedure(
         stage='input',
@@ -520,7 +479,6 @@ native_procedures = {
             'output': Port('value', Builtin('boolean')),
         },
         uses={},
-        contract='wirely.contracts.two_n:IOStateGetValue',
     ),
     'TwoN.KeyEvent:get_value': Procedure(
         stage='input',
@@ -531,7 +489,6 @@ native_procedures = {
             'output': Port('event', Builtin('boolean')),
         },
         uses={},
-        contract='wirely.contracts.two_n:KeyEventGetValue',
     ),
     'TwoN.OutputControl:send_value': Procedure(
         stage='output',
@@ -541,7 +498,6 @@ native_procedures = {
         },
         produces={},
         uses={},
-        contract='wirely.contracts.two_n:OutputControlSendValue',
     ),
     'TwoN.SwitchState:get_value': Procedure(
         stage='input',
@@ -552,39 +508,38 @@ native_procedures = {
             'output': Port('value', Builtin('boolean')),
         },
         uses={},
-        contract='wirely.contracts.two_n:SwitchStateGetValue',
     ),
 }
 
 # Runtime native functions by native name.
 native_functions = {
-    'Duration.AsMicros': Function((Builtin('Duration'),), Int(128, False), contract='wirely.contracts.duration:AsMicros'),
-    'Duration.AsMillis': Function((Builtin('Duration'),), Int(128, False), contract='wirely.contracts.duration:AsMillis'),
-    'Duration.AsNanos': Function((Builtin('Duration'),), Int(128, False), contract='wirely.contracts.duration:AsNanos'),
-    'Duration.AsSecs': Function((Builtin('Duration'),), Int(64, False), contract='wirely.contracts.duration:AsSecs'),
-    'Duration.CheckedAdd': Function((Builtin('Duration'), Builtin('Duration')), Option(Builtin('Duration')), contract='wirely.contracts.duration:CheckedAdd'),
-    'Duration.CheckedDiv': Function((Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')), contract='wirely.contracts.duration:CheckedDiv'),
-    'Duration.CheckedMul': Function((Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')), contract='wirely.contracts.duration:CheckedMul'),
-    'Duration.CheckedSub': Function((Builtin('Duration'), Builtin('Duration')), Option(Builtin('Duration')), contract='wirely.contracts.duration:CheckedSub'),
-    'Duration.FromMicros': Function((Int(32, False),), Builtin('Duration'), contract='wirely.contracts.duration:FromMicros'),
-    'Duration.FromMillis': Function((Int(32, False),), Builtin('Duration'), contract='wirely.contracts.duration:FromMillis'),
-    'Duration.FromNanos': Function((Int(64, False),), Builtin('Duration'), contract='wirely.contracts.duration:FromNanos'),
-    'Duration.FromSecs': Function((Int(32, False),), Builtin('Duration'), contract='wirely.contracts.duration:FromSecs'),
-    'Duration.Less': Function((Builtin('Duration'), Builtin('Duration')), Builtin('boolean'), contract='wirely.contracts.duration:Less'),
-    'Duration.SaturatingAdd': Function((Builtin('Duration'), Builtin('Duration')), Builtin('Duration'), contract='wirely.contracts.duration:SaturatingAdd'),
-    'Duration.SaturatingMul': Function((Builtin('Duration'), Int(32, False)), Builtin('Duration'), contract='wirely.contracts.duration:SaturatingMul'),
-    'Duration.SaturatingSub': Function((Builtin('Duration'), Builtin('Duration')), Builtin('Duration'), contract='wirely.contracts.duration:SaturatingSub'),
-    'MonotonicTime.CheckedAdd': Function((Builtin('MonotonicTime'), Builtin('Duration')), Option(Builtin('MonotonicTime')), contract='wirely.contracts.monotonic_time:CheckedAdd'),
-    'MonotonicTime.CheckedDurationSince': Function((Builtin('MonotonicTime'), Builtin('MonotonicTime')), Option(Builtin('Duration')), contract='wirely.contracts.monotonic_time:CheckedDurationSince'),
-    'MonotonicTime.CheckedLess': Function((Builtin('MonotonicTime'), Builtin('MonotonicTime')), Option(Builtin('boolean')), contract='wirely.contracts.monotonic_time:CheckedLess'),
-    'MonotonicTime.CheckedSub': Function((Builtin('MonotonicTime'), Builtin('Duration')), Option(Builtin('MonotonicTime')), contract='wirely.contracts.monotonic_time:CheckedSub'),
-    'MonotonicTime.SaturatingAdd': Function((Builtin('MonotonicTime'), Builtin('Duration')), Builtin('MonotonicTime'), contract='wirely.contracts.monotonic_time:SaturatingAdd'),
-    'MonotonicTime.SaturatingSub': Function((Builtin('MonotonicTime'), Builtin('Duration')), Builtin('MonotonicTime'), contract='wirely.contracts.monotonic_time:SaturatingSub'),
-    'TestLibrary.Clamp': Function((Int(16, True), Int(16, True), Int(16, True)), Int(16, True), contract='wirely.contracts.test_library:Clamp'),
-    'TestLibrary.Fail': Function((), Builtin('boolean'), contract='wirely.contracts.test_library:Fail'),
-    'TestLibrary.Nothing': Function((), Builtin('unit'), contract='wirely.contracts.test_library:Nothing'),
-    'TimeOfDay.DurationUntil': Function((Builtin('TimeOfDay'), Builtin('TimeOfDay')), Builtin('Duration'), contract='wirely.contracts.time_of_day:DurationUntil'),
-    'TimeOfDay.Less': Function((Builtin('TimeOfDay'), Builtin('TimeOfDay')), Builtin('boolean'), contract='wirely.contracts.time_of_day:Less'),
-    'TimeOfDay.WrappingAdd': Function((Builtin('TimeOfDay'), Builtin('Duration')), Builtin('TimeOfDay'), contract='wirely.contracts.time_of_day:WrappingAdd'),
-    'TimeOfDay.WrappingSub': Function((Builtin('TimeOfDay'), Builtin('Duration')), Builtin('TimeOfDay'), contract='wirely.contracts.time_of_day:WrappingSub'),
+    'Duration.AsMicros': Function((Builtin('Duration'),), Int(128, False)),
+    'Duration.AsMillis': Function((Builtin('Duration'),), Int(128, False)),
+    'Duration.AsNanos': Function((Builtin('Duration'),), Int(128, False)),
+    'Duration.AsSecs': Function((Builtin('Duration'),), Int(64, False)),
+    'Duration.CheckedAdd': Function((Builtin('Duration'), Builtin('Duration')), Option(Builtin('Duration'))),
+    'Duration.CheckedDiv': Function((Builtin('Duration'), Int(32, False)), Option(Builtin('Duration'))),
+    'Duration.CheckedMul': Function((Builtin('Duration'), Int(32, False)), Option(Builtin('Duration'))),
+    'Duration.CheckedSub': Function((Builtin('Duration'), Builtin('Duration')), Option(Builtin('Duration'))),
+    'Duration.FromMicros': Function((Int(32, False),), Builtin('Duration')),
+    'Duration.FromMillis': Function((Int(32, False),), Builtin('Duration')),
+    'Duration.FromNanos': Function((Int(64, False),), Builtin('Duration')),
+    'Duration.FromSecs': Function((Int(32, False),), Builtin('Duration')),
+    'Duration.Less': Function((Builtin('Duration'), Builtin('Duration')), Builtin('boolean')),
+    'Duration.SaturatingAdd': Function((Builtin('Duration'), Builtin('Duration')), Builtin('Duration')),
+    'Duration.SaturatingMul': Function((Builtin('Duration'), Int(32, False)), Builtin('Duration')),
+    'Duration.SaturatingSub': Function((Builtin('Duration'), Builtin('Duration')), Builtin('Duration')),
+    'MonotonicTime.CheckedAdd': Function((Builtin('MonotonicTime'), Builtin('Duration')), Option(Builtin('MonotonicTime'))),
+    'MonotonicTime.CheckedDurationSince': Function((Builtin('MonotonicTime'), Builtin('MonotonicTime')), Option(Builtin('Duration'))),
+    'MonotonicTime.CheckedLess': Function((Builtin('MonotonicTime'), Builtin('MonotonicTime')), Option(Builtin('boolean'))),
+    'MonotonicTime.CheckedSub': Function((Builtin('MonotonicTime'), Builtin('Duration')), Option(Builtin('MonotonicTime'))),
+    'MonotonicTime.SaturatingAdd': Function((Builtin('MonotonicTime'), Builtin('Duration')), Builtin('MonotonicTime')),
+    'MonotonicTime.SaturatingSub': Function((Builtin('MonotonicTime'), Builtin('Duration')), Builtin('MonotonicTime')),
+    'TestLibrary.Clamp': Function((Int(16, True), Int(16, True), Int(16, True)), Int(16, True)),
+    'TestLibrary.Fail': Function((), Builtin('boolean')),
+    'TestLibrary.Nothing': Function((), Builtin('unit')),
+    'TimeOfDay.DurationUntil': Function((Builtin('TimeOfDay'), Builtin('TimeOfDay')), Builtin('Duration')),
+    'TimeOfDay.Less': Function((Builtin('TimeOfDay'), Builtin('TimeOfDay')), Builtin('boolean')),
+    'TimeOfDay.WrappingAdd': Function((Builtin('TimeOfDay'), Builtin('Duration')), Builtin('TimeOfDay')),
+    'TimeOfDay.WrappingSub': Function((Builtin('TimeOfDay'), Builtin('Duration')), Builtin('TimeOfDay')),
 }

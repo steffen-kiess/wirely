@@ -18,14 +18,14 @@ from wirely.types import InternalValue
 from wirely.types.time import TimeOfDay
 
 if TYPE_CHECKING:
-    from wirely.native.schedule import TimeOfDayMinute
+    from wirely.native.schedule import TimeOfDayMinuteState
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TimeOfDayMinuteInitializerResult:
     """Resource outputs of native state type Schedule.TimeOfDayMinute."""
 
-    state: TimeOfDayMinute
+    state: TimeOfDayMinuteState
 
 
 class TimeOfDayMinuteInitializer(NativeState[Literal['state']], abc.ABC):
@@ -70,7 +70,7 @@ class TimeOfDayMinuteGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: TimeOfDayMinute,
+        state: TimeOfDayMinuteState,
     ) -> None:
         pass
 
@@ -78,7 +78,7 @@ class TimeOfDayMinuteGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: TimeOfDayMinute,
+        state: TimeOfDayMinuteState,
     ) -> TimeOfDayMinuteGetValueResult:
         ...
 
@@ -89,7 +89,7 @@ class _TimeOfDayMinuteGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, TimeOfDayMinuteGetValue)
         procedure.prepare(
             services=services,
-            state=cast('TimeOfDayMinute', binding.resource('state')),
+            state=cast('TimeOfDayMinuteState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -97,7 +97,7 @@ class _TimeOfDayMinuteGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, TimeOfDayMinuteGetValue)
         result = procedure.run(
             services=services,
-            state=cast('TimeOfDayMinute', binding.resource('state')),
+            state=cast('TimeOfDayMinuteState', binding.resource('state')),
         )
         binding.check_result(result, TimeOfDayMinuteGetValueResult)
         return {

@@ -4,7 +4,7 @@ from unittest.mock import patch
 import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler.function_implementations import test_library
+from wirely.compiler import native_bindings as test_library
 from wirely.test import test_constant_function
 
 
@@ -33,7 +33,7 @@ node third: Probe { Number: 2 }
 '''
     diagnostics = []
     # Which instance is first follows declaration order, so do not shuffle.
-    with patch.dict(test_library.native_functions, {'Warn': test_constant_function('TestLibrary.Warn', warn_value)}):
+    with patch.dict(test_library.functions, {'TestLibrary.Warn': test_constant_function('TestLibrary.Warn', warn_value)}):
         graph = compile_strs([('<warnings>', source)], on_diagnostic=diagnostics.append, shuffle_seed=None)
         assert graph is not None
         assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is not None
@@ -77,9 +77,9 @@ constant Empty: uint16 = TestLibrary.Empty();
                 return wirely.UInt16(4)
 
             diagnostics = []
-            functions = {'Inspect': test_constant_function('TestLibrary.Inspect', inspect),
-                         'Empty': test_constant_function('TestLibrary.Empty', empty)}
-            with patch.dict(test_library.native_functions, functions):
+            functions = {'TestLibrary.Inspect': test_constant_function('TestLibrary.Inspect', inspect),
+                         'TestLibrary.Empty': test_constant_function('TestLibrary.Empty', empty)}
+            with patch.dict(test_library.functions, functions):
                 graph = compile_strs([('<positional>', source)], on_diagnostic=diagnostics.append)
                 assert graph is not None
                 program = program_compiler.compile(graph, on_diagnostic=diagnostics.append)

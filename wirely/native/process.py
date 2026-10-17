@@ -4,15 +4,9 @@ from typing import Any, Literal
 
 from wirely import DynamicValue, Some, ValueType
 from wirely.contracts import process as contracts
-from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
-
-@native_resource_type(native_resource_types, 'LaunchOnEventState')
-@native_node_type(native_node_types, has_native_state=True)
 class LaunchOnEvent(contracts.LaunchOnEventInitializer):
     def initialize(self, *, services: StateServices[Literal['state']],
                    shell_command: str) -> contracts.LaunchOnEventInitializerResult:
@@ -30,7 +24,6 @@ class LaunchOnEvent(contracts.LaunchOnEventInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('run')
     class Run(contracts.LaunchOnEventRun):
         def prepare(self, *, services: PreparationServices, state: 'LaunchOnEvent', type: ValueType[Any]) -> None:
             pass
@@ -61,3 +54,6 @@ class LaunchOnEvent(contracts.LaunchOnEventInitializer):
             proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.shell_command)
             code = await proc.wait()
             print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)
+
+
+LaunchOnEventState = LaunchOnEvent  # Used as a resource type.

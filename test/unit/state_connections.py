@@ -5,10 +5,8 @@ from unittest.mock import patch
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
-import wirely.native.test_library
-from wirely.native import native_node_type, native_procedure
 from wirely.runtime.engine import Engine
-from wirely.test import test_contracts
+from wirely.test import test_contracts, test_native_bindings
 
 
 calls = Counter()
@@ -17,15 +15,13 @@ observations = {}
 
 def implementations(contracts):
     """Return the native classes of the TestLibrary node types that a program declares."""
-    registry = {}
+    registry = {'procedures': {}}
 
     def define(name, procedures):
-        procedures = {procedure: implementation for procedure, implementation in procedures.items()
-                      if hasattr(contracts, name + procedure.title())}
-        if procedures:
-            native_node_type(registry, has_native_state=False)(type(name, (), {
-                procedure.title(): native_procedure(procedure)(implementation(getattr(contracts, name + procedure.title())))
-                for procedure, implementation in procedures.items()}))
+        for procedure, implementation in procedures.items():
+            contract = getattr(contracts, name + procedure.title(), None)
+            if contract is not None:
+                registry['procedures'][f'TestLibrary.{name}:{procedure}'] = implementation(contract)
 
     def forward(contract):
         class Run(contract):
@@ -172,7 +168,7 @@ def make_engine(source, *, declarations=definitions):
     program = program_compiler.compile(graph)
     assert program is not None
     with test_contracts(graph) as contracts, \
-            patch.dict(wirely.native.test_library.native_node_types, implementations(contracts)):
+            test_native_bindings(**implementations(contracts)):
         return Engine(program)
 
 

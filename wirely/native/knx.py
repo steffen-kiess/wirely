@@ -6,12 +6,9 @@ import wirely
 from wirely import DynamicValue, Some, UInt16, ValueType
 from wirely.contracts import knx as contracts
 from wirely.knx.value_types import get_value_type
-from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.native import check_state_type
 from wirely.runtime.enums import KNXProtocol
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
-
-native_node_types: dict[str, type] = {}
-native_resource_types: dict[str, type] = {}
 
 
 def _protocol_name(option: Some[KNXProtocol] | None) -> str | None:
@@ -23,8 +20,6 @@ def _protocol_name(option: Some[KNXProtocol] | None) -> str | None:
     return name
 
 
-@native_resource_type(native_resource_types, 'Bus')
-@native_node_type(native_node_types, has_native_state=True)
 class Connection(contracts.ConnectionInitializer):
     def initialize(self, *, services: StateServices[Literal['bus']], host: Some[str] | None,
                    protocol: Some[KNXProtocol] | None, port: Some[UInt16] | None, unix_path: Some[str] | None,
@@ -58,8 +53,6 @@ class Connection(contracts.ConnectionInitializer):
         print('Connecting to KNX bus done', flush=True)
 
 
-@native_resource_type(native_resource_types, 'ValueReceiverState')
-@native_node_type(native_node_types, has_native_state=True)
 class ValueReceiver(contracts.ValueReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.ValueReceiverInitializerResult:
@@ -101,7 +94,6 @@ class ValueReceiver(contracts.ValueReceiverInitializer):
 
         self.services.trigger('state')
 
-    @native_procedure('get_value')
     class GetValue(contracts.ValueReceiverGetValue):
         def prepare(self, *, services: PreparationServices, state: 'ValueReceiver', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -121,8 +113,6 @@ class ValueReceiver(contracts.ValueReceiverInitializer):
             return contracts.ValueReceiverGetValueResult(output=res_opt)
 
 
-@native_resource_type(native_resource_types, 'ValueOptionProviderState')
-@native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16,
@@ -166,7 +156,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('set_value')
     class SetValue(contracts.ValueOptionProviderSetValue):
         def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
                     type: ValueType[Any]) -> None:
@@ -207,8 +196,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             print(f'Sending {value} to {self.address} done', flush=True)
 
 
-@native_resource_type(native_resource_types, 'EventReceiverState')
-@native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(contracts.EventReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventReceiverInitializerResult:
@@ -254,7 +241,6 @@ class EventReceiver(contracts.EventReceiverInitializer):
         self.received_values.append(value)
         self.services.trigger('state')
 
-    @native_procedure('get_value')
     class GetValue(contracts.EventReceiverGetValue):
         def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -275,8 +261,6 @@ class EventReceiver(contracts.EventReceiverInitializer):
             return contracts.EventReceiverGetValueResult(output=res_opt)
 
 
-@native_resource_type(native_resource_types, 'EventSenderState')
-@native_node_type(native_node_types, has_native_state=True)
 class EventSender(contracts.EventSenderInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventSenderInitializerResult:
@@ -314,7 +298,6 @@ class EventSender(contracts.EventSenderInitializer):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @native_procedure('send_value')
     class SendValue(contracts.EventSenderSendValue):
         def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
@@ -352,3 +335,10 @@ class EventSender(contracts.EventSenderInitializer):
             # TODO: Call self.sensor.sensor_value.set(value) directly instead?
             await self.sensor.set(value)
             print(f'Sending {value} to {self.address} done', flush=True)
+
+
+Bus = Connection  # Used as a resource type.
+ValueReceiverState = ValueReceiver  # Used as a resource type.
+ValueOptionProviderState = ValueOptionProvider  # Used as a resource type.
+EventReceiverState = EventReceiver  # Used as a resource type.
+EventSenderState = EventSender  # Used as a resource type.

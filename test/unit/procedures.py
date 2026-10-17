@@ -1,31 +1,26 @@
 import contextlib
-import importlib
 from collections.abc import Iterator
 from unittest.mock import patch
 
 import wirely
 import wirely.compiler
-import wirely.native.test_library
 from wirely.compiler import program as program_compiler
-from wirely.functions import RegisteredFunction, function_pkgs
-from wirely.native import native_procedure
+from wirely.functions import FunctionImplementation, get_native_function_by_name
 from wirely.runtime.engine import Engine
-from wirely.test import test_contracts, test_engine
+from wirely.test import test_native_bindings, test_contracts, test_engine
 
 
 @contextlib.contextmanager
 def counted_calls(function_name: str) -> Iterator[list]:
     """Record the arguments of each call of a runtime function in engines created meanwhile."""
-    namespace, _, name = function_name.rpartition('.')
-    registry = importlib.import_module('wirely.functions.' + function_pkgs[namespace]).native_functions
-    registered = registry[name]
+    binding = get_native_function_by_name(function_name)
     calls = []
 
     def counted(*arguments):
         calls.append(arguments)
-        return registered.implementation(*arguments)
+        return binding.implementation(*arguments)
 
-    with patch.dict(registry, {name: RegisteredFunction(counted, registered.contract)}):
+    with test_native_bindings(functions={function_name: FunctionImplementation(counted, binding.contract)}):
         yield calls
 
 
@@ -302,7 +297,6 @@ def check_mixed_procedures():
     '''
     mixed_program = compile_program(mixed_source)
     with test_contracts(mixed_program.graph) as contracts:
-        @native_procedure('test_procedure')
         class Produce(contracts.TestNodeTestProcedure):
             def prepare(self, *, services, value, type):
                 self.value = value
@@ -310,7 +304,7 @@ def check_mixed_procedures():
             def run(self, *, services):
                 return contracts.TestNodeTestProcedureResult(temp=self.value)
 
-        with patch.object(wirely.native.test_library.TestNode, 'TestProcedure', Produce):
+        with test_native_bindings(procedures={'TestLibrary.TestNode:test_procedure': Produce}):
             mixed_engine = Engine(mixed_program)
     mixed_engine.step()
     mixed_engine.assert_value_is('mixed', True)
