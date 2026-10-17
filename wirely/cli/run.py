@@ -122,7 +122,7 @@ def main():
     eng = Engine(prog)
 
     for node_id, instance in prog.instances.items():
-        if instance.type_name == ('Std', 'DebugValueSource'):
+        if instance.type_name == 'Std.DebugValueSource':
             ty = instance.parameters['Type']._type
             native_inst = eng.native_states[node_id]
             assert native_inst is not None
