@@ -1,8 +1,15 @@
 """Compiler-only configuration predicates."""
 
-from ..native_functions import NativeFunctionContext
+from typing import Any
+
+from wirely import ValueType
+from wirely.compiler.contracts import csv as contracts
+
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
-def supports_type(*, context: NativeFunctionContext) -> bool:
-    value_type, = context.arguments
+@constant_function(native_functions, contracts.SupportsType)
+def supports_type(value_type: ValueType[Any], *, services: FunctionServices) -> bool:
     return value_type.supports_csv

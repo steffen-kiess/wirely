@@ -158,7 +158,7 @@ class NativeInstance:
 
     name: str  # Instance name exposed to native code.
     type_name: str | None  # Native node type name; None without native state.
-    parameters: Mapping[str, object]  # Resolved parameters in native Python form.
+    parameters: Mapping[str, object]  # Resolved parameters as ValueTypes or DynamicValues.
     initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
     initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
 

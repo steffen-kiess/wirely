@@ -1,4 +1,3 @@
-import dataclasses
 import enum
 import typing
 from unittest import TestCase
@@ -82,52 +81,43 @@ def check_parsing_and_conversions():
 
 
 def check_enum_values():
-    # Compile-time functions get EnumValues: a member number and its EnumType.
-    descriptor = wirely.ValueType(wirely.types.TypeEnum(
-        'Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8,
-    ))
-    mode = descriptor.enum_type
-    assert mode is descriptor.enum_type
-    assert (mode.name, mode.underlying_type, dict(mode.members), mode.python_type) == (
-        'Mode', wirely.value_types.uint8, {'Cool': 3, 'Heat': 4}, None)
-    assert dict(mode.names) == {3: 'Cool', 4: 'Heat'}
-    cool = mode.from_name('Cool')
-    assert (cool.value, cool.name, cool.type) == (3, 'Cool', mode)
-    assert cool == mode.from_value(3) and hash(cool) == hash(mode.from_value(3))
-    assert cool != mode.from_value(4) and cool != 3
-    with checks.assertRaises(dataclasses.FrozenInstanceError):
-        cool.value = 4
-    for invalid in (lambda: mode.from_name('Off'), lambda: mode.from_value(256),
-                    lambda: mode.from_value(True), lambda: cool.native):
-        with checks.assertRaises(ValueError):
-            invalid()
-
-    # Values of another enum type with the same numbers are different.
+    # Enum values are member numbers; values of another enum type with the same numbers differ.
+    mode_type = wirely.types.TypeEnum('Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8)
+    descriptor = wirely.ValueType(mode_type)
+    cool = descriptor.parse('Cool')
+    assert cool == descriptor.json_decode('Cool') and hash(cool) == hash(descriptor.json_decode('Cool'))
+    assert cool != descriptor.parse('Heat')
     other = wirely.ValueType(wirely.types.TypeEnum(
         'Mode', {'Cool': 3, 'Heat': 4}, is_open=True, underlying_type=wirely.types.uint8,
     ))
-    assert cool != other.enum_type.from_value(3)
-    with checks.assertRaisesRegex(ValueError, 'is not an enum type'):
-        wirely.value_types.uint8.enum_type
+    assert cool != other.parse('Cool')
+    assert (mode_type.member_name(3), dict(mode_type.members)) == ('Cool', {'Cool': 3, 'Heat': 4})
+    for invalid in (lambda: descriptor.parse('Off'), lambda: mode_type.verify_value(256),
+                    lambda: mode_type.verify_value(True), lambda: cool.to_native()):
+        with checks.assertRaises(ValueError):
+            invalid()
 
-    # The Python enum registered under a native enum's native name supplies .native.
+    # The Python enum registered under a native enum's native name is the native representation.
     class Mode(wirely.value_types.OpenIntEnum, minimum=0, maximum=255):
         Cool = 3
         Heat = 4
 
     registry = {'Native.Mode': wirely.value_types.NativeEnum(Mode, is_open=True, underlying_type='uint8')}
+    native = wirely.ValueType(wirely.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
+                                                    underlying_type=wirely.types.uint8, native_name='Native.Mode'))
     with patch.dict(wirely.runtime.enums.native_enum_types, registry):
-        native = wirely.types.TypeEnum('Example.Mode', {'Cool': 3, 'Heat': 4}, is_open=True,
-                                       underlying_type=wirely.types.uint8, native_name='Native.Mode').enum_type
-        other = wirely.types.TypeEnum('Native.Mode', {'Cool': 3, 'Heat': 4},
-                                      is_open=True, underlying_type=wirely.types.uint8).enum_type
-    assert native.python_type is Mode
-    assert other.python_type is None
-    with checks.assertRaises(ValueError):
-        _ = other.from_value(4).native
-    assert native.from_value(4).native is Mode.Heat
-    unknown = native.from_value(5).native
-    assert type(unknown) is Mode and unknown == 5 and unknown.name is None
+        assert native.parse('Heat').extract(native) is Mode.Heat
+        unknown = native.json_decode(5).to_native()
+        assert type(unknown) is Mode and unknown == 5 and unknown.name is None
+        assert native.from_native(Mode.Cool) == native.parse('Cool')
+        with checks.assertRaises(ValueError):
+            native.from_native(3)
+    # Enums with the native name of another enum but not declared native have no native representation.
+    plain = wirely.ValueType(wirely.types.TypeEnum('Native.Mode', {'Cool': 3}, is_open=True,
+                                                   underlying_type=wirely.types.uint8))
+    with patch.dict(wirely.runtime.enums.native_enum_types, registry), \
+            checks.assertRaisesRegex(ValueError, 'has no native representation'):
+        plain.parse('Cool').to_native()
 
 
 def check_open_int_enums():
@@ -167,14 +157,12 @@ def check_open_and_closed_enums():
     closed = types.TypeEnum('State', {'Idle': 0, 'Running': 1},
                             is_open=False, underlying_type=types.uint8)
     assert closed.default_value() == 0
-    assert not closed.enum_type.is_open
+    assert not closed.is_open
     for value in (0, 1):
         assert closed.verify_value(value) == value
     for value in (-1, 2, 255, True):
         with checks.assertRaises(ValueError):
             closed.verify_value(value)
-        with checks.assertRaises(ValueError):
-            closed.enum_type.from_value(value)
     for members, underlying in (({'One': 1}, types.uint8),
                                 ({'First': 0, 'Second': 2}, types.uint8),
                                 ({'First': 0}, types.int8),
@@ -187,31 +175,25 @@ def check_open_and_closed_enums():
             opened = types.TypeEnum('Open', members, is_open=True, underlying_type=underlying)
             descriptor = wirely.ValueType(opened)
             assert opened.default_value() == 0
-            assert descriptor.enum_type.is_open
+            assert opened.is_open
             for number in (underlying.min_value, 0, underlying.max_value):
-                value = descriptor.enum_type.from_value(number)
                 dynamic = descriptor.parse(str(number))
                 assert dynamic.to_text() == str(number)
                 assert dynamic.json_encode() == number
                 assert dynamic.json_encode('SnakeCase') == number
                 assert descriptor.json_decode(number) == dynamic
-                assert repr(value) == f'EnumValue(Open({number}))'
+                assert repr(dynamic) == f'DynamicValue(Open: {number})'
                 with checks.assertRaises(ValueError):
-                    _ = value.name
-                with checks.assertRaises(ValueError):
-                    _ = value.native
+                    opened.member_name(number)
             for number in (underlying.min_value - 1, underlying.max_value + 1, True, 1.0):
                 with checks.assertRaises(ValueError):
-                    descriptor.enum_type.from_value(number)
+                    opened.verify_value(number)
                 with checks.assertRaises(ValueError):
                     descriptor.json_decode(number)
 
     opened = types.TypeEnum('Open', {}, is_open=True, underlying_type=types.uint8)
     nested_type = types.TypeStruct('Packet', {'mode': types.TypeOption(opened)})
-    nested = wirely.ValueType(nested_type)
-    value = nested.struct_type.make((wirely.Some(opened.enum_type.from_value(255)),))
-    assert nested.struct_type.make(value.values) == value
-
+    assert nested_type.verify_value((wirely.Some(255),)) == (wirely.Some(255),)
 
 
 def check_descriptors_and_lists():
@@ -471,31 +453,22 @@ def check_to_text():
 
 
 def check_structs():
-    # Compile-time functions get StructValues: field values by ordinal and their StructType.
+    # Struct values are tuples of their field values in field order.
     packet_type = wirely.types.TypeStruct('Packet', {'flag': wirely.types.boolean, 'count': wirely.types.uint8})
-    descriptor = wirely.ValueType(packet_type)
-    packet_struct = descriptor.struct_type
-    assert packet_struct is descriptor.struct_type
-    assert (packet_struct.name, packet_struct.fields, packet_struct.python_type) == (
-        'Packet', (('flag', wirely.value_types.boolean), ('count', wirely.value_types.uint8)), None)
-    assert (packet_struct.index('flag'), packet_struct.index('count')) == (0, 1)
-    packet = packet_struct.make((True, 7))
-    assert (packet.type, packet.values) == (packet_struct, (True, 7))
-    assert packet == packet_struct.make([True, 7]) and hash(packet) == hash(packet_struct.make((True, 7)))
-    assert packet != packet_struct.make((False, 7)) and packet != (True, 7)
-    with checks.assertRaises(dataclasses.FrozenInstanceError):
-        packet.values = (False, 7)
-    for invalid in (lambda: packet_struct.index('extra'), lambda: packet_struct.make((True,)),
-                    lambda: packet_struct.make((True, 7, 8)), lambda: packet_struct.make((True, 'seven')),
-                    lambda: packet_struct.make((True, 300)),
-                    lambda: packet.native, lambda: packet_struct.from_native((True, 7)),
-                    lambda: wirely.value_types.uint8.struct_type):
+    assert (packet_type.index('flag'), packet_type.index('count')) == (0, 1)
+    assert packet_type.verify_value((True, 7)) == (True, 7)
+    for invalid in ((True,), (True, 7, 8), (True, 'seven'), (True, 300), [True, 7]):
         with checks.assertRaises(ValueError):
-            invalid()
+            packet_type.verify_value(invalid)
+    with checks.assertRaises(ValueError):
+        packet_type.index('extra')
 
     # Values of another struct type with the same fields are different.
-    other = wirely.ValueType(wirely.types.TypeStruct('Packet', dict(packet_type.fields))).struct_type
-    assert packet != other.make((True, 7))
+    packet = wirely.DynamicValue._make(packet_type, (True, 7))
+    other = wirely.types.TypeStruct('Packet', dict(packet_type.fields))
+    assert packet == wirely.DynamicValue._make(packet_type, (True, 7))
+    assert packet != wirely.DynamicValue._make(other, (True, 7))
+    assert packet != wirely.DynamicValue._make(packet_type, (False, 7))
 
     settings_type = wirely.types.TypeStruct('Settings', {
         'text': wirely.types.String,
@@ -503,33 +476,27 @@ def check_structs():
         'inner': packet_type, 'type': wirely.types.ValueType,
     })
     settings_descriptor = wirely.ValueType(settings_type)
-    items = [wirely.Some(packet), None]
-    settings = settings_descriptor.struct_type.make(('hello', items, packet, wirely.value_types.uint8))
-    items.append(None)
-    assert settings.values == ('hello', (wirely.Some(packet), None), packet, wirely.value_types.uint8)
     assert not settings_descriptor.supports_json and not settings_descriptor.supports_csv
     with checks.assertRaises(ValueError):
         settings_descriptor.parse('{}')
 
-    # The Python type registered under a native struct's native name supplies .native.
+    # The Python type registered under a native struct's native name is the native representation.
     class Point(typing.NamedTuple):
-        x: int
-        y: int
+        x: wirely.Int8
+        y: wirely.Int8
 
     fields = (wirely.runtime.signatures.Int(8, True),) * 2
     registry = {'Native.Point': wirely.value_types.NativeStruct(Point, fields)}
     point_fields = {'x': wirely.types.int8, 'y': wirely.types.int8}
+    point_type = wirely.ValueType(wirely.types.TypeStruct('Example.Point', point_fields, native_name='Native.Point'))
+    plain_type = wirely.ValueType(wirely.types.TypeStruct('Native.Point', point_fields))
     with patch.dict(wirely.runtime.structs.native_struct_types, registry):
-        point_type = wirely.types.TypeStruct('Example.Point', point_fields, native_name='Native.Point').struct_type
-        plain_type = wirely.types.TypeStruct('Native.Point', point_fields).struct_type
-    assert point_type.python_type is Point
-    point = point_type.from_native(Point(1, -2))
-    assert point.values == (1, -2) and point.native == Point(1, -2)
-    # Structs that are not native have no Python type.
-    assert plain_type.python_type is None
-    for call in (lambda: plain_type.from_native(Point(1, -2)), lambda: plain_type.make((1, -2)).native):
-        with checks.assertRaisesRegex(ValueError, "Struct type 'Native.Point' has no Python type"):
-            call()
+        point = Point(wirely.Int8(1), wirely.Int8(-2))
+        assert point_type.from_native(point).extract(point_type) == point
+        for call in (lambda: point_type.from_native((wirely.Int8(1), wirely.Int8(-2))),
+                     lambda: point_type.from_native(Point(1, -2)), lambda: plain_type.from_native(point)):
+            with checks.assertRaises(ValueError):
+                call()
 
 
 def check_default_values():

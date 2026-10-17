@@ -23,13 +23,32 @@ def node_types(scope: model.Scope) -> Iterator[model.NodeType]:
         yield from node_types(library)
 
 
-def runtime_functions(scope: model.Scope) -> Iterator[model.DeclarationNativeFunction]:
-    """Yield the runtime native functions declared in a scope and its namespaces."""
+def native_functions(scope: model.Scope, constant: bool) -> Iterator[model.DeclarationNativeFunction]:
+    """Yield the runtime or constant native functions declared in a scope and its namespaces."""
     for function in scope.native_functions.values():
-        if not function.is_constant:
+        if function.is_constant == constant:
             yield function
     for library in getattr(scope, 'libraries', {}).values():
-        yield from runtime_functions(library)
+        yield from native_functions(library, constant)
+
+
+def function_signatures(graph: model.Scope, *, constant: bool,
+                        namespace: str | None = None) -> dict[str, signatures.Function]:
+    """Return the signatures of the runtime or constant native functions in a graph, by native name.
+
+    With a namespace, only functions whose native names are in it are described.
+    Raises ValueError for functions that cannot be described.
+    """
+    functions = {}
+    for function in native_functions(graph, constant):
+        if namespace is not None and not function.native_name.startswith(namespace + '.'):
+            continue
+        where = f'Native function {function.native_name}'
+        function.resolve_signature()
+        functions[function.native_name] = signatures.Function(
+            tuple(signature_type(value_type, {}, where) for value_type in function.parameter_types),
+            signature_type(function.return_type, {}, where))
+    return functions
 
 
 def signature_type(value_type: types.Type, variables: Mapping[model.DeclarationParameter, str],
@@ -161,13 +180,4 @@ def native_signatures(graph: model.Scope,
                 produces=procedure_ports(procedure.output_ports, variables, where),
                 uses=signature_uses(node_type, procedure.uses, variables, where),
             )
-    functions = {}
-    for function in runtime_functions(graph):
-        if not included(function.native_name):
-            continue
-        where = f'Native function {function.native_name}'
-        function.resolve_signature()
-        functions[function.native_name] = signatures.Function(
-            tuple(signature_type(value_type, {}, where) for value_type in function.parameter_types),
-            signature_type(function.return_type, {}, where))
-    return state_types, procedures, functions
+    return state_types, procedures, function_signatures(graph, constant=False, namespace=namespace)

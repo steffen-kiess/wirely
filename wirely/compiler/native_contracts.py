@@ -16,7 +16,7 @@ import io
 import keyword
 import re
 import textwrap
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -418,6 +418,50 @@ def _function_code(native_name: str, signature: signatures.Function, imports: _I
     ]
 
 
+def _constant_function_code(native_name: str, signature: signatures.Function, imports: _Imports,
+                            strict: bool) -> list[str]:
+    _, contract = contract_location('function', native_name)
+    parameters = [annotation(parameter, imports, {}, strict) for parameter in signature.parameters]
+    result = annotation(signature.result, imports, {}, strict)
+    implementation = contract + 'Implementation'
+    imports.add('typing', 'Protocol')
+    for name in ('ConstantFunctionContract', 'FunctionServices'):
+        imports.add('wirely.compiler.native_functions', name)
+    imports.add('collections.abc', 'Sequence')
+    if parameters:
+        imports.add('typing', 'cast')
+    adapter = f'_call_{snake_case(contract).rstrip("_")}'
+    arguments = [f'        argument_{index}: {text},' for index, text in enumerate(parameters)]
+    return [
+        f'class {implementation}(Protocol):',
+        f'    """Implementations of constant function {native_name}, receiving its arguments in order."""',
+        '',
+        '    def __call__(',
+        '        self,',
+        *arguments,
+        *(['        /, *,'] if parameters else ['        *,']),
+        '        services: FunctionServices,',
+        f'    ) -> {result}:',
+        '        ...',
+        '',
+        '',
+        f'def {adapter}(',
+        f'    implementation: {implementation},',
+        '    arguments: Sequence[object],',
+        '    services: FunctionServices,',
+        ') -> object:',
+        '    return implementation(',
+        *(f'        cast({text!r}, arguments[{index}]),' for index, text in enumerate(parameters)),
+        '        services=services,',
+        '    )',
+        '',
+        '',
+        f'# Constant function {native_name}.',
+        f'{contract}: ConstantFunctionContract[{implementation}] = ConstantFunctionContract(',
+        f'    {native_name!r}, {adapter})',
+    ]
+
+
 def _module_names(lines: Iterable[str]) -> Iterator[str]:
     """Yield the names that generated code defines at module level."""
     for line in lines:
@@ -428,14 +472,40 @@ def _module_names(lines: Iterable[str]) -> Iterator[str]:
 
 def contract_sources(interfaces: Interfaces, *, resource_classes: Mapping[str, tuple[str, str]],
                      strict: bool = True, header: str = HEADER) -> dict[str, str]:
-    """Return the source of each contract module by module name.
+    """Return the source of each contract module of runtime native code by module name.
 
-    Unless strict, resource types without a known class are annotated as object.
+    Unless strict, resource types without a known class are annotated as object,
+    and enums and structs without a generated class as Any.
     Raises ValueError for interfaces without contracts.
     """
     state_types, procedures, functions = interfaces
+
+    def generate(kind: str, native_name: str, signature: Any, imports: _Imports) -> list[str]:
+        if kind == 'initializer':
+            return _initializer_code(native_name, signature, imports, resource_classes, strict)
+        if kind == 'procedure':
+            return _procedure_code(native_name, signature, imports, resource_classes, strict)
+        return _function_code(native_name, signature, imports, resource_classes)
+
+    tables = (('initializer', state_types), ('procedure', procedures), ('function', functions))
+    return _module_sources(tables, generate, 'the native code', header)
+
+
+def constant_contract_sources(functions: Mapping[str, signatures.Function], *, strict: bool = True,
+                              header: str = HEADER) -> dict[str, str]:
+    """Return the source of each contract module of constant native functions by module name."""
+    def generate(kind: str, native_name: str, signature: Any, imports: _Imports) -> list[str]:
+        return _constant_function_code(native_name, signature, imports, strict)
+
+    return _module_sources((('function', functions),), generate, 'the constant functions', header)
+
+
+def _module_sources(tables: Iterable[tuple[str, Mapping[str, Any]]],
+                    generate: Callable[[str, str, Any, _Imports], list[str]],
+                    description: str, header: str) -> dict[str, str]:
+    """Group entries into one module per namespace and return the source of each module by name."""
     entries: dict[str, list[tuple[str, str, Any]]] = {}
-    for kind, table in (('initializer', state_types), ('procedure', procedures), ('function', functions)):
+    for kind, table in tables:
         for native_name, signature in sorted(table.items()):
             module, _ = contract_location(kind, native_name)
             entries.setdefault(module, []).append((kind, native_name, signature))
@@ -445,12 +515,7 @@ def contract_sources(interfaces: Interfaces, *, resource_classes: Mapping[str, t
         body: list[str] = []
         definitions: dict[str, str] = {}
         for kind, native_name, signature in items:
-            if kind == 'initializer':
-                code = _initializer_code(native_name, signature, imports, resource_classes, strict)
-            elif kind == 'procedure':
-                code = _procedure_code(native_name, signature, imports, resource_classes, strict)
-            else:
-                code = _function_code(native_name, signature, imports, resource_classes)
+            code = generate(kind, native_name, signature, imports)
             for name in _module_names(code):
                 previous = definitions.setdefault(name, native_name)
                 if previous != native_name:
@@ -466,7 +531,7 @@ def contract_sources(interfaces: Interfaces, *, resource_classes: Mapping[str, t
         import_lines = [line for line in import_lines if line != future]
         while import_lines and not import_lines[0]:
             import_lines.pop(0)
-        lines = [header + f'"""Contracts of the native code in namespace {_namespace(items[0])}."""', '',
+        lines = [header + f'"""Contracts of {description} in namespace {_namespace(items[0])}."""', '',
                  future, '', *import_lines, *body, '']
         sources[module] = '\n'.join(lines)
     return sources
@@ -511,6 +576,11 @@ def compile_test_library() -> Any:
     if graph is None:
         raise ValueError(f'Compiling {test_library_path.relative_to(repository_root)} failed:\n{output.getvalue()}')
     return graph
+
+
+def function_signatures(graph: Any, *, constant: bool) -> dict[str, signatures.Function]:
+    from wirely.compiler.native_signatures import function_signatures as signatures_of
+    return signatures_of(graph, constant=constant)
 
 
 def library_interfaces(*graphs: Any) -> Interfaces:
@@ -673,27 +743,37 @@ def generate_interfaces(interfaces: Interfaces) -> str:
     return '\n'.join(lines)
 
 
-def contracts_directory() -> Path:
-    return package_root / 'contracts'
+def contracts_directories() -> tuple[Path, Path]:
+    """Return the directories of the runtime and the constant function contracts."""
+    return package_root / 'contracts', package_root / 'compiler/contracts'
 
 
 def generated_files() -> dict[Path, str]:
     """Return the generated content of each file, keyed by path; raise ValueError for invalid libraries."""
     graph = compile_library()
-    interfaces = with_contracts(library_interfaces(graph, compile_test_library()))
-    directory = contracts_directory()
+    test_graph = compile_test_library()
+    interfaces = with_contracts(library_interfaces(graph, test_graph))
+    directory, constant_directory = contracts_directories()
     files = {
         package_root / 'runtime/enums.py': generate_enums(graph),
         package_root / 'runtime/structs.py': generate_structs(graph),
         package_root / 'runtime/native_interfaces.py': generate_interfaces(interfaces),
         directory / '__init__.py': HEADER + '"""Generated contracts of native code, one module per namespace."""\n',
+        constant_directory / '__init__.py': (HEADER + '"""Generated contracts of constant native functions, '
+                                             'one module per namespace."""\n'),
     }
     for module, source in contract_sources(interfaces, resource_classes=resource_classes()).items():
         files[directory / f'{module}.py'] = source
+    constant_functions: dict[str, signatures.Function] = {}
+    for library in (graph, test_graph):
+        constant_functions.update(function_signatures(library, constant=True))
+    for module, source in constant_contract_sources(constant_functions).items():
+        files[constant_directory / f'{module}.py'] = source
     return files
 
 
 def obsolete_files(files: Iterable[Path]) -> list[Path]:
     """Return the contract modules that the generated files no longer include."""
     files = set(files)
-    return sorted(path for path in contracts_directory().glob('*.py') if path not in files)
+    return sorted(path for directory in contracts_directories() for path in directory.glob('*.py')
+                  if path not in files)

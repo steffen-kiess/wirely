@@ -3,21 +3,26 @@
 import os
 from pathlib import Path
 
-from ..native_functions import NativeFunctionContext
+from wirely.compiler.contracts import path as contracts
+
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
-def join(*, context: NativeFunctionContext) -> str:
-    base, path = context.arguments
+@constant_function(native_functions, contracts.Join)
+def join(base: str, path: str, *, services: FunctionServices) -> str:
     return os.path.join(base, path)
 
 
-def parent(*, context: NativeFunctionContext) -> str:
-    path, = context.arguments
+@constant_function(native_functions, contracts.Parent)
+def parent(path: str, *, services: FunctionServices) -> str:
     return str(Path(path).parent)
 
 
-def source_file(*, context: NativeFunctionContext) -> str:
-    path = context.call.source_position.source_path
+@constant_function(native_functions, contracts.SourceFile)
+def source_file(*, services: FunctionServices) -> str:
+    path = services.source_path
     if path is None:
-        raise context.error('Path.SourceFile requires a filesystem source location')
+        raise services.error('Path.SourceFile requires a filesystem source location')
     return path

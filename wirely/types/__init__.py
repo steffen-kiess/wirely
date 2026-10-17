@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import abc
-import functools
 import re
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import Any, TypeAlias
 
 from .option import Some
 from .unit import Unit
 from .time import (
     MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay,
 )
-
-if TYPE_CHECKING:
-    from .value_types import EnumType, StructType
 
 # How the compiler and runtime represent a value: integers and enums as int,
 # structs as tuples of their fields, lists as tuples, and ValueType values as
@@ -334,15 +330,6 @@ class TypeStruct(Type):
         if type(value) is not tuple or len(value) != len(self.fields):
             raise ValueError(f'Expected a value of struct type {self.name}, got {value!r}')
         return tuple(field_type.verify_value(field) for field_type, field in zip(self.fields.values(), value))
-
-    @functools.cached_property
-    def struct_type(self) -> StructType:
-        """The runtime view of this type for native code."""
-        from .value_types import StructType, ValueType
-        from ..runtime.structs import native_struct_types
-        native = None if self.native_name is None else native_struct_types.get(self.native_name)
-        return StructType(self.name, tuple((name, ValueType(field_type)) for name, field_type in self.fields.items()),
-                          None if native is None else native.python_type)
 
     def equals(self, value1: Any, value2: Any) -> bool:
         value1 = self.verify_value(value1)
@@ -754,15 +741,6 @@ class TypeEnum(TypePrimitive):
             return self._names[number]
         except KeyError:
             raise ValueError(f'Unnamed value {number} of {self}') from None
-
-    @functools.cached_property
-    def enum_type(self) -> EnumType:
-        """The runtime view of this type for native code."""
-        from .value_types import EnumType, ValueType
-        from ..runtime.enums import native_enum_types
-        native = None if self.native_name is None else native_enum_types.get(self.native_name)
-        return EnumType(self.name, ValueType(self.underlying_type), self.members,
-                        self.is_open, None if native is None else native.python_type)
 
     def default_value(self) -> Any:
         return 0

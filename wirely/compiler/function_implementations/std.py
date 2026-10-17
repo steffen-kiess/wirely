@@ -1,23 +1,28 @@
 """Compile-time standard library functions."""
 
-from wirely.types.value_types import StructValue
+from typing import Any
+
 import wirely
+from wirely import ValueType
+from wirely.compiler.contracts import std as contracts
 from wirely.runtime.structs import StdFormatParts
 
-from ..native_functions import NativeFunctionContext
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
-def parse_format(*, context: NativeFunctionContext) -> StructValue:
-    format_string, value_type = context.arguments
+@constant_function(native_functions, contracts.ParseFormat)
+def parse_format(format_string: str, value_type: ValueType[Any], *, services: FunctionServices) -> StdFormatParts:
     try:
         prefix, suffix, has_value = parse_format_string(format_string)
     except ValueError as error:
-        raise context.error(str(error), argument=0) from error
+        raise services.error(str(error), argument=0) from error
     if has_value and value_type == wirely.value_types.unit:
-        raise context.error('Format with {} for unit type', argument=0)
+        raise services.error('Format with {} for unit type', argument=0)
     if not has_value and value_type != wirely.value_types.unit:
-        raise context.error(f'Format without {{}} for type {value_type}', argument=0)
-    return context.return_type.struct_type.from_native(StdFormatParts(prefix, suffix, has_value))
+        raise services.error(f'Format without {{}} for type {value_type}', argument=0)
+    return StdFormatParts(prefix, suffix, has_value)
 
 
 def parse_format_string(text: str) -> tuple[str, str, bool]:

@@ -2,21 +2,23 @@
 
 import os
 
-from wirely.types.value_types import StructValue
+from wirely.compiler.contracts import two_n as contracts
 from wirely.runtime.structs import TwoNCredentials
 
-from ..native_functions import NativeFunctionContext
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
-def is_valid_code(*, context: NativeFunctionContext) -> bool:
-    code, = context.arguments
+@constant_function(native_functions, contracts.IsValidCode)
+def is_valid_code(code: str, *, services: FunctionServices) -> bool:
     return len(code) <= 15 and all('0' <= digit <= '9' for digit in code)
 
 
-def read_credentials(*, context: NativeFunctionContext) -> StructValue:
-    filename, = context.arguments
+@constant_function(native_functions, contracts.ReadCredentials)
+def read_credentials(filename: str, *, services: FunctionServices) -> TwoNCredentials:
     if not os.path.isabs(filename):
-        raise context.error(
+        raise services.error(
             'UsernamePasswordFile must be absolute; use '
             'Path.Join(Path.Parent(Path.SourceFile()), "credentials.txt")',
             argument=0,
@@ -28,5 +30,5 @@ def read_credentials(*, context: NativeFunctionContext) -> StructValue:
         if username == '' or password == '':
             raise ValueError(f'Failed to read username and password from {filename!r}')
     except (OSError, ValueError) as error:
-        raise context.error(str(error), argument=0) from error
-    return context.return_type.struct_type.from_native(TwoNCredentials(username, password))
+        raise services.error(str(error), argument=0) from error
+    return TwoNCredentials(username, password)

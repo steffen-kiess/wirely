@@ -2,7 +2,10 @@
 
 from typing import cast, TYPE_CHECKING, Protocol
 
-from ..native_functions import NativeFunctionContext
+from wirely import UInt16
+from wirely.compiler.contracts import test as contracts
+
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
 
 
 if TYPE_CHECKING:
@@ -10,6 +13,8 @@ if TYPE_CHECKING:
 
 
 TEST_RESOURCES_SERVICE = 'wirely.test_resources'
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
 class TestResources(Protocol):
@@ -32,43 +37,43 @@ class TestResources(Protocol):
         ...
 
 
-def replace_knx_path(*, context: NativeFunctionContext) -> str:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceKNXPath)
+def replace_knx_path(default: str, *, services: FunctionServices) -> str:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_knx_path()
+    return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_knx_path()
 
 
-def replace_mqtt_uri(*, context: NativeFunctionContext) -> str:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceMQTTURI)
+def replace_mqtt_uri(default: str, *, services: FunctionServices) -> str:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_mqtt_uri()
+    return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_mqtt_uri()
 
 
-def replace_output_path(*, context: NativeFunctionContext) -> str:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceOutputPath)
+def replace_output_path(default: str, *, services: FunctionServices) -> str:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_output_path(default)
+    return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_output_path(default)
 
 
-def replace_twon_host(*, context: NativeFunctionContext) -> str:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceTwoNHost)
+def replace_twon_host(default: str, *, services: FunctionServices) -> str:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().host
+    return cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().host
 
 
-def replace_twon_port(*, context: NativeFunctionContext) -> int:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceTwoNPort)
+def replace_twon_port(default: UInt16, *, services: FunctionServices) -> UInt16:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().port
+    return UInt16(cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().port)
 
 
-def replace_twon_tlsa(*, context: NativeFunctionContext) -> tuple[str]:
-    default, = context.arguments
-    if TEST_RESOURCES_SERVICE not in context.services:
+@constant_function(native_functions, contracts.ReplaceTwoNTLSA)
+def replace_twon_tlsa(default: tuple[str, ...], *, services: FunctionServices) -> tuple[str, ...]:
+    if TEST_RESOURCES_SERVICE not in services.services:
         return default
-    return (cast(TestResources, context.services[TEST_RESOURCES_SERVICE]).get_twon_info().server.tlsa,)
+    return (cast(TestResources, services.services[TEST_RESOURCES_SERVICE]).get_twon_info().server.tlsa,)

@@ -6,10 +6,10 @@ import wirely
 import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler.native_functions import native_function_impls
+from wirely.compiler.function_implementations import test_library
 from wirely.native import native_node_type, native_procedure
 from wirely.runtime.engine import Engine
-from wirely.test import test_contracts
+from wirely.test import test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
 import wirely.runtime.enums
@@ -26,8 +26,7 @@ def check_fixture():
     engine.assert_is_idle()
 
 
-def identity(*, context):
-    value, = context.arguments
+def identity(value, *, services):
     return value
 
 
@@ -131,7 +130,7 @@ def check_values():
 namespace Example {
   native open enum type Mode as "TestLibrary.Mode": uint8 { On = 1, }
   native struct type Pair as "TestLibrary.Pair" { value: boolean, }
-  native constant function Same as "Example.Identity"(number: uint16): uint16;
+  native constant function Same as "TestLibrary.Identity"(number: uint16): uint16;
 }
 node first: TestLibrary.ValuesProbe { Number: 7, Absent: None }
 node second: TestLibrary.ValuesProbe { Number: 8, Absent: None }
@@ -147,7 +146,8 @@ connect provider -> second.Connection;
 
     enums = {'TestLibrary.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     structs = {'TestLibrary.Pair': NativeStruct(Pair, (Builtin('boolean'),))}
-    with patch.dict(native_function_impls, {'Example.Identity': identity}), \
+    with patch.dict(test_library.native_functions,
+                    {'Identity': test_constant_function('TestLibrary.Identity', identity)}), \
             patch.dict(wirely.runtime.enums.native_enum_types, enums), \
             patch.dict(wirely.runtime.structs.native_struct_types, structs):
         graph = compile_strs([('<values>', source)])
@@ -212,9 +212,10 @@ def check_optional_values():
 def check_type_member_collision():
     # A namespace function named like a type member is ambiguous at the call.
     diagnostics = []
-    with patch.dict(native_function_impls, {'int16.WrappingAdd': identity}):
+    with patch.dict(test_library.native_functions,
+                    {'WrappingAdd': test_constant_function('TestLibrary.WrappingAdd', identity)}):
         graph = compile_strs([('<collision>', '''namespace int16 {
-      native constant function WrappingAdd(a: int16, b: int16): int16;
+      native constant function WrappingAdd as "TestLibrary.WrappingAdd"(a: int16, b: int16): int16;
     }
     constant Value: int16 = int16.WrappingAdd(1, 2);
     ''')], on_diagnostic=diagnostics.append)

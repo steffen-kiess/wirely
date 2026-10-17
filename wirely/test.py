@@ -485,6 +485,20 @@ def test_contracts(graph: object) -> Iterator[types.ModuleType]:
         yield module
 
 
+def test_constant_function(native_name: str, implementation: Callable[..., object]) -> Any:
+    """Return a registry entry of a constant function that only tests declare.
+
+    The implementation receives native arguments positionally and services as a keyword
+    argument; register it in wirely.compiler.function_implementations.test_library.
+    """
+    from wirely.compiler.native_functions import ConstantFunctionContract, RegisteredConstantFunction
+
+    def call(implementation: Callable[..., object], arguments: Sequence[object], services: object) -> object:
+        return implementation(*arguments, services=services)
+
+    return RegisteredConstantFunction(implementation, ConstantFunctionContract(native_name, call))
+
+
 def test_engine(program: Program, graph: object = None) -> Engine:
     """Create an Engine for a program whose TestLibrary native code is declared in graph or program.graph."""
     with test_contracts(program.graph if graph is None else graph):

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable, Iterable, Mapping, Sequence
 import inspect
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 
 from . import model
@@ -14,105 +14,111 @@ from . import model
 if TYPE_CHECKING:
     from .diagnostics import WarningSink
 
+F = TypeVar('F', bound=Callable[..., object])
 
-class NativeFunctionImplementation(Protocol):
-    def __call__(self, *, context: NativeFunctionContext) -> object:
-        ...
-
-
-native_function_impls: dict[str, tuple[str, str] | NativeFunctionImplementation] = {
-    'KNX.ParseGroupAddress': (
-        'wirely.compiler.function_implementations.knx', 'parse_group_address',
-    ),
-    'KNX.ValueTypeName': (
-        'wirely.compiler.function_implementations.knx', 'value_type_name',
-    ),
-    'KNX.SupportsValueType': (
-        'wirely.compiler.function_implementations.knx', 'supports_value_type',
-    ),
-    'MQTT.SupportsType': (
-        'wirely.compiler.function_implementations.mqtt', 'supports_type',
-    ),
-    'MQTT.ParseTemplate': (
-        'wirely.compiler.function_implementations.mqtt', 'parse_template',
-    ),
-    'Std.ParseFormat': (
-        'wirely.compiler.function_implementations.std', 'parse_format',
-    ),
-    'TwoN.ReadCredentials': (
-        'wirely.compiler.function_implementations.two_n', 'read_credentials',
-    ),
-    'CSV.SupportsType': (
-        'wirely.compiler.function_implementations.csv', 'supports_type',
-    ),
-    'Schedule.IsValidDailyInterval': (
-        'wirely.compiler.function_implementations.schedule', 'is_valid_daily_interval',
-    ),
-    'TwoN.IsValidCode': (
-        'wirely.compiler.function_implementations.two_n', 'is_valid_code',
-    ),
-    'Path.Join': ('wirely.compiler.function_implementations.path', 'join'),
-    'Path.Parent': ('wirely.compiler.function_implementations.path', 'parent'),
-    'Path.SourceFile': ('wirely.compiler.function_implementations.path', 'source_file'),
-    'Test.ReplaceKNXPath': (
-        'wirely.compiler.function_implementations.test', 'replace_knx_path',
-    ),
-    'Test.ReplaceMQTTURI': (
-        'wirely.compiler.function_implementations.test', 'replace_mqtt_uri',
-    ),
-    'Test.ReplaceOutputPath': (
-        'wirely.compiler.function_implementations.test', 'replace_output_path',
-    ),
-    'Test.ReplaceTwoNHost': (
-        'wirely.compiler.function_implementations.test', 'replace_twon_host',
-    ),
-    'Test.ReplaceTwoNPort': (
-        'wirely.compiler.function_implementations.test', 'replace_twon_port',
-    ),
-    'Test.ReplaceTwoNTLSA': (
-        'wirely.compiler.function_implementations.test', 'replace_twon_tlsa',
-    ),
+# Maps namespaces to modules of wirely.compiler.function_implementations,
+# each with a native_functions registry of constant functions.
+function_pkgs = {
+    'CSV': 'csv',
+    'KNX': 'knx',
+    'MQTT': 'mqtt',
+    'Path': 'path',
+    'Schedule': 'schedule',
+    'Std': 'std',
+    'Test': 'test',
+    'TestLibrary': 'test_library',
+    'TwoN': 'two_n',
 }
 
 
-@dataclass(frozen=True, slots=True)
-class NativeFunctionContext:
-    function_name: str  # Native name, such as 'KNX.ParseGroupAddress'.
-    arguments: tuple[Any, ...]  # Native values are used dynamically by implementations.
-    arguments_ast: tuple[object, ...]
-    call: model.ast.SourceElement
-    services: Mapping[str, object]
-    return_type: model.value_types.ValueType
-    _warnings: 'WarningSink'  # The compilation's WarningSink.
+class FunctionServices:
+    """Compilation services for one call of a constant native function."""
+
+    __slots__ = ('_function_name', '_services', '_call', '_arguments', '_warnings')
+
+    def __init__(self, *, function_name: str, services: Mapping[str, object], call: model.ast.SourceElement,
+                 arguments: Sequence[object], warnings: WarningSink) -> None:
+        self._function_name = function_name
+        self._services = services
+        self._call = call
+        self._arguments = tuple(arguments)  # Call-site expressions in declaration order.
+        self._warnings = warnings
+
+    @property
+    def function_name(self) -> str:
+        """The native name, such as 'KNX.ParseGroupAddress'."""
+        return self._function_name
+
+    @property
+    def services(self) -> Mapping[str, object]:
+        """The services supplied to compile_files() or compile_strs()."""
+        return self._services
+
+    @property
+    def source_path(self) -> str | None:
+        """The path of the file containing the call, if it is a file."""
+        return self._call.source_position.source_path
 
     def _source(self, argument: int | None) -> model.ast.SourceElement:
         if argument is None:
-            return self.call
-        if type(argument) is not int or not 0 <= argument < len(self.arguments_ast):
+            return self._call
+        if type(argument) is not int or not 0 <= argument < len(self._arguments):
             raise ValueError(f'Invalid function argument index {argument!r}')
-        source = self.arguments_ast[argument]
+        source = self._arguments[argument]
         assert isinstance(source, model.ast.SourceElement)
         return source
 
     def error(self, message: str, *, argument: int | None = None) -> model.ProgramError:
+        """Return an error at the call or at an argument (from 0), to raise."""
         return model.ProgramError(self._source(argument), message)
 
     def warn(self, message: str, *, argument: int | None = None) -> None:
+        """Report a NativeFunction warning at the call or at an argument."""
         self._warnings.warn('NativeFunction', self._source(argument), message)
+
+    def __repr__(self) -> str:
+        return f'FunctionServices({self._function_name!r})'
+
+
+class ConstantFunctionContract(Generic[F]):
+    """The contract of a constant native function, whose implementations have type F."""
+
+    __slots__ = ('name', '_call')
+
+    def __init__(self, name: str, call: Callable[[F, Sequence[object], FunctionServices], object]) -> None:
+        self.name = name  # Native name.
+        self._call = call
+
+    def call(self, implementation: F, arguments: Sequence[object], services: FunctionServices) -> object:
+        """Call an implementation with native arguments and return its native result."""
+        return self._call(implementation, arguments, services)
+
+    def __repr__(self) -> str:
+        return f'ConstantFunctionContract({self.name!r})'
+
+
+@dataclass(frozen=True, slots=True)
+class RegisteredConstantFunction:
+    implementation: Callable[..., object]
+    contract: ConstantFunctionContract[Any]
+
+
+def constant_function(registry: dict[str, RegisteredConstantFunction],
+                      contract: ConstantFunctionContract[F]) -> Callable[[F], F]:
+    """Register an implementation of a constant function contract in a module registry."""
+    name = contract.name.rpartition('.')[2]
+
+    def register(implementation: F) -> F:
+        if name in registry:
+            raise ValueError(f'Duplicate native function name {name!r}')
+        registry[name] = RegisteredConstantFunction(implementation, contract)
+        return implementation
+    return register
 
 
 def validate_entry(name: str, declaration: model.DeclarationNativeFunction) -> None:
-    if name not in native_function_impls:
+    if name.rpartition('.')[0] not in function_pkgs:
         raise model.ProgramError(declaration, f'Missing implementation for function {name!r}')
-    entry = native_function_impls[name]
-    if callable(entry):
-        return
-    if (isinstance(entry, tuple) and len(entry) == 2
-            and all(isinstance(part, str) and part for part in entry)
-            and all(part.isidentifier() for part in entry[0].split('.'))
-            and entry[1].isidentifier()):
-        return
-    raise model.ProgramError(declaration, f'Invalid implementation entry for function {name!r}')
 
 
 def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
@@ -174,54 +180,65 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
     visit(declarations, ())
 
 
+def get_constant_function(native_name: str) -> RegisteredConstantFunction:
+    """Return the registered implementation of a constant function, importing its module."""
+    namespace, _, name = native_name.rpartition('.')
+    module = importlib.import_module(f'wirely.compiler.function_implementations.{function_pkgs[namespace]}')
+    registered: RegisteredConstantFunction | None = module.native_functions.get(name)
+    if registered is None:
+        raise ValueError(f'Cannot find native function {native_name!r}')
+    if registered.contract.name != native_name:
+        raise ValueError(f'Native function {native_name!r} is registered with the contract of '
+                         f'{registered.contract.name!r}')
+    return registered
+
+
 def resolve_implementation(function: model.DeclarationNativeFunction,
-                           call: model.ast.SourceElement) -> NativeFunctionImplementation:
+                           call: model.ast.SourceElement) -> RegisteredConstantFunction:
     # Declaration objects belong to one compilation, so this cache cannot leak.
     if hasattr(function, '_resolved_implementation'):
         return function._resolved_implementation
-    name = function.function_name
-    entry = native_function_impls[function.native_name]
     try:
-        implementation: Any = (entry if callable(entry)
-                               else getattr(importlib.import_module(entry[0]), entry[1]))
-        if not callable(implementation):
-            raise ValueError('implementation is not callable')
-        target = implementation if inspect.isroutine(implementation) else implementation.__call__
+        registered = get_constant_function(function.native_name)
+        implementation = registered.implementation
+        target = implementation if inspect.isroutine(implementation) else getattr(implementation, '__call__')
         if any(check(candidate) for candidate in (implementation, target)
                for check in (inspect.iscoroutinefunction, inspect.isgeneratorfunction,
                              inspect.isasyncgenfunction)):
             raise ValueError('implementation must be synchronous and return one value')
-        inspect.signature(implementation).bind(context=None)
-    except (ImportError, AttributeError, TypeError, ValueError, OSError) as error:
-        raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
-    function._resolved_implementation = implementation
-    return implementation
+        inspect.signature(implementation).bind(*(None,) * len(function.arguments), services=None)
+    except (ImportError, TypeError, ValueError) as error:
+        raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
+    function._resolved_implementation = registered
+    return registered
 
 
 def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], sources: Sequence[object],
            call: model.ast.SourceElement) -> object:
-    implementation = resolve_implementation(function, call)
-    arguments = tuple(model.value_types._to_native(ty, value)
-                      for ty, value in zip(function.parameter_types, values))
+    from wirely.runtime.native_values import from_native, to_native
+
+    registered = resolve_implementation(function, call)
+    name = function.function_name
+    try:
+        arguments = [to_native(None, value_type, value)  # type: ignore[arg-type]  # Values are internal.
+                     for value_type, value in zip(function.parameter_types, values)]
+    except ValueError as error:
+        raise model.ProgramError(call, f'Cannot pass the arguments of function {name!r}: {error}') from error
     warnings = function.scope.coordinator.warnings
     assert warnings is not None
-    context = NativeFunctionContext(
-        function.native_name, arguments, tuple(sources), call,
-        function.scope.services, model.value_types.ValueType(function.return_type),
-        warnings,
-    )
+    services = FunctionServices(function_name=function.native_name, services=function.scope.services, call=call,
+                                arguments=sources, warnings=warnings)
     try:
-        result = implementation(context=context)
+        result = registered.contract.call(registered.implementation, arguments, services)
     except model.ProgramError:
         raise
     except (ValueError, ArithmeticError, OSError) as error:
         raise model.ProgramError(call, str(error)) from error
     try:
-        result = model.value_types._from_native(function.return_type, result)
-        return function.return_type.verify_value(result)
-    except Exception as error:
-        name = function.function_name
-        raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: {error}') from error
+        return from_native(None, function.return_type, result)
+    except ValueError as error:
+        raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: '
+                                 f'{error}') from error
 
 
 def invoke_runtime_function(function: model.DeclarationNativeFunction, values: Sequence[object],

@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import enum
-from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
-from types import MappingProxyType
+from dataclasses import dataclass
 from typing import Any, Generic, NoReturn, TypeVar, cast
 
 from .. import types as _types
@@ -61,162 +59,6 @@ class NativeStruct:
     fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
 
 
-@dataclass(frozen=True, slots=True, eq=False)
-class EnumType:
-    """The native view of an enum type, compared by identity."""
-
-    name: str  # Qualified name, such as 'KNX.Protocol'.
-    underlying_type: 'ValueType'  # Integer type of the member numbers.
-    members: Mapping[str, int]  # Member numbers by name, in declaration order.
-    is_open: bool
-    python_type: type | None  # Python enum from wirely.runtime.enums, if any.
-    names: Mapping[int, str] = field(init=False, repr=False)  # Member names by number.
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'names', MappingProxyType({number: name for name, number in self.members.items()}))
-
-    def from_name(self, name: str) -> 'EnumValue':
-        """Return the value of the member with this name."""
-        if name not in self.members:
-            raise ValueError(f'Unknown member {name!r} of {self.name}')
-        return EnumValue(self, self.members[name])
-
-    def from_value(self, number: int) -> 'EnumValue':
-        """Return the enum value with this number."""
-        return EnumValue(self, number)
-
-    def __repr__(self) -> str:
-        return f'EnumType({self.name})'
-
-
-@dataclass(frozen=True, slots=True)
-class EnumValue:
-    """An enum value; equal to another value of the same type and number."""
-
-    type: EnumType
-    value: int  # Underlying number, possibly unnamed for an open enum.
-
-    def __post_init__(self) -> None:
-        self.type.underlying_type._validate(self.value)
-        if not self.type.is_open and not 0 <= self.value < len(self.type.members):
-            raise ValueError(f'Expected a member number of {self.type.name}, got {self.value!r}')
-
-    @property
-    def name(self) -> str:
-        """The member name."""
-        try:
-            return self.type.names[self.value]
-        except KeyError:
-            raise ValueError(f'Unnamed value {self.value} of {self.type.name}') from None
-
-    @property
-    def native(self) -> enum.IntEnum:
-        """The member of a native enum's Python enum; unknown open numbers have no name."""
-        if self.type.python_type is None:
-            raise ValueError(f'Enum type {self.type.name!r} has no Python enum')
-        return self.type.python_type(self.value)
-
-    def __repr__(self) -> str:
-        name = self.type.names.get(self.value)
-        return (f'EnumValue({self.type.name}.{name})' if name is not None
-                else f'EnumValue({self.type.name}({self.value}))')
-
-
-@dataclass(frozen=True, slots=True, eq=False)
-class StructType:
-    """The native view of a struct type, compared by identity."""
-
-    name: str  # Qualified name, such as 'MQTT.TemplateParts'.
-    fields: tuple  # (name, ValueType) of each field, in declaration order.
-    python_type: type[tuple] | None  # NamedTuple from wirely.runtime.structs, if any.
-
-    def index(self, name: str) -> int:
-        """Return the position of a field."""
-        for index, (field_name, _) in enumerate(self.fields):
-            if field_name == name:
-                return index
-        raise ValueError(f'Unknown field {name!r} of {self.name}')
-
-    def make(self, values: Iterable[object]) -> 'StructValue':
-        """Return the value with these field values in field order."""
-        values = tuple(values)
-        if len(values) != len(self.fields):
-            raise ValueError(f'Expected {len(self.fields)} field values for {self.name}, got {len(values)}')
-        return StructValue(self, tuple(field_type._validate(value)
-                                       for (_, field_type), value in zip(self.fields, values)))
-
-    def from_native(self, value: object) -> 'StructValue':
-        """Return the value of an instance of the struct type's Python type."""
-        if self.python_type is None:
-            raise ValueError(f'Struct type {self.name!r} has no Python type')
-        if not isinstance(value, self.python_type):
-            raise ValueError(f'Expected a {self.python_type.__qualname__}, got {value!r}')
-        return self.make(tuple(value))
-
-    def __repr__(self) -> str:
-        return f'StructType({self.name})'
-
-
-@dataclass(frozen=True, slots=True)
-class StructValue:
-    """A value of a struct type; equal to another value of the same type and field values."""
-
-    type: StructType
-    values: tuple  # Field values in field order.
-
-    def __post_init__(self) -> None:
-        if type(self.values) is not tuple or len(self.values) != len(self.type.fields):
-            raise ValueError(f'Expected a tuple of {len(self.type.fields)} field values for {self.type.name}')
-
-    @property
-    def native(self) -> tuple:
-        """The value as an instance of the struct type's Python type."""
-        if self.type.python_type is None:
-            raise ValueError(f'Struct type {self.type.name!r} has no Python type')
-        return self.type.python_type(*self.values)
-
-    def __repr__(self) -> str:
-        fields = ', '.join(f'{name}: {value!r}' for (name, _), value in zip(self.type.fields, self.values))
-        return f'{self.type.name} {{ {fields} }}'
-
-
-def _to_native(value_type: _types.Type, value: Any) -> Any:
-    if isinstance(value_type, _types.TypeStruct):
-        value = value_type.verify_value(value)
-        return StructValue(value_type.struct_type, tuple(
-            _to_native(field_type, field) for field_type, field in zip(value_type.fields.values(), value)))
-    if value_type == _types.ValueType:
-        return ValueType(value)
-    if isinstance(value_type, _types.TypeEnum):
-        return EnumValue(value_type.enum_type, value_type.verify_value(value))
-    if isinstance(value_type, _types.TypeOption) and type(value) is Some:
-        return Some(_to_native(value_type.inner_type, value.value))
-    if isinstance(value_type, _types.TypeList) and type(value) in (list, tuple):
-        return tuple(_to_native(value_type.inner_type, item) for item in value)
-    return value
-
-
-def _from_native(value_type: _types.Type, value: Any) -> Any:
-    if isinstance(value_type, _types.TypeStruct):
-        if not isinstance(value, StructValue) or value.type is not value_type.struct_type:
-            raise ValueError(f'Expected a StructValue of {value_type}, got {value!r}')
-        return tuple(_from_native(field_type, field)
-                     for field_type, field in zip(value_type.fields.values(), value.values))
-    if value_type == _types.ValueType:
-        if not isinstance(value, ValueType):
-            raise ValueError(f'Expected wirely.ValueType, got {value!r}')
-        return value._type
-    if isinstance(value_type, _types.TypeEnum):
-        if not isinstance(value, EnumValue) or value.type is not value_type.enum_type:
-            raise ValueError(f'Expected an EnumValue of {value_type}, got {value!r}')
-        return value.value
-    if isinstance(value_type, _types.TypeOption) and type(value) is Some:
-        return Some(_from_native(value_type.inner_type, value.value))
-    if isinstance(value_type, _types.TypeList) and type(value) in (list, tuple):
-        return tuple(_from_native(value_type.inner_type, item) for item in value)
-    return value
-
-
 @dataclass(frozen=True, slots=True, init=False)
 class ValueType(Generic[N]):
     """An immutable descriptor of a resolved Wirely value type.
@@ -242,28 +84,6 @@ class ValueType(Generic[N]):
 
     def __repr__(self) -> str:
         return f'ValueType({self})'
-
-    def _validate(self, value: Any) -> Any:
-        """Normalize a value in the representation of compile-time functions."""
-        try:
-            value = self._type.verify_value(_from_native(self._type, value))
-            return _to_native(self._type, value)
-        except Exception as error:
-            raise ValueError(str(error)) from error
-
-    @property
-    def struct_type(self) -> StructType:
-        """The StructType of a struct type."""
-        if not isinstance(self._type, _types.TypeStruct):
-            raise ValueError(f'{self} is not a struct type')
-        return self._type.struct_type
-
-    @property
-    def enum_type(self) -> EnumType:
-        """The EnumType of an enum type."""
-        if not isinstance(self._type, _types.TypeEnum):
-            raise ValueError(f'{self} is not an enum type')
-        return self._type.enum_type
 
     def parse(self, text: str) -> DynamicValue:
         """Parse a value in the text format."""

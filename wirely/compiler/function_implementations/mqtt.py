@@ -1,25 +1,30 @@
 """Compile-time MQTT configuration functions."""
 
-from wirely.types.value_types import StructValue
+from typing import Any
+
+from wirely import Some, ValueType
+from wirely.compiler.contracts import mqtt as contracts
 from wirely.runtime.structs import MQTTTemplateParts
 
-from ..native_functions import NativeFunctionContext
+from ..native_functions import FunctionServices, RegisteredConstantFunction, constant_function
+
+native_functions: dict[str, RegisteredConstantFunction] = {}
 
 
-def supports_type(*, context: NativeFunctionContext) -> bool:
-    value_type, = context.arguments
+@constant_function(native_functions, contracts.SupportsType)
+def supports_type(value_type: ValueType[Any], *, services: FunctionServices) -> bool:
     return value_type.supports_json
 
 
-def parse_template(*, context: NativeFunctionContext) -> StructValue:
-    template, = context.arguments
+@constant_function(native_functions, contracts.ParseTemplate)
+def parse_template(template: Some[str] | None, *, services: FunctionServices) -> MQTTTemplateParts:
     if template is None:
-        return context.return_type.struct_type.from_native(MQTTTemplateParts('', ''))
+        return MQTTTemplateParts('', '')
     try:
         prefix, suffix = parse_template_string(template.value)
     except ValueError as error:
-        raise context.error(str(error), argument=0) from error
-    return context.return_type.struct_type.from_native(MQTTTemplateParts(prefix, suffix))
+        raise services.error(str(error), argument=0) from error
+    return MQTTTemplateParts(prefix, suffix)
 
 
 def parse_json_str_simple(s: str) -> list[tuple[bool, str]]:
