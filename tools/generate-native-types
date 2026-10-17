@@ -21,7 +21,8 @@ def compile_library():
 
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
-        graph = wirely.compiler.compile_strs([], add_std=True)
+        # Generated files follow declaration order, also in shuffle test runs.
+        graph = wirely.compiler.compile_strs([], add_std=True, shuffle_seed=None)
     if graph is None:
         raise SystemExit(f'Compiling the standard library failed:\n{output.getvalue()}')
     return graph

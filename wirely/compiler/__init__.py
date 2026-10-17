@@ -14,8 +14,12 @@ class _DiagnosticCallbackError(Exception):
         self.error = error
 
 
+# Default of compile_strs's shuffle_seed: read WIRELY_COMPILER_SHUFFLE_SEED.
+_FROM_ENVIRONMENT = object()
+
+
 def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, always_print_stacktrace=None,
-                 services=None, on_diagnostic=None, shuffle_seed=None, shuffle_layout=None):
+                 services=None, on_diagnostic=None, shuffle_seed=_FROM_ENVIRONMENT, shuffle_layout=None):
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
     def report_escaping(diagnostic):
@@ -36,8 +40,9 @@ def compile_strs(filename_inpudatas, *, add_std=False, verbose_passes=None, alwa
         verbose_passes = model.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
     if always_print_stacktrace is None:
         always_print_stacktrace = model.util.getEnvironmentBool('WIRELY_COMPILER_ALWAYS_PRINT_STACKTRACE', False)
-    if shuffle_seed is None and os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED'):
-        shuffle_seed = int(os.environ['WIRELY_COMPILER_SHUFFLE_SEED'])
+    if shuffle_seed is _FROM_ENVIRONMENT:
+        environment_seed = os.environ.get('WIRELY_COMPILER_SHUFFLE_SEED')
+        shuffle_seed = int(environment_seed) if environment_seed else None
     if shuffle_layout is None:
         shuffle_layout = model.util.getEnvironmentBool('WIRELY_COMPILER_SHUFFLE_LAYOUT', False)
 

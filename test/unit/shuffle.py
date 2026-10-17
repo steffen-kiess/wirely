@@ -3,6 +3,7 @@ import subprocess
 import sys
 from types import SimpleNamespace
 from unittest import TestCase
+from unittest.mock import patch
 
 import wirely.compiler
 from wirely.compiler import model
@@ -175,6 +176,17 @@ for seed in range(5):
     for layout in (False, True):
         result = wirely.compiler.compile_strs(sources, shuffle_seed=seed, shuffle_layout=layout)
         checks.assertIsNotNone(result)
+
+# By default the seed comes from the environment; None disables shuffling.
+members = ['A', 'B', 'C', 'D', 'E', 'F']
+enum_source = [('<members>', f'open enum type M: uint8 {{ {", ".join(f"{m} = {n}" for n, m in enumerate(members))} }}')]
+shuffled = []
+for seed in range(5):
+    with patch.dict(os.environ, {'WIRELY_COMPILER_SHUFFLE_SEED': str(seed)}):
+        unshuffled = wirely.compiler.compile_strs(enum_source, shuffle_seed=None)
+        checks.assertEqual(list(unshuffled.enum_types['M'].members), members)
+        shuffled.append(list(wirely.compiler.compile_strs(enum_source).enum_types['M'].members))
+checks.assertTrue(any(order != members for order in shuffled))
 
 
 async def run_test():
