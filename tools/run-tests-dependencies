@@ -64,7 +64,14 @@ def main():
     parser.add_argument('--python', default=sys.executable, metavar='SELECTOR',
                         help='min/max supported stable CPython, a uv Python version request, '
                         'or executable name/path (default: current interpreter)')
-    args = parser.parse_args()
+    parser.add_argument('--timings', action='store_true',
+                        help='List test durations, slowest first, at the end')
+    parser.add_argument('--keep-going', action='store_true',
+                        help='Run the remaining tests after a failure and list the failed tests at the end')
+    parser.add_argument('names', nargs='*', metavar='TEST',
+                        help='Extensionless test names (default: all tests)')
+    args = parser.parse_intermixed_args()
+    runner_args = (['--timings'] if args.timings else []) + (['--keep-going'] if args.keep_going else [])
     repository_root = Path(__file__).resolve().parent.parent
     uv = shutil.which(str(repository_root / 'venv' / 'bin' / 'uv')) or shutil.which('uv')
     if uv is None:
@@ -100,7 +107,8 @@ def main():
             subprocess.run([uv, 'pip', 'check', '--python', str(python)], check=True, env=env)
             return subprocess.run(
                 [str(python), str(repository_root / 'tools' / 'run-tests'),
-                 '--python', str(python)], cwd=repository_root, env=env).returncode
+                 '--python', str(python), *runner_args, *args.names],
+                cwd=repository_root, env=env).returncode
     except subprocess.CalledProcessError as error:
         if error.stderr:
             print(error.stderr, file=sys.stderr, end='')

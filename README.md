@@ -129,3 +129,9 @@ compatible patch of the oldest supported CPython minor; `max` selects the
 newest compatible stable CPython available through the installed uv.
 uv can download missing interpreters. `tools/run-tests --python PATH` runs
 tests using a specified Python executable.
+
+Test names, `--timings`, and `--keep-going` work as for `tools/run-tests`:
+
+```
+tools/run-tests-dependencies --versions min --python min misc/type_check
+```
