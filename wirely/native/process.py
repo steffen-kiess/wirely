@@ -2,8 +2,8 @@ import contextlib
 import asyncio
 
 import wirely
-from wirely.native import native_node_type, native_resource_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import native_node_type, native_procedure, native_resource_type
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -28,21 +28,22 @@ class LaunchOnEvent(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def run(*, context):
-        state = context.inputs['state'].object
-        inp = context.inputs['input']
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            inp = context.inputs['input']
 
-        if inp is None:
-            return
+            if inp is None:
+                return
 
-        if state.pending:
-            print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
-        state.pending = True
-        state.event.set()
+            if state.pending:
+                print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
+            state.pending = True
+            state.event.set()
 
-        # This makes sure that the value is sent again if the input does not change
-        context.trigger_self()
+            # This makes sure that the value is sent again if the input does not change
+            context.trigger_self()
 
     async def run_task(self):
         while True:

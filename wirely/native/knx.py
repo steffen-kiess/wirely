@@ -2,8 +2,8 @@ import asyncio
 import contextlib
 
 import wirely
-from wirely.native import check_state_type, native_node_type, native_resource_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -99,21 +99,24 @@ class ValueReceiver(NativeState):
 
         self.trigger('state')
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        res = state.current_value
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        if res is None:
-            res_opt = None
-        else:
-            res_opt = wirely.Some(res)
-        # print(f'get_value: {res_opt}')
+            res = state.current_value
 
-        context.set_output('output', res_opt)
+            if res is None:
+                res_opt = None
+            else:
+                res_opt = wirely.Some(res)
+            # print(f'get_value: {res_opt}')
+
+            context.set_output('output', res_opt)
 
 
 @native_resource_type(native_resource_types, 'ValueOptionProviderState')
@@ -162,30 +165,33 @@ class ValueOptionProvider(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def set_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('set_value')
+    class SetValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        value_opt = context.inputs['input']
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        if value_opt is None:
-            # TODO: Somehow reset the state.expose value in this case?
-            value = None
-        else:
-            value = value_opt.value
-            # TODO: Any checks needed here?
+            value_opt = context.inputs['input']
 
-        print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
+            if value_opt is None:
+                # TODO: Somehow reset the state.expose value in this case?
+                value = None
+            else:
+                value = value_opt.value
+                # TODO: Any checks needed here?
 
-        # This does not work because this function is not async
-        # Also this would have to handle None values
-        # await state.expose.set(value)
-        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
-        # TODO: Provide some notification if this is happening?
-        state.value_to_send = value
-        state.event.set()
+            print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
+
+            # This does not work because this function is not async
+            # Also this would have to handle None values
+            # await state.expose.set(value)
+            # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+            # TODO: Provide some notification if this is happening?
+            state.value_to_send = value
+            state.event.set()
 
     async def run_task(self):
         while True:
@@ -248,23 +254,26 @@ class EventReceiver(NativeState):
         self.received_values.append(value)
         self.trigger('state')
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        if len(state.received_values) == 0:
-            context.set_output('output', None)
-            return
-        value = state.received_values.pop(0)
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        res_opt = wirely.Some(value)
-        # print(f'get_value: {res_opt}')
+            if len(state.received_values) == 0:
+                context.set_output('output', None)
+                return
+            value = state.received_values.pop(0)
 
-        context.set_output('output', res_opt)
+            res_opt = wirely.Some(value)
+            # print(f'get_value: {res_opt}')
 
-        context.trigger_self()
+            context.set_output('output', res_opt)
+
+            context.trigger_self()
 
 
 @native_resource_type(native_resource_types, 'EventSenderState')
@@ -306,30 +315,33 @@ class EventSender(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def send_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('send_value')
+    class SendValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        value_opt = context.inputs['input']
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-        if value_opt is None:
-            return
-        else:
-            value = value_opt.value
-            # TODO: Any checks needed here?
+            value_opt = context.inputs['input']
 
-        print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
+            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+            if value_opt is None:
+                return
+            else:
+                value = value_opt.value
+                # TODO: Any checks needed here?
 
-        # Note: If sending is too slow, there might be multiple events queued up.
-        # TODO: Provide a notification in this case?
-        state.values_to_send.append(value)
-        state.event.set()
+            print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
 
-        # This makes sure that the value is sent again if the input does not change
-        context.trigger_self()
+            # Note: If sending is too slow, there might be multiple events queued up.
+            # TODO: Provide a notification in this case?
+            state.values_to_send.append(value)
+            state.event.set()
+
+            # This makes sure that the value is sent again if the input does not change
+            context.trigger_self()
 
     async def run_task(self):
         while True:

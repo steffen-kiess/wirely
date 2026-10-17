@@ -4,9 +4,9 @@ import contextlib
 import typing
 
 import wirely
-from wirely.native import native_node_type, native_resource_type
+from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.util import check_parameters
-from wirely.runtime.contexts import NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -58,17 +58,18 @@ class TimeOfDayMinute(NativeState):
             # print(f'Waiting for {wait_time_s}', flush=True)
             await asyncio.sleep(wait_time_s)
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        if state._fake_time is not None:
-            context.set_output('output', state._fake_time)
-            return
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            if state._fake_time is not None:
+                context.set_output('output', state._fake_time)
+                return
 
-        if state.task is None:
-            raise Exception('start_tasks() was never called')
+            if state.task is None:
+                raise Exception('start_tasks() was never called')
 
-        context.set_output('output', state.current_value)
+            context.set_output('output', state.current_value)
 
     # TODO: Is this used anywhere?
     def update_value(self):

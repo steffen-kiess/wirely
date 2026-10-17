@@ -5,7 +5,8 @@ from unittest.mock import patch
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_procedure
+from wirely.runtime.contexts import NativeProcedure
 from wirely.test import test_engine
 
 
@@ -16,31 +17,35 @@ observations = {}
 
 @native_node_type(registry, has_native_state=False)
 class Owner:
-    @staticmethod
-    def write(*, context):
-        context.set_output('saved', context.inputs['input'])
+    @native_procedure('write')
+    class Write(NativeProcedure):
+        def __call__(self, *, context):
+            context.set_output('saved', context.inputs['input'])
 
 
 @native_node_type(registry, has_native_state=False)
 class Forward:
-    @staticmethod
-    def run(*, context):
-        calls[context.name] += 1
-        context.set_output('output', context.inputs['input'])
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            calls[context.name] += 1
+            context.set_output('output', context.inputs['input'])
 
 
 @native_node_type(registry, has_native_state=False)
 class Feedback:
-    @staticmethod
-    def advance(*, context):
-        context.set_output('saved', min(context.inputs['input'] + 1, 2))
+    @native_procedure('advance')
+    class Advance(NativeProcedure):
+        def __call__(self, *, context):
+            context.set_output('saved', min(context.inputs['input'] + 1, 2))
 
 
 @native_node_type(registry, has_native_state=False)
 class Shared:
-    @staticmethod
-    def advance(*, context):
-        context.set_output('saved', min(context.inputs['old'] + 1, 2))
+    @native_procedure('advance')
+    class Advance(NativeProcedure):
+        def __call__(self, *, context):
+            context.set_output('saved', min(context.inputs['old'] + 1, 2))
 
 
 definitions = '''
@@ -238,15 +243,17 @@ def check_old_snapshots():
 
 @native_node_type(registry, has_native_state=False)
 class Current(Owner):
-    @staticmethod
-    def write(*, context):
-        calls[context.name + '.write'] += 1
-        Owner.write(context=context)
+    @native_procedure('write')
+    class Write(Owner.Write):
+        def __call__(self, *, context):
+            calls[context.name + '.write'] += 1
+            super().__call__(context=context)
 
-    @staticmethod
-    def observe(*, context):
-        observations[context.name] = (context.inputs['previous'], context.inputs['current'])
-        context.set_output('output', True)
+    @native_procedure('observe')
+    class Observe(NativeProcedure):
+        def __call__(self, *, context):
+            observations[context.name] = (context.inputs['previous'], context.inputs['current'])
+            context.set_output('output', True)
 
 
 current_definitions = definitions + '''

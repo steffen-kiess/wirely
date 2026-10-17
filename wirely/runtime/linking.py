@@ -3,34 +3,26 @@
 import inspect
 
 from ..functions import get_native_function_by_name
-from ..native import get_native_node_type_by_name, get_native_resource_type_by_name
+from ..native import find_native_procedure, get_native_node_type_by_name, get_native_resource_type_by_name
 from ..program import used_declared_types
 from ..types import TypeEnum, TypeStruct
+from .contexts import NativeProcedure
 from .resources import ResourceType
 
 
-def validate_native_method(native_class, name):
-    description = f'{native_class.__name__}.{name}'
-    try:
-        method = inspect.getattr_static(native_class, name)
-    except AttributeError:
-        raise ValueError(f'Cannot find native procedure {description!r}') from None
+def validate_native_procedure(native_class, name):
+    """Return the NativeProcedure class registered under a name, checking its methods."""
+    description = f'{native_class.__name__}:{name}'
+    procedure_class = find_native_procedure(native_class, name)
+    if procedure_class is None:
+        raise ValueError(f'Cannot find native procedure {description!r}')
+    if not issubclass(procedure_class, NativeProcedure):
+        raise ValueError(f'Native procedure {description!r} must be a NativeProcedure subclass')
 
-    if type(method) is staticmethod:
-        function = method.__func__
-        arguments = ()
-    elif type(method) is classmethod:
-        function = method.__func__
-        arguments = (native_class,)
-    elif inspect.isfunction(method):
-        function = method
-        arguments = ()
-    else:
-        raise ValueError(f'Unsupported native procedure method {description!r}')
-
-    if not inspect.isfunction(function):
-        raise ValueError(f'Unsupported native procedure method {description!r}')
-    implementation = inspect.unwrap(function)
+    call = inspect.getattr_static(procedure_class, '__call__')
+    if not inspect.isfunction(call) or call is NativeProcedure.__call__:
+        raise ValueError(f'Native procedure {description!r} must define __call__')
+    implementation = inspect.unwrap(call)
     if (inspect.iscoroutinefunction(implementation)
             or inspect.isgeneratorfunction(implementation)
             or inspect.isasyncgenfunction(implementation)):
@@ -38,13 +30,18 @@ def validate_native_method(native_class, name):
             f'Native procedure {description!r} must be synchronous and cannot be a generator',
         )
     try:
-        inspect.signature(function).bind(*arguments, context=object())
+        inspect.signature(call).bind(object(), context=object())
+        inspect.signature(procedure_class).bind(context=object())
     except (TypeError, ValueError) as error:
         raise ValueError(f'Invalid native procedure {description!r}: {error}') from error
+    return procedure_class
 
 
 def link_native_classes(program):
-    """Validate all required implementations before constructing native objects."""
+    """Validate all required implementations before constructing native objects.
+
+    Return the native state classes by type name and the procedure classes by procedure reference.
+    """
     classes = {}  # By native state type name or stateless procedure prefix.
 
     def resolve(name, has_native_state):
@@ -58,7 +55,7 @@ def link_native_classes(program):
         if instance.has_native_state:
             resolve(instance.type_name, True)
 
-    # Native procedures are static or class methods; any registered class may hold them.
+    # Native procedures are nested classes; any registered class may hold them.
     methods = set()
     for schedule in program.procs.values():
         for procedure in schedule:
@@ -68,9 +65,9 @@ def link_native_classes(program):
                     classes[prefix] = get_native_node_type_by_name(prefix)
                 methods.add((prefix, method))
 
-    for prefix, method in sorted(methods):
-        validate_native_method(classes[prefix], method)
-    return classes
+    procedures = {f'{prefix}:{method}': validate_native_procedure(classes[prefix], method)
+                  for prefix, method in sorted(methods)}
+    return classes, procedures
 
 
 def link_native_resource_types(program):

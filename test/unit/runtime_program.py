@@ -9,9 +9,9 @@ import wirely
 import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_procedure
 from wirely.program import ResourceBinding
-from wirely.runtime.contexts import NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.test import test_engine
 
 
@@ -113,11 +113,12 @@ def check_resource_isolation():
             context.set_output('state', self)
             self.count = 0
 
-        @staticmethod
-        def run(*, context):
-            state = context.inputs['state'].object
-            state.count += 1
-            context.set_output('output', state.count)
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                state = context.inputs['state'].object
+                state.count += 1
+                context.set_output('output', state.count)
 
     source = '''namespace TestLibrary {
   resource type Service;
@@ -204,9 +205,10 @@ def check_native_names():
 
     @native_node_type(registry, has_native_state=False)
     class Consumer:
-        @staticmethod
-        def run(*, context):
-            context.set_output('output', 7)
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                context.set_output('output', 7)
 
     source = '''namespace Renamed {
   resource type Link as "TestLibrary.Service";

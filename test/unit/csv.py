@@ -34,6 +34,7 @@ class ProcedureContext:
 def check_repeat_recovery():
     context = ProcedureContext()
     writer = ValueWriter(context=context)
+    run = ValueWriter.Run(context=context)
     output = io.BytesIO()
     writer.writer = MyCsvWriter(output)
     context.inputs = {
@@ -44,7 +45,7 @@ def check_repeat_recovery():
     }
     time = context.time.local.isoformat()
     expected = f'{time},,true\r\n'.encode()
-    ValueWriter.run(context=context)
+    run(context=context)
     assert output.getvalue() == expected
     assert context.outputs['last_written_at'] == wirely.Some(context.time.monotonic)
     assert context.triggered
@@ -52,7 +53,7 @@ def check_repeat_recovery():
     # An elapsed helper reports None when the previous clock generation is lost.
     context.inputs['last_written_at_old'] = context.outputs['last_written_at']
     context.time.monotonic = wirely.MonotonicTime(generation=2, ticks=50)
-    ValueWriter.run(context=context)
+    run(context=context)
     expected += f'{time},true,true\r\n'.encode()
     assert output.getvalue() == expected
     assert context.outputs['last_written_at'] == wirely.Some(context.time.monotonic)
@@ -61,12 +62,12 @@ def check_repeat_recovery():
     context.inputs['last_written_at_old'] = context.outputs['last_written_at']
     context.inputs['repeat_elapsed'] = wirely.Some(False)
     context.triggered = False
-    ValueWriter.run(context=context)
+    run(context=context)
     assert output.getvalue() == expected
     assert not context.triggered
 
     context.inputs['input'] = None
-    ValueWriter.run(context=context)
+    run(context=context)
     expected += f'{time},true,\r\n'.encode()
     assert output.getvalue() == expected
 
@@ -76,7 +77,7 @@ def check_repeat_recovery():
     for elapsed in (wirely.Some(True), None):
         context.inputs['repeat_elapsed'] = elapsed
         context.triggered = False
-        ValueWriter.run(context=context)
+        run(context=context)
         assert output.getvalue() == expected
         assert context.outputs['last_written_at'] == context.inputs['last_written_at_old']
         assert not context.triggered

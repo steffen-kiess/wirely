@@ -105,6 +105,31 @@ class NativeState:
         return async_exit_stack.enter_context(NativeState.start_task_context(task_group, coroutine))
 
 
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
+class ProcedureLoadContext:
+    """Static information available when a native procedure is constructed."""
+
+    name: str
+    values: Mapping[str, object]
+    resources: Mapping[str, ResourceValue]
+
+    def __post_init__(self):
+        for name in ('values', 'resources'):
+            value = getattr(self, name)
+            if not isinstance(value, MappingProxyType):
+                object.__setattr__(self, name, MappingProxyType(dict(value)))
+
+
+class NativeProcedure:
+    """Base class of native procedure implementations, constructed once per procedure at load time."""
+
+    def __init__(self, *, context: ProcedureLoadContext):
+        pass
+
+    def __call__(self, *, context: 'ProcedureContext'):
+        raise NotImplementedError
+
+
 class VariableTableInstance:
     """Write-once runtime values stored in an aligned byte buffer."""
 

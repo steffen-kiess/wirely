@@ -5,7 +5,9 @@ from types import MappingProxyType
 
 import wirely
 from wirely.program import Program, validate_program
-from wirely.runtime.contexts import NativeNodeContext, VariableTableInstance, ProcedureContext, StepContext
+from wirely.runtime.contexts import (
+    NativeNodeContext, ProcedureContext, ProcedureLoadContext, StepContext, VariableTableInstance,
+)
 from wirely.runtime.procedures import execute_procedure
 
 
@@ -60,7 +62,7 @@ class Engine:
 
         link_native_enums(program)
         link_native_structs(program)
-        self.native_classes = link_native_classes(program)
+        self.native_classes, procedure_classes = link_native_classes(program)
         self.native_functions = link_native_functions(program)
         link_native_signatures(program)
         # Keys of the procedures depending on each resource, by (provider node ID, output).
@@ -94,6 +96,16 @@ class Engine:
                 for key, value in context._finish_construction().items():
                     self.resource_outputs[node_id, key] = value
             self.native_states[node_id] = native_state
+        # Native procedure implementations, constructed after all native states; keyed by procedure identity.
+        self._native_procedures = {}
+        for schedule in program.procs.values():
+            for proc in schedule:
+                if proc.body is None:
+                    context = ProcedureLoadContext(
+                        name=proc.node_context.name, values=self._procedure_values[id(proc)],
+                        resources=self._resource_inputs(proc.resources),
+                    )
+                    self._native_procedures[id(proc)] = procedure_classes[proc.reference](context=context)
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
 
@@ -228,8 +240,7 @@ class Engine:
                     values=self._procedure_values.get(id(proc), MappingProxyType({})),
                 )
                 if proc.body is None:
-                    prefix, _, method = proc.reference.rpartition(':')
-                    getattr(self.native_classes[prefix], method)(context=context)
+                    self._native_procedures[id(proc)](context=context)
                 else:
                     for name, value in execute_procedure(self.program, proc, body_inputs, self.native_functions).items():
                         context.set_output(name, value)

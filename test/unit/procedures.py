@@ -4,6 +4,8 @@ import wirely
 import wirely.compiler
 import wirely.native.test_library
 from wirely.compiler import program as program_compiler
+from wirely.native import native_procedure
+from wirely.runtime.contexts import NativeProcedure
 from wirely.test import test_engine
 from wirely.runtime import procedures as runtime_procedures
 
@@ -279,8 +281,12 @@ def check_mixed_procedures():
     }
     node mixed: Std.Constant { Type: boolean, Value: true }
     '''
-    with patch.object(wirely.native.test_library.TestNode, 'test_procedure',
-                      staticmethod(lambda *, context: context.set_output('temp', context.values['Value']))):
+    @native_procedure('test_procedure')
+    class Produce(NativeProcedure):
+        def __call__(self, *, context):
+            context.set_output('temp', context.values['Value'])
+
+    with patch.object(wirely.native.test_library.TestNode, 'TestProcedure', Produce):
         mixed_engine = test_engine(compile_program(mixed_source))
         mixed_engine.step()
         mixed_engine.assert_value_is('mixed', True)

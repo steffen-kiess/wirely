@@ -4,8 +4,8 @@ import json
 import contextlib
 
 import wirely
-from wirely.native import native_node_type, native_resource_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import native_node_type, native_procedure, native_resource_type
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -88,18 +88,19 @@ class KeyEvent(NativeState):
         self.trigger('state')
         self.received_value = new_value
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        value = state.received_value
-        state.received_value = None
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            value = state.received_value
+            state.received_value = None
 
-        if value is None:
-            context.set_output('output', None)
-        else:
-            context.set_output('output', wirely.Some(value))
-            # Trigger to set value to None again
-            context.trigger_self()
+            if value is None:
+                context.set_output('output', None)
+            else:
+                context.set_output('output', wirely.Some(value))
+                # Trigger to set value to None again
+                context.trigger_self()
 
 
 @native_resource_type(native_resource_types, 'CodeEnteredEventState')
@@ -143,18 +144,19 @@ class CodeEnteredEvent(NativeState):
         self.trigger('state')
         self.pending = True
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        value = state.pending
-        state.pending = False
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            value = state.pending
+            state.pending = False
 
-        if not value:
-            context.set_output('output', None)
-        else:
-            context.set_output('output', wirely.Some(wirely.Unit()))
-            # Trigger to set value to None again
-            context.trigger_self()
+            if not value:
+                context.set_output('output', None)
+            else:
+                context.set_output('output', wirely.Some(wirely.Unit()))
+                # Trigger to set value to None again
+                context.trigger_self()
 
 
 @native_resource_type(native_resource_types, 'IOStateState')
@@ -224,14 +226,15 @@ class IOState(NativeState):
         self.trigger('state')
         self.current_value = new_value
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        value = state.current_value
-        if value is None:
-            raise Exception('TwoN.IOState: get_value() called while current_value is None')
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            value = state.current_value
+            if value is None:
+                raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
-        context.set_output('output', value)
+            context.set_output('output', value)
 
 
 @native_resource_type(native_resource_types, 'SwitchStateState')
@@ -299,14 +302,15 @@ class SwitchState(NativeState):
         self.trigger('state')
         self.current_value = new_value
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        value = state.current_value
-        if value is None:
-            raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            value = state.current_value
+            if value is None:
+                raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
-        context.set_output('output', value)
+            context.set_output('output', value)
 
 
 @native_resource_type(native_resource_types, 'OutputControlState')
@@ -338,23 +342,24 @@ class OutputControl(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def send_value(*, context):
-        state = context.inputs['state'].object
-        # TODO: Add checks whether everything is running?
+    @native_procedure('send_value')
+    class SendValue(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        value_opt = context.inputs['input']
-        if value_opt is None:
-            return
-        value = value_opt.value
+            value_opt = context.inputs['input']
+            if value_opt is None:
+                return
+            value = value_opt.value
 
-        if state.value_to_send is not None:
-            print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
-        state.value_to_send = value
-        state.event.set()
+            if state.value_to_send is not None:
+                print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
+            state.value_to_send = value
+            state.event.set()
 
-        # This makes sure that the value is sent again if the input does not change
-        context.trigger_self()
+            # This makes sure that the value is sent again if the input does not change
+            context.trigger_self()
 
     async def run_task(self):
         while True:

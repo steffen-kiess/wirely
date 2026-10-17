@@ -11,9 +11,9 @@ from unittest.mock import patch
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_procedure
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.test import test_engine
 from wirely.runtime.signatures import Builtin, Enum, Int
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
@@ -30,9 +30,10 @@ def make_engine(declaration, callback, *, extra='', parameters='', singleton=Fal
 
     @native_node_type(registry, has_native_state=False)
     class Probe:
-        @staticmethod
-        def run(*, context):
-            callback(context)
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                callback(context)
 
     qualifier = 'singleton ' if singleton else ''
     source = f'''
@@ -212,11 +213,11 @@ def check_stage_times():
 
     for stage in stages:
         for index in range(2):
-            def record_time(*, context, stage=stage):
+            def record_time(self, *, context, stage=stage):
                 check_stage_time(context, stage)
 
             name = f'{stage.name.lower()}_{index}'
-            clock_methods[name] = staticmethod(record_time)
+            clock_methods[name] = native_procedure(name)(type(name, (NativeProcedure,), {'__call__': record_time}))
             stage_clause = '' if stage is RunStage.DEFAULT else f' stage {stage.name.lower()}'
             clock_declarations.append(f'native procedure {name}{stage_clause};')
 
@@ -271,22 +272,25 @@ def check_triggers():
             self.trigger('refresher')
             assert not self.calls
 
-        @staticmethod
-        def refresh(*, context):
-            state = context.inputs['state'].object
-            assert context.name == state.context.name
-            state.calls.append('refresh')
-            if state.reschedule_once:
-                state.reschedule_once = False
-                context.trigger_self()
+        @native_procedure('refresh')
+        class Refresh(NativeProcedure):
+            def __call__(self, *, context):
+                state = context.inputs['state'].object
+                assert context.name == state.context.name
+                state.calls.append('refresh')
+                if state.reschedule_once:
+                    state.reschedule_once = False
+                    context.trigger_self()
 
-        @staticmethod
-        def run(*, context):
-            context.inputs['state'].object.calls.append('run')
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                context.inputs['state'].object.calls.append('run')
 
-        @staticmethod
-        def log(*, context):
-            context.inputs['state'].object.calls.append('log')
+        @native_procedure('log')
+        class Log(NativeProcedure):
+            def __call__(self, *, context):
+                context.inputs['state'].object.calls.append('log')
 
     @native_node_type(trigger_registry, has_native_state=True)
     class SharedTriggerProbe(TriggerProbe):
@@ -302,9 +306,10 @@ def check_triggers():
     class Reader:
         calls = []
 
-        @staticmethod
-        def poll(*, context):
-            Reader.calls.append(context.name)
+        @native_procedure('poll')
+        class Poll(NativeProcedure):
+            def __call__(self, *, context):
+                Reader.calls.append(context.name)
 
     probe_body = '''
         binding refresher: resource ProbeState;
@@ -724,9 +729,10 @@ def check_native_signature_linking():
 
     @native_node_type(registry, has_native_state=False)
     class Probe:
-        @staticmethod
-        def run(*, context):
-            pass
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                pass
 
     @native_node_type(registry, has_native_state=True)
     class Stateful(NativeState):
@@ -1005,18 +1011,20 @@ async def run_test():
 
 
 def check_native_methods():
-    # Native procedures are static or class methods of the class their name selects.
+    # Native procedures are nested classes of the class their name selects or of its bases.
     registry = {}
     calls = []
 
     class Methods:
-        @staticmethod
-        def shared(*, context):
-            calls.append(('shared', context.name))
+        @native_procedure('shared')
+        class Shared(NativeProcedure):
+            def __call__(self, *, context):
+                calls.append(('shared', context.name))
 
-        @classmethod
-        def class_method(cls, *, context):
-            calls.append((cls.__name__, context.name))
+        @native_procedure('inherited')
+        class Inherited(NativeProcedure):
+            def __call__(self, *, context):
+                calls.append(('inherited', context.name))
 
     @native_node_type(registry, has_native_state=False)
     class ClassProbe(Methods):
@@ -1024,9 +1032,10 @@ def check_native_methods():
 
     @native_node_type(registry, has_native_state=False)
     class OverrideProbe(ClassProbe):
-        @staticmethod
-        def shared(*, context):
-            calls.append(('override', context.name))
+        @native_procedure('shared')
+        class Shared(NativeProcedure):
+            def __call__(self, *, context):
+                calls.append(('override', context.name))
 
     @native_node_type(registry, has_native_state=True)
     class StateProbe(Methods, NativeState):
@@ -1038,16 +1047,16 @@ def check_native_methods():
   resource type ProbeState;
   node type ClassProbe {
     native procedure shared;
-    native procedure class_method;
+    native procedure inherited;
   }
   node type OverrideProbe {
     native procedure shared;
-    native procedure class_method;
+    native procedure inherited;
   }
   native node type StateProbe {
     binding state: resource ProbeState;
     native initializer produces state as "state";
-    native procedure class_method depends on state as "state";
+    native procedure inherited depends on state as "state";
   }
   // Procedures may use another type's implementation.
   node type KeyedProbe {
@@ -1066,12 +1075,70 @@ node keyed: TestLibrary.KeyedProbe {}
         runtime = test_engine(program_compiler.compile_nocatch(graph))
     runtime.step()
     expected = [
-        ('shared', 'class_only'), ('ClassProbe', 'class_only'),
-        ('override', 'overridden'), ('OverrideProbe', 'overridden'),
-        ('StateProbe', 'stateful'), ('shared', 'keyed'),
+        ('shared', 'class_only'), ('inherited', 'class_only'),
+        ('override', 'overridden'), ('inherited', 'overridden'),
+        ('inherited', 'stateful'), ('shared', 'keyed'),
     ]
     assert sorted(calls) == sorted(expected)
     runtime.assert_is_idle()
+
+
+def check_procedure_construction():
+    # The engine constructs each native procedure once per node instance, after all native states.
+    registry = {}
+    events = []
+
+    @native_node_type(registry, has_native_state=True)
+    class LoadProbe(NativeState):
+        def __init__(self, *, context):
+            super().__init__(context=context)
+            context.set_output('state', self)
+            events.append(('state', context.name))
+
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __init__(self, *, context):
+                self.state = context.resources['state'].object
+                assert isinstance(self.state, LoadProbe)
+                if context.values['Fail']:
+                    raise ValueError(f'{context.name}: unsupported configuration')
+                events.append(('procedure', context.name, context.values['Fail']))
+
+            def __call__(self, *, context):
+                assert context.inputs['state'].object is self.state
+                events.append(('call', context.name))
+
+    source = '''namespace TestLibrary {
+  resource type LoadState;
+  native node type LoadProbe {
+    parameter Fail: boolean = false;
+    binding state: resource LoadState;
+    native initializer produces state as "state";
+    native procedure run depends on state as "state" uses Fail;
+  }
+}
+node first: TestLibrary.LoadProbe {}
+node second: TestLibrary.LoadProbe {}
+'''
+    with patch.dict(wirely.native.test_library.native_node_types, registry), \
+            patch.dict(wirely.native.test_library.native_resource_types, {'LoadState': LoadProbe}):
+        graph = wirely.compiler.compile_strs([('<procedure-construction>', source)])
+        assert graph is not None
+        runtime = test_engine(program_compiler.compile_nocatch(graph))
+        checks.assertCountEqual(events[:2], [('state', 'first'), ('state', 'second')])
+        checks.assertCountEqual(events[2:], [('procedure', 'first', False), ('procedure', 'second', False)])
+        events.clear()
+        runtime.step()
+        checks.assertCountEqual(events, [('call', 'first'), ('call', 'second')])
+
+        events.clear()
+        failing = source.replace('node second: TestLibrary.LoadProbe {}',
+                                 'node second: TestLibrary.LoadProbe { Fail: true }')
+        graph = wirely.compiler.compile_strs([('<procedure-construction>', failing)])
+        assert graph is not None
+        with checks.assertRaisesRegex(ValueError, 'second: unsupported configuration'):
+            test_engine(program_compiler.compile_nocatch(graph))
+        checks.assertNotIn(('call', 'first'), events)
 
 
 def check_native_linking_errors():
@@ -1083,43 +1150,51 @@ def check_native_linking_errors():
             constructed.append(context.name)
             super().__init__(context=context)
 
-        @staticmethod
-        def run(*, context):
-            pass
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                pass
 
-    def wrong_signature(*, other):
+    def procedure(*bases, **attributes):
+        return {'Run': native_procedure('run')(type('Run', bases or (NativeProcedure,), attributes))}
+
+    def call(self, *, context):
         pass
 
-    def instance_method(self, *, context):
+    def wrong_signature(self, *, other):
         pass
 
-    async def asynchronous(*, context):
+    def wrong_initializer(self, *, other):
         pass
 
-    def generator(*, context):
+    async def asynchronous(self, *, context):
+        pass
+
+    def generator(self, *, context):
         yield None
 
-    async def async_generator(*, context):
+    async def async_generator(self, *, context):
         yield None
 
     cases = (
         ({}, 'native procedure missing;', False, False, 'Cannot find native procedure'),
         ({}, 'native procedure Poll as "TestLibrary.InvalidProbe:missing";', False, False,
          'Cannot find native procedure'),
-        ({'run': staticmethod(wrong_signature)}, 'native procedure run;', False, False,
+        (procedure(object, __call__=call), 'native procedure run;', False, False,
+         'must be a NativeProcedure subclass'),
+        (procedure(), 'native procedure run;', False, False, 'must define __call__'),
+        (procedure(__call__=wrong_signature), 'native procedure run;', False, False,
          'Invalid native procedure'),
-        ({'run': instance_method}, 'native procedure run;', False, False,
+        (procedure(__call__=call, __init__=wrong_initializer), 'native procedure run;', False, False,
          'Invalid native procedure'),
-        ({'run': staticmethod(asynchronous)}, 'native procedure run;', False, False,
+        (procedure(__call__=asynchronous), 'native procedure run;', False, False,
          'must be synchronous'),
-        ({'run': staticmethod(generator)}, 'native procedure run;', False, False,
+        (procedure(__call__=generator), 'native procedure run;', False, False,
          'cannot be a generator'),
-        ({'run': staticmethod(async_generator)}, 'native procedure run;', False, False,
+        (procedure(__call__=async_generator), 'native procedure run;', False, False,
          'cannot be a generator'),
-        ({'run': property(lambda self: None)}, 'native procedure run;', False, False,
-         'Unsupported native procedure method'),
         ({}, '', True, False, 'requires has_native_state=True'),
-        ({'run': instance_method}, 'native procedure run;', True, True,
+        (procedure(__call__=wrong_signature), 'native procedure run;', True, True,
          'Invalid native procedure'),
     )
     for methods, declaration, declared_state, implemented_state, message in cases:
@@ -1150,6 +1225,10 @@ node invalid: TestLibrary.InvalidProbe {{}}
             checks.assertIn('InvalidProbe', str(raised.exception))
         checks.assertEqual(constructed, [])
 
+    duplicate = {**procedure(__call__=call), 'Other': procedure(__call__=call)['Run']}
+    with checks.assertRaisesRegex(Exception, "Duplicate native procedure name 'run'"):
+        native_node_type({}, has_native_state=False)(type('DuplicateProbe', (), duplicate))
+
 
 def check_input_length_values():
     registry = {}
@@ -1161,11 +1240,12 @@ def check_input_length_values():
             context.set_output('state', self)
             self.count = context.values['Count']
 
-        @staticmethod
-        def run(*, context):
-            state = context.inputs['state'].object
-            assert context.values['Count'] == state.count
-            context.set_output('output', state.count)
+        @native_procedure('run')
+        class Run(NativeProcedure):
+            def __call__(self, *, context):
+                state = context.inputs['state'].object
+                assert context.values['Count'] == state.count
+                context.set_output('output', state.count)
 
     source = '''
 namespace TestLibrary {
@@ -1218,3 +1298,4 @@ check_struct_outputs()
 check_native_structs()
 check_port_keys()
 check_native_methods()
+check_procedure_construction()

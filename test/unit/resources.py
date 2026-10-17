@@ -8,8 +8,8 @@ from unittest.mock import patch
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 import wirely.native.test_library
-from wirely.native import native_node_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import native_node_type, native_procedure
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.test import test_engine
 from wirely.runtime.resources import ResourceValue
 
@@ -69,26 +69,29 @@ class Consumer(NativeState):
     def start_tasks(self, task_group, async_exit_stack):
         startup_inputs.append(self.inputs)
 
-    @staticmethod
-    def read(*, context):
-        state = context.inputs['state'].object
-        assert {key: value for key, value in context.inputs.items() if key != 'state'} == dict(state.inputs)
-        procedure_calls.append(('read', context.inputs['Service'].object))
-        context.set_output('Count', context.inputs['Service'].object.value)
+    @native_procedure('read')
+    class Read(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            assert {key: value for key, value in context.inputs.items() if key != 'state'} == dict(state.inputs)
+            procedure_calls.append(('read', context.inputs['Service'].object))
+            context.set_output('Count', context.inputs['Service'].object.value)
 
-    @staticmethod
-    def poll(*, context):
-        assert context.inputs['Service'] is context.inputs['state'].object.inputs['Service']
-        procedure_calls.append(('poll', context.inputs['Service'].object))
+    @native_procedure('poll')
+    class Poll(NativeProcedure):
+        def __call__(self, *, context):
+            assert context.inputs['Service'] is context.inputs['state'].object.inputs['Service']
+            procedure_calls.append(('poll', context.inputs['Service'].object))
 
 
 @native_node_type(registry, has_native_state=False)
 class ProcedureConsumer:
-    @staticmethod
-    def read(*, context):
-        assert context.inputs['Service'] is context.inputs['child']
-        assert isinstance(context.inputs['Value'], int)
-        context.set_output('Count', context.inputs['Service'].object.value)
+    @native_procedure('read')
+    class Read(NativeProcedure):
+        def __call__(self, *, context):
+            assert context.inputs['Service'] is context.inputs['child']
+            assert isinstance(context.inputs['Value'], int)
+            context.set_output('Count', context.inputs['Service'].object.value)
 
 
 @native_node_type(registry, has_native_state=False)
@@ -367,9 +370,10 @@ class AliasHolder(NativeState, Service):
 
 @native_node_type(alias_registry, has_native_state=False)
 class AliasComposite:
-    @staticmethod
-    def read(*, context):
-        alias_reads.append(context.inputs['service'].object)
+    @native_procedure('read')
+    class Read(NativeProcedure):
+        def __call__(self, *, context):
+            alias_reads.append(context.inputs['service'].object)
 
 
 with patch.dict(wirely.native.test_library.native_node_types, alias_registry), \

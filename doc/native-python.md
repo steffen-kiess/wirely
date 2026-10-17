@@ -18,10 +18,12 @@ and the last component the class.
 
 A native procedure's
 [native name](language.md#state-and-execution), such as
-`Std.Constant:run`, selects a static method or class method: the part
-before `:` names a registered class, and the part after it the method.
-Procedures receive a native state only through a resource dependency, as
-shown [below](#native-objects-resources-and-tasks).
+`Std.Constant:run`, selects a `NativeProcedure` subclass from
+`wirely.runtime.contexts`: the part before `:` names a registered class,
+and the part after it the name under which `@native_procedure` registers a
+class nested in that class or one of its bases. Procedures receive a
+native state only through a resource dependency, as shown
+[below](#native-objects-resources-and-tasks).
 
 Native registries must be available when constructing an `Engine` from
 `wirely.runtime.engine`. It resolves classes using the native type names
@@ -48,16 +50,18 @@ Its Python implementation is:
 
 ```python
 import wirely
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_procedure
+from wirely.runtime.contexts import NativeProcedure
 
 native_node_types = {}
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class OptionSome:
-    @staticmethod
-    def run(*, context):
-        context.set_output('output', wirely.Some(context.inputs['input']))
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            context.set_output('output', wirely.Some(context.inputs['input']))
 ```
 
 Register the class of a `native node type` with `has_native_state=True`,
@@ -65,8 +69,16 @@ and other classes with `has_native_state=False`, as above. Either kind of
 class can implement procedures. Node types of either kind can also
 declare `.wrl` state.
 
-Procedures run synchronously with the keyword argument `context`; their
-return values are ignored. Use native node tasks for asynchronous I/O.
+The engine constructs each procedure class once per node instance with
+the keyword argument `context`, after all native objects are constructed
+and before the first step. This context has read-only `name`, `values`
+(see [static values](#static-values-and-prepared-data)), and `resources`,
+the resource dependencies described below. Raise from `__init__` to reject
+unsupported configuration; the program then does not start.
+
+Each invocation calls the instance synchronously with the keyword argument
+`context`; return values are ignored. Use native node tasks for
+asynchronous I/O.
 
 ## Inputs, outputs, and state
 
@@ -324,12 +336,13 @@ class Receiver(NativeState):
         self.value = value
         self.trigger('state')
 
-    @staticmethod
-    def get_value(*, context):
-        value = context.inputs['state'].object.value
-        if value is not None:
-            value = wirely.Some(value)
-        context.set_output('output', value)
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __call__(self, *, context):
+            value = context.inputs['state'].object.value
+            if value is not None:
+                value = wirely.Some(value)
+            context.set_output('output', value)
 ```
 
 Changes to Python fields do not automatically schedule procedures. Call

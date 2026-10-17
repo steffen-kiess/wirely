@@ -5,8 +5,8 @@ import urllib
 import contextlib
 
 import wirely
-from wirely.native import check_state_type, native_node_type, native_resource_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.runtime.enums import MQTTFormat
 
 native_node_types = {}
@@ -293,30 +293,33 @@ class ValueOptionProvider(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def set_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('set_value')
+    class SetValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        value_opt = context.inputs['input']
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-        if value_opt is None:
-            value_bytes = b''
-        else:
-            value = value_opt.value
-            value = state.json_encode(value, state.format)
-            value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = state.template_prefix + value + state.template_suffix
-            value_bytes = bytes(value, 'utf-8')
+            value_opt = context.inputs['input']
 
-        print(f'Setting output {state.topic} to {value_bytes}, old value_to_send is {state.value_to_send}', flush=True)
+            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+            if value_opt is None:
+                value_bytes = b''
+            else:
+                value = value_opt.value
+                value = state.json_encode(value, state.format)
+                value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+                value = state.template_prefix + value + state.template_suffix
+                value_bytes = bytes(value, 'utf-8')
 
-        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
-        # TODO: Provide some notification if this is happening?
-        state.value_to_send = value_bytes
-        state.event.set()
+            print(f'Setting output {state.topic} to {value_bytes}, old value_to_send is {state.value_to_send}', flush=True)
+
+            # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+            # TODO: Provide some notification if this is happening?
+            state.value_to_send = value_bytes
+            state.event.set()
 
     async def run_task(self):
         while True:
@@ -374,33 +377,36 @@ class EventSender(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def send_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('send_value')
+    class SendValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        value_opt = context.inputs['input']
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-        if value_opt is None:
-            return
-        else:
-            value = value_opt.value
-            value = state.json_encode(value, state.format)
-            value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
-            value = state.template_prefix + value + state.template_suffix
-            value_bytes = bytes(value, 'utf-8')
+            value_opt = context.inputs['input']
 
-        print(f'Sending event {state.topic} to {value_bytes}, old values_to_send is {state.values_to_send}', flush=True)
+            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+            if value_opt is None:
+                return
+            else:
+                value = value_opt.value
+                value = state.json_encode(value, state.format)
+                value = json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+                value = state.template_prefix + value + state.template_suffix
+                value_bytes = bytes(value, 'utf-8')
 
-        # Note: If sending is too slow, there might be multiple events queued up.
-        # TODO: Provide a notification in this case?
-        state.values_to_send.append(value_bytes)
-        state.event.set()
+            print(f'Sending event {state.topic} to {value_bytes}, old values_to_send is {state.values_to_send}', flush=True)
 
-        # This makes sure that the value is sent again if the input does not change
-        context.trigger_self()
+            # Note: If sending is too slow, there might be multiple events queued up.
+            # TODO: Provide a notification in this case?
+            state.values_to_send.append(value_bytes)
+            state.event.set()
+
+            # This makes sure that the value is sent again if the input does not change
+            context.trigger_self()
 
     async def run_task(self):
         while True:
@@ -450,23 +456,26 @@ class EventReceiver(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    @staticmethod
-    def get_value(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        # TODO: Add checks whether everything is running?
+    @native_procedure('get_value')
+    class GetValue(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
 
-        if len(state.received_values) == 0:
-            context.set_output('output', None)
-            return
-        value = state.received_values.pop(0)
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            # TODO: Add checks whether everything is running?
 
-        res_opt = wirely.Some(value)
-        # print(f'get_value: {res_opt}')
+            if len(state.received_values) == 0:
+                context.set_output('output', None)
+                return
+            value = state.received_values.pop(0)
 
-        context.set_output('output', res_opt)
+            res_opt = wirely.Some(value)
+            # print(f'get_value: {res_opt}')
 
-        context.trigger_self()
+            context.set_output('output', res_opt)
+
+            context.trigger_self()
 
     async def run_task(self):
         # TODO: Should subscribing be done here or in start_tasks()?

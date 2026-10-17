@@ -4,9 +4,9 @@ import os
 import sys
 
 import wirely
-from wirely.native import native_node_type, native_resource_type
+from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -125,30 +125,31 @@ class ValueWriter(NativeState):
         self.last_value_csv = new_value_csv
         return True
 
-    @staticmethod
-    def run(*, context):
-        state = context.inputs['state'].object
-        new_value = context.inputs['input']
-        elapsed = context.inputs['repeat_elapsed']
-        last_written_at = context.inputs['last_written_at_old']
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            new_value = context.inputs['input']
+            elapsed = context.inputs['repeat_elapsed']
+            last_written_at = context.inputs['last_written_at_old']
 
-        new_value_csv = context.values['Type'].to_csv_value(new_value)
+            new_value_csv = context.values['Type'].to_csv_value(new_value)
 
-        # If elapsed is None or Some(True), the value has to be repeated
-        # Note: The empty value is not repeated
-        force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
+            # If elapsed is None or Some(True), the value has to be repeated
+            # Note: The empty value is not repeated
+            force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
 
-        # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
-        time = context.start_time_for_stage(RunStage.DEFAULT).local
+            # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
+            time = context.start_time_for_stage(RunStage.DEFAULT).local
 
-        if force:
-            # Re-evaluate the repeat decision next step after recording this write.
-            # TODO: Should this simply be done whenever write_value() is called?
-            context.trigger_self()
+            if force:
+                # Re-evaluate the repeat decision next step after recording this write.
+                # TODO: Should this simply be done whenever write_value() is called?
+                context.trigger_self()
 
-        written = state.write_value(new_value_csv, time, force=force)
-        if written:
-            # TODO: Think what happens if new_value_csv is ('', False)
-            last_written_at = wirely.Some(context.start_time_for_stage(RunStage.DEFAULT).monotonic)
+            written = state.write_value(new_value_csv, time, force=force)
+            if written:
+                # TODO: Think what happens if new_value_csv is ('', False)
+                last_written_at = wirely.Some(context.start_time_for_stage(RunStage.DEFAULT).monotonic)
 
-        context.set_output('last_written_at', last_written_at)
+            context.set_output('last_written_at', last_written_at)

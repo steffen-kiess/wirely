@@ -1,6 +1,6 @@
 import wirely
-from wirely.native import check_state_type, native_node_type, native_resource_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
+from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types = {}
 native_resource_types = {}
@@ -8,44 +8,47 @@ native_resource_types = {}
 
 @native_node_type(native_node_types, has_native_state=False)
 class DebugValuePrinter:
-    @staticmethod
-    def run(*, context):
-        text = context.values['Type'].to_text(context.inputs['input'])
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            text = context.values['Type'].to_text(context.inputs['input'])
 
-        print(f'[{context.name}]: Got value {text}', flush=True)
+            print(f'[{context.name}]: Got value {text}', flush=True)
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class DebugEventPrinter:
-    @staticmethod
-    def run(*, context):
-        event = context.inputs['input']
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            event = context.inputs['input']
 
-        if event is None:
-            return
+            if event is None:
+                return
 
-        text = context.values['Type'].to_text(event.value)
-        print(f'[{context.name}]: Got event {text}', flush=True)
+            text = context.values['Type'].to_text(event.value)
+            print(f'[{context.name}]: Got event {text}', flush=True)
 
 
 @native_node_type(native_node_types, has_native_state=False)
 class WarnOnEvent:
-    @staticmethod
-    def run(*, context):
-        event = context.inputs['input']
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            event = context.inputs['input']
 
-        if event is None:
-            return
+            if event is None:
+                return
 
-        parts = context.values['format_parts'].native
-        if parts.has_value:
-            message = parts.prefix + context.values['Type'].to_text(event.value) + parts.suffix
-        else:
-            message = parts.prefix
-        print(f'Warning: [{context.name}]: {message}', flush=True)
+            parts = context.values['format_parts'].native
+            if parts.has_value:
+                message = parts.prefix + context.values['Type'].to_text(event.value) + parts.suffix
+            else:
+                message = parts.prefix
+            print(f'Warning: [{context.name}]: {message}', flush=True)
 
-        # This makes sure that an identical event in the next step is not skipped
-        context.trigger_self()
+            # This makes sure that an identical event in the next step is not skipped
+            context.trigger_self()
 
 
 @native_resource_type(native_resource_types, 'DebugValueSourceState')
@@ -58,11 +61,14 @@ class DebugValueSource(NativeState):
 
         self.out_type = context.values['Type']
 
-    @staticmethod
-    def run(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        context.set_output('output', state.current_value)
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
+
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            context.set_output('output', state.current_value)
 
     def set_value(self, value):
         self.current_value = value
@@ -99,14 +105,17 @@ class DebugEventSource(NativeState):
 
         self.out_type = context.values['Type']
 
-    @staticmethod
-    def run(*, context):
-        state = context.inputs['state'].object
-        check_state_type(context, state)
-        context.set_output('output', state.next_value)
-        if state.next_value is not None:
-            state.next_value = None
-            context.trigger_self()
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __init__(self, *, context):
+            check_state_type(context, context.resources['state'].object)
+
+        def __call__(self, *, context):
+            state = context.inputs['state'].object
+            context.set_output('output', state.next_value)
+            if state.next_value is not None:
+                state.next_value = None
+                context.trigger_self()
 
     def send_event(self, value):
         if self.next_value is not None:

@@ -7,8 +7,8 @@ import wirely.native.test_library
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.compiler.native_functions import native_function_impls
-from wirely.native import native_node_type
-from wirely.runtime.contexts import NativeState
+from wirely.native import native_node_type, native_procedure
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.test import test_engine
 from wirely.runtime.signatures import Builtin
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
@@ -46,41 +46,45 @@ class ValuesProbe(NativeState):
         with checks.assertRaises(TypeError):
             context.values['Number'] = 1
 
-    @staticmethod
-    def run(*, context):
-        assert context.values['seed'] == context.inputs['state'].object.values['seed']
-        assert context.values['Missing'] is context.values['alias'] is None
-        assert context.values['Absent'] == wirely.Some(None)
-        assert context.values['Default'] is True
-        assert context.values['type'] == wirely.value_types.uint16
-        assert context.values['mode'].name == 'On'
-        assert context.values['number'] == 12
-        assert context.values['call'] == 40
-        assert context.values['block'] == 'hello'
-        assert context.values['items'] == (wirely.Some(7), None)
-        pair = context.values['pair']
-        assert (pair.type.name, pair.type.fields[0][0], pair.values) == ('Example.Pair', 'value', (True,))
-        assert context.values['unit'] == wirely.Unit()
-        assert context.values['option'] == wirely.Some(False)
-        assert context.values['at'] == wirely.TimeOfDay.from_parts(0, 30)
-        assert context.values['span'] == wirely.Duration.parse('PT1S')
-        assert context.values['instant'] is None
-        assert context.values['descriptors'] == (wirely.Some(wirely.value_types.uint16), None)
-        with checks.assertRaises(KeyError):
-            context.values['Number']
-        with checks.assertRaises(TypeError):
-            context.values['seed'] = 1
-        with checks.assertRaises(AttributeError):
-            context.values = {}
-        context.set_output('Number', context.values['seed'])
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            assert context.values['seed'] == context.inputs['state'].object.values['seed']
+            assert context.values['Missing'] is context.values['alias'] is None
+            assert context.values['Absent'] == wirely.Some(None)
+            assert context.values['Default'] is True
+            assert context.values['type'] == wirely.value_types.uint16
+            assert context.values['mode'].name == 'On'
+            assert context.values['number'] == 12
+            assert context.values['call'] == 40
+            assert context.values['block'] == 'hello'
+            assert context.values['items'] == (wirely.Some(7), None)
+            pair = context.values['pair']
+            assert (pair.type.name, pair.type.fields[0][0], pair.values) == ('Example.Pair', 'value', (True,))
+            assert context.values['unit'] == wirely.Unit()
+            assert context.values['option'] == wirely.Some(False)
+            assert context.values['at'] == wirely.TimeOfDay.from_parts(0, 30)
+            assert context.values['span'] == wirely.Duration.parse('PT1S')
+            assert context.values['instant'] is None
+            assert context.values['descriptors'] == (wirely.Some(wirely.value_types.uint16), None)
+            with checks.assertRaises(KeyError):
+                context.values['Number']
+            with checks.assertRaises(TypeError):
+                context.values['seed'] = 1
+            with checks.assertRaises(AttributeError):
+                context.values = {}
+            context.set_output('Number', context.values['seed'])
 
-    @staticmethod
-    def empty(*, context):
-        assert not context.values
-        with checks.assertRaises(KeyError):
-            context.values['seed']
+    @native_procedure('empty')
+    class Empty(NativeProcedure):
+        def __call__(self, *, context):
+            assert not context.values
+            with checks.assertRaises(KeyError):
+                context.values['seed']
 
-    omitted = empty
+    @native_procedure('omitted')
+    class Omitted(Empty):
+        pass
 
 
 @native_node_type(registry, has_native_state=True)

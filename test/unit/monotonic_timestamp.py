@@ -4,9 +4,9 @@ import wirely
 import wirely.native.test_library
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.native import native_node_type
+from wirely.native import native_node_type, native_procedure
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.test import test_engine
 
 
@@ -25,10 +25,11 @@ class HeldEventSource(NativeState):
             self.value = value
             self.trigger('state')
 
-    @staticmethod
-    def run(*, context):
-        # The timestamp node must keep stepping even when this output is cached.
-        context.set_output('output', context.inputs['state'].object.value)
+    @native_procedure('run')
+    class Run(NativeProcedure):
+        def __call__(self, *, context):
+            # The timestamp node must keep stepping even when this output is cached.
+            context.set_output('output', context.inputs['state'].object.value)
 
 
 source = '''namespace TestLibrary {
