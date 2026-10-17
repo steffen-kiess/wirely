@@ -31,8 +31,9 @@ node second: Probe { Number: 1 }
 node third: Probe { Number: 2 }
 '''
     diagnostics = []
+    # Which instance is first follows declaration order, so do not shuffle.
     with patch.dict(native_function_impls, {'Example.Warn': warn_value}):
-        graph = compile_strs([('<warnings>', source)], on_diagnostic=diagnostics.append)
+        graph = compile_strs([('<warnings>', source)], on_diagnostic=diagnostics.append, shuffle_seed=None)
         assert graph is not None
         assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is not None
     assert [(diagnostic.kind, diagnostic.line, diagnostic.message) for diagnostic in diagnostics] == [

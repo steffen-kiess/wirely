@@ -501,7 +501,8 @@ def check_arithmetic():
 def pair(enabled, number):
     """Return a Pair as native code passes it."""
     pair_type = wirely.ValueType(engine.get_variable('pair_source').var_type).struct_type
-    return pair_type.make((enabled, number))
+    fields = {'enabled': enabled, 'number': number}
+    return pair_type.make(tuple(fields[name] for name, _ in pair_type.fields))
 
 
 def check_struct_fields():
@@ -512,8 +513,8 @@ def check_struct_fields():
         engine.step()
         engine.assert_value_is('pair_fields.Enabled', enabled)
         engine.assert_value_is('pair_fields.Next', expected_next)
-        engine.assert_value_is('pair_fields.Built', (not enabled, number if enabled else 0))
-        engine.assert_value_is('pair_fields.Wrapped', wirely.Some((enabled, number)))
+        engine.assert_value_is('pair_fields.Built', pair(not enabled, number if enabled else 0).values)
+        engine.assert_value_is('pair_fields.Wrapped', wirely.Some(pair(enabled, number).values))
         engine.assert_value_is('pair_fields.Nested',
                                None if number == 0 else wirely.Some(wirely.Some(enabled)))
     engine.assert_is_idle()
@@ -665,7 +666,7 @@ def check_mutation():
                 'Saved': value, 'Changed': not value, 'Shadowed': not value,
                 'Chosen': value, 'ReadOutput': not value, 'ShortCircuit': value,
                 'Pattern': value, 'Difference': 8, 'SelfUpdate': 8, 'Snapshot': True,
-                'Fields': (True, 2), 'Fallback': value, 'FallbackRan': True,
+                'Fields': pair(True, 2).values, 'Fallback': value, 'FallbackRan': True,
                 'Unit': wirely.Unit()}.items():
             engine.assert_value_is(f'mutation.{output}', expected)
     engine.step()
@@ -697,8 +698,11 @@ check_mutation()
 
 
 def check_multi_procedures():
-    # Compile the accepted language fixture as setup for runtime checks.
-    graph = wirely.compiler.compile_files(['test/compiler/multi_procedures.wrl'])
+    # Compile the accepted language fixture as setup for runtime checks. The
+    # flattening order checked below follows declaration order, so do not shuffle.
+    fixture = 'test/compiler/multi_procedures.wrl'
+    with open(fixture, encoding='utf-8') as file:
+        graph = wirely.compiler.compile_strs([(fixture, file.read())], add_std=True, shuffle_seed=None)
     machine = test_engine(program_compiler.compile(graph))
     machine.step()
     for name, expected in {'digits': 21354, 'sum': 12, 'empty': 0, 'single': 6}.items():
