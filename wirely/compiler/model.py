@@ -1,7 +1,7 @@
 """Compiler-facing AST, graph, parameter, and diagnostic objects."""
 
 import importlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from wirely import Some, Unit, MonotonicTime, Duration, types, value_types, Type, ValueType
 from wirely.program import Program, RunStage, Variable, VariableTable, InputSource
@@ -231,7 +231,7 @@ if TYPE_CHECKING:
     from wirely.compiler import ast, parser, value
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     # Compiler modules also use this facade while defining their own objects.
     if name in _modules:
         value = importlib.import_module('.' + _modules[name], 'wirely')

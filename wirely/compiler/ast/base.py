@@ -47,6 +47,9 @@ class SourcePosition:
 
 
 class SourceElement:
+    # Set by the coordinator when declaration or port resolution fails.
+    failed: bool
+
     @check_parameters
     def __init__(self, *, source_position: SourcePosition) -> None:
         self.source_position = source_position

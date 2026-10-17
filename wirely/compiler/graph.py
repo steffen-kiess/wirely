@@ -1,5 +1,9 @@
 from dataclasses import dataclass
-from typing import Any
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .ast.procedures import Port
 
 from wirely.compiler import model
 from .types import resolve_type
@@ -15,19 +19,19 @@ class StateRead:
     reference: object
 
     @property
-    def node(self):
+    def node(self) -> Any:
         return self.state.node
 
     @property
-    def graph(self):
+    def graph(self) -> 'model.NodeType':
         return self.node.graph
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.state.name
 
     @property
-    def var_type(self):
+    def var_type(self) -> 'model.types.Type | None':
         return self.state.var_type
 
 
@@ -40,19 +44,19 @@ class StaticSource:
 
     # TODO: Remove
     @property
-    def node(self):
+    def node(self) -> 'StaticSource':
         return self
 
     @property
-    def graph(self):
+    def graph(self) -> 'model.NodeType':
         return self.declaration.interface
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.declaration.name.id_str
 
     @property
-    def var_type(self):
+    def var_type(self) -> 'model.types.Type | None':
         return self.declaration.type_resolved
 
 
@@ -63,14 +67,14 @@ class Connection:
     source: object
     target: object
     attributes: tuple
-    source_element: 'model.SourceElement'
+    source_element: 'model.ast.SourceElement'
     kind: str
 
 
 # A node or port appearing in a node type (or in the global scope)
 class GraphElement:
     # TODO: Should 'name' be an attribute of GraphElement?
-    def __init__(self, graph, *, name: str):
+    def __init__(self, graph: 'model.NodeType', *, name: str) -> None:
         if not isinstance(graph, model.NodeType):
             raise Exception('graph is not a NodeType')
 
@@ -86,7 +90,9 @@ class GraphElement:
 # TODO: Should the Node types be merge with the corresponding AST classes?
 
 class TypeInputPort(GraphElement):
-    def __init__(self, graph, type, *, name, input_name, is_list, port_spec, resource_type=None):
+    def __init__(self, graph: 'model.NodeType', type: 'model.types.Type | None', *, name: str,
+                 input_name: str, is_list: bool, port_spec: 'model.PortTypeSpecification',
+                 resource_type: 'model.ResourceType | None' = None) -> None:
         super().__init__(graph, name=name)
         # TODO: Clean up
         self.var_type = type
@@ -109,7 +115,9 @@ class TypeInputPort(GraphElement):
 
 
 class TypeOutputPort(GraphElement):
-    def __init__(self, graph, type, *, name, output_name, port_spec, resource_type=None):
+    def __init__(self, graph: 'model.NodeType', type: 'model.types.Type | None', *, name: str,
+                 output_name: str, port_spec: 'model.PortTypeSpecification',
+                 resource_type: 'model.ResourceType | None' = None) -> None:
         super().__init__(graph, name=name)
         self.var_type = type
         self.output_name = output_name
@@ -122,12 +130,12 @@ class TypeOutputPort(GraphElement):
             raise Exception(f'Duplicate node output name: {name!r}')
         self.graph.output_ports[name] = self
 
-        self.connected_source = None
+        self.connected_source: Any = None  # Heterogeneous connection sources.
 
         # TODO: Remove
         self.node = self
 
-    def connect(self, source):
+    def connect(self, source: Any) -> None:
         # TODO: Clean up class structure for value sources / targets
         if not isinstance(source, (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
                                    StaticSource, LocalResource)):
@@ -149,7 +157,8 @@ class TypeOutputPort(GraphElement):
 
 
 class TemporaryNode(GraphElement):
-    def __init__(self, graph, type, *, name, port_spec):
+    def __init__(self, graph: 'model.NodeType', type: 'model.types.Type', *, name: str,
+                 port_spec: 'model.PortTypeSpecification') -> None:
         super().__init__(graph, name=name)
         self.var_type = type
         self.port_spec = port_spec
@@ -158,12 +167,12 @@ class TemporaryNode(GraphElement):
             raise Exception(f'Duplicate temporary node name: {name!r}')
         self.graph.temporary_nodes[name] = self
 
-        self.connected_source = None
+        self.connected_source: Any = None  # Heterogeneous connection sources.
 
         # TODO: Remove
         self.node = self
 
-    def connect(self, source):
+    def connect(self, source: Any) -> None:
         if self.connected_source is not None:
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
@@ -175,7 +184,8 @@ class TemporaryNode(GraphElement):
 class LocalResource(GraphElement):
     """A declared resource, connected from one source or produced by the native initializer."""
 
-    def __init__(self, graph, declaration, resource_type):
+    def __init__(self, graph: 'model.NodeType', declaration: 'model.DeclarationBinding',
+                 resource_type: 'model.ResourceType') -> None:
         super().__init__(graph, name=declaration.name.id_str)
         self.declaration = declaration
         self.port_spec = declaration.port_spec
@@ -183,12 +193,12 @@ class LocalResource(GraphElement):
         self.var_type = None
         graph.local_resources[self.name] = self
 
-        self.connected_source = None
+        self.connected_source: Any = None  # Heterogeneous connection sources.
 
         # TODO: Remove
         self.node = self
 
-    def connect(self, source):
+    def connect(self, source: Any) -> None:
         if self.connected_source is not None:
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
@@ -200,20 +210,20 @@ class LocalResource(GraphElement):
 class InstanceLocalResource:
     """A local resource of one node instance."""
 
-    def __init__(self, node, resource):
+    def __init__(self, node: 'model.InstanceNode', resource: LocalResource) -> None:
         self.node = node
         self.resource = resource
         self.var_identifier = resource.name
         # The instance source passed on by a connected resource; None if produced.
-        self.alias_of = None
+        self.alias_of: Any = None  # Resolved instance source.
         node.local_resources[resource.name] = self
 
     @property
-    def port_spec(self):
+    def port_spec(self) -> 'model.PortTypeSpecification':
         return self.resource.port_spec
 
     @property
-    def resource_type(self):
+    def resource_type(self) -> 'model.ResourceType':
         return self.resource.resource_type
 
     def __repr__(self) -> str:
@@ -221,7 +231,8 @@ class InstanceLocalResource:
 
 
 class StateNode(GraphElement):
-    def __init__(self, graph, type, *, name, initial_value):
+    def __init__(self, graph: 'model.NodeType', type: 'model.types.Type', *, name: str,
+                 initial_value: 'model.ast.Value') -> None:
         super().__init__(graph, name=name)
         self.var_type = type
 
@@ -230,18 +241,18 @@ class StateNode(GraphElement):
         self.graph.state_nodes[name] = self
 
         # The source of this state's new value.
-        self.connected_source = None
+        self.connected_source: Any = None  # Heterogeneous connection sources.
 
         # TODO: Remove
         self.node = self
 
-    def connect(self, source):
+    def connect(self, source: Any) -> None:
         if self.connected_source is not None:
             raise Exception(f'{self} is already connected to {self.connected_source}, trying to connect to {source}')
         self.connected_source = source
 
     @property
-    def copy_source(self):
+    def copy_source(self) -> Any:
         """The source copied into this state, or None if a procedure port stores it."""
         source = self.connected_source
         if isinstance(source, ProcedureOutputPort) and source.state is self:
@@ -256,13 +267,14 @@ class StateNode(GraphElement):
 class PortSpecification:
     """The port type a procedure port presents to connections."""
 
-    var_type: object
-    port_spec: object
-    resource_type: object
+    var_type: 'model.types.Type | None'
+    port_spec: 'model.PortTypeSpecification | None'
+    resource_type: 'model.ResourceType | None'
     is_list: bool
 
 
-def port_specification(port):
+# Connection ends have different data and resource interfaces.
+def port_specification(port: Any) -> PortSpecification:
     """Return the port specification of a connection source or target."""
     if isinstance(port, ProcedurePort):
         return port.specification
@@ -284,19 +296,20 @@ class ProcedurePort(GraphElement):
     specification of the port it references.
     """
 
-    def __init__(self, graph, procedure, declaration, *, specification=None, counterpart=None):
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port', *,
+                 specification: PortSpecification | None = None, counterpart: Callable[[], Any] | None = None) -> None:
         super().__init__(graph, name=declaration.key)
         self.procedure = procedure
         self.declaration = declaration
         self._specification = specification
-        self._counterpart = counterpart
+        self._counterpart: Any = counterpart  # Callback before resolution, heterogeneous port afterwards.
         self.reference_state = (ResolutionState.COMPLETE if specification is not None
                                 else ResolutionState.PENDING)
 
         # TODO: Remove
         self.node = self
 
-    def resolve_reference(self):
+    def resolve_reference(self) -> None:
         """Prepare a reference port's counterpart and inherited specification."""
         if self.reference_state is ResolutionState.COMPLETE:
             return
@@ -314,36 +327,37 @@ class ProcedurePort(GraphElement):
         self.reference_state = ResolutionState.COMPLETE
 
     @property
-    def counterpart(self):
+    def counterpart(self) -> Any:
         """The prepared referenced port, or None for a typed port."""
         if self.reference_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Procedure port references must be resolved before use')
         return self._counterpart
 
     @property
-    def specification(self):
+    def specification(self) -> PortSpecification:
         if self.reference_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Procedure port specifications must be resolved before use')
+        assert self._specification is not None
         return self._specification
 
     @property
-    def var_type(self):
+    def var_type(self) -> 'model.types.Type | None':
         return self.specification.var_type
 
     @property
-    def port_spec(self):
+    def port_spec(self) -> 'model.PortTypeSpecification | None':
         return self.specification.port_spec
 
     @property
-    def resource_type(self):
+    def resource_type(self) -> 'model.ResourceType | None':
         return self.specification.resource_type
 
     @property
-    def is_list(self):
+    def is_list(self) -> bool:
         return self.specification.is_list
 
     @property
-    def description(self):
+    def description(self) -> str:
         return f'port {self.name!r} of procedure {self.procedure.name.id_str!r}'
 
     def __repr__(self) -> str:
@@ -351,14 +365,15 @@ class ProcedurePort(GraphElement):
 
 
 class ProcedureInputPort(ProcedurePort):
-    def __init__(self, graph, procedure, declaration, **kwargs):
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port',
+                 **kwargs: Any) -> None:
         super().__init__(graph, procedure, declaration, **kwargs)
         # A single source, or a multi input forwarded as a whole.
-        self.connected_source = None
+        self.connected_source: Any = None  # Heterogeneous connection sources.
         # The sources of a multi port.
-        self.sources = []
+        self.sources: list[Any] = []  # Heterogeneous connection sources.
 
-    def connect(self, source):
+    def connect(self, source: Any) -> None:
         if self.is_list and not getattr(source, 'is_list', False):
             if self.connected_source is not None:
                 raise Exception(f'{self} already forwards {self.connected_source}')
@@ -370,7 +385,8 @@ class ProcedureInputPort(ProcedurePort):
 
 
 class ProcedureOutputPort(ProcedurePort):
-    def __init__(self, graph, procedure, declaration, **kwargs):
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port',
+                 **kwargs: Any) -> None:
         super().__init__(graph, procedure, declaration, **kwargs)
         # The state node this port writes, if any.
-        self.state = None
+        self.state: StateNode | None = None

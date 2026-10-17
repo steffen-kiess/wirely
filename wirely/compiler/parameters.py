@@ -1,20 +1,29 @@
 """Resolve per-instance parameters and constants on demand."""
 
+from __future__ import annotations
+
 from types import MappingProxyType
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    StaticValue = model.Value | model.Type
 
 from wirely.compiler import model
 from wirely.compiler.types import resolve_type
 
 
-class ParameterValues(dict):
-    def __init__(self, values, *, instance=None):
+class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
+    def __init__(self, values: Mapping[model.DeclarationParameter, StaticValue], *,
+                 instance: model.NodeTypeInstance | None = None) -> None:
         super().__init__(values)
         self.instance = instance if instance is not None else getattr(values, 'instance', None)
-        self._resolved = {}
-        self._bindings = {}
-        self._resolving = []
+        self._resolved: dict[model.DeclarationParameter, StaticValue] = {}
+        self._bindings: dict[model.DeclarationParameter, model.Some | None] = {}
+        self._resolving: list[model.DeclarationParameter] = []
 
-    def __contains__(self, parameter):
+    def __contains__(self, parameter: object) -> bool:
+        assert isinstance(parameter, model.DeclarationParameter)
         if parameter.default_value is not None:
             return True
         if not super().__contains__(parameter):
@@ -28,14 +37,15 @@ class ParameterValues(dict):
                 self._resolving.pop()
         return True
 
-    def _binding(self, parameter):
+    def _binding(self, parameter: model.DeclarationParameter) -> model.Some | None:
         if parameter not in self._bindings:
             binding = super().__getitem__(parameter)
+            assert isinstance(binding, model.value.OptionalBinding)
             value = binding.resolve_self(self).evaluate()
             self._bindings[parameter] = value
         return self._bindings[parameter]
 
-    def _check_cycle(self, parameter):
+    def _check_cycle(self, parameter: model.DeclarationParameter) -> None:
         if parameter in self._resolving:
             names = [item.name.id_str for item in self._resolving] + [parameter.name.id_str]
             kind = ('static value' if any(isinstance(item, model.DeclarationConstant)
@@ -43,7 +53,7 @@ class ParameterValues(dict):
                     else 'parameter')
             raise model.ProgramError(parameter, f'Cyclic {kind} resolution: {" -> ".join(names)}')
 
-    def __getitem__(self, parameter):
+    def __getitem__(self, parameter: model.DeclarationParameter) -> StaticValue:
         if parameter in self._resolved:
             return self._resolved[parameter]
         self._check_cycle(parameter)
@@ -53,9 +63,10 @@ class ParameterValues(dict):
         finally:
             self._resolving.pop()
 
-    def _resolve(self, parameter):
+    def _resolve(self, parameter: model.DeclarationParameter) -> StaticValue:
         source = parameter.default_value or parameter
         with source.context:
+            value: StaticValue | None
             if super().__contains__(parameter):
                 value = super().__getitem__(parameter)
                 if isinstance(value, model.value.OptionalBinding):
@@ -89,13 +100,14 @@ class ParameterValues(dict):
             return value
 
 
-def resolve_parameter(parameter, values):
+def resolve_parameter(parameter: model.DeclarationParameter,
+                      values: Mapping[model.DeclarationParameter, StaticValue]) -> StaticValue:
     if not isinstance(values, ParameterValues):
         values = ParameterValues(values)
     return values[parameter]
 
 
-def native_parameters(values):
+def native_parameters(values: Mapping[str, StaticValue]) -> Mapping[str, Any]:
     return MappingProxyType({
         name: (model.ValueType(value) if isinstance(value, model.Type)
                else model.value_types._to_native(value.value_type, value.evaluate()))

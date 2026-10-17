@@ -230,6 +230,7 @@ def check_unused(graph: 'model.NodeType') -> None:
     if initializer is not None:
         read.update(id(dependency) for dependency in initializer.depends.get_resolved_dependencies())
     warnings = graph.coordinator.warnings
+    assert warnings is not None
     for name, node in graph.temporary_nodes.items():
         if id(node) not in read:
             warnings.warn('Unused', graph.value_nodes[name].name, f'Binding {name!r} is never read',

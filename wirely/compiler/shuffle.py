@@ -3,9 +3,14 @@
 import hashlib
 import json
 import random
+from collections.abc import Sequence
+from typing import TypeVar
 
 from wirely.compiler import model
 from .ast import SourceElement
+
+
+T = TypeVar('T')
 
 
 # Order-independent lists in each AST class. Arguments, statements,
@@ -30,13 +35,13 @@ _LAYOUT_ATTRIBUTES: dict[type, tuple[str, ...]] = {
 }
 
 
-def shuffled_source_order(order, seed):
+def shuffled_source_order(order: tuple[str, int], seed: int) -> tuple[bytes, str, int]:
     """Return a seeded sort key independent of traversal and Python hash seeds."""
     data = json.dumps((seed, *order), ensure_ascii=True).encode('ascii')
     return (hashlib.sha256(data).digest(), *order)
 
 
-def shuffle_declarations(declarations, seed, *, layout=False):
+def shuffle_declarations(declarations: list[model.Declaration], seed: int, *, layout: bool = False) -> None:
     """Shuffle a declaration list and the order-independent lists in it.
 
     The same seed and input give the same order. Connections keep their
@@ -52,7 +57,7 @@ def shuffle_declarations(declarations, seed, *, layout=False):
         _visit(rng, declaration, attributes, visited, layout)
 
 
-def _shuffled(rng, items):
+def _shuffled(rng: random.Random, items: Sequence[T]) -> list[T]:
     result = list(items)
     rng.shuffle(result)
     connections = iter([item for item in items if isinstance(item, model.DeclarationConnection)])
@@ -60,12 +65,13 @@ def _shuffled(rng, items):
             for item in result]
 
 
-def _shuffle_list(rng, items):
+def _shuffle_list(rng: random.Random, items: list[T]) -> None:
     # Shuffle in place to keep list subclasses and their attributes.
     items[:] = _shuffled(rng, items)
 
 
-def _visit(rng, value, attributes, visited, layout):
+def _visit(rng: random.Random, value: object, attributes: dict[type, tuple[str, ...]],
+           visited: set[int], layout: bool) -> None:
     if isinstance(value, (list, tuple)):
         for item in value:
             _visit(rng, item, attributes, visited, layout)
@@ -76,10 +82,14 @@ def _visit(rng, value, attributes, visited, layout):
     for cls, names in attributes.items():
         if isinstance(value, cls):
             # Closed member order defines member numbers.
-            if cls is model.DeclarationEnumType and not value.is_open and (value.is_native or not layout):
-                continue
-            if cls is model.DeclarationStructType and value.is_native:
-                continue
+            if cls is model.DeclarationEnumType:
+                assert isinstance(value, model.DeclarationEnumType)
+                if not value.is_open and (value.is_native or not layout):
+                    continue
+            if cls is model.DeclarationStructType:
+                assert isinstance(value, model.DeclarationStructType)
+                if value.is_native:
+                    continue
             for name in names:
                 items = getattr(value, name)
                 if isinstance(items, list):

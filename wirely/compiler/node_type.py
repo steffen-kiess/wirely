@@ -1,6 +1,10 @@
 import typing
+from collections.abc import Mapping
 
-from .attributes import copy_attributes
+if typing.TYPE_CHECKING:
+    from .parameters import StaticValue
+
+from .attributes import ParsedFile, copy_attributes
 from .types import check_runtime_type, resolve_type
 from .stages import ResolutionState
 
@@ -15,7 +19,9 @@ class NodeType(model.Scope):
     singleton_instance: 'model.InstanceNode'
 
     @check_parameters
-    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, alias: typing.Optional[model.StringConstant] = None, source_position: model.SourcePosition):
+    def __init__(self, specifiers: list[model.NodeTypeSpecifier], name: model.Identifier | None,
+                 declarations: ParsedFile | list[model.Declaration], *, alias: model.StringConstant | None = None,
+                 source_position: model.SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.alias = alias  # Native name replacing the qualified name.
@@ -53,12 +59,13 @@ class NodeType(model.Scope):
         self.body_state = ResolutionState.PENDING
 
     @staticmethod
-    def make(*args, source_position: model.SourcePosition):
+    def make(*args: typing.Any, source_position: model.SourcePosition) -> 'NodeType':
+        # Grammar arguments mix specifiers, a name, an alias, and declarations.
         specifiers = args[:-3]
         name, alias, declarations = args[-3:]
         return NodeType(list(specifiers), name, declarations, alias=alias, source_position=source_position)
 
-    def _register_in(self, graph):
+    def _register_in(self, graph: 'model.Scope') -> None:
         """Register this node type in its enclosing scope."""
         assert self.name is not None
         if self.name.id_str in graph.struct_types:
@@ -80,7 +87,7 @@ class NodeType(model.Scope):
             raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
         graph.node_types[self.name.id_str] = self
 
-    def collect_declarations(self, graph):
+    def collect_declarations(self, graph: 'model.Scope | None') -> None:
         if hasattr(self, 'parent_graph'):
             raise Exception("hasattr(self, 'parent_graph')")
         self.parent_graph = graph
@@ -92,6 +99,7 @@ class NodeType(model.Scope):
 
         if self.parent_graph is not None:
             with self.coordinator.contain(None):
+                assert graph is not None
                 self._register_in(graph)
 
         parsed_parameters: dict[str, model.DeclarationParameter] = {}
@@ -133,7 +141,7 @@ class NodeType(model.Scope):
                 with self.coordinator.contain(decl), decl.context:
                     decl.collect_declarations(self)
 
-    def prepare_type_interface(self):
+    def prepare_type_interface(self) -> None:
         if self.interface_state is ResolutionState.COMPLETE:
             return
         if self.interface_state is not ResolutionState.PENDING:
@@ -154,7 +162,7 @@ class NodeType(model.Scope):
             raise
         self.interface_state = ResolutionState.COMPLETE
 
-    def resolve_instance_declarations(self):
+    def resolve_instance_declarations(self) -> None:
         if self.instance_declarations_state is ResolutionState.COMPLETE:
             return
         if self.instance_declarations_state is not ResolutionState.PENDING:
@@ -171,7 +179,7 @@ class NodeType(model.Scope):
             raise
         self.instance_declarations_state = ResolutionState.COMPLETE
 
-    def bind_type_body(self):
+    def bind_type_body(self) -> None:
         if self.body_state is not ResolutionState.PENDING:
             raise RuntimeError('Body binding requires an unbound body')
         if self.instance_declarations_state is not ResolutionState.COMPLETE:
@@ -183,7 +191,7 @@ class NodeType(model.Scope):
             self.body_state = ResolutionState.FAILED
             raise
 
-    def validate_body(self):
+    def validate_body(self) -> None:
         if self.body_state is not ResolutionState.RESOLVING:
             raise RuntimeError('Body validation requires a bound body')
         try:
@@ -193,7 +201,7 @@ class NodeType(model.Scope):
             raise
         self.body_state = ResolutionState.COMPLETE
 
-    def _bind_body(self):
+    def _bind_body(self) -> None:
         reference_declarations = []
         connections = []
         for decl in self.declarations:
@@ -216,7 +224,9 @@ class NodeType(model.Scope):
             with decl.context:
                 decl.bind_body(self)
 
-    def create_instance_interface(self, *, name, graph, par_values, instantiation, register=True):
+    def create_instance_interface(self, *, name: str, graph: 'NodeType',
+                                  par_values: 'Mapping[model.DeclarationParameter, StaticValue]',
+                                  instantiation: 'model.ast.SourceElement', register: bool = True) -> 'model.InstanceNode':
         if self.interface_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance creation requires a prepared interface')
         node = model.InstanceNode(name=name, graph=graph, node_type=self, par_values=par_values,
@@ -266,7 +276,7 @@ class NodeType(model.Scope):
         node.population_state = ResolutionState.PENDING
         return node
 
-    def populate_instance(self, node):
+    def populate_instance(self, node: 'model.InstanceNode') -> None:
         if self.body_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance population requires a completed body')
         if node.node_type is not self or node.population_state is not ResolutionState.PENDING:
@@ -279,7 +289,7 @@ class NodeType(model.Scope):
             raise
         node.population_state = ResolutionState.COMPLETE
 
-    def _populate_instance(self, node):
+    def _populate_instance(self, node: 'model.InstanceNode') -> None:
         instantiation = node.instantiation
         # TODO: Probably more stuff should be done at an earlier stage
         state_variables = {}
@@ -312,6 +322,7 @@ class NodeType(model.Scope):
                 if port.state is not None:
                     node.port_storage[port] = state_variables[port.state.name]
                     continue
+                assert port.var_type is not None
                 impl_var_type = port.var_type
                 if model.connection_kind(port) == model.ConnectionKind.Event:
                     impl_var_type = model.types.TypeOption(port.var_type)
@@ -323,7 +334,8 @@ class NodeType(model.Scope):
         for resource in self.local_resources.values():
             model.InstanceLocalResource(node, resource)
 
-        def source(port):
+        # Data and resource ports map to different instance source classes.
+        def source(port: typing.Any) -> typing.Any:
             """Map a connection source in this type to this instance."""
             if isinstance(port, model.TypeInputPort):
                 return node.custom_inputs[port]
@@ -354,6 +366,7 @@ class NodeType(model.Scope):
         node.initializer_sources = {}
         if self.initializer is not None:
             depends = self.initializer.depends
+            source_port: typing.Any  # Data and resource dependencies use different source classes.
             for dependency_port, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
                 if isinstance(dep, model.TypeInputPort):
                     source_port = node.custom_inputs[dep]
@@ -389,7 +402,7 @@ class NodeType(model.Scope):
         return self.fullname
 
     @property
-    def fullname(self):
+    def fullname(self) -> str:
         if self.name is None and self.parent_graph is None:
             return '<global>'
         assert self.name is not None and self.parent_graph is not None
@@ -399,19 +412,19 @@ class NodeType(model.Scope):
             return self.parent_graph.fullname + '.' + self.name.id_str
 
     @property
-    def qualified_name(self):
+    def qualified_name(self) -> str:
         """The dotted Wirely name, such as 'ABB.JRA.Blind'."""
         return '.'.join(self.fullname_tuple)
 
     @property
-    def native_name(self):
+    def native_name(self) -> str | None:
         """The name that links native state, or None without native state."""
         if not self.is_native:
             return None
         return self.alias.value if self.alias is not None else self.qualified_name
 
     @property
-    def fullname_tuple(self):
+    def fullname_tuple(self) -> tuple[str, ...]:
         if self.name is None and self.parent_graph is None:
             return ()
         assert self.name is not None and self.parent_graph is not None

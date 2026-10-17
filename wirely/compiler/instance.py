@@ -1,5 +1,14 @@
+from __future__ import annotations
+
 import abc
 import typing
+from collections.abc import Callable, Mapping
+
+if typing.TYPE_CHECKING:
+    from .parameters import StaticValue
+    from .ast.procedures import Port
+
+    NodePath: typing.TypeAlias = tuple['InstanceNode | model.NodeType', ...]
 
 from wirely.compiler import model
 from .attributes import copy_attributes
@@ -11,13 +20,16 @@ from wirely.program import InputSource, Variable
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
     # Set by NodeType.instantiate().
-    parameter_values: dict
-    custom_inputs: dict
-    custom_outputs: dict
+    parameter_values: dict[model.DeclarationParameter, StaticValue]
+    custom_inputs: dict[model.TypeInputPort, InstanceInputPort]
+    custom_outputs: dict[model.TypeOutputPort, InstanceOutputPort]
+    initializer_sources: dict[str, tuple[typing.Any, Port]]  # Data and resource dependencies.
     population_state: ResolutionState
-    port_storage: 'dict[typing.Any, InstanceTemporary | InstanceStateVariable]'
+    port_storage: dict[model.ProcedureOutputPort, InstanceTemporary | InstanceStateVariable]
 
-    def __init__(self, graph, *, name, node_type, par_values, instantiation, register=True):
+    def __init__(self, graph: model.NodeType, *, name: str, node_type: model.NodeType,
+                 par_values: Mapping[model.DeclarationParameter, StaticValue], instantiation: model.ast.SourceElement,
+                 register: bool = True) -> None:
         super().__init__(graph=graph, name=name)
 
         self.node_type = node_type
@@ -34,14 +46,14 @@ class InstanceNode(model.GraphElement):
             #    raise Exception(f'Got parameter value {val} contains parameters')
 
         # TODO: A lot of this stuff should be moved to NodeType, instead the InstanceNode should only store the connections to the NodeType's inputs and from the NodeType's outputs
-        self.input_ports = []
-        self.output_ports = []
-        self.input_ports_byname = {}
-        self.output_ports_byname = {}
-        self.temporaries = []
-        self.local_resources = {}
-        self.state_variables = []
-        self.procedures = []
+        self.input_ports: list[InstanceInputPort] = []
+        self.output_ports: list[InstanceOutputPort] = []
+        self.input_ports_byname: dict[str, InstanceInputPort] = {}
+        self.output_ports_byname: dict[str, InstanceOutputPort] = {}
+        self.temporaries: list[InstanceTemporary] = []
+        self.local_resources: dict[str, model.InstanceLocalResource] = {}
+        self.state_variables: list[InstanceStateVariable] = []
+        self.procedures: list[InstanceProcedure] = []
         self.last_proc_id = 0
 
         if register:
@@ -50,23 +62,27 @@ class InstanceNode(model.GraphElement):
             self.graph.instance_nodes[self.name] = self
 
     @property
-    def is_root(self):
+    def is_root(self) -> bool:
         return self.node_type.parent_graph is None
 
     @property
-    def type_name(self):
+    def type_name(self) -> str:
         name = self.node_type.name
         return name.id_str if name is not None else '<global>'
 
     @staticmethod
-    def path_name(path, *, qualified=False):
+    def path_name(path: NodePath, *, qualified: bool = False) -> str:
         names = []
         for node in path:
             if isinstance(node, InstanceNode):
                 if not node.is_root:
                     names.append(node.name)
             else:
-                names.append(node.fullname if qualified else node.name.id_str)
+                if qualified:
+                    names.append(node.fullname)
+                else:
+                    assert node.name is not None
+                    names.append(node.name.id_str)
         return '.'.join(names)
 
     def __repr__(self) -> str:
@@ -77,11 +93,11 @@ class InstanceNode(model.GraphElement):
         return f"{self.graph}.{self.name}"
 
     @property
-    def position(self):
+    def position(self) -> object:
         return next((attribute.value for attribute in self.attributes
                      if attribute.name == 'Diagram.Position'), None)
 
-    def validate(self, path):
+    def validate(self, path: NodePath) -> None:
         """Require a source for each single input and a producer for each output."""
         name = InstanceNode.path_name(path, qualified=True)
         for input in self.all_input_ports:
@@ -101,7 +117,7 @@ class InstanceNode(model.GraphElement):
 
     # TODO: Clean up
     @property
-    def all_input_ports(self):
+    def all_input_ports(self) -> list[InstanceInputPort]:
         res = []
         for input in self.input_ports:
             if input.is_list:
@@ -112,7 +128,11 @@ class InstanceNode(model.GraphElement):
                 res.append(input)
         return res
 
-    def specialize(self, *, singletons, variable_map, all_variables, state_map, state_variables, instances, path, parent_instance):
+    def specialize(self, *, singletons: dict[model.NodeType, InstanceNode],
+                   variable_map: dict[tuple[NodePath, str], InputSource], all_variables: list[Variable],
+                   state_map: dict[tuple[NodePath, InstanceStateVariable], Variable], state_variables: list[Variable],
+                   instances: dict[NodePath, NodeTypeInstance], path: NodePath,
+                   parent_instance: NodeTypeInstance | None) -> None:
         """Resolve one concrete use of a populated reusable instance."""
         if self.population_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Specialization requires a populated instance')
@@ -164,7 +184,9 @@ class InstanceNode(model.GraphElement):
             variable_map[path, state_var.var_identifier] = InputSource(v, new_state=False)
             state_variables.append(v)
 
-    def bind_variables(self, *, path, variable_map, resolve_source):
+    def bind_variables(self, *, path: NodePath, variable_map: dict[tuple[NodePath, str], InputSource],
+                       resolve_source: Callable[[NodePath, typing.Any], InputSource]) -> None:
+        var: InstanceInputPort | InstanceOutputPort | InstanceTemporary
         for var in self.all_input_ports:
             # A member forwarding a whole multi input is resolved through its members.
             if isinstance(var.port_spec, model.PortTypeSpecificationResource) or model.forwards_multi_input(var):
@@ -178,7 +200,7 @@ class InstanceNode(model.GraphElement):
             variable_map[path, var.var_identifier] = resolve_source(path, var)
 
     # TODO: Probably should be merged into specialize()
-    def get_procedure_paths(self, prefix):
+    def get_procedure_paths(self, prefix: NodePath) -> list[tuple[NodePath, InstanceProcedure]]:
         path = model.path_resolve_singleton(prefix + (self,))
         res = [(path, proc) for proc in self.procedures]
         for child_node in self.node_type.instance_nodes.values():
@@ -186,7 +208,7 @@ class InstanceNode(model.GraphElement):
         return res
 
     # TODO: Probably should be merged into specialize()
-    def get_all_node_paths(self, prefix):
+    def get_all_node_paths(self, prefix: NodePath) -> list[NodePath]:
         path = model.path_resolve_singleton(prefix + (self,))
         res = [path]
         for child_node in self.node_type.instance_nodes.values():
@@ -195,7 +217,7 @@ class InstanceNode(model.GraphElement):
 
 
 class InstanceElement(abc.ABC):
-    def __init__(self, node: 'InstanceNode', name: str):
+    def __init__(self, node: 'InstanceNode', name: str) -> None:
         if not isinstance(node, InstanceNode):
             raise Exception('node parameter is not an InstanceNode')
         if not isinstance(name, str):
@@ -212,7 +234,7 @@ class InstanceElement(abc.ABC):
 class InstanceSource(InstanceElement, abc.ABC):
     @property
     @abc.abstractmethod
-    def temporary(self):
+    def temporary(self) -> InstanceTemporary | InstanceStateVariable:
         ...
 
 
@@ -223,8 +245,8 @@ class InstanceTarget(InstanceElement, abc.ABC):
 # TODO: Handle var_type == None better
 # TODO: Clean up, move more functionality to TypeInputPort
 class InstanceInputPort(InstanceSource):
-    def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type, *,
-                 type_input_port: 'model.TypeInputPort | InstanceInputPort'):
+    def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type | None, *,
+                 type_input_port: 'model.TypeInputPort | InstanceInputPort') -> None:
         super().__init__(node, name)
         if not isinstance(is_list, bool):
             raise Exception('is_list parameter is not of type bool')
@@ -244,6 +266,7 @@ class InstanceInputPort(InstanceSource):
             if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                 self.impl_var_type = self.var_type
             elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                assert self.var_type is not None
                 self.impl_var_type = model.types.TypeOption(self.var_type)
             else:
                 raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
@@ -265,7 +288,7 @@ class InstanceInputPort(InstanceSource):
         return f"{self.node}.{self.name}"
 
     @property
-    def temporary(self):
+    def temporary(self) -> InstanceTemporary | InstanceStateVariable:
         if self.is_list:
             raise Exception('Trying to get temporary for list')
         if self.connected_source is None:
@@ -273,7 +296,7 @@ class InstanceInputPort(InstanceSource):
         # TODO: Cache multiple follows?
         return self.connected_source.temporary
 
-    def connect(self, output):
+    def connect(self, output: typing.Any) -> None:
         # TODO: Clean up class structure for value sources / targets
         if not isinstance(output, (InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode, model.StateRead, model.ProcedureOutputPort,
                                    model.StaticSource, model.LocalResource)):
@@ -292,14 +315,15 @@ class InstanceInputPort(InstanceSource):
 
     # TODO: Remove and replace with self, InstanceInputPort should contain a reference to NodeType, not to InstanceNode
     @property
-    def var_identifier(self):
+    def var_identifier(self) -> str:
         return 'INP ' + self.node.type_name + '.' + self.name
 
 
 # TODO: Handle var_type == None better
 # TODO: Clean up, move more functionality to TypeOutputPort
 class InstanceOutputPort(InstanceTarget):
-    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, input_dependencies=[], *, type_output_port: model.TypeOutputPort):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type | None,
+                 input_dependencies: typing.Iterable[InstanceInputPort] = [], *, type_output_port: model.TypeOutputPort) -> None:
         super().__init__(node, name)
         if var_type is not None and not isinstance(var_type, model.types.Type):
             raise Exception('var_type parameter is not a Type')
@@ -316,6 +340,7 @@ class InstanceOutputPort(InstanceTarget):
             if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                 self.impl_var_type = self.var_type
             elif self.port_spec.kind_spec.kind == model.ConnectionKind.Event:
+                assert self.var_type is not None
                 self.impl_var_type = model.types.TypeOption(self.var_type)
             else:
                 raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
@@ -337,7 +362,7 @@ class InstanceOutputPort(InstanceTarget):
         self.node.output_ports_byname[self.name] = self
 
     @property
-    def name_desc(self):
+    def name_desc(self) -> str:
         if self.name == '':
             return 'default output'
         else:
@@ -348,7 +373,7 @@ class InstanceOutputPort(InstanceTarget):
 
     # TODO: Remove and replace with self, InstanceOutputPort should contain a reference to NodeType, not to InstanceNode
     @property
-    def var_identifier(self):
+    def var_identifier(self) -> str:
         return 'OUT ' + self.node.type_name + '.' + self.name
 
 
@@ -356,12 +381,13 @@ class InstanceOutputPort(InstanceTarget):
 class InstanceTemporary(InstanceSource, InstanceTarget):
     port_spec: typing.Any  # Set by NodeType.instantiate().
 
-    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *, impl_var_type, port=None):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, *,
+                 impl_var_type: model.types.Type, port: model.ProcedureOutputPort | None = None) -> None:
         super().__init__(node, name)
         # The procedure output port stored here, or None for declared temporaries.
         self.port = port
         # The source a value or event binding refers to.
-        self.alias_of = None
+        self.alias_of: typing.Any = None  # Heterogeneous resolved instance source.
         if not isinstance(var_type, model.types.Type):
             raise Exception('var_type parameter is not a Type')
 
@@ -369,7 +395,7 @@ class InstanceTemporary(InstanceSource, InstanceTarget):
 
         self.impl_var_type = impl_var_type
 
-        self.producer = None
+        self.producer: InstanceProcedure | None = None
 
         self.node.temporaries.append(self)
 
@@ -377,12 +403,12 @@ class InstanceTemporary(InstanceSource, InstanceTarget):
         return f"{self.node}.{self.name}"
 
     @property
-    def temporary(self):
+    def temporary(self) -> InstanceTemporary:
         return self
 
     # TODO: Remove and replace with self, InstanceTemporary should contain a reference to NodeType, not to InstanceNode
     @property
-    def var_identifier(self):
+    def var_identifier(self) -> str:
         separator = '.' if self.port is None else ':'
         return 'TEMP ' + self.node.type_name + separator + self.name
 
@@ -390,19 +416,21 @@ class InstanceTemporary(InstanceSource, InstanceTarget):
 class PortSources(InstanceSource):
     """The sources connected to a multi procedure port."""
 
-    def __init__(self, node: 'InstanceNode', name: str, members, *, port_spec):
+    def __init__(self, node: 'InstanceNode', name: str, members: list[typing.Any], *,
+                 port_spec: model.PortTypeSpecification | None) -> None:
         super().__init__(node, name)
         self.members = members
         self.port_spec = port_spec
         self.is_list = True
 
     @property
-    def temporary(self):
+    def temporary(self) -> InstanceTemporary | InstanceStateVariable:
         raise Exception('Trying to get temporary for list')
 
 
 class InstanceStateVariable(InstanceSource, InstanceTarget):
-    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type, initial_value):
+    def __init__(self, node: 'InstanceNode', name: str, var_type: model.types.Type,
+                 initial_value: model.ast.Value) -> None:
         super().__init__(node, name)
         if not isinstance(var_type, model.types.Type):
             raise Exception('var_type parameter is not a Type')
@@ -412,9 +440,9 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
 
         self.impl_var_type = self.var_type
 
-        self.producer = None
+        self.producer: InstanceProcedure | None = None
         # The source copied into this state, or None if a procedure port stores it.
-        self.copy_source = None
+        self.copy_source: typing.Any = None  # Heterogeneous resolved instance source.
 
         self.node.state_variables.append(self)
 
@@ -426,17 +454,20 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
 
     # TODO
     @property
-    def temporary(self):
+    def temporary(self) -> InstanceStateVariable:
         return self
 
     @property
-    def var_identifier(self):
+    def var_identifier(self) -> str:
         return 'STATE ' + self.node.type_name + '.' + self.name
 
 
 class InstanceProcedure:
     # TODO: Make name mandatory
-    def __init__(self, node: 'InstanceNode', dependencies, outputs, can_trigger=False, name=None, *, static_context, declaration_procedure):
+    def __init__(self, node: 'InstanceNode', dependencies: typing.Iterable[typing.Any],
+                 outputs: typing.Iterable[InstanceTemporary | InstanceStateVariable], can_trigger: bool = False,
+                 name: str | None = None, *, static_context: model.StaticProcedureContext,
+                 declaration_procedure: model.DeclarationProcedure) -> None:
         if not isinstance(node, InstanceNode):
             raise Exception('node parameter is not an InstanceNode')
 
@@ -493,7 +524,8 @@ class InstanceProcedure:
 
     # TODO: Remove and replace with self, InstanceProcedure should contain a reference to NodeType, not to InstanceNode
     @property
-    def proc_identifier(self):
+    def proc_identifier(self) -> str:
+        assert self.name is not None
         return 'PROC ' + self.node.type_name + '.' + self.name
 
 
@@ -501,7 +533,7 @@ class InstanceProcedure:
 # type containing it is instantiated multiple times.
 # TODO: Is this used for something except NodeTypeInstance?
 class NodeInstance:
-    def __init__(self, node: typing.Optional[model.GraphElement], parent_instance):
+    def __init__(self, node: InstanceNode | None, parent_instance: NodeTypeInstance | None) -> None:
         self.node = node
 
         if parent_instance is not None and not isinstance(parent_instance, NodeTypeInstance):
@@ -512,7 +544,7 @@ class NodeInstance:
 class NodeTypeInstance(NodeInstance):
     static_values: ParameterValues
 
-    def __init__(self, node, parent_instance):
+    def __init__(self, node: InstanceNode | model.NodeType, parent_instance: NodeTypeInstance | None) -> None:
         if isinstance(node, model.InstanceNode):
             super().__init__(node, parent_instance=parent_instance)
 
@@ -537,7 +569,7 @@ class NodeTypeInstance(NodeInstance):
             assert isinstance(self.node, InstanceNode)
             self.parameter_values = dict(self.node.par_values)
 
-        all_par_values: dict = {}
+        all_par_values: dict[model.DeclarationParameter, StaticValue] = {}
         next_parent = self.parent_instance
         while next_parent is not None:
             for key, value in next_parent.static_values.items():
@@ -545,7 +577,7 @@ class NodeTypeInstance(NodeInstance):
             next_parent = next_parent.parent_instance
 
         all_par_values.update(self.parameter_values)
-        all_par_values = ParameterValues(all_par_values, instance=self)
+        static_values = ParameterValues(all_par_values, instance=self)
         parameter_values_resolved = {}
         parameter_keys = list(self.parameter_values)
         parameter_keys.extend(
@@ -553,13 +585,15 @@ class NodeTypeInstance(NodeInstance):
             if parameter not in self.parameter_values and parameter.default_value is not None
         )
         for key in parameter_keys:
-            if key in all_par_values:
-                parameter_values_resolved[key] = all_par_values[key]
+            if key in static_values:
+                parameter_values_resolved[key] = static_values[key]
         self.parameter_values = parameter_values_resolved
-        with self.node_type.coordinator.warnings.instance(self.instantiation_hint()):
+        warnings = self.node_type.coordinator.warnings
+        assert warnings is not None
+        with warnings.instance(self.instantiation_hint()):
             try:
-                self.constant_values = {
-                    declaration: all_par_values[declaration]
+                self.constant_values: dict[model.DeclarationParameter, StaticValue] = {
+                    declaration: static_values[declaration]
                     for declaration in self.node_type.parsed_constants.values()
                 }
             except model.ProgramError as error:
@@ -568,7 +602,7 @@ class NodeTypeInstance(NodeInstance):
                     error.hints = [*error.hints, hint]
                 raise
             self.static_values = ParameterValues({
-                key: all_par_values[key] for key in all_par_values if key in all_par_values
+                key: static_values[key] for key in static_values if key in static_values
             }, instance=self)
             self.static_values.update(self.parameter_values)
             self.static_values.update(self.constant_values)
@@ -587,7 +621,7 @@ class NodeTypeInstance(NodeInstance):
         name = InstanceNode.path_name(self.path, qualified=True) or '<global>'
         self.static_context = model.StaticNodeContext(name=name, parameters=parameters)
 
-    def instantiation_hint(self):
+    def instantiation_hint(self) -> model.CompilerHint | None:
         """Return a hint at the instantiation of this instance, or None for the root."""
         owner = self.node or self.node_type.singleton_instance
         assert isinstance(owner, InstanceNode)
@@ -597,12 +631,14 @@ class NodeTypeInstance(NodeInstance):
         return model.CompilerHint(owner.instantiation, f'While instantiating {name!r}')
 
     @property
-    def path(self):
+    def path(self) -> NodePath:
         if self.is_singleton:
             return (self.node_type,)
 
+        base_path: NodePath
         if self.parent_instance is None:
             base_path = ()
         else:
             base_path = self.parent_instance.path
+        assert self.node is not None
         return base_path + (self.node,)

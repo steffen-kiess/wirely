@@ -8,15 +8,17 @@ from .expressions import compile_constant
 from .types import resolve_type
 
 
-def evaluate_bindings(uses, instance):
+def evaluate_bindings(uses: 'model.UsesDeclaration | None', instance: 'model.NodeTypeInstance') -> MappingProxyType[str, Constant]:
     """Return the typed values bound by a `uses` clause, keyed by name."""
     values: dict[str, Constant] = {}
     if uses is None:
         return MappingProxyType(values)
     scope = instance.node_type
+    warnings = scope.coordinator.warnings
+    assert warnings is not None
     for binding in uses.bindings:
         expression = binding.expression
-        with expression.context, scope.coordinator.warnings.instance(instance.instantiation_hint()):
+        with expression.context, warnings.instance(instance.instantiation_hint()):
             value = compile_constant(scope, expression, None, instance.static_values)
             value = value.resolve_self(instance.static_values)
             try:

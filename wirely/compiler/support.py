@@ -1,4 +1,14 @@
-from collections.abc import Mapping
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, NoReturn, TypeAlias
+
+if TYPE_CHECKING:
+    from .parameters import StaticValue
+    from .instance import NodePath
+
+    # Intermediate traversal paths include heterogeneous ports and static sources.
+    ResolutionPath: TypeAlias = tuple[Any, ...]
 
 from . import model
 from .instance import InstanceNode
@@ -15,7 +25,8 @@ TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureIn
                 model.StateNode, model.LocalResource)
 
 
-def describe_target(target):
+# Connection helpers handle heterogeneous graph and instance ports dynamically.
+def describe_target(target: Any) -> str:
     if isinstance(target, model.InstanceInputPort):
         port = 'Default input' if target.name == '' else f'Input {target.name!r}'
         return f'{port} of node {target.node.name!r}'
@@ -29,12 +40,12 @@ def describe_target(target):
     return f'{kind} {target.name!r}'
 
 
-def connection_kind(port):
+def connection_kind(port: object) -> model.ConnectionKind:
     spec = getattr(port, 'port_spec', None)
     return model.ConnectionKind.Value if spec is None else spec.kind_spec.kind
 
 
-def connect(source, target, source_element, *, attributes=()):
+def connect(source: Any, target: Any, source_element: model.ast.SourceElement, *, attributes: tuple = ()) -> None:
     # TODO: Clean up
     if not isinstance(source, SOURCE_TYPES):
         raise Exception('source parameter is not a data or resource source')
@@ -46,7 +57,7 @@ def connect(source, target, source_element, *, attributes=()):
         # TODO: Can this happen from program code? If yes, make error message clearer?
         raise model.ProgramError(source_element, f'source has graph {source.node.graph} but target has graph {target.node.graph}')
 
-    def previous_connection_hints():
+    def previous_connection_hints() -> list[model.CompilerHint]:
         previous = next((connection.source_element for connection in source.node.graph.connections
                          if connection.target is target), None)
         return [] if previous is None else [model.CompilerHint(previous, 'Previous connection was here')]
@@ -82,14 +93,14 @@ def connect(source, target, source_element, *, attributes=()):
     ))
 
 
-def occupied_message(target):
+def occupied_message(target: Any) -> str:
     message = f'{describe_target(target)} already has a source'
     if isinstance(target, model.InstanceInputPort):
         message += '; only multi inputs accept several'
     return message
 
 
-def port_declaration(port):
+def port_declaration(port: Any) -> model.ast.SourceElement:
     """Return the declaration of a connection end, for hints."""
     if isinstance(port, model.InstanceInputPort):
         return port.type_input_port.port_spec
@@ -103,9 +114,9 @@ def port_declaration(port):
     return port.graph.value_nodes[port.name]
 
 
-def check_compatible(source, target, source_element):
+def check_compatible(source: Any, target: Any, source_element: model.ast.SourceElement) -> bool:
     """Check the kinds and types of a connection; return whether it connects resources."""
-    def incompatible(message):
+    def incompatible(message: str) -> NoReturn:
         raise model.ProgramError(source_element, message, hints=[
             model.CompilerHint(port_declaration(source), 'Source was declared here'),
             model.CompilerHint(port_declaration(target), 'Target was declared here'),
@@ -136,14 +147,14 @@ def check_compatible(source, target, source_element):
     return False
 
 
-def path_resolve_singleton(path):
+def path_resolve_singleton(path: ResolutionPath) -> ResolutionPath:
     if isinstance(path[-1], model.InstanceNode) and path[-1].node_type.is_singleton:
         return (path[-1].node_type,)
     else:
         return path
 
 
-def incoming_connection(var):
+def incoming_connection(var: Any) -> Connection | None:
     """Return the connection supplying var, or None for a lookup step of resolve_variable()."""
     target: object
     if isinstance(var, model.InstanceInputPort):
@@ -166,18 +177,19 @@ def incoming_connection(var):
     return next((connection for connection in graph.connections if connection.target is target), None)
 
 
-def traced_connections(trace):
+def traced_connections(trace: Sequence[Any]) -> list[Connection]:
     """Return the connections passed by resolve_variable() steps, in data-flow order."""
     return [connection for connection in map(incoming_connection, reversed(trace)) if connection is not None]
 
 
-def forwards_multi_input(port):
+def forwards_multi_input(port: object) -> bool:
     """Whether a member of a multi input is connected to a whole multi input of its parent."""
     source = getattr(port, 'connected_source', None)
     return isinstance(source, model.TypeInputPort) and source.is_list
 
 
-def list_members(path, port, steps=()):
+def list_members(path: NodePath, port: model.InstanceInputPort | model.PortSources,
+                 steps: tuple[tuple[NodePath, Any], ...] = ()) -> list[tuple[NodePath, Any, tuple[tuple[NodePath, Any], ...]]]:
     """Return (path, member, steps) for each source of a multi input, in order.
 
     A member forwarding a multi input of the parent node is replaced by the
@@ -197,7 +209,8 @@ def list_members(path, port, steps=()):
     return result
 
 
-def resolve_variable(path, var, seen=None):
+def resolve_variable(path: ResolutionPath, var: Any,
+                     seen: dict[tuple[ResolutionPath, int], Any] | None = None) -> tuple[NodePath, Any]:
     """Return the variable supplying var; seen collects the steps taken."""
     if debug_variable_resolution:
         print(f'resolve_variable({path}, {var})')
@@ -212,7 +225,9 @@ def resolve_variable(path, var, seen=None):
         # Data-flow order starting at the reported connection; a node type
         # used several times in the cycle lists its connections once.
         flow = traced_connections(cycle)
-        start = flow.index(incoming_connection(port))
+        incoming = incoming_connection(port)
+        assert incoming is not None
+        start = flow.index(incoming)
         connections = []
         for connection in flow[start:] + flow[:start]:
             if connection not in connections:
@@ -376,10 +391,10 @@ def resolve_variable(path, var, seen=None):
         if path[-1] != var:
             raise Exception('path[-1] != var')
         owner_path = path[:-1]
-        owner = owner_path[-1]
-        if not isinstance(owner, model.InstanceNode):
-            owner = owner.singleton_instance
-        state = next(state for state in owner.state_variables if state.name == var.name)
+        state_owner = owner_path[-1]
+        if not isinstance(state_owner, model.InstanceNode):
+            state_owner = state_owner.singleton_instance
+        state = next(state for state in state_owner.state_variables if state.name == var.name)
         return owner_path, state
 
     print(f'resolve_variable: Unhandled {path}, {var} {type(var)} {type(var.node)}')
@@ -392,8 +407,8 @@ def resolve_variable(path, var, seen=None):
 
 
 class StaticNodeContext:
-    def __init__(self, *, name, parameters):
-        self.parameters: Mapping[str, object] = parameters
+    def __init__(self, *, name: str, parameters: Mapping[str, Any]) -> None:
+        self.parameters: Mapping[str, Any] = parameters
         self.name = name
 
     def __repr__(self) -> str:
@@ -401,12 +416,14 @@ class StaticNodeContext:
 
 
 class StaticProcedureContext:
-    def __init__(self, *, sources, targets, name, node_parameter_values, node_context=None):
+    def __init__(self, *, sources: dict[str, Any],
+                 targets: dict[str, model.InstanceTemporary | model.InstanceStateVariable], name: str,
+                 node_parameter_values: Mapping[str, StaticValue], node_context: StaticNodeContext | None = None) -> None:
         self._sources = sources
         self._targets = targets
-        self._input_bindings = []
-        self._resource_bindings = []
-        self._output_types = {}
+        self._input_bindings: list[object] = []
+        self._resource_bindings: list[object] = []
+        self._output_types: dict[str, object] = {}
         self.name = name
         self.node_context = node_context
         self.node_parameter_values = node_parameter_values
