@@ -1,9 +1,11 @@
 """Time-of-day arithmetic, wrapping at midnight."""
 
+from collections.abc import Callable
+
 import wirely
 from wirely.functions import native_function
 
-native_functions = {}
+native_functions: dict[str, Callable[..., object]] = {}
 
 _DAY_TICKS = wirely.TimeOfDay.END_TICKS
 

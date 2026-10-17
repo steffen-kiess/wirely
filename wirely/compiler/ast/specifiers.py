@@ -71,6 +71,8 @@ class ConnectionKindSpecifier(SourceElement):
 
 
 class PortTypeSpecification(SourceElement):
+    ty: Value  # Set by the subclasses.
+
     @check_parameters
     def __init__(self, list_spec: ListSpecifier, *, source_position: SourcePosition):
         super().__init__(source_position=source_position)

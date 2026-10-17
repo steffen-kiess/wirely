@@ -1,9 +1,11 @@
 """Native functions used by tests."""
 
+from collections.abc import Callable
+
 import wirely
 from wirely.functions import native_function
 
-native_functions = {}
+native_functions: dict[str, Callable[..., object]] = {}
 
 
 @native_function(native_functions, 'Clamp')

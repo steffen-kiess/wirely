@@ -28,21 +28,21 @@ class NodeType(model.Scope):
         self.is_native = specifiers_status['native']
         self.is_singleton = specifiers_status['singleton']
 
-        self.instance_nodes = {}
-        self.procedures = {}
-        self.node_declarations = {}
+        self.instance_nodes: dict[str, model.InstanceNode] = {}
+        self.procedures: dict[str, model.DeclarationProcedure] = {}
+        self.node_declarations: dict[str, model.DeclarationInstance] = {}
         # Nodes, named ports, parameters, and constants share names.
-        self.name_declarations = {}
+        self.name_declarations: dict[str, model.Declaration] = {}
         self.initializer = None
-        self.value_nodes = {}
+        self.value_nodes: dict[str, model.Declaration] = {}
         # TODO: Clarify what is the key here (name or input_name)
-        self.input_ports = {}
-        self.output_ports = {}
-        self.state_nodes = {}
-        self.temporary_nodes = {}
-        self.local_resources = {}
-        self.libraries = {}
-        self.assertions = []
+        self.input_ports: dict[str, model.TypeInputPort] = {}
+        self.output_ports: dict[str, model.TypeOutputPort] = {}
+        self.state_nodes: dict[str, model.StateNode] = {}
+        self.temporary_nodes: dict[str, model.TemporaryNode] = {}
+        self.local_resources: dict[str, model.LocalResource] = {}
+        self.libraries: dict[str, model.DeclarationLibrary] = {}
+        self.assertions: list[model.DeclarationAssertion] = []
         self.interface_state = ResolutionState.PENDING
         self.instance_declarations_state = ResolutionState.PENDING
         self.body_state = ResolutionState.PENDING

@@ -831,27 +831,27 @@ def convert(source_type, target_type, overflow, value):
     return result
 
 
-unit = TypeUnit()
+unit: TypeUnit = TypeUnit()
 
-boolean = TypeBoolean()
+boolean: TypeBoolean = TypeBoolean()
 
 # Integer types
-int8 = TypeInt(is_signed=True, bits=8)
-int16 = TypeInt(is_signed=True, bits=16)
-int32 = TypeInt(is_signed=True, bits=32)
-int64 = TypeInt(is_signed=True, bits=64)
-int128 = TypeInt(is_signed=True, bits=128)
-uint8 = TypeInt(is_signed=False, bits=8)
-uint16 = TypeInt(is_signed=False, bits=16)
-uint32 = TypeInt(is_signed=False, bits=32)
-uint64 = TypeInt(is_signed=False, bits=64)
-uint128 = TypeInt(is_signed=False, bits=128)
+int8: TypeInt = TypeInt(is_signed=True, bits=8)
+int16: TypeInt = TypeInt(is_signed=True, bits=16)
+int32: TypeInt = TypeInt(is_signed=True, bits=32)
+int64: TypeInt = TypeInt(is_signed=True, bits=64)
+int128: TypeInt = TypeInt(is_signed=True, bits=128)
+uint8: TypeInt = TypeInt(is_signed=False, bits=8)
+uint16: TypeInt = TypeInt(is_signed=False, bits=16)
+uint32: TypeInt = TypeInt(is_signed=False, bits=32)
+uint64: TypeInt = TypeInt(is_signed=False, bits=64)
+uint128: TypeInt = TypeInt(is_signed=False, bits=128)
 
-ValueType = TypeValueType()
-TimeOfDay = TypeTimeOfDay()
-Duration = TypeDuration()
-MonotonicTime = TypeMonotonicTime()
-String = TypeString()
+ValueType: TypeValueType = TypeValueType()
+TimeOfDay: TypeTimeOfDay = TypeTimeOfDay()
+Duration: TypeDuration = TypeDuration()
+MonotonicTime: TypeMonotonicTime = TypeMonotonicTime()
+String: TypeString = TypeString()
 
 # def option(inner_type):
 #     return TypeOption(inner_type)

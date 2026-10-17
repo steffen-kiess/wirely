@@ -5,8 +5,8 @@ import wirely
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
 from wirely.runtime.contexts import NativeProcedure, NativeState
 
-native_node_types = {}
-native_resource_types = {}
+native_node_types: dict[str, type] = {}
+native_resource_types: dict[str, type] = {}
 
 
 def _protocol_name(option):

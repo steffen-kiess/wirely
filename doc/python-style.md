@@ -10,3 +10,5 @@
 - Generally, follow PEP 8.
 - Longer lines are acceptable when they improve readability.
 - Use `snake_case` for functions and variables and `PascalCase` for classes.
+- Code must pass mypy with the settings in `pyproject.toml`; the
+  `misc/type_check` test runs it.

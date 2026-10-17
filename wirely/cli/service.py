@@ -50,7 +50,7 @@ async def run_engine(engine, state_directory=None, tls_context=None) -> None:
         # signal.raise_signal(signal.SIGINT)
 
 
-async def async_run(args) -> None:
+async def async_run(args) -> int | None:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     if (args.control_tls_cert is None) != (args.control_tls_key is None):
@@ -90,3 +90,4 @@ async def async_run(args) -> None:
         print('{}: Start'.format(now.isoformat()), flush=True)
 
         await run_engine(eng, args.state_directory, tls_context)
+    return None

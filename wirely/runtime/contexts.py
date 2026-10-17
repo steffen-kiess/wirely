@@ -3,6 +3,7 @@ import datetime
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
+from typing import TYPE_CHECKING
 
 import wirely
 from ..types import value_types
@@ -10,6 +11,9 @@ from ..program import RunStage, Variable, VariableTable, InputSource
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 from .resources import ResourceType, ResourceValue
+
+if TYPE_CHECKING:
+    from .engine import Engine
 
 
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
@@ -19,7 +23,7 @@ class NativeNodeContext:
     name: str
     values: Mapping[str, object]
     inputs: Mapping[str, object]
-    _engine: object = field(repr=False)
+    _engine: 'Engine' = field(repr=False)
     _node_id: str = field(repr=False)
     # Resource types of the outputs produced by the initializer, by key.
     _output_types: Mapping[str, ResourceType] = field(default_factory=dict, repr=False)
@@ -182,7 +186,7 @@ class ProcedureContext:
         self._inputs: Mapping[str, object] = MappingProxyType(dict(inputs))
         self._values = values
         self._outputs = outputs
-        self._written_outputs = set()
+        self._written_outputs: set[str] = set()
         self._static = static
         self._step_info = step_info
         self._engine = engine

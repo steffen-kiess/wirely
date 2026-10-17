@@ -1,12 +1,13 @@
 """Duration arithmetic on 2**-64 s units, limited to 0 ... Duration.MAX_TICKS."""
 
 import fractions
+from collections.abc import Callable
 
 import wirely
 from wirely.functions import native_function
 from wirely.types.time import TICKS_PER_SECOND
 
-native_functions = {}
+native_functions: dict[str, Callable[..., object]] = {}
 
 
 @native_function(native_functions, 'Less')

@@ -4,10 +4,12 @@ Times from different generations are not comparable, so operations relating
 two times return None for them.
 """
 
+from collections.abc import Callable
+
 import wirely
 from wirely.functions import native_function
 
-native_functions = {}
+native_functions: dict[str, Callable[..., object]] = {}
 
 _MAX_TICKS = wirely.MonotonicTime.MAX_TICKS
 

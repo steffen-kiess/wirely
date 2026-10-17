@@ -232,6 +232,7 @@ class InstanceInputPort(InstanceSource):
         self.port_spec = self.type_input_port.port_spec
         self.resource_type = self.type_input_port.resource_type
 
+        self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):
             if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                 self.impl_var_type = self.var_type
@@ -244,7 +245,7 @@ class InstanceInputPort(InstanceSource):
             self.impl_var_type = None
 
         if self.is_list:
-            self.members = []
+            self.members: list[InstanceInputPort] = []
         else:
             self.connected_source = None
 
@@ -303,6 +304,7 @@ class InstanceOutputPort(InstanceTarget):
         self.port_spec = self.type_output_port.port_spec
         self.resource_type = self.type_output_port.resource_type
 
+        self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):
             if self.port_spec.kind_spec.kind == model.ConnectionKind.Value:
                 self.impl_var_type = self.var_type
@@ -452,8 +454,8 @@ class InstanceProcedure:
 
         self.outputs = []
         for output in outputs:
-            if not isinstance(output, InstanceTarget):
-                raise Exception(f'outputs parameter value is not an Output or Temporary instance: {type(output)}')
+            if not isinstance(output, (InstanceTemporary, InstanceStateVariable)):
+                raise Exception(f'outputs parameter value is not a Temporary or StateVariable instance: {type(output)}')
             if output.node != self.node:
                 raise Exception('outputs parameter value is for another node')
             self.outputs.append(output)

@@ -224,7 +224,7 @@ class DeclarationInitializer(Declaration):
         self.depends = depends
         self.produces = produces
         self.uses = uses
-        self.output_keys = {}  # Produced resource output or local resource -> key.
+        self.output_keys: dict[model.GraphElement, str] = {}  # Produced resource output or local resource -> key.
 
     def collect_declarations(self, graph):
         if not isinstance(graph, model.NodeType) or not graph.is_native:

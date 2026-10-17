@@ -16,12 +16,12 @@ class Scope(Declaration, abc.ABC):
     def __init__(self, source_position: SourcePosition):
         super().__init__(source_position=source_position)
 
-        self.node_types = {}
-        self.resource_types = {}
-        self.enum_types = {}
-        self.struct_types = {}
-        self.connections = []
-        self.native_functions = {}
+        self.node_types: dict[str, model.NodeType] = {}
+        self.resource_types: dict[str, model.ResourceType] = {}
+        self.enum_types: dict[str, model.types.TypeEnum] = {}
+        self.struct_types: dict[str, model.DeclarationStructType] = {}
+        self.connections: list[model.Connection] = []
+        self.native_functions: dict[str, model.DeclarationNativeFunction] = {}
 
     # TODO: Move to Declaration?
     @property

@@ -9,8 +9,8 @@ from wirely.native import check_state_type, native_node_type, native_procedure, 
 from wirely.runtime.contexts import NativeProcedure, NativeState
 from wirely.runtime.enums import MQTTFormat
 
-native_node_types = {}
-native_resource_types = {}
+native_node_types: dict[str, type] = {}
+native_resource_types: dict[str, type] = {}
 
 
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}

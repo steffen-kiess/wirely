@@ -23,7 +23,7 @@ def check_parameters(f):
 
         ty = annotations[name]
         if isinstance(ty, type):
-            def check_ty(value, is_pos, pos_name, ty=ty):
+            def check_ty(value, is_pos, pos_name, ty=ty, ty_arg=None):
                 if not isinstance(value, ty):
                     if is_pos:
                         raise Exception(f'Got incorrect type for positional argument {par_names[pos_name]} of {fun_name}: Got {type(value).__name__}, expected {ty.__name__}')

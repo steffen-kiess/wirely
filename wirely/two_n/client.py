@@ -1,5 +1,6 @@
 import ssl
 import base64
+import hashlib
 import json
 import asyncio
 import contextlib
@@ -68,7 +69,8 @@ class MyFingerprint(aiohttp.Fingerprint):
             cert.check_certificate_fingerprint(None, sslobj, self.tlsa_records)
         except Exception as e:
             host, port, *_ = transport.get_extra_info("peername")
-            raise aiohttp.ServerFingerprintMismatch(str(e), None, host, port)
+            got = hashlib.sha256(sslobj.getpeercert(binary_form=True) or b'').digest()
+            raise aiohttp.ServerFingerprintMismatch(self.fingerprint, got, host, port) from e
 
 
 # TODO: Make sure that there is a timeout for requests, also for event pulls (http.client seems to have no timeout by default)

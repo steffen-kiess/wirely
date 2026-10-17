@@ -19,7 +19,7 @@ class DeclarationLibrary(Scope):
         self.inner_attributes = getattr(declarations, 'inner_attributes', ())
 
         # TODO?
-        self.libraries = {}
+        self.libraries: dict[str, DeclarationLibrary] = {}
 
     @staticmethod
     def make(*args, source_position: SourcePosition):

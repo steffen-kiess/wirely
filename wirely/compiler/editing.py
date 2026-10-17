@@ -970,9 +970,9 @@ class _Site:
     # 'inner' inserts into the body; 'outer' and 'source' insert before anchor.
     kind: str
     anchor: int
-    declaration_start: int = None
-    open_brace: int = None
-    close_brace: int = None
+    declaration_start: int | None = None
+    open_brace: int | None = None
+    close_brace: int | None = None
 
 
 def _format_string(value):

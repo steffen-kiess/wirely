@@ -8,8 +8,8 @@ from wirely.native import native_node_type, native_procedure, native_resource_ty
 from wirely.util import check_parameters
 from wirely.runtime.contexts import NativeProcedure, NativeState
 
-native_node_types = {}
-native_resource_types = {}
+native_node_types: dict[str, type] = {}
+native_resource_types: dict[str, type] = {}
 
 
 @native_resource_type(native_resource_types, 'TimeOfDayMinuteState')
