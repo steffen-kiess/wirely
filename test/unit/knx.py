@@ -20,8 +20,10 @@ def check_conversions():
         with checks.assertRaises(ValueError):
             binary.from_knx(value)
 
-    for descriptor, cls in ((value_types.int16, wirely.Int16), (value_types.uint16, wirely.UInt16),
-                            (value_types.int32, wirely.Int32), (value_types.uint32, wirely.UInt32)):
+    for descriptor, cls in ((value_types.int8, wirely.Int8), (value_types.uint8, wirely.UInt8),
+                            (value_types.int16, wirely.Int16), (value_types.uint16, wirely.UInt16),
+                            (value_types.int32, wirely.Int32), (value_types.uint32, wirely.UInt32),
+                            (value_types.int64, wirely.Int64)):
         entry = get_value_type(descriptor)
         for value in (cls.min_value, 0, cls.max_value):
             dynamic = entry.from_knx(value)

@@ -11,16 +11,21 @@ assert KNX.ParseGroupAddress("2563") == 2563;
 assert KNX.ParseGroupAddress("01/02/0003") == 2563;
 
 assert KNX.ValueTypeName(boolean) == "binary";
+assert KNX.ValueTypeName(int8) == "1byte_signed";
+assert KNX.ValueTypeName(uint8) == "1byte_unsigned";
 assert KNX.ValueTypeName(int16) == "2byte_signed";
 assert KNX.ValueTypeName(uint16) == "2byte_unsigned";
 assert KNX.ValueTypeName(int32) == "4byte_signed";
 assert KNX.ValueTypeName(uint32) == "4byte_unsigned";
+assert KNX.ValueTypeName(int64) == "8byte_signed";
 
 assert KNX.SupportsValueType(boolean);
+assert KNX.SupportsValueType(int8);
+assert KNX.SupportsValueType(uint8);
 assert KNX.SupportsValueType(int16);
 assert KNX.SupportsValueType(uint16);
 assert KNX.SupportsValueType(int32);
 assert KNX.SupportsValueType(uint32);
+assert KNX.SupportsValueType(int64);
 assert !KNX.SupportsValueType(String);
-assert !KNX.SupportsValueType(int8);
 assert !KNX.SupportsValueType(uint64);

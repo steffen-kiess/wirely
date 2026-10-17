@@ -118,6 +118,9 @@ async def check_type_conversions(knx):
         ('uint16', '2byte_unsigned', (0, 1, 65535)),
         ('int32', '4byte_signed', (-2147483648, 0, 2147483647)),
         ('uint32', '4byte_unsigned', (0, 1, 4294967295)),
+        ('int8', '1byte_signed', (-128, 0, 127)),
+        ('uint8', '1byte_unsigned', (0, 1, 255)),
+        ('int64', '8byte_signed', (-2**63, -(2**53 + 1), 0, 2**53 + 1, 2**63 - 1)),
     )
 
     async def wait_for(predicate):
@@ -127,9 +130,9 @@ async def check_type_conversions(knx):
 
     for index, (ty, dpt, values) in enumerate(cases):
         prefix = f'case_{ty}'
-        expose = xknx.devices.ExposeSensor(knx, name=prefix, group_address=f'1/{index}/1', value_type=dpt)
-        value_monitor = MessageReceiver(knx, prefix + '_value', f'1/{index}/2', dpt)
-        event_monitor = MessageReceiver(knx, prefix + '_event', f'1/{index}/4', dpt)
+        expose = xknx.devices.ExposeSensor(knx, name=prefix, group_address=f'0/{index}/21', value_type=dpt)
+        value_monitor = MessageReceiver(knx, prefix + '_value', f'0/{index}/22', dpt)
+        event_monitor = MessageReceiver(knx, prefix + '_event', f'0/{index}/24', dpt)
         receiver = engine.get_native_state(prefix + '.value_receiver')
         event_receiver = engine.get_native_state(prefix + '.event_receiver')
         for value in values:
@@ -139,7 +142,7 @@ async def check_type_conversions(knx):
             engine.step()
             engine.assert_value_is(prefix + '.value_receiver', wirely.Some(value))
 
-            xknx.tools.group_value_write(knx, f'1/{index}/3', value, None if dpt == 'binary' else dpt)
+            xknx.tools.group_value_write(knx, f'0/{index}/23', value, None if dpt == 'binary' else dpt)
             await wait_for(lambda: len(event_receiver.received_values) > 0)
             engine.step()
             engine.assert_value_is(prefix + '.event_receiver', wirely.Some(value))

@@ -146,45 +146,72 @@ node type KNXConversionCase {
 
 node case_boolean: KNXConversionCase {
   Type: boolean,
-  ValueReceiveAddress: "1/0/1",
-  ValueSendAddress: "1/0/2",
-  EventReceiveAddress: "1/0/3",
-  EventSendAddress: "1/0/4",
+  ValueReceiveAddress: "0/0/21",
+  ValueSendAddress: "0/0/22",
+  EventReceiveAddress: "0/0/23",
+  EventSendAddress: "0/0/24",
 }
 connect bus -> case_boolean.Bus;
 
 node case_int16: KNXConversionCase {
   Type: int16,
-  ValueReceiveAddress: "1/1/1",
-  ValueSendAddress: "1/1/2",
-  EventReceiveAddress: "1/1/3",
-  EventSendAddress: "1/1/4",
+  ValueReceiveAddress: "0/1/21",
+  ValueSendAddress: "0/1/22",
+  EventReceiveAddress: "0/1/23",
+  EventSendAddress: "0/1/24",
 }
 connect bus -> case_int16.Bus;
 
 node case_uint16: KNXConversionCase {
   Type: uint16,
-  ValueReceiveAddress: "1/2/1",
-  ValueSendAddress: "1/2/2",
-  EventReceiveAddress: "1/2/3",
-  EventSendAddress: "1/2/4",
+  ValueReceiveAddress: "0/2/21",
+  ValueSendAddress: "0/2/22",
+  EventReceiveAddress: "0/2/23",
+  EventSendAddress: "0/2/24",
 }
 connect bus -> case_uint16.Bus;
 
 node case_int32: KNXConversionCase {
   Type: int32,
-  ValueReceiveAddress: "1/3/1",
-  ValueSendAddress: "1/3/2",
-  EventReceiveAddress: "1/3/3",
-  EventSendAddress: "1/3/4",
+  ValueReceiveAddress: "0/3/21",
+  ValueSendAddress: "0/3/22",
+  EventReceiveAddress: "0/3/23",
+  EventSendAddress: "0/3/24",
 }
 connect bus -> case_int32.Bus;
 
 node case_uint32: KNXConversionCase {
   Type: uint32,
-  ValueReceiveAddress: "1/4/1",
-  ValueSendAddress: "1/4/2",
-  EventReceiveAddress: "1/4/3",
-  EventSendAddress: "1/4/4",
+  ValueReceiveAddress: "0/4/21",
+  ValueSendAddress: "0/4/22",
+  EventReceiveAddress: "0/4/23",
+  EventSendAddress: "0/4/24",
 }
 connect bus -> case_uint32.Bus;
+
+node case_int8: KNXConversionCase {
+  Type: int8,
+  ValueReceiveAddress: "0/5/21",
+  ValueSendAddress: "0/5/22",
+  EventReceiveAddress: "0/5/23",
+  EventSendAddress: "0/5/24",
+}
+connect bus -> case_int8.Bus;
+
+node case_uint8: KNXConversionCase {
+  Type: uint8,
+  ValueReceiveAddress: "0/6/21",
+  ValueSendAddress: "0/6/22",
+  EventReceiveAddress: "0/6/23",
+  EventSendAddress: "0/6/24",
+}
+connect bus -> case_uint8.Bus;
+
+node case_int64: KNXConversionCase {
+  Type: int64,
+  ValueReceiveAddress: "0/7/21",
+  ValueSendAddress: "0/7/22",
+  EventReceiveAddress: "0/7/23",
+  EventSendAddress: "0/7/24",
+}
+connect bus -> case_int64.Bus;

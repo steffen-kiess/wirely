@@ -113,9 +113,9 @@ KNX nodes use a `KNX.Connection` node and a named
 | `EventReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits received KNX events. |
 | `EventSender` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
 
-Value and event nodes support `boolean`, `int16`, `uint16`, `int32`, and
-`uint32`. Running KNX nodes requires the `xknx` package and a reachable
-KNX service.
+Value and event nodes support `boolean`, `int8`, `uint8`, `int16`,
+`uint16`, `int32`, `uint32`, and `int64`. Running KNX nodes requires the
+`xknx` package and a reachable KNX service.
 
 Choose one connection mode:
 

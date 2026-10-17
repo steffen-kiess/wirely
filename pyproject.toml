@@ -24,7 +24,7 @@ Repository = "https://github.com/steffen-kiess/wirely"
 Issues = "https://github.com/steffen-kiess/wirely/issues"
 
 [project.optional-dependencies]
-knx = ["xknx>=3.0,<4"]
+knx = ["xknx>=3.4,<4"]
 mqtt = ["aiomqtt>=2.3,<3"]
 two-n = ["aiohttp>=3.12,<4", "cryptography>=38.0.0"]
 graphviz = ["graphviz>=0.20.1"]
