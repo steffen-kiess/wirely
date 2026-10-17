@@ -51,7 +51,7 @@ def get_username_password(fn):
         password = file.readline().strip()
 
     if username == '' or password == '':
-        raise Exception('Failed to read username and password from {!r}'.format(args.password_file))
+        raise Exception('Failed to read username and password from {!r}'.format(fn))
 
     return username, password
 

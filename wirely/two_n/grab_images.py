@@ -3,6 +3,7 @@ import json
 import asyncio
 import argparse
 import datetime
+import logging
 
 from . import client
 

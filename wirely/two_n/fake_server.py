@@ -324,7 +324,7 @@ class Server:
         elif action == 'on':
             new_value = True
         else:
-            raise Exception(f'Unknown action: {action_port}')
+            raise Exception(f'Unknown action: {action}')
 
         self.set_io_state(par_port, new_value)
 
