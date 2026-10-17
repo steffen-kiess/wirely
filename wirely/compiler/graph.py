@@ -1,7 +1,7 @@
 from dataclasses import dataclass
+from typing import Any
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 from .types import resolve_type
 from .stages import ResolutionState
 
@@ -10,7 +10,7 @@ from .stages import ResolutionState
 class StateRead:
     """A read of a declared or instantiated state's old or new value."""
 
-    state: 'StateNode | model.InstanceStateVariable'
+    state: Any  # A DeclarationState, StateNode, or InstanceStateVariable.
     phase: str
     reference: object
 
@@ -63,14 +63,13 @@ class Connection:
     source: object
     target: object
     attributes: tuple
-    source_element: object
+    source_element: 'model.SourceElement'
     kind: str
 
 
 # A node or port appearing in a node type (or in the global scope)
 class GraphElement:
     # TODO: Should 'name' be an attribute of GraphElement?
-    @check_parameters
     def __init__(self, graph, *, name: str):
         if not isinstance(graph, model.NodeType):
             raise Exception('graph is not a NodeType')

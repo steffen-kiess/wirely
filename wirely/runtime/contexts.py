@@ -190,7 +190,7 @@ class ProcedureContext:
         self._static = static
         self._step_info = step_info
         self._engine = engine
-        self._wakeup_time = None
+        self._wakeup_time: MonotonicTime | None = None
         self._wakeup_time_set = False
 
     @property

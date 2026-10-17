@@ -1,96 +1,111 @@
 import functools
 import inspect
-import typing
 import os
+import types
+import typing
+from collections.abc import Callable
+
+P = typing.ParamSpec('P')
+R = typing.TypeVar('R')
+
+# Arguments of these types are converted from subclasses, such as lark tokens, to the exact type.
+_EXACT_TYPES = (str, int, bool)
 
 
-def check_parameters(f):
-    par_names = inspect.getfullargspec(f).args
-    par_pos = {}
-    for i, name in enumerate(par_names):
-        par_pos[name] = i
+class _Mismatch(Exception):
+    """A value does not match an annotation."""
 
-    positional_types = {}
-    kw_types = {}
 
-    fun_name = f.__qualname__
+def _checker(annotation: typing.Any):
+    """Return a function that returns a value matching an annotation, possibly converted.
 
+    The function raises _Mismatch for other values.
+    """
+    origin = typing.get_origin(annotation)
+    arguments = typing.get_args(annotation)
+    if origin is None and isinstance(annotation, type):
+        exact: typing.Any = annotation if annotation in _EXACT_TYPES else None
+
+        def check_class(value):
+            if not isinstance(value, annotation):
+                raise _Mismatch
+            if exact is not None and type(value) is not exact:
+                return exact(value)
+            return value
+        return check_class
+    if origin in (typing.Union, types.UnionType):
+        members = [_checker(member) for member in arguments]
+
+        def check_union(value):
+            for member in members:
+                try:
+                    return member(value)
+                except _Mismatch:
+                    pass
+            raise _Mismatch
+        return check_union
+    if origin is list and len(arguments) == 1:
+        check_item = _checker(arguments[0])
+
+        def check_list(value):
+            if not isinstance(value, list):
+                raise _Mismatch
+            return [check_item(item) for item in value]
+        return check_list
+    if origin is tuple and len(arguments) == 2 and arguments[1] is Ellipsis:
+        check_element = _checker(arguments[0])
+
+        def check_variable_tuple(value):
+            if not isinstance(value, tuple):
+                raise _Mismatch
+            return tuple(check_element(item) for item in value)
+        return check_variable_tuple
+    if origin is tuple:
+        check_items = [_checker(argument) for argument in arguments]
+
+        def check_tuple(value):
+            if not isinstance(value, tuple) or len(value) != len(check_items):
+                raise _Mismatch
+            return tuple(check(item) for check, item in zip(check_items, value))
+        return check_tuple
+    raise TypeError(f'Unsupported parameter annotation {annotation!r}')
+
+
+def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
+    """Check the arguments of a function against its parameter annotations when it is called.
+
+    Arguments of str, int, or bool parameters are converted to the exact type. *args and **kwargs are
+    not checked.
+    """
     annotations = inspect.get_annotations(f)
-    # print(par_names)
-    for name in annotations:
-        if name == 'return':
+    checks = {}
+    positional = []  # Names of the parameters that positional arguments fill, in order.
+    for parameter in inspect.signature(f).parameters.values():
+        if parameter.kind in (parameter.VAR_POSITIONAL, parameter.VAR_KEYWORD):
             continue
+        if parameter.kind in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD):
+            positional.append(parameter.name)
+        if parameter.name in annotations:
+            checks[parameter.name] = (_checker(annotations[parameter.name]), annotations[parameter.name])
 
-        ty = annotations[name]
-        if isinstance(ty, type):
-            def check_ty(value, is_pos, pos_name, ty=ty, ty_arg=None):
-                if not isinstance(value, ty):
-                    if is_pos:
-                        raise Exception(f'Got incorrect type for positional argument {par_names[pos_name]} of {fun_name}: Got {type(value).__name__}, expected {ty.__name__}')
-                    else:
-                        raise Exception(f'Got incorrect type for kw argument {name} of {fun_name}: Got {type(value).__name__}, expected {ty.__name__}')
-                # Force the value to have exactly that type
-                if type(value) != ty and ty in [str, int, bool]:
-                    return ty(value)
-                else:
-                    return value
-        elif typing.get_origin(ty) == list:
-            ty_arg, = typing.get_args(ty)
-            def check_ty(value, is_pos, pos_name, ty=ty, ty_arg=ty_arg):
-                res = []
-                if not isinstance(value, list):
-                    if is_pos:
-                        raise Exception(f'Got incorrect type for positional argument {par_names[pos_name]} of {fun_name}: Got {type(value).__name__}, expected list')
-                    else:
-                        raise Exception(f'Got incorrect type for kw argument {name} of {fun_name}: Got {type(value).__name__}, expected list')
-                for val in value:
-                    if not isinstance(val, ty_arg):
-                        raise Exception(f'Got incorrect type for value in list: Got {type(val).__name__}, expected {ty_arg.__name__!r}')
-                    # TODO: Force type?
-                    # val = ...(val)
-                    res.append(val)
-                return res
-        elif typing.get_origin(ty) == typing.Union:
-            ty_args = typing.get_args(ty)
-            if len(ty_args) == 2 and ty_args[0] == type(None):
-                ty_arg = ty_args[1]
-            elif len(ty_args) == 2 and ty_args[1] == type(None):
-                ty_arg = ty_args[0]
-            else:
-                raise Exception(f'Annotation {name!r} is not a type but a {type(ty).__name__}')
-            def check_ty(value, is_pos, pos_name, ty=ty, ty_arg=ty_arg):
-                if value is not None and not isinstance(value, ty_arg):
-                    if is_pos:
-                        raise Exception(f'Got incorrect type for positional argument {par_names[pos_name]} of {fun_name}: Got {type(value).__name__}, expected {ty}')
-                    else:
-                        raise Exception(f'Got incorrect type for kw argument {name} of {fun_name}: Got {type(value).__name__}, expected {ty}')
-                # TODO: Force type?
-                # if value is not None: value = ...(value)
-                return value
-        else:
-            raise Exception(f'Annotation {name!r} is not a type but a {type(ty).__name__}')
-
-        kw_types[name] = check_ty
-        if name in par_pos:
-            positional_types[par_pos[name]] = check_ty
+    def check(name, value):
+        checker, annotation = checks[name]
+        try:
+            return checker(value)
+        except _Mismatch:
+            expected = annotation.__name__ if isinstance(annotation, type) else str(annotation)
+            raise TypeError(f'Got incorrect type for argument {name!r} of {f.__qualname__}: '
+                            f'got {type(value).__name__}, expected {expected}') from None
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         arguments = list(args)
-        for i, value in enumerate(arguments):
-            if i in positional_types:
-                check_ty = positional_types[i]
-                arguments[i] = check_ty(value, True, i)
-
-        kwargs = dict(kwargs)
-        for name in kwargs:
-            if name in kw_types:
-                check_type = kw_types[name]
-                value = kwargs[name]
-                kwargs[name] = check_type(value, False, name)
-
-        return f(*arguments, **kwargs)
-    return wrapper
+        for index, name in enumerate(positional[:len(arguments)]):
+            if name in checks:
+                arguments[index] = check(name, arguments[index])
+        keywords = {name: check(name, value) if name in checks else value for name, value in kwargs.items()}
+        return f(*arguments, **keywords)
+    return typing.cast(Callable[P, R], wrapper)
 
 
 def getEnvironmentBool(name, defVal):

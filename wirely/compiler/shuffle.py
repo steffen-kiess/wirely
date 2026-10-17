@@ -11,7 +11,7 @@ from .ast import SourceElement
 # Order-independent lists in each AST class. Arguments, statements,
 # connection sources, and struct literal fields, which evaluate in written
 # order, keep their order.
-_SHUFFLED_ATTRIBUTES = {
+_SHUFFLED_ATTRIBUTES: dict[type, tuple[str, ...]] = {
     model.NodeType: ('declarations',),
     model.DeclarationLibrary: ('declarations',),
     model.Instantiation: ('parameters',),
@@ -25,7 +25,7 @@ _SHUFFLED_ATTRIBUTES = {
 # also define it and are handled in _visit. The order of native struct fields
 # and native closed enum members is the contract with native code, so they
 # are never shuffled.
-_LAYOUT_ATTRIBUTES = {
+_LAYOUT_ATTRIBUTES: dict[type, tuple[str, ...]] = {
     model.DeclarationStructType: ('fields',),
 }
 

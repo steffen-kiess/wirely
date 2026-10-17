@@ -2,7 +2,6 @@ import abc
 import typing
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 from .attributes import copy_attributes
 from .stages import ResolutionState
 from wirely.compiler.parameters import ParameterValues, native_parameters
@@ -502,7 +501,6 @@ class InstanceProcedure:
 # type containing it is instantiated multiple times.
 # TODO: Is this used for something except NodeTypeInstance?
 class NodeInstance:
-    @check_parameters
     def __init__(self, node: typing.Optional[model.GraphElement], parent_instance):
         self.node = node
 
@@ -512,7 +510,8 @@ class NodeInstance:
 
 
 class NodeTypeInstance(NodeInstance):
-    @check_parameters
+    static_values: ParameterValues
+
     def __init__(self, node, parent_instance):
         if isinstance(node, model.InstanceNode):
             super().__init__(node, parent_instance=parent_instance)

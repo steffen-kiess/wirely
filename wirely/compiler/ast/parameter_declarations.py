@@ -27,7 +27,6 @@ class DeclarationParameter(Declaration):
     def with_default_value(name: Identifier, ty, default_value, *, source_position: SourcePosition):
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
-    @check_parameters
     def register_interface_declarations(self, interface):
         self.interface = interface
 

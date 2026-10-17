@@ -5,7 +5,6 @@ import typing
 
 import wirely
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.util import check_parameters
 from wirely.runtime.contexts import NativeProcedure, NativeState
 
 native_node_types: dict[str, type] = {}
@@ -77,7 +76,6 @@ class TimeOfDayMinute(NativeState):
 
         self.trigger('state')
 
-    @check_parameters
     def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]):
         self._fake_time = fake_time
 

@@ -9,8 +9,13 @@ from wirely.util import check_parameters
 
 
 class NodeType(model.Scope):
+    # Set on the global node type by the compiler.
+    file_metadata: typing.Any
+    # The instance of a singleton node type, set when it is instantiated.
+    singleton_instance: 'model.InstanceNode'
+
     @check_parameters
-    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, alias: typing.Optional[model.StringConstant] = None, source_position: typing.Optional[model.SourcePosition]):
+    def __init__(self, specifiers: typing.List[model.NodeTypeSpecifier], name: typing.Optional[model.Identifier], declarations: list, *, alias: typing.Optional[model.StringConstant] = None, source_position: model.SourcePosition):
         super().__init__(source_position=source_position)
         self.name = name
         self.alias = alias  # Native name replacing the qualified name.
@@ -33,7 +38,7 @@ class NodeType(model.Scope):
         self.node_declarations: dict[str, model.DeclarationInstance] = {}
         # Nodes, named ports, parameters, and constants share names.
         self.name_declarations: dict[str, model.Declaration] = {}
-        self.initializer = None
+        self.initializer: model.DeclarationInitializer | None = None
         self.value_nodes: dict[str, model.Declaration] = {}
         # TODO: Clarify what is the key here (name or input_name)
         self.input_ports: dict[str, model.TypeInputPort] = {}
@@ -48,7 +53,7 @@ class NodeType(model.Scope):
         self.body_state = ResolutionState.PENDING
 
     @staticmethod
-    def make(*args, source_position: typing.Optional[model.SourcePosition]):
+    def make(*args, source_position: model.SourcePosition):
         specifiers = args[:-3]
         name, alias, declarations = args[-3:]
         return NodeType(list(specifiers), name, declarations, alias=alias, source_position=source_position)
@@ -114,7 +119,10 @@ class NodeType(model.Scope):
                     ])
                 static_declarations[name] = decl
                 model.ast.register_name(self, decl.name, decl)
-                (parsed_constants if is_constant else parsed_parameters)[name] = decl
+                if isinstance(decl, model.DeclarationConstant):
+                    parsed_constants[name] = decl
+                else:
+                    parsed_parameters[name] = decl
         if hasattr(self, 'parsed_parameters'):
             raise Exception("hasattr(self, 'parsed_parameters')")
         self.parsed_parameters = parsed_parameters

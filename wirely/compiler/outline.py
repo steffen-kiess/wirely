@@ -411,6 +411,7 @@ def _collect(builder, declarations):
                 child.blocks.append((_filename(item), item))
             _collect(child, item.declarations)
         elif isinstance(item, _NodeType):
+            assert item.name is not None
             child = _Builder('node_type', builder.path + (item.name.id_str,), builder)
             child.blocks.append((_filename(item), item))
             builder.node_types.append((item, child))

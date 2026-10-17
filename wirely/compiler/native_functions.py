@@ -150,6 +150,7 @@ def validate_native_names(declarations):
                     register('node type', item, path)
                 elif item.alias is not None:
                     raise model.ProgramError(item.alias, 'Node type keys require native state')
+                assert item.name is not None
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.DeclarationResourceType):
                 register('resource type', item, path)

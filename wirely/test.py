@@ -37,6 +37,7 @@ from wirely.runtime.engine import Engine
 python_only_tests = [
     'misc/grammar',
     'misc/type_check',
+    'unit/check_parameters',
     'unit/runtime_program',
     'unit/compiler_api',
     'unit/compiler_warnings',
