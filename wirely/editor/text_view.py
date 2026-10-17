@@ -1,6 +1,7 @@
 """Source text editor with Wirely highlighting and diagnostics."""
 
 import re
+from typing import Any
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
@@ -75,6 +76,7 @@ class Highlighter(QSyntaxHighlighter):
             if match is None:
                 break
             kind = match.lastgroup
+            assert kind is not None
             start, end = match.span()
             if kind == 'block':
                 position = self._comment(text, start, 0)
@@ -143,7 +145,7 @@ class CodeEditor(QPlainTextEdit):
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(' ') * 2)
         self.highlighter = Highlighter(document.text_document, _is_dark(self.palette()))
-        self.diagnostics = ()
+        self.diagnostics: tuple = ()
         self._diagnostic_selections = []
         self._reveal_selections = []
         self._link_selections = []
@@ -161,7 +163,7 @@ class CodeEditor(QPlainTextEdit):
         selections = []
         for diagnostic in self.diagnostics:
             start, end = _diagnostic_range(text, diagnostic)
-            selection = QTextEdit.ExtraSelection()
+            selection: Any = QTextEdit.ExtraSelection()  # Older PySide6 stubs lack its fields.
             selection.format.setUnderlineStyle(QTextCharFormat.UnderlineStyle.WaveUnderline)
             selection.format.setUnderlineColor(QColor(_DIAGNOSTIC_COLORS.get(diagnostic.kind, '#e0301e')))
             cursor = QTextCursor(self.document())
@@ -176,7 +178,7 @@ class CodeEditor(QPlainTextEdit):
         """Highlight a span given as Python offsets and scroll to it, without moving focus."""
         text = self.document_record.text()
         start, end = (qt_position(text, offset) for offset in span)
-        selection = QTextEdit.ExtraSelection()
+        selection: Any = QTextEdit.ExtraSelection()  # Older PySide6 stubs lack its fields.
         highlight = self.palette().color(QPalette.ColorRole.Highlight)
         highlight.setAlpha(60)
         selection.format.setBackground(highlight)
@@ -205,7 +207,7 @@ class CodeEditor(QPlainTextEdit):
         if span is not None:
             text = self.document_record.text()
             start, end = (qt_position(text, min(offset, len(text))) for offset in span)
-            selection = QTextEdit.ExtraSelection()
+            selection: Any = QTextEdit.ExtraSelection()  # Older PySide6 stubs lack its fields.
             highlight = self.palette().color(QPalette.ColorRole.Highlight)
             highlight.setAlpha(30)
             selection.format.setBackground(highlight)
@@ -229,8 +231,8 @@ class CodeEditor(QPlainTextEdit):
         first = menu.actions()[0] if menu.actions() else None
         show = QAction('Show in Diagram', menu)
         show.triggered.connect(self.graph_requested)
-        menu.insertAction(first, show)
-        menu.insertSeparator(first)
+        menu.insertAction(first, show)  # type: ignore[arg-type]
+        menu.insertSeparator(first)  # type: ignore[arg-type]
         menu.exec(event.globalPos())
         menu.deleteLater()
 

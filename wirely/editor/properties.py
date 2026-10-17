@@ -26,7 +26,7 @@ class PropertiesPanel(QScrollArea):
     def show_element(self, program, target, editable):
         """Show an element of the program, or nothing for None."""
         self.target = target
-        records = program.outline.find(target) if target is not None else ()
+        records = program.outline.find(target) if target is not None else []
         if len(records) != 1:
             self._show_empty()
             return

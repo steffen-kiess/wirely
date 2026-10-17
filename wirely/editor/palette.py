@@ -115,10 +115,13 @@ class DeclarationDialog(QDialog):
         if self.kind == 'state':
             return editing.format_state(name, type_text, value)
         if self.kind == 'binding':
+            assert self.port_kind is not None
             return editing.format_binding(name, self.port_kind.currentText(), type_text)
         if self.kind == 'constant':
             return editing.format_constant(name, type_text, value)
         if self.kind == 'parameter':
+            assert self.optional is not None
             return editing.format_parameter(name, type_text, value or None, self.optional.isChecked())
+        assert self.port_kind is not None and self.is_list is not None
         return editing.format_port(self.kind, name or None, self.port_kind.currentText(), type_text,
                                    self.is_list.isChecked())

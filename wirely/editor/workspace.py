@@ -64,6 +64,7 @@ class TabBar(QTabBar):
 
     def cancel_drag(self):
         if self.pressed is not None:
+            assert self.original_index is not None
             self.moveTab(self.group.indexOf(self.pressed), self.original_index)
         self.pressed = None
         self.dragging = False
@@ -91,7 +92,7 @@ class Workspace(QWidget):
         self.host = host
         self.box = QVBoxLayout(self)
         self.box.setContentsMargins(0, 0, 0, 0)
-        self.root = TabGroup(self)
+        self.root: QWidget = TabGroup(self)
         self.box.addWidget(self.root)
         self.active_group = self.root
 
@@ -133,6 +134,7 @@ class Workspace(QWidget):
             group.deleteLater()
             while isinstance(parent, QSplitter) and parent.count() == 1:
                 survivor = parent.widget(0)
+                assert survivor is not None
                 outer = parent.parentWidget()
                 if isinstance(outer, QSplitter):
                     sizes = outer.sizes()
@@ -187,8 +189,10 @@ class WorkspaceManager(QObject):
         self.next_window = 1
         editor.workspace = Workspace(self, editor)
         editor.setCentralWidget(editor.workspace)
-        QApplication.instance().focusChanged.connect(self._focus_changed)
-        QApplication.instance().installEventFilter(self)
+        application = QApplication.instance()
+        assert isinstance(application, QApplication)
+        application.focusChanged.connect(self._focus_changed)
+        application.installEventFilter(self)
 
     def hosts(self):
         return [self.editor, *self.windows]
@@ -225,6 +229,7 @@ class WorkspaceManager(QObject):
         self.shutting_down = True
         self.clear_preview()
         application = QApplication.instance()
+        assert isinstance(application, QApplication)
         application.focusChanged.disconnect(self._focus_changed)
         application.removeEventFilter(self)
         for host in list(self.windows):
@@ -323,13 +328,17 @@ class WorkspaceManager(QObject):
         source = self.group_of(widget)
         menu = QMenu(source)
         for label, edge in (('Split Right', 'right'), ('Split Below', 'bottom')):
-            menu.addAction(label, lambda edge=edge: self.split(widget, edge)).setEnabled(source.count() > 1)
+            def split(edge=edge):
+                self.split(widget, edge)
+            menu.addAction(label, split).setEnabled(source.count() > 1)
         move = menu.addMenu('Move To')
         for host in self.hosts():
             name = 'Main Window' if host is self.editor else f'Window {host.number}'
             for number, group in enumerate(host.workspace.groups(), 1):
                 if group is not source:
-                    move.addAction(f'{name}, Pane {number}', lambda group=group: self.move(widget, group))
+                    def move_to(group=group):
+                        self.move(widget, group)
+                    move.addAction(f'{name}, Pane {number}', move_to)
         move.setEnabled(not move.isEmpty())
         menu.addAction('Detach', lambda: self.detach(widget, position))
         if source.workspace.host is not self.editor:

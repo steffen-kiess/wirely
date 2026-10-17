@@ -110,7 +110,7 @@ class Session(QObject):
 
     def apply(self, edits):
         """Apply TextEdits to the documents, one undo step per file, and refresh."""
-        by_file = {}
+        by_file: dict[str, list] = {}
         for edit in edits:
             by_file.setdefault(edit.filename, []).append(edit)
         for filename, file_edits in by_file.items():

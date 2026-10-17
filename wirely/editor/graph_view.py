@@ -7,6 +7,7 @@ selection survives refreshes.
 
 import math
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
@@ -61,6 +62,14 @@ def _item_color(item):
 _ERROR_COLOR = QColor('#e0301e')
 
 
+
+def _graph_scene(item) -> 'GraphScene':
+    """Return the GraphScene that shows an item."""
+    scene = item.scene()
+    assert isinstance(scene, GraphScene)
+    return scene
+
+
 class SocketGraphic(QGraphicsItem):
     def __init__(self, item, socket, side, row):
         super().__init__(item)
@@ -97,8 +106,8 @@ class SocketGraphic(QGraphicsItem):
             self.update()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.scene().interactive:
-            self.scene().start_connection(self, event.scenePos())
+        if event.button() == Qt.MouseButton.LeftButton and _graph_scene(self).interactive:
+            _graph_scene(self).start_connection(self, event.scenePos())
             event.accept()
             return
         super().mousePressEvent(event)
@@ -188,12 +197,12 @@ class ItemGraphic(QGraphicsObject):
         text_color = palette.color(QPalette.ColorRole.Text)
         dimmed = palette.color(QPalette.ColorRole.PlaceholderText)
         painter.setPen(text_color)
-        painter.setFont(self.scene().title_font)
+        painter.setFont(_graph_scene(self).title_font)
         # The name fills the first grid cell, the type the second one with the header ports.
         painter.drawText(QRectF(PADDING, INSET, text_width, STEP - INSET),
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                          title.elidedText(model_item.title, Qt.TextElideMode.ElideRight, text_width))
-        painter.setFont(self.scene().subtitle_font)
+        painter.setFont(_graph_scene(self).subtitle_font)
         painter.setPen(dimmed)
         painter.drawText(QRectF(PADDING, STEP, text_width, STEP),
                          Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -203,7 +212,7 @@ class ItemGraphic(QGraphicsObject):
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRoundedRect(QRectF(0, 0, self.width, self.height), 7, 7)
-        painter.setFont(self.scene().label_font)
+        painter.setFont(_graph_scene(self).label_font)
         faint = QColor(dimmed)
         faint.setAlpha(150)
         colors = {'bound': dimmed, 'default': faint, 'absent': faint, 'missing': _ERROR_COLOR}
@@ -233,14 +242,14 @@ class ItemGraphic(QGraphicsObject):
             painter.setBrush(_ERROR_COLOR)
             painter.drawEllipse(QPointF(self.width - 2, -2), 8, 8)
             painter.setPen(QColor('white'))
-            painter.setFont(self.scene().title_font)
+            painter.setFont(_graph_scene(self).title_font)
             painter.drawText(QRectF(self.width - 10, -10, 16, 16), Qt.AlignmentFlag.AlignCenter, '!')
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             scene = self.scene()
             positions = getattr(scene, '_press_positions', None)
-            if positions and self.model.id in positions and scene.snapping:
+            if positions and self.model.id in positions and isinstance(scene, GraphScene) and scene.snapping:
                 # A group snaps its displacement, preserving fractional offsets.
                 origin = positions[self.model.id] if len(positions) > 1 else QPointF()
                 delta = value - origin
@@ -250,7 +259,7 @@ class ItemGraphic(QGraphicsObject):
             # The fan order at unordered inputs depends on source positions.
             updated = []
             for edge in self.edges:
-                for member in edge.group or (edge,):
+                for member in edge.input_group or (edge,):
                     if member not in updated:
                         updated.append(member)
             for edge in updated:
@@ -260,7 +269,7 @@ class ItemGraphic(QGraphicsObject):
         return super().itemChange(change, value)
 
     def mouseDoubleClickEvent(self, event):
-        self.scene().item_activated.emit(self.model)
+        _graph_scene(self).item_activated.emit(self.model)
         event.accept()
 
 
@@ -271,7 +280,7 @@ class EdgeGraphic(QGraphicsPathItem):
         self.target = target
         self.linked = False
         # The edges ending at the same multi input, in source order, or None.
-        self.group = None
+        self.input_group: list[EdgeGraphic] | None = None
         self.set_model(edge)
         self.setZValue(-1)
 
@@ -290,9 +299,9 @@ class EdgeGraphic(QGraphicsPathItem):
     def update_path(self):
         start = self.source.socket_position('outputs', self.edge.source[1])
         end = self.target.socket_position('inputs', self.edge.target[1])
-        if self.group is not None:
+        if self.input_group is not None:
             # Fan out the ends at a multi input within its row.
-            count = len(self.group)
+            count = len(self.input_group)
             spacing = min(6.0, (STEP - 4) / (count - 1))
             end += QPointF(0, (self.fan_index() - (count - 1) / 2) * spacing)
         self.setPath(edge_path(start, end, self.source, self.target))
@@ -306,21 +315,23 @@ class EdgeGraphic(QGraphicsPathItem):
         Ends at an unordered input follow the positions of their sources, so
         they do not cross; other ends follow source order.
         """
-        group = self.group
+        edges = self.input_group
+        assert edges is not None
+        group = edges
         socket = self.target_socket()
         if socket is not None and socket.socket.unordered:
             def key(edge):
                 position = edge.source.socket_position('outputs', edge.edge.source[1])
-                return position.y(), position.x(), self.group.index(edge)
-            group = sorted(group, key=key)
+                return position.y(), position.x(), edges.index(edge)
+            group = sorted(edges, key=key)
         return group.index(self)
 
     def number(self):
         """Return the 1-based position of this connection at an ordered multi input, or None."""
         socket = self.target_socket()
-        if self.group is None or socket is None or socket.socket.unordered:
+        if self.input_group is None or socket is None or socket.socket.unordered:
             return None
-        return self.group.index(self) + 1
+        return self.input_group.index(self) + 1
 
     def paint(self, painter, option, widget=None):
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
@@ -352,7 +363,7 @@ class EdgeGraphic(QGraphicsPathItem):
             painter.setPen(QPen(color, 1))
             painter.setBrush(self.scene().palette().color(QPalette.ColorRole.Base))
             painter.drawEllipse(box)
-            painter.setFont(self.scene().number_font)
+            painter.setFont(_graph_scene(self).number_font)
             painter.drawText(box, Qt.AlignmentFlag.AlignCenter, str(number))
 
     def boundingRect(self):
@@ -408,8 +419,8 @@ class GraphScene(QGraphicsScene):
         self.interactive = True
         self.show_grid = True
         self.snapping = True
-        self.check_connection = None
-        self._drag = None
+        self.check_connection: Callable[..., ConnectionCheck] | None = None
+        self._drag: _ConnectionDrag | None = None
         self._press_positions = None
 
     def drawBackground(self, painter, rect):
@@ -468,7 +479,7 @@ class GraphScene(QGraphicsScene):
         for group in groups.values():
             if len(group) > 1:
                 for index, graphic in enumerate(group):
-                    graphic.group = group
+                    graphic.input_group = group
                     # Earlier connections and their numbers lie on top, still below items.
                     graphic.setZValue(-1 + 0.5 * (len(group) - index) / len(group))
 
@@ -599,6 +610,7 @@ class GraphScene(QGraphicsScene):
         replacing = drag.picked.edge.id if drag.picked is not None else None
         key = (source, target, replacing)
         if key not in drag.checks:
+            assert self.check_connection is not None
             drag.checks[key] = self.check_connection(source, target, replacing)
         return source, target, drag.checks[key]
 
@@ -611,6 +623,7 @@ class GraphScene(QGraphicsScene):
 
     def _update_drag(self, position):
         drag = self._drag
+        assert drag is not None
         start = drag.anchor.scenePos()
         socket = self._socket_at(position)
         if drag.hovered is not None and drag.hovered is not socket:

@@ -261,9 +261,9 @@ class MainWindow(QMainWindow):
             index = group.indexOf(tab)
             group.setTabText(index, f'◇ {_scope_label(tab.path)}')
             group.setTabToolTip(index, f'Diagram of {_scope_label(tab.path)}')
-        modified = any(document.is_modified for document in self.session.documents.values())
+        any_modified = any(document.is_modified for document in self.session.documents.values())
         names = ', '.join(os.path.basename(filename) for filename in self.session.documents)
-        self.setWindowTitle(f'{names}{" *" if modified else ""} – Wirely')
+        self.setWindowTitle(f'{names}{" *" if any_modified else ""} – Wirely')
         for host in self.workspaces.windows:
             title = host.workspace.active_group.tabText(host.workspace.active_group.currentIndex())
             host.setWindowTitle(f'{title} – Wirely (Window {host.number})')
@@ -321,8 +321,11 @@ class MainWindow(QMainWindow):
                 if entry.diagnostic.filename == filename]
 
     def _fill_tree(self):
-        expanded = {self.tree.topLevelItem(index).text(0): self.tree.topLevelItem(index).isExpanded()
-                    for index in range(self.tree.topLevelItemCount())}
+        expanded = {}
+        for index in range(self.tree.topLevelItemCount()):
+            top = self.tree.topLevelItem(index)
+            assert top is not None
+            expanded[top.text(0)] = top.isExpanded()
         self.tree.clear()
         files = QTreeWidgetItem(self.tree, ['Files'])
         for filename, document in self.session.documents.items():
@@ -520,8 +523,9 @@ class MainWindow(QMainWindow):
             # The scene was deleted with its tab.
             return
         target = targets[0] if len(targets) == 1 else None
+        live = tab.state == 'live'
         if self.workspaces.active_view is tab:
-            self.properties.show_element(self.program, target, tab.state == 'live')
+            self.properties.show_element(self.program, target, live)
         self._link_text(target if tab.state == 'live' else None)
 
     def _link_text(self, target):
@@ -618,8 +622,9 @@ class MainWindow(QMainWindow):
             if tab.model is not None and tab.model.kind == 'node_type':
                 kinds += ['input', 'output']
             for kind in kinds:
-                add.addAction(kind.capitalize() + '…',
-                              lambda kind=kind: self.add_declaration(tab, kind, position))
+                def add_declaration(kind=kind):
+                    self.add_declaration(tab, kind, position)
+                add.addAction(kind.capitalize() + '…', add_declaration)
         if not menu.isEmpty():
             menu.exec(tab.view.mapToGlobal(tab.view.mapFromScene(QPointF(position))))
 

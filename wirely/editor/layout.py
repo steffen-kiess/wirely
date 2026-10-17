@@ -37,10 +37,10 @@ def layout(items, edges):
     if not items:
         return {}
     index = {item.id: number for number, item in enumerate(items)}
-    successors = [[] for _ in items]
+    successors: list[list[int]] = [[] for _ in items]
     for source, target in _acyclic(len(items), _edge_indices(index, edges)):
         successors[source].append(target)
-    predecessors = [[] for _ in items]
+    predecessors: list[list[int]] = [[] for _ in items]
     for source, targets in enumerate(successors):
         for target in targets:
             predecessors[target].append(source)
@@ -65,7 +65,7 @@ def _edge_indices(index, edges):
 
 def _acyclic(count, edges):
     """Reverse the back edges found by a depth-first search in item order."""
-    adjacent = [[] for _ in range(count)]
+    adjacent: list[list[int]] = [[] for _ in range(count)]
     for source, target in edges:
         adjacent[source].append(target)
     state = [0] * count
@@ -132,7 +132,7 @@ def _topological(count, successors, predecessors):
 
 def _order(column, successors, predecessors):
     """Return the rows of each column, ordered to reduce crossings."""
-    rows = [[] for _ in range(max(column) + 1)]
+    rows: list[list[int]] = [[] for _ in range(max(column) + 1)]
     for node, number in enumerate(column):
         rows[number].append(node)
     rank = {}
@@ -156,7 +156,7 @@ def _order(column, successors, predecessors):
 
 
 def _coordinates(items, rows):
-    positions = [None] * len(items)
+    positions: list[tuple[float, float] | None] = [None] * len(items)
     x = 0.0
     for row in rows:
         y = 0.0

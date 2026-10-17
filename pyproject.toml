@@ -50,11 +50,6 @@ files = ["wirely"]
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-# The Qt editor is not checked yet.
-module = ["wirely.editor.*"]
-check_untyped_defs = false
-
-[[tool.mypy.overrides]]
 # The graphviz output is not type checked.
 module = ["wirely.cli.graphviz"]
 ignore_errors = true

@@ -38,8 +38,8 @@ class Socket:
     type_text: str | None
     is_list: bool
     resolved: bool = True
-    # The row of the socket, or None for the header.
-    row: int | None = None
+    # The row of the socket, None for the header, or _AUTO for automatic placement.
+    row: int | str | None = None
     # A multi input whose connections have no meaningful order.
     unordered: bool = False
 
@@ -190,7 +190,7 @@ def build(program, path):
             (Socket(None, '', name, record.kind, record.type_text, False),))
     for record in scope.procedures:
         name = _reference(record.name)
-        sockets = [[], []]
+        sockets: list[list[Socket]] = [[], []]
         for index, ports in enumerate((record.inputs, record.outputs)):
             for port in ports:
                 if port.key is None:
@@ -345,8 +345,8 @@ def _node_sockets(analysis, node):
                  for port in node.ports]
     else:
         ports = []
-    inputs = []
-    outputs = []
+    inputs: list[Socket] = []
+    outputs: list[Socket] = []
     name = _reference(node.name)
     for port_name, direction, kind, is_list, type_text, resolved_port in ports:
         reference = name if port_name is None else f'{name}.{_reference(port_name)}'

@@ -73,5 +73,5 @@ def export_image(sources, scope, output, *, scale=4):
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         scene.render(painter, QRectF(image.rect()), bounds)
         painter.end()
-        if not image.save(output, 'PNG'):
+        if not image.save(output, 'PNG'):  # type: ignore[call-overload]
             raise ExportError(f'Cannot write {output}')
