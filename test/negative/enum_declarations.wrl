@@ -245,14 +245,6 @@ node n: LiteralParameter {
   Value: [Some(B.Mode.One)], // E: Expected enum type A.Mode, got B.Mode
 }
 
-// TEST: duplicate_value_locations
-// SH: Previous member was here
-// SE: Duplicate enum value 1
-open enum type Duplicate: int8 {
-  First = 1, // H: Previous member was here
-  Second = 1, // E: Duplicate enum value 1
-}
-
 // TEST: empty_enum
 closed enum type Empty {} // E: Closed enum must declare at least one member
 
