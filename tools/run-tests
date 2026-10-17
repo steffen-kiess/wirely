@@ -12,6 +12,8 @@ def main():
     parser.add_argument('--python', help='Python executable name or path')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
+    parser.add_argument('--keep-going', action='store_true',
+                        help='Run the remaining tests after a failure and list the failed tests at the end')
     parser.add_argument('names', nargs='*', metavar='TEST',
                         help='Extensionless test names (default: all tests)')
     args = parser.parse_intermixed_args()
@@ -29,7 +31,7 @@ def main():
             python = sys.executable
 
     os.chdir(repository_root)
-    runner_args = ['--timings'] if args.timings else []
+    runner_args = (['--timings'] if args.timings else []) + (['--keep-going'] if args.keep_going else [])
     return subprocess.run(
         [python, '-m', 'wirely.test', *runner_args, *args.names],
     ).returncode

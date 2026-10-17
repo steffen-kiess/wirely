@@ -10,7 +10,8 @@ tools/run-tests compiler/types negative/runtime_types examples/test
 
 The launcher uses `venv/bin/python`, or the current interpreter when no venv
 exists. `--python PATH` selects another interpreter. The runner stops at the
-first failure.
+first failure; with `--keep-going`, it runs the remaining tests, lists the
+failed ones at the end, and exits with an error.
 
 ## Categories
 

@@ -3,6 +3,7 @@ import os
 import importlib
 import contextlib
 import time
+import traceback
 import tempfile
 import subprocess
 import socket
@@ -732,6 +733,8 @@ def main():
     parser = argparse.ArgumentParser(description='Run Wirely tests')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
+    parser.add_argument('--keep-going', action='store_true',
+                        help='Run the remaining tests after a failure and list the failed tests at the end')
     parser.add_argument('names', nargs='*', metavar='TEST',
                         help='Extensionless test names (default: all tests)')
     args = parser.parse_intermixed_args()
@@ -746,6 +749,18 @@ def main():
         names = set(names)
 
     durations = []
+    failed = []
+
+    def run_one(run, name):
+        if not args.keep_going:
+            run(name)
+            return
+        try:
+            run(name)
+        except Exception:
+            traceback.print_exc()
+            failed.append(name)
+
     groups = [(example_tests, lambda name: compile_test(name + '.wrl')),
               (to_compile, lambda name: compile_test('test/' + name + '.wrl')),
               (negative_tests, lambda name: compile_negative_test('test/' + name + '.wrl')),
@@ -757,11 +772,11 @@ def main():
                 if names is not None and name not in names:
                     continue
                 if not args.timings:
-                    run(name)
+                    run_one(run, name)
                     continue
                 start = time.perf_counter()
                 try:
-                    run(name)
+                    run_one(run, name)
                 finally:
                     durations.append((name, time.perf_counter() - start))
     finally:
@@ -769,6 +784,11 @@ def main():
             print('\nTest durations (slowest first):', flush=True)
             for name, elapsed in sorted(durations, key=lambda item: (-item[1], item[0])):
                 print(f'  {elapsed:.3f}s  {name}', flush=True)
+    if failed:
+        print('\nFailed tests:', flush=True)
+        for name in failed:
+            print(f'  {name}', flush=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

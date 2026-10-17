@@ -113,3 +113,23 @@ async def run_test():
                                 cwd=repository, capture_output=True, text=True)
         assert result.returncode != 0, name
         assert 'Unknown test name' in result.stderr, result.stderr
+
+    # With --keep-going, a failing test does not stop the run; failed tests
+    # are listed at the end and the exit status is nonzero.
+    script = ('import sys\n'
+              'from unittest.mock import patch\n'
+              'import wirely.test\n'
+              'sys.argv = ["wirely.test", *sys.argv[1:]]\n'
+              'with patch("wirely.test.compile_test", side_effect=RuntimeError("compile failed")):\n'
+              '    wirely.test.main()\n')
+    selected = ['compiler/types', 'unit/types']
+    result = subprocess.run([sys.executable, '-c', script, '--keep-going', *selected],
+                            cwd=repository, capture_output=True, text=True)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert 'compile failed' in result.stderr, result.stderr
+    assert 'Done running test unit/types' in result.stdout, result.stdout
+    assert result.stdout.endswith('\nFailed tests:\n  compiler/types\n'), result.stdout
+    result = subprocess.run([sys.executable, '-c', script, *selected],
+                            cwd=repository, capture_output=True, text=True)
+    assert result.returncode != 0 and 'compile failed' in result.stderr, result.stderr
+    assert 'Done running test unit/types' not in result.stdout, result.stdout
