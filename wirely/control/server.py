@@ -1,19 +1,27 @@
 """Control protocol server on Unix domain sockets."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import logging
 import os
 import socket
+import ssl
 import stat
+from collections.abc import AsyncIterator, Coroutine
+from typing import TYPE_CHECKING, Any
 
 from .controller import RuntimeController
+
+if TYPE_CHECKING:
+    from ..runtime.engine import Engine
 from .framing import (
     SERIAL_WINDOW, STREAM_PREFACE, STREAM_WINDOW, TLS_HANDSHAKE_BYTE, FramingError,
     SerialFraming, StreamFraming,
 )
 from .messages import (
-    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, ControlError, ErrorCode, Kind, Op, decode, encode,
+    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, ControlError, ErrorCode, Kind, Message, Op, decode, encode,
     get_field,
 )
 
@@ -26,25 +34,25 @@ SERIAL_SOCKET_NAME = 'control-serial'
 class Session:
     """Protocol state of one connection, which serves requests until it closes."""
 
-    def __init__(self, framing, controller):
+    def __init__(self, framing: StreamFraming | SerialFraming, controller: RuntimeController) -> None:
         self.framing = framing
         self.controller = controller
         self.window = STREAM_WINDOW if framing.reliable else SERIAL_WINDOW
         self.active = False
-        self.client_nonce = None
+        self.client_nonce: bytes | None = None
         self.peer_max_message_size = MIN_MESSAGE_SIZE
         self.counter = 0
-        self.hello_response = None
+        self.hello_response: bytes | None = None
         # On unreliable transports, the last response for retransmitted requests.
-        self.last_response = None
+        self.last_response: bytes | None = None
 
-    async def serve(self):
+    async def serve(self) -> None:
         while (data := await self.framing.read()) is not None:
             response = self.handle(data)
             if response is not None:
                 await self.framing.write(response)
 
-    def handle(self, data):
+    def handle(self, data: bytes) -> bytes | None:
         """Return the encoded response to a message, or None to send nothing."""
         try:
             message = decode(data)
@@ -68,7 +76,7 @@ class Session:
             return self.last_response
         return self._error(message.seq, message.op, ControlError(ErrorCode.BAD_SEQUENCE))
 
-    def _hello(self, message):
+    def _hello(self, message: Message) -> bytes:
         body = message.body
         if (self.hello_response is not None and isinstance(body, dict)
                 and body.get(2) == self.client_nonce):
@@ -101,7 +109,7 @@ class Session:
         })
         return self.hello_response
 
-    def _run(self, message):
+    def _run(self, message: Message) -> bytes:
         try:
             body = self.controller.handle(message.op, message.body)
         except ControlError as error:
@@ -114,7 +122,7 @@ class Session:
             return self._error(message.seq, message.op, ControlError(ErrorCode.TOO_LARGE))
         return response
 
-    def _error(self, seq, op, error):
+    def _error(self, seq: int, op: int, error: ControlError) -> bytes:
         response = encode(Kind.ERROR, seq, op, error.body())
         if len(response) > self.peer_max_message_size:
             response = encode(Kind.ERROR, seq, op, {1: int(error.code)})
@@ -129,22 +137,22 @@ class ControlServer:
     directory lock, see `wirely.misc.state_directory`.
     """
 
-    def __init__(self, engine, state_directory, tls_context=None):
+    def __init__(self, engine: Engine, state_directory: str, tls_context: ssl.SSLContext | None = None) -> None:
         self.controller = RuntimeController(engine)
         self.state_directory = state_directory
         self.tls_context = tls_context
-        self._sockets = []
-        self._tasks = set()
+        self._sockets: list[tuple[socket.socket, str]] = []  # Listening sockets and their paths.
+        self._tasks: set[asyncio.Task] = set()
 
     @property
-    def stream_path(self):
+    def stream_path(self) -> str:
         return os.path.join(self.state_directory, STREAM_SOCKET_NAME)
 
     @property
-    def serial_path(self):
+    def serial_path(self) -> str:
         return os.path.join(self.state_directory, SERIAL_SOCKET_NAME)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> ControlServer:
         try:
             stream_socket = self._listen(self.stream_path)
             serial_socket = self._listen(self.serial_path)
@@ -155,14 +163,14 @@ class ControlServer:
         self._start(self._accept_serial(serial_socket))
         return self
 
-    async def __aexit__(self, *exc_info):
+    async def __aexit__(self, *exc_info: object) -> None:
         tasks = list(self._tasks)
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self._close_sockets()
 
-    def _listen(self, path):
+    def _listen(self, path: str) -> socket.socket:
         with contextlib.suppress(FileNotFoundError):
             if not stat.S_ISSOCK(os.lstat(path).st_mode):
                 raise FileExistsError(f'{path} exists and is not a socket')
@@ -175,31 +183,31 @@ class ControlServer:
         sock.setblocking(False)
         return sock
 
-    def _close_sockets(self):
+    def _close_sockets(self) -> None:
         for sock, path in self._sockets:
             sock.close()
             with contextlib.suppress(FileNotFoundError):
                 os.unlink(path)
         self._sockets.clear()
 
-    def _start(self, coroutine):
+    def _start(self, coroutine: Coroutine[Any, Any, object]) -> None:
         task = asyncio.get_running_loop().create_task(coroutine)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _accept_stream(self, listener):
+    async def _accept_stream(self, listener: socket.socket) -> None:
         loop = asyncio.get_running_loop()
         while True:
             conn, _ = await loop.sock_accept(listener)
             self._start(self._serve_stream(conn))
 
-    async def _accept_serial(self, listener):
+    async def _accept_serial(self, listener: socket.socket) -> None:
         loop = asyncio.get_running_loop()
         while True:
             conn, _ = await loop.sock_accept(listener)
             self._start(self._serve_serial(conn))
 
-    async def _serve_stream(self, conn):
+    async def _serve_stream(self, conn: socket.socket) -> None:
         """Serve a TLS or plain connection, distinguished by its first byte."""
         try:
             first = await _peek_byte(conn)
@@ -221,7 +229,7 @@ class ControlServer:
             if preface == STREAM_PREFACE:
                 await self._serve(StreamFraming(reader, writer))
 
-    async def _serve_serial(self, conn):
+    async def _serve_serial(self, conn: socket.socket) -> None:
         streams = await _open_accepted(conn, None)
         if streams is None:
             return
@@ -229,20 +237,20 @@ class ControlServer:
         async with _closing(writer):
             await self._serve(SerialFraming(reader, writer))
 
-    async def _serve(self, framing):
+    async def _serve(self, framing: StreamFraming | SerialFraming) -> None:
         try:
             await Session(framing, self.controller).serve()
         except (FramingError, OSError) as error:
             logger.info('Control connection closed: %s', error)
 
 
-async def _peek_byte(conn):
+async def _peek_byte(conn: socket.socket) -> int | None:
     """Wait for the first byte of a connection without consuming it."""
     loop = asyncio.get_running_loop()
     conn.setblocking(False)
     readable = loop.create_future()
 
-    def set_readable():
+    def set_readable() -> None:
         if not readable.done():
             readable.set_result(None)
 
@@ -255,7 +263,8 @@ async def _peek_byte(conn):
     return data[0] if data else None
 
 
-async def _open_accepted(conn, ssl_context):
+async def _open_accepted(conn: socket.socket, ssl_context: ssl.SSLContext | None,
+                         ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter] | None:
     """Return streams for an accepted socket, or None if the TLS handshake fails."""
     loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
@@ -270,7 +279,7 @@ async def _open_accepted(conn, ssl_context):
 
 
 @contextlib.asynccontextmanager
-async def _closing(writer):
+async def _closing(writer: asyncio.StreamWriter) -> AsyncIterator[None]:
     try:
         yield
     finally:

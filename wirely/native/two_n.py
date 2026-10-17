@@ -2,10 +2,11 @@ import asyncio
 import sys
 import json
 import contextlib
+from typing import Any
 
 import wirely
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -14,7 +15,7 @@ native_resource_types: dict[str, type] = {}
 @native_resource_type(native_resource_types, 'Device')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('device', self)
 
@@ -32,7 +33,7 @@ class Connection(NativeState):
         self.client = wirely.two_n.client.Client(hostname=hostname, port=port, tlsa=tlsa, http_api_username_password=(credentials.native.username, credentials.native.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
 
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         print('Starting TwoN client', flush=True)
@@ -46,11 +47,11 @@ class Connection(NativeState):
 @native_resource_type(native_resource_types, 'KeyEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class KeyEvent(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
-        self.received_value = None
+        self.received_value: bool | None = None
 
         print('Create TwoN KeyEvent', flush=True)
 
@@ -63,7 +64,7 @@ class KeyEvent(NativeState):
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['KeyPressed', 'KeyReleased'], self.handler)
 
-    def handler(self, event):
+    def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
 
         if event is None:
@@ -90,7 +91,7 @@ class KeyEvent(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             value = state.received_value
             state.received_value = None
@@ -106,7 +107,7 @@ class KeyEvent(NativeState):
 @native_resource_type(native_resource_types, 'CodeEnteredEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class CodeEnteredEvent(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
@@ -123,7 +124,7 @@ class CodeEnteredEvent(NativeState):
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['CodeEntered'], self.handler)
 
-    def handler(self, event):
+    def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
 
         if event is None:
@@ -146,7 +147,7 @@ class CodeEnteredEvent(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             value = state.pending
             state.pending = False
@@ -162,12 +163,12 @@ class CodeEnteredEvent(NativeState):
 @native_resource_type(native_resource_types, 'IOStateState')
 @native_node_type(native_node_types, has_native_state=True)
 class IOState(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
         # TODO: What value should this provide while there is no connection?
-        self.current_value = None
+        self.current_value: bool | None = None
 
         # TODO: Read current value on start-up in a race-free way
 
@@ -181,7 +182,7 @@ class IOState(NativeState):
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['InputChanged', 'OutputChanged'], self.handler)
 
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         if not self.native_device.log_receiver.is_subscribed:
@@ -204,7 +205,7 @@ class IOState(NativeState):
             raise Exception('TwoN.IOState: state != 0 and state != 1')
         self.current_value = bool(state)
 
-    def handler(self, event):
+    def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
 
         if event is None:
@@ -228,7 +229,7 @@ class IOState(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             value = state.current_value
             if value is None:
@@ -240,12 +241,12 @@ class IOState(NativeState):
 @native_resource_type(native_resource_types, 'SwitchStateState')
 @native_node_type(native_node_types, has_native_state=True)
 class SwitchState(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
         # TODO: What value should this provide while there is no connection?
-        self.current_value = None
+        self.current_value: bool | None = None
 
         # TODO: Read current value on start-up in a race-free way
 
@@ -259,7 +260,7 @@ class SwitchState(NativeState):
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['SwitchStateChanged'], self.handler)
 
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         if not self.native_device.log_receiver.is_subscribed:
@@ -280,7 +281,7 @@ class SwitchState(NativeState):
             raise Exception('TwoN.SwitchState: type(active) != bool')
         self.current_value = active
 
-    def handler(self, event):
+    def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
 
         if event is None:
@@ -304,7 +305,7 @@ class SwitchState(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             value = state.current_value
             if value is None:
@@ -316,12 +317,12 @@ class SwitchState(NativeState):
 @native_resource_type(native_resource_types, 'OutputControlState')
 @native_node_type(native_node_types, has_native_state=True)
 class OutputControl(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
         # Task is needed for sending out values
-        self.task = None
+        self.task: asyncio.Task | None = None
         self.value_to_send = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
@@ -334,7 +335,7 @@ class OutputControl(NativeState):
         self.native_device = context.inputs['Device'].object
         print(f'  Using native device object: {self.native_device}', flush=True)
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -344,7 +345,7 @@ class OutputControl(NativeState):
 
     @native_procedure('send_value')
     class SendValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -361,7 +362,7 @@ class OutputControl(NativeState):
             # This makes sure that the value is sent again if the input does not change
             context.trigger_self()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while self.value_to_send is None:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks

@@ -3,6 +3,7 @@ import sys
 import os
 import traceback
 import contextlib
+from typing import NoReturn
 
 from wirely.compiler import program as program_compiler
 from wirely.util import check_parameters
@@ -18,7 +19,7 @@ class CommandException(Exception):
     pass
 
 
-async def execute(engine, line):
+async def execute(engine: Engine, line: str) -> None:
     parts = line.split(' ')
     # print(parts)
 
@@ -57,7 +58,7 @@ async def execute(engine, line):
         native_state.debug_command(parts[1:])
 
 
-async def read_loop(engine):
+async def read_loop(engine: Engine) -> NoReturn:
     loop = asyncio.get_event_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
@@ -82,7 +83,7 @@ async def read_loop(engine):
                 traceback.print_exception(e)
 
 
-async def run(engine) -> None:
+async def run(engine: Engine) -> None:
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
@@ -105,7 +106,7 @@ async def run(engine) -> None:
         # signal.raise_signal(signal.SIGINT)
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print('Usage: python3 -m wirely.cli.run <file.wrl> [...]')
         sys.exit(1)

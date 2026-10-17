@@ -2,10 +2,11 @@ import datetime
 import asyncio
 import contextlib
 import typing
+from collections.abc import Sequence
 
 import wirely
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -14,16 +15,16 @@ native_resource_types: dict[str, type] = {}
 @native_resource_type(native_resource_types, 'TimeOfDayMinuteState')
 @native_node_type(native_node_types, has_native_state=True)
 class TimeOfDayMinute(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
-        self.task = None
-        self._fake_time = None
+        self.task: asyncio.Task | None = None
+        self._fake_time: wirely.TimeOfDay | None = None
 
         # Make sure current_value is always initialized
         self._update_value()
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -31,7 +32,7 @@ class TimeOfDayMinute(NativeState):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    def _update_value(self):
+    def _update_value(self) -> float:
         # print('_update_value')
 
         now_time = datetime.datetime.now().time()
@@ -46,7 +47,7 @@ class TimeOfDayMinute(NativeState):
 
         return wait_time_s
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         # TODO: Stop this while _fake_time is set? Probably not.
         while True:
             wait_time_s = self._update_value()
@@ -59,7 +60,7 @@ class TimeOfDayMinute(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             if state._fake_time is not None:
                 context.set_output('output', state._fake_time)
@@ -71,19 +72,19 @@ class TimeOfDayMinute(NativeState):
             context.set_output('output', state.current_value)
 
     # TODO: Is this used anywhere?
-    def update_value(self):
+    def update_value(self) -> None:
         import datetime
 
         self.trigger('state')
 
-    def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]):
+    def set_fake_time(self, fake_time: typing.Optional[wirely.TimeOfDay]) -> None:
         self._fake_time = fake_time
 
         # TODO: Make sure that seconds/microseconds are 0?
 
         self.trigger('state')
 
-    def debug_command(self, parameters):
+    def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
             raise Exception('Missing command')
         cmd = parameters[0]

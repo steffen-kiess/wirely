@@ -5,6 +5,8 @@ import json
 import asyncio
 import contextlib
 import time
+from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from typing import Any
 
 from . import cert
 
@@ -13,7 +15,7 @@ import aiohttp
 import logging
 
 class LoggingMiddleware:
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
     async def __call__(
@@ -45,7 +47,7 @@ class LoggingMiddleware:
         return response
 
 
-def get_username_password(fn):
+def get_username_password(fn: str) -> tuple[str, str]:
     with open(fn, 'r') as file:
         username = file.readline().strip()
         password = file.readline().strip()
@@ -57,7 +59,7 @@ def get_username_password(fn):
 
 
 class MyFingerprint(aiohttp.Fingerprint):
-    def __init__(self, tlsa_records):
+    def __init__(self, tlsa_records: Sequence[str]) -> None:
         super().__init__(b'0' * 32)
         self.tlsa_records = tlsa_records
 
@@ -75,7 +77,9 @@ class MyFingerprint(aiohttp.Fingerprint):
 
 # TODO: Make sure that there is a timeout for requests, also for event pulls (http.client seems to have no timeout by default)
 class Client:
-    def __init__(self, *, hostname, port=443, tlsa, http_api_username_password=None, ajax_sid=None, ajax_username_password=None, enable_logging=False):
+    def __init__(self, *, hostname: str, port: int = 443, tlsa: Sequence[str],
+                 http_api_username_password: tuple[str, str] | None = None, ajax_sid: str | None = None,
+                 ajax_username_password: tuple[str, str] | None = None, enable_logging: bool = False) -> None:
         self.hostname = hostname
         self.port = port
         self.http_api_username_password = http_api_username_password
@@ -96,12 +100,12 @@ class Client:
 
         self._context = self._enter()
 
-        self.client_session = None
+        self.client_session: aiohttp.ClientSession | None = None
 
         self.tls_validation = MyFingerprint(tlsa)
 
     @contextlib.asynccontextmanager
-    async def _enter(self):
+    async def _enter(self) -> AsyncIterator['Client']:
         if self.client_session is not None:
             raise Exception('Trying to re-enter Client')
         # print('ENTER', flush=True)
@@ -113,13 +117,13 @@ class Client:
                 # print('EXIT', flush=True)
                 self.client_session = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'Client':
         return await self._context.__aenter__()
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
+    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> bool | None:
         return await self._context.__aexit__(exc_type, exc_value, traceback)
 
-    async def http_request(self, method, url, **kwargs):
+    async def http_request(self, method: str, url: str, **kwargs: Any) -> aiohttp.ClientResponse:
         if self.client_session is None:
             raise Exception('Client is not entered')
 
@@ -133,7 +137,8 @@ class Client:
 
         return await self.client_session.request(method, f'https://{self.hostname}:{self.port}{url}', allow_redirects=False, ssl=self.tls_validation, **kwargs)
 
-    async def api_request(self, method, url, *, do_authentication=True, **kwargs):
+    async def api_request(self, method: str, url: str, *, do_authentication: bool = True,
+                          **kwargs: Any) -> aiohttp.ClientResponse:
         kwargs = dict(kwargs)
 
         if do_authentication:
@@ -146,7 +151,7 @@ class Client:
 
         return await self.http_request(method, url, **kwargs)
 
-    async def json_request(self, method, url, **kwargs):
+    async def json_request(self, method: str, url: str, **kwargs: Any) -> Any:
         async with await self.api_request(method, url, **kwargs) as response:
             # print(response.headers)
             if response.status != 200:
@@ -171,7 +176,7 @@ class Client:
 
             return data.get('result')
 
-    async def ajax_login(self):
+    async def ajax_login(self) -> None:
         if self.ajax_username_password is None:
             raise Exception('No AJAX username/password given')
         username, password = self.ajax_username_password
@@ -188,7 +193,7 @@ class Client:
         # print(response)
         self.ajax_sid = response['sid']
 
-    async def ajax_request(self, sid, requests):
+    async def ajax_request(self, sid: str, requests: Any) -> Any:
         response = await self.http_request('POST', '/ajax', params={'sid': sid}, json=requests)
 
         if response.status != 200:
@@ -204,12 +209,12 @@ class Client:
 
         return data
 
-    async def request(self, url):
+    async def request(self, url: str) -> None:
         response = await self.json_request("GET", "/api/" + url)
 
         print(json.dumps(response, indent=2))
 
-    async def do_ajax_request(self, requests_str=None):
+    async def do_ajax_request(self, requests_str: str | None = None) -> None:
         if self.ajax_sid is None:
             raise Exception('No AJAX SID given')
         sid = self.ajax_sid
@@ -238,22 +243,23 @@ class Client:
 
 
 class LogReceiver:
-    def __init__(self, client, *, include=None, filter=None, verbose=False):
+    def __init__(self, client: Client, *, include: Sequence[str] | None = None,
+                 filter: Sequence[str] | None = None, verbose: bool = False) -> None:
         self.client = client
         self.include = include
         self.filter = filter
         self.verbose = verbose
 
-        self.subscribe_params = {}
+        self.subscribe_params: dict[str, Any] = {}
         if include is not None:
             self.subscribe_params['include'] = include
         if filter is not None:
             self.subscribe_params['filter'] = ','.join(filter)
 
-        self.handlers = {}
-        self.all_handlers = []
+        self.handlers: dict[str, list[Callable[[Any], object]]] = {}
+        self.all_handlers: list[Callable[[Any], object]] = []
 
-        self.subscription = None
+        self.subscription: Any = None
 
     #     self.context = self._context()
 
@@ -262,13 +268,14 @@ class LogReceiver:
     #     pass
 
     @property
-    def is_subscribed(self):
+    def is_subscribed(self) -> bool:
         return self.subscription is not None
 
     # TODO: Move somewhere else?
     @staticmethod
     @contextlib.asynccontextmanager
-    async def start_task_context(task_group, coroutine):
+    async def start_task_context(task_group: asyncio.TaskGroup,
+                                 coroutine: Coroutine[Any, Any, object]) -> AsyncIterator[asyncio.Task]:
         import wirely.misc.service
 
         task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
@@ -285,7 +292,8 @@ class LogReceiver:
                 pass
             # print('Canceling done')
 
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
+                                async_exit_stack: contextlib.AsyncExitStack) -> None:
         # TODO: Should this wait until the subscription has finished? Or until all initial events have been handled?
 
         # By doing this here instead of using "async with" in _run() this will wait until the subscription is finished
@@ -296,13 +304,13 @@ class LogReceiver:
         task = await async_exit_stack.enter_async_context(LogReceiver.start_task_context(task_group, self._run()))
 
     # TODO: Allow removing handlers?
-    def add_handler(self, event_names, handler):
+    def add_handler(self, event_names: Sequence[str], handler: Callable[[Any], object]) -> None:
         self.all_handlers.append(handler)
         for event_name in event_names:
             self.handlers.setdefault(event_name, []).append(handler)
 
     @contextlib.asynccontextmanager
-    async def with_subscription(self):
+    async def with_subscription(self) -> AsyncIterator[Any]:
         if self.verbose:
             print('Subscribing...', end='', flush=True)
         # TODO: Use POST instead of GET?
@@ -323,7 +331,7 @@ class LogReceiver:
             if self.verbose:
                 print(' done.', flush=True)
 
-    async def _run(self):
+    async def _run(self) -> None:
         timeout = 60
         http_timeout = aiohttp.ClientTimeout(total=timeout + 30, connect=30, sock_connect=30)
 
@@ -349,7 +357,7 @@ class LogReceiver:
                     handler(None)
 
 
-async def main():
+async def main() -> None:
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--hostname', type=str, required=True)

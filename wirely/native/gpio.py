@@ -1,12 +1,17 @@
+import asyncio
+import contextlib
+from collections.abc import Mapping
+from typing import Any
+
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 from wirely.runtime.enums import GPIOActiveState, GPIOBias, GPIODrive
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
 
 
-def _setting(value, mapping, description):
+def _setting(value: Any, mapping: Mapping[Any, Any], description: str) -> Any:
     native = value.native
     if native not in mapping:
         raise ValueError(f'Unsupported GPIO {description} {value.value}')
@@ -16,13 +21,13 @@ def _setting(value, mapping, description):
 @native_resource_type(native_resource_types, 'OutputState')
 @native_node_type(native_node_types, has_native_state=True)
 class Output(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
-        self.gpio_request = None
+        self.gpio_request: Any = None  # A gpiod LineRequest once started.
         self.direction_set = False
 
-    def start_tasks(self, task_group, async_exit_stack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         import gpiod
@@ -54,7 +59,7 @@ class Output(NativeState):
 
     @native_procedure('set_value')
     class SetValue(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             import gpiod
             from gpiod.line import Bias, Direction, Drive, Value

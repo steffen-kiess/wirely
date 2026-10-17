@@ -7,9 +7,13 @@ their arguments, and they have no side effects.
 
 import importlib
 import inspect
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Any, TypeVar
 
-from ..types import value_types
+from ..types import Type, value_types
+
+F = TypeVar('F', bound=Callable[..., object])
 
 
 # Maps namespaces to modules of this package, each with a native_functions registry.
@@ -21,9 +25,9 @@ function_pkgs = {
 }
 
 
-def native_function(registry, name):
+def native_function(registry: dict[str, Callable[..., object]], name: str) -> Callable[[F], F]:
     """Register a function implementation under its Wirely name in a package registry."""
-    def register(implementation):
+    def register(implementation: F) -> F:
         if name in registry:
             raise ValueError(f'Duplicate native function name {name!r}')
         registry[name] = implementation
@@ -34,16 +38,16 @@ def native_function(registry, name):
 @dataclass(frozen=True, slots=True)
 class RuntimeFunctionContext:
     function_name: str  # Native name, such as 'Duration.CheckedAdd'.
-    arguments: tuple[object, ...]  # Native argument values in declaration order.
+    arguments: tuple[Any, ...]  # Native argument values in declaration order.
     return_type: value_types.ValueType  # Declared return type.
 
 
-def validate_native_function(implementation, function_name):
+def validate_native_function(implementation: Callable[..., object], function_name: str) -> None:
     """Reject implementations that cannot be called synchronously with context=."""
     description = function_name
     if not callable(implementation):
         raise ValueError(f'Native function {description!r} is not callable')
-    target = inspect.unwrap(implementation if inspect.isroutine(implementation) else implementation.__call__)
+    target = inspect.unwrap(implementation if inspect.isroutine(implementation) else getattr(implementation, '__call__'))
     if (inspect.iscoroutinefunction(target) or inspect.isgeneratorfunction(target)
             or inspect.isasyncgenfunction(target)):
         raise ValueError(f'Native function {description!r} must be synchronous and return one value')
@@ -53,7 +57,8 @@ def validate_native_function(implementation, function_name):
         raise ValueError(f'Invalid native function {description!r}: {error}') from error
 
 
-def call_native_function(implementation, function_name, parameter_types, return_type, values):
+def call_native_function(implementation: Callable[..., object], function_name: str,
+                         parameter_types: Sequence[Type], return_type: Type, values: Sequence[object]) -> object:
     """Call an implementation with runtime values and return its result as a runtime value.
 
     Implementations must be total; exceptions propagate to the caller."""
@@ -64,7 +69,7 @@ def call_native_function(implementation, function_name, parameter_types, return_
     return return_type.verify_value(value_types._from_native(return_type, result))
 
 
-def get_native_function_by_name(function_name: str):
+def get_native_function_by_name(function_name: str) -> Callable[..., object]:
     """Return the implementation of a native function, validated for calling."""
     namespace, _, name = function_name.rpartition('.')
     pkg_name = function_pkgs.get(namespace)

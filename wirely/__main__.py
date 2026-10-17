@@ -4,7 +4,7 @@ import importlib
 import asyncio
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title='subcommands', dest='command', required=True)
 

@@ -1,6 +1,8 @@
+from collections.abc import Sequence
+
 import wirely
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -10,7 +12,7 @@ native_resource_types: dict[str, type] = {}
 class DebugValuePrinter:
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             text = context.values['Type'].to_text(context.inputs['input'])
 
             print(f'[{context.name}]: Got value {text}', flush=True)
@@ -20,7 +22,7 @@ class DebugValuePrinter:
 class DebugEventPrinter:
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             event = context.inputs['input']
 
             if event is None:
@@ -34,7 +36,7 @@ class DebugEventPrinter:
 class WarnOnEvent:
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             event = context.inputs['input']
 
             if event is None:
@@ -54,28 +56,28 @@ class WarnOnEvent:
 @native_resource_type(native_resource_types, 'DebugValueSourceState')
 @native_node_type(native_node_types, has_native_state=True)
 class DebugValueSource(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
-        self.current_value = None
+        self.current_value: object = None
 
         self.out_type = context.values['Type']
 
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             context.set_output('output', state.current_value)
 
-    def set_value(self, value):
+    def set_value(self, value: object) -> None:
         self.current_value = value
 
         self.trigger('state')
 
-    def debug_command(self, parameters):
+    def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
             raise Exception('Missing command')
         cmd = parameters[0]
@@ -97,27 +99,27 @@ class DebugValueSource(NativeState):
 @native_resource_type(native_resource_types, 'DebugEventSourceState')
 @native_node_type(native_node_types, has_native_state=True)
 class DebugEventSource(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
         # TODO: Allow a queue of values?
-        self.next_value = None
+        self.next_value: object = None
 
         self.out_type = context.values['Type']
 
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             context.set_output('output', state.next_value)
             if state.next_value is not None:
                 state.next_value = None
                 context.trigger_self()
 
-    def send_event(self, value):
+    def send_event(self, value: object) -> None:
         if self.next_value is not None:
             raise Exception(f'DebugEventSource already has an event set: {self.next_value!r}, trying to set {value!r}')
 
@@ -125,7 +127,7 @@ class DebugEventSource(NativeState):
 
         self.trigger('state')
 
-    def debug_command(self, parameters):
+    def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
             raise Exception('Missing command')
         cmd = parameters[0]

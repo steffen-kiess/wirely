@@ -1,11 +1,12 @@
 """Display the section container of a binary program file."""
 
+import argparse
 import sys
 
 from ..program.container import ContainerError, SectionList
 
 
-def _print_headers(section_list):
+def _print_headers(section_list: SectionList) -> None:
     major, minor = section_list.version
     print(f'Format version {major}.{minor}, {len(section_list.sections)} sections')
     print()
@@ -14,7 +15,7 @@ def _print_headers(section_list):
         print(f'{index:3}  0x{section.section_type:08x}    0x{section.record_type:08x}   {section.length}')
 
 
-def _print_contents(section_list):
+def _print_contents(section_list: SectionList) -> None:
     for index, section in enumerate(section_list.sections):
         print(f'Contents of section {index} (type 0x{section.section_type:08x}, '
               f'record type 0x{section.record_type:08x}):')
@@ -26,7 +27,7 @@ def _print_contents(section_list):
             print(f' {start:04x} {groups:<35}  {text}')
 
 
-def run(args):
+def run(args: argparse.Namespace) -> int:
     show_headers = args.section_headers or args.all_headers
     if not show_headers and not args.full_contents:
         print('Error: objdump requires at least one of -h, -x, or -s', file=sys.stderr)

@@ -1,6 +1,11 @@
 """Control operations on a running engine."""
 
 import collections
+from collections.abc import Callable
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..runtime.engine import Engine
 
 from .messages import Bank, ControlError, ErrorCode, Op, RunState, get_field
 
@@ -15,32 +20,32 @@ class RuntimeController:
         Op.SNAPSHOT, Op.READ_SNAPSHOT, Op.RELEASE_SNAPSHOT,
     )
 
-    def __init__(self, engine):
+    def __init__(self, engine: 'Engine') -> None:
         self.engine = engine
-        self._snapshots = collections.OrderedDict()  # Least recently used first.
+        self._snapshots: collections.OrderedDict[int, tuple[bytes, ...]] = collections.OrderedDict()  # Least recently used first.
         self._next_snapshot_id = 1
 
-    def handle(self, op, body):
+    def handle(self, op: int, body: Any) -> Any:
         """Run an operation and return its response body."""
         handler = self._handlers.get(op)
         if handler is None:
             raise ControlError(ErrorCode.UNKNOWN_OP)
         return handler(self, body)
 
-    def _status(self, body):
+    def _status(self, body: Any) -> dict[int, Any]:
         run_state = RunState.PAUSED if self.engine.paused else RunState.RUNNING
         return {1: int(run_state), 2: self.engine.step_count}
 
-    def _pause(self, body):
+    def _pause(self, body: Any) -> dict[int, Any]:
         # Requests run between steps, so no step is running here.
         self.engine.pause()
         return self._status(body)
 
-    def _resume(self, body):
+    def _resume(self, body: Any) -> dict[int, Any]:
         self.engine.resume()
         return self._status(body)
 
-    def _step(self, body):
+    def _step(self, body: Any) -> dict[int, Any]:
         count = get_field(body, 1, int, default=1)
         if not self.engine.paused:
             raise ControlError(ErrorCode.WRONG_STATE, 'Runtime is not paused')
@@ -50,7 +55,7 @@ class RuntimeController:
             procedures += run_count
         return {1: count, 2: procedures}
 
-    def _snapshot(self, body):
+    def _snapshot(self, body: Any) -> dict[int, Any]:
         engine = self.engine
         banks = (bytes(engine.state.data), b'' if engine.cache is None else bytes(engine.cache.data))
         snapshot_id = self._next_snapshot_id
@@ -60,7 +65,7 @@ class RuntimeController:
             self._snapshots.popitem(last=False)
         return {1: snapshot_id, 2: engine.step_count, 4: [len(bank) for bank in banks]}
 
-    def _get_snapshot(self, body):
+    def _get_snapshot(self, body: Any) -> tuple[int, tuple[bytes, ...]]:
         snapshot_id = get_field(body, 1, int, required=True)
         try:
             banks = self._snapshots[snapshot_id]
@@ -68,7 +73,7 @@ class RuntimeController:
             raise ControlError(ErrorCode.NOT_FOUND, f'Unknown snapshot {snapshot_id}') from None
         return snapshot_id, banks
 
-    def _read_snapshot(self, body):
+    def _read_snapshot(self, body: Any) -> dict[int, Any]:
         snapshot_id, banks = self._get_snapshot(body)
         bank = get_field(body, 2, int, required=True)
         ranges = get_field(body, 3, list, required=True)
@@ -87,12 +92,12 @@ class RuntimeController:
         self._snapshots.move_to_end(snapshot_id)
         return {1: bytes(result)}
 
-    def _release_snapshot(self, body):
+    def _release_snapshot(self, body: Any) -> dict[int, Any]:
         snapshot_id, _ = self._get_snapshot(body)
         del self._snapshots[snapshot_id]
         return {}
 
-    _handlers = {
+    _handlers: 'dict[int, Callable[[RuntimeController, Any], Any]]' = {
         Op.STATUS: _status,
         Op.PAUSE: _pause,
         Op.RESUME: _resume,

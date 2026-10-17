@@ -3,10 +3,12 @@ import json
 import dataclasses
 import urllib
 import contextlib
+from collections.abc import AsyncIterator
+from typing import Any
 
 import wirely
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
 from wirely.runtime.enums import MQTTFormat
 
 native_node_types: dict[str, type] = {}
@@ -16,7 +18,7 @@ native_resource_types: dict[str, type] = {}
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}
 
 
-def _json_format(option):
+def _json_format(option: Any) -> str | None:
     if option is None:
         return None
     native = option.value.native
@@ -26,7 +28,7 @@ def _json_format(option):
 
 
 aiomqtt_module = None
-def get_aiomqtt():
+def get_aiomqtt() -> Any:
     global aiomqtt_module
     if aiomqtt_module is not None:
         return aiomqtt_module
@@ -49,7 +51,7 @@ class ParsedMQTTUri:
     port: int
 
 
-def parse_mqtt_uri(uri):
+def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
     split = urllib.parse.urlsplit(uri)
     if split.scheme == '':
         raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Not a URI (scheme is missing)'.format(uri))
@@ -59,13 +61,13 @@ def parse_mqtt_uri(uri):
         raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got a non-empty fragment'.format(uri))
     query = urllib.parse.parse_qs(split.query, keep_blank_values=True, errors='strict', strict_parsing=False)
 
-    def check_query(*allowed_keys):
+    def check_query(*allowed_keys: str) -> None:
         allowed = set(allowed_keys)
         for key in query:
             if key not in allowed:
                 raise MQTTUriParseException('Unable to parse MQTT URI {!r}: Got unknown parameter {!r}'.format(uri, key))
 
-    def parse_path(path):
+    def parse_path(path: str) -> str | None:
         if path == '':
             return None
         if not path.startswith('/'):
@@ -141,7 +143,7 @@ def parse_mqtt_uri(uri):
 @native_resource_type(native_resource_types, 'Broker')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('broker', self)
 
@@ -154,10 +156,10 @@ class Connection(NativeState):
 
         self.parsed_uri = parse_mqtt_uri(uri)
 
-        self.all_subscriptions = {}
-        self.message_queues = {}
+        self.all_subscriptions: dict[str, int] = {}
+        self.message_queues: dict[str, list[asyncio.Queue]] = {}
 
-    def create_client(self):
+    def create_client(self) -> Any:
         # Note: Has to be called from the async loop so that asyncio.get_event_loop() is correct
 
         aiomqtt = get_aiomqtt()
@@ -170,7 +172,7 @@ class Connection(NativeState):
 
     # TODO: Do start() later, while everything is already running?
     # TODO: Clean up self.client somewhere (probably using async_exit_stack)?
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         print('Connecting to MQTT server', flush=True)
@@ -183,7 +185,7 @@ class Connection(NativeState):
 
         # TODO: Cleanup
 
-    async def add_subscription(self, topic):
+    async def add_subscription(self, topic: str) -> None:
         if topic in self.all_subscriptions:
             self.all_subscriptions[topic] += 1
         else:
@@ -191,7 +193,7 @@ class Connection(NativeState):
             # TODO: Error handling / locking?
             await self.client.subscribe(topic)
 
-    async def remove_subscription(self, topic):
+    async def remove_subscription(self, topic: str) -> None:
         if self.all_subscriptions[topic] > 1:
             self.all_subscriptions[topic] -= 1
             return
@@ -203,26 +205,26 @@ class Connection(NativeState):
         await self.client.unsubscribe(topic)
 
     @contextlib.asynccontextmanager
-    async def subscription(self, topic):
+    async def subscription(self, topic: str) -> AsyncIterator[None]:
         await self.add_subscription(topic)
         try:
             yield
         finally:
             await self.remove_subscription(topic)
 
-    def add_message_queue(self, topic):
+    def add_message_queue(self, topic: str) -> asyncio.Queue:
         if topic not in self.message_queues:
             self.message_queues[topic] = []
         queue: asyncio.Queue = asyncio.Queue()
         self.message_queues[topic].append(queue)
         return queue
 
-    def remove_message_queue(self, topic, queue):
+    def remove_message_queue(self, topic: str, queue: asyncio.Queue) -> None:
         li = self.message_queues[topic]
         li.remove(queue)
 
     @staticmethod
-    async def get_queue_reader(queue):
+    async def get_queue_reader(queue: asyncio.Queue) -> AsyncIterator[Any]:
         while True:
             data = await queue.get()
             yield data
@@ -231,14 +233,14 @@ class Connection(NativeState):
     # TODO: Combine this with subscription()?
     # TODO: Should this be async?
     @contextlib.asynccontextmanager
-    async def register_topic_queue(self, topic):
+    async def register_topic_queue(self, topic: str) -> AsyncIterator[AsyncIterator[Any]]:
         queue = self.add_message_queue(topic)
         try:
             yield self.get_queue_reader(queue)
         finally:
             self.remove_message_queue(topic, queue)
 
-    async def read_messages_task(self):
+    async def read_messages_task(self) -> None:
         async for message in self.client.messages:
             # print('QQQ', message)
             # Note: Accessing self.message_queues should be safe here because this does not call any client code and does not suspend the async task
@@ -254,12 +256,12 @@ class Connection(NativeState):
 @native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
         self.current_value = None
         # Task is needed for sending out values
-        self.task = None
+        self.task: asyncio.Task | None = None
         self.value_to_send = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
@@ -285,7 +287,7 @@ class ValueOptionProvider(NativeState):
 
         self.json_encode = self.value_type.json_encode
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -295,10 +297,10 @@ class ValueOptionProvider(NativeState):
 
     @native_procedure('set_value')
     class SetValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -321,7 +323,7 @@ class ValueOptionProvider(NativeState):
             state.value_to_send = value_bytes
             state.event.set()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while self.value_to_send is None:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
@@ -338,13 +340,13 @@ class ValueOptionProvider(NativeState):
 @native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
         self.current_value = None
         # Task is needed for sending out values
-        self.task = None
-        self.values_to_send = []
+        self.task: asyncio.Task | None = None
+        self.values_to_send: list[object] = []
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
@@ -369,7 +371,7 @@ class EventSender(NativeState):
 
         self.json_encode = self.value_type.json_encode
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -379,10 +381,10 @@ class EventSender(NativeState):
 
     @native_procedure('send_value')
     class SendValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -408,7 +410,7 @@ class EventSender(NativeState):
             # This makes sure that the value is sent again if the input does not change
             context.trigger_self()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while len(self.values_to_send) == 0:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
@@ -424,12 +426,12 @@ class EventSender(NativeState):
 @native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
-        self.task = None
-        self.received_values = []
+        self.task: asyncio.Task | None = None
+        self.received_values: list[object] = []
 
         self.value_type = context.values['Type']
         self.topic = context.values['Topic']
@@ -448,7 +450,7 @@ class EventReceiver(NativeState):
         self.native_server = context.inputs['Broker'].object
         print(f'  Using native server object: {self.native_server}', flush=True)
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -458,10 +460,10 @@ class EventReceiver(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -477,7 +479,7 @@ class EventReceiver(NativeState):
 
             context.trigger_self()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         # TODO: Should subscribing be done here or in start_tasks()?
         async with self.native_server.subscription(self.topic):
             async with self.native_server.register_topic_queue(self.topic) as queue:

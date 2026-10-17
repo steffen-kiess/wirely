@@ -1,15 +1,16 @@
 import asyncio
 import contextlib
+from typing import Any
 
 import wirely
 from wirely.native import check_state_type, native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext, ProcedureLoadContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
 
 
-def _protocol_name(option):
+def _protocol_name(option: Any) -> str | None:
     if option is None:
         return None
     name = option.value.native.name
@@ -21,7 +22,7 @@ def _protocol_name(option):
 @native_resource_type(native_resource_types, 'Bus')
 @native_node_type(native_node_types, has_native_state=True)
 class Connection(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('bus', self)
 
@@ -30,7 +31,7 @@ class Connection(NativeState):
 
         print('Create KNX connection', flush=True)
 
-        def parameter(name):
+        def parameter(name: str) -> Any:
             value = context.values[name]
             return None if value is None else value.value
 
@@ -45,7 +46,7 @@ class Connection(NativeState):
         self.knx = create_xknx(self.connection_config)
 
     # TODO: Do start() later, while everything is already running?
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         print('Connecting to KNX bus', flush=True)
@@ -56,7 +57,7 @@ class Connection(NativeState):
 @native_resource_type(native_resource_types, 'ValueReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueReceiver(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
         self.current_value = None
@@ -86,7 +87,7 @@ class ValueReceiver(NativeState):
         self.native_bus.knx.devices.async_add(self.sensor)
 
     # TODO: Make sure exceptions here are handled somehow?
-    def update_callback(self, device):
+    def update_callback(self, device: Any) -> None:
         # print('update_callback()', flush=True)
         if self.value_type_knx == "binary":
             val = device.state
@@ -101,10 +102,10 @@ class ValueReceiver(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -122,7 +123,7 @@ class ValueReceiver(NativeState):
 @native_resource_type(native_resource_types, 'ValueOptionProviderState')
 @native_node_type(native_node_types, has_native_state=True)
 class ValueOptionProvider(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
@@ -130,7 +131,7 @@ class ValueOptionProvider(NativeState):
         self.current_value = None
 
         # Task is needed for sending out values
-        self.task = None
+        self.task: asyncio.Task | None = None
         self.value_to_send = None
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
@@ -157,7 +158,7 @@ class ValueOptionProvider(NativeState):
         self.expose = xknx.devices.ExposeSensor(self.native_bus.knx, name="Expose", group_address=self.address, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.expose)  # TODO: Is this needed?
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -167,10 +168,10 @@ class ValueOptionProvider(NativeState):
 
     @native_procedure('set_value')
     class SetValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -193,7 +194,7 @@ class ValueOptionProvider(NativeState):
             state.value_to_send = value
             state.event.set()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while self.value_to_send is None:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks
@@ -210,12 +211,12 @@ class ValueOptionProvider(NativeState):
 @native_resource_type(native_resource_types, 'EventReceiverState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventReceiver(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
-        self.task = None
-        self.received_values = []
+        self.task: asyncio.Task | None = None
+        self.received_values: list[object] = []
 
         self.value_type = context.values['Type']
         self.value_type_knx = context.values['value_type_name']
@@ -242,7 +243,7 @@ class EventReceiver(NativeState):
         self.native_bus.knx.devices.async_add(self.sensor)
 
     # TODO: Make sure exceptions here are handled somehow?
-    def event_callback(self, device):
+    def event_callback(self, device: Any) -> None:
         # print('update_callback()', flush=True)
         if self.value_type_knx == "binary":
             val = device.state
@@ -256,10 +257,10 @@ class EventReceiver(NativeState):
 
     @native_procedure('get_value')
     class GetValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -279,13 +280,13 @@ class EventReceiver(NativeState):
 @native_resource_type(native_resource_types, 'EventSenderState')
 @native_node_type(native_node_types, has_native_state=True)
 class EventSender(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
         # Task is needed for sending out values
-        self.task = None
-        self.values_to_send = []
+        self.task: asyncio.Task | None = None
+        self.values_to_send: list[object] = []
         # Note: Use an event instead of a condition because setting an event does not require await
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
@@ -307,7 +308,7 @@ class EventSender(NativeState):
         self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.sensor)  # TODO: Is this needed?
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -317,10 +318,10 @@ class EventSender(NativeState):
 
     @native_procedure('send_value')
     class SendValue(NativeProcedure):
-        def __init__(self, *, context):
+        def __init__(self, *, context: ProcedureLoadContext) -> None:
             check_state_type(context, context.resources['state'].object)
 
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             # TODO: Add checks whether everything is running?
 
@@ -343,7 +344,7 @@ class EventSender(NativeState):
             # This makes sure that the value is sent again if the input does not change
             context.trigger_self()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while len(self.values_to_send) == 0:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks

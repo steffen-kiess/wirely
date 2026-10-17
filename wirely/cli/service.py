@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import contextlib
 
@@ -22,7 +23,8 @@ from wirely.runtime.engine import Engine
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
 
 
-async def run_engine(engine, state_directory=None, tls_context=None) -> None:
+async def run_engine(engine: Engine, state_directory: str | None = None,
+                     tls_context: ssl.SSLContext | None = None) -> None:
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
@@ -50,7 +52,7 @@ async def run_engine(engine, state_directory=None, tls_context=None) -> None:
         # signal.raise_signal(signal.SIGINT)
 
 
-async def async_run(args) -> int | None:
+async def async_run(args: argparse.Namespace) -> int | None:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
     if (args.control_tls_cert is None) != (args.control_tls_key is None):

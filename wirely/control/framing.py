@@ -22,12 +22,13 @@ class StreamFraming:
 
     reliable = True
 
-    def __init__(self, reader, writer, max_message_size=STREAM_MAX_MESSAGE_SIZE):
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                 max_message_size: int = STREAM_MAX_MESSAGE_SIZE) -> None:
         self.reader = reader
         self.writer = writer
         self.max_message_size = max_message_size
 
-    async def read(self):
+    async def read(self) -> bytes | None:
         """Return the next message, or None at the end of the stream."""
         try:
             length = int.from_bytes(await self.reader.readexactly(2), 'little')
@@ -39,7 +40,7 @@ class StreamFraming:
                 raise FramingError('Connection closed within a frame') from None
             return None
 
-    async def write(self, message):
+    async def write(self, message: bytes) -> None:
         if len(message) > 0xffff:
             raise FramingError(f'Message of {len(message)} bytes is too long for a frame')
         self.writer.write(len(message).to_bytes(2, 'little') + message)
@@ -51,12 +52,13 @@ class SerialFraming:
 
     reliable = False
 
-    def __init__(self, reader, writer, max_message_size=SERIAL_MAX_MESSAGE_SIZE):
+    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                 max_message_size: int = SERIAL_MAX_MESSAGE_SIZE) -> None:
         self.reader = reader
         self.writer = writer
         self.max_message_size = max_message_size
 
-    async def read(self):
+    async def read(self) -> bytes | None:
         """Return the next valid message, or None at the end of the stream.
 
         Frames that are too long or fail decoding are discarded.
@@ -85,13 +87,13 @@ class SerialFraming:
             if zlib.crc32(message).to_bytes(4, 'little') == crc:
                 return message
 
-    async def write(self, message):
+    async def write(self, message: bytes) -> None:
         data = message + zlib.crc32(message).to_bytes(4, 'little')
         self.writer.write(cobs_encode(data) + b'\0')
         await self.writer.drain()
 
 
-def cobs_encode(data):
+def cobs_encode(data: bytes) -> bytes:
     """Encode data with Consistent Overhead Byte Stuffing, without the delimiter."""
     out = bytearray()
     block = bytearray()
@@ -111,7 +113,7 @@ def cobs_encode(data):
     return bytes(out)
 
 
-def cobs_decode(data):
+def cobs_decode(data: bytes) -> bytes:
     """Decode COBS data without the delimiter, raising ValueError if it is invalid."""
     out = bytearray()
     position = 0

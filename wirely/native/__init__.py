@@ -1,16 +1,23 @@
 import importlib
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from wirely.util import check_parameters
 
+if TYPE_CHECKING:
+    from wirely.runtime.contexts import ProcedureLoadContext
+
+C = TypeVar('C', bound=type)
+
 
 @check_parameters
-def native_node_type(namespace_dict, *, has_native_state: bool):
-    def native_node_type_impl(cls):
+def native_node_type(namespace_dict: dict, *, has_native_state: bool) -> Callable[[C], C]:
+    def native_node_type_impl(cls: C) -> C:
         cls_name = cls.__name__
 
-        cls.native_node_has_native_state = has_native_state
+        setattr(cls, 'native_node_has_native_state', has_native_state)
 
-        procedure_names = set()
+        procedure_names: set[str] = set()
         for value in vars(cls).values():
             name = vars(value).get('native_procedure_name') if isinstance(value, type) else None
             if name in procedure_names:
@@ -27,15 +34,15 @@ def native_node_type(namespace_dict, *, has_native_state: bool):
 
 
 @check_parameters
-def native_procedure(name: str):
+def native_procedure(name: str) -> Callable[[C], C]:
     """Register a NativeProcedure class nested in a native node type class under a procedure name."""
-    def native_procedure_impl(cls):
-        cls.native_procedure_name = name
+    def native_procedure_impl(cls: C) -> C:
+        setattr(cls, 'native_procedure_name', name)
         return cls
     return native_procedure_impl
 
 
-def find_native_procedure(native_class, name):
+def find_native_procedure(native_class: type, name: str) -> type | None:
     """Return the procedure class registered under a name in a class or its bases, or None."""
     for base in native_class.__mro__:
         for value in vars(base).values():
@@ -44,7 +51,7 @@ def find_native_procedure(native_class, name):
     return None
 
 
-def check_state_type(context, state, name='Type'):
+def check_state_type(context: 'ProcedureLoadContext', state: Any, name: str = 'Type') -> None:
     """Raise ValueError unless a procedure's ValueType matches its native state's; call it at load time."""
     if context.values[name] != state.values[name]:
         raise ValueError(f'{context.name}: procedure type {context.values[name]} does not match '
@@ -52,9 +59,9 @@ def check_state_type(context, state, name='Type'):
 
 
 @check_parameters
-def native_resource_type(namespace_dict, name: str):
+def native_resource_type(namespace_dict: dict, name: str) -> Callable[[C], C]:
     """Register a class as the Python type of a resource type in a module registry."""
-    def native_resource_type_impl(cls):
+    def native_resource_type_impl(cls: C) -> C:
         if name in namespace_dict:
             raise Exception(f'Duplicate native resource type name {name!r}')
         namespace_dict[name] = cls
@@ -76,7 +83,7 @@ native_node_pkgs = {
 }
 
 
-def get_native_node_type_by_name(type_name: str):
+def get_native_node_type_by_name(type_name: str) -> type:
     namespace, _, name = type_name.rpartition('.')
     pkg_name = native_node_pkgs.get(namespace)
     if pkg_name is None:
@@ -89,7 +96,7 @@ def get_native_node_type_by_name(type_name: str):
 
 
 
-def get_native_resource_type_by_name(type_name: str):
+def get_native_resource_type_by_name(type_name: str) -> type:
     """Return the Python type of the resource type with this native name."""
     namespace, _, name = type_name.rpartition('.')
     pkg_name = native_node_pkgs.get(namespace)

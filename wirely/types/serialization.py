@@ -1,7 +1,9 @@
 """Fixed little-endian encodings for resolved runtime types."""
 
+from typing import Any
+
 from . import (
-    TypeBoolean, TypeDuration, TypeEnum, TypeInt, TypeMonotonicTime,
+    Type, TypeBoolean, TypeDuration, TypeEnum, TypeInt, TypeMonotonicTime,
     TypeOption, TypeStruct, TypeTimeOfDay, TypeUnit,
 )
 from .option import Some
@@ -9,13 +11,13 @@ from .time import Duration, MonotonicTime, TimeOfDay
 from .unit import Unit
 
 
-def _check_runtime(value_type):
+def _check_runtime(value_type: Type) -> None:
     """Reject types without an eligible runtime representation."""
     if not value_type.is_runtime_type:
         raise ValueError(f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
 
 
-def _layout(value_type):
+def _layout(value_type: Type) -> tuple[int, int, int]:
     """Calculate alignment, data size, and storage size without checking limits."""
     if isinstance(value_type, TypeStruct):
         alignment = 1
@@ -50,21 +52,21 @@ def _layout(value_type):
     return alignment, data_size, size
 
 
-def _alignment(value_type):
+def _alignment(value_type: Type) -> int:
     """Return the required byte alignment of a runtime value."""
     _check_runtime(value_type)
     return _layout(value_type)[0]
 
 
-def _data_size(value_type):
+def _data_size(value_type: Type) -> int:
     """Return the encoded byte length, excluding tail padding."""
     _check_runtime(value_type)
     return _layout(value_type)[1]
 
 
-def _struct_offsets(value_type):
+def _struct_offsets(value_type: TypeStruct) -> list[int]:
     """Return the field offsets in declaration order."""
-    offsets = []
+    offsets: list[int] = []
     end = 0
     for field_type in value_type.fields.values():
         alignment, _, size = _layout(field_type)
@@ -74,7 +76,7 @@ def _struct_offsets(value_type):
     return offsets
 
 
-def _integer_bytes(value, size, *, signed=False):
+def _integer_bytes(value: int, size: int, *, signed: bool = False) -> bytes:
     """Encode an integer, reporting values outside its wire range."""
     try:
         return value.to_bytes(size, 'little', signed=signed)
@@ -82,7 +84,7 @@ def _integer_bytes(value, size, *, signed=False):
         raise ValueError(f'Integer {value} does not fit in {size} bytes') from error
 
 
-def _serialize(value_type, value):
+def _serialize(value_type: Type, value: Any) -> bytes:
     """Encode a validated value without tail padding."""
     length = value_type.data_size
     value = value_type.verify_value(value)
@@ -114,7 +116,7 @@ def _serialize(value_type, value):
     raise ValueError(f'Unsupported runtime type {value_type}')
 
 
-def _deserialize(value_type, data):
+def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
     """Decode exact data bytes, rejecting noncanonical flags and payloads."""
     length = value_type.data_size
     data = memoryview(data).tobytes()

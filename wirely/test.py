@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 import os
 import importlib
@@ -16,7 +18,8 @@ import signal
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from collections.abc import AsyncIterator, Callable, Iterable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 import lark
 
@@ -28,7 +31,13 @@ from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
 from wirely.util import check_parameters
 
 if TYPE_CHECKING:
-    from wirely.two_n.fake_server import ServerInfo
+    from wirely.compiler.diagnostics import Diagnostic
+    from wirely.program import Program
+    from wirely.two_n.fake_server import Server, ServerInfo
+
+# An expected diagnostic (kind, line, message fragment) and a reported one (kind, filename, line, message).
+ExpectedDiagnostic = tuple[str, int, str]
+DiagnosticItem = tuple[str, 'str | None', 'int | None', str]
 
 # TODO: Where should this import be done?
 import wirely.compiler
@@ -199,8 +208,9 @@ library_metadata_prefix_pattern = re.compile(r'[ \t]*//[ \t]+LIBRARIES\b')
 case_marker_pattern = re.compile(r'[ \t]*//[ \t]+TEST(?:[ \t]*:[ \t]*(.*?))?[ \t]*')
 
 
-def expected_diagnostics(source, *, start_line=1, end_line=None, shuffled=False):
-    expected = []
+def expected_diagnostics(source: str, *, start_line: int = 1, end_line: int | None = None,
+                         shuffled: bool = False) -> list[ExpectedDiagnostic]:
+    expected: list[ExpectedDiagnostic] = []
     pattern = shuffle_annotation_pattern if shuffled else annotation_pattern
     prefix = r'\s*\^*S[EHW]\b' if shuffled else r'\s*\^*[EHW]:'
     for line_number, line in enumerate(source.splitlines(), 1):
@@ -233,7 +243,7 @@ class NegativeTestCase:
     libraries: tuple[str, ...] = ()
 
 
-def negative_test_libraries(lines, *, start_line):
+def negative_test_libraries(lines: Sequence[str], *, start_line: int) -> tuple[str, ...] | None:
     libraries: tuple[str, ...] | None = None
     for offset, line in enumerate(lines):
         line = line.rstrip('\r\n')
@@ -261,7 +271,7 @@ def negative_test_libraries(lines, *, start_line):
     return libraries
 
 
-def negative_test_cases(source):
+def negative_test_cases(source: str) -> Iterator[NegativeTestCase]:
     lines = source.splitlines(keepends=True)
     markers = []
     for index, line in enumerate(lines):
@@ -293,7 +303,7 @@ def negative_test_cases(source):
         yield NegativeTestCase(label, start + 1, end, padded, libraries)
 
 
-def diagnostic_items(diagnostics):
+def diagnostic_items(diagnostics: Iterable[Diagnostic]) -> list[DiagnosticItem]:
     """Return (kind, absolute filename, line, message) for diagnostics other than progress."""
     items = []
     for diagnostic in diagnostics:
@@ -308,7 +318,9 @@ def diagnostic_items(diagnostics):
     return items
 
 
-def match_diagnostics(expected, actual, full_fn, start_line, end_line, *, relaxed):
+def match_diagnostics(expected: Sequence[ExpectedDiagnostic], actual: Sequence[DiagnosticItem], full_fn: str,
+                      start_line: int, end_line: int, *, relaxed: bool,
+                      ) -> tuple[list[ExpectedDiagnostic], list[DiagnosticItem]]:
     """Return the expected and actual diagnostics left unmatched.
 
     relaxed matches any line between start_line and end_line, for shuffled
@@ -316,7 +328,7 @@ def match_diagnostics(expected, actual, full_fn, start_line, end_line, *, relaxe
     """
     matched: dict[int, int] = {}
 
-    def match_expectation(expected_index, seen):
+    def match_expectation(expected_index: int, seen: set[int]) -> bool:
         kind, line_number, fragment = expected[expected_index]
         for actual_index, item in enumerate(actual):
             location_matches = (isinstance(item[2], int)
@@ -338,7 +350,7 @@ def match_diagnostics(expected, actual, full_fn, start_line, end_line, *, relaxe
     return missing, unexpected
 
 
-def compile_checked(fn, *, services=None):
+def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) -> Program:
     """Compile fn, which must warn exactly as its W: annotations expect."""
     full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
     with open(full_fn, encoding='utf-8') as file:
@@ -354,7 +366,7 @@ def compile_checked(fn, *, services=None):
 
     diagnostics = []
 
-    def report(diagnostic):
+    def report(diagnostic: Diagnostic) -> None:
         diagnostics.append(diagnostic)
         print_diagnostic(diagnostic)
 
@@ -370,7 +382,7 @@ def compile_checked(fn, *, services=None):
     return prog
 
 
-def compile_negative_case(full_fn, case):
+def compile_negative_case(full_fn: str, case: NegativeTestCase) -> None:
     if case.label == '':
         raise AssertionError('empty test label')
     expected = expected_diagnostics(
@@ -410,7 +422,7 @@ def compile_negative_case(full_fn, case):
         )
 
 
-def compile_negative_test(fn, *, verbose=True):
+def compile_negative_test(fn: str, *, verbose: bool = True) -> None:
     if verbose:
         print(f'Compiling negative test {fn}')
     full_fn = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', fn))
@@ -429,7 +441,7 @@ def compile_negative_test(fn, *, verbose=True):
         print(f'Compiling negative test {fn} done')
 
 
-def test_signatures(graph):
+def test_signatures(graph: object) -> contextlib.ExitStack:
     """Register signatures of a program's TestLibrary native code, derived from its declarations."""
     from unittest.mock import patch
     from wirely.compiler.native_signatures import native_signatures
@@ -443,13 +455,13 @@ def test_signatures(graph):
     return stack
 
 
-def test_engine(program, graph=None):
+def test_engine(program: Program, graph: object = None) -> Engine:
     """Create an Engine for a program whose TestLibrary native code is declared in graph or program.graph."""
     with test_signatures(program.graph if graph is None else graph):
         return Engine(program)
 
 
-def compile_test(fn):
+def compile_test(fn: str) -> None:
     print(f'Compiling {fn}')
 
     prog = compile_checked(fn)
@@ -464,7 +476,7 @@ def compile_test(fn):
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_knxd(socket_path):
+async def with_maybe_knxd(socket_path: str | None) -> AsyncIterator[str | None]:
     if socket_path is None:
         yield None
         return
@@ -549,7 +561,7 @@ path = {socket_path}
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_mqtt(socket_path):
+async def with_maybe_mqtt(socket_path: str | None) -> AsyncIterator[str | None]:
     if socket_path is None:
         yield None
         return
@@ -626,7 +638,7 @@ allow_anonymous true
 
 
 @contextlib.asynccontextmanager
-async def with_maybe_twon(server):
+async def with_maybe_twon(server: Server | None) -> AsyncIterator[ServerInfo | None]:
     if server is None:
         yield None
         return
@@ -638,12 +650,12 @@ async def with_maybe_twon(server):
 class TestResourceProvider:
     """Allocate fixtures for one compilation and test execution."""
 
-    def __init__(self, exit_stack):
+    def __init__(self, exit_stack: contextlib.ExitStack) -> None:
         self.exit_stack = exit_stack
-        self.knx_path = None
-        self.mqtt_socket_path = None
-        self.output_directory = None
-        self.twon_server = None
+        self.knx_path: str | None = None
+        self.mqtt_socket_path: str | None = None
+        self.output_directory: str | None = None
+        self.twon_server: Server | None = None
 
     def get_knx_path(self) -> str:
         if self.knx_path is None:
@@ -685,7 +697,7 @@ class TestResourceProvider:
         return self.twon_server.info
 
 
-async def run_python_test(filename, *, engine=None):
+async def run_python_test(filename: str, *, engine: Engine | None = None) -> None:
     spec = importlib.util.spec_from_file_location('test', filename)
     if spec is None or spec.loader is None:
         raise ImportError(f'Unable to load Python test {filename!r}')
@@ -696,14 +708,14 @@ async def run_python_test(filename, *, engine=None):
     await module.run_test()
 
 
-async def run_python_only_test(test_name):
+async def run_python_only_test(test_name: str) -> None:
     print(f'Running test {test_name}')
     filename = Path(__file__).resolve().parent.parent / 'test' / (test_name + '.py')
     await run_python_test(str(filename))
     print(f'Done running test {test_name}')
 
 
-async def run_runtime_test(test_name):
+async def run_runtime_test(test_name: str) -> None:
     print(f'Running test {test_name}')
 
     with contextlib.ExitStack() as resource_stack:
@@ -731,7 +743,7 @@ async def run_runtime_test(test_name):
     print(f'Done running test {test_name}')
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='Run Wirely tests')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
@@ -753,7 +765,7 @@ def main():
     durations = []
     failed = []
 
-    def run_one(run, name):
+    def run_one(run: Callable[[str], object], name: str) -> None:
         if not args.keep_going:
             run(name)
             return

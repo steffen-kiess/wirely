@@ -1,5 +1,6 @@
 """Compile command orchestration."""
 
+import argparse
 import sys
 
 from ..compiler import compile_files
@@ -7,7 +8,7 @@ from ..compiler import program as program_compiler
 from ..runtime.engine import Engine
 
 
-def run(args):
+def run(args: argparse.Namespace) -> int | None:
     if args.dump_program and not args.create_program:
         print('Error: --dump-program cannot be used with --no-create-program',
               file=sys.stderr)
@@ -29,3 +30,4 @@ def run(args):
             prog.dump()
         if args.create_engine:
             Engine(prog)
+    return None

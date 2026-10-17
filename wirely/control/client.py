@@ -1,7 +1,12 @@
 """Control protocol client."""
 
+from __future__ import annotations
+
 import asyncio
 import os
+import ssl as ssl_module
+from collections.abc import Iterable
+from typing import Any
 
 from .framing import STREAM_PREFACE, SerialFraming, StreamFraming
 from .messages import (
@@ -13,7 +18,7 @@ from .messages import (
 class ControlClient:
     """A session with a runtime; requests are sent in order and may overlap up to the window."""
 
-    def __init__(self, framing, *, timeout=1.0, retries=5):
+    def __init__(self, framing: StreamFraming | SerialFraming, *, timeout: float = 1.0, retries: int = 5) -> None:
         self.framing = framing
         # On unreliable transports, the retransmission timeout in seconds and the number of retransmissions.
         self.timeout = timeout
@@ -24,7 +29,8 @@ class ControlClient:
         self.supported_ops = None
 
     @classmethod
-    async def connect_unix(cls, path, protocol='stream', *, ssl=None, server_hostname=None, **kwargs):
+    async def connect_unix(cls, path: str, protocol: str = 'stream', *, ssl: ssl_module.SSLContext | None = None,
+                           server_hostname: str | None = None, **kwargs: Any) -> ControlClient:
         """Connect to a Unix socket and start a session.
 
         `protocol` is 'stream' or 'serial'. `ssl` is only valid with 'stream'.
@@ -50,7 +56,7 @@ class ControlClient:
             raise
         return client
 
-    async def close(self):
+    async def close(self) -> None:
         writer = self.framing.writer
         writer.close()
         try:
@@ -58,7 +64,7 @@ class ControlClient:
         except OSError:
             pass
 
-    async def hello(self):
+    async def hello(self) -> Any:
         nonce = os.urandom(8)
         self.counter = 0
         self.peer_max_message_size = MIN_MESSAGE_SIZE
@@ -74,18 +80,18 @@ class ControlClient:
             raise ControlError(ErrorCode.UNAUTHENTICATED, 'Authentication is not supported by this client')
         return body
 
-    async def request(self, op, body=None):
+    async def request(self, op: int, body: Any = None) -> Any:
         """Send one request and return its response body; error responses raise ControlError."""
         self.counter += 1
         return await self._exchange(self.counter & 0xff, op, body or {})
 
-    async def requests(self, items):
+    async def requests(self, items: Iterable[tuple[int, Any]]) -> list[Any]:
         """Send (op, body) requests, overlapping up to the window, and return their response bodies."""
         items = list(items)
         if self.window <= 1 or not self.framing.reliable:
             return [await self.request(op, body) for op, body in items]
         results = []
-        pending: list[tuple[int, str]] = []  # Sequence numbers and operations awaiting responses, in order.
+        pending: list[tuple[int, int]] = []  # Sequence numbers and operations awaiting responses, in order.
         for op, body in items:
             if len(pending) >= self.window:
                 results.append(await self._receive(*pending.pop(0)))
@@ -97,14 +103,14 @@ class ControlClient:
             results.append(await self._receive(seq, op))
         return results
 
-    async def _send(self, seq, op, body):
+    async def _send(self, seq: int, op: int, body: Any) -> bytes:
         message = encode(Kind.REQUEST, seq, op, body)
         if len(message) > self.peer_max_message_size:
             raise ValueError(f'Request of {len(message)} bytes exceeds the runtime limit')
         await self.framing.write(message)
         return message
 
-    async def _receive(self, seq, op, timeout=None):
+    async def _receive(self, seq: int, op: int, timeout: float | None = None) -> Any:
         """Return the body of the response to a request, ignoring unrelated messages."""
         async with asyncio.timeout(timeout):
             while True:
@@ -122,7 +128,7 @@ class ControlClient:
                                        get_field(message.body, 2, str))
                 return message.body
 
-    async def _exchange(self, seq, op, body):
+    async def _exchange(self, seq: int, op: int, body: Any) -> Any:
         message = await self._send(seq, op, body)
         if self.framing.reliable:
             return await self._receive(seq, op)

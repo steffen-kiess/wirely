@@ -16,7 +16,7 @@ class _Mismatch(Exception):
     """A value does not match an annotation."""
 
 
-def _checker(annotation: typing.Any):
+def _checker(annotation: typing.Any) -> Callable[[object], object]:
     """Return a function that returns a value matching an annotation, possibly converted.
 
     The function raises _Mismatch for other values.
@@ -26,7 +26,7 @@ def _checker(annotation: typing.Any):
     if origin is None and isinstance(annotation, type):
         exact: typing.Any = annotation if annotation in _EXACT_TYPES else None
 
-        def check_class(value):
+        def check_class(value: object) -> object:
             if not isinstance(value, annotation):
                 raise _Mismatch
             if exact is not None and type(value) is not exact:
@@ -36,7 +36,7 @@ def _checker(annotation: typing.Any):
     if origin in (typing.Union, types.UnionType):
         members = [_checker(member) for member in arguments]
 
-        def check_union(value):
+        def check_union(value: object) -> object:
             for member in members:
                 try:
                     return member(value)
@@ -47,7 +47,7 @@ def _checker(annotation: typing.Any):
     if origin is list and len(arguments) == 1:
         check_item = _checker(arguments[0])
 
-        def check_list(value):
+        def check_list(value: object) -> object:
             if not isinstance(value, list):
                 raise _Mismatch
             return [check_item(item) for item in value]
@@ -55,7 +55,7 @@ def _checker(annotation: typing.Any):
     if origin is tuple and len(arguments) == 2 and arguments[1] is Ellipsis:
         check_element = _checker(arguments[0])
 
-        def check_variable_tuple(value):
+        def check_variable_tuple(value: object) -> object:
             if not isinstance(value, tuple):
                 raise _Mismatch
             return tuple(check_element(item) for item in value)
@@ -63,7 +63,7 @@ def _checker(annotation: typing.Any):
     if origin is tuple:
         check_items = [_checker(argument) for argument in arguments]
 
-        def check_tuple(value):
+        def check_tuple(value: object) -> object:
             if not isinstance(value, tuple) or len(value) != len(check_items):
                 raise _Mismatch
             return tuple(check(item) for check, item in zip(check_items, value))
@@ -88,7 +88,7 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
         if parameter.name in annotations:
             checks[parameter.name] = (_checker(annotations[parameter.name]), annotations[parameter.name])
 
-    def check(name, value):
+    def check(name: str, value: object) -> object:
         checker, annotation = checks[name]
         try:
             return checker(value)
@@ -98,17 +98,18 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
                             f'got {type(value).__name__}, expected {expected}') from None
 
     @functools.wraps(f)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: object, **kwargs: object) -> object:
         arguments = list(args)
         for index, name in enumerate(positional[:len(arguments)]):
             if name in checks:
                 arguments[index] = check(name, arguments[index])
         keywords = {name: check(name, value) if name in checks else value for name, value in kwargs.items()}
-        return f(*arguments, **keywords)
+        call: Callable[..., R] = f
+        return call(*arguments, **keywords)
     return typing.cast(Callable[P, R], wrapper)
 
 
-def getEnvironmentBool(name, defVal):
+def getEnvironmentBool(name: str, defVal: bool) -> bool:
     if type(defVal) != bool:
         raise Exception('type(defVal) != bool')
 

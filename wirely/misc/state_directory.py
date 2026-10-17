@@ -6,6 +6,7 @@ import fcntl
 import os
 import struct
 import sys
+from collections.abc import Iterator
 
 LOCK_FILE_NAME = 'lock'
 # Python 3.11 lacks the constant; Linux uses this value on all architectures.
@@ -17,7 +18,7 @@ class StateDirectoryLocked(Exception):
 
 
 @contextlib.contextmanager
-def lock_state_directory(path):
+def lock_state_directory(path: str) -> Iterator[None]:
     """Create a state directory if needed and hold its lock, failing if another runtime holds it."""
     os.makedirs(path, mode=0o700, exist_ok=True)
     fd = _lock_file(os.path.join(path, LOCK_FILE_NAME))
@@ -28,7 +29,7 @@ def lock_state_directory(path):
         os.close(fd)
 
 
-def _lock_file(path):
+def _lock_file(path: str) -> int:
     """Open a file and hold a write lock on all of it, failing if it is locked."""
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
     try:

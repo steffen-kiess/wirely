@@ -3,6 +3,7 @@ import fractions
 import functools
 import re
 from dataclasses import dataclass
+from typing import overload
 
 import wirely
 from wirely.util import check_parameters
@@ -11,12 +12,12 @@ from wirely.util import check_parameters
 TICKS_PER_SECOND = 2**64
 
 
-def _ticks_from_seconds(seconds):
+def _ticks_from_seconds(seconds: fractions.Fraction | int | float | str) -> int:
     """Round exact seconds to the nearest unit, ties to even."""
     return round(fractions.Fraction(seconds) * TICKS_PER_SECOND)
 
 
-def _seconds_text(ticks):
+def _seconds_text(ticks: int) -> str:
     """Format units as the shortest decimal seconds that round back to them."""
     # 20 fraction digits resolve every unit.
     for digits in range(21):
@@ -51,7 +52,7 @@ class MonotonicTime:
         object.__setattr__(self, 'ticks', ticks)
 
     @staticmethod
-    def current_time():
+    def current_time() -> 'MonotonicTime':
         # Note: Generation 0 is never current.
         # Note: Currently the generation is always 1 because values cannot be stored anyway
         # TODO: Keep track of generation values
@@ -64,12 +65,12 @@ class MonotonicTime:
 
     # Returns True if time1 and time2 are comparable
     @staticmethod
-    def is_comparable(time1, time2):
+    def is_comparable(time1: 'MonotonicTime', time2: 'MonotonicTime') -> bool:
         return time1.generation == time2.generation
 
     # Returns 0 if time1==time2, -1 if time1<time2, 1 if time1>time2 and throws if time1 and time2 are not comparable
     @staticmethod
-    def compare(time1, time2):
+    def compare(time1: 'MonotonicTime', time2: 'MonotonicTime') -> int:
         if time1.generation != time2.generation:
             raise Exception(f'Times {time1} and {time2} are not comparable')
         elif time1.ticks == time2.ticks:
@@ -79,21 +80,27 @@ class MonotonicTime:
         else:
             return 1
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'MonotonicTime(generation={self.generation}, ticks={self.ticks})'
 
-    def to_text(self):
+    def to_text(self) -> str:
         """Format as MonotonicTime(generation, seconds), or MonotonicTime(invalid) for generation 0."""
         if self.generation == 0:
             return 'MonotonicTime(invalid)'
         return f'MonotonicTime({self.generation}, {_seconds_text(self.ticks)}s)'
 
-    def __add__(self, duration):
+    def __add__(self, duration: 'Duration') -> 'MonotonicTime':
         if not isinstance(duration, Duration):
             raise Exception(f'Cannot add Duration and {type(duration)}')
         return MonotonicTime(generation=self.generation, ticks=self.ticks + duration.ticks)
 
-    def __sub__(self, other):
+    @overload
+    def __sub__(self, other: 'Duration') -> 'MonotonicTime': ...
+
+    @overload
+    def __sub__(self, other: 'MonotonicTime') -> 'Duration': ...
+
+    def __sub__(self, other: 'Duration | MonotonicTime') -> 'MonotonicTime | Duration':
         if isinstance(other, Duration):
             return MonotonicTime(generation=self.generation, ticks=self.ticks - other.ticks)
         elif isinstance(other, MonotonicTime):
@@ -103,12 +110,12 @@ class MonotonicTime:
         else:
             raise Exception(f'Cannot subtract MonotonicTime and {type(other)}')
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MonotonicTime):
             return False
         return self.generation == other.generation and self.ticks == other.ticks
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('MonotonicTime', self.generation, self.ticks))
 
 
@@ -131,10 +138,10 @@ class Duration:
 
         object.__setattr__(self, 'ticks', ticks)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Duration(ticks={self.ticks})'
 
-    def to_iso(self):
+    def to_iso(self) -> str:
         """Format in the canonical form accepted by parse(), such as PT2H30M or PT1.5S."""
         minutes, ticks = divmod(self.ticks, 60 * TICKS_PER_SECOND)
         hours, minute = divmod(minutes, 60)
@@ -144,12 +151,12 @@ class Duration:
             time += f'{_seconds_text(ticks)}S'
         return 'P' + (f'{days}D' if days else '') + (f'T{time}' if time else '')
 
-    def __add__(self, other):
+    def __add__(self, other: 'Duration') -> 'Duration':
         if not isinstance(other, Duration):
             raise Exception(f'Cannot add Duration and {type(other)}')
         return Duration(ticks=self.ticks + other.ticks)
 
-    def __sub__(self, other):
+    def __sub__(self, other: 'Duration') -> 'Duration':
         if not isinstance(other, Duration):
             raise Exception(f'Cannot subtract Duration and {type(other)}')
         if other.ticks > self.ticks:
@@ -162,30 +169,30 @@ class Duration:
     # def __neg__(self):
     #     return Duration(ticks=-self.ticks)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, Duration):
             return False
         return self.ticks == other.ticks
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('Duration', self.ticks))
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, Duration):
             return NotImplemented
         return self.ticks < other.ticks
 
     @property
-    def total_seconds(self):
+    def total_seconds(self) -> float:
         return self.ticks / TICKS_PER_SECOND
 
     @staticmethod
-    def from_seconds(seconds):
+    def from_seconds(seconds: fractions.Fraction | int | float | str) -> 'Duration':
         return Duration(ticks=_ticks_from_seconds(seconds))
 
     # TODO: Parse according to ISO 8601-1:2019
     @staticmethod
-    def parse(s):
+    def parse(s: str) -> 'Duration':
         # Note: Compared To ISO 8601-1:2019
         # - Months and years are not allowed
         # - Only seconds may have a decimal fraction
@@ -229,13 +236,13 @@ class TimeOfDay:
         object.__setattr__(self, 'ticks', ticks)
 
     @staticmethod
-    def from_parts(hour, minute, second=0, ticks=0):
+    def from_parts(hour: int, minute: int, second: int = 0, ticks: int = 0) -> 'TimeOfDay':
         if not (0 <= minute < 60 and 0 <= second < 60 and 0 <= ticks < TICKS_PER_SECOND):
             raise ValueError(f'Invalid time of day {hour}:{minute}:{second} + {ticks} units')
         return TimeOfDay(ticks=((hour * 60 + minute) * 60 + second) * TICKS_PER_SECOND + ticks)
 
     @staticmethod
-    def parse(s):
+    def parse(s: str) -> 'TimeOfDay':
         """Parse HH:MM, HH:MM:SS, or HH:MM:SS.fraction, rounding to the nearest unit.
 
         Times before 24:00 stay before it, at the last unit if rounding would reach 24:00."""
@@ -252,7 +259,7 @@ class TimeOfDay:
             ticks = min(ticks, TimeOfDay.END_TICKS - 1)
         return TimeOfDay(ticks=ticks)
 
-    def __str__(self):
+    def __str__(self) -> str:
         minutes, ticks = divmod(self.ticks, 60 * TICKS_PER_SECOND)
         hour, minute = divmod(minutes, 60)
         text = f'{hour:02}:{minute:02}'
@@ -261,18 +268,18 @@ class TimeOfDay:
             text += ':' + ('0' + seconds if ticks < 10 * TICKS_PER_SECOND else seconds)
         return text
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'TimeOfDay({str(self)!r})'
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, TimeOfDay):
             return NotImplemented
         return self.ticks == other.ticks
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, TimeOfDay):
             return NotImplemented
         return self.ticks < other.ticks
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('TimeOfDay', self.ticks))

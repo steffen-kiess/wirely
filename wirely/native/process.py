@@ -3,7 +3,7 @@ import asyncio
 
 import wirely
 from wirely.native import native_node_type, native_procedure, native_resource_type
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -12,15 +12,15 @@ native_resource_types: dict[str, type] = {}
 @native_resource_type(native_resource_types, 'LaunchOnEventState')
 @native_node_type(native_node_types, has_native_state=True)
 class LaunchOnEvent(NativeState):
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
-        self.task = None
+        self.task: asyncio.Task | None = None
         self.pending = False
         self.event = asyncio.Event()
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         if self.task is not None:
@@ -30,7 +30,7 @@ class LaunchOnEvent(NativeState):
 
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             inp = context.inputs['input']
 
@@ -45,7 +45,7 @@ class LaunchOnEvent(NativeState):
             # This makes sure that the value is sent again if the input does not change
             context.trigger_self()
 
-    async def run_task(self):
+    async def run_task(self) -> None:
         while True:
             while not self.pending:
                 # Note: This relies on the fact that everything is running on one thread and therefore everything without await is atomic with regard to other tasks

@@ -8,6 +8,8 @@ import tempfile
 import datetime
 import math
 import socket
+from collections.abc import AsyncIterator
+from typing import Any
 
 from . import cert
 
@@ -18,10 +20,11 @@ import cryptography.x509
 
 import aiohttp
 import aiohttp.web
+import multidict
 
 
 class ServerInfo:
-    def __init__(self, server, sockname):
+    def __init__(self, server: 'Server', sockname: Any) -> None:
         self.server = server
         self.sockname = sockname
 
@@ -34,7 +37,7 @@ class ServerInfo:
 
 
 class Server:
-    def __init__(self):
+    def __init__(self) -> None:
         # Create key pair
         key = OpenSSL.crypto.PKey()
         key.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
@@ -69,7 +72,7 @@ class Server:
             aiohttp.web.get('/api/switch/status', self.api_switch_status),
         ])
 
-        self.subscriptions = {}
+        self.subscriptions: dict[int, dict[str, Any]] = {}
         self.next_subscription_id = 1
 
         self.wait_event = asyncio.Event()
@@ -115,12 +118,12 @@ class Server:
             self.close()
             raise
 
-    def close(self):
+    def close(self) -> None:
         """Release the reserved socket before startup or after shutdown."""
         self.socket.close()
 
     @contextlib.asynccontextmanager
-    async def run(self):
+    async def run(self) -> AsyncIterator[ServerInfo]:
         try:
             with tempfile.TemporaryDirectory(prefix='test_https.') as tmp:
                 crt_fn = tmp + '/crt.crt'
@@ -143,7 +146,7 @@ class Server:
         finally:
             self.close()
 
-    async def run_and_wait(self):
+    async def run_and_wait(self) -> None:
         try:
             async with self.run() as info:
                 print(f'https://{info.host}:{info.port}/')
@@ -154,18 +157,18 @@ class Server:
         finally:
             self.close()
 
-    async def hello(self, request):
+    async def hello(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         return aiohttp.web.Response(text="Hello, world")
 
     @staticmethod
-    async def get_params(request):
-        pars = request.query.copy()
+    async def get_params(request: aiohttp.web.Request) -> Any:
+        pars: multidict.MultiDict[Any] = multidict.MultiDict(request.query)
         post_data = await request.post()
         for key, value in post_data.items():
             pars.add(key, value)
         return pars
 
-    async def api_log_subscribe(self, request):
+    async def api_log_subscribe(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_filter = params.get('filter')
         par_include = params.get('include')
@@ -185,7 +188,7 @@ class Server:
         # TODO: Prevent charset from being added to reply?
         return aiohttp.web.json_response(data=reply)
 
-    async def api_log_unsubscribe(self, request):
+    async def api_log_unsubscribe(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_id = int(params['id'])
         print('api_log_unsubscribe', par_id)
@@ -209,7 +212,7 @@ class Server:
         # TODO: Prevent charset from being added to reply?
         return aiohttp.web.json_response(data=reply)
 
-    async def api_log_pull(self, request):
+    async def api_log_pull(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_id = int(params['id'])
 
@@ -246,11 +249,11 @@ class Server:
         # TODO: Prevent charset from being added to reply?
         return aiohttp.web.json_response(data=reply)
 
-    async def api_io_status(self, request):
+    async def api_io_status(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_port = params.get('port')
 
-        def format_data(key):
+        def format_data(key: Any) -> dict[str, Any]:
             return {
                 'port': key,
                 'state': self.ports[key]['state'],
@@ -279,13 +282,13 @@ class Server:
         }
         return aiohttp.web.json_response(data=reply)
 
-    async def api_switch_status(self, request):
+    async def api_switch_status(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_switch = params.get('switch')
         if par_switch is not None:
             par_switch = int(par_switch)
 
-        def format_data(key):
+        def format_data(key: Any) -> dict[str, Any]:
             return {
                 'switch': key,
                 'active': self.switches[key]['active'],
@@ -314,7 +317,7 @@ class Server:
         }
         return aiohttp.web.json_response(data=reply)
 
-    async def api_io_ctrl(self, request):
+    async def api_io_ctrl(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_port = params['port']
         action = params['action']
@@ -335,13 +338,13 @@ class Server:
         }
         return aiohttp.web.json_response(data=reply)
 
-    def emit_event_raw(self, event):
+    def emit_event_raw(self, event: dict[str, Any]) -> None:
         for subscription in self.subscriptions.values():
             subscription['pending'].append(event)
         print(f'Emitted for {len(self.subscriptions.values())} listeners: {event}', flush=True)
         self.wait_event.set()
 
-    def emit_event(self, event_type, params):
+    def emit_event(self, event_type: str, params: dict[str, Any]) -> None:
         event_id = self.next_event_id
         self.next_event_id += 1
 
@@ -358,17 +361,17 @@ class Server:
             'params': params,
         })
 
-    def emit_key_press(self, key_name):
+    def emit_key_press(self, key_name: str) -> None:
         self.emit_event('KeyPressed', {
             'key': key_name,
         })
 
-    def emit_key_release(self, key_name):
+    def emit_key_release(self, key_name: str) -> None:
         self.emit_event('KeyReleased', {
             'key': key_name,
         })
 
-    def set_io_state(self, port_name, value):
+    def set_io_state(self, port_name: str, value: bool) -> None:
         if port_name not in self.ports:
             raise Exception('port_name not in self.ports')
         if type(value) != bool:
@@ -387,7 +390,7 @@ class Server:
             'state': value,
         })
 
-    def set_switch_state(self, switch_number, value):
+    def set_switch_state(self, switch_number: int, value: bool) -> None:
         if switch_number not in self.switches:
             raise Exception('switch_number not in self.switches')
         if type(value) != bool:
@@ -400,7 +403,7 @@ class Server:
             'state': value,
         })
 
-    def emit_code_entered(self, code):
+    def emit_code_entered(self, code: str) -> None:
         session = self.next_session
         self.next_session += 1
         self.emit_event('CodeEntered', {
@@ -412,7 +415,7 @@ class Server:
         })
 
 
-def main():
+def main() -> None:
     server = Server()
     try:
         print(server.tlsa)

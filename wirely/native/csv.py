@@ -1,19 +1,22 @@
 import asyncio
 import contextlib
+import datetime
 import os
 import sys
+import typing
+from collections.abc import Iterator, Sequence
 
 import wirely
 from wirely.native import native_node_type, native_procedure, native_resource_type
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeNodeContext, NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
 
 
 class CsvValue:
-    def __init__(self, value, do_quote):
+    def __init__(self, value: str, do_quote: bool) -> None:
         self.value = value
         self.do_quote = do_quote
 
@@ -23,11 +26,11 @@ class CsvValue:
 
 
 class MyCsvWriter:
-    def __init__(self, stream):
+    def __init__(self, stream: typing.BinaryIO) -> None:
         self.stream = stream
 
     # https://www.rfc-editor.org/rfc/rfc4180
-    def write_row(self, row):
+    def write_row(self, row: Sequence[CsvValue]) -> None:
         csv_string = ''
         for i, value in enumerate(row):
             if not isinstance(value, CsvValue):
@@ -53,21 +56,21 @@ class MyCsvWriter:
 class ValueWriter(NativeState):
     # TODO: Should writing to the file be done on a background thread?
 
-    def __init__(self, *, context):
+    def __init__(self, *, context: NativeNodeContext) -> None:
         super().__init__(context=context)
         context.set_output('state', self)
 
-        self.file = None
+        self.file: typing.BinaryIO | None = None
 
         self.last_value_csv = ('', False)
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
 
         async_exit_stack.enter_context(self.open_file())
 
     @contextlib.contextmanager
-    def open_file(self):
+    def open_file(self) -> Iterator[None]:
         if self.file is not None:
             raise Exception('File already open')
 
@@ -106,7 +109,7 @@ class ValueWriter(NativeState):
 
     # TODO: Periodically re-write the current value
 
-    def write_value(self, new_value_csv, time, *, force=False):
+    def write_value(self, new_value_csv: tuple[str, bool], time: datetime.datetime, *, force: bool = False) -> bool:
         if self.last_value_csv == new_value_csv and not force:
             return False
 
@@ -127,7 +130,7 @@ class ValueWriter(NativeState):
 
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             state = context.inputs['state'].object
             new_value = context.inputs['input']
             elapsed = context.inputs['repeat_elapsed']

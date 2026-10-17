@@ -3,6 +3,7 @@
 import enum
 import io
 from dataclasses import dataclass
+from typing import Any
 
 import cbor2
 
@@ -65,7 +66,7 @@ class Bank(enum.IntEnum):
 class ControlError(Exception):
     """An error response, raised by handlers and returned to clients."""
 
-    def __init__(self, code, text=None):
+    def __init__(self, code: int, text: str | None = None) -> None:
         self.code = code
         self.text = text
         try:
@@ -74,8 +75,8 @@ class ControlError(Exception):
             name = f'Error {code}'
         super().__init__(f'{name}: {text}' if text else name)
 
-    def body(self):
-        body = {1: int(self.code)}
+    def body(self) -> dict[int, Any]:
+        body: dict[int, Any] = {1: int(self.code)}
         if self.text is not None:
             body[2] = self.text
         return body
@@ -86,16 +87,16 @@ class Message:
     kind: int
     seq: int
     op: int
-    body: object  # Decoded CBOR item; an empty body decodes to an empty map.
+    body: Any  # Decoded CBOR item; an empty body decodes to an empty map.
 
 
-def encode(kind, seq, op, body):
+def encode(kind: int, seq: int, op: int, body: Any) -> bytes:
     """Encode a message; an empty map is sent as an empty body."""
     payload = b'' if body == {} else cbor2.dumps(body)
     return bytes([kind, seq, op]) + payload
 
 
-def decode(data):
+def decode(data: bytes) -> Message:
     """Decode a message, raising ControlError(MALFORMED) on invalid data."""
     if len(data) < HEADER_SIZE:
         raise ControlError(ErrorCode.MALFORMED, 'Message shorter than header')
@@ -113,7 +114,7 @@ def decode(data):
     return Message(kind, seq, op, body)
 
 
-def _check_item(item):
+def _check_item(item: object) -> None:
     """Reject CBOR items outside the subset used by message bodies."""
     if isinstance(item, (bool, bytes, str)) or isinstance(item, int) and item >= 0:
         return
@@ -129,7 +130,7 @@ def _check_item(item):
     raise ControlError(ErrorCode.MALFORMED, f'Unsupported CBOR item {type(item).__name__}')
 
 
-def get_field(body, key, kind, *, default=None, required=False):
+def get_field(body: Any, key: int, kind: type, *, default: Any = None, required: bool = False) -> Any:
     """Return a body field after checking its Python type."""
     if not isinstance(body, dict):
         raise ControlError(ErrorCode.MALFORMED, 'Body is not a map')
@@ -141,6 +142,6 @@ def get_field(body, key, kind, *, default=None, required=False):
     # bool is a subclass of int, but CBOR keeps them apart.
     if not isinstance(value, kind) or (kind is int and isinstance(value, bool)):
         raise ControlError(ErrorCode.INVALID_ARGUMENT, f'Field {key} has the wrong type')
-    if kind is int and value < 0:
+    if kind is int and isinstance(value, int) and value < 0:
         raise ControlError(ErrorCode.INVALID_ARGUMENT, f'Field {key} is negative')
     return value

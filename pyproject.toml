@@ -51,7 +51,11 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 # These packages are fully annotated.
-module = ["wirely.program.*", "wirely.runtime.*"]
+module = [
+    "wirely", "wirely.__main__", "wirely.test", "wirely.util",
+    "wirely.cli.*", "wirely.control.*", "wirely.functions.*", "wirely.knx.*", "wirely.misc.*",
+    "wirely.native.*", "wirely.program.*", "wirely.runtime.*", "wirely.two_n.*", "wirely.types.*",
+]
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]

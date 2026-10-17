@@ -1,7 +1,7 @@
 import dataclasses
 
 from wirely.native import native_node_type, native_procedure
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 native_resource_types: dict[str, type] = {}
@@ -11,5 +11,5 @@ native_resource_types: dict[str, type] = {}
 class TestNode(NativeState):
     @native_procedure('test_procedure')
     class TestProcedure(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             pass

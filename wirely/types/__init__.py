@@ -1,16 +1,21 @@
+from __future__ import annotations
+
 import abc
 import functools
 import re
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .option import Some
 from .unit import Unit
 from .time import (
     MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay,
 )
+
+if TYPE_CHECKING:
+    from .value_types import EnumType, StructType
 
 
 # A value type supporting runtime validation, equality, and text parsing.
@@ -23,24 +28,24 @@ class Type(abc.ABC):
     to_csv_value: Callable[..., Any]
 
     @property
-    def has_runtime_representation(self):
+    def has_runtime_representation(self) -> bool:
         return False
 
     @property
-    def nesting_depth(self):
+    def nesting_depth(self) -> int:
         """Maximum composite nesting, with primitives at depth zero."""
         if self.contains_parameters:
             raise ValueError('Type parameters require resolution before measuring nesting depth')
         return 0
 
     @property
-    def total_member_count(self):
+    def total_member_count(self) -> int:
         """Count this type and every expanded member occurrence."""
         if self.contains_parameters:
             raise ValueError('Type parameters require resolution before counting members')
         return 1
 
-    def _runtime_limit_violation(self):
+    def _runtime_limit_violation(self) -> tuple[str, int, int] | None:
         from ..program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT
         from .serialization import _layout
 
@@ -56,16 +61,16 @@ class Type(abc.ABC):
         return None
 
     @property
-    def is_runtime_type(self):
+    def is_runtime_type(self) -> bool:
         """Whether values have a representation within the runtime limits."""
         return self.has_runtime_representation and self._runtime_limit_violation() is None
 
-    def _runtime_representation_error(self):
+    def _runtime_representation_error(self) -> str | None:
         if self.contains_parameters:
             return 'type parameters require resolution'
         return f'{self} is parameter-only'
 
-    def runtime_type_error(self):
+    def runtime_type_error(self) -> str | None:
         """Return the reason for runtime ineligibility, or None."""
         if not self.has_runtime_representation:
             return self._runtime_representation_error()
@@ -78,66 +83,67 @@ class Type(abc.ABC):
         return f'{metric} {actual} exceeds {maximum}'
 
     @property
-    def alignment(self):
+    def alignment(self) -> int:
         """Required byte alignment of this runtime type."""
         from .serialization import _alignment
         return _alignment(self)
 
     @property
-    def data_size(self):
+    def data_size(self) -> int:
         """Encoded byte length, excluding reusable tail padding."""
         from .serialization import _data_size
         return _data_size(self)
 
     @property
-    def size(self):
+    def size(self) -> int:
         """Aligned storage size in bytes, including zero tail padding."""
         alignment = self.alignment
         return (self.data_size + alignment - 1) & ~(alignment - 1)
 
-    def serialize(self, value):
+    def serialize(self, value: Any) -> bytes:
         """Return exactly data_size little-endian bytes for value."""
         from .serialization import _serialize
         return _serialize(self, value)
 
-    def deserialize(self, data):
+    def deserialize(self, data: bytes | memoryview) -> Any:
         """Decode exactly data_size bytes, validating flags and absent payloads."""
         from .serialization import _deserialize
         return _deserialize(self, data)
 
     @property
     @abc.abstractmethod
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         ...
 
     @abc.abstractmethod
-    def default_value(self):
+    def default_value(self) -> Any:
         """Return a valid canonical value of this resolved type."""
         ...
 
     @abc.abstractmethod
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         ...
 
     @abc.abstractmethod
-    def equals(self, value1, value2):
+    def equals(self, value1: Any, value2: Any) -> bool:
         ...
 
-    def parse(self, s):
+    def parse(self, s: str) -> Any:
         return self.verify_value(self._parse_impl(s))
 
     @abc.abstractmethod
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         ...
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         """Format value as text, using Wirely literal syntax where it exists."""
         raise ValueError(f'{self} values cannot be formatted as text')
 
 
 # A parameterless primitive type, without fields or inner types
 class TypePrimitive(Type):
-    def __init__(self, *, name, python_type, is_runtime_type, is_json_serializable, has_to_csv_value):
+    def __init__(self, *, name: str, python_type: Any, is_runtime_type: bool, is_json_serializable: bool,
+                     has_to_csv_value: bool) -> None:
         self.name = name
         self.python_type = python_type
 
@@ -148,82 +154,82 @@ class TypePrimitive(Type):
         self.has_to_csv_value = has_to_csv_value
 
     @property
-    def has_runtime_representation(self):
+    def has_runtime_representation(self) -> bool:
         return self._has_runtime_representation
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'TypePrimitive({self.name})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if not isinstance(value, self.python_type):
             raise Exception(f'Expected {self.python_type} for {self}, got {type(value)} value {value!r}')
         if type(value) == self.python_type:
             return value
         return self.python_type(value)
 
-    def equals(self, value1, value2):
+    def equals(self, value1: Any, value2: Any) -> bool:
         return self.verify_value(value1) == self.verify_value(value2)
 
-    def less(self, value1, value2):
+    def less(self, value1: Any, value2: Any) -> bool:
         if not self.is_ordered:
             raise ValueError(f'{self} values are not ordered')
         return self.verify_value(value1) < self.verify_value(value2)
 
 
 class TypeOption(Type):
-    def __init__(self, inner_type):
+    def __init__(self, inner_type: Type) -> None:
         self.inner_type = inner_type
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, TypeOption):
             return False
         return self.inner_type == other.inner_type
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('Option', self.inner_type))
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self.inner_type.contains_parameters
 
     @property
-    def has_runtime_representation(self):
+    def has_runtime_representation(self) -> bool:
         return self.inner_type.has_runtime_representation
 
     @property
-    def nesting_depth(self):
+    def nesting_depth(self) -> int:
         return 1 + self.inner_type.nesting_depth
 
     @property
-    def total_member_count(self):
+    def total_member_count(self) -> int:
         return 1 + self.inner_type.total_member_count
 
-    def _runtime_representation_error(self):
+    def _runtime_representation_error(self) -> str | None:
         return f'inner type: {self.inner_type._runtime_representation_error()}'
 
     @property
-    def has_to_csv_value(self):
-        return self.inner_type.has_to_csv_value
+    def has_to_csv_value(self) -> bool:
+        return getattr(self.inner_type, 'has_to_csv_value', False)
 
-    def to_csv_value(self, value):
+    def to_csv_value(self, value: Any) -> tuple[str, bool]:
         if value is None:
             return '', False
         return self.inner_type.to_csv_value(value.value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'TypeOption({self.inner_type})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Option[{self.inner_type}]'
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if value is None:
             return None
         elif type(value) is Some:
@@ -231,7 +237,7 @@ class TypeOption(Type):
         else:
             raise Exception(f'Expected None or Some, got {value!r}')
 
-    def equals(self, value1, value2):
+    def equals(self, value1: Any, value2: Any) -> bool:
         if value1 is None and value2 is None:
             return True
         elif value1 is None or value2 is None:
@@ -241,18 +247,18 @@ class TypeOption(Type):
         else:
             raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
 
-    def default_value(self):
+    def default_value(self) -> Any:
         if self.contains_parameters:
             raise ValueError('Type parameters require resolution before producing a default value')
         return None
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         if s == 'none':
             return None
         # TODO: Use different format for strings?
         return Some(self.inner_type.parse(s))
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         value = self.verify_value(value)
         if value is None:
             return 'None'
@@ -268,7 +274,7 @@ class TypeStruct(Type):
     is_json_serializable = False
     has_to_csv_value = False
 
-    def __init__(self, name, fields, *, native_name=None):
+    def __init__(self, name: str, fields: Mapping[str, Type], *, native_name: str | None = None) -> None:
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Struct native_name must be a nonempty string or None')
         self.name = name
@@ -279,49 +285,50 @@ class TypeStruct(Type):
             raise ValueError('Struct fields require resolved value types')
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return False
 
     @property
-    def has_runtime_representation(self):
+    def has_runtime_representation(self) -> bool:
         return all(field_type.has_runtime_representation for field_type in self.fields.values())
 
     @property
-    def nesting_depth(self):
+    def nesting_depth(self) -> int:
         return 1 + max((field.nesting_depth for field in self.fields.values()), default=0)
 
     @property
-    def total_member_count(self):
+    def total_member_count(self) -> int:
         return 1 + sum(field.total_member_count for field in self.fields.values())
 
-    def _runtime_representation_error(self):
+    def _runtime_representation_error(self) -> str | None:
         for name, field in self.fields.items():
             if not field.has_runtime_representation:
                 return f'field {name}: {field._runtime_representation_error()}'
+        return None
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'TypeStruct({self.name})'
 
-    def make_value(self, fields):
+    def make_value(self, fields: Mapping[str, Any]) -> tuple:
         """Return the value with these field values by name."""
         if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
             raise ValueError(f'Expected exactly the fields of {self.name}: {", ".join(self.fields)}')
         return self.verify_value(tuple(fields[name] for name in self.fields))
 
-    def index(self, name):
+    def index(self, name: str) -> int:
         """Return the position of a field."""
         return tuple(self.fields).index(name)
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if type(value) is not tuple or len(value) != len(self.fields):
             raise ValueError(f'Expected a value of struct type {self.name}, got {value!r}')
         return tuple(field_type.verify_value(field) for field_type, field in zip(self.fields.values(), value))
 
     @functools.cached_property
-    def struct_type(self):
+    def struct_type(self) -> StructType:
         """The runtime view of this type for native code."""
         from .value_types import StructType, ValueType
         from ..runtime.structs import native_struct_types
@@ -329,19 +336,19 @@ class TypeStruct(Type):
         return StructType(self.name, tuple((name, ValueType(field_type)) for name, field_type in self.fields.items()),
                           None if native is None else native.python_type)
 
-    def equals(self, value1, value2):
+    def equals(self, value1: Any, value2: Any) -> bool:
         value1 = self.verify_value(value1)
         value2 = self.verify_value(value2)
         return all(field_type.equals(field1, field2)
                    for field_type, field1, field2 in zip(self.fields.values(), value1, value2))
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return tuple(field_type.default_value() for field_type in self.fields.values())
 
-    def _parse_impl(self, text):
+    def _parse_impl(self, text: str) -> Any:
         raise ValueError(f'{self.name} does not support text parsing')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         value = self.verify_value(value)
         if not value:
             return f'{self.name} {{}}'
@@ -351,46 +358,46 @@ class TypeStruct(Type):
 
 
 class TypeList(Type):
-    def __init__(self, inner_type):
+    def __init__(self, inner_type: Type) -> None:
         self.inner_type = inner_type
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, TypeList):
             return False
         return self.inner_type == other.inner_type
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(('List', self.inner_type))
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self.inner_type.contains_parameters
 
     @property
-    def nesting_depth(self):
+    def nesting_depth(self) -> int:
         return 1 + self.inner_type.nesting_depth
 
     @property
-    def total_member_count(self):
+    def total_member_count(self) -> int:
         return 1 + self.inner_type.total_member_count
 
     @property
-    def has_to_csv_value(self):
+    def has_to_csv_value(self) -> bool:
         return False
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'TypeList({self.inner_type})'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'List[{self.inner_type}]'
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if type(value) in (list, tuple):
             return tuple(self.inner_type.verify_value(v) for v in value)
         else:
             raise Exception(f'Expected list or tuple, got {value!r}')
 
-    def equals(self, value1, value2):
+    def equals(self, value1: Any, value2: Any) -> bool:
         if type(value1) not in (list, tuple) or type(value2) not in (list, tuple):
             raise Exception(f'Got unexpected parameter for equals: {value1!r}, {value2!r}')
         if len(value1) != len(value2):
@@ -400,38 +407,38 @@ class TypeList(Type):
                 return False
         return True
 
-    def default_value(self):
+    def default_value(self) -> Any:
         if self.contains_parameters:
             raise ValueError('Type parameters require resolution before producing a default value')
         return ()
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         raise Exception('TODO: Implement TypeList.parse')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return '[' + ', '.join(self.inner_type.to_text(item) for item in self.verify_value(value)) + ']'
 
 
 # TODO: Add to_csv_value?
 class TypeUnit(TypePrimitive):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='unit', python_type=Unit, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return Unit()
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         if s != '()':
             raise Exception(f'Invalid unit value {s!r}')
         return Unit()
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         self.verify_value(value)
         return '()'
 
 
 class TypeBoolean(TypePrimitive):
-    def bitwise(self, operation, left, right=None):
+    def bitwise(self, operation: str, left: Any, right: Any = None) -> Any:
         left = self.verify_value(left)
         if operation == 'not':
             return not left
@@ -444,13 +451,13 @@ class TypeBoolean(TypePrimitive):
             return left ^ right
         raise ValueError(f'Unknown bitwise operation {operation!r}')
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='boolean', python_type=bool, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=True)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return False
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         if s == '0' or s.lower() == 'false':
             return False
         elif s == '1' or s.lower() == 'true':
@@ -458,21 +465,21 @@ class TypeBoolean(TypePrimitive):
         else:
             raise Exception(f'Invalid boolean value {s!r}')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return 'true' if self.verify_value(value) else 'false'
 
-    def json_encode(self, expr, format):
+    def json_encode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return expr
 
     # TODO: Add abstract method somewhere? (Same for json_decode and to_csv_value) Determine has_to_csv_value automatically?
-    def json_decode(self, expr, format):
+    def json_decode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return self.verify_value(expr)
 
-    def to_csv_value(self, value):
+    def to_csv_value(self, value: Any) -> tuple[str, bool]:
         if value == False:
             return 'false', False
         elif value == True:
@@ -485,7 +492,7 @@ class TypeBoolean(TypePrimitive):
 class TypeInt(TypePrimitive):
     is_ordered = True
 
-    def __init__(self, *, is_signed, bits):
+    def __init__(self, *, is_signed: bool, bits: int) -> None:
         name = f'int{bits}'
         if not is_signed:
             name = 'u' + name
@@ -501,17 +508,17 @@ class TypeInt(TypePrimitive):
             self.min_value = 0
             self.max_value = 2**self.bits - 1
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return 0
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if type(value) is not int:
             raise ValueError(f'Expected an integer for {self}, got {value!r}')
         if not self.min_value <= value <= self.max_value:
             raise ValueError(f'{value} is out of range for {self}')
         return value
 
-    def bitwise(self, operation, left, right=None):
+    def bitwise(self, operation: str, left: Any, right: Any = None) -> Any:
         left = self.verify_value(left)
         if operation == 'not':
             result = ~left
@@ -527,7 +534,7 @@ class TypeInt(TypePrimitive):
                 raise ValueError(f'Unknown bitwise operation {operation!r}')
         return _fit_integer(result, self.min_value, self.max_value, 'wrapping')
 
-    def shift(self, direction, value, count):
+    def shift(self, direction: str, value: int, count: int) -> int:
         value = self.verify_value(value)
         count = uint32.verify_value(count)
         if direction not in ('left', 'right'):
@@ -537,7 +544,7 @@ class TypeInt(TypePrimitive):
         result = value << count if direction == 'left' else value >> count
         return _fit_integer(result, self.min_value, self.max_value, 'wrapping')
 
-    def arithmetic(self, operation, overflow, left, right):
+    def arithmetic(self, operation: str, overflow: str, left: Any, right: Any) -> Any:
         """Apply 'add', 'sub', 'mul', 'div' or 'rem' with 'wrapping', 'saturating' or 'checked' overflow.
 
         Division truncates toward zero. Checked results are Some(value), or None on overflow or a
@@ -562,57 +569,57 @@ class TypeInt(TypePrimitive):
             raise ValueError(f'Unknown integer operation {operation!r}')
         return _fit_integer(result, self.min_value, self.max_value, overflow)
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         return int(s)
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return str(self.verify_value(value))
 
-    def json_encode(self, expr, format):
+    def json_encode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return expr
 
-    def json_decode(self, expr, format):
+    def json_decode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return self.verify_value(expr)
 
-    def to_csv_value(self, value):
+    def to_csv_value(self, value: Any) -> tuple[str, bool]:
         return str(value), False
 
 
 class TypeValueType(TypePrimitive):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='ValueType', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if not isinstance(value, Type):
             raise ValueError(f'Expected a value type, got {value!r}')
         return value
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return unit
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         raise Exception('TODO: TypeValueType.parse()')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return str(self.verify_value(value))
 
 
 class TypeMonotonicTime(TypePrimitive):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         # Generation 0 is never current, so the default compares to no current time.
         return RuntimeMonotonicTime(generation=0, ticks=0)
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         raise Exception('TODO: Implement TypeMonotonicTime.parse')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return self.verify_value(value).to_text()
 
 
@@ -623,16 +630,16 @@ class TypeMonotonicTime(TypePrimitive):
 class TypeDuration(TypePrimitive):
     is_ordered = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return RuntimeDuration(ticks=0)
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         return RuntimeDuration.parse(s)
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return self.verify_value(value).to_iso()
 
 
@@ -640,46 +647,46 @@ class TypeDuration(TypePrimitive):
 class TypeTimeOfDay(TypePrimitive):
     is_ordered = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return RuntimeTimeOfDay(ticks=0)
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         return RuntimeTimeOfDay.parse(s)
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return str(self.verify_value(value))
 
 
 # TODO: Remove json_encode because strings should not be used at runtime?
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
 class TypeString(TypePrimitive):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(name='String', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return ''
 
-    def _parse_impl(self, s):
+    def _parse_impl(self, s: str) -> Any:
         raise Exception('TypeString.parse()')
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         return _string_literal(self.verify_value(value))
 
-    def json_encode(self, expr, format):
+    def json_encode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return expr
 
-    def json_decode(self, expr, format):
+    def json_decode(self, expr: Any, format: str | None) -> Any:
         if format is not None:
             raise Exception(f'Invalid JSON format: {format!r}')
         return self.verify_value(expr)
 
 
-def closed_enum_underlying_type(member_count):
+def closed_enum_underlying_type(member_count: int) -> TypeInt:
     """Choose storage for a nonempty closed enum with a uint32 member count."""
     if type(member_count) is not int or member_count < 1:
         raise ValueError('Closed enum must declare at least one member')
@@ -698,7 +705,8 @@ class TypeEnum(TypePrimitive):
 
     declaration: Any  # The compiler's declaration, set by the compiler.
 
-    def __init__(self, name, members, *, is_open, underlying_type, native_name=None):
+    def __init__(self, name: str, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
+                     native_name: str | None = None) -> None:
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
         if native_name is not None and (type(native_name) is not str or not native_name):
@@ -725,14 +733,14 @@ class TypeEnum(TypePrimitive):
         self.members = MappingProxyType(dict(members))
         self._names = names
 
-    def verify_value(self, value):
+    def verify_value(self, value: Any) -> Any:
         if self.is_open:
             return self.underlying_type.verify_value(value)
         if type(value) is not int or not 0 <= value < len(self.members):
             raise ValueError(f'Expected a member number of {self}, got {value!r}')
         return value
 
-    def member_name(self, number):
+    def member_name(self, number: int) -> str | None:
         number = self.verify_value(number)
         try:
             return self._names[number]
@@ -740,7 +748,7 @@ class TypeEnum(TypePrimitive):
             raise ValueError(f'Unnamed value {number} of {self}') from None
 
     @functools.cached_property
-    def enum_type(self):
+    def enum_type(self) -> EnumType:
         """The runtime view of this type for native code."""
         from .value_types import EnumType, ValueType
         from ..runtime.enums import native_enum_types
@@ -748,15 +756,15 @@ class TypeEnum(TypePrimitive):
         return EnumType(self.name, ValueType(self.underlying_type), self.members,
                         self.is_open, None if native is None else native.python_type)
 
-    def default_value(self):
+    def default_value(self) -> Any:
         return 0
 
-    def to_text(self, value):
+    def to_text(self, value: Any) -> str:
         value = self.verify_value(value)
         name = self._names.get(value)
         return str(value) if name is None else f'{self.name}.{name}'
 
-    def _parse_impl(self, text):
+    def _parse_impl(self, text: str) -> Any:
         if text in self.members:
             return self.members[text]
         if self.is_open:
@@ -768,7 +776,7 @@ class TypeEnum(TypePrimitive):
                 return self.verify_value(number)
         raise ValueError(f'Unknown member {text!r} of {self.name}')
 
-    def json_encode(self, value, format):
+    def json_encode(self, value: Any, format: str | None) -> Any:
         if format not in (None, 'SnakeCase'):
             raise ValueError(f'Invalid JSON format: {format!r}')
         value = self.verify_value(value)
@@ -779,7 +787,7 @@ class TypeEnum(TypePrimitive):
             return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
         return name
 
-    def json_decode(self, value, format):
+    def json_decode(self, value: Any, format: str | None) -> Any:
         if format not in (None, 'SnakeCase'):
             raise ValueError(f'Invalid JSON format: {format!r}')
         if self.is_open and type(value) is int:
@@ -794,9 +802,9 @@ class TypeEnum(TypePrimitive):
 _STRING_ESCAPES = {'\0': '\\0', '\t': '\\t', '\n': '\\n', '\r': '\\r', '"': '\\"', '\\': '\\\\'}
 
 
-def _string_literal(text):
+def _string_literal(text: str) -> str:
     """Quote text as a Wirely string literal, escaping other control characters."""
-    def escape(char):
+    def escape(char: str) -> str:
         if char in _STRING_ESCAPES:
             return _STRING_ESCAPES[char]
         if ord(char) < 0x20 or ord(char) == 0x7f:
@@ -805,7 +813,7 @@ def _string_literal(text):
     return '"' + ''.join(escape(char) for char in text) + '"'
 
 
-def _fit_integer(value, min_value, max_value, overflow):
+def _fit_integer(value: int, min_value: int, max_value: int, overflow: str) -> Any:
     """Map an exact integer into min_value..max_value using an overflow mode."""
     if overflow == 'wrapping':
         return (value - min_value) % (max_value - min_value + 1) + min_value
@@ -816,7 +824,7 @@ def _fit_integer(value, min_value, max_value, overflow):
     raise ValueError(f'Unknown overflow mode {overflow!r}')
 
 
-def integer_range(value_type) -> tuple[int, int]:
+def integer_range(value_type: Type) -> tuple[int, int]:
     """Return the (min, max) numbers of an integer, enum, or boolean type."""
     if isinstance(value_type, TypeInt):
         return value_type.min_value, value_type.max_value
@@ -827,7 +835,7 @@ def integer_range(value_type) -> tuple[int, int]:
     raise ValueError(f'{value_type} is not an integer, enum, or boolean type')
 
 
-def convert(source_type, target_type, overflow, value):
+def convert(source_type: Type, target_type: Type, overflow: str, value: Any) -> Any:
     """Convert an integer, enum, or boolean value to an integer or boolean type.
 
     Booleans are 1-bit unsigned integers. Checked results are Some(value) or None."""

@@ -63,7 +63,7 @@ class Engine:
         self.native_states = {}
 
         self.fake_monotonic_time_offset: Duration | None = None
-        self.test_twon_fake_server_info = None  # Set by the test runner for 2N tests.
+        self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program)
         link_native_structs(program)

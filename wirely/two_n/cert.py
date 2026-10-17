@@ -1,5 +1,8 @@
 import sys
 import base64
+import ssl
+from collections.abc import Sequence
+from typing import Any
 
 import cryptography.x509
 import cryptography.hazmat.backends
@@ -7,7 +10,8 @@ import cryptography.hazmat.primitives.serialization
 import cryptography.hazmat.primitives.hashes
 
 
-def check_certificate_fingerprint(conn, sslsocket, tlsa, require_all=False):
+def check_certificate_fingerprint(conn: Any, sslsocket: ssl.SSLObject | ssl.SSLSocket, tlsa: Sequence[str],
+                                  require_all: bool = False) -> None:
     server_certificate = sslsocket.getpeercert(True)
     if server_certificate is None:
         raise Exception('No certificate in use')
@@ -76,7 +80,8 @@ def check_certificate_fingerprint(conn, sslsocket, tlsa, require_all=False):
             conn.cert_is_checked = sslsocket
 
 
-def build_certificate_fingerprint(server_certificate, usage=3, selector=1, matching=2):
+def build_certificate_fingerprint(server_certificate: bytes, usage: int = 3, selector: int = 1,
+                                  matching: int = 2) -> str:
     cert = cryptography.x509.load_der_x509_certificate(server_certificate, cryptography.hazmat.backends.default_backend())
     pubkey = cert.public_key().public_bytes(cryptography.hazmat.primitives.serialization.Encoding.DER, cryptography.hazmat.primitives.serialization.PublicFormat.SubjectPublicKeyInfo)
 
@@ -109,7 +114,7 @@ def build_certificate_fingerprint(server_certificate, usage=3, selector=1, match
     return '{} {} {} {}'.format(usage, selector, matching, str(base64.b16encode(actualHash), 'utf-8'))
 
 
-def main():
+def main() -> None:
     if len(sys.argv) != 2:
         print('Usage: python3 -m wirely.two_n.cert <cert.crt>')
         sys.exit(1)

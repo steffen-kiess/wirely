@@ -2,7 +2,7 @@ import wirely
 
 from wirely.native import native_node_type, native_procedure
 from wirely.program import RunStage
-from wirely.runtime.contexts import NativeProcedure, NativeState
+from wirely.runtime.contexts import NativeProcedure, NativeState, ProcedureContext
 
 native_node_types: dict[str, type] = {}
 
@@ -11,7 +11,7 @@ native_node_types: dict[str, type] = {}
 class MonotonicTimestamp(NativeState):
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             if context.inputs['input'] is None:
                 context.set_output('output', None)
             else:
@@ -23,7 +23,7 @@ class MonotonicTimestamp(NativeState):
 class MonotonicTimeReached(NativeState):
     @native_procedure('run')
     class Run(NativeProcedure):
-        def __call__(self, *, context):
+        def __call__(self, *, context: ProcedureContext) -> None:
             time = context.inputs['input']
             now = context.start_time_for_stage(RunStage.DEFAULT).monotonic
 

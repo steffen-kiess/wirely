@@ -4,24 +4,26 @@ import asyncio
 import signal
 import socket
 import subprocess
+from collections.abc import Callable
 from typing import Any
 
 import xknx
 
-from wirely.knx.connection_adapter import StreamConnectionConfig
+from wirely.knx.connection_adapter import ConnectCallback, StreamConnectionConfig
 
 
 class ConnectionConfigError(ValueError):
     pass
 
 
-def _check_text(name, value):
+def _check_text(name: str, value: str) -> None:
     if value == '' or '\0' in value:
         raise ConnectionConfigError(f'{name} must be a non-empty string without NUL')
 
 
-def _ssh_connect_callback(target, path):
-    async def connect_ssh(loop, protocol_factory):
+def _ssh_connect_callback(target: str, path: str) -> ConnectCallback:
+    async def connect_ssh(loop: asyncio.AbstractEventLoop,
+                          protocol_factory: Callable[[], asyncio.Protocol]) -> tuple[Any, Any]:
         local_socket, remote_socket = socket.socketpair()
 
         # Ignore SIGINT in ssh so the service can shut down cleanly.
@@ -44,7 +46,7 @@ def _ssh_connect_callback(target, path):
         result: list[Any] = [None, None]  # The error and the received byte.
         event = asyncio.Event()
 
-        def reader():
+        def reader() -> None:
             try:
                 try:
                     result[1] = local_socket.recv(1)
@@ -75,9 +77,9 @@ def _ssh_connect_callback(target, path):
     return connect_ssh
 
 
-def create_connection_config(*, host=None, protocol=None, port=None,
-                             unix_path=None, ssh_target=None,
-                             individual_address=None):
+def create_connection_config(*, host: str | None = None, protocol: str | None = None, port: int | None = None,
+                             unix_path: str | None = None, ssh_target: str | None = None,
+                             individual_address: str | None = None) -> xknx.io.ConnectionConfig:
     """Select one connection mode from the supplied KNX node parameters."""
     for name, value in (
         ('Host', host), ('UnixPath', unix_path),
@@ -144,7 +146,7 @@ def create_connection_config(*, host=None, protocol=None, port=None,
     )
 
 
-def _parse_individual_address(value):
+def _parse_individual_address(value: str | None) -> Any:
     if value is None:
         return None
     try:

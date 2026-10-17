@@ -8,7 +8,7 @@ import logging
 from . import client
 
 
-async def main():
+async def main() -> None:
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--hostname', type=str, required=True)
@@ -31,7 +31,7 @@ async def main():
         enable_logging = True
 
     async with client.Client(hostname=args.hostname, tlsa=args.tlsa, http_api_username_password=http_api_username_password, enable_logging=enable_logging) as client_inst:
-        async def get_image(time, fn):
+        async def get_image(time: int, fn: str) -> None:
             now_utc = datetime.datetime.now(datetime.timezone.utc)
             start = now_utc.astimezone()
 

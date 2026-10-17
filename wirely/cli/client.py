@@ -1,7 +1,10 @@
 """Command line client for the control protocol."""
 
+import argparse
 import ssl
 import sys
+from collections.abc import Mapping
+from typing import Any
 
 from ..control.client import ControlClient
 from ..control.messages import Bank, ControlError, Op, RunState
@@ -10,7 +13,7 @@ from ..control.messages import Bank, ControlError, Op, RunState
 READ_OVERHEAD = 3 + 1 + 1 + 3
 
 
-def add_arguments(parser):
+def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--unix-path', required=True, help='path of the control socket')
     parser.add_argument('--protocol', choices=['stream', 'serial'], default='stream',
                         help='framing used by the socket (default: stream)')
@@ -31,7 +34,7 @@ def add_arguments(parser):
                              help='.wrl files of the running program, for printing values by name')
 
 
-async def async_run(args):
+async def async_run(args: argparse.Namespace) -> int:
     if args.tls_ca is not None or args.tls_server_name is not None:
         args.tls = True
     if args.tls and args.protocol != 'stream':
@@ -59,30 +62,30 @@ async def async_run(args):
         await client.close()
 
 
-def _print_status(body):
+def _print_status(body: Mapping[int, Any]) -> int:
     print(f'{RunState(body[1]).name.lower()}, {body[2]} steps completed')
     return 0
 
 
-async def _status(client, args):
+async def _status(client: ControlClient, args: argparse.Namespace) -> int:
     return _print_status(await client.request(Op.STATUS))
 
 
-async def _pause(client, args):
+async def _pause(client: ControlClient, args: argparse.Namespace) -> int:
     return _print_status(await client.request(Op.PAUSE))
 
 
-async def _resume(client, args):
+async def _resume(client: ControlClient, args: argparse.Namespace) -> int:
     return _print_status(await client.request(Op.RESUME))
 
 
-async def _step(client, args):
+async def _step(client: ControlClient, args: argparse.Namespace) -> int:
     body = await client.request(Op.STEP, {1: args.count})
     print(f'{body[1]} steps, {body[2]} procedures run')
     return 0
 
 
-async def _dump(client, args):
+async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
     variable_tables = None
     if args.program is not None:
         from ..compiler import compile_files
@@ -127,7 +130,7 @@ async def _dump(client, args):
     return 0
 
 
-def _print_hex(data):
+def _print_hex(data: bytes) -> None:
     for offset in range(0, len(data), 16):
         print(f'  {offset:08x}  {data[offset:offset + 16].hex(" ")}')
 
