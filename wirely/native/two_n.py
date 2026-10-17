@@ -75,7 +75,7 @@ class KeyEvent(NativeState):
         elif event['event'] == 'KeyReleased':
             new_value = False
         else:
-            print('Warning: Got unexpected event: {event!r}', flush=True)
+            print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
         if event['params']['key'] != self.values['Key']:
@@ -131,7 +131,7 @@ class CodeEnteredEvent(NativeState):
             return
 
         if event['event'] != 'CodeEntered':
-            print('Warning: Got unexpected event: {event!r}', flush=True)
+            print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
         if event['params']['code'] != self.values['Code']:
@@ -212,7 +212,7 @@ class IOState(NativeState):
             return
 
         if event['event'] != 'InputChanged' and event['event'] != 'OutputChanged':
-            print('Warning: Got unexpected event: {event!r}', flush=True)
+            print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
         if event['params']['port'] != self.values['Port']:
@@ -220,7 +220,7 @@ class IOState(NativeState):
 
         new_value = event['params']['state']
         if type(new_value) != bool:
-            print('Warning: Got unexpected non-boolean value: {new_value!r}', flush=True)
+            print(f'Warning: Got unexpected non-boolean value: {new_value!r}', flush=True)
             return
 
         # print(f'New value: {new_value}')
@@ -288,7 +288,7 @@ class SwitchState(NativeState):
             return
 
         if event['event'] != 'SwitchStateChanged':
-            print('Warning: Got unexpected event: {event!r}', flush=True)
+            print(f'Warning: Got unexpected event: {event!r}', flush=True)
             return
 
         if event['params']['switch'] != self.values['SwitchNumber']:
@@ -296,7 +296,7 @@ class SwitchState(NativeState):
 
         new_value = event['params']['state']
         if type(new_value) != bool:
-            print('Warning: Got unexpected non-boolean value: {new_value!r}', flush=True)
+            print(f'Warning: Got unexpected non-boolean value: {new_value!r}', flush=True)
             return
 
         # print(f'New value: {new_value}')
@@ -376,7 +376,7 @@ class OutputControl(NativeState):
             elif value == True:
                 action = 'on'
             else:
-                print('Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
+                print(f'Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
                 continue
 
             print(f"Sending {value} to port {self.values['Port']}", flush=True)
