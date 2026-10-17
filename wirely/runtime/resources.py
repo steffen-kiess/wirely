@@ -18,7 +18,7 @@ class ResourceValue:
     type: ResourceType
     object: object
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.object, self.type.python_type):
             raise TypeError(f'Resource {self.type.name} requires a {self.type.python_type.__qualname__}, '
                             f'got {type(self.object).__qualname__}')

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import enum
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pprint import pformat
 from types import MappingProxyType
+from typing import TextIO
 
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
 from .procedures import Constant, Function, ProcedureBody
@@ -26,17 +27,17 @@ class Variable:
     name: str  # Qualified variable name for lookup and diagnostics.
     var_type: Type  # Resolved value type used for validation and comparison.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not isinstance(self.name, str):
             raise Exception('name parameter is not a str')
         if not self.var_type.is_runtime_type:
             raise ValueError(f'Type {self.var_type} is not a runtime type: {self.var_type.runtime_type_error()}')
         object.__setattr__(self, 'name', str(self.name))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'Variable[{self}]'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
 
@@ -51,7 +52,7 @@ class VariableTable:
     size: int  # Buffer size in bytes, including final alignment padding.
     alignment: int  # Required alignment of the table's starting byte offset.
 
-    def __init__(self, variables, name):
+    def __init__(self, variables: Iterable[Variable], name: str) -> None:
         """Build a shared compact layout while preserving name lookup order."""
         by_name = {}
         for var in variables:
@@ -84,14 +85,14 @@ class InputSource:
     new_state: bool | None = None  # None for temporaries; else whether it reads this step's new state.
     constant: Constant | None = None  # Entry of Program.constants, instead of a variable.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (self.variable is None) == (self.constant is None):
             raise ValueError('Expected either a variable or a constant')
         if self.constant is not None and self.new_state is not None:
             raise ValueError('Constant sources have no state phase')
 
     @property
-    def value_type(self):
+    def value_type(self) -> Type:
         if self.constant is not None:
             return self.constant.value_type
         assert self.variable is not None
@@ -112,11 +113,11 @@ class ResourceBinding:
     provider: str  # Provider node ID, a key of Program.instances.
     output: str  # Key under which the provider's initializer produces the output.
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.provider}.{self.output}'
 
 
-def _resource_types(resources):
+def _resource_types(resources: Mapping[str, str]) -> Mapping[str, str]:
     """Return resource types by key, sorted."""
     return MappingProxyType({key: resources[key] for key in sorted(resources)})
 
@@ -130,7 +131,7 @@ class NativeProcedureInterface:
     inputs: tuple[str, ...]  # Value and event input keys, sorted.
     outputs: tuple[str, ...]  # Output keys, sorted.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('uses', 'inputs', 'outputs'):
             object.__setattr__(self, name, tuple(sorted(getattr(self, name))))
         object.__setattr__(self, 'resources', _resource_types(self.resources))
@@ -145,7 +146,7 @@ class NativeNodeType:
     initializer_resources: Mapping[str, str]  # Resource input key -> resource type.
     resource_outputs: Mapping[str, str]  # Initializer `produces` key -> resource type.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, 'initializer_uses', tuple(sorted(self.initializer_uses)))
         for name in ('initializer_resources', 'resource_outputs'):
             object.__setattr__(self, name, _resource_types(getattr(self, name)))
@@ -161,14 +162,14 @@ class NativeInstance:
     initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
     initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
         parameters = MappingProxyType(dict(self.parameters))
         object.__setattr__(self, 'parameters', parameters)
         object.__setattr__(self, 'initializer_bindings', MappingProxyType(dict(self.initializer_bindings)))
 
     @property
-    def has_native_state(self):
+    def has_native_state(self) -> bool:
         """Whether the engine creates a native state object."""
         return self.type_name is not None
 
@@ -187,14 +188,14 @@ class Procedure:
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure `uses` values.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
         object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
         object.__setattr__(self, 'resources', MappingProxyType(dict(self.resources)))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
     @property
-    def key(self):
+    def key(self) -> tuple[str, str | tuple[str, str]]:
         """Return an identity that triggers use: the method name of native procedures."""
         name = self.reference.rpartition(':')[2]
         return self.node_id, name if self.body is None else ('procedure', name)
@@ -223,7 +224,7 @@ class Program:
     native_procedures: Mapping[str, NativeProcedureInterface] = field(default_factory=dict)  # By name.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables',
                      'native_types', 'native_procedures'):
             object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
@@ -234,35 +235,36 @@ class Program:
         object.__setattr__(self, 'constants', tuple(self.constants))
         object.__setattr__(self, 'functions', tuple(self.functions))
 
-    def dump(self, file=None):
+    def dump(self, file: TextIO | None = None) -> None:
         """Write the runtime program to a text stream (stdout by default)."""
         if file is None:
             file = sys.stdout
 
-        def line(text='', indent=0):
+        def line(text: str = '', indent: int = 0) -> None:
             print(' ' * indent + text, file=file)
 
-        def value(label, item, indent):
+        def value(label: str, item: object, indent: int) -> None:
             formatted = pformat(item, width=100 - indent, sort_dicts=True)
             line(label + ':', indent)
             for part in formatted.splitlines():
                 line(part, indent + 2)
 
-        def static_bindings(label, values, indent):
+        def static_bindings(label: str, values: Mapping[str, Constant], indent: int) -> None:
             line(label + ':', indent)
             for name, constant in sorted(values.items()):
                 line(f'{name}: {constant.value_type}', indent + 2)
                 value('value', constant.value, indent + 4)
 
-        def resources(bindings, indent):
+        def resources(bindings: Mapping[str, ResourceBinding], indent: int) -> None:
             for name, binding in bindings.items():
                 line(f'{name}: {binding}', indent)
 
         constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
 
-        def source(input_source):
+        def source(input_source: InputSource) -> str:
             if input_source.constant is not None:
                 return f'const.{constant_indices[id(input_source.constant)]}'
+            assert input_source.variable is not None
             if input_source.new_state is None:
                 return input_source.variable.name
             return f'{input_source.variable.name} ({"new" if input_source.new_state else "old"} state)'
@@ -291,10 +293,10 @@ class Program:
             parameters = ', '.join(str(value_type) for value_type in function.parameter_types)
             line(f'func.{index}: {function.name}({parameters}): {function.return_type}', 2)
 
-        def names(label, items, indent):
+        def names(label: str, items: Iterable[str], indent: int) -> None:
             line(f'{label}: {", ".join(items)}' if items else f'{label}:', indent)
 
-        def resource_types(label, resources, indent):
+        def resource_types(label: str, resources: Mapping[str, str], indent: int) -> None:
             line(label + ':', indent)
             for key, resource_type in resources.items():
                 line(f'{key}: {resource_type}', indent + 2)
@@ -366,7 +368,7 @@ class Program:
                 line(f'{name!r}: {target}', 2)
 
 
-def _declared_types(value_type, seen):
+def _declared_types(value_type: Type, seen: set[int]) -> Iterator[TypeEnum | TypeStruct]:
     if id(value_type) in seen:
         return
     seen.add(id(value_type))
@@ -380,7 +382,7 @@ def _declared_types(value_type, seen):
             yield from _declared_types(field_type, seen)
 
 
-def used_declared_types(program):
+def used_declared_types(program: Program) -> Iterator[TypeEnum | TypeStruct]:
     """Yield each enum and struct type that occurs in the runtime types of a program once."""
     constants = [*program.constants]
     value_types = [variable.var_type for table in (program.state_variables, program.temporaries)

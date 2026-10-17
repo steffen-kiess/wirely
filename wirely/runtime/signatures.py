@@ -4,9 +4,15 @@
 describes native state types, procedures, and functions with these types.
 """
 
+from __future__ import annotations
+
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..types import Type
 
 
 class SignatureType:
@@ -65,7 +71,7 @@ class Port:
     multi: bool = False
 
 
-def _frozen(mapping):
+def _frozen(mapping: Mapping) -> MappingProxyType:
     return MappingProxyType(dict(mapping))
 
 
@@ -77,7 +83,7 @@ class Initializer:
     produces: Mapping[str, Port]
     uses: Mapping[str, SignatureType]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('depends', 'produces', 'uses'):
             object.__setattr__(self, name, _frozen(getattr(self, name)))
 
@@ -89,7 +95,7 @@ class Procedure:
     produces: Mapping[str, Port]
     uses: Mapping[str, SignatureType]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('depends', 'produces', 'uses'):
             object.__setattr__(self, name, _frozen(getattr(self, name)))
 
@@ -101,18 +107,18 @@ class Function:
     parameters: tuple[SignatureType, ...]
     result: SignatureType
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, 'parameters', tuple(self.parameters))
 
 
-def _builtin_types():
+def _builtin_types() -> dict[str, type]:
     from .. import types
     return {'unit': types.TypeUnit, 'boolean': types.TypeBoolean, 'String': types.TypeString,
             'Duration': types.TypeDuration, 'TimeOfDay': types.TypeTimeOfDay,
             'MonotonicTime': types.TypeMonotonicTime, 'ValueType': types.TypeValueType}
 
 
-def matches(signature_type, value_type, bindings):
+def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[str, Type]) -> bool:
     """Whether a value type has a signature type; bindings map type variable names to types."""
     from .. import types
 
@@ -133,7 +139,7 @@ def matches(signature_type, value_type, bindings):
     raise ValueError(f'Unknown signature type {signature_type!r}')
 
 
-def describe(signature_type, bindings):
+def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str:
     """Render a signature type in Wirely syntax, with bound type variables replaced."""
     if isinstance(signature_type, TypeVar):
         bound = bindings.get(signature_type.name)

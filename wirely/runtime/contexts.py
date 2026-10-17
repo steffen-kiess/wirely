@@ -1,13 +1,16 @@
+from __future__ import annotations
+
+import asyncio
 import contextlib
 import datetime
-from collections.abc import Mapping
+from collections.abc import Coroutine, Iterator, Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 import wirely
 from ..types import value_types
-from ..program import RunStage, Variable, VariableTable, InputSource
+from ..program import InputSource, Procedure, RunStage, Variable, VariableTable
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
 from .resources import ResourceType, ResourceValue
@@ -30,13 +33,13 @@ class NativeNodeContext:
     _outputs: dict = field(default_factory=dict, repr=False)  # Resource outputs written by the initializer.
     _constructed: bool = field(default=False, repr=False)  # Whether the initializer has returned.
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('values', 'inputs'):
             value = getattr(self, name)
             if not isinstance(value, MappingProxyType):
                 object.__setattr__(self, name, MappingProxyType(dict(value)))
 
-    def set_output(self, name: str, value: object):
+    def set_output(self, name: str, value: object) -> None:
         if self._constructed:
             raise ValueError(f'Outputs of {self.name} can only be written by the native initializer')
         if not isinstance(name, str) or name not in self._output_types:
@@ -48,7 +51,7 @@ class NativeNodeContext:
         except TypeError as error:
             raise ValueError(f'Invalid value for output {name!r} on {self.name}: {error}') from error
 
-    def _finish_construction(self):
+    def _finish_construction(self) -> dict[str, ResourceValue]:
         """End the initializer's output phase and return the written outputs."""
         object.__setattr__(self, '_constructed', True)
         missing = self._output_types.keys() - self._outputs.keys()
@@ -84,18 +87,20 @@ class NativeState:
             raise ValueError(f'Unknown output name {output!r} on {context.name}')
         context._engine.trigger_dependents(context._node_id, output)
 
-    def start_tasks(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         pass
 
     # TODO: Merge start_tasks and start_tasks_async?
     # TODO: Allow blocking behavior during startup?
     # TODO: Use an AsyncExitStack or an ExitStack?
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
+                                async_exit_stack: contextlib.AsyncExitStack) -> None:
         pass
 
     @staticmethod
     @contextlib.contextmanager
-    def start_task_context(task_group, coroutine):
+    def start_task_context(task_group: asyncio.TaskGroup,
+                           coroutine: Coroutine[Any, Any, object]) -> Iterator[asyncio.Task]:
         import wirely.misc.service
 
         task = task_group.create_task(wirely.misc.service.should_never_return(coroutine))
@@ -105,7 +110,8 @@ class NativeState:
             task.cancel()
 
     @staticmethod
-    def start_task(task_group, async_exit_stack, coroutine):
+    def start_task(task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack,
+                   coroutine: Coroutine[Any, Any, object]) -> asyncio.Task:
         return async_exit_stack.enter_context(NativeState.start_task_context(task_group, coroutine))
 
 
@@ -117,7 +123,7 @@ class ProcedureLoadContext:
     values: Mapping[str, Any]
     resources: Mapping[str, ResourceValue]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         for name in ('values', 'resources'):
             value = getattr(self, name)
             if not isinstance(value, MappingProxyType):
@@ -130,26 +136,26 @@ class NativeProcedure:
     def __init__(self, *, context: ProcedureLoadContext):
         pass
 
-    def __call__(self, *, context: 'ProcedureContext'):
+    def __call__(self, *, context: ProcedureContext) -> None:
         raise NotImplementedError
 
 
 class VariableTableInstance:
     """Write-once runtime values stored in an aligned byte buffer."""
 
-    def __init__(self, variable_table):
+    def __init__(self, variable_table: VariableTable) -> None:
         """Allocate zeroed storage and track initialization separately."""
         if not isinstance(variable_table, VariableTable):
             raise Exception('variable_table parameter is not a VariableTable')
         self.variable_table = variable_table
 
         self.data = bytearray(variable_table.size)
-        self._initialized = set()  # Variable identities, including zero-sized units.
+        self._initialized: set[Variable] = set()  # Variable identities, including zero-sized units.
         last = next(reversed(variable_table.offsets), None)
         # Final table padding follows the last slot in layout order.
         self._padding_start = 0 if last is None else variable_table.offsets[last] + last.var_type.size
 
-    def add(self, variable, value):
+    def add(self, variable: Variable, value: object) -> None:
         """Serialize a value into its slot, allowing one successful write."""
         if variable not in self.variable_table.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
@@ -162,7 +168,7 @@ class VariableTableInstance:
         )
         self._initialized.add(variable)
 
-    def __getitem__(self, variable):
+    def __getitem__(self, variable: Variable) -> object:
         """Read an initialized value, validating its slot and table padding."""
         if variable not in self.variable_table.variable_set:
             raise Exception(f'Variable {variable!r} not in VariableTable {self.variable_table.name}')
@@ -181,8 +187,8 @@ class ProcedureContext:
         '_step_info', '_wakeup_time', '_wakeup_time_set', '_engine',
     )
 
-    def __init__(self, *, inputs: Mapping[str, Any], outputs, static, step_info, engine,
-                 values: Mapping[str, Any]):
+    def __init__(self, *, inputs: Mapping[str, Any], outputs: dict[str, object], static: Procedure,
+                 step_info: StepContext, engine: Engine, values: Mapping[str, Any]) -> None:
         self._inputs: Mapping[str, Any] = MappingProxyType(dict(inputs))
         self._values = values
         self._outputs = outputs
@@ -225,7 +231,7 @@ class ProcedureContext:
             raise ValueError(f'Expected a RunStage, got {stage!r}')
         return self._step_info._stage_times[stage]
 
-    def set_output(self, name: str, value: object):
+    def set_output(self, name: str, value: object) -> None:
         if not isinstance(name, str) or name not in self._static.outputs:
             raise ValueError(f'Unknown output name {name!r} in procedure on {self.name}')
         if name in self._written_outputs:
@@ -238,18 +244,18 @@ class ProcedureContext:
         self._outputs[name] = value
         self._written_outputs.add(name)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ProcedureContext(name={self.name!r})'
 
 
 class StepContext:
-    def __init__(self):
-        self._stage_times = {}
-        self.stage_start_time_monotonic = {}
-        self.stage_start_time_utc = {}
-        self.stage_start_time = {}
+    def __init__(self) -> None:
+        self._stage_times: dict[RunStage, TimeSnapshot] = {}
+        self.stage_start_time_monotonic: dict[RunStage, MonotonicTime] = {}
+        self.stage_start_time_utc: dict[RunStage, datetime.datetime] = {}
+        self.stage_start_time: dict[RunStage, datetime.datetime] = {}
 
-    def start_stage(self, engine, stage):
+    def start_stage(self, engine: Engine, stage: RunStage) -> None:
         if stage in self.stage_start_time:
             raise Exception(f'Stage {stage} already started')
 
@@ -272,5 +278,5 @@ class StepContext:
         self.stage_start_time_utc[stage] = now_utc
         self.stage_start_time[stage] = now
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'StepContext({self.__dict__!r})'

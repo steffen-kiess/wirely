@@ -1,24 +1,28 @@
 import asyncio
 import contextlib
 import datetime
+from collections.abc import Iterable, Mapping
 from types import MappingProxyType
+from typing import Any
 
 import wirely
-from wirely.program import Program, validate_program
+from wirely.program import Constant, InputSource, Program, ResourceBinding, Variable, validate_program
 from wirely.runtime.contexts import (
-    NativeNodeContext, ProcedureContext, ProcedureLoadContext, StepContext, VariableTableInstance,
+    NativeNodeContext, NativeState, ProcedureContext, ProcedureLoadContext, StepContext, VariableTableInstance,
 )
+from wirely.runtime.resources import ResourceValue
+from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
 
 
-def _native_values(bindings):
+def _native_values(bindings: Mapping[str, Constant]) -> Mapping[str, Any]:
     """Convert typed static bindings to the values native code receives."""
     return MappingProxyType({name: wirely.value_types._to_native(constant.value_type, constant.value)
                              for name, constant in bindings.items()})
 
 
 class Engine:
-    def __init__(self, program):
+    def __init__(self, program: Program) -> None:
         from .linking import (
             link_native_classes, link_native_enums, link_native_functions, link_native_resource_types,
             link_native_signatures, link_native_structs,
@@ -30,17 +34,17 @@ class Engine:
         validate_program(program)
         self.program = program
 
-        self.cache = None  # Temporary values from the last completed step.
+        self.cache: VariableTableInstance | None = None  # Temporary values from the last completed step.
 
         self.debug = False
 
         # Is a datetime during async task shutdown unless the shutdown was triggered before all async tasks were started
-        self.shutdown_time = None
+        self.shutdown_time: datetime.datetime | None = None
 
         # The time of the last complete async task shutdown. Should be used only for debugging / tests.
-        self.last_shutdown_time = None
+        self.last_shutdown_time: datetime.datetime | None = None
 
-        self.triggered_procs = set()
+        self.triggered_procs: set[tuple] = set()
         self.triggered_procs_event = asyncio.Event()
 
         self.step_count = 0  # Number of completed steps.
@@ -49,16 +53,16 @@ class Engine:
         self._resumed_event = asyncio.Event()
         self._resumed_event.set()
 
-        self.wakeups = {}
-        self.next_wakeup = None
+        self.wakeups: dict[tuple, MonotonicTime] = {}
+        self.next_wakeup: MonotonicTime | None = None
 
         # The current state, will be .old during the next step.
         self.state = VariableTableInstance(self.program.state_variables)
         # The state before the last step. Was .old during the last step.
-        self.last_step_state = None
+        self.last_step_state: VariableTableInstance | None = None
         self.native_states = {}
 
-        self.fake_monotonic_time_offset = None
+        self.fake_monotonic_time_offset: Duration | None = None
         self.test_twon_fake_server_info = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program)
@@ -95,8 +99,8 @@ class Engine:
                                    in program.native_types[instance.type_name].resource_outputs.items()},
                 )
                 native_state = native_class(context=context)
-                for key, value in context._finish_construction().items():
-                    self.resource_outputs[node_id, key] = value
+                for key, resource in context._finish_construction().items():
+                    self.resource_outputs[node_id, key] = resource
             self.native_states[node_id] = native_state
         # Native procedure implementations, constructed after all native states; keyed by procedure identity.
         self._native_procedures = {}
@@ -111,11 +115,12 @@ class Engine:
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
 
-    def _resource_inputs(self, bindings):
+    def _resource_inputs(self, bindings: Mapping[str, ResourceBinding]) -> dict[str, ResourceValue]:
         return {name: self.resource_outputs[binding.provider, binding.output] for name, binding in bindings.items()}
 
-    async def start_tasks_async(self, task_group, async_exit_stack: contextlib.AsyncExitStack):
-        def start_task_cleanup():
+    async def start_tasks_async(self, task_group: asyncio.TaskGroup,
+                                async_exit_stack: contextlib.AsyncExitStack) -> None:
+        def start_task_cleanup() -> None:
             now_monotonic = wirely.MonotonicTime.current_time()
             if self.fake_monotonic_time_offset is not None:
                 now_monotonic += self.fake_monotonic_time_offset
@@ -128,7 +133,7 @@ class Engine:
             # TODO: Set monotonic_shutdown_time?
             self.shutdown_time = now
 
-        def finish_task_cleanup():
+        def finish_task_cleanup() -> None:
             print('Task cleanup done')
 
             self.last_shutdown_time = self.shutdown_time
@@ -145,7 +150,7 @@ class Engine:
         async_exit_stack.callback(start_task_cleanup)
 
     # TODO: Threading?
-    def trigger(self, node_id, proc_name):
+    def trigger(self, node_id: str, proc_name: str) -> None:
         key = node_id, proc_name
         if not isinstance(proc_name, str) or not any(
             proc.key == key for schedule in self.program.procs.values() for proc in schedule
@@ -153,17 +158,17 @@ class Engine:
             raise ValueError(f'Unknown procedure name {proc_name!r} on {node_id}')
         self._trigger_key(key)
 
-    def trigger_dependents(self, node_id, output):
+    def trigger_dependents(self, node_id: str, output: str) -> None:
         """Schedule each procedure that depends on a native state's resource output."""
         for key in self._resource_triggers.get((node_id, output), ()):
             self._trigger_key(key)
 
-    def _trigger_key(self, key):
+    def _trigger_key(self, key: tuple) -> None:
         self.triggered_procs.add(key)
         self.triggered_procs_event.set()
 
     # Update self.next_wakeup to include wakeup_time
-    def update_next_wakeup(self, now, wakeup_time):
+    def update_next_wakeup(self, now: MonotonicTime, wakeup_time: MonotonicTime | None) -> None:
         if wakeup_time is None:
             return
         if not wirely.MonotonicTime.is_comparable(now, wakeup_time):
@@ -175,7 +180,7 @@ class Engine:
                 or wirely.MonotonicTime.compare(self.next_wakeup, wakeup_time) > 0):
             self.next_wakeup = wakeup_time
 
-    def step(self):
+    def step(self) -> tuple[int, int, StepContext]:
         if self.debug:
             print(f'Starting step of {self.program.name}')
         self.next_wakeup = None
@@ -276,7 +281,7 @@ class Engine:
             print(f'Finished step of {self.program.name}')
         return run_count, state_change_count, step_info
 
-    async def run(self):
+    async def run(self) -> None:
         while True:
             await asyncio.sleep(0)
             await self._resumed_event.wait()
@@ -308,55 +313,56 @@ class Engine:
                         pass
                 self.triggered_procs_event.clear()
 
-    def pause(self):
+    def pause(self) -> None:
         self.paused = True
         self._resumed_event.clear()
 
-    def resume(self):
+    def resume(self) -> None:
         self.paused = False
         self._resumed_event.set()
         # Handle triggers and wakeups that arrived while paused.
         self.triggered_procs_event.set()
 
-    def get_node_path_list(self, name_parts):
+    def get_node_path_list(self, name_parts: Iterable[str]) -> str:
         return self.get_node_path('.'.join(name_parts))
 
-    def get_node_path(self, name):
+    def get_node_path(self, name: str) -> str:
         try:
             return self.program.node_aliases[name]
         except KeyError:
             raise ValueError(f'Cannot find node {name!r}') from None
 
-    def get_node_path_singleton(self, name):
+    def get_node_path_singleton(self, name: str) -> str:
         try:
             return self.program.singleton_aliases[name]
         except KeyError:
             raise ValueError(f'Cannot find singleton {name!r}') from None
 
-    def get_native_state(self, name):
+    def get_native_state(self, name: str) -> NativeState | None:
         return self.native_states[self.get_node_path(name)]
 
-    def get_native_state_singleton(self, name):
+    def get_native_state_singleton(self, name: str) -> NativeState | None:
         return self.native_states[self.get_node_path_singleton(name)]
 
-    def get_variable(self, name):
+    def get_variable(self, name: str) -> Variable:
         variable = self._get_source(name).variable
         if variable is None:
             raise ValueError(f'Variable alias {name!r} refers to a constant')
         return variable
 
-    def _get_source(self, name):
+    def _get_source(self, name: str) -> InputSource:
         try:
             return self.program.variables[name]
         except KeyError:
             raise ValueError(f'Could not find variable {name!r}') from None
 
-    def get_value(self, name):
+    def get_value(self, name: str) -> object:
         return self.get_source_value(self._get_source(name))
 
-    def get_source_value(self, input_source):
+    def get_source_value(self, input_source: InputSource) -> object:
         if input_source.constant is not None:
             return input_source.constant.value
+        assert input_source.variable is not None
         if input_source.new_state is None:
             assert self.cache is not None
             return self.cache[input_source.variable]
@@ -365,17 +371,17 @@ class Engine:
         assert self.last_step_state is not None
         return self.last_step_state[input_source.variable]
 
-    def assert_value_is(self, name, expected_value):
+    def assert_value_is(self, name: str, expected_value: object) -> None:
         actual_value = self.get_value(name)
         if actual_value != expected_value:
             raise Exception(f'Got unexpected value for {name}: Expected {expected_value}, got {actual_value}')
 
-    def assert_is_idle(self):
+    def assert_is_idle(self) -> None:
         run_count, state_change_count, step_info = self.step()
         if run_count != 0:
             raise Exception(f'Is not idle, executed {run_count} procs')
 
-    def advance_fake_monotonic_time(self, offset):
+    def advance_fake_monotonic_time(self, offset: Duration) -> None:
         if self.fake_monotonic_time_offset is None:
             print('Warning: Setting fake monotonic time offset', flush=True)
             self.fake_monotonic_time_offset = wirely.Duration(ticks=0)

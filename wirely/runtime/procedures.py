@@ -1,14 +1,19 @@
 """Execution of validated, forward-only procedure instructions."""
 
-from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind
+from collections.abc import Callable, Sequence
+from typing import Any
+
+from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind, Procedure, Program
 from ..functions import call_native_function
 from ..types import Some, convert
 from ..types.value_types import _from_native, _to_native
 
 
-def execute_procedure(program, procedure, inputs, functions=()):
+def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[object],
+                      functions: Sequence[Callable[..., object]] = ()) -> dict[str, object]:
     """Run a bytecode procedure; functions are the linked implementations of program.functions."""
     body = procedure.body
+    assert body is not None
     input_types = tuple(source.value_type for _, source in procedure.dependencies)
     output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
     values = {
@@ -22,12 +27,12 @@ def execute_procedure(program, procedure, inputs, functions=()):
         OperandKind.LOCAL: body.local_types,
     }
 
-    def read(operand):
+    def read(operand: Any) -> Any:
         if operand.kind == OperandKind.CONST:
             return program.constants[operand.index].value
         return values[operand.kind][operand.index]
 
-    def value_type(operand):
+    def value_type(operand: Any) -> Any:
         if operand.kind == OperandKind.CONST:
             return program.constants[operand.index].value_type
         return types[operand.kind][operand.index]
@@ -35,7 +40,8 @@ def execute_procedure(program, procedure, inputs, functions=()):
     index = 0
     while True:
         instruction = body.instructions[index]
-        opcode, operands = instruction.opcode, instruction.operands
+        opcode = instruction.opcode
+        operands: Any = instruction.operands  # Their kinds are checked by validate_program().
         if opcode == Opcode.RETURN:
             break
         if opcode == Opcode.JUMP:

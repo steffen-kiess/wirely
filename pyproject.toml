@@ -50,6 +50,11 @@ files = ["wirely"]
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
+# These packages are fully annotated.
+module = ["wirely.program.*", "wirely.runtime.*"]
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
 # The graphviz output is not type checked.
 module = ["wirely.cli.graphviz"]
 ignore_errors = true

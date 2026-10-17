@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import struct
 from dataclasses import dataclass, field
 
@@ -26,7 +27,7 @@ class Section:
     data: bytes  # Section contents, without padding.
 
     @property
-    def length(self):
+    def length(self) -> int:
         """Section length in bytes."""
         return len(self.data)
 
@@ -42,7 +43,7 @@ class SectionList:
     version: tuple[int, int] = (SUPPORTED_MAJOR, 0)  # Major and minor format version.
 
     @classmethod
-    def from_bytes(cls, data):
+    def from_bytes(cls, data: bytes | bytearray | memoryview) -> SectionList:
         """Parse a file, validating its header and section directory."""
         data = bytes(data)
         if len(data) < _PREFIX.size:
@@ -74,12 +75,12 @@ class SectionList:
         return cls(sections, (major, minor))
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str | os.PathLike[str]) -> SectionList:
         """Read and parse the file at path."""
         with open(path, 'rb') as file:
             return cls.from_bytes(file.read())
 
-    def to_bytes(self):
+    def to_bytes(self) -> bytes:
         """Serialize sorted by section type, with sections zero-padded to 16-byte alignment."""
         major, minor = self.version
         if not (0 <= major <= _UINT16_MAX and 0 <= minor <= _UINT16_MAX):
@@ -110,7 +111,7 @@ class SectionList:
             output += section.data
         return bytes(output)
 
-    def save(self, path):
+    def save(self, path: str | os.PathLike[str]) -> None:
         """Write the serialized file to path."""
         with open(path, 'wb') as file:
             file.write(self.to_bytes())

@@ -1,11 +1,13 @@
 """Validation of typed procedure instructions before execution."""
 
+from collections.abc import Iterable, Mapping, Sequence
+
 from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, boolean, uint32
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
-from .program import Program, ResourceBinding
+from .program import InputSource, Procedure, Program, ResourceBinding
 
 
 _SIGNATURES = {
@@ -34,23 +36,23 @@ _SIGNATURES = {
 _BRANCHES = (Opcode.JUMP, Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE)
 
 
-def _runtime_type(value_type):
+def _runtime_type(value_type: object) -> None:
     if not isinstance(value_type, Type) or not value_type.is_runtime_type:
         raise ValueError(f'Expected a resolved runtime type, got {value_type!r}')
 
 
-def _same_type(actual, expected):
+def _same_type(actual: object, expected: object) -> None:
     if actual != expected:
         raise ValueError(f'Expected type {expected}, got {actual}')
 
 
-def _call_signature(operands):
+def _call_signature(operands: Sequence[Operand | BranchTarget | int]) -> tuple[type, ...]:
     """Return the CALL signature, whose length depends on its count operand."""
     count = operands[2] if len(operands) >= 3 and type(operands[2]) is int and operands[2] >= 0 else 0
     return (Operand, int, int) + (Operand,) * count
 
 
-def _validate_body(procedure, constant_types, functions):
+def _validate_body(procedure: Procedure, constant_types: Sequence[Type], functions: Sequence[Function]) -> None:
     body = procedure.body
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
@@ -166,7 +168,7 @@ def _validate_body(procedure, constant_types, functions):
             raise ValueError(f'Instruction idx{index}: {error}') from error
 
 
-def validate_program(program):
+def validate_program(program: Program) -> None:
     """Reject invalid constants, bindings, resources, sources, and procedure instructions with ValueError."""
     if not isinstance(program, Program):
         raise ValueError('Expected a Program')
@@ -191,17 +193,17 @@ def validate_program(program):
             raise ValueError(f'Function func.{index}: {error}') from error
     constant_ids = {id(constant) for constant in program.constants}
 
-    def check_names(kind, names, declared):
+    def check_names(kind: str, names: Iterable[str], declared: Iterable[str]) -> None:
         if set(names) != set(declared):
             raise ValueError(f'{kind} {sorted(names)!r} do not match the declared {sorted(declared)!r}')
 
-    def check_bindings(values, declared):
+    def check_bindings(values: Mapping[str, Constant], declared: Iterable[str]) -> None:
         check_names('Static bindings', values, declared)
         for name, constant in values.items():
             if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
                 raise ValueError(f'Static binding {name!r} is not a typed Constant')
 
-    def check_resources(bindings, declared):
+    def check_resources(bindings: Mapping[str, ResourceBinding], declared: Mapping[str, str]) -> None:
         check_names('Resource inputs', bindings, declared)
         for name, binding in bindings.items():
             if not isinstance(binding, ResourceBinding):
@@ -231,7 +233,7 @@ def validate_program(program):
         except ValueError as error:
             raise ValueError(f'Instance {node_id!r}: {error}') from error
 
-    def check_native_procedure(procedure):
+    def check_native_procedure(procedure: Procedure) -> None:
         prefix, _, method = procedure.reference.rpartition(':')
         if not prefix or not method:
             raise ValueError("Expected a native procedure name of the form 'Type:procedure'")
@@ -243,7 +245,7 @@ def validate_program(program):
         check_names('Inputs', [name for name, _ in procedure.dependencies], interface.inputs)
         check_names('Outputs', procedure.outputs, interface.outputs)
 
-    def check_source(input_source):
+    def check_source(input_source: InputSource) -> None:
         if input_source.constant is not None and id(input_source.constant) not in constant_ids:
             raise ValueError('Constant source is not an entry of the program constants')
 
