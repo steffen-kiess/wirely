@@ -2,6 +2,7 @@ import sys
 import types
 from unittest import TestCase
 
+from wirely.generated import extension as builtin_extension
 import wirely
 import wirely.compiler
 from wirely import types as wirely_types
@@ -52,16 +53,17 @@ def check_names():
     assert native_contracts.module_name('ABB.JRA') == 'abb_jra'
     for kind, name, location in [('procedure', 'MQTT.EventSender:send_value', ('mqtt', 'EventSenderSendValue')),
                                  ('initializer', 'KNX.Connection', ('knx', 'ConnectionInitializer')),
-                                 ('function', 'MonotonicTime.CheckedAdd', ('monotonic_time', 'CheckedAdd'))]:
+                                 ('function', 'MonotonicTime.CheckedAdd', ('monotonic_time', '_CheckedAdd'))]:
         assert native_contracts.contract_location(kind, name) == location
     with checks.assertRaisesRegex(ValueError, "Native name 'Probe' has no namespace"):
         native_contracts.contract_location('initializer', 'Probe')
 
     # Generated loaders carry direct adapters, without contract-location strings.
-    from wirely.runtime import native_bindings
-    from wirely.contracts import mqtt, test_library
+    from wirely.generated import _bindings as native_bindings
+    from wirely.generated import mqtt
+    from test.fixtures.native_extension.generated import test_library, extension as fixture
     assert native_bindings.procedures['MQTT.EventSender:send_value']().adapter is mqtt.EventSenderSendValue._adapter
-    assert native_bindings.functions['TestLibrary.Clamp']().contract is test_library.Clamp
+    assert fixture.functions['TestLibrary.Clamp'].load().contract is test_library._Clamp
 
 
 def check_collisions():
@@ -80,7 +82,8 @@ def check_collisions():
               native procedure other as "TestLibrary.Probe:aB";
             }''', "Contracts of TestLibrary.Probe:aB and TestLibrary.Probe:a_b both define 'ProbeAB"),
         # Contracts cannot shadow the names their module imports.
-        ('native function Unit(): unit;', "Contract name 'Unit' of TestLibrary.Unit is also an imported name"),
+        ('node type Native { native procedure run as "TestLibrary.Native:Procedure"; }',
+         "Contract name 'NativeProcedure' of TestLibrary.Native:Procedure is also an imported name"),
     ]:
         interfaces = compile_interfaces(f'namespace TestLibrary {{ {declarations} }}')
         with checks.assertRaisesRegex(ValueError, message):
@@ -155,12 +158,12 @@ def check_adapters():
     state_types, procedures, functions = interfaces
     triggers = []
     services = StateServices(name='owner', output_keys=Owner._adapter.output_keys, trigger=triggers.append,
-                             shutdown_time=lambda: None)
+                             shutdown_time=lambda: None, native_types=builtin_extension.native_types)
     owner, outputs = Owner._adapter.construct(Owner, services, InterfaceBinding(
         where='Owner', signature=state_types['TestLibrary.Owner'],
         use_types={'Limit': wirely_types.uint8, 'label': wirely_types.TypeOption(wirely_types.String)},
         use_values={'Limit': 9, 'label': wirely.Some('text')}, resources={}, port_types={},
-        output_resource_types={'state': handle_type}))
+        output_resource_types={'state': handle_type}, native_types=builtin_extension.native_types))
     assert (owner.limit, owner.label) == (wirely.UInt8(9), wirely.Some('text'))
     assert owner.services is services and outputs['state'].object is owner and outputs['state'].type is handle_type
     owner.services.trigger('state')
@@ -177,13 +180,13 @@ def check_adapters():
         port_types={'implicit input': wirely_types.TypeOption(value_type),
                     'Trigger': wirely_types.TypeOption(wirely_types.uint8),
                     'Out': wirely_types.TypeOption(value_type), 'Count': wirely_types.uint8},
-        output_resource_types={})
-    Probe._adapter.prepare(probe, PreparationServices(name='probe'), binding)
+        output_resource_types={}, native_types=builtin_extension.native_types)
+    Probe._adapter.prepare(probe, PreparationServices(name='probe', native_types=builtin_extension.native_types), binding)
     assert probe.prepared == ('probe', owner, wirely.ValueType(value_type))
 
     descriptor = wirely.ValueType(value_type)
-    procedure_services = ProcedureServices(name='probe', stage_times={}, trigger_self=lambda: None)
-    payload = descriptor.from_native((True, False))
+    procedure_services = ProcedureServices(name='probe', stage_times={}, trigger_self=lambda: None, native_types=builtin_extension.native_types)
+    payload = descriptor.from_native((True, False), native_types=builtin_extension.native_types)
     probe.result = contracts.ProbeRunResult(out=wirely.Some(payload), count=wirely.UInt8(2))
     outputs = Probe._adapter.run(probe, procedure_services, binding,
                                  {'implicit input': wirely.Some((True, False)), 'Trigger': wirely.Some(3)})
@@ -198,7 +201,7 @@ def check_adapters():
         (None, 'Probe must return a ProbeRunResult, got None'),
         (contracts.ProbeRunResult(out=None, count=2),
          "Probe: invalid value for output 'Count': Expected a wirely.UInt8 for uint8, got 2"),
-        (contracts.ProbeRunResult(out=wirely.Some(wirely.value_types.boolean.from_native(True)), count=wirely.UInt8(0)),
+        (contracts.ProbeRunResult(out=wirely.Some(wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types)), count=wirely.UInt8(0)),
          "Probe: invalid value for output 'Out': in option: Expected a DynamicValue of List\\[boolean\\], "
          'got one of boolean'),
     ]:
@@ -214,18 +217,18 @@ def check_adapters():
         return wirely.Some(wirely.UInt8(doubled)) if doubled <= 255 else None
 
     function_binding = FunctionBinding(name='TestLibrary.Twice', parameter_types=(wirely_types.uint8,),
-                                       return_type=wirely_types.TypeOption(wirely_types.uint8))
-    assert contracts.Twice.name == 'TestLibrary.Twice'
-    assert contracts.Twice.call(twice, function_binding, [7]) == wirely.Some(14)
-    assert contracts.Twice.call(twice, function_binding, [200]) is None
+                                       return_type=wirely_types.TypeOption(wirely_types.uint8), native_types=builtin_extension.native_types)
+    assert contracts._Twice.name == 'TestLibrary.Twice'
+    assert contracts._Twice.call(twice, function_binding, [7]) == wirely.Some(14)
+    assert contracts._Twice.call(twice, function_binding, [200]) is None
     with checks.assertRaisesRegex(ValueError, "Native function 'TestLibrary.Twice' returned an invalid value"):
-        contracts.Twice.call(lambda value: wirely.Some(14), function_binding, [7])
+        contracts._Twice.call(lambda value: wirely.Some(14), function_binding, [7])
 
 
 def check_services():
     times = {RunStage.DEFAULT: object()}
     triggered = []
-    services = ProcedureServices(name='probe', stage_times=times, trigger_self=lambda: triggered.append(True))
+    services = ProcedureServices(name='probe', stage_times=times, trigger_self=lambda: triggered.append(True), native_types=builtin_extension.native_types)
     assert services.start_time_for_stage(RunStage.DEFAULT) is times[RunStage.DEFAULT]
     with checks.assertRaisesRegex(ValueError, 'Expected a RunStage'):
         services.start_time_for_stage('default')
@@ -246,38 +249,41 @@ def check_binding_type_checks():
     import subprocess
     import tempfile
     from pathlib import Path
-    from wirely.runtime import native_interfaces
+    from wirely.generated import _signatures as native_interfaces
 
+    from test.fixtures.native_extension.generated import extension as fixture
     interfaces = (
         {'Std.DebugValueSource': native_interfaces.native_state_types['Std.DebugValueSource']},
         {'Std.DebugEventPrinter:run': native_interfaces.native_procedures['Std.DebugEventPrinter:run']},
-        {'TestLibrary.Clamp': native_interfaces.native_functions['TestLibrary.Clamp']},
+        {'TestLibrary.Clamp': fixture.functions['TestLibrary.Clamp'].signature},
     )
-    source = native_contracts.generate_bindings(interfaces)
+    source = native_contracts.generate_bindings(interfaces).replace('wirely.generated.test_library',
+             'test.fixtures.native_extension.generated.test_library').replace('wirely.functions.test_library',
+             'test.fixtures.native_extension.functions.test_library')
     constant_source = native_contracts.generate_constant_bindings({
         'KNX.ValueTypeName': native_interfaces.native_functions.get('KNX.ValueTypeName')})
     cases = [
         ('valid', source, '', None),
-        ('missing_module', source.replace('from wirely.functions.test_library import clamp',
+        ('missing_module', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
                                          'from missing_native_implementation import clamp'), '', 'import-not-found'),
         ('missing_function', source.replace('import clamp', 'import nonexistent as clamp'), '', 'attr-defined'),
-        ('wrong_function', source.replace('from wirely.functions.test_library import clamp',
+        ('wrong_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
                                           'from implementation import clamp'),
          'def clamp(value: int) -> int:\n    return value\n', 'arg-type'),
-        ('async_function', source.replace('from wirely.functions.test_library import clamp',
+        ('async_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
                                           'from implementation import clamp'),
          'from wirely import Int16\nasync def clamp(a: Int16, b: Int16, c: Int16) -> Int16:\n    return a\n', 'arg-type'),
-        ('generator_function', source.replace('from wirely.functions.test_library import clamp',
+        ('generator_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
                                               'from implementation import clamp'),
          'from collections.abc import Iterator\nfrom wirely import Int16\n'
          'def clamp(a: Int16, b: Int16, c: Int16) -> Iterator[Int16]:\n    yield a\n', 'arg-type'),
         ('abstract_initializer', source.replace('from wirely.native.std import DebugValueSource\n',
                                                 'from implementation import DebugValueSource\n'),
-         'from wirely.contracts.std import DebugValueSourceInitializer\n'
+         'from wirely.generated.std import DebugValueSourceInitializer\n'
          'class DebugValueSource(DebugValueSourceInitializer):\n    pass\n', 'abstract'),
         ('abstract_procedure', source.replace('from wirely.native.std import DebugEventPrinter\n',
                                               'from implementation import DebugEventPrinter\n'),
-         'from wirely.contracts.std import DebugEventPrinterRun\n'
+         'from wirely.generated.std import DebugEventPrinterRun\n'
          'class DebugEventPrinter:\n    class Run(DebugEventPrinterRun):\n        pass\n', 'abstract'),
         ('constructor', source.replace('from wirely.native.std import DebugValueSource\n',
                                        'from implementation import DebugValueSource\n'),
@@ -285,7 +291,7 @@ def check_binding_type_checks():
          'class DebugValueSource(Base):\n    def __init__(self, required: int) -> None:\n        pass\n', 'call-arg'),
         ('wrong_method', source.replace('from wirely.native.std import DebugValueSource\n',
                                         'from implementation import DebugValueSource\n'),
-         'from wirely.contracts.std import DebugValueSourceInitializer, DebugValueSourceInitializerResult\n'
+         'from wirely.generated.std import DebugValueSourceInitializer, DebugValueSourceInitializerResult\n'
          'class DebugValueSource(DebugValueSourceInitializer):\n'
          '    def initialize(self, *, other: int) -> DebugValueSourceInitializerResult:\n'
          '        return DebugValueSourceInitializerResult(state=self)\n', 'override'),
@@ -294,7 +300,7 @@ def check_binding_type_checks():
          'class DebugValueSource:\n    pass\n', 'return-value'),
         ('async_procedure', source.replace('from wirely.native.std import DebugEventPrinter\n',
                                            'from implementation import DebugEventPrinter\n'),
-         'from wirely.contracts.std import DebugEventPrinterRun, DebugEventPrinterRunResult\n'
+         'from wirely.generated.std import DebugEventPrinterRun, DebugEventPrinterRunResult\n'
          'from wirely.runtime.native_api import ProcedureServices\n'
          'class DebugEventPrinter:\n    class Run(DebugEventPrinterRun):\n'
          '        async def run(self, *, services: ProcedureServices) -> DebugEventPrinterRunResult:\n'
@@ -324,7 +330,7 @@ def check_binding_imports():
     import subprocess
     subprocess.run([sys.executable, '-c', """
 import sys
-import wirely.runtime.native_bindings
+import wirely.generated
 assert not any(name.startswith(('wirely.compiler', 'wirely.native.', 'wirely.functions.'))
                or name in ('lark', 'xknx', 'gpiod', 'aiomqtt') for name in sys.modules)
 """], check=True)
@@ -332,7 +338,7 @@ assert not any(name.startswith(('wirely.compiler', 'wirely.native.', 'wirely.fun
 import builtins
 original = builtins.__import__
 def checked(name, *args, **kwargs):
-    if name.endswith('native_bindings') or name.startswith(('wirely.native.', 'wirely.functions.')):
+    if name.startswith(('wirely.generated', 'wirely.compiler.generated', 'wirely.native.', 'wirely.functions.')):
         raise AssertionError('Generation imported implementations: ' + name)
     return original(name, *args, **kwargs)
 builtins.__import__ = checked

@@ -12,6 +12,8 @@ import wirely
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
+from ..runtime.extensions import RuntimeNativeExtension, resolve_extensions
+from .extensions import CompilerNativeExtension, resolve_compiler_extensions
 from .attributes import FileMetadata, ParsedFile
 
 
@@ -26,6 +28,11 @@ _FROM_ENVIRONMENT: Any = object()  # Omission differs from an explicit None.
 
 def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *, add_std: bool = False,
                  verbose_passes: bool | None = None, always_print_stacktrace: bool | None = None,
+                 extensions: Iterable[RuntimeNativeExtension] = (),
+                 override_extensions: Iterable[RuntimeNativeExtension] = (),
+                 compiler_extensions: Iterable[CompilerNativeExtension] = (),
+                 compiler_override_extensions: Iterable[CompilerNativeExtension] = (),
+                 include_builtin_extensions: bool = True,
                  services: Mapping[str, object] | None = None,
                  on_diagnostic: Callable[[Diagnostic], None] | None = None,
                  shuffle_seed: int | None = _FROM_ENVIRONMENT,
@@ -59,6 +66,12 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
     if add_std:
         filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
 
+    native_extension = resolve_extensions(extensions, override_extensions=override_extensions,
+                                          include_builtin_extensions=include_builtin_extensions)
+    compiler_native_extension = resolve_compiler_extensions(
+        compiler_extensions, override_extensions=compiler_override_extensions,
+        include_builtin_extensions=include_builtin_extensions)
+
     warnings = WarningSink(report_escaping)
     exc = None
     try:
@@ -74,6 +87,8 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         file_metadata = validate_source_metadata(parsed_files, decls, warnings)
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
         global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
+        global_node_type.native_extension = native_extension
+        global_node_type.compiler_native_extension = compiler_native_extension
         global_node_type.services = compilation_services
         global_node_type.file_metadata = file_metadata
         from .coordinator import CompilerCoordinator
@@ -138,6 +153,11 @@ def _standard_library_sources(names: Iterable[str] | None = None) -> list[tuple[
 
 
 def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool = True,
+                  extensions: Iterable[RuntimeNativeExtension] = (),
+                  override_extensions: Iterable[RuntimeNativeExtension] = (),
+                  compiler_extensions: Iterable[CompilerNativeExtension] = (),
+                  compiler_override_extensions: Iterable[CompilerNativeExtension] = (),
+                  include_builtin_extensions: bool = True,
                   services: Mapping[str, object] | None = None,
                   on_diagnostic: Callable[[Diagnostic], None] | None = None) -> model.NodeType | None:
     filename_inpudatas = []
@@ -145,4 +165,7 @@ def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool
         with open(input_filename, encoding='utf-8') as file:
             filename_inpudatas.append((input_filename, file.read()))
     return compile_strs(filename_inpudatas, add_std=add_std, services=services,
-                        on_diagnostic=on_diagnostic)
+                        on_diagnostic=on_diagnostic, extensions=extensions,
+                        override_extensions=override_extensions, compiler_extensions=compiler_extensions,
+                        compiler_override_extensions=compiler_override_extensions,
+                        include_builtin_extensions=include_builtin_extensions)

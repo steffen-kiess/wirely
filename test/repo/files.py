@@ -17,7 +17,9 @@ existing_files = [
     *(root / 'test').rglob('*.py'),
 ]
 expected = set(expected_files)
-existing = set(existing_files)
+# Fixture packages provide test data and implementations, rather than runnable tests.
+existing = {path for path in existing_files
+            if not path.is_relative_to(root / 'test/fixtures') and path != root / 'test/__init__.py'}
 assert expected == existing, (
     f'Missing files: {sorted(str(path.relative_to(root)) for path in expected - existing)}\n'
     f'Unlisted files: {sorted(str(path.relative_to(root)) for path in existing - expected)}'

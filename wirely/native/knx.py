@@ -4,10 +4,10 @@ from typing import Any, Literal
 
 import wirely
 from wirely import DynamicValue, Some, UInt16, ValueType
-from wirely.contracts import knx as contracts
+from wirely.generated import knx as contracts
 from wirely.knx.value_types import get_value_type
 from wirely.native import check_state_type
-from wirely.runtime.enums import KNXProtocol
+from wirely.generated.enums import KNXProtocol
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 
 
@@ -90,7 +90,7 @@ class ValueReceiver(contracts.ValueReceiverInitializer):
         else:
             val = device.sensor_value.value
         # print(f'  got value: {val!r}', flush=True)
-        self.current_value = self.knx_type.from_knx(val)
+        self.current_value = self.knx_type.from_knx(val, self.services.native_types)
 
         self.services.trigger('state')
 
@@ -169,7 +169,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
                 # TODO: Somehow reset the state.expose value in this case?
                 value = None
             else:
-                value = state.knx_type.to_knx(input.value)
+                value = state.knx_type.to_knx(input.value, state.services.native_types)
 
             print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
 
@@ -236,7 +236,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
         else:
             val = device.sensor_value.value
         print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
-        value = self.knx_type.from_knx(val)
+        value = self.knx_type.from_knx(val, self.services.native_types)
 
         self.received_values.append(value)
         self.services.trigger('state')
@@ -310,7 +310,7 @@ class EventSender(contracts.EventSenderInitializer):
             if input is None:
                 return contracts.EventSenderSendValueResult()
             else:
-                value = state.knx_type.to_knx(input.value)
+                value = state.knx_type.to_knx(input.value, state.services.native_types)
 
             print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
 

@@ -10,7 +10,7 @@ import wirely.compiler
 from wirely.compiler import program as program_compiler
 from wirely.program import ResourceBinding
 from wirely.runtime.engine import Engine
-from wirely.test import test_native_bindings, test_contracts, test_engine
+from wirely.test import test_extension, test_contracts, test_engine
 
 
 checks = TestCase()
@@ -141,10 +141,10 @@ connect alias -> consumer.Service;
         registry['procedures']['TestLibrary.Consumer:run'] = Consumer.Run
 
         resource_types = {'TestLibrary.Service': Provider, 'TestLibrary.ConsumerState': Consumer}
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources=resource_types):
-            first = Engine(program)
-            second = Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources=resource_types, contracts=contracts)
+        first = Engine(program, override_extensions=[bindings, resource_bindings])
+        second = Engine(program, override_extensions=[bindings, resource_bindings])
     for runtime in (first, second):
         provider = runtime.get_native_state('provider')
         assert provider is runtime.get_native_state('alias')
@@ -225,9 +225,9 @@ connect source -> sink.Service;
                     return contracts.ConsumerRunResult(output=wirely.UInt8(7))
         registry['procedures']['TestLibrary.Consumer:run'] = Consumer.Run
 
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources={'TestLibrary.Service': Provider}):
-            engine = Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources={'TestLibrary.Service': Provider}, contracts=contracts)
+        engine = Engine(program, override_extensions=[bindings, resource_bindings])
     assert program.instances['source'].type_name == 'TestLibrary.Provider'
     assert program.instances['sink'].type_name is None
     assert set(program.native_types) == {'TestLibrary.Provider'}

@@ -12,6 +12,7 @@ from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter, ProcedureServices,
     StateServices,
 )
+from wirely.runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from wirely.runtime.resources import ResourceValue
 from wirely.runtime.signatures import Procedure as SignatureProcedure
 from wirely.types import InternalValue
@@ -20,7 +21,9 @@ from wirely.runtime.procedures import execute_procedure
 
 
 class Engine:
-    def __init__(self, program: Program) -> None:
+    def __init__(self, program: Program, *, extensions: Iterable[RuntimeNativeExtension] = (),
+                 override_extensions: Iterable[RuntimeNativeExtension] = (),
+                 include_builtin_extensions: bool = True) -> None:
         from .linking import (
             link_native_contracts, link_native_enums, link_native_functions,
             link_native_resource_types, link_native_signatures, link_native_structs,
@@ -29,6 +32,9 @@ class Engine:
         if not isinstance(program, Program):
             raise Exception('program parameter is not a Program')
 
+        extension = resolve_extensions(extensions, override_extensions=override_extensions,
+                                       include_builtin_extensions=include_builtin_extensions)
+        self.native_types = extension.native_types
         validate_program(program)
         self.program = program
 
@@ -63,12 +69,12 @@ class Engine:
         self.fake_monotonic_time_offset: Duration | None = None
         self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
-        link_native_enums(program)
-        link_native_structs(program)
-        link_native_signatures(program)
-        self.resource_types = link_native_resource_types(program)
-        linked_states, linked_procedures = link_native_contracts(program)
-        self.native_functions = link_native_functions(program)
+        link_native_enums(program, extension)
+        link_native_structs(program, extension)
+        link_native_signatures(program, extension)
+        self.resource_types = link_native_resource_types(program, extension)
+        linked_states, linked_procedures = link_native_contracts(program, extension)
+        self.native_functions = link_native_functions(program, extension)
         # Keys of the procedures depending on each resource, by (provider node ID, output).
         self._resource_triggers: dict[tuple[str, str], list[tuple]] = {}
         for schedule in program.procs.values():
@@ -85,6 +91,7 @@ class Engine:
                 assert instance.type_name is not None
                 linked = linked_states[instance.type_name]
                 interface = InterfaceBinding(
+                    native_types=self.native_types,
                     where=f'Native state type {instance.type_name!r} of {instance.name}',
                     signature=linked.signature,
                     use_types={key: constant.value_type for key, constant in instance.initializer_values.items()},
@@ -95,6 +102,7 @@ class Engine:
                                            in program.native_types[instance.type_name].resource_outputs.items()},
                 )
                 services: StateServices[Any] = StateServices(
+                    native_types=self.native_types,
                     name=instance.name, output_keys=linked.adapter.output_keys,
                     trigger=functools.partial(self.trigger_dependents, node_id),
                     shutdown_time=lambda: self.shutdown_time,
@@ -112,7 +120,7 @@ class Engine:
                     interface = self._procedure_binding(proc, linked_procedure.signature)
                     implementation = linked_procedure.factory()
                     linked_procedure.adapter.prepare(
-                        implementation, PreparationServices(name=proc.node_context.name), interface)
+                        implementation, PreparationServices(native_types=self.native_types, name=proc.node_context.name), interface)
                     self._native_procedures[id(proc)] = implementation, linked_procedure.adapter, interface
         for variable, value in program.initial_state.items():
             self.state.add(variable, value)
@@ -124,6 +132,7 @@ class Engine:
         port_types = {name: source.value_type for name, source in proc.dependencies}
         port_types.update((name, target.variable.var_type) for name, target in proc.outputs.items())
         return InterfaceBinding(
+            native_types=self.native_types,
             where=f'Native procedure {proc.reference!r} of {proc.node_context.name}', signature=signature,
             use_types={key: constant.value_type for key, constant in proc.values.items()},
             use_values={key: cast(InternalValue, constant.value) for key, constant in proc.values.items()},
@@ -256,7 +265,8 @@ class Engine:
                 self.triggered_procs.discard(key)
                 if proc.body is None:
                     implementation, adapter, binding = self._native_procedures[id(proc)]
-                    services = ProcedureServices(name=proc.node_context.name, stage_times=step_info._stage_times,
+                    services = ProcedureServices(name=proc.node_context.name, native_types=self.native_types,
+                                                 stage_times=step_info._stage_times,
                                                  trigger_self=functools.partial(self._trigger_key, key))
                     inputs = {name: value for (name, _), value in zip(proc.dependencies, values)}
                     outputs = adapter.run(implementation, services, binding, inputs)

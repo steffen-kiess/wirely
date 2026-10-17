@@ -3,14 +3,13 @@ import contextlib
 import dataclasses
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import patch
 
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 from wirely.runtime.engine import Engine
 from wirely.runtime.resources import ResourceValue
-from wirely.test import test_native_bindings, test_contracts
+from wirely.test import test_extension, test_contracts
 
 
 checks = TestCase()
@@ -109,9 +108,9 @@ def make_engine(graph):
     """Construct an Engine for a graph with this test's native node and resource types."""
     with test_contracts(graph) as contracts:
         registry, resource_types = native_classes(contracts)
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources=resource_types):
-            return Engine(program_compiler.compile_nocatch(graph))
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources=resource_types, contracts=contracts)
+        return Engine(program_compiler.compile_nocatch(graph), override_extensions=[bindings, resource_bindings])
 
 
 def compile_resources(source):
@@ -391,9 +390,9 @@ with test_contracts(alias_graph) as contracts:
                 return contracts.AliasCompositeReadResult()
     alias_registry['procedures']['TestLibrary.AliasComposite:read'] = AliasComposite.Read
 
-    with test_native_bindings(**alias_registry), \
-            test_native_bindings(resources={'TestLibrary.Service': Service}):
-        alias_resource_engine = Engine(alias_program)
+    bindings = test_extension(**alias_registry, contracts=contracts)
+    resource_bindings = test_extension(resources={'TestLibrary.Service': Service}, contracts=contracts)
+    alias_resource_engine = Engine(alias_program, override_extensions=[bindings, resource_bindings])
 holder = alias_resource_engine.get_native_state('holder')
 assert alias_resource_engine.get_native_state('holder.child').service is holder
 source_state = alias_resource_engine.get_native_state('composite.source')

@@ -5,7 +5,7 @@ import typing
 from collections.abc import Sequence
 
 import wirely
-from wirely.contracts import schedule as contracts
+from wirely.generated import schedule as contracts
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
 
@@ -89,7 +89,7 @@ class TimeOfDayMinute(contracts.TimeOfDayMinuteInitializer):
                 self.set_fake_time(None)
             else:
                 value = wirely.value_types.time_of_day.parse(parameters[1])
-                self.set_fake_time(value.extract(wirely.value_types.time_of_day))
+                self.set_fake_time(value.extract(wirely.value_types.time_of_day, native_types=self.services.native_types))
         elif cmd == 'get':
             if len(parameters) != 1:
                 raise Exception(f'Invalid number of parameter for command {cmd}')

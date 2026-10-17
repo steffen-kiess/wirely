@@ -56,6 +56,7 @@ python_only_tests = [
     'unit/compiler_warnings',
     'unit/native_interface',
     'unit/native_contracts',
+    'unit/native_extensions',
     'unit/instructions',
     'unit/test_resources',
     'unit/test_runner',
@@ -376,7 +377,9 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
         diagnostics.append(diagnostic)
         print_diagnostic(diagnostic)
 
-    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=report)
+    from test.fixtures.native_extension.generated import extension
+    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=report,
+                                                    extensions=[extension])
     prog = None if global_node_type is None else program_compiler.compile(global_node_type,
                                                                           on_diagnostic=report)
     if prog is None:
@@ -452,97 +455,90 @@ _test_contract_modules = itertools.count()
 
 @contextlib.contextmanager
 def test_contracts(graph: object) -> Iterator[types.ModuleType]:
-    """Register the signatures and contracts of a program's TestLibrary native interfaces.
-
-    Interfaces declared like in wirely/native/test_library.wrl keep their generated contracts.
-    Contracts of the others are generated into the returned module, which exists while the
-    context is active; implementations derive from its classes.
-    """
-    from unittest.mock import patch
+    """Generate test contracts locally without changing binding tables."""
     from wirely.compiler import native_contracts
     from wirely.compiler.native_signatures import native_signatures
-    from wirely.runtime import native_interfaces
+    from test.fixtures.native_extension.generated import extension
+    from test.fixtures.native_extension.generated import test_library
 
-    tables: tuple[dict[str, Any], ...] = (native_interfaces.native_state_types, native_interfaces.native_procedures,
-                                          native_interfaces.native_functions)
-    # Some tests supply graph stand-ins with the same interface.
     declared = native_signatures(cast(model.Scope, graph), 'TestLibrary')
+    tables: tuple[dict[str, Any], ...] = (
+        {name: entry.signature for name, entry in extension.states.items()},
+        {name: entry.signature for name, entry in extension.procedures.items()},
+        {name: entry.signature for name, entry in extension.functions.items()},
+    )
     generated = [{name: entry for name, entry in cast(Mapping[str, Any], entries).items() if table.get(name) != entry}
                  for table, entries in zip(tables, declared)]
     module = types.ModuleType(f'_wirely_test_contracts_{next(_test_contract_modules)}')
+    module.__dict__.update({name: value for name, value in vars(test_library).items() if not name.startswith('__')})
     interfaces = cast(native_contracts.Interfaces, tuple(generated))
     sources = native_contracts.contract_sources(
         interfaces, resource_classes=native_contracts.resource_classes(), strict=False)
-    with contextlib.ExitStack() as stack:
-        sys.modules[module.__name__] = module
-        stack.callback(sys.modules.pop, module.__name__, None)
+    sys.modules[module.__name__] = module
+    try:
         for source in sources.values():
             exec(compile(source, f'<{module.__name__}>', 'exec'), module.__dict__)
-        contracts = {}
-        for kind, table, entries in zip(('initializer', 'procedure', 'function'), tables, interfaces):
-            stack.enter_context(patch.dict(table, entries))
-            for name in cast(Mapping[str, Any], entries):
-                _, attribute = native_contracts.contract_location(kind, name)
-                contracts[name] = getattr(module, attribute)
-        stack.enter_context(patch.dict(_test_native_contracts, contracts))
+        module.interfaces = declared  # type: ignore[attr-defined]
         yield module
+    finally:
+        sys.modules.pop(module.__name__, None)
 
 
-_test_native_contracts: dict[str, Any] = {}
-
-
-@contextlib.contextmanager
-def test_native_bindings(*, initializers: Mapping[str, Any] = {}, procedures: Mapping[str, Any] = {},
-                         resources: Mapping[str, type] = {}, functions: Mapping[str, Any] = {},
-                         constant_functions: Mapping[str, Any] = {}) -> Iterator[None]:
-    """Temporarily supply explicit native implementations under their full native names."""
-    from unittest.mock import patch
-    from wirely.compiler import native_bindings as constants
-    from wirely.runtime import native_bindings
+def test_extension(*, contracts: types.ModuleType | None = None, initializers: Mapping[str, Any] = {},
+                   procedures: Mapping[str, Any] = {}, resources: Mapping[str, type] = {},
+                   functions: Mapping[str, Any] = {}) -> Any:
+    """Build explicit test bindings from contracts and implementations."""
+    from wirely.compiler.native_contracts import contract_location
+    from wirely.generated import extension
+    from wirely.runtime.extensions import NativeFunction, NativeInitializer, NativeProcedure, RuntimeNativeExtension
     from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
+    from test.fixtures.native_extension.generated import extension as fixture
 
-    def state(name: str, factory: Any) -> StateImplementation:
-        contract = _test_native_contracts.get(name, factory)
-        return StateImplementation(factory, contract._adapter)
+    tables: tuple[dict[str, Any], ...] = (
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.states.items()},
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.procedures.items()},
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.functions.items()},
+    )
+    if contracts is not None:
+        for table, entries in zip(tables, contracts.interfaces):
+            table.update(entries)
 
-    def procedure(name: str, factory: Any) -> ProcedureImplementation:
-        contract = _test_native_contracts.get(name, factory)
-        return ProcedureImplementation(factory, contract._adapter)
+    def load(kind: str, name: str, factory: Any) -> Any:
+        _, attribute = contract_location(kind, name)
+        contract = getattr(contracts, attribute, factory) if contracts is not None else factory
+        cls = StateImplementation if kind == 'initializer' else ProcedureImplementation
+        return lambda: cls(factory, contract._adapter)
 
     def loader(value: Any) -> Callable[[], Any]:
         return lambda: value
 
-    with contextlib.ExitStack() as stack:
-        stack.enter_context(patch.dict(native_bindings.states,
-                                       {name: loader(state(name, factory)) for name, factory in initializers.items()}))
-        stack.enter_context(patch.dict(native_bindings.procedures,
-                                       {name: loader(procedure(name, factory)) for name, factory in procedures.items()}))
-        stack.enter_context(patch.dict(native_bindings.resources,
-                                       {name: loader(cls) for name, cls in resources.items()}))
-        stack.enter_context(patch.dict(native_bindings.functions,
-                                       {name: loader(value) for name, value in functions.items()}))
-        stack.enter_context(patch.dict(constants.functions, constant_functions))
-        yield
+    return RuntimeNativeExtension(
+        states={name: NativeInitializer(tables[0][name], load('initializer', name, factory))
+                for name, factory in initializers.items()},
+        procedures={name: NativeProcedure(tables[1][name], load('procedure', name, factory))
+                    for name, factory in procedures.items()},
+        resources={name: loader(cls) for name, cls in resources.items()},
+        functions={name: NativeFunction(tables[2][name], loader(value))
+                   for name, value in functions.items()},
+    )
 
 
-def test_constant_function(native_name: str, implementation: Callable[..., object]) -> Any:
-    """Return a loader for a constant function that only tests declare.
-
-    The implementation receives native arguments positionally and services as a keyword
-    argument; supply it with test_native_bindings(constant_functions=...).
-    """
+def test_constant_function(native_name: str, implementation: Callable[..., object], signature: Any) -> Any:
+    """Build a constant function entry with an explicit signature."""
+    from wirely.compiler.extensions import NativeConstantFunction
     from wirely.compiler.native_functions import ConstantFunctionContract, ConstantFunctionImplementation
 
     def call(implementation: Callable[..., object], arguments: Sequence[object], services: object) -> object:
         return implementation(*arguments, services=services)
 
-    return lambda: ConstantFunctionImplementation(implementation, ConstantFunctionContract(native_name, call))
+    return NativeConstantFunction(signature, lambda: ConstantFunctionImplementation(
+        implementation, ConstantFunctionContract(native_name, call)))
 
 
-def test_engine(program: Program, graph: object = None) -> Engine:
-    """Create an Engine for a program whose TestLibrary native code is declared in graph or program.graph."""
-    with test_contracts(program.graph if graph is None else graph):
-        return Engine(program)
+def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine:
+    """Create an engine using the test fixture extension."""
+    from test.fixtures.native_extension.generated import extension
+    return Engine(program, extensions=[extension], **kwargs)
 
 
 def compile_test(fn: str) -> None:
@@ -553,8 +549,7 @@ def compile_test(fn: str) -> None:
     with open(os.devnull, 'w') as file:
         prog.dump(file=file)
 
-    with test_contracts(prog.graph):
-        eng = Engine(prog)
+    eng = test_engine(prog)
 
     print(f'Compiling {fn} done')
 
@@ -814,8 +809,7 @@ async def run_runtime_test(test_name: str) -> None:
             print('Test requires KNX')
 
         async with with_maybe_knxd(resources.knx_path), with_maybe_mqtt(resources.mqtt_socket_path), with_maybe_twon(resources.twon_server) as twon_info:
-            with test_contracts(prog.graph):
-                eng = Engine(prog)
+            eng = test_engine(prog)
 
             # TODO: Pass this information differently?
             eng.test_twon_fake_server_info = twon_info

@@ -6,9 +6,9 @@ from typing import Any, Literal
 
 import wirely
 from wirely import Int32, Some, UInt16
-from wirely.contracts import two_n as contracts
+from wirely.generated import two_n as contracts
 from wirely.runtime.native_api import ProcedureServices, StateServices
-from wirely.runtime.structs import TwoNCredentials
+from wirely.generated.structs import TwoNCredentials
 
 
 class Connection(contracts.ConnectionInitializer):

@@ -1,6 +1,6 @@
 """Base classes and services of typed native implementations.
 
-The generated contract modules in wirely.contracts derive their classes
+The generated contract modules in wirely.generated derive their classes
 from these; their adapters convert between the runtime and implementations.
 """
 
@@ -18,6 +18,7 @@ from ..program import RunStage
 from ..types import InternalValue, Type
 from ..types.time import MonotonicTime
 from . import signatures
+from .extensions import NativeTypes
 from .native_values import from_native, to_native
 from .resources import ResourceType, ResourceValue
 from .time_snapshot import TimeSnapshot
@@ -32,10 +33,11 @@ F = TypeVar('F', bound=Callable[..., object])
 class StateServices(Generic[K]):
     """Runtime operations available to a native state for its lifetime."""
 
-    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time')
+    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time', 'native_types')
 
     def __init__(self, *, name: str, output_keys: Mapping[str, str], trigger: Callable[[str], None],
-                 shutdown_time: Callable[[], datetime.datetime | None]) -> None:
+                 shutdown_time: Callable[[], datetime.datetime | None], native_types: NativeTypes) -> None:
+        self.native_types = native_types
         self._name = name
         self._output_keys = output_keys  # Binding keys by Python name.
         self._trigger = trigger
@@ -66,16 +68,18 @@ class StateServices(Generic[K]):
 class PreparationServices:
     """Information available while a native procedure is prepared."""
 
+    native_types: NativeTypes
     name: str  # Name of the procedure's node, as for StateServices.
 
 
 class ProcedureServices:
     """Runtime operations available during one invocation of a native procedure."""
 
-    __slots__ = ('_name', '_stage_times', '_trigger_self', '_wakeup_time', '_wakeup_time_set')
+    __slots__ = ('_name', '_stage_times', '_trigger_self', '_wakeup_time', '_wakeup_time_set', 'native_types')
 
     def __init__(self, *, name: str, stage_times: Mapping[RunStage, TimeSnapshot],
-                 trigger_self: Callable[[], None]) -> None:
+                 trigger_self: Callable[[], None], native_types: NativeTypes) -> None:
+        self.native_types = native_types
         self._name = name
         self._stage_times = stage_times
         self._trigger_self = trigger_self
@@ -158,6 +162,7 @@ class NativeProcedure:
 class InterfaceBinding:
     """The resolved interface of one native initializer or procedure of one node."""
 
+    native_types: NativeTypes
     where: str  # Describes the interface and node in errors.
     signature: signatures.Initializer | signatures.Procedure
     use_types: Mapping[str, Type]
@@ -174,7 +179,7 @@ class InterfaceBinding:
     def use(self, key: str) -> object:
         """Return a static value in native representation."""
         try:
-            return to_native(self.signature.uses[key], self.use_types[key], self.use_values[key])
+            return to_native(self.signature.uses[key], self.use_types[key], self.use_values[key], native_types=self.native_types)
         except ValueError as error:
             raise ValueError(f'{self.where}: invalid uses binding {key!r}: {error}') from error
 
@@ -184,14 +189,14 @@ class InterfaceBinding:
     def input(self, inputs: Mapping[str, InternalValue], key: str) -> object:
         """Return an input value in native representation."""
         try:
-            return to_native(self._port_signature(key), self.port_types[key], inputs[key])
+            return to_native(self._port_signature(key), self.port_types[key], inputs[key], native_types=self.native_types)
         except ValueError as error:
             raise ValueError(f'{self.where}: invalid input {key!r}: {error}') from error
 
     def output(self, key: str, value: object) -> InternalValue:
         """Return the internal value of an output that an implementation returned."""
         try:
-            return from_native(self._port_signature(key), self.port_types[key], value)
+            return from_native(self._port_signature(key), self.port_types[key], value, native_types=self.native_types)
         except ValueError as error:
             raise ValueError(f'{self.where}: invalid value for output {key!r}: {error}') from error
 
@@ -241,16 +246,17 @@ class ProcedureAdapter(abc.ABC):
 class FunctionBinding:
     """The resolved signature of one runtime native function in a program."""
 
+    native_types: NativeTypes
     name: str  # Native name.
     parameter_types: tuple[Type, ...]
     return_type: Type
 
     def argument(self, arguments: Sequence[InternalValue], index: int) -> object:
-        return to_native(None, self.parameter_types[index], arguments[index])
+        return to_native(None, self.parameter_types[index], arguments[index], native_types=self.native_types)
 
     def result(self, value: object) -> InternalValue:
         try:
-            return from_native(None, self.return_type, value)
+            return from_native(None, self.return_type, value, native_types=self.native_types)
         except ValueError as error:
             raise ValueError(f'Native function {self.name!r} returned an invalid value: {error}') from error
 

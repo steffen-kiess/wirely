@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 
 from . import model
+from ..runtime.extensions import NativeTypes
 
 if TYPE_CHECKING:
     from .diagnostics import WarningSink
@@ -19,10 +20,11 @@ F = TypeVar('F', bound=Callable[..., object])
 class FunctionServices:
     """Compilation services for one call of a constant native function."""
 
-    __slots__ = ('_function_name', '_services', '_call', '_arguments', '_warnings')
+    __slots__ = ('_function_name', '_services', '_call', '_arguments', '_warnings', 'native_types')
 
     def __init__(self, *, function_name: str, services: Mapping[str, object], call: model.ast.SourceElement,
-                 arguments: Sequence[object], warnings: WarningSink) -> None:
+                 arguments: Sequence[object], warnings: WarningSink, native_types: NativeTypes) -> None:
+        self.native_types = native_types
         self._function_name = function_name
         self._services = services
         self._call = call
@@ -157,22 +159,18 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
     visit(declarations, ())
 
 
-def get_constant_function(native_name: str) -> ConstantFunctionImplementation:
-    """Load the generated binding of a constant function."""
-    from .native_bindings import functions
-    loader = functions.get(native_name)
-    if loader is None:
-        raise ValueError(f'Cannot find native function {native_name!r}')
-    return loader()
-
-
 def resolve_implementation(function: model.DeclarationNativeFunction,
                            call: model.ast.SourceElement) -> ConstantFunctionImplementation:
     # Declaration objects belong to one compilation, so this cache cannot leak.
     if hasattr(function, '_resolved_implementation'):
         return function._resolved_implementation
     try:
-        binding = get_constant_function(function.native_name)
+        entry = function.scope.coordinator.global_node_type.compiler_native_extension.functions.get(function.native_name)
+        if entry is None:
+            raise ValueError(f'Cannot find native function {function.native_name!r}')
+        from ..runtime.signatures import validate_function
+        validate_function(function.native_name, entry.signature, function.parameter_types, function.return_type)
+        binding = entry.load()
     except (ImportError, TypeError, ValueError) as error:
         raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
     function._resolved_implementation = binding
@@ -183,17 +181,18 @@ def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], 
            call: model.ast.SourceElement) -> object:
     from wirely.runtime.native_values import from_native, to_native
 
+    native_types = function.scope.coordinator.global_node_type.native_extension.native_types
     binding = resolve_implementation(function, call)
     name = function.function_name
     try:
-        arguments = [to_native(None, value_type, value)  # type: ignore[arg-type]  # Values are internal.
+        arguments = [to_native(None, value_type, value, native_types=native_types)  # type: ignore[arg-type]  # Values are internal.
                      for value_type, value in zip(function.parameter_types, values)]
     except ValueError as error:
         raise model.ProgramError(call, f'Cannot pass the arguments of function {name!r}: {error}') from error
     warnings = function.scope.coordinator.warnings
     assert warnings is not None
     services = FunctionServices(function_name=function.native_name, services=function.scope.services, call=call,
-                                arguments=sources, warnings=warnings)
+                                arguments=sources, warnings=warnings, native_types=native_types)
     try:
         result = binding.contract.call(binding.implementation, arguments, services)
     except model.ProgramError:
@@ -201,7 +200,7 @@ def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], 
     except (ValueError, ArithmeticError, OSError) as error:
         raise model.ProgramError(call, str(error)) from error
     try:
-        return from_native(None, function.return_type, result)
+        return from_native(None, function.return_type, result, native_types=native_types)
     except ValueError as error:
         raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: '
                                  f'{error}') from error
@@ -215,7 +214,8 @@ def invoke_runtime_function(function: model.DeclarationNativeFunction, values: S
     if not hasattr(function, '_runtime_implementation'):
         try:
             function._runtime_implementation = bind_native_function(
-                function.native_name, function.parameter_types, function.return_type)
+                function.native_name, function.parameter_types, function.return_type,
+                extension=function.scope.coordinator.global_node_type.native_extension)
         except (ImportError, ValueError) as error:
             raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
     try:

@@ -45,7 +45,7 @@ Its Python implementation is:
 from typing import Any
 
 from wirely import DynamicValue, Some, ValueType
-from wirely.contracts import std as contracts
+from wirely.generated import std as contracts
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
 
 
@@ -67,15 +67,13 @@ class DebugEventPrinter:
 
 Each native initializer, procedure, and function implements a contract
 generated from its declaration. The contracts of a namespace are in a
-module of `wirely.contracts` named in snake case, such as
-`wirely.contracts.two_n` for `TwoN`; those of
-[constant functions](#constant-functions) are in `wirely.compiler.contracts`:
+module of `wirely.generated` named in snake case, such as
+`wirely.generated.two_n` for `TwoN`:
 
 | Declaration | Contract | Result class |
 | --- | --- | --- |
 | Initializer of `KNX.Connection` | `ConnectionInitializer` | `ConnectionInitializerResult` |
 | Procedure `MQTT.EventSender:send_value` | `EventSenderSendValue` | `EventSenderSendValueResult` |
-| Function `Duration.CheckedAdd` | `CheckedAdd` | None |
 
 Contract methods take keyword arguments named after the keys of `depends
 on`, `produces`, and `uses`, in snake case: `ChipDeviceFile` becomes
@@ -89,12 +87,63 @@ Mypy checks method signatures and the generated factories’ calls to
 constructors. The runtime checks the compiled
 program's interfaces and values against the installed contracts.
 
-`tools/generate-native-types` reads the standard library and
-[`wirely/native/test_library.wrl`](../wirely/native/test_library.wrl).
-Tests declaring other `TestLibrary` interfaces use
-`wirely.test.test_contracts(graph)` and supply explicit factories and
-resource classes with `wirely.test.test_native_bindings()`. Constant
-function overrides use `wirely.test.test_constant_function()`.
+## Extensions
+
+Pass runtime extensions to both compilation and execution, and constant
+function extensions to compilation:
+
+```python
+from acme.generated import extension
+from acme.compiler.generated import extension as compiler_extension
+from wirely.compiler import compile_files
+from wirely.compiler.program import compile_nocatch
+from wirely.runtime.engine import Engine
+
+
+graph = compile_files(['library.wrl', 'program.wrl'], extensions=[extension],
+                      compiler_extensions=[compiler_extension])
+assert graph is not None
+engine = Engine(compile_nocatch(graph), extensions=[extension])
+```
+
+`RuntimeNativeExtension` in `wirely.runtime.extensions` contains `states`,
+`procedures`, `functions`, `resources`, `enums`, and `structs`, keyed by
+native name. `NativeInitializer`, `NativeProcedure`, and `NativeFunction`
+entries bundle a signature with a lazy implementation loader. Resource
+entries load Python classes; enum and struct entries use `NativeEnum` and
+`NativeStruct` from `wirely.types.value_types`.
+`CompilerNativeExtension` in `wirely.compiler.extensions` contains only
+`functions`: `NativeConstantFunction` entries with signatures and loaders.
+All enum and struct classes belong to the runtime extension, including
+parameter-only types. Extension mappings are copied and read-only.
+
+Built-in extensions are included automatically. Set
+`include_builtin_extensions=False` to supply all bindings yourself;
+this is independent of `add_std`, which includes Wirely source declarations.
+Duplicate native names within a category are rejected. For replacements,
+pass `override_extensions` and, when compiling,
+`compiler_override_extensions`. Each override replaces a whole entry,
+including its signature; duplicate override names are also rejected.
+Bindings are local to each compilation or engine.
+
+Generate an external package from its declarations:
+
+```sh
+tools/generate-native-types library.wrl --package acme --output-root src
+```
+
+Use `acme.native`, `acme.functions`, and
+`acme.compiler.function_implementations` for implementations, following the
+same naming conventions as Wirely's built-ins. The command writes
+`acme.generated` and `acme.compiler.generated`; standard-library
+dependencies keep their built-in Python classes. Add `--check` to check
+for out-of-date generated files.
+
+The generated public API consists of each package's `extension`, runtime
+initializer/procedure contracts and result classes, and native enum/struct
+classes. Function typing contracts, adapters, loaders, and tables are
+private. Tests use the same extension arguments to provide their own
+implementations and overrides.
 
 ## Inputs, outputs, and state
 
@@ -199,9 +248,9 @@ Ports, static values, and function arguments and results of enum or struct
 types require `native` enums and structs. Code written for them relies on
 their numbers or fields, which are their contract with native code;
 member and field names are not part of it.
-[`wirely/runtime/enums.py`](../wirely/runtime/enums.py) has an
+[`wirely/generated/enums.py`](../wirely/generated/enums.py) has an
 `IntEnum` for each native enum, and
-[`wirely/runtime/structs.py`](../wirely/runtime/structs.py) a `NamedTuple`
+[`wirely/generated/structs.py`](../wirely/generated/structs.py) a `NamedTuple`
 for each native struct, both generated by `tools/generate-native-types`
 and named after the native name, such as `KNXProtocol` for
 `KNX.Protocol`. An open enum may carry numbers the runtime does not know,
@@ -215,11 +264,9 @@ Before running a program, the runtime checks the native interfaces it uses:
 - Each native struct must have the same field types in the same order.
 - Each native initializer, procedure, and runtime function must have the
   stage, keys of inputs, outputs, and `uses`, resource types, and value
-  types its generated description in
-  [`wirely/runtime/native_interfaces.py`](../wirely/runtime/native_interfaces.py)
-  lists. Each type variable is replaced by the type its `uses` binding
-  passes, and each description passes every type parameter its ports use
-  through its own `uses`. An event port and a value port of `Option[T]`
+  types its selected extension entry declares. Each type variable is replaced
+  by the type its `uses` binding passes. Each description passes every type
+  parameter its ports use through its own `uses`. An event port and a value port of `Option[T]`
   are not told apart.
 
 Run `tools/generate-native-types` after changing any native declaration.
@@ -235,23 +282,31 @@ and values are equal.
 - `json_encode(format=None)` returns a JSON-compatible Python value,
   without serializing JSON text.
 - `to_csv_value()` returns `(text, needs_quotes)`.
-- `extract(value_type)` returns the value's Python representation if its
-  type is `value_type`.
-- `to_native()` returns the Python representation of any type that has one.
+- `extract(value_type, native_types=context)` returns the Python representation
+  if the value has type `value_type`.
+- `to_native(native_types=context)` returns the Python representation
+  of any type that has one.
 
 `wirely.ValueType` is immutable and supports equality, hashing, and `str()`
 with Wirely type names. Built-in descriptors are in `wirely.types.value_types`,
 using Python names: `unit`, `boolean`, `int8` through `int128`, `uint8` through
 `uint128`, `string`, `duration`, `time_of_day`, `monotonic_time`,
 and `value_type`. `option(inner)` and `list_of(inner)` describe options and
-lists. These descriptors are typed, so `extract(wirely.value_types.uint8)`
-returns a `wirely.UInt8`.
+lists. These descriptors are typed, so extracting a `uint8` returns
+a `wirely.UInt8`.
 
-- `from_native(value)` returns the dynamic value of a Python representation.
+- `from_native(value, native_types=context)` returns the dynamic value
+  of a Python representation.
 - `parse(text)` parses text.
 - `json_decode(value, format=None)` converts a JSON-compatible Python value.
 - `supports_json` and `supports_csv` indicate support for JSON and CSV
   conversion.
+
+Native conversions require a `NativeTypes` context: use
+`services.native_types` inside native implementations or
+`engine.native_types` when calling from Python. Contexts select native enum
+and struct classes. Values and descriptors carry no context; text and JSON
+conversion, equality, and hashing need none.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
 descriptors are available through static bindings. Each compiled program

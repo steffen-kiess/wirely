@@ -9,7 +9,7 @@ from typing import Any
 
 import wirely
 from wirely import DynamicValue, MonotonicTime, Some, ValueType
-from wirely.contracts import csv as contracts
+from wirely.generated import csv as contracts
 from wirely.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 

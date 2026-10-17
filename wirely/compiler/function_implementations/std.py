@@ -4,7 +4,7 @@ from typing import Any
 
 import wirely
 from wirely import ValueType
-from wirely.runtime.structs import StdFormatParts
+from wirely.generated.structs import StdFormatParts
 
 from ..native_functions import FunctionServices
 

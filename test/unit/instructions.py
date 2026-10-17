@@ -1,20 +1,16 @@
 import io
 from unittest import TestCase
-from unittest.mock import patch
 
 import wirely
 from wirely import types
-from wirely.contracts import test_library as contracts
-from wirely.test import test_native_bindings
+from test.fixtures.native_extension.generated import test_library as contracts
+from wirely.test import test_extension
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
     RunStage, Variable, VariableTable, validate_program,
 )
-from wirely.compiler.native_signatures import signature_type
-from wirely.runtime import native_interfaces
 from wirely.runtime.engine import Engine
-from wirely.runtime.signatures import Function as FunctionSignature
 from wirely.runtime.procedures import execute_procedure
 
 
@@ -60,15 +56,10 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
     )
 
 
-def execute(instructions, **kwargs):
+def execute(instructions, *, override_extensions=(), **kwargs):
     program = make_program(instructions, **kwargs)
-    # These tests check instructions; describe functions without generated interfaces as they are called.
-    signatures = {function.name: FunctionSignature(
-        [signature_type(value_type, {}, function.name) for value_type in function.parameter_types],
-        signature_type(function.return_type, {}, function.name)) for function in program.functions
-        if function.name not in native_interfaces.native_functions}
-    with patch.dict(native_interfaces.native_functions, signatures):
-        machine = Engine(program)
+    from test.fixtures.native_extension.generated import extension as fixture
+    machine = Engine(program, extensions=[fixture], override_extensions=override_extensions)
     machine.step()
     return tuple(machine.get_value(name) for name in program.variables)
 
@@ -173,19 +164,19 @@ def check_calls():
     def no_values():
         return types.Unit()
 
-    with test_native_bindings(functions={'TestLibrary.Clamp': contracts.Clamp.implementation(clamp_values),
-                                        'TestLibrary.Nothing': contracts.Nothing.implementation(no_values)}):
-        outcome = execute([
-            instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
-            instruction(Opcode.CALL, output(1), 1, 0),
-            instruction(Opcode.RETURN),
-        ], output_types=(types.int16, types.unit), functions=(clamp, nothing),
-           constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)))
+    bindings = test_extension(functions={'TestLibrary.Clamp': contracts._Clamp.implementation(clamp_values),
+                                            'TestLibrary.Nothing': contracts._Nothing.implementation(no_values)})
+    outcome = execute([
+        instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
+        instruction(Opcode.CALL, output(1), 1, 0),
+        instruction(Opcode.RETURN),
+    ], output_types=(types.int16, types.unit), functions=(clamp, nothing),
+       constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)), override_extensions=[bindings])
     assert outcome == (100, types.Unit())
 
     # Linking requires an implementation for every table entry.
     missing = Function('TestLibrary.Missing', (), types.boolean)
-    with checks.assertRaisesRegex(ValueError, "Cannot find native function 'TestLibrary.Missing'"):
+    with checks.assertRaisesRegex(ValueError, "Cannot find the signature of native function 'TestLibrary.Missing'"):
         execute([instruction(Opcode.RETURN)], functions=(missing,))
 
     # Implementations must not fail; an exception propagates.

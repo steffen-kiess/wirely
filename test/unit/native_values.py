@@ -1,17 +1,18 @@
 from typing import NamedTuple
 from unittest import TestCase
-from unittest.mock import patch
 
+from wirely.runtime.extensions import RuntimeNativeExtension
+from wirely.compiler.extensions import CompilerNativeExtension
+from wirely.generated import extension as builtin_extension
+from wirely.runtime.extensions import NativeTypes
+from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler import native_bindings as test_library
 from wirely.runtime.engine import Engine
-from wirely.test import test_native_bindings, test_constant_function, test_contracts
+from wirely.test import test_extension, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
-import wirely.runtime.enums
-import wirely.runtime.structs
 
 
 checks = TestCase()
@@ -144,22 +145,21 @@ connect provider -> second.Connection;
 
     enums = {'TestLibrary.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     structs = {'TestLibrary.Pair': NativeStruct(Pair, (Builtin('boolean'),))}
-    with patch.dict(test_library.functions,
-                    {'TestLibrary.Identity': test_constant_function('TestLibrary.Identity', identity)}), \
-            patch.dict(wirely.runtime.enums.native_enum_types, enums), \
-            patch.dict(wirely.runtime.structs.native_struct_types, structs):
-        graph = compile_strs([('<values>', source)])
-        assert graph is not None
-        program = program_compiler.compile_nocatch(graph)
-        with test_contracts(graph) as contracts:
-            registry, resource_types = value_classes(contracts)
-            with test_native_bindings(**registry), \
-                    test_native_bindings(resources=resource_types):
-                runtime = Engine(program)
-        runtime.step()
-        runtime.assert_value_is('first.Result', 7)
-        runtime.assert_value_is('second.Result', 8)
-        runtime.assert_is_idle()
+    compiler_bindings = CompilerNativeExtension(functions={'TestLibrary.Identity': test_constant_function('TestLibrary.Identity', identity, FunctionSignature((Int(16, False),), Int(16, False)))})
+    enum_bindings = RuntimeNativeExtension(enums=enums)
+    struct_bindings = RuntimeNativeExtension(structs=structs)
+    graph = compile_strs([('<values>', source)], override_extensions=[enum_bindings, struct_bindings], compiler_override_extensions=[compiler_bindings])
+    assert graph is not None
+    program = program_compiler.compile_nocatch(graph)
+    with test_contracts(graph) as contracts:
+        registry, resource_types = value_classes(contracts)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources=resource_types, contracts=contracts)
+        runtime = Engine(program, override_extensions=[enum_bindings, struct_bindings, bindings, resource_bindings])
+    runtime.step()
+    runtime.assert_value_is('first.Result', 7)
+    runtime.assert_value_is('second.Result', 8)
+    runtime.assert_is_idle()
 
 
 def check_optional_values():
@@ -198,8 +198,8 @@ def check_optional_values():
                     return contracts.OptionalProbeInitializerResult()
             registry['initializers']['TestLibrary.OptionalProbe'] = OptionalProbe
 
-            with test_native_bindings(**registry):
-                runtime = Engine(program)
+            bindings = test_extension(**registry, contracts=contracts)
+            runtime = Engine(program, override_extensions=[bindings])
         values = runtime.get_native_state('forward.child').values
         assert values['Maybe'] == expected
         assert values[''] == expected
@@ -210,13 +210,12 @@ def check_optional_values():
 def check_type_member_collision():
     # A namespace function named like a type member is ambiguous at the call.
     diagnostics = []
-    with patch.dict(test_library.functions,
-                    {'TestLibrary.WrappingAdd': test_constant_function('TestLibrary.WrappingAdd', identity)}):
-        graph = compile_strs([('<collision>', '''namespace int16 {
+    compiler_bindings = CompilerNativeExtension(functions={'TestLibrary.WrappingAdd': test_constant_function('TestLibrary.WrappingAdd', identity, FunctionSignature((Int(16, True), Int(16, True)), Int(16, True)))})
+    graph = compile_strs([('<collision>', '''namespace int16 {
       native constant function WrappingAdd as "TestLibrary.WrappingAdd"(a: int16, b: int16): int16;
     }
     constant Value: int16 = int16.WrappingAdd(1, 2);
-    ''')], on_diagnostic=diagnostics.append)
+    ''')], on_diagnostic=diagnostics.append, compiler_override_extensions=[compiler_bindings])
     assert graph is None
     assert any('int16.WrappingAdd is both a type member and a function' in diagnostic.message
                for diagnostic in diagnostics), diagnostics
@@ -228,7 +227,7 @@ def check_unknown_native_enum_values():
     from wirely.native.gpio import _setting
     from wirely.native.knx import _protocol_name
     from wirely.native.mqtt import _json_format
-    from wirely.runtime.enums import GPIOBias, KNXProtocol, MQTTFormat
+    from wirely.generated.enums import GPIOBias, KNXProtocol, MQTTFormat
 
     assert _protocol_name(wirely.Some(KNXProtocol(1))) == 'TCP' and _protocol_name(None) is None
     assert _json_format(wirely.Some(MQTTFormat(2))) == 'SnakeCase'
@@ -265,61 +264,60 @@ def check_native_conversions():
 
     enums = {'Test.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     structs = {'Test.Pair': NativeStruct(Pair, (Builtin('boolean'), signatures.Int(8, False)))}
-    with patch.dict(wirely.runtime.enums.native_enum_types, enums), \
-            patch.dict(wirely.runtime.structs.native_struct_types, structs):
-        mode = types.TypeEnum('Mode', {'On': 1}, is_open=True, underlying_type=types.uint8, native_name='Test.Mode')
-        pair = types.TypeStruct('Pair', {'flag': types.boolean, 'count': types.uint8}, native_name='Test.Pair')
-        concrete = [
-            (types.int16, -3, wirely.Int16(-3)),
-            (types.boolean, True, True),
-            (types.String, 'text', 'text'),
-            (types.unit, wirely.Unit(), wirely.Unit()),
-            (types.Duration, wirely.Duration(ticks=5), wirely.Duration(ticks=5)),
-            (types.ValueType, types.uint8, wirely.value_types.uint8),
-            (mode, 1, Mode.On),
-            (pair, (True, 7), Pair(True, wirely.UInt8(7))),
-            (types.TypeList(types.TypeOption(types.TypeOption(types.uint8))), (None, wirely.Some(None), wirely.Some(wirely.Some(2))),
-             (None, wirely.Some(None), wirely.Some(wirely.Some(wirely.UInt8(2))))),
-        ]
-        for value_type, internal, native in concrete:
-            converted = to_native(None, value_type, internal)
-            assert converted == native and type(converted) is type(native), (value_type, converted)
-            assert from_native(None, value_type, native) == internal
-        # Open enums keep numbers the runtime does not name.
-        unknown = to_native(None, mode, 9)
-        assert type(unknown) is Mode and unknown.name is None and from_native(None, mode, unknown) == 9
+    native_types = NativeTypes(enums=enums, structs=structs)
+    mode = types.TypeEnum('Mode', {'On': 1}, is_open=True, underlying_type=types.uint8, native_name='Test.Mode')
+    pair = types.TypeStruct('Pair', {'flag': types.boolean, 'count': types.uint8}, native_name='Test.Pair')
+    concrete = [
+        (types.int16, -3, wirely.Int16(-3)),
+        (types.boolean, True, True),
+        (types.String, 'text', 'text'),
+        (types.unit, wirely.Unit(), wirely.Unit()),
+        (types.Duration, wirely.Duration(ticks=5), wirely.Duration(ticks=5)),
+        (types.ValueType, types.uint8, wirely.value_types.uint8),
+        (mode, 1, Mode.On),
+        (pair, (True, 7), Pair(True, wirely.UInt8(7))),
+        (types.TypeList(types.TypeOption(types.TypeOption(types.uint8))), (None, wirely.Some(None), wirely.Some(wirely.Some(2))),
+         (None, wirely.Some(None), wirely.Some(wirely.Some(wirely.UInt8(2))))),
+    ]
+    for value_type, internal, native in concrete:
+        converted = to_native(None, value_type, internal, native_types=native_types)
+        assert converted == native and type(converted) is type(native), (value_type, converted)
+        assert from_native(None, value_type, native, native_types=native_types) == internal
+    # Open enums keep numbers the runtime does not name.
+    unknown = to_native(None, mode, 9, native_types=native_types)
+    assert type(unknown) is Mode and unknown.name is None and from_native(None, mode, unknown, native_types=native_types) == 9
 
-        # A type variable inside an option becomes a DynamicValue of the bound type.
-        option = types.TypeOption(types.TypeOption(types.uint16))
-        signature = signatures.Option(signatures.TypeVar('Type'))
-        native = to_native(signature, option, wirely.Some(wirely.Some(4)))
-        bound = wirely.value_types.option(wirely.value_types.uint16)
-        assert native == wirely.Some(bound.from_native(wirely.Some(wirely.UInt16(4))))
-        assert from_native(signature, option, native) == wirely.Some(wirely.Some(4))
-        assert to_native(signature, option, wirely.Some(None)) == wirely.Some(bound.from_native(None))
-        assert to_native(signature, option, None) is None
+    # A type variable inside an option becomes a DynamicValue of the bound type.
+    option = types.TypeOption(types.TypeOption(types.uint16))
+    signature = signatures.Option(signatures.TypeVar('Type'))
+    native = to_native(signature, option, wirely.Some(wirely.Some(4)), native_types=native_types)
+    bound = wirely.value_types.option(wirely.value_types.uint16)
+    assert native == wirely.Some(bound.from_native(wirely.Some(wirely.UInt16(4)), native_types=native_types))
+    assert from_native(signature, option, native, native_types=native_types) == wirely.Some(wirely.Some(4))
+    assert to_native(signature, option, wirely.Some(None), native_types=native_types) == wirely.Some(bound.from_native(None, native_types=native_types))
+    assert to_native(signature, option, None, native_types=native_types) is None
 
-        for signature, value_type, value, message in [
-            (signature, option, wirely.Some(wirely.value_types.uint16.from_native(wirely.UInt16(4))),
-             'in option: Expected a DynamicValue of Option\\[uint16\\], got one of uint16'),
-            (signature, option, wirely.Some(wirely.Some(wirely.UInt16(4))), 'in option: Expected a DynamicValue'),
-            (None, pair, Pair(True, 7), "in field 'count': Expected a wirely.UInt8 for uint8, got 7"),
-            (None, pair, (True, wirely.UInt8(7)), 'Expected a Pair for Pair'),
-            (None, mode, 1, 'Expected a Mode for Mode'),
-            (None, types.TypeList(types.boolean), [True], 'Expected a tuple'),
-            (None, types.TypeList(types.boolean), (True, 1), 'in item 1: Expected a value of boolean'),
-            (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for uint8'),
-            (None, types.uint8, True, 'Expected a wirely.UInt8 for uint8'),
-            (None, types.TypeOption(types.boolean), True, 'Expected None or wirely.Some'),
-            (None, types.ValueType, types.uint8, 'Expected a wirely.ValueType'),
-        ]:
-            with checks.assertRaisesRegex(ValueError, message):
-                from_native(signature, value_type, value)
+    for signature, value_type, value, message in [
+        (signature, option, wirely.Some(wirely.value_types.uint16.from_native(wirely.UInt16(4), native_types=native_types)),
+         'in option: Expected a DynamicValue of Option\\[uint16\\], got one of uint16'),
+        (signature, option, wirely.Some(wirely.Some(wirely.UInt16(4))), 'in option: Expected a DynamicValue'),
+        (None, pair, Pair(True, 7), "in field 'count': Expected a wirely.UInt8 for uint8, got 7"),
+        (None, pair, (True, wirely.UInt8(7)), 'Expected a Pair for Pair'),
+        (None, mode, 1, 'Expected a Mode for Mode'),
+        (None, types.TypeList(types.boolean), [True], 'Expected a tuple'),
+        (None, types.TypeList(types.boolean), (True, 1), 'in item 1: Expected a value of boolean'),
+        (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for uint8'),
+        (None, types.uint8, True, 'Expected a wirely.UInt8 for uint8'),
+        (None, types.TypeOption(types.boolean), True, 'Expected None or wirely.Some'),
+        (None, types.ValueType, types.uint8, 'Expected a wirely.ValueType'),
+    ]:
+        with checks.assertRaisesRegex(ValueError, message):
+            from_native(signature, value_type, value, native_types=native_types)
 
     # Without their Python types, native enums and structs cannot be converted.
     for value_type, value in ((mode, 1), (pair, (True, 7))):
         with checks.assertRaisesRegex(ValueError, 'has no native representation'):
-            to_native(None, value_type, value)
+            to_native(None, value_type, value, native_types=builtin_extension.native_types)
 
 
 check_fixture()

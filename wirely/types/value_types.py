@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import enum
 from dataclasses import dataclass
-from typing import Any, Generic, NoReturn, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast
 
 from .. import types as _types
 from .integers import Int8, Int16, Int32, Int64, Int128, UInt8, UInt16, UInt32, UInt64, UInt128
 from .option import Some
 from .time import Duration, MonotonicTime, TimeOfDay
 from .unit import Unit
+
+if TYPE_CHECKING:
+    from ..runtime.extensions import NativeTypes
 
 N = TypeVar('N')  # Native representation of a ValueType's values.
 
@@ -58,6 +61,9 @@ class NativeStruct:
     python_type: type  # NamedTuple built positionally from the field values.
     fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'fields', tuple(self.fields))
+
 
 @dataclass(frozen=True, slots=True, init=False)
 class ValueType(Generic[N]):
@@ -74,10 +80,10 @@ class ValueType(Generic[N]):
             raise ValueError('ValueType requires a resolved value type')
         object.__setattr__(self, '_type', value_type)
 
-    def from_native(self, value: N) -> DynamicValue:
+    def from_native(self, value: N, *, native_types: NativeTypes) -> DynamicValue:
         """Return the DynamicValue of a value in native representation."""
         from ..runtime.native_values import from_native
-        return DynamicValue._make(self._type, from_native(None, self._type, value))
+        return DynamicValue._make(self._type, from_native(None, self._type, value, native_types=native_types))
 
     def __str__(self) -> str:
         return str(self._type)
@@ -193,16 +199,16 @@ class DynamicValue:
         except Exception as error:
             raise ValueError(str(error)) from error
 
-    def extract(self, value_type: ValueType[N]) -> N:
+    def extract(self, value_type: ValueType[N], *, native_types: NativeTypes) -> N:
         """Return the native representation, requiring the value to have this type."""
         if value_type._type != self._type:
             raise ValueError(f'Expected a value of type {value_type}, got {self._type}')
-        return cast(N, self.to_native())
+        return cast(N, self.to_native(native_types=native_types))
 
-    def to_native(self) -> object:
+    def to_native(self, *, native_types: NativeTypes) -> object:
         """Return the native representation; not every type has one."""
         from ..runtime.native_values import to_native
-        return to_native(None, self._type, self._value)
+        return to_native(None, self._type, self._value, native_types=native_types)
 
 
 T = TypeVar('T')

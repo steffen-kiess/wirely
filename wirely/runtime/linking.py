@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from ..functions import bind_native_function
 from ..program import Constant, Program, used_declared_types
 from ..types import Type, TypeEnum, TypeStruct
+from .extensions import RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
 from .resources import ResourceType
@@ -32,7 +33,7 @@ class LinkedProcedure(NamedTuple):
     signature: SignatureProcedure
 
 
-def link_native_resource_types(program: Program) -> dict[str, ResourceType]:
+def link_native_resource_types(program: Program, extension: RuntimeNativeExtension) -> dict[str, ResourceType]:
     """Resolve the Python type of every resource type in the program's native interfaces."""
     names: set[str] = set()
     for native_type in program.native_types.values():
@@ -40,24 +41,22 @@ def link_native_resource_types(program: Program) -> dict[str, ResourceType]:
         names.update(native_type.resource_outputs.values())
     for interface in program.native_procedures.values():
         names.update(interface.resources.values())
-    from .native_bindings import resources
     result = {}
     for name in sorted(names):
-        loader = resources.get(name)
+        loader = extension.resources.get(name)
         if loader is None:
             raise ValueError(f'Cannot find native resource type {name!r}')
         result[name] = ResourceType(name, loader())
     return result
 
 
-def link_native_enums(program: Program) -> None:
+def link_native_enums(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check each native enum against the runtime's expectations; member names and numbers are not compared."""
-    from .enums import native_enum_types
     for enum_type in used_declared_types(program):
         if not isinstance(enum_type, TypeEnum) or enum_type.native_name is None:
             continue
         name = enum_type.native_name
-        expected = native_enum_types.get(name)
+        expected = extension.enums.get(name)
         if expected is None:
             raise ValueError(f'Cannot find native enum type {name!r}')
         kind, expected_kind = ('open' if is_open else 'closed' for is_open in (enum_type.is_open, expected.is_open))
@@ -71,15 +70,14 @@ def link_native_enums(program: Program) -> None:
                              f'got {len(enum_type.members)}')
 
 
-def link_native_structs(program: Program) -> None:
+def link_native_structs(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check each native struct against the runtime's expectations; field names are not compared."""
     from .signatures import describe, matches
-    from .structs import native_struct_types
     for struct_type in used_declared_types(program):
         if not isinstance(struct_type, TypeStruct) or struct_type.native_name is None:
             continue
         name = struct_type.native_name
-        expected = native_struct_types.get(name)
+        expected = extension.structs.get(name)
         if expected is None:
             raise ValueError(f'Cannot find native struct type {name!r}')
         field_types = tuple(struct_type.fields.values())
@@ -92,9 +90,8 @@ def link_native_structs(program: Program) -> None:
                                  f'expected {describe(signature_type, {})}')
 
 
-def link_native_signatures(program: Program) -> None:
+def link_native_signatures(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check the native interfaces a program uses against the runtime's signatures."""
-    from . import native_interfaces
     from .signatures import Builtin, Option, ResourceType as SignatureResourceType, describe, matches
 
     def check_keys(where: str, kind: str, actual: Iterable[str], expected: Iterable[str]) -> None:
@@ -142,9 +139,10 @@ def link_native_signatures(program: Program) -> None:
     for node_id, instance in program.instances.items():
         if instance.type_name is None:
             continue
-        signature = native_interfaces.native_state_types.get(instance.type_name)
-        if signature is None:
+        signature_entry = extension.states.get(instance.type_name)
+        if signature_entry is None:
             raise ValueError(f'Cannot find the signature of native state type {instance.type_name!r}')
+        signature = signature_entry.signature
         where = f'Native state type {instance.type_name!r} of {node_id!r}'
         native_type = program.native_types[instance.type_name]
         bindings = check_uses(where, signature, instance.initializer_values)
@@ -155,9 +153,10 @@ def link_native_signatures(program: Program) -> None:
         for procedure in schedule:
             if procedure.body is not None:
                 continue
-            procedure_signature = native_interfaces.native_procedures.get(procedure.reference)
-            if procedure_signature is None:
+            procedure_signature_entry = extension.procedures.get(procedure.reference)
+            if procedure_signature_entry is None:
                 raise ValueError(f'Cannot find the signature of native procedure {procedure.reference!r}')
+            procedure_signature = procedure_signature_entry.signature
             where = f'Native procedure {procedure.reference!r} of {procedure.node_id!r}'
             if stage.name.lower() != procedure_signature.stage:
                 raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {procedure_signature.stage}')
@@ -171,9 +170,10 @@ def link_native_signatures(program: Program) -> None:
             check_ports(where, 'outputs', procedure_signature.produces, outputs, {}, bindings)
 
     for function in program.functions:
-        function_signature = native_interfaces.native_functions.get(function.name)
-        if function_signature is None:
+        function_signature_entry = extension.functions.get(function.name)
+        if function_signature_entry is None:
             raise ValueError(f'Cannot find the signature of native function {function.name!r}')
+        function_signature = function_signature_entry.signature
         where = f'Native function {function.name!r}'
         if len(function.parameter_types) != len(function_signature.parameters):
             raise ValueError(f'{where}: has {len(function.parameter_types)} parameters, '
@@ -183,32 +183,32 @@ def link_native_signatures(program: Program) -> None:
         check_type(where, 'result', function_signature.result, function.return_type, {})
 
 
-def link_native_contracts(program: Program) -> tuple[dict[str, LinkedState], dict[str, LinkedProcedure]]:
+def link_native_contracts(program: Program, extension: RuntimeNativeExtension
+                          ) -> tuple[dict[str, LinkedState], dict[str, LinkedProcedure]]:
     """Load the required typed factories and adapters before constructing any native objects."""
-    from . import native_bindings, native_interfaces
 
     states = {}
     for name in sorted({instance.type_name for instance in program.instances.values()
                         if instance.type_name is not None}):
-        loader = native_bindings.states.get(name)
+        loader = extension.states.get(name)
         if loader is None:
             raise ValueError(f'Cannot find native initializer {name!r}')
-        implementation = loader()
+        implementation = loader.load()
         states[name] = LinkedState(implementation.factory, implementation.adapter,
-                                   native_interfaces.native_state_types[name])
+                                   loader.signature)
     procedures = {}
     for reference in sorted({procedure.reference for schedule in program.procs.values()
                              for procedure in schedule if procedure.body is None}):
-        procedure_loader = native_bindings.procedures.get(reference)
+        procedure_loader = extension.procedures.get(reference)
         if procedure_loader is None:
             raise ValueError(f'Cannot find native procedure {reference!r}')
-        procedure = procedure_loader()
+        procedure = procedure_loader.load()
         procedures[reference] = LinkedProcedure(procedure.factory, procedure.adapter,
-                                                native_interfaces.native_procedures[reference])
+                                                procedure_loader.signature)
     return states, procedures
 
 
-def link_native_functions(program: Program) -> tuple[NativeFunction, ...]:
+def link_native_functions(program: Program, extension: RuntimeNativeExtension) -> tuple[NativeFunction, ...]:
     """Bind the implementation of every function after checking the program's signatures."""
-    return tuple(bind_native_function(function.name, function.parameter_types, function.return_type)
+    return tuple(bind_native_function(function.name, function.parameter_types, function.return_type, extension=extension)
                  for function in program.functions)

@@ -3,10 +3,10 @@ from typing import Any, Literal
 
 import wirely
 from wirely import DynamicValue, Some, ValueType
-from wirely.contracts import std as contracts
+from wirely.generated import std as contracts
 from wirely.native import check_state_type
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
-from wirely.runtime.structs import StdFormatParts
+from wirely.generated.structs import StdFormatParts
 from wirely.types import InternalValue
 
 

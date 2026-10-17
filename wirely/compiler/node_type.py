@@ -3,6 +3,8 @@ from collections.abc import Mapping
 
 if typing.TYPE_CHECKING:
     from .parameters import StaticValue
+    from .extensions import CompilerNativeExtension
+    from ..runtime.extensions import RuntimeNativeExtension
 
 from .attributes import ParsedFile, copy_attributes
 from .types import check_runtime_type, resolve_type
@@ -15,6 +17,8 @@ from wirely.util import check_parameters
 class NodeType(model.Scope):
     # Set on the global node type by the compiler.
     file_metadata: typing.Any
+    native_extension: 'RuntimeNativeExtension'
+    compiler_native_extension: 'CompilerNativeExtension'
     # The instance of a singleton node type, set when it is instantiated.
     singleton_instance: 'model.InstanceNode'
 

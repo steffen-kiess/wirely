@@ -33,7 +33,7 @@ def native_functions(scope: model.Scope, constant: bool) -> Iterator[model.Decla
 
 
 def function_signatures(graph: model.Scope, *, constant: bool,
-                        namespace: str | None = None) -> dict[str, signatures.Function]:
+                        namespace: str | None = None, source_paths: set[str] | None = None) -> dict[str, signatures.Function]:
     """Return the signatures of the runtime or constant native functions in a graph, by native name.
 
     With a namespace, only functions whose native names are in it are described.
@@ -41,6 +41,8 @@ def function_signatures(graph: model.Scope, *, constant: bool,
     """
     functions = {}
     for function in native_functions(graph, constant):
+        if source_paths is not None and function.source_position.filename not in source_paths:
+            continue
         if namespace is not None and not function.native_name.startswith(namespace + '.'):
             continue
         where = f'Native function {function.native_name}'
@@ -139,7 +141,7 @@ def signature_uses(node_type: model.NodeType, uses: model.UsesDeclaration | None
 
 
 def native_signatures(graph: model.Scope,
-                      namespace: str | None = None) -> tuple[dict[str, signatures.Initializer], dict[str, signatures.Procedure], dict[str, signatures.Function]]:
+                      namespace: str | None = None, *, source_paths: set[str] | None = None) -> tuple[dict[str, signatures.Initializer], dict[str, signatures.Procedure], dict[str, signatures.Function]]:
     """Return the signatures of native state types, procedures, and runtime functions in a graph.
 
     With a namespace, only declarations whose native names are in it are described.
@@ -152,6 +154,8 @@ def native_signatures(graph: model.Scope,
     state_types = {}
     procedures = {}
     for node_type in node_types(graph):
+        if source_paths is not None and node_type.source_position.filename not in source_paths:
+            continue
         initializer = node_type.initializer if node_type.is_native else None
         if initializer is not None and included(node_type.native_name):
             assert node_type.native_name is not None
@@ -180,4 +184,4 @@ def native_signatures(graph: model.Scope,
                 produces=procedure_ports(procedure.output_ports, variables, where),
                 uses=signature_uses(node_type, procedure.uses, variables, where),
             )
-    return state_types, procedures, function_signatures(graph, constant=False, namespace=namespace)
+    return state_types, procedures, function_signatures(graph, constant=False, namespace=namespace, source_paths=source_paths)

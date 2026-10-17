@@ -1,27 +1,23 @@
-import contextlib
-from collections.abc import Iterator
-from unittest.mock import patch
-
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.functions import FunctionImplementation, get_native_function_by_name
+from wirely.functions import FunctionImplementation
 from wirely.runtime.engine import Engine
-from wirely.test import test_native_bindings, test_contracts, test_engine
+from wirely.test import test_extension, test_contracts, test_engine
 
 
-@contextlib.contextmanager
-def counted_calls(function_name: str) -> Iterator[list]:
-    """Record the arguments of each call of a runtime function in engines created meanwhile."""
-    binding = get_native_function_by_name(function_name)
+def counted_function(function_name):
+    """Return recorded calls and an extension wrapping a function."""
+    from wirely.runtime.extensions import resolve_extensions
+    from test.fixtures.native_extension.generated import extension as fixture
+    binding = resolve_extensions([fixture]).functions[function_name].load()
     calls = []
 
     def counted(*arguments):
         calls.append(arguments)
         return binding.implementation(*arguments)
 
-    with test_native_bindings(functions={function_name: FunctionImplementation(counted, binding.contract)}):
-        yield calls
+    return calls, test_extension(functions={function_name: FunctionImplementation(counted, binding.contract)})
 
 
 def check_main_program():
@@ -74,7 +70,8 @@ def check_main_program():
 
 
 def compile_program(source, *, add_std=False):
-    graph = wirely.compiler.compile_strs([('<procedures>', source)], add_std=add_std)
+    from test.fixtures.native_extension.generated import extension as fixture
+    graph = wirely.compiler.compile_strs([('<procedures>', source)], add_std=add_std, extensions=[fixture])
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
@@ -304,8 +301,8 @@ def check_mixed_procedures():
             def run(self, *, services):
                 return contracts.TestNodeTestProcedureResult(temp=self.value)
 
-        with test_native_bindings(procedures={'TestLibrary.TestNode:test_procedure': Produce}):
-            mixed_engine = Engine(mixed_program)
+        bindings = test_extension(procedures={'TestLibrary.TestNode:test_procedure': Produce}, contracts=contracts)
+        mixed_engine = Engine(mixed_program, override_extensions=[bindings])
     mixed_engine.step()
     mixed_engine.assert_value_is('mixed', True)
     mixed_engine.assert_is_idle()
@@ -493,8 +490,8 @@ def check_builtin_ordering():
             }
             node ordering: Ordering { Type: TYPE, Left: "LEFT", Right: "RIGHT" }
             '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right))
-            with counted_calls(f'{type_name}.Less') as calls:
-                machine = test_engine(program)
+            calls, extension = counted_function(f'{type_name}.Less')
+            machine = test_engine(program, override_extensions=[extension])
             machine.step()
             assert len(calls) == 4
             for output, result in zip(('Less', 'LessEqual', 'Greater', 'GreaterEqual'), expected):
@@ -580,8 +577,9 @@ def check_native_functions():
     node clamped: Clamped {}
     connect source -> clamped;
     ''', add_std=True)
-    with counted_calls('TestLibrary.Clamp') as calls, counted_calls('TestLibrary.Nothing') as nothing_calls:
-        function_engine = test_engine(functions)
+    calls, clamp = counted_function('TestLibrary.Clamp')
+    nothing_calls, nothing = counted_function('TestLibrary.Nothing')
+    function_engine = test_engine(functions, override_extensions=[clamp, nothing])
     source = function_engine.get_native_state('source')
     for value, expected in [(5, 5), (500, 10), (-500, -10)]:
         source.set_value(value)
@@ -594,12 +592,13 @@ def check_native_functions():
     function_engine.assert_is_idle()
 
     # An exception from a runtime function is an internal error, not a program error.
+    from test.fixtures.native_extension.generated import extension as fixture
     diagnostics = []
     graph = wirely.compiler.compile_strs([('<fail>', '''namespace TestLibrary {
       native function Fail(): boolean;
     }
     constant Value: boolean = TestLibrary.Fail();
-    ''')], on_diagnostic=diagnostics.append)
+    ''')], on_diagnostic=diagnostics.append, extensions=[fixture])
     assert graph is not None
     assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is None
     assert any(diagnostic.kind == 'internal_error'

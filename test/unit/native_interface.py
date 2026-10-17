@@ -9,17 +9,19 @@ from typing import NamedTuple
 from unittest import TestCase
 from unittest.mock import patch
 
+from wirely.runtime.extensions import RuntimeNativeExtension
+from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
-from wirely.test import test_native_bindings, test_contracts
+from wirely.test import test_extension, test_contracts
 from wirely.runtime.signatures import Builtin, Enum, Int
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
-import wirely.runtime.structs
-import wirely.runtime.enums
+import wirely.generated.structs
+import wirely.generated.enums
 
 
 checks = TestCase()
@@ -40,7 +42,7 @@ def compile_program(sources):
     return program
 
 
-def make_engine(declaration, callback, *, extra='', parameters='', singleton=False):
+def make_engine(declaration, callback, *, extra='', parameters='', singleton=False, override_extensions=()):
     """Create an Engine with a TestLibrary.Probe whose native procedure run calls a callback.
 
     The callback receives the procedure's services, inputs, and prepared static values by
@@ -73,8 +75,8 @@ node probe: TestLibrary.Probe {{ {parameters} }}
                     return contracts.ProbeRunResult(**(outputs or {}))
         registry['procedures']['TestLibrary.Probe:run'] = Probe.Run
 
-        with test_native_bindings(**registry):
-            return Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        return Engine(program, override_extensions=[*override_extensions, bindings])
 
 
 def expect_output_error(declaration, output, message, **options):
@@ -257,8 +259,8 @@ def check_stage_times():
                 return getattr(contracts, contract.__name__ + 'Result')()
 
             clock_registry['procedures'][f'TestLibrary.ClockProbe:{name}'] = type(name, (contract,), {'run': record_time})
-        with test_native_bindings(**clock_registry):
-            clock_engine = Engine(program)
+        bindings = test_extension(**clock_registry, contracts=contracts)
+        clock_engine = Engine(program, override_extensions=[bindings])
     clock_engine.fake_monotonic_time_offset = clock_offset
 
     class ClockDateTime(datetime.datetime):
@@ -384,9 +386,9 @@ def check_triggers():
         trigger_registry['procedures']['TestLibrary.Reader:poll'] = Reader.Poll
 
         resource_types = {'TestLibrary.ProbeState': ProbeState, 'TestLibrary.Service': Provider}
-        with test_native_bindings(**trigger_registry), \
-                test_native_bindings(resources=resource_types):
-            trigger_engine = Engine(trigger_program)
+        bindings = test_extension(**trigger_registry, contracts=contracts)
+        resource_bindings = test_extension(resources=resource_types, contracts=contracts)
+        trigger_engine = Engine(trigger_program, override_extensions=[bindings, resource_bindings])
     first = trigger_engine.get_native_state('first')
     second = trigger_engine.get_native_state('second')
     shared = trigger_engine.get_native_state('shared')
@@ -509,13 +511,13 @@ def check_outputs():
     '''
     option = wirely.value_types.option(wirely.value_types.boolean)
     for invalid, message in [(wirely.Some(True), 'Expected a DynamicValue of Option\\[boolean\\], got Some'),
-                             (wirely.value_types.boolean.from_native(True),
+                             (wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types),
                               'Expected a DynamicValue of Option\\[boolean\\], got one of boolean')]:
         expect_output_error(generic, invalid, message, parameters='Type: Option[boolean]')
 
     def generic_output(services, inputs, values):
         assert values == {'type': option}
-        return {'output': values['type'].from_native(wirely.Some(True))}
+        return {'output': values['type'].from_native(wirely.Some(True), native_types=builtin_extension.native_types)}
 
     probe = make_engine(generic, generic_output, parameters='Type: Option[boolean]')
     probe.step()
@@ -626,17 +628,17 @@ namespace Example {
         assert values['state'] is State.Running
         return {'output': Mode[output] if isinstance(output, str) else Mode(output)}
 
-    with patch.dict(wirely.runtime.enums.native_enum_types, registry):
-        for invalid in [2, Other.On]:
-            expect_output_error(declaration, invalid, 'Expected a Mode for Example.Mode', extra=extra)
-        probe = make_engine(declaration, check_enum_output, extra=extra)
-        probe.step()
-        # Inside the runtime, named and unnamed enum values are numbers.
-        probe.assert_value_is('probe', 1)
-        output = 255
-        probe.trigger('probe', 'run')
-        probe.step()
-        probe.assert_value_is('probe', 255)
+    enum_bindings = RuntimeNativeExtension(enums=registry)
+    for invalid in [2, Other.On]:
+        expect_output_error(declaration, invalid, 'Expected a Mode for Example.Mode', extra=extra, override_extensions=[enum_bindings])
+    probe = make_engine(declaration, check_enum_output, extra=extra, override_extensions=[enum_bindings])
+    probe.step()
+    # Inside the runtime, named and unnamed enum values are numbers.
+    probe.assert_value_is('probe', 1)
+    output = 255
+    probe.trigger('probe', 'run')
+    probe.step()
+    probe.assert_value_is('probe', 255)
 
 
 def check_native_enums():
@@ -663,8 +665,8 @@ def check_native_enums():
         assert values['day'] is Day.Second
 
     def make(registry):
-        with patch.dict(wirely.runtime.enums.native_enum_types, registry):
-            probe = make_engine('''
+        enum_bindings = RuntimeNativeExtension(enums=registry)
+        probe = make_engine('''
     native procedure run uses Example.Level.High as level, Example.Day.Tuesday as day;
     ''', check_values, extra='''
 namespace Example {
@@ -672,8 +674,8 @@ namespace Example {
   native closed enum type Day as "Test.Day" { Monday, Tuesday, }
   native open enum type Unused as "Test.Unused": uint8 {}
 }
-''')
-            probe.step()
+''', override_extensions=[enum_bindings])
+        probe.step()
 
     level = NativeEnum(Level, is_open=True, underlying_type='uint8')
     day = NativeEnum(Day, is_open=False, underlying_type='uint8')
@@ -699,7 +701,7 @@ def check_native_interface_signatures():
     # Generated signatures describe the standard library's native interfaces;
     # types passed to native code as ValueType through an entry's own uses
     # become type variables.
-    from wirely.runtime import native_interfaces
+    from wirely.generated import _signatures as native_interfaces
     from wirely.runtime.signatures import (
         Builtin, Enum, Function, Initializer, Int, Option, Port, Procedure, ResourceType, Struct, TypeVar,
     )
@@ -735,7 +737,7 @@ def check_native_signature_linking():
     # runtime's signatures, with type variables bound by each entry's uses.
     from dataclasses import replace
     from wirely.compiler.native_signatures import native_signatures
-    from wirely.runtime import native_interfaces
+    from wirely.generated import _signatures as native_interfaces
     from wirely.runtime.signatures import Builtin, Function, Int, Option, Port, ResourceType, TypeVar
 
     source = '''
@@ -784,22 +786,23 @@ connect number -> stateful.Number;
                 return contracts.StatefulInitializerResult(state=self)
         registry['initializers']['TestLibrary.Stateful'] = Stateful
 
-        # The installed signatures remain independent of implementation bindings.
-        tables = (native_interfaces.native_state_types, native_interfaces.native_procedures,
-                  native_interfaces.native_functions)
-        state_types, procedures, functions = ({name: table[name] for name in entries}
-                                              for table, entries in zip(tables, native_signatures(program.graph, 'TestLibrary')))
+        state_types, procedures, functions = native_signatures(program.graph, 'TestLibrary')
         run = procedures['TestLibrary.Probe:run']
         stateful = state_types['TestLibrary.Stateful']
         clamp = functions['TestLibrary.Clamp']
 
         def link(state_types=state_types, procedures=procedures, functions=functions):
-            with patch.dict(native_interfaces.native_state_types, state_types, clear=True), \
-                    patch.dict(native_interfaces.native_procedures, procedures, clear=True), \
-                    patch.dict(native_interfaces.native_functions, functions, clear=True), \
-                    test_native_bindings(**registry), \
-                    test_native_bindings(resources={'TestLibrary.ProbeState': Stateful}):
-                Engine(program)
+            from wirely.runtime.extensions import NativeInitializer, NativeProcedure, NativeFunction
+            from test.fixtures.native_extension.generated import extension as fixture
+            bindings = test_extension(**registry, contracts=contracts,
+                                      resources={'TestLibrary.ProbeState': Stateful})
+            extension = RuntimeNativeExtension(
+                states={name: NativeInitializer(sig, bindings.states[name].load) for name, sig in state_types.items()},
+                procedures={name: NativeProcedure(sig, bindings.procedures[name].load)
+                            for name, sig in procedures.items()},
+                functions={name: NativeFunction(sig, fixture.functions[name].load) for name, sig in functions.items()},
+                resources=bindings.resources)
+            Engine(program, extensions=[extension])
 
         link()
         for changes, message in [
@@ -867,14 +870,14 @@ namespace Example {
         assert type(values['pair']) is Pair
         return {'output': Pair(False, wirely.UInt8(8))}
 
-    with patch.dict(wirely.runtime.structs.native_struct_types, registry):
-        for invalid in [(True, wirely.UInt8(7)), Other(True, wirely.UInt8(7))]:
-            expect_output_error(declaration, invalid, 'Expected a Pair for Example.Pair', extra=extra)
-        expect_output_error(declaration, Pair(True, 7), "in field 'number': Expected a wirely.UInt8", extra=extra)
-        probe = make_engine(declaration, check_struct_output, extra=extra)
-        probe.step()
-        # Inside the runtime, a struct is a tuple of its field values.
-        probe.assert_value_is('probe', (False, 8))
+    struct_bindings = RuntimeNativeExtension(structs=registry)
+    for invalid in [(True, wirely.UInt8(7)), Other(True, wirely.UInt8(7))]:
+        expect_output_error(declaration, invalid, 'Expected a Pair for Example.Pair', extra=extra, override_extensions=[struct_bindings])
+    expect_output_error(declaration, Pair(True, 7), "in field 'number': Expected a wirely.UInt8", extra=extra, override_extensions=[struct_bindings])
+    probe = make_engine(declaration, check_struct_output, extra=extra, override_extensions=[struct_bindings])
+    probe.step()
+    # Inside the runtime, a struct is a tuple of its field values.
+    probe.assert_value_is('probe', (False, 8))
 
 
 def check_native_structs():
@@ -897,9 +900,9 @@ def check_native_structs():
 
     def make(registry):
         enums = {'Test.Level': NativeEnum(Level, is_open=True, underlying_type='uint8')}
-        with patch.dict(wirely.runtime.enums.native_enum_types, enums), \
-                patch.dict(wirely.runtime.structs.native_struct_types, registry):
-            probe = make_engine('''
+        enum_bindings = RuntimeNativeExtension(enums=enums)
+        struct_bindings = RuntimeNativeExtension(structs=registry)
+        probe = make_engine('''
     native procedure run uses Example.Reading { value: 5, level: Example.Level.High } as reading,
       Example.Empty {} as empty;
     ''', check_values, extra='''
@@ -908,8 +911,8 @@ namespace Example {
   native struct type Reading as "Test.Reading" { value: uint16, level: Example.Level }
   native struct type Empty as "Test.Empty" {}
 }
-''')
-            probe.step()
+''', override_extensions=[enum_bindings, struct_bindings])
+        probe.step()
 
     reading = NativeStruct(Reading, (Int(16, False), Enum('Test.Level')))
     empty = NativeStruct(Empty, ())
@@ -1006,8 +1009,8 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
                 cleanup_observations.append(self.services.name)
         registry['initializers']['TestLibrary.LifecycleProbe'] = LifecycleProbe
 
-        with test_native_bindings(**registry):
-            return Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        return Engine(program, override_extensions=[bindings])
 
 
 async def run_test():
@@ -1106,9 +1109,9 @@ node keyed: TestLibrary.KeyedProbe {}
             'TestLibrary.StateProbe:inherited': StateProbe.Inherited,
         })
 
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources={'TestLibrary.ProbeState': StateProbe}):
-            runtime = Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources={'TestLibrary.ProbeState': StateProbe}, contracts=contracts)
+        runtime = Engine(program, override_extensions=[bindings, resource_bindings])
     runtime.step()
     expected = [
         ('shared', 'class_only'), ('inherited', 'class_only'),
@@ -1148,9 +1151,9 @@ def check_procedure_construction():
             registry['initializers']['TestLibrary.LoadProbe'] = LoadProbe
             registry['procedures']['TestLibrary.LoadProbe:run'] = LoadProbe.Run
 
-            with test_native_bindings(**registry), \
-                    test_native_bindings(resources={'TestLibrary.LoadState': LoadProbe}):
-                return Engine(program)
+            bindings = test_extension(**registry, contracts=contracts)
+            resource_bindings = test_extension(resources={'TestLibrary.LoadState': LoadProbe}, contracts=contracts)
+            return Engine(program, override_extensions=[bindings, resource_bindings])
 
     source = '''namespace TestLibrary {
   resource type LoadState;
@@ -1205,10 +1208,10 @@ node invalid: TestLibrary.InvalidProbe {}
                 def run(self, *, services):
                     return contracts.ValidProbeRunResult()
 
-        with test_native_bindings(initializers={'TestLibrary.ValidProbe': ValidProbe},
-                                  procedures={'TestLibrary.ValidProbe:run': ValidProbe.Run}):
-            with checks.assertRaisesRegex(ValueError, 'Cannot find native procedure.*InvalidProbe:missing'):
-                Engine(program)
+        bindings = test_extension(initializers={'TestLibrary.ValidProbe': ValidProbe},
+                                          procedures={'TestLibrary.ValidProbe:run': ValidProbe.Run}, contracts=contracts)
+        with checks.assertRaisesRegex(ValueError, 'Cannot find the signature of native procedure.*InvalidProbe:missing'):
+            Engine(program, override_extensions=[bindings])
     assert constructed == []
 
 
@@ -1248,9 +1251,9 @@ connect source, source -> multiple;
         registry['initializers']['TestLibrary.LengthProbe'] = LengthProbe
         registry['procedures']['TestLibrary.LengthProbe:run'] = LengthProbe.Run
 
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources={'TestLibrary.LengthState': LengthProbe}):
-            machine = Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources={'TestLibrary.LengthState': LengthProbe}, contracts=contracts)
+        machine = Engine(program, override_extensions=[bindings, resource_bindings])
     for value in (False, True):
         machine.get_native_state('source').set_value(value)
         machine.step()

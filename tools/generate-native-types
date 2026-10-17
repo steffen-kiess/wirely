@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the native enums, structs, interfaces, contracts, and bindings in wirely/ from the libraries."""
+"""Generate native extension packages from Wirely declarations."""
 
 import argparse
 import difflib
@@ -11,12 +11,12 @@ from pathlib import Path
 repository_root = Path(__file__).resolve().parent.parent
 
 
-def generated_files():
+def generated_files(inputs=None, *, package='wirely', output_root=repository_root):
     """Return the generated content of each file, keyed by path."""
     from wirely.compiler import native_contracts
 
     try:
-        return native_contracts.generated_files()
+        return native_contracts.generated_files(inputs, package=package, output_root=output_root)
     except ValueError as error:
         raise SystemExit(str(error)) from None
 
@@ -32,6 +32,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true',
                         help='Report out-of-date files and exit with an error instead of writing them')
+    parser.add_argument('inputs', nargs='*', type=Path)
+    parser.add_argument('--package', default='wirely')
+    parser.add_argument('--output-root', type=Path, default=repository_root)
     args = parser.parse_args()
 
     # Use the checkout's venv, like tools/wirely, and import wirely from the checkout.
@@ -41,23 +44,23 @@ def main():
     sys.path.insert(0, str(repository_root))
 
     outdated = False
-    files = generated_files()
+    files = generated_files(args.inputs or None, package=args.package, output_root=args.output_root.resolve())
     for path, content in files.items():
         current = path.read_text(encoding='utf-8') if path.exists() else ''
         if current == content:
             continue
-        relative = str(path.relative_to(repository_root))
+        relative = os.path.relpath(path, repository_root)
         if args.check:
             outdated = True
             sys.stderr.writelines(difflib.unified_diff(
                 current.splitlines(keepends=True), content.splitlines(keepends=True),
                 fromfile=relative, tofile=f'{relative} (generated)'))
         else:
-            path.parent.mkdir(exist_ok=True)
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding='utf-8')
             print(f'Updated {relative}')
     for path in obsolete_files(files):
-        relative = str(path.relative_to(repository_root))
+        relative = os.path.relpath(path, repository_root)
         if args.check:
             outdated = True
             print(f'Obsolete generated file {relative}', file=sys.stderr)

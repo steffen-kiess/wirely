@@ -10,7 +10,7 @@ import wirely
 from wirely.compiler import _standard_library_sources, compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
-from wirely.test import test_native_bindings, test_contracts, test_engine
+from wirely.test import test_extension, test_contracts, test_engine
 
 
 libraries = _standard_library_sources(['std', 'schedule', 'timer', 'memory', 'two_n', 'path'])
@@ -31,9 +31,9 @@ def settings_engine(program):
                 self.handlers.append((events, handler))
         registry['initializers']['TestLibrary.SettingsDevice'] = SettingsDevice
 
-        with test_native_bindings(**registry), \
-                test_native_bindings(resources={'TwoN.Device': SettingsDevice}):
-            return Engine(program)
+        bindings = test_extension(**registry, contracts=contracts)
+        resource_bindings = test_extension(resources={'TwoN.Device': SettingsDevice}, contracts=contracts)
+        return Engine(program, override_extensions=[bindings, resource_bindings])
 
 
 def compile_program(source, *, filename='<configuration>'):

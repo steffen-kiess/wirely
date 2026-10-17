@@ -8,11 +8,11 @@ from typing import Any, Literal
 
 import wirely
 from wirely import DynamicValue, Some, ValueType
-from wirely.contracts import mqtt as contracts
+from wirely.generated import mqtt as contracts
 from wirely.native import check_state_type
-from wirely.runtime.enums import MQTTFormat
+from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
-from wirely.runtime.structs import MQTTTemplateParts
+from wirely.generated.structs import MQTTTemplateParts
 
 
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}

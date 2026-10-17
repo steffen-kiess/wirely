@@ -3,6 +3,7 @@ import contextlib
 
 import xknx
 import xknx.tools
+from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.knx.connection_adapter import StreamConnectionConfig, create_xknx
 from wirely.knx.connection_config import ConnectionConfigError, create_connection_config
@@ -138,7 +139,7 @@ async def check_type_conversions(knx):
         for value in values:
             await expose.set(value)
             await wait_for(lambda: receiver.current_value is not None
-                           and receiver.current_value == receiver.knx_type.from_knx(value))
+                           and receiver.current_value == receiver.knx_type.from_knx(value, builtin_extension.native_types))
             engine.step()
             engine.assert_value_is(prefix + '.value_receiver', wirely.Some(value))
 

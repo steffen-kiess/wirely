@@ -1,12 +1,12 @@
 from collections import Counter
 from pathlib import Path
-from unittest.mock import patch
 
+from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 from wirely.runtime.engine import Engine
-from wirely.test import test_contracts, test_native_bindings
+from wirely.test import test_contracts, test_extension
 
 
 calls = Counter()
@@ -61,7 +61,7 @@ def implementations(contracts):
                 pass
 
             def run(self, *, services, previous, current):
-                observations[services.name] = tuple(value.extract(wirely.value_types.uint8).value
+                observations[services.name] = tuple(value.extract(wirely.value_types.uint8, native_types=builtin_extension.native_types).value
                                                     for value in (previous, current))
                 return getattr(contracts, contract.__name__ + 'Result')(output=True)
         return Observe
@@ -167,9 +167,9 @@ def make_engine(source, *, declarations=definitions):
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
-    with test_contracts(graph) as contracts, \
-            test_native_bindings(**implementations(contracts)):
-        return Engine(program)
+    with test_contracts(graph) as contracts:
+        bindings = test_extension(**implementations(contracts), contracts=contracts)
+        return Engine(program, override_extensions=[bindings])
 
 
 def check_old_snapshots():

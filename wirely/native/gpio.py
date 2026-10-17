@@ -4,8 +4,8 @@ import enum
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from wirely.contracts import gpio as contracts
-from wirely.runtime.enums import GPIOActiveState, GPIOBias, GPIODrive
+from wirely.generated import gpio as contracts
+from wirely.generated.enums import GPIOActiveState, GPIOBias, GPIODrive
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
 

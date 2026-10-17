@@ -2,6 +2,7 @@ import datetime
 import io
 from types import SimpleNamespace
 
+from wirely.generated import extension as builtin_extension
 import wirely
 from wirely.native.csv import MyCsvWriter, ValueWriter
 from wirely.program import RunStage
@@ -28,11 +29,11 @@ class Invocation:
             self.triggered = True
 
         services = ProcedureServices(name='writer', stage_times={RunStage.DEFAULT: self.time},
-                                     trigger_self=trigger_self)
+                                     trigger_self=trigger_self, native_types=builtin_extension.native_types)
         result = self.procedure.run(
             services=services, state=self.writer,
             last_written_at_old=self.inputs['last_written_at_old'],
-            input=self.value_type.from_native(self.inputs['input']),
+            input=self.value_type.from_native(self.inputs['input'], native_types=builtin_extension.native_types),
             repeat_elapsed=self.inputs['repeat_elapsed'],
         )
         self.last_written_at = result.last_written_at
@@ -41,7 +42,7 @@ class Invocation:
 def check_repeat_recovery():
     writer = ValueWriter()
     writer.initialize(services=StateServices(name='writer', output_keys={'state': 'state'},
-                                             trigger=lambda key: None, shutdown_time=lambda: None),
+                                             trigger=lambda key: None, shutdown_time=lambda: None, native_types=builtin_extension.native_types),
                       filename='unused.csv')
     invocation = Invocation(writer)
     output = io.BytesIO()

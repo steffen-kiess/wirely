@@ -1,10 +1,10 @@
 from unittest import TestCase
-from unittest.mock import patch
 
+from wirely.compiler.extensions import CompilerNativeExtension
+from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.compiler import native_bindings as test_library
 from wirely.test import test_constant_function
 
 
@@ -33,10 +33,10 @@ node third: Probe { Number: 2 }
 '''
     diagnostics = []
     # Which instance is first follows declaration order, so do not shuffle.
-    with patch.dict(test_library.functions, {'TestLibrary.Warn': test_constant_function('TestLibrary.Warn', warn_value)}):
-        graph = compile_strs([('<warnings>', source)], on_diagnostic=diagnostics.append, shuffle_seed=None)
-        assert graph is not None
-        assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is not None
+    compiler_bindings = CompilerNativeExtension(functions={'TestLibrary.Warn': test_constant_function('TestLibrary.Warn', warn_value, FunctionSignature((Int(16, False),), Int(16, False)))})
+    graph = compile_strs([('<warnings>', source)], on_diagnostic=diagnostics.append, shuffle_seed=None, compiler_override_extensions=[compiler_bindings])
+    assert graph is not None
+    assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is not None
     assert [(diagnostic.kind, diagnostic.line, diagnostic.message) for diagnostic in diagnostics] == [
         ('warning', 6, 'Got 1 [NativeFunction]'),
         ('hint', 10, "While instantiating 'first'"),
@@ -77,12 +77,12 @@ constant Empty: uint16 = TestLibrary.Empty();
                 return wirely.UInt16(4)
 
             diagnostics = []
-            functions = {'TestLibrary.Inspect': test_constant_function('TestLibrary.Inspect', inspect),
-                         'TestLibrary.Empty': test_constant_function('TestLibrary.Empty', empty)}
-            with patch.dict(test_library.functions, functions):
-                graph = compile_strs([('<positional>', source)], on_diagnostic=diagnostics.append)
-                assert graph is not None
-                program = program_compiler.compile(graph, on_diagnostic=diagnostics.append)
+            functions = {'TestLibrary.Inspect': test_constant_function('TestLibrary.Inspect', inspect, FunctionSignature((Int(16, False), Int(16, False)), Int(16, False))),
+                         'TestLibrary.Empty': test_constant_function('TestLibrary.Empty', empty, FunctionSignature((), Int(16, False)))}
+            compiler_bindings = CompilerNativeExtension(functions=functions)
+            graph = compile_strs([('<positional>', source)], on_diagnostic=diagnostics.append, compiler_override_extensions=[compiler_bindings])
+            assert graph is not None
+            program = program_compiler.compile(graph, on_diagnostic=diagnostics.append)
             assert (program is None) == (kind == 'error')
             selected = [item for item in diagnostics if item.kind == kind]
             assert len(selected) == 1, diagnostics

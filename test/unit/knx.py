@@ -2,6 +2,7 @@ import subprocess
 import sys
 from unittest import TestCase
 
+from wirely.generated import extension as builtin_extension
 import wirely
 from wirely import value_types
 from wirely.knx.address import parse_group_address
@@ -14,11 +15,11 @@ checks = TestCase()
 def check_conversions():
     binary = get_value_type(value_types.boolean)
     for value in (False, True):
-        checks.assertEqual(binary.from_knx(value), value_types.boolean.from_native(value))
-        checks.assertIs(binary.to_knx(binary.from_knx(value)), value)
+        checks.assertEqual(binary.from_knx(value, builtin_extension.native_types), value_types.boolean.from_native(value, native_types=builtin_extension.native_types))
+        checks.assertIs(binary.to_knx(binary.from_knx(value, builtin_extension.native_types), builtin_extension.native_types), value)
     for value in (None, 0, 1, 'true'):
         with checks.assertRaises(ValueError):
-            binary.from_knx(value)
+            binary.from_knx(value, builtin_extension.native_types)
 
     for descriptor, cls in ((value_types.int8, wirely.Int8), (value_types.uint8, wirely.UInt8),
                             (value_types.int16, wirely.Int16), (value_types.uint16, wirely.UInt16),
@@ -26,17 +27,17 @@ def check_conversions():
                             (value_types.int64, wirely.Int64)):
         entry = get_value_type(descriptor)
         for value in (cls.min_value, 0, cls.max_value):
-            dynamic = entry.from_knx(value)
-            checks.assertEqual(dynamic, descriptor.from_native(cls(value)))
-            checks.assertEqual(entry.to_knx(dynamic), value)
-            checks.assertIs(type(entry.to_knx(dynamic)), int)
+            dynamic = entry.from_knx(value, builtin_extension.native_types)
+            checks.assertEqual(dynamic, descriptor.from_native(cls(value), native_types=builtin_extension.native_types))
+            checks.assertEqual(entry.to_knx(dynamic, builtin_extension.native_types), value)
+            checks.assertIs(type(entry.to_knx(dynamic, builtin_extension.native_types)), int)
         for value in (cls.min_value - 1, cls.max_value + 1, True, False, 1.0, '1', None):
             with checks.assertRaises(ValueError):
-                entry.from_knx(value)
+                entry.from_knx(value, builtin_extension.native_types)
         with checks.assertRaises(ValueError):
-            entry.to_knx(value_types.boolean.from_native(True))
+            entry.to_knx(value_types.boolean.from_native(True, native_types=builtin_extension.native_types), builtin_extension.native_types)
     with checks.assertRaises(ValueError):
-        binary.to_knx(value_types.uint16.from_native(wirely.UInt16(1)))
+        binary.to_knx(value_types.uint16.from_native(wirely.UInt16(1), native_types=builtin_extension.native_types), builtin_extension.native_types)
     with checks.assertRaisesRegex(ValueError, 'Unsupported type for KNX'):
         get_value_type(value_types.string)
     with checks.assertRaisesRegex(ValueError, 'Expected KNX type'):

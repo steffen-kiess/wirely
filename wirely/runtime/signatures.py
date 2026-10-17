@@ -1,12 +1,12 @@
 """Descriptions of the interfaces that native code expects.
 
-`wirely/runtime/native_interfaces.py`, generated from the standard library,
-describes native state types, procedures, and functions with these types.
+Native extension entries describe states, procedures, and functions with
+these types.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import TYPE_CHECKING
@@ -155,3 +155,17 @@ def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str
     if isinstance(signature_type, Struct):
         return f'native struct {signature_type.native_name}'
     raise ValueError(f'Unknown signature type {signature_type!r}')
+
+
+def validate_function(name: str, signature: Function, parameters: Sequence[Type], result: Type) -> None:
+    """Check a resolved declaration against a native function entry."""
+    if len(parameters) != len(signature.parameters):
+        raise ValueError(f'Native function {name!r}: has {len(parameters)} parameters, '
+                         f'expected {len(signature.parameters)}')
+    for index, (expected, actual) in enumerate(zip(signature.parameters, parameters)):
+        if not matches(expected, actual, {}):
+            raise ValueError(f'Native function {name!r}: parameter {index} has type {actual}, '
+                             f'expected {describe(expected, {})}')
+    if not matches(signature.result, result, {}):
+        raise ValueError(f'Native function {name!r}: result has type {result}, '
+                         f'expected {describe(signature.result, {})}')

@@ -2,7 +2,7 @@
 
 import os
 
-from wirely.runtime.structs import TwoNCredentials
+from wirely.generated.structs import TwoNCredentials
 
 from ..native_functions import FunctionServices
 
