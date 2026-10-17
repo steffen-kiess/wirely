@@ -35,6 +35,8 @@ run_fixture_with_std('''// A description before the first case.
 
   // TEST: duplicate members
 // Reusing names below also exercises isolation between cases.
+// SH: Previous member was here
+// SE: Duplicate enum member On
 open enum type Mode: uint8 {
   On = 1, // H: Previous member was here
   On = 2, // E: Duplicate enum member On

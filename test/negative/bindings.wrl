@@ -35,6 +35,8 @@ connect second -> target; // E: already has a source
 procedure consume depends on target {}
 
 // TEST: event_binding_cycle
+// SH: Cycle continues here
+// SE: Circular connection
 binding first: event boolean;
 binding second: event boolean;
 connect first -> second; // H: Cycle continues here

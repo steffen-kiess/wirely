@@ -54,12 +54,16 @@ open enum type Bad: uint128 {
 }
 
 // TEST: duplicate_member_name
+// SH: Previous member was here
+// SE: Duplicate enum member One
 open enum type Bad: int8 {
   One = 1, // H: Previous member was here
   One = 2, // E: Duplicate enum member One
 }
 
 // TEST: duplicate_member_value
+// SH: Previous member was here
+// SE: Duplicate enum value 1
 open enum type Bad: int8 {
   One = 1, // H: Previous member was here
   Two = 1, // E: Duplicate enum value 1
@@ -242,6 +246,8 @@ node n: LiteralParameter {
 }
 
 // TEST: duplicate_value_locations
+// SH: Previous member was here
+// SE: Duplicate enum value 1
 open enum type Duplicate: int8 {
   First = 1, // H: Previous member was here
   Second = 1, // E: Duplicate enum value 1
@@ -268,6 +274,8 @@ closed enum type Bad { One = 0 } // E: Syntax error
 open enum type Bad { One = 0 } // E: Syntax error
 
 // TEST: closed_duplicate_member
+// SH: Previous member was here
+// SE: Duplicate enum member One
 closed enum type Bad {
   One, // H: Previous member was here
   One, // E: Duplicate enum member One

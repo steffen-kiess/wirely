@@ -1,4 +1,6 @@
 // TEST: duplicate_fields
+// SH: Previous field was here
+// SE: Duplicate struct field x
 struct type Bad {
   x: uint8, // H: Previous field was here
   x: uint16, // E: Duplicate struct field x
