@@ -6,7 +6,7 @@ import re
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from .option import Some
 from .unit import Unit
@@ -16,6 +16,14 @@ from .time import (
 
 if TYPE_CHECKING:
     from .value_types import EnumType, StructType
+
+# How the compiler and runtime represent a value: integers and enums as int,
+# structs as tuples of their fields, lists as tuples, and ValueType values as
+# their Type. Native code receives other representations; see value_types.
+InternalValue: TypeAlias = (
+    'bool | int | str | Unit | RuntimeDuration | RuntimeTimeOfDay | RuntimeMonotonicTime | Type'
+    ' | Some[InternalValue] | tuple[InternalValue, ...] | None'
+)
 
 
 # A value type supporting runtime validation, equality, and text parsing.

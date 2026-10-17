@@ -259,12 +259,86 @@ def check_state_types():
         check_state_type(SimpleNamespace(name='node', values={'Type': wirely.value_types.string}), state)
 
 
+def check_native_conversions():
+    # Values convert recursively between internal and native representations;
+    # type variable positions of a signature become DynamicValues.
+    from wirely import types
+    from wirely.runtime import signatures
+    from wirely.runtime.native_values import from_native, to_native
+
+    class Mode(OpenIntEnum, minimum=0, maximum=255):
+        On = 1
+
+    class Pair(NamedTuple):
+        flag: bool
+        count: wirely.UInt8
+
+    enums = {'Test.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
+    structs = {'Test.Pair': NativeStruct(Pair, (Builtin('boolean'), signatures.Int(8, False)))}
+    with patch.dict(wirely.runtime.enums.native_enum_types, enums), \
+            patch.dict(wirely.runtime.structs.native_struct_types, structs):
+        mode = types.TypeEnum('Mode', {'On': 1}, is_open=True, underlying_type=types.uint8, native_name='Test.Mode')
+        pair = types.TypeStruct('Pair', {'flag': types.boolean, 'count': types.uint8}, native_name='Test.Pair')
+        concrete = [
+            (types.int16, -3, wirely.Int16(-3)),
+            (types.boolean, True, True),
+            (types.String, 'text', 'text'),
+            (types.unit, wirely.Unit(), wirely.Unit()),
+            (types.Duration, wirely.Duration(ticks=5), wirely.Duration(ticks=5)),
+            (types.ValueType, types.uint8, wirely.value_types.uint8),
+            (mode, 1, Mode.On),
+            (pair, (True, 7), Pair(True, wirely.UInt8(7))),
+            (types.TypeList(types.TypeOption(types.TypeOption(types.uint8))), (None, wirely.Some(None), wirely.Some(wirely.Some(2))),
+             (None, wirely.Some(None), wirely.Some(wirely.Some(wirely.UInt8(2))))),
+        ]
+        for value_type, internal, native in concrete:
+            converted = to_native(None, value_type, internal)
+            assert converted == native and type(converted) is type(native), (value_type, converted)
+            assert from_native(None, value_type, native) == internal
+        # Open enums keep numbers the runtime does not name.
+        unknown = to_native(None, mode, 9)
+        assert type(unknown) is Mode and unknown.name is None and from_native(None, mode, unknown) == 9
+
+        # A type variable inside an option becomes a DynamicValue of the bound type.
+        option = types.TypeOption(types.TypeOption(types.uint16))
+        signature = signatures.Option(signatures.TypeVar('Type'))
+        native = to_native(signature, option, wirely.Some(wirely.Some(4)))
+        bound = wirely.value_types.option(wirely.value_types.uint16)
+        assert native == wirely.Some(bound.from_native(wirely.Some(wirely.UInt16(4))))
+        assert from_native(signature, option, native) == wirely.Some(wirely.Some(4))
+        assert to_native(signature, option, wirely.Some(None)) == wirely.Some(bound.from_native(None))
+        assert to_native(signature, option, None) is None
+
+        for signature, value_type, value, message in [
+            (signature, option, wirely.Some(wirely.value_types.uint16.from_native(wirely.UInt16(4))),
+             'in option: Expected a DynamicValue of Option\\[uint16\\], got one of uint16'),
+            (signature, option, wirely.Some(wirely.Some(wirely.UInt16(4))), 'in option: Expected a DynamicValue'),
+            (None, pair, Pair(True, 7), "in field 'count': Expected a wirely.UInt8 for uint8, got 7"),
+            (None, pair, (True, wirely.UInt8(7)), 'Expected a Pair for Pair'),
+            (None, mode, 1, 'Expected a Mode for Mode'),
+            (None, types.TypeList(types.boolean), [True], 'Expected a tuple'),
+            (None, types.TypeList(types.boolean), (True, 1), 'in item 1: Expected a value of boolean'),
+            (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for uint8'),
+            (None, types.uint8, True, 'Expected a wirely.UInt8 for uint8'),
+            (None, types.TypeOption(types.boolean), True, 'Expected None or wirely.Some'),
+            (None, types.ValueType, types.uint8, 'Expected a wirely.ValueType'),
+        ]:
+            with checks.assertRaisesRegex(ValueError, message):
+                from_native(signature, value_type, value)
+
+    # Without their Python types, native enums and structs cannot be converted.
+    for value_type, value in ((mode, 1), (pair, (True, 7))):
+        with checks.assertRaisesRegex(ValueError, 'has no native representation'):
+            to_native(None, value_type, value)
+
+
 check_fixture()
 check_values()
 check_optional_values()
 check_type_member_collision()
 check_unknown_native_enum_values()
 check_state_types()
+check_native_conversions()
 
 
 async def run_test():

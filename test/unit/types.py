@@ -266,6 +266,91 @@ def check_descriptors_and_lists():
     assert wirely.value_types.value_type.validate(wirely.value_types.uint16) == wirely.value_types.uint16
 
 
+def check_integers():
+    import pickle
+
+    classes = (wirely.Int8, wirely.Int16, wirely.Int32, wirely.Int64, wirely.Int128,
+               wirely.UInt8, wirely.UInt16, wirely.UInt32, wirely.UInt64, wirely.UInt128)
+    for cls in classes:
+        assert wirely.types.integers.integer_class(cls.bits, cls.signed) is cls
+        minimum = -(2 ** (cls.bits - 1)) if cls.signed else 0
+        maximum = 2 ** (cls.bits - (1 if cls.signed else 0)) - 1
+        for value in (minimum, 0, maximum):
+            number = cls(value)
+            assert number.value == value and number == cls(value) and hash(number) == hash(cls(value))
+            assert pickle.loads(pickle.dumps(number)) == number
+        for value, message in ((minimum - 1, 'out of range'), (maximum + 1, 'out of range'),
+                               (True, 'Expected an int'), (1.0, 'Expected an int'), (cls(0), 'Expected an int')):
+            with checks.assertRaisesRegex(ValueError, message):
+                cls(value)
+    with checks.assertRaises(ValueError):
+        wirely.types.integers.integer_class(24, True)
+
+    # Values compare only with values of the same class.
+    number = wirely.UInt8(7)
+    assert number != 7 and number != wirely.Int8(7) and number != wirely.UInt16(7)
+    assert len({wirely.UInt8(7), wirely.Int8(7), wirely.UInt8(7)}) == 2
+    assert wirely.UInt8(1) < number <= wirely.UInt8(7) and max(wirely.UInt8(9), number) == wirely.UInt8(9)
+    for operation in (lambda: number < 8, lambda: number < wirely.Int8(8), lambda: number + 1, lambda: [0][number]):
+        with checks.assertRaises(TypeError):
+            operation()
+    assert repr(wirely.Int16(-3)) == 'Int16(-3)'
+    for operation in (lambda: setattr(number, '_value', 8), lambda: setattr(number, 'extra', 8),
+                      lambda: delattr(number, '_value')):
+        with checks.assertRaises(AttributeError):
+            operation()
+    with checks.assertRaises(TypeError):
+        wirely.types.integers.Integer(1)
+
+
+def check_dynamic_values():
+    uint16 = wirely.value_types.uint16
+    seven = uint16.from_native(wirely.UInt16(7))
+    assert seven.type == uint16 and seven.extract(uint16) == wirely.UInt16(7) and seven.to_native() == wirely.UInt16(7)
+    assert seven == uint16.from_native(wirely.UInt16(7)) and hash(seven) == hash(uint16.from_native(wirely.UInt16(7)))
+    assert seven != uint16.from_native(wirely.UInt16(8))
+    assert seven != wirely.value_types.uint8.from_native(wirely.UInt8(7)) and seven != wirely.UInt16(7)
+    assert (seven.to_text(), seven.json_encode(), seven.to_csv_value()) == ('7', 7, ('7', False))
+    assert repr(seven) == 'DynamicValue(uint16: 7)'
+    with checks.assertRaisesRegex(ValueError, 'Expected a value of type uint8, got uint16'):
+        seven.extract(wirely.value_types.uint8)
+    for value in (7, wirely.UInt8(7), True, None):
+        with checks.assertRaises(ValueError):
+            uint16.from_native(value)
+    for operation in (lambda: wirely.DynamicValue(), lambda: __import__('pickle').dumps(seven)):
+        with checks.assertRaises(TypeError):
+            operation()
+    with checks.assertRaises(AttributeError):
+        seven._value = 8
+
+    # Composite descriptors keep nested options and lists.
+    nested = wirely.value_types.option(wirely.value_types.option(wirely.value_types.list_of(uint16)))
+    assert str(nested) == 'Option[Option[List[uint16]]]'
+    for native in (None, wirely.Some(None), wirely.Some(wirely.Some((wirely.UInt16(1), wirely.UInt16(2))))):
+        value = nested.from_native(native)
+        assert value.extract(nested) == native and value.type == nested
+    assert nested.from_native(None) != nested.from_native(wirely.Some(None))
+    for invalid in (wirely.Some(wirely.Some([wirely.UInt16(1)])), wirely.Some(wirely.Some((1,))), wirely.Some(7)):
+        with checks.assertRaises(ValueError):
+            nested.from_native(invalid)
+
+    # Formatting and conversions depend on the type.
+    text = wirely.value_types.string.from_native('a"b')
+    assert (text.to_text(), text.json_encode()) == ('"a\\"b"', 'a"b')
+    time = wirely.value_types.time_of_day.from_native(wirely.TimeOfDay.from_parts(11, 17))
+    for operation in (time.json_encode, time.to_csv_value):
+        with checks.assertRaises(ValueError):
+            operation()
+    descriptor = wirely.value_types.value_type.from_native(uint16)
+    assert descriptor.extract(wirely.value_types.value_type) == uint16 and descriptor.to_text() == 'uint16'
+
+    # Enums and structs that are not native have no native representation.
+    mode = wirely.ValueType(wirely.types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False,
+                                                  underlying_type=wirely.types.uint8))
+    with checks.assertRaisesRegex(ValueError, 'Enum Mode has no native representation'):
+        mode.from_native(1)
+
+
 def check_unit():
     unit = wirely.Unit()
     assert unit == wirely.Unit()
@@ -617,6 +702,8 @@ check_enum_values()
 check_open_int_enums()
 check_open_and_closed_enums()
 check_descriptors_and_lists()
+check_integers()
+check_dynamic_values()
 check_unit()
 check_times()
 check_type_names()
