@@ -51,6 +51,7 @@ python_only_tests = [
     'unit/compiler_api',
     'unit/compiler_warnings',
     'unit/native_interface',
+    'unit/native_contracts',
     'unit/instructions',
     'unit/test_resources',
     'unit/test_runner',

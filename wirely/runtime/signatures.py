@@ -7,7 +7,7 @@ describes native state types, procedures, and functions with these types.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -82,6 +82,8 @@ class Initializer:
     depends: Mapping[str, Port]
     produces: Mapping[str, Port]
     uses: Mapping[str, SignatureType]
+    # 'module:attribute' of the contract implementations derive from; not part of the interface.
+    contract: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         for name in ('depends', 'produces', 'uses'):
@@ -94,6 +96,8 @@ class Procedure:
     depends: Mapping[str, Port]
     produces: Mapping[str, Port]
     uses: Mapping[str, SignatureType]
+    # 'module:attribute' of the contract implementations derive from; not part of the interface.
+    contract: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         for name in ('depends', 'produces', 'uses'):
@@ -106,6 +110,8 @@ class Function:
 
     parameters: tuple[SignatureType, ...]
     result: SignatureType
+    # 'module:attribute' of the FunctionContract implementations are registered with.
+    contract: str | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'parameters', tuple(self.parameters))

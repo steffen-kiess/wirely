@@ -1,0 +1,12 @@
+// Interfaces of the native test code in wirely/native/test_library.py and
+// wirely/functions/test_library.py. tools/generate-native-types generates
+// their contracts; tests declare the interfaces they use themselves.
+namespace TestLibrary {
+  node type TestNode {
+    native procedure test_procedure;
+  }
+
+  native function Clamp(value: int16, low: int16, high: int16): int16;
+  native function Nothing(): unit;
+  native function Fail(): boolean;
+}
