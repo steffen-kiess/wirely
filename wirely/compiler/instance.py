@@ -463,6 +463,9 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
 
 
 class InstanceProcedure:
+    # Set when a Wirely procedure body is compiled.
+    static_usage: frozenset[model.DeclarationParameter]
+
     # TODO: Make name mandatory
     def __init__(self, node: 'InstanceNode', dependencies: typing.Iterable[typing.Any],
                  outputs: typing.Iterable[InstanceTemporary | InstanceStateVariable], can_trigger: bool = False,

@@ -1,16 +1,30 @@
 """Shared expression syntax, checking, and restricted procedure bodies."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, replace
-from typing import Any
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeGuard, TypeVar
+
+if TYPE_CHECKING:
+    from .parameters import StaticValue
 
 from . import model
-from .ast import SourceElement, ProgramError, Value as AstValue, check_struct_literal
+from .ast import SourcePosition, SourceElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
-    BranchTarget, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
+    BranchTarget, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody, Variable,
 )
+
+
+# Inputs are single names, multi input members, or old-state variables.
+InputKey: TypeAlias = str | tuple[str, int] | Variable
+# Binding payloads vary by operation: names, local slots, and event identities.
+ExpressionKey: TypeAlias = tuple[str, Any]
+Initialization: TypeAlias = dict[ExpressionKey, tuple[bool, bool]]
+SyntaxT = TypeVar('SyntaxT')
 
 
 class Expression(AstValue):
@@ -18,82 +32,82 @@ class Expression(AstValue):
 
 
 class BinaryExpression(Expression):
-    def __init__(self, left, right, *, operator, source_position):
+    def __init__(self, left: AstValue, right: AstValue, *, operator: str, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.left = left
         self.right = right
         self.operator = operator
 
     @staticmethod
-    def logical_or(left, right, *, source_position):
+    def logical_or(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='or', source_position=source_position)
 
     @staticmethod
-    def logical_and(left, right, *, source_position):
+    def logical_and(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='and', source_position=source_position)
 
     @staticmethod
-    def equal(left, right, *, source_position):
+    def equal(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='eq', source_position=source_position)
 
     @staticmethod
-    def not_equal(left, right, *, source_position):
+    def not_equal(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='ne', source_position=source_position)
 
     @staticmethod
-    def less(left, right, *, source_position):
+    def less(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='lt', source_position=source_position)
 
     @staticmethod
-    def less_equal(left, right, *, source_position):
+    def less_equal(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='le', source_position=source_position)
 
     @staticmethod
-    def greater(left, right, *, source_position):
+    def greater(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='gt', source_position=source_position)
 
     @staticmethod
-    def greater_equal(left, right, *, source_position):
+    def greater_equal(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='ge', source_position=source_position)
 
     @staticmethod
-    def add(left, right, *, source_position):
+    def add(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='add', source_position=source_position)
 
     @staticmethod
-    def subtract(left, right, *, source_position):
+    def subtract(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='sub', source_position=source_position)
 
     @staticmethod
-    def multiply(left, right, *, source_position):
+    def multiply(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='mul', source_position=source_position)
 
     @staticmethod
-    def divide(left, right, *, source_position):
+    def divide(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='div', source_position=source_position)
 
     @staticmethod
-    def remainder(left, right, *, source_position):
+    def remainder(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='rem', source_position=source_position)
 
     @staticmethod
-    def bitwise_and(left, right, *, source_position):
+    def bitwise_and(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='bit_and', source_position=source_position)
 
     @staticmethod
-    def bitwise_or(left, right, *, source_position):
+    def bitwise_or(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='bit_or', source_position=source_position)
 
     @staticmethod
-    def bitwise_xor(left, right, *, source_position):
+    def bitwise_xor(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='bit_xor', source_position=source_position)
 
     @staticmethod
-    def shift_left(left, right, *, source_position):
+    def shift_left(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='shift_left', source_position=source_position)
 
     @staticmethod
-    def shift_right(left, right, *, source_position):
+    def shift_right(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
         return BinaryExpression(left, right, operator='shift_right', source_position=source_position)
 
 
@@ -103,13 +117,13 @@ ARITHMETIC_OPERATORS = ('add', 'sub', 'mul', 'div', 'rem')
 
 
 class UnaryExpression(Expression):
-    def __init__(self, operand, *, operator='not', source_position):
+    def __init__(self, operand: AstValue, *, operator: str = 'not', source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.operand = operand
         self.operator = operator
 
     @staticmethod
-    def negate(operand, *, source_position):
+    def negate(operand: AstValue, *, source_position: SourcePosition) -> UnaryExpression | model.IntNumber:
         # A negated literal stays a literal, so -128 can be an int8.
         if isinstance(operand, model.IntNumber):
             return operand.negated(source_position=source_position)
@@ -117,13 +131,14 @@ class UnaryExpression(Expression):
 
 
 class PropertyAccess(Expression):
-    def __init__(self, receiver, name, *, source_position):
+    def __init__(self, receiver: AstValue, name: model.Identifier, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.receiver = receiver
         self.name = name
 
 
-def property_reference(scope, expression, local_names=()):
+def property_reference(scope: model.Scope, expression: SyntaxT,
+                       local_names: Collection[str] = ()) -> SyntaxT | AstValue:
     """Split value suffixes while preserving qualified declaration references."""
     if not isinstance(expression, model.Reference) or expression.length < 2:
         return expression
@@ -161,7 +176,7 @@ def property_reference(scope, expression, local_names=()):
     return receiver
 
 
-def multi_length_port(scope, receiver, names):
+def multi_length_port(scope: model.Scope, receiver: AstValue, names: Collection[str]) -> model.TypeInputPort | None:
     """Find an enclosing input, without treating shadowed names as ports."""
     if not isinstance(receiver, model.Reference) or receiver.length != 1:
         return None
@@ -189,7 +204,8 @@ INTEGER_MEMBERS.update({
 })
 
 
-def type_member(scope, reference, parameters, local_names=()):
+def type_member(scope: model.Scope, reference: AstValue, parameters: Mapping[model.DeclarationParameter, StaticValue],
+                local_names: Collection[str] = ()) -> tuple[model.Type, tuple[str, str]] | None:
     """Resolve Type.Member to (type, member), or None when the callee is not a type member."""
     if not isinstance(reference, model.Reference) or reference.length < 2:
         return None
@@ -222,12 +238,12 @@ def type_member(scope, reference, parameters, local_names=()):
     return value_type, member
 
 
-def is_some_call(expression):
+def is_some_call(expression: object) -> TypeGuard[model.FunctionCall]:
     return (isinstance(expression, model.FunctionCall) and isinstance(expression.fun, model.Reference)
             and expression.fun.length == 1 and expression.fun.identifiers[0].id_str == 'Some')
 
 
-def is_type_declaration(declaration):
+def is_type_declaration(declaration: model.DeclarationParameter) -> bool:
     declared_type = getattr(declaration, 'type_resolved', None)
     return (declared_type == model.types.ValueType
             or (isinstance(declaration.ty, model.Reference) and declaration.ty.length == 1
@@ -235,7 +251,8 @@ def is_type_declaration(declaration):
 
 
 class IfExpression(Expression):
-    def __init__(self, condition, then, otherwise=None, *, source_position):
+    def __init__(self, condition: AstValue, then: AstValue, otherwise: AstValue | None = None, *,
+                 source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.condition = condition
         self.then = then
@@ -243,7 +260,8 @@ class IfExpression(Expression):
 
 
 class IfLetExpression(Expression):
-    def __init__(self, constructor, name, scrutinee, then, otherwise=None, *, source_position):
+    def __init__(self, constructor: model.Identifier, name: model.Identifier, scrutinee: AstValue, then: AstValue,
+                 otherwise: AstValue | None = None, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.constructor = constructor
         self.name = name
@@ -253,7 +271,8 @@ class IfLetExpression(Expression):
 
 
 class ForExpression(Expression):
-    def __init__(self, name, iterable, body, *, source_position):
+    def __init__(self, name: model.Identifier, iterable: AstValue, body: AstValue, *,
+                 source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.iterable = iterable
@@ -261,64 +280,67 @@ class ForExpression(Expression):
 
 
 class OnTrigger(SourceElement):
-    def __init__(self, name, *, changed=False, source_position):
+    def __init__(self, name: model.Identifier, *, changed: bool = False, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.is_changed = changed
 
     @staticmethod
-    def changed(name, *, source_position):
+    def changed(name: model.Identifier, *, source_position: SourcePosition) -> OnTrigger:
         return OnTrigger(name, changed=True, source_position=source_position)
 
     @property
-    def description(self):
+    def description(self) -> str:
         return f'changed {self.name.id_str!r}' if self.is_changed else repr(self.name.id_str)
 
 
 class OnExpression(Expression):
-    def __init__(self, triggers, body, *, source_position):
+    def __init__(self, triggers: Iterable[OnTrigger], body: AstValue, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.triggers = tuple(triggers)
         self.body = body
 
 
 class EmitExpression(Expression):
-    def __init__(self, target, expression=None, *, optional=False, source_position):
+    def __init__(self, target: model.Identifier, expression: AstValue | None = None, *, optional: bool = False,
+                 source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.target = target
         self.expression = expression
         self.is_optional = optional
 
     @staticmethod
-    def optional(target, expression, *, source_position):
+    def optional(target: model.Identifier, expression: AstValue, *, source_position: SourcePosition) -> EmitExpression:
         return EmitExpression(target, expression, optional=True, source_position=source_position)
 
 
 class ExpressionBlock(Expression):
-    def __init__(self, *statements, source_position):
+    def __init__(self, *statements: LocalBinding | ExpressionStatement, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.statements = statements
 
 
 class ExpressionStatement(SourceElement):
-    def __init__(self, expression, *, terminated=True, source_position):
+    def __init__(self, expression: AstValue, *, terminated: bool = True, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.expression = expression
         self.terminated = terminated
 
     @staticmethod
-    def unterminated(expression, *, source_position):
+    def unterminated(expression: AstValue, *, source_position: SourcePosition) -> ExpressionStatement:
         return ExpressionStatement(expression, terminated=False, source_position=source_position)
 
 
 class AssertionStatement(ExpressionStatement):
-    def __init__(self, expression, message, *, source_position):
+    def __init__(self, expression: AstValue, message: model.StringConstant | None, *,
+                 source_position: SourcePosition) -> None:
         super().__init__(expression, source_position=source_position)
         self.message = message
 
 
 class LocalBinding(SourceElement):
-    def __init__(self, name, annotation, initializer, *, mutable=False, source_position):
+    def __init__(self, name: model.Identifier, annotation: AstValue | None, initializer: AstValue | None, *,
+                 mutable: bool = False, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.name = name
         self.annotation = annotation
@@ -326,12 +348,13 @@ class LocalBinding(SourceElement):
         self.is_mutable = mutable
 
     @staticmethod
-    def mutable(name, annotation, initializer, *, source_position):
+    def mutable(name: model.Identifier, annotation: AstValue | None, initializer: AstValue | None, *,
+                source_position: SourcePosition) -> LocalBinding:
         return LocalBinding(name, annotation, initializer, mutable=True, source_position=source_position)
 
 
 class AssignmentExpression(Expression):
-    def __init__(self, target, expression, *, source_position):
+    def __init__(self, target: AstValue, expression: AstValue, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
         self.target = target
         self.expression = expression
@@ -346,13 +369,14 @@ class Binding:
 class ExpressionClassification:
     """Resolve runtime dependencies, including cycles through block locals."""
 
-    def __init__(self, expression, names, scope, multi_names):
-        self.dependencies: dict[Any, set] = {}
-        self.runtime: set = set()
+    def __init__(self, expression: AstValue, names: Mapping[str, bool | SourceElement], scope: model.Scope,
+                 multi_names: Collection[str]) -> None:
+        self.dependencies: dict[SourceElement, set[SourceElement]] = {}
+        self.runtime: set[SourceElement] = set()
         self.scope = scope
         self.multi_names = multi_names
         self.visit(expression, names)
-        dependents: dict[Any, set] = {}
+        dependents: dict[SourceElement, set[SourceElement]] = {}
         for source, dependencies in self.dependencies.items():
             for dependency in dependencies:
                 dependents.setdefault(dependency, set()).add(source)
@@ -363,7 +387,7 @@ class ExpressionClassification:
                     self.runtime.add(dependent)
                     pending.append(dependent)
 
-    def visit(self, expression, names):
+    def visit(self, expression: object, names: Mapping[str, bool | SourceElement]) -> None:
         """Names map to runtime flags or the syntax node owning a local."""
         if not isinstance(expression, SourceElement):
             return
@@ -381,6 +405,7 @@ class ExpressionClassification:
             if binding is True:
                 self.runtime.add(expression)
             elif binding is not False:
+                assert isinstance(binding, SourceElement)
                 dependencies.add(binding)
             return
         if isinstance(expression, ExpressionBlock):
@@ -438,20 +463,20 @@ class ExpressionClassification:
 class TypedExpression:
     value_type: Any
     operation: str
-    arguments: tuple = ()
+    arguments: tuple[TypedExpression, ...] = ()
     payload: Any = None  # Depends on the operation.
     source: Any = None
     expected_type: Any = None
     runtime: bool = False
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return (self.value_type.contains_parameters
                 or (self.expected_type is not None and self.expected_type.contains_parameters)
                 or (self.operation == 'constant' and self.payload.contains_parameters)
                 or any(argument.contains_parameters for argument in self.arguments))
 
-    def resolve(self, parameters):
+    def resolve(self, parameters: Mapping[model.DeclarationParameter, StaticValue]) -> TypedExpression:
         resolved = replace(
             self, value_type=resolve_type(self.value_type, parameters),
             expected_type=(resolve_type(self.expected_type, parameters)
@@ -463,7 +488,7 @@ class TypedExpression:
         resolved.check_types()
         return resolved
 
-    def check_types(self):
+    def check_types(self) -> None:
         if self.expected_type is not None:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
@@ -550,12 +575,12 @@ class TypedExpression:
                 name = 'IsSome' if self.operation == 'is_some' else 'IsNone'
                 raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
 
-    def check_shift_count(self, count):
+    def check_shift_count(self, count: int) -> None:
         width = self.arguments[0].value_type.bits
         if not 0 <= count < width:
             raise ProgramError(self.arguments[1].source, f'Shift count must be between 0 and {width - 1}')
 
-    def evaluate(self, inputs, locals):
+    def evaluate(self, inputs: Mapping[object, Any], locals: dict[ExpressionKey, Any]) -> Any:
         if self.operation == 'unit':
             return model.types.unit.default_value()
         if self.operation == 'assert':
@@ -652,7 +677,7 @@ class TypedExpression:
             return not less(left, right)
         raise AssertionError(f'Unknown compiler expression operation {operation!r}')
 
-    def evaluate_arithmetic(self, inputs, locals):
+    def evaluate_arithmetic(self, inputs: Mapping[object, Any], locals: dict[ExpressionKey, Any]) -> Any:
         integer_type = self.arguments[0].value_type
         operands = [argument.evaluate(inputs, locals) for argument in self.arguments]
         if self.operation == 'neg':
@@ -681,23 +706,23 @@ class TypedExpression:
 class ExpressionValue(Value):
     """A compile-time expression that can still contain parameter references."""
 
-    def __init__(self, expression, *, ast_element):
+    def __init__(self, expression: TypedExpression, *, ast_element: SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.expression = expression
         self.value_type = expression.value_type
 
     @property
-    def value(self):
+    def value(self) -> Any:
         return self.evaluate()
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self.expression.contains_parameters
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ExpressionValue:
         return ExpressionValue(self.expression.resolve(par_values), ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         return self.value_type.verify_value(self.expression.evaluate({}, {}))
 
 
@@ -708,39 +733,41 @@ OPCODES_BY_CONVERSION = {overflow: opcode for opcode, overflow in CONVERSION_OPC
 class InstructionCompiler:
     """Lower resolved procedure expressions to forward-only instructions."""
 
-    def __init__(self, source_types, output_types, intern_constant, intern_function):
+    def __init__(self, source_types: Mapping[InputKey, model.Type], output_types: Mapping[str, model.Type],
+                 intern_constant: Callable[[model.Type, object], int],
+                 intern_function: Callable[[Function], int]) -> None:
         self.inputs = {name: Operand(OperandKind.INPUT, index)
                        for index, name in enumerate(source_types)}
         self.outputs = {name: Operand(OperandKind.OUTPUT, index)
                         for index, name in enumerate(output_types)}
         self.intern_constant = intern_constant
         self.intern_function = intern_function
-        self.instructions = []
-        self.local_types = []
-        self.locals = {}
+        self.instructions: list[Instruction] = []
+        self.local_types: list[model.Type] = []
+        self.locals: dict[int, Operand] = {}
 
-    def allocate(self, value_type):
+    def allocate(self, value_type: model.Type) -> Operand:
         operand = Operand(OperandKind.LOCAL, len(self.local_types))
         self.local_types.append(value_type)
         return operand
 
-    def local(self, slot, value_type):
+    def local(self, slot: int, value_type: model.Type) -> Operand:
         if slot not in self.locals:
             self.locals[slot] = self.allocate(value_type)
         return self.locals[slot]
 
-    def emit(self, opcode, *operands):
+    def emit(self, opcode: Opcode, *operands: Operand | BranchTarget | int) -> int:
         index = len(self.instructions)
         self.instructions.append(Instruction(opcode, operands))
         return index
 
-    def patch(self, index):
+    def patch(self, index: int) -> None:
         instruction = self.instructions[index]
         self.instructions[index] = Instruction(
             instruction.opcode, (*instruction.operands[:-1], BranchTarget(len(self.instructions))),
         )
 
-    def compile(self, expression, destination=None):
+    def compile(self, expression: TypedExpression, destination: Operand | None = None) -> Operand:
         operation = expression.operation
         if operation in ('constant', 'input', 'local', 'output'):
             if operation == 'constant':
@@ -794,8 +821,8 @@ class InstructionCompiler:
             # Field values are computed before being stored; bodies never read the destination.
             values = [self.snapshot(argument) for argument in expression.arguments]
             fields = tuple(expression.value_type.fields)
-            for name, value in zip(expression.payload, values):
-                self.emit(Opcode.SET_FIELD, destination, value, fields.index(name))
+            for name, field_operand in zip(expression.payload, values):
+                self.emit(Opcode.SET_FIELD, destination, field_operand, fields.index(name))
             return destination
         left = self.snapshot(expression.arguments[0])
         if operation == 'if':
@@ -880,7 +907,7 @@ class InstructionCompiler:
             raise AssertionError(f'Unknown procedure operation {operation!r}')
         return destination
 
-    def snapshot(self, expression):
+    def snapshot(self, expression: TypedExpression) -> Operand:
         source = self.compile(expression)
         if source.kind in (OperandKind.LOCAL, OperandKind.OUTPUT):
             destination = self.allocate(expression.value_type)
@@ -888,7 +915,7 @@ class InstructionCompiler:
             return destination
         return source
 
-    def body(self, expression, event_outputs=()):
+    def body(self, expression: TypedExpression, event_outputs: Iterable[str] = ()) -> ProgramBody:
         for name in event_outputs:
             self.emit(Opcode.SET_DEFAULT, self.outputs[name])
         if expression.runtime:
@@ -901,33 +928,35 @@ OPTIONAL_RUNTIME_MESSAGE = 'optional requires an optional parameter without a de
 
 
 class ExpressionCompiler:
-    def __init__(self, scope, parameters, *, runtime=False, names=None, protected=()):
+    def __init__(self, scope: model.Scope, parameters: Mapping[model.DeclarationParameter, StaticValue], *,
+                 runtime: bool = False, names: Mapping[str, TypedExpression] | None = None,
+                 protected: Iterable[str] = ()) -> None:
         self.scope = scope
         self.parameters = parameters
         self.runtime = runtime
         self.names = dict(names or {})
         self.protected = set(protected)
         self.next_slot = 0
-        self.static_usage = set()
-        self.bindings = {}
-        self.initialization = {}
-        self.loop_outer_keys = None
-        self.classification = None
+        self.static_usage: set[model.DeclarationParameter] = set()
+        self.bindings: dict[ExpressionKey, Binding] = {}
+        self.initialization: Initialization = {}
+        self.loop_outer_keys: set[ExpressionKey] | None = None
+        self.classification: ExpressionClassification | None = None
         # Payload types of event bindings, by (operation, payload).
-        self.events = {}
-        self.event_outputs = set()
+        self.events: dict[ExpressionKey, model.Type] = {}
+        self.event_outputs: set[str] = set()
         # State identities by eligible body name; old-value inputs by state identity.
-        self.changed_states = {}
-        self.old_state_inputs = {}
-        self.implicit_old_states = {}
+        self.changed_states: Mapping[str, Variable] = {}
+        self.old_state_inputs: dict[Variable, TypedExpression] = {}
+        self.implicit_old_states: dict[Variable, TypedExpression] = {}
         # Payload locals of events known to be present, by (operation, payload).
-        self.present = {}
+        self.present: dict[ExpressionKey, TypedExpression] = {}
         # Multi event keys of loop variables over them, by loop variable key.
-        self.event_loops = {}
+        self.event_loops: dict[ExpressionKey, ExpressionKey] = {}
         # (expression, trigger keys) of the enclosing on blocks, innermost last.
-        self.on_blocks = []
+        self.on_blocks: list[tuple[OnExpression, Sequence[ExpressionKey]]] = []
 
-    def is_runtime(self, expression):
+    def is_runtime(self, expression: object) -> bool:
         if self.classification is not None and expression in self.classification.dependencies:
             return expression in self.classification.runtime
         # Property references are split into fresh syntax nodes during compilation.
@@ -938,11 +967,12 @@ class ExpressionCompiler:
             return value is not None and value.runtime
         return False
 
-    def optional_parameter_declaration(self, expression):
+    def optional_parameter_declaration(self, expression: model.OptionalExpression) -> model.DeclarationParameter:
         local_names = {name for name, value in self.names.items() if value.operation != 'constant'}
+        assert isinstance(self.scope, model.NodeType)
         return expression.declaration(self.scope, local_names, events=self.runtime)
 
-    def optional_event(self, expression):
+    def optional_event(self, expression: model.OptionalExpression) -> TypedExpression | None:
         """Return the option storage of the event that optional(x) names, or None."""
         reference = expression.argument()
         if not isinstance(reference, model.Reference) or reference.length != 1:
@@ -953,7 +983,7 @@ class ExpressionCompiler:
             return None
         return value
 
-    def record_static_usage(self, expression):
+    def record_static_usage(self, expression: object) -> None:
         expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, model.Reference):
             if expression.length == 1:
@@ -972,13 +1002,13 @@ class ExpressionCompiler:
                 elif isinstance(child, SourceElement):
                     self.record_static_usage(child)
 
-    def bind(self, name, value, *, mutable=False, initialized=False):
+    def bind(self, name: str, value: TypedExpression, *, mutable: bool = False, initialized: bool = False) -> None:
         self.names[name] = value
         key = value.operation, value.payload
         self.bindings[key] = Binding(value, mutable)
         self.initialization[key] = initialized, initialized
 
-    def local(self, binding):
+    def local(self, binding: LocalBinding) -> TypedExpression:
         name = binding.name.id_str
         if name in self.protected:
             raise ProgramError(binding.name, f'Cannot shadow procedure port or parameter {name!r}')
@@ -1005,7 +1035,7 @@ class ExpressionCompiler:
                                 runtime=self.is_runtime(binding))
                 if expression is not None else TypedExpression(model.types.unit, 'unit'))
 
-    def merge_initialization(self, before, *branches):
+    def merge_initialization(self, before: Initialization, *branches: Initialization) -> None:
         """Merge (possibly initialized, definitely initialized) for outer bindings."""
         self.initialization = {
             key: (any(branch[key][0] for branch in branches),
@@ -1013,14 +1043,14 @@ class ExpressionCompiler:
             for key in before
         }
 
-    def assignment(self, expression):
+    def assignment(self, expression: AssignmentExpression) -> TypedExpression:
         target = expression.target
         if not isinstance(target, model.Reference) or target.length != 1:
             raise ProgramError(target, 'Assignment requires a whole local variable or output')
         name = target.identifiers[0].id_str
         value = self.names.get(name)
         key = (value.operation, value.payload) if value is not None else None
-        binding = self.bindings.get(key)
+        binding = self.bindings.get(key) if key is not None else None
         if binding is None:
             raise ProgramError(target, f'Cannot assign to {name!r}; expected a local variable or output')
         if name in self.event_outputs:
@@ -1030,7 +1060,8 @@ class ExpressionCompiler:
         rhs = self.compile(expression.expression, binding.value.value_type)
         return self.assign_binding(target, binding, rhs)
 
-    def assign_binding(self, target, binding, rhs):
+    def assign_binding(self, target: model.Identifier | model.Reference, binding: Binding,
+                       rhs: TypedExpression) -> TypedExpression:
         name = target.id_str if isinstance(target, model.Identifier) else target.identifiers[0].id_str
         key = binding.value.operation, binding.value.payload
         if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
@@ -1040,7 +1071,7 @@ class ExpressionCompiler:
         self.initialization[key] = True, True
         return TypedExpression(model.types.unit, 'assign', (rhs,), key)
 
-    def emit_expression(self, expression):
+    def emit_expression(self, expression: EmitExpression) -> TypedExpression:
         if not self.runtime:
             raise ProgramError(expression, 'emit is only allowed in procedure bodies')
         name = expression.target.id_str
@@ -1063,14 +1094,16 @@ class ExpressionCompiler:
                           or self.initialization['output', target][1]]
             suggestion = (f"; available state triggers: {', '.join('on changed ' + target for target in candidates)}"
                           if candidates else '')
-            self.scope.coordinator.warnings.warn(
+            warnings = self.scope.coordinator.warnings
+            assert warnings is not None
+            warnings.warn(
                 'UnguardedEvent', expression,
                 f'Emission of {name!r} is outside an on block; '
                 f'use on or suppress with #[Allow(UnguardedEvent)]{suggestion}',
             )
         return result
 
-    def for_expression(self, expression):
+    def for_expression(self, expression: ForExpression) -> TypedExpression:
         if not self.runtime:
             raise ProgramError(expression, 'For loops are only allowed in procedure bodies')
         if self.loop_outer_keys is not None:
@@ -1105,7 +1138,7 @@ class ExpressionCompiler:
             self.initialization = {key: state for key, state in self.initialization.items() if key in before}
         return TypedExpression(model.types.unit, 'for', (body,), (slot, value.payload))
 
-    def on_expression(self, expression):
+    def on_expression(self, expression: OnExpression) -> TypedExpression:
         if not self.runtime:
             raise ProgramError(expression, 'on blocks are only allowed in procedure bodies')
         conditions = []
@@ -1155,6 +1188,7 @@ class ExpressionCompiler:
         self.merge_initialization(before, before, self.initialization)
         absent = TypedExpression(model.types.unit, 'unit')
         if slot is not None:
+            assert value is not None
             return TypedExpression(model.types.unit, 'if_let', (value, body, absent), slot)
         condition = TypedExpression(model.types.boolean, 'constant', payload=ConstantValue(
             model.types.boolean, False, ast_element=expression,
@@ -1164,13 +1198,15 @@ class ExpressionCompiler:
                          else TypedExpression(model.types.boolean, 'or', (condition, trigger_condition), runtime=True))
         return TypedExpression(model.types.unit, 'if', (condition, body, absent))
 
-    def check_nesting(self, expression, keys):
+    def check_nesting(self, expression: OnExpression, keys: Sequence[ExpressionKey]) -> None:
         """Warn when enclosing on blocks make this one always run, or run only by coincidence."""
-        def names(block):
+        def names(block: OnExpression) -> str:
             return ' or '.join(trigger.description for trigger in block.triggers)
 
-        def warn(name, enclosing, message):
-            self.scope.coordinator.warnings.warn(
+        def warn(name: str, enclosing: OnExpression, message: str) -> None:
+            warnings = self.scope.coordinator.warnings
+            assert warnings is not None
+            warnings.warn(
                 name, expression.triggers[0], message, instance_trace=False,
                 hints=(model.CompilerHint(enclosing, 'Enclosing on block is here'),),
             )
@@ -1190,7 +1226,7 @@ class ExpressionCompiler:
         warn('CoincidentTriggers', enclosing,
              f'Block runs only if {names(expression)} occurs in the same step as {names(enclosing)}')
 
-    def block(self, expression, expected):
+    def block(self, expression: ExpressionBlock, expected: model.Type | None) -> TypedExpression:
         previous_names = dict(self.names)
         outer_keys = set(self.initialization)
         statements = []
@@ -1225,7 +1261,7 @@ class ExpressionCompiler:
                                    if key in outer_keys}
         return TypedExpression(result.value_type, 'block', (*statements, result))
 
-    def compile(self, expression, expected=None):
+    def compile(self, expression: AstValue, expected: model.Type | None = None) -> TypedExpression:
         if self.runtime and self.classification is None:
             self.classification = ExpressionClassification(
                 expression, {name: value.runtime for name, value in self.names.items()},
@@ -1242,7 +1278,8 @@ class ExpressionCompiler:
             check_runtime_type(result.value_type, expression)
         return result
 
-    def _compile(self, expression, expected):
+    def _compile(self, expression: AstValue, expected: model.Type | None) -> TypedExpression:
+        value: TypedExpression | Value | None
         boolean = model.types.boolean
         if isinstance(expression, ForExpression):
             return self.for_expression(expression)
@@ -1264,10 +1301,13 @@ class ExpressionCompiler:
                         ))
                 port = multi_length_port(self.scope, expression.receiver, self.names)
                 if port is not None:
-                    value = InputLengthValue(self.scope, port, ast_element=expression)
+                    assert isinstance(self.scope, model.NodeType)
+                    length_value: InputLengthValue | ConstantValue = InputLengthValue(
+                        self.scope, port, ast_element=expression,
+                    )
                     if getattr(self.parameters, 'instance', None) is not None:
-                        value = value.resolve_self(self.parameters)
-                    return TypedExpression(model.types.uint32, 'constant', payload=value)
+                        length_value = length_value.resolve_self(self.parameters)
+                    return TypedExpression(model.types.uint32, 'constant', payload=length_value)
             receiver = self.compile(expression.receiver)
             receiver_type = receiver.value_type
             if isinstance(receiver_type, model.types.TypeStruct) and name in receiver_type.fields:
@@ -1309,9 +1349,8 @@ class ExpressionCompiler:
             if self.is_runtime(expression):
                 raise ProgramError(expression, OPTIONAL_RUNTIME_MESSAGE)
             parameter = self.optional_parameter_declaration(expression)
-            value = model.value.ParameterOptionValue(parameter, ast_element=expression)
-            if self.runtime:
-                value = value.resolve_self(self.parameters)
+            option_value = model.value.ParameterOptionValue(parameter, ast_element=expression)
+            value = option_value.resolve_self(self.parameters) if self.runtime else option_value
             return TypedExpression(value.value_type, 'constant', payload=value)
         if isinstance(expression, UnaryExpression) and expression.operator == 'neg':
             if self.is_runtime(expression):
@@ -1408,7 +1447,9 @@ class ExpressionCompiler:
         if isinstance(expression, model.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)
+            assert value_type is not None
             fields = check_struct_literal(value_type, expression, self.scope)
+            assert isinstance(value_type, model.types.TypeStruct)
             if self.is_runtime(expression):
                 check_runtime_type(value_type, expression)
             arguments = tuple(self.compile(field.value, value_type.fields[name])
@@ -1464,7 +1505,7 @@ class ExpressionCompiler:
         value = self.scope.get_const_value(expression, value_type, par_values=self.parameters)
         return TypedExpression(value_type, 'constant', payload=value)
 
-    def member_call(self, call, value_type, member):
+    def member_call(self, call: model.FunctionCall, value_type: model.Type, member: tuple[str, str]) -> TypedExpression:
         operation, overflow = member
         result_type = model.types.TypeOption(value_type) if overflow == 'checked' else value_type
         if operation == 'convert':
@@ -1482,13 +1523,14 @@ class ExpressionCompiler:
         right = self.compile(call.parameters[1], value_type)
         return TypedExpression(result_type, 'arith', (left, right), member)
 
-    def option_operand(self, expression, expected=None):
+    def option_operand(self, expression: AstValue,
+                       expected: model.Type | None = None) -> tuple[TypedExpression, model.Type]:
         option = self.compile(expression, expected)
         if isinstance(option.value_type, model.types.TypeOption):
             return option, option.value_type.inner_type
         raise ProgramError(expression, f'Expected an Option value, got {option.value_type}')
 
-    def unwrap(self, call, receiver, expected):
+    def unwrap(self, call: model.FunctionCall, receiver: AstValue, expected: model.Type | None) -> TypedExpression:
         # Programs must not fail at runtime, so Unwrap is compile-time only.
         if self.is_runtime(call):
             raise ProgramError(call, 'Unwrap is compile-time only; use UnwrapOr or if let')
@@ -1499,7 +1541,7 @@ class ExpressionCompiler:
         option, inner_type = self.option_operand(receiver, option_type)
         return TypedExpression(inner_type, 'unwrap', (option,))
 
-    def unwrap_or(self, call, receiver, expected):
+    def unwrap_or(self, call: model.FunctionCall, receiver: AstValue, expected: model.Type | None) -> TypedExpression:
         if len(call.parameters) != 1:
             raise ProgramError(call, 'UnwrapOr expects exactly one argument')
         # An untyped receiver such as None takes its type from the expected result.
@@ -1509,7 +1551,7 @@ class ExpressionCompiler:
         fallback = self.compile(call.parameters[0], inner_type)
         return TypedExpression(inner_type, 'unwrap_or', (option, fallback))
 
-    def bind_pattern(self, expression, inner_type):
+    def bind_pattern(self, expression: IfLetExpression, inner_type: model.Type) -> int | None:
         """Bind the if-let name in self.names and return its slot, or None for _."""
         name = expression.name.id_str
         if name == '_':
@@ -1522,7 +1564,7 @@ class ExpressionCompiler:
                   initialized=True)
         return slot
 
-    def if_let(self, expression, expected):
+    def if_let(self, expression: IfLetExpression, expected: model.Type | None) -> TypedExpression:
         if expression.constructor.id_str != 'Some':
             raise ProgramError(expression.constructor, 'if let patterns must have the form Some(name)')
         option, inner_type = self.option_operand(expression.scrutinee)
@@ -1542,7 +1584,7 @@ class ExpressionCompiler:
         self.merge_initialization(before, then_state, self.initialization)
         return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
 
-    def check_runtime_syntax(self, expression):
+    def check_runtime_syntax(self, expression: AstValue | None) -> None:
         if not self.is_runtime(expression):
             return
         if isinstance(expression, model.OptionalExpression):
@@ -1560,7 +1602,9 @@ class ExpressionCompiler:
             return
         if (isinstance(expression, model.FunctionCall)
                 and isinstance(property_reference(self.scope, expression.fun, self.names), PropertyAccess)):
-            self.check_runtime_syntax(property_reference(self.scope, expression.fun, self.names).receiver)
+            method = property_reference(self.scope, expression.fun, self.names)
+            assert isinstance(method, PropertyAccess)
+            self.check_runtime_syntax(method.receiver)
             for argument in expression.parameters:
                 self.check_runtime_syntax(argument)
             return
@@ -1601,7 +1645,7 @@ class ExpressionCompiler:
         elif isinstance(expression, AssignmentExpression):
             self.check_runtime_syntax(expression.expression)
 
-    def context_type(self, expression):
+    def context_type(self, expression: AstValue | None) -> model.Type | None:
         # Unsuffixed literals accept context instead of imposing their default.
         if isinstance(expression, (model.IntNumber, model.StringConstant)):
             return None
@@ -1624,7 +1668,7 @@ class ExpressionCompiler:
             return model.types.TypeOption(inner_type) if inner_type is not None else None
         return self.known_type(expression)
 
-    def known_type(self, expression):
+    def known_type(self, expression: AstValue | None) -> model.Type | None:
         expression = property_reference(self.scope, expression, self.names)
         if isinstance(expression, PropertyAccess):
             receiver_type = self.known_type(expression.receiver)
@@ -1637,9 +1681,9 @@ class ExpressionCompiler:
             event = self.optional_event(expression)
             if event is not None:
                 return event.value_type
-            parameter = self.optional_parameter_declaration(expression)
-            value_type = model.types.TypeOption(parameter.type_resolved)
-            return resolve_type(value_type, self.parameters) if self.runtime else value_type
+            optional_parameter = self.optional_parameter_declaration(expression)
+            optional_type = model.types.TypeOption(optional_parameter.type_resolved)
+            return resolve_type(optional_type, self.parameters) if self.runtime else optional_type
         if isinstance(expression, model.Reference):
             if expression.length == 1:
                 name = expression.identifiers[0].id_str
@@ -1739,7 +1783,8 @@ class ExpressionCompiler:
         return None
 
 
-def input_length_source(expression, seen=None):
+def input_length_source(expression: TypedExpression,
+                        seen: set[model.DeclarationParameter] | None = None) -> SourceElement | None:
     """Find structural dependencies when a type is requested before specialization."""
     seen = set() if seen is None else seen
     if expression.operation == 'constant':
@@ -1762,7 +1807,8 @@ def input_length_source(expression, seen=None):
     return None
 
 
-def compile_constant(scope, expression, expected, parameters):
+def compile_constant(scope: model.Scope, expression: AstValue, expected: model.Type | None,
+                     parameters: Mapping[model.DeclarationParameter, StaticValue]) -> ExpressionValue:
     compiler = ExpressionCompiler(scope, parameters)
     typed_expression = compiler.compile(expression, expected)
     if typed_expression.value_type == model.types.ValueType and getattr(parameters, 'instance', None) is None:
@@ -1772,7 +1818,7 @@ def compile_constant(scope, expression, expected, parameters):
     return ExpressionValue(typed_expression, ast_element=expression)
 
 
-def fold_constants(expression):
+def fold_constants(expression: TypedExpression) -> TypedExpression:
     """Evaluate constant islands without evaluating runtime control flow."""
     if not expression.runtime:
         value = expression.value_type.verify_value(expression.evaluate({}, {}))
@@ -1784,8 +1830,13 @@ def fold_constants(expression):
     return folded
 
 
-def compile_procedure(procedure, instance, source_types, output_types, intern_constant, intern_function,
-                      multi_sources=None, event_sources=(), event_outputs=(), changed_states=None, old_states=None):
+def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTypeInstance,
+                      source_types: dict[InputKey, model.Type], output_types: Mapping[str, model.Type],
+                      intern_constant: Callable[[model.Type, object], int], intern_function: Callable[[Function], int],
+                      multi_sources: Mapping[str, tuple[model.Type, tuple[InputKey, ...]]] | None = None,
+                      event_sources: Iterable[str] = (), event_outputs: Iterable[str] = (),
+                      changed_states: Mapping[str, Variable] | None = None,
+                      old_states: Mapping[Variable, str] | None = None) -> tuple[ProgramBody, tuple[Variable, ...]]:
     declaration = procedure.declaration_procedure
     parameters = instance.static_values
     multi_sources = multi_sources or {}
@@ -1808,13 +1859,14 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
                                   names=names, protected=protected | input_names)
     for name in event_sources:
-        value = names[name]
-        compiler.events[value.operation, value.payload] = value.value_type.inner_type
+        event = names[name]
+        compiler.events[event.operation, event.payload] = event.value_type.inner_type
     compiler.event_outputs = set(event_outputs)
     compiler.changed_states = changed_states or {}
     compiler.old_state_inputs = {state: names[name] for state, name in (old_states or {}).items()}
     for name, value_type in output_types.items():
         compiler.bind(name, TypedExpression(value_type, 'output', payload=name, runtime=True))
+    assert declaration.body is not None
     body = compiler.compile(declaration.body, model.types.unit)
     missing = [name for name in output_types
                if name not in compiler.event_outputs and not compiler.initialization['output', name][1]]
@@ -1823,7 +1875,7 @@ def compile_procedure(procedure, instance, source_types, output_types, intern_co
     procedure.static_usage = frozenset(compiler.static_usage)
     body = fold_constants(body)
     event_outputs = tuple(name for name in output_types if name in compiler.event_outputs)
-    for state, value in compiler.implicit_old_states.items():
-        source_types[state] = value.value_type
+    for state, old_value in compiler.implicit_old_states.items():
+        source_types[state] = old_value.value_type
     compiled = InstructionCompiler(source_types, output_types, intern_constant, intern_function).body(body, event_outputs)
     return compiled, tuple(compiler.implicit_old_states)

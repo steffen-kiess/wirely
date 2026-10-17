@@ -356,7 +356,7 @@ def lower_program(global_node_type):
                                          'Native runtime does not support multi value or event dependencies')
             if proc.declaration_procedure.is_native:
                 continue
-            source_types = {}
+            source_types: dict[str | tuple[str, int] | Variable, model.Type] = {}
             multi_sources = {}
             event_sources = set()
             changed_states = {}

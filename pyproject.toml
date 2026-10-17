@@ -59,6 +59,7 @@ module = [
     "wirely.compiler.support", "wirely.compiler.parameters", "wirely.compiler.coordinator",
     "wirely.compiler.stages", "wirely.compiler.static_bindings", "wirely.compiler.shuffle",
     "wirely.compiler.model",
+    "wirely.compiler.expressions", "wirely.compiler.value", "wirely.compiler.types",
 ]
 disallow_untyped_defs = true
 

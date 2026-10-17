@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 import abc
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, NoReturn
+
+if TYPE_CHECKING:
+    from .parameters import StaticValue
 
 from wirely.compiler import model
 from wirely.compiler.types import resolve_type
@@ -11,28 +17,28 @@ from wirely.compiler.types import resolve_type
 class Value(abc.ABC):
     value_type: Any  # Set by the subclasses.
 
-    def __init__(self, *, ast_element):
+    def __init__(self, *, ast_element: model.ast.SourceElement) -> None:
         self.ast_element = ast_element
 
     @property
     @abc.abstractmethod
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         ...
 
     # TODO: Pass node instead of par_values?
     @abc.abstractmethod
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> StaticValue:
         ...
 
-    # Only for concrete values
+    # Concrete Wirely values, including type values, are used dynamically.
     @abc.abstractmethod
-    def evaluate(self):
+    def evaluate(self) -> Any:
         ...
 
 
 # A constant value which does not depend on any parameter
 class ConstantValue(Value):
-    def __init__(self, value_type, value, *, ast_element):
+    def __init__(self, value_type: model.Type, value: Any, *, ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.value = value
@@ -45,21 +51,22 @@ class ConstantValue(Value):
         return f'ConstantValue({self.value_type}, {self.value})'
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return False
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ConstantValue:
         if self.value_type == model.types.ValueType and self.value.contains_parameters:
             return ConstantValue(self.value_type, resolve_type(self.value, par_values),
                                  ast_element=self.ast_element)
         return self
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         return self.value
 
 
 class ValueParameter(Value):
-    def __init__(self, value_type, parameter, *, ast_element):
+    def __init__(self, value_type: model.Type, parameter: model.DeclarationParameter, *,
+                 ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.parameter = parameter
@@ -68,10 +75,10 @@ class ValueParameter(Value):
         return f'ValueParameter({self.value_type}, {self.parameter})'
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> StaticValue:
         from .parameters import ParameterValues, resolve_parameter
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
@@ -89,7 +96,7 @@ class ValueParameter(Value):
                 ]
             raise model.ProgramError(self.ast_element, f'Unable to resolve value parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         raise Exception('Attempt to call ValueParameter.evaluate()')
 
 
@@ -98,16 +105,17 @@ class InputLengthValue(Value):
 
     value_type = model.types.uint32
 
-    def __init__(self, scope, port, *, ast_element):
+    def __init__(self, scope: model.NodeType, port: model.TypeInputPort, *,
+                 ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.scope = scope
         self.port = port
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ConstantValue:
         instance = getattr(par_values, 'instance', None)
         while instance is not None and instance.node_type is not self.scope:
             instance = instance.parent_instance
@@ -120,7 +128,7 @@ class InputLengthValue(Value):
         return ConstantValue(self.value_type, self.value_type.verify_value(count),
                              ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         raise model.ProgramError(self.ast_element,
                                  'Input length is unavailable before instance specialization')
 
@@ -128,24 +136,27 @@ class InputLengthValue(Value):
 class DeferredValue(Value):
     """An initializer whose expected type needs instance values first."""
 
-    def __init__(self, scope, expression, value_type):
+    ast_element: model.ast.Value
+
+    def __init__(self, scope: model.Scope, expression: model.ast.Value, value_type: model.Type) -> None:
         super().__init__(ast_element=expression)
         self.scope = scope
         self.value_type = value_type
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> Value:
         value_type = resolve_type(self.value_type, par_values)
         return self.scope.get_const_value(self.ast_element, value_type, par_values)
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         raise Exception('Attempt to evaluate an unresolved initializer')
 
 
-def check_value_type(actual_type, expected_type, ast_element):
+def check_value_type(actual_type: model.Type, expected_type: model.Type,
+                     ast_element: model.ast.SourceElement | None) -> None:
     if (not actual_type.contains_parameters and not expected_type.contains_parameters
             and actual_type != expected_type):
         raise model.ProgramError(ast_element, f'Expected value of type {expected_type}, got {actual_type}')
@@ -153,33 +164,36 @@ def check_value_type(actual_type, expected_type, ast_element):
 
 class ComputedValue(Value):
     @property
-    def value(self):
+    def value(self) -> Any:
         return self.evaluate()
 
 
 class ValueOptionSome(ComputedValue):
-    def __init__(self, value_type, inner_value, *, ast_element):
+    def __init__(self, value_type: model.types.TypeOption, inner_value: Value, *,
+                 ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.inner_value = inner_value
         check_value_type(inner_value.value_type, value_type.inner_type, inner_value.ast_element)
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self.value_type.contains_parameters or self.inner_value.contains_parameters
 
-    def resolve_self(self, par_values):
-        return ValueOptionSome(
-            resolve_type(self.value_type, par_values),
-            self.inner_value.resolve_self(par_values), ast_element=self.ast_element,
-        )
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ValueOptionSome:
+        value_type = resolve_type(self.value_type, par_values)
+        assert isinstance(value_type, model.types.TypeOption)
+        inner_value = self.inner_value.resolve_self(par_values)
+        assert isinstance(inner_value, Value)
+        return ValueOptionSome(value_type, inner_value, ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         return self.value_type.verify_value(model.Some(self.inner_value.evaluate()))
 
 
 class ValueList(ComputedValue):
-    def __init__(self, value_type, elements, *, ast_element):
+    def __init__(self, value_type: model.types.TypeList, elements: Sequence[Value], *,
+                 ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.elements = elements
@@ -187,22 +201,28 @@ class ValueList(ComputedValue):
             check_value_type(element.value_type, value_type.inner_type, element.ast_element)
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self.value_type.contains_parameters or any(element.contains_parameters for element in self.elements)
 
-    def resolve_self(self, par_values):
-        return ValueList(
-            resolve_type(self.value_type, par_values),
-            [element.resolve_self(par_values) for element in self.elements],
-            ast_element=self.ast_element,
-        )
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ValueList:
+        value_type = resolve_type(self.value_type, par_values)
+        assert isinstance(value_type, model.types.TypeList)
+        elements = []
+        for element in self.elements:
+            resolved = element.resolve_self(par_values)
+            assert isinstance(resolved, Value)
+            elements.append(resolved)
+        return ValueList(value_type, elements, ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         return self.value_type.verify_value(tuple(element.evaluate() for element in self.elements))
 
 
 class ValueFunctionCall(ComputedValue):
-    def __init__(self, function, parameters, *, ast_element):
+    ast_element: model.FunctionCall
+
+    def __init__(self, function: model.DeclarationNativeFunction, parameters: Sequence[Value], *,
+                 ast_element: model.FunctionCall) -> None:
         super().__init__(ast_element=ast_element)
         self.function = function
         self.value_type = function.return_type
@@ -223,16 +243,20 @@ class ValueFunctionCall(ComputedValue):
         return f'ValueFunctionCall({self.function}, {self.parameters})'
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return self._contains_parameters
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ValueFunctionCall:
         if not self.contains_parameters:
             return self
-        resolved_parameters = [parameter.resolve_self(par_values=par_values) for parameter in self.parameters]
+        resolved_parameters = []
+        for parameter in self.parameters:
+            resolved = parameter.resolve_self(par_values=par_values)
+            assert isinstance(resolved, Value)
+            resolved_parameters.append(resolved)
         return ValueFunctionCall(function=self.function, parameters=resolved_parameters, ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         if self.contains_parameters:
             raise Exception('Attempt to call evaluate() for non-concrete function call')
 
@@ -243,7 +267,8 @@ class ValueFunctionCall(ComputedValue):
 
 
 class ValueStruct(ComputedValue):
-    def __init__(self, value_type, fields, *, ast_element):
+    def __init__(self, value_type: model.types.TypeStruct, fields: Mapping[str, Value], *,
+                 ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.value_type = value_type
         self.fields = fields
@@ -251,31 +276,34 @@ class ValueStruct(ComputedValue):
             check_value_type(value.value_type, value_type.fields[name], value.ast_element)
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return any(value.contains_parameters for value in self.fields.values())
 
-    def resolve_self(self, par_values):
-        return ValueStruct(self.value_type,
-                           {name: value.resolve_self(par_values) for name, value in self.fields.items()},
-                           ast_element=self.ast_element)
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ValueStruct:
+        fields = {}
+        for name, value in self.fields.items():
+            resolved = value.resolve_self(par_values)
+            assert isinstance(resolved, Value)
+            fields[name] = resolved
+        return ValueStruct(self.value_type, fields, ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> Any:
         return self.value_type.make_value({name: value.evaluate() for name, value in self.fields.items()})
 
 
 class ParameterOptionValue(Value):
     """Inspect presence without reading an omitted parameter."""
 
-    def __init__(self, parameter, *, ast_element):
+    def __init__(self, parameter: model.DeclarationParameter, *, ast_element: model.ast.SourceElement) -> None:
         super().__init__(ast_element=ast_element)
         self.parameter = parameter
         self.value_type = model.types.TypeOption(parameter.type_resolved)
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ConstantValue:
         value_type = resolve_type(self.value_type, par_values)
         if self.parameter not in par_values:
             return ConstantValue(value_type, None, ast_element=self.ast_element)
@@ -284,28 +312,30 @@ class ParameterOptionValue(Value):
         concrete = value if isinstance(value, model.Type) else value.evaluate()
         return ConstantValue(value_type, model.Some(concrete), ast_element=self.ast_element)
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         raise Exception('Attempt to evaluate unresolved parameter presence')
 
 
 class OptionalBinding(Value):
     """An option expression in the enclosing node's scope."""
 
-    def __init__(self, scope, expression, parameter):
+    ast_element: model.ast.Value
+
+    def __init__(self, scope: model.Scope, expression: model.ast.Value, parameter: model.DeclarationParameter) -> None:
         super().__init__(ast_element=expression)
         self.scope = scope
         self.parameter = parameter
         self.value_type = model.types.TypeOption(parameter.type_resolved)
 
     @property
-    def contains_parameters(self):
+    def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values):
+    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> Value:
         from .expressions import compile_constant
         value_type = resolve_type(self.value_type, par_values)
         value = compile_constant(self.scope, self.ast_element, value_type, par_values)
         return value.resolve_self(par_values)
 
-    def evaluate(self):
+    def evaluate(self) -> NoReturn:
         raise Exception('Attempt to evaluate unresolved optional binding')
