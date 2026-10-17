@@ -1,37 +1,43 @@
 """Main window of the editor: tabs with source files and scope diagrams."""
 
+from __future__ import annotations
+
 import dataclasses
 import html
 import os
 import signal
 import sys
+from collections.abc import Callable, Iterable, Sequence
+from typing import cast
 
 import lark
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QDockWidget, QFileDialog, QInputDialog, QMainWindow, QMenu, QMessageBox,
-    QTreeWidget, QTreeWidgetItem,
+    QTreeWidget, QTreeWidgetItem, QWidget,
 )
 
 from wirely.compiler import ast
-from wirely.compiler.outline import Connection, Node, NodeType
+from wirely.compiler.diagnostics import Diagnostic
+from wirely.compiler.editing import TextEdit
+from wirely.compiler.outline import Connection, DeclarationId, ElementId, Node, NodeType
 
 from . import graph_model
 from .graph_view import EdgeGraphic, GraphTab, ItemGraphic
 from .graph_model import Unresolved
 from .grid import from_pixels, snap
 from .palette import DeclarationDialog, NodePalette
-from .program import renamed_path
+from .program import Program, renamed_path
 from .properties import PropertiesPanel
-from .sync import Session, python_offset
+from .sync import Document, Session, python_offset
 from .text_view import CodeEditor
-from .workspace import WorkspaceManager
+from .workspace import DetachedWindow, Host, Workspace, WorkspaceManager
 
 _EDIT_ERRORS = (ValueError, TypeError, KeyError, ast.ProgramError, lark.exceptions.LarkError)
 
 
-def run(filenames):
+def run(filenames: Iterable[str]) -> int:
     application = QApplication.instance() or QApplication(sys.argv[:1])
     application.setApplicationName('Wirely')
     window = MainWindow(filenames)
@@ -43,14 +49,17 @@ def run(filenames):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, filenames, parent=None):
+    workspace: Workspace
+    snap_action: QAction
+
+    def __init__(self, filenames: Iterable[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.session = Session(filenames, self)
         self.session.refreshed.connect(self.refresh_views)
         self.session.external_change.connect(self._external_change)
-        self.text_tabs = {}
-        self.graph_tabs = []
-        self._linked_target = None
+        self.text_tabs: dict[str, CodeEditor] = {}
+        self.graph_tabs: list[GraphTab] = []
+        self._linked_target: ElementId | None = None
         self.snapping = True
 
         self.workspaces = WorkspaceManager(self)
@@ -84,13 +93,13 @@ class MainWindow(QMainWindow):
         self.refresh_views()
 
     @property
-    def program(self):
+    def program(self) -> Program:
         return self.session.program
 
-    def _create_menus(self, host=None):
+    def _create_menus(self, host: Host | None = None) -> None:
         host = host or self
 
-        def current():
+        def current() -> QWidget | None:
             return self.workspaces.current_widget(host)
 
         file_menu = host.menuBar().addMenu('&File')
@@ -122,7 +131,7 @@ class MainWindow(QMainWindow):
             return_tab = self._action(view_menu, 'Return to Main Window', None,
                                       lambda: self.workspaces.return_tab(current()))
 
-        def update_actions():
+        def update_actions() -> None:
             has_tab = current() is not None
             can_split = has_tab and host.workspace.active_group.count() > 1
             split_right.setEnabled(can_split)
@@ -132,7 +141,8 @@ class MainWindow(QMainWindow):
                 return_tab.setEnabled(has_tab)
         view_menu.aboutToShow.connect(update_actions)
 
-    def _action(self, menu, text, shortcut, slot):
+    def _action(self, menu: QMenu, text: str, shortcut: QKeySequence.StandardKey | str | None,
+                slot: Callable[[], object]) -> QAction:
         action = QAction(text, menu)
         if shortcut is not None:
             action.setShortcut(QKeySequence(shortcut))
@@ -140,7 +150,7 @@ class MainWindow(QMainWindow):
         menu.addAction(action)
         return action
 
-    def _set_snapping(self, enabled):
+    def _set_snapping(self, enabled: bool) -> None:
         self.snapping = enabled
         for tab in self.graph_tabs:
             tab.graph_scene.snapping = enabled
@@ -150,13 +160,13 @@ class MainWindow(QMainWindow):
             action.setChecked(enabled)
             action.blockSignals(False)
 
-    def _creation_position(self, position):
+    def _creation_position(self, position: QPointF) -> tuple[float, float]:
         coordinates = from_pixels(position.x(), position.y())
-        return tuple(map(snap, coordinates)) if self.snapping else coordinates
+        return (snap(coordinates[0]), snap(coordinates[1])) if self.snapping else coordinates
 
     # Tabs
 
-    def open_text(self, filename, focus=False, host=None):
+    def open_text(self, filename: str, focus: bool = False, host: Host | None = None) -> CodeEditor:
         editor = self.text_tabs.get(filename)
         if editor is None:
             editor = CodeEditor(self.session.documents[filename], self)
@@ -171,7 +181,7 @@ class MainWindow(QMainWindow):
             self.workspaces.activate(editor)
         return editor
 
-    def open_graph(self, path, focus=True, host=None):
+    def open_graph(self, path: Sequence[str], focus: bool = True, host: Host | None = None) -> GraphTab:
         path = tuple(path)
         for tab in self.graph_tabs:
             if tab.path == path:
@@ -209,14 +219,16 @@ class MainWindow(QMainWindow):
             self.workspaces.activate(tab)
         return tab
 
-    def close_tab(self, widget):
+    def close_tab(self, widget: QWidget | None) -> None:
         if widget is None:
             return
         if isinstance(widget, GraphTab):
             self.graph_tabs.remove(widget)
         else:
+            assert isinstance(widget, CodeEditor)
             del self.text_tabs[widget.document_record.filename]
         group = self.workspaces.group_of(widget)
+        assert group is not None
         group.removeTab(group.indexOf(widget))
         widget.setParent(None)
         widget.deleteLater()
@@ -227,8 +239,8 @@ class MainWindow(QMainWindow):
         self.workspaces.select_group(host.workspace.active_group)
         self._update_titles()
 
-    def _view_activated(self, widget):
-        target = None
+    def _view_activated(self, widget: QWidget | None) -> None:
+        target: ElementId | None = None
         editable = False
         if isinstance(widget, GraphTab):
             targets = widget.graph_scene.selected_ids()
@@ -243,21 +255,25 @@ class MainWindow(QMainWindow):
         self.properties.show_element(self.program, target, editable)
         if widget is not None:
             group = self.workspaces.group_of(widget)
+            assert group is not None
             host = group.workspace.host
             if host is not self:
+                assert isinstance(host, DetachedWindow)
                 host.setWindowTitle(f'{group.tabText(group.indexOf(widget))} – Wirely (Window {host.number})')
 
-    def _update_titles(self, *_):
+    def _update_titles(self, *_: object) -> None:
         if self.workspaces.shutting_down:
             return
         for filename, editor in self.text_tabs.items():
             modified = '*' if self.session.documents[filename].is_modified else ''
             group = self.workspaces.group_of(editor)
+            assert group is not None
             index = group.indexOf(editor)
             group.setTabText(index, os.path.basename(filename) + modified)
             group.setTabToolTip(index, filename)
         for tab in self.graph_tabs:
             group = self.workspaces.group_of(tab)
+            assert group is not None
             index = group.indexOf(tab)
             group.setTabText(index, f'◇ {_scope_label(tab.path)}')
             group.setTabToolTip(index, f'Diagram of {_scope_label(tab.path)}')
@@ -269,13 +285,13 @@ class MainWindow(QMainWindow):
             host.setWindowTitle(f'{title} – Wirely (Window {host.number})')
         self._fill_tree()
 
-    def _status(self, message, timeout=0):
+    def _status(self, message: str, timeout: int = 0) -> None:
         for host in self.workspaces.hosts():
             host.statusBar().showMessage(message, timeout)
 
     # Refresh
 
-    def refresh_views(self):
+    def refresh_views(self) -> None:
         if self.workspaces.shutting_down:
             return
         for filename, editor in self.text_tabs.items():
@@ -299,7 +315,7 @@ class MainWindow(QMainWindow):
                         and entry.diagnostic.kind in ('error', 'internal_error'))
             self._status(f'{count} error{"s" if count != 1 else ""}' if count else 'No errors')
 
-    def _refresh_graph(self, tab):
+    def _refresh_graph(self, tab: GraphTab) -> None:
         program = self.program
         previous = tab.model.filenames if tab.model is not None else ()
         state = program.scope_state(tab.path, previous)
@@ -316,11 +332,11 @@ class MainWindow(QMainWindow):
             banner = f'<b>{html.escape(_scope_label(tab.path))}</b> no longer exists.'
         tab.update_graph(model, state, banner)
 
-    def _file_diagnostics(self, filename):
+    def _file_diagnostics(self, filename: str) -> list[Diagnostic]:
         return [entry.diagnostic for entry in self.program.analysis.diagnostics
                 if entry.diagnostic.filename == filename]
 
-    def _fill_tree(self):
+    def _fill_tree(self) -> None:
         expanded = {}
         for index in range(self.tree.topLevelItemCount()):
             top = self.tree.topLevelItem(index)
@@ -341,7 +357,7 @@ class MainWindow(QMainWindow):
         for item in (files, graphs):
             item.setExpanded(expanded.get(item.text(0), True))
 
-    def _tree_activated(self, item):
+    def _tree_activated(self, item: QTreeWidgetItem) -> None:
         data = item.data(0, Qt.ItemDataRole.UserRole)
         if data is None:
             return
@@ -353,7 +369,7 @@ class MainWindow(QMainWindow):
 
     # Edits
 
-    def edit(self, make_edits):
+    def edit(self, make_edits: Callable[[], list[TextEdit]]) -> bool:
         """Apply the edits returned by make_edits, or report why there are none."""
         try:
             edits = make_edits()
@@ -370,7 +386,7 @@ class MainWindow(QMainWindow):
         self.session.apply(edits)
         return True
 
-    def rename(self, target, new_name):
+    def rename(self, target: DeclarationId, new_name: str) -> None:
         if self._refuse_while_broken('Renaming'):
             return
         new_name = new_name.strip()
@@ -387,25 +403,25 @@ class MainWindow(QMainWindow):
             self.properties.target = _renamed_id(target, new_name)
         self.edit(lambda: edits)
 
-    def delete_selection(self, tab):
+    def delete_selection(self, tab: GraphTab) -> None:
         if tab.state != 'live' or self._refuse_while_broken('Deleting'):
             return
         targets = tab.graph_scene.selected_ids()
         if targets:
             self.edit(lambda: self.program.delete(targets))
 
-    def _placed_selection(self, tab):
+    def _placed_selection(self, tab: GraphTab) -> list[DeclarationId | Connection]:
         """Return the selected items with stored positions."""
         scene = tab.graph_scene
         return [target for target in scene.selected_ids()
                 if target in scene.items_by_id and scene.items_by_id[target].model.position is not None]
 
-    def reset_selection_positions(self, tab):
+    def reset_selection_positions(self, tab: GraphTab) -> None:
         targets = self._placed_selection(tab)
         if tab.state == 'live' and targets:
             self.edit(lambda: self.program.reset_positions(targets))
 
-    def rename_selection(self, tab):
+    def rename_selection(self, tab: GraphTab) -> None:
         targets = [target for target in tab.graph_scene.selected_ids() if not isinstance(target, Connection)]
         if tab.state != 'live' or len(targets) != 1:
             return
@@ -414,7 +430,7 @@ class MainWindow(QMainWindow):
         if accepted and new_name.strip() and new_name.strip() != target.path[-1]:
             self.rename(target, new_name)
 
-    def add_node(self, tab, position):
+    def add_node(self, tab: GraphTab, position: QPointF | None) -> None:
         if tab.state != 'live':
             return
         if position is None:
@@ -422,9 +438,10 @@ class MainWindow(QMainWindow):
         palette = NodePalette(self.program.analysis.node_types(tab.path), tab.window())
         if palette.exec() and palette.selected_type():
             type_text = palette.selected_type()
+            assert type_text is not None
             self.edit(lambda: self.program.add_node(tab.path, type_text, self._creation_position(position)))
 
-    def add_declaration(self, tab, kind, position):
+    def add_declaration(self, tab: GraphTab, kind: str, position: QPointF) -> None:
         # Public parameters and ports use PascalCase, the others snake_case.
         base = {'parameter': 'NewParameter', 'input': 'NewInput', 'output': 'NewOutput'}.get(kind, f'new_{kind}')
         name = self.program.fresh_name(tab.path, base)
@@ -439,42 +456,42 @@ class MainWindow(QMainWindow):
                                                           self._creation_position(position)))
             return
 
-    def _refuse_while_broken(self, action):
+    def _refuse_while_broken(self, action: str) -> bool:
         # These edits update references in all files, which must parse.
         if self.program.parse_errors:
             self._status(f'{action} needs all files to parse.', 10000)
             return True
         return False
 
-    def undo(self, host=None):
+    def undo(self, host: Host | None = None) -> None:
         widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             widget.undo()
         elif isinstance(widget, GraphTab):
             self.session.undo(self._graph_files(widget))
 
-    def redo(self, host=None):
+    def redo(self, host: Host | None = None) -> None:
         widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             widget.redo()
         elif isinstance(widget, GraphTab):
             self.session.redo(self._graph_files(widget))
 
-    def _graph_files(self, tab):
+    def _graph_files(self, tab: GraphTab) -> list[str]:
         filenames = tab.model.filenames if tab.model is not None else ()
         return [filename for filename in filenames if filename in self.session.documents] \
             or list(self.session.documents)
 
     # Files
 
-    def open_file(self, host=None):
+    def open_file(self, host: Host | None = None) -> None:
         filename, _ = QFileDialog.getOpenFileName(host or self, 'Open', '', 'Wirely sources (*.wrl);;All files (*)')
         if filename:
             document = self.session.add_file(filename)
             document.text_document.modificationChanged.connect(self._update_titles)
             self.open_text(document.filename, focus=True, host=host)
 
-    def save_current(self, host=None):
+    def save_current(self, host: Host | None = None) -> None:
         widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             self.session.save(widget.document_record)
@@ -484,13 +501,13 @@ class MainWindow(QMainWindow):
                     self.session.save(self.session.documents[filename])
         self._update_titles()
 
-    def save_all(self):
+    def save_all(self) -> None:
         for document in self.session.documents.values():
             if document.is_modified:
                 self.session.save(document)
         self._update_titles()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent) -> None:
         modified = [document for document in self.session.documents.values() if document.is_modified]
         if modified:
             names = ', '.join(os.path.basename(document.filename) for document in modified)
@@ -508,7 +525,7 @@ class MainWindow(QMainWindow):
         self.workspaces.shutdown()
         event.accept()
 
-    def _external_change(self, document):
+    def _external_change(self, document: Document) -> None:
         answer = QMessageBox.question(
             self, 'File changed', f'{document.filename} changed on disk. Reload it and discard your changes?')
         if answer == QMessageBox.StandardButton.Yes:
@@ -516,7 +533,7 @@ class MainWindow(QMainWindow):
 
     # Selection and navigation
 
-    def _graph_selection(self, tab):
+    def _graph_selection(self, tab: GraphTab) -> None:
         try:
             targets = tab.graph_scene.selected_ids()
         except RuntimeError:
@@ -528,14 +545,14 @@ class MainWindow(QMainWindow):
             self.properties.show_element(self.program, target, live)
         self._link_text(target if tab.state == 'live' else None)
 
-    def _link_text(self, target):
+    def _link_text(self, target: ElementId | None) -> None:
         """Highlight the source of a diagram element in the text tabs, without moving them."""
         self._linked_target = target
         location = self.program.span_of(target) if target is not None else None
         for filename, editor in self.text_tabs.items():
             editor.set_link_highlight(location[1] if location is not None and location[0] == filename else None)
 
-    def _text_cursor(self, filename, offset):
+    def _text_cursor(self, filename: str, offset: int) -> None:
         # Source edits also move inactive text cursors. Only user navigation
         # in the active source tab should highlight graph items.
         if self.workspaces.active_view is not self.text_tabs.get(filename) \
@@ -548,12 +565,12 @@ class MainWindow(QMainWindow):
         if target is not None:
             self.properties.show_element(self.program, target, True)
 
-    def show_cursor_in_graph(self, host=None):
+    def show_cursor_in_graph(self, host: Host | None = None) -> None:
         widget = self.workspaces.current_widget(host)
         if isinstance(widget, CodeEditor):
             self.show_in_graph(widget.document_record.filename)
 
-    def show_in_graph(self, filename):
+    def show_in_graph(self, filename: str) -> None:
         """Select the element at the cursor of a text tab in the diagram of its scope."""
         editor = self.text_tabs[filename]
         found = self.program.element_at(filename, python_offset(editor.document_record.text(),
@@ -571,35 +588,36 @@ class MainWindow(QMainWindow):
             tab.view.ensureVisible(graphic)
         self._graph_selection(tab)
 
-    def _item_activated(self, model_item):
+    def _item_activated(self, model_item: graph_model.Item) -> None:
         node_type = model_item.node_type
         if node_type is not None and self.program.is_user_node_type(node_type):
             self.open_graph(node_type.path)
         else:
             self.show_source(model_item.id)
 
-    def show_source(self, target):
+    def show_source(self, target: ElementId | Unresolved) -> None:
         location = self.program.span_of(target) if not isinstance(target, Unresolved) else None
         if location is None:
             return
         filename, span = location
         self.open_text(filename, focus=True).reveal(span)
 
-    def show_selection_source(self, host=None):
+    def show_selection_source(self, host: Host | None = None) -> None:
         widget = self.workspaces.current_widget(host)
         if isinstance(widget, GraphTab):
             targets = widget.graph_scene.selected_ids()
             if targets:
                 self.show_source(targets[0])
 
-    def _open_link(self, link):
+    def _open_link(self, link: str) -> None:
         filename, _, offset = link.rpartition('#')
         if filename in self.session.documents:
             self.open_text(filename, focus=True).go_to(int(offset or 0))
 
-    def _graph_menu(self, tab, graphic, position):
+    def _graph_menu(self, tab: GraphTab, graphic: ItemGraphic | EdgeGraphic | None, position: QPointF) -> None:
         menu = QMenu(self)
         live = tab.state == 'live'
+        target: DeclarationId | Connection
         if isinstance(graphic, ItemGraphic) and not isinstance(graphic.model.id, Unresolved):
             target = graphic.model.id
             node_type = graphic.model.node_type
@@ -622,16 +640,17 @@ class MainWindow(QMainWindow):
             if tab.model is not None and tab.model.kind == 'node_type':
                 kinds += ['input', 'output']
             for kind in kinds:
-                def add_declaration(kind=kind):
+                def add_declaration(kind: str = kind) -> None:
                     self.add_declaration(tab, kind, position)
                 add.addAction(kind.capitalize() + '…', add_declaration)
         if not menu.isEmpty():
-            menu.exec(tab.view.mapToGlobal(tab.view.mapFromScene(QPointF(position))))
+            # Older PySide6 stubs give mapToGlobal(QPoint) a QPointF result.
+            menu.exec(cast(QPoint, tab.view.mapToGlobal(tab.view.mapFromScene(QPointF(position)))))
 
 
-def _scope_label(path):
+def _scope_label(path: Sequence[str]) -> str:
     return '.'.join(path) if path else 'Program'
 
 
-def _renamed_id(target, new_name):
+def _renamed_id(target: DeclarationId, new_name: str) -> DeclarationId:
     return dataclasses.replace(target, path=target.path[:-1] + (new_name,))

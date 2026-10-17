@@ -7,9 +7,15 @@ automatic positions of the others unchanged; only an unplaced item that would
 overlap a placed one moves below it.
 """
 
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from typing import Generic, TypeVar
 
 from .grid import size
+
+IdT = TypeVar('IdT', covariant=True)
 
 COLUMN_GAP = 4.0
 ROW_GAP = 2.0
@@ -17,8 +23,8 @@ SWEEPS = 4
 
 
 @dataclass(frozen=True)
-class LayoutItem:
-    id: object
+class LayoutItem(Generic[IdT]):
+    id: IdT
     width: float
     height: float
     position: tuple[float, float] | None = None
@@ -28,11 +34,11 @@ class LayoutItem:
     reserved: tuple[float, float] | None = None
 
 
-def layout(items, edges):
+def layout(items: Iterable[LayoutItem[IdT]], edges: Iterable[tuple[IdT, IdT]]) -> dict[IdT, tuple[float, float]]:
     """Return grid coordinates; edges are (source ID, target ID) pairs."""
     items = [replace(item, width=size(item.width), height=size(item.height),
-                     position=None if item.position is None else tuple(map(float, item.position)),
-                     reserved=None if item.reserved is None else tuple(map(size, item.reserved)))
+                     position=None if item.position is None else (float(item.position[0]), float(item.position[1])),
+                     reserved=None if item.reserved is None else (size(item.reserved[0]), size(item.reserved[1])))
              for item in items]
     if not items:
         return {}
@@ -49,21 +55,26 @@ def layout(items, edges):
     rows = _order(columns, successors, predecessors)
     positions = _coordinates(items, rows)
     _avoid_placed(items, positions)
-    return {item.id: item.position or positions[number] for number, item in enumerate(items)}
-
-
-def _edge_indices(index, edges):
-    result = []
-    for source, target in edges:
-        source = index.get(source)
-        target = index.get(target)
-        if source is not None and target is not None and source != target \
-                and (source, target) not in result:
-            result.append((source, target))
+    result = {}
+    for number, item in enumerate(items):
+        position = item.position or positions[number]
+        assert position is not None
+        result[item.id] = position
     return result
 
 
-def _acyclic(count, edges):
+def _edge_indices(index: Mapping[IdT, int], edges: Iterable[tuple[IdT, IdT]]) -> list[tuple[int, int]]:
+    result = []
+    for source, target in edges:
+        source_index = index.get(source)
+        target_index = index.get(target)
+        if source_index is not None and target_index is not None and source_index != target_index \
+                and (source_index, target_index) not in result:
+            result.append((source_index, target_index))
+    return result
+
+
+def _acyclic(count: int, edges: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
     """Reverse the back edges found by a depth-first search in item order."""
     adjacent: list[list[int]] = [[] for _ in range(count)]
     for source, target in edges:
@@ -94,7 +105,8 @@ def _acyclic(count, edges):
     return result
 
 
-def _columns(items, successors, predecessors):
+def _columns(items: Sequence[LayoutItem[object]], successors: Sequence[Sequence[int]],
+             predecessors: Sequence[Sequence[int]]) -> list[int]:
     count = len(items)
     column = [0] * count
     for node in _topological(count, successors, predecessors):
@@ -116,7 +128,7 @@ def _columns(items, successors, predecessors):
     return [used[number] for number in column]
 
 
-def _topological(count, successors, predecessors):
+def _topological(count: int, successors: Sequence[Sequence[int]], predecessors: Sequence[Sequence[int]]) -> list[int]:
     remaining = [len(predecessors[node]) for node in range(count)]
     ready = [node for node in range(count) if not remaining[node]]
     order = []
@@ -130,14 +142,14 @@ def _topological(count, successors, predecessors):
     return order
 
 
-def _order(column, successors, predecessors):
+def _order(column: Sequence[int], successors: Sequence[Sequence[int]], predecessors: Sequence[Sequence[int]]) -> list[list[int]]:
     """Return the rows of each column, ordered to reduce crossings."""
     rows: list[list[int]] = [[] for _ in range(max(column) + 1)]
     for node, number in enumerate(column):
         rows[number].append(node)
     rank = {}
 
-    def update():
+    def update() -> None:
         for row in rows:
             for position, node in enumerate(row):
                 rank[node] = position
@@ -155,7 +167,7 @@ def _order(column, successors, predecessors):
     return rows
 
 
-def _coordinates(items, rows):
+def _coordinates(items: Sequence[LayoutItem[object]], rows: Sequence[Sequence[int]]) -> list[tuple[float, float] | None]:
     positions: list[tuple[float, float] | None] = [None] * len(items)
     x = 0.0
     for row in rows:
@@ -167,11 +179,11 @@ def _coordinates(items, rows):
     return positions
 
 
-def _reserved(item):
+def _reserved(item: LayoutItem[object]) -> tuple[float, float]:
     return item.reserved or (item.width, item.height)
 
 
-def _avoid_placed(items, positions):
+def _avoid_placed(items: Sequence[LayoutItem[object]], positions: list[tuple[float, float] | None]) -> None:
     placed = [(item.position, item) for item in items if item.position is not None]
     if not placed:
         return
@@ -179,7 +191,9 @@ def _avoid_placed(items, positions):
     for number, item in enumerate(items):
         if item.position is not None:
             continue
-        x, y = positions[number]
+        position = positions[number]
+        assert position is not None
+        x, y = position
         moved = True
         while moved:
             moved = False

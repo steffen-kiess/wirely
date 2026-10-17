@@ -7,12 +7,23 @@ declarations are sources and its output declarations targets. Geometry is in
 grid units as specified in doc/diagram-layout.md.
 """
 
+from __future__ import annotations
+
 import functools
 from collections import defaultdict
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, TypeAlias
 
+from wirely.compiler import outline as _outline
+from wirely.compiler.analysis import Analysis
+from wirely.compiler.attributes import Attribute
+from wirely.compiler.diagnostics import Diagnostic
 from wirely.compiler.editing import format_identifier
 from wirely.compiler.outline import attribute_value
+
+if TYPE_CHECKING:
+    from .program import Program
 
 DEFAULT_WIDTH = 8
 HEADER_HEIGHT = 2
@@ -24,6 +35,11 @@ _AUTO = 'auto'
 class Unresolved:
     """An item standing for an unresolved connection end."""
     path: tuple[str, ...]
+
+
+ItemId: TypeAlias = _outline.DeclarationId | Unresolved
+ItemRecord: TypeAlias = (_outline.NodeInfo | _outline.StateInfo | _outline.BindingInfo | _outline.ConstantInfo
+                         | _outline.ParameterInfo | _outline.PortInfo | _outline.ProcedureInfo)
 
 
 @dataclass(frozen=True)
@@ -46,7 +62,7 @@ class Socket:
 
 @dataclass(frozen=True)
 class Item:
-    id: object
+    id: ItemId
     # 'node', 'state', 'binding', 'constant', 'parameter', 'input',
     # 'output', 'procedure', or 'unresolved'.
     kind: str
@@ -55,9 +71,9 @@ class Item:
     inputs: tuple[Socket, ...]
     outputs: tuple[Socket, ...]
     position: tuple[float, float] | None
-    diagnostics: tuple
+    diagnostics: tuple[Diagnostic, ...]
     # The node type a node instantiates, if declared in the sources.
-    node_type: object = None
+    node_type: _outline.NodeType | None = None
     # Rank in source order; unresolved items come last.
     order: int = 0
     # Parameters marked Diagram.ShowValue as (name, value text, state), with
@@ -72,26 +88,30 @@ class Item:
     default_height: float | None = None
 
 
-def port_rows(item):
+def port_rows(item: Item) -> int:
     """Return the number of port rows, including skipped ones."""
-    rows = [socket.row for socket in (*item.inputs, *item.outputs) if socket.row is not None]
+    rows = []
+    for socket in (*item.inputs, *item.outputs):
+        if socket.row is not None:
+            assert isinstance(socket.row, int)
+            rows.append(socket.row)
     return max(rows) + 1 if rows else 0
 
 
-def minimum_height(item):
+def minimum_height(item: Item) -> int:
     return HEADER_HEIGHT + port_rows(item) + len(item.details)
 
 
-def item_height(item):
+def item_height(item: Item) -> float:
     return max(item.height or 0, minimum_height(item))
 
 
-def default_size(item):
+def default_size(item: Item) -> tuple[float, float]:
     """Return the size of an item without its own Diagram.Width and Diagram.Height."""
     return item.default_width, max(item.default_height or 0, minimum_height(item))
 
 
-def row_y(row):
+def row_y(row: int | None) -> float:
     """Return the y offset of the middle of a row within its item; row None is the header's type line."""
     return HEADER_HEIGHT + 0.5 + (-1 if row is None else row)
 
@@ -99,18 +119,18 @@ def row_y(row):
 @dataclass(frozen=True)
 class GraphEdge:
     # The Connection ID of a connect edge; None for a procedure reference port.
-    id: object
+    id: _outline.Connection | None
     kind: str
-    source: tuple
-    target: tuple
-    diagnostics: tuple
+    source: tuple[ItemId, str | None]
+    target: tuple[ItemId, str | None]
+    diagnostics: tuple[Diagnostic, ...]
 
     @property
-    def source_item(self):
+    def source_item(self) -> ItemId:
         return self.source[0]
 
     @property
-    def target_item(self):
+    def target_item(self) -> ItemId:
         return self.target[0]
 
 
@@ -122,30 +142,32 @@ class GraphModel:
     edges: tuple[GraphEdge, ...]
     filenames: tuple[str, ...]
 
-    def item(self, item_id):
+    def item(self, item_id: object) -> Item | None:
         for item in self.items:
             if item.id == item_id:
                 return item
         return None
 
 
-def build(program, path):
+def build(program: Program, path: tuple[str, ...]) -> GraphModel | None:
     """Return the GraphModel of a scope, or None if it is missing or ambiguous."""
     scope = program.scope(path)
     if scope is None:
         return None
     analysis = program.analysis
-    diagnostics = defaultdict(list)
+    diagnostics: defaultdict[_outline.ElementId, list[Diagnostic]] = defaultdict(list)
     for entry in analysis.diagnostics:
         if entry.element is not None:
             diagnostics[entry.element].append(entry.diagnostic)
 
-    builders = {}
+    builders: dict[object, _ItemBuilder] = {}
 
-    def add(kind, record, title, subtitle, inputs, outputs, node_type=None, defaults=()):
+    def add(kind: str, record: ItemRecord, title: str, subtitle: str, inputs: Iterable[Socket],
+            outputs: Iterable[Socket], node_type: _outline.NodeType | None = None,
+            defaults: Sequence[Attribute] = ()) -> _ItemBuilder:
         builder = builders[record.id] = _ItemBuilder(
             record.id, kind, title, subtitle, list(inputs), list(outputs),
-            None if record.position is None else tuple(map(float, record.position)),
+            None if record.position is None else (float(record.position[0]), float(record.position[1])),
             tuple(diagnostics[record.id]), node_type)
         width = attribute_value(record.attributes, 'Diagram.Width')
         height = attribute_value(record.attributes, 'Diagram.Height')
@@ -171,36 +193,38 @@ def build(program, path):
             add('input', port, name, subtitle, (), (socket,))
         else:
             add('output', port, name, subtitle, (socket,), ())
-    for record in scope.parameters:
-        add('parameter', record, record.name, record.type_text,
-            (), (Socket(None, '', _reference(record.name), 'value', record.type_text, False),))
-    for record in scope.constants:
-        add('constant', record, record.name, f'{record.type_text} = {record.value_text}',
-            (), (Socket(None, '', _reference(record.name), 'value', record.type_text, False),))
-    for record in scope.states:
-        name = _reference(record.name)
-        add('state', record, record.name, f'{record.type_text} = {record.initial_text}',
-            (Socket(None, '', name, 'value', record.type_text, False),),
-            (Socket('old', 'old', f'{name}.old', 'value', record.type_text, False, row=0),
-             Socket('new', 'new', f'{name}.new', 'value', record.type_text, False, row=1)))
-    for record in scope.bindings:
-        name = _reference(record.name)
-        add('binding', record, record.name, f'{record.kind} {record.type_text}',
-            (Socket(None, '', name, record.kind, record.type_text, False),),
-            (Socket(None, '', name, record.kind, record.type_text, False),))
-    for record in scope.procedures:
-        name = _reference(record.name)
+    for parameter in scope.parameters:
+        add('parameter', parameter, parameter.name, parameter.type_text,
+            (), (Socket(None, '', _reference(parameter.name), 'value', parameter.type_text, False),))
+    for constant in scope.constants:
+        add('constant', constant, constant.name, f'{constant.type_text} = {constant.value_text}',
+            (), (Socket(None, '', _reference(constant.name), 'value', constant.type_text, False),))
+    for state in scope.states:
+        name = _reference(state.name)
+        add('state', state, state.name, f'{state.type_text} = {state.initial_text}',
+            (Socket(None, '', name, 'value', state.type_text, False),),
+            (Socket('old', 'old', f'{name}.old', 'value', state.type_text, False, row=0),
+             Socket('new', 'new', f'{name}.new', 'value', state.type_text, False, row=1)))
+    for binding in scope.bindings:
+        name = _reference(binding.name)
+        add('binding', binding, binding.name, f'{binding.kind} {binding.type_text}',
+            (Socket(None, '', name, binding.kind, binding.type_text, False),),
+            (Socket(None, '', name, binding.kind, binding.type_text, False),))
+    for procedure in scope.procedures:
+        name = _reference(procedure.name)
         sockets: list[list[Socket]] = [[], []]
-        for index, ports in enumerate((record.inputs, record.outputs)):
-            for port in ports:
-                if port.key is None:
+        for index, ports in enumerate((procedure.inputs, procedure.outputs)):
+            for procedure_port in ports:
+                if procedure_port.key is None:
                     continue
-                sockets[index].append(Socket(port.key, port.key, f'{name}.{_reference(port.key)}',
-                                             port.kind, port.type_text, port.is_list, row=_AUTO))
-        stage = '' if record.stage == 'default' else f'stage {record.stage}'
-        add('procedure', record, record.name, ' '.join(filter(None, ('native' if record.is_native else '',
-                                                                     'procedure', stage))),
-            *sockets)
+                sockets[index].append(Socket(procedure_port.key, procedure_port.key,
+                                             f'{name}.{_reference(procedure_port.key)}',
+                                             procedure_port.kind, procedure_port.type_text, procedure_port.is_list,
+                                             row=_AUTO))
+        stage = '' if procedure.stage == 'default' else f'stage {procedure.stage}'
+        subtitle = ' '.join(filter(None, ('native' if procedure.is_native else '', 'procedure', stage)))
+        add('procedure', procedure, procedure.name, subtitle,
+            sockets[0], sockets[1])
 
     edges = []
     for edge in scope.edges:
@@ -209,8 +233,10 @@ def build(program, path):
         edges.append(GraphEdge(edge.id, edge.kind, source, target,
                                tuple(diagnostics[edge.id]) if edge.id is not None else ()))
 
-    records = sorted((*scope.nodes, *scope.ports, *scope.parameters, *scope.constants,
-                      *scope.states, *scope.bindings, *scope.procedures),
+    scope_records: tuple[ItemRecord, ...] = (
+        *scope.nodes, *scope.ports, *scope.parameters, *scope.constants,
+        *scope.states, *scope.bindings, *scope.procedures)
+    records = sorted(scope_records,
                      key=lambda record: (_file_rank(scope.filenames, record.filename), record.span[0]))
     unresolved = [builder for builder in builders.values() if isinstance(builder.id, Unresolved)]
     for order, builder in enumerate([builders[record.id] for record in records] + unresolved):
@@ -219,7 +245,7 @@ def build(program, path):
                       tuple(edges), scope.filenames)
 
 
-def layout_edges(model):
+def layout_edges(model: GraphModel) -> list[tuple[ItemId, ItemId]]:
     """Return the (source, target) item pairs that order the layout.
 
     Reading state.old is feedback from the previous step and does not order
@@ -231,7 +257,9 @@ def layout_edges(model):
 
 
 class _ItemBuilder:
-    def __init__(self, item_id, kind, title, subtitle, inputs, outputs, position, diagnostics, node_type):
+    def __init__(self, item_id: ItemId, kind: str, title: str, subtitle: str, inputs: list[Socket],
+                 outputs: list[Socket], position: tuple[float, float] | None, diagnostics: tuple[Diagnostic, ...],
+                 node_type: _outline.NodeType | None) -> None:
         self.id = item_id
         self.kind = kind
         self.title = title
@@ -242,13 +270,15 @@ class _ItemBuilder:
         self.diagnostics = diagnostics
         self.node_type = node_type
         self.order = 0
-        self.details = ()
-        self.width = self.default_width = DEFAULT_WIDTH
-        self.height = self.default_height = None
+        self.details: tuple[tuple[str, str | None, str], ...] = ()
+        self.width: float = DEFAULT_WIDTH
+        self.default_width: float = DEFAULT_WIDTH
+        self.height: float | None = None
+        self.default_height: float | None = None
 
-    def socket(self, side, key, reference):
+    def socket(self, side: str, key: str | None, reference: str) -> Socket:
         """Return the socket for an endpoint port, adding an unresolved one if needed."""
-        sockets = getattr(self, side)
+        sockets = self.inputs if side == 'inputs' else self.outputs
         for socket in sockets:
             if socket.key == key:
                 return socket
@@ -257,13 +287,13 @@ class _ItemBuilder:
         sockets.append(socket)
         return socket
 
-    def freeze(self):
+    def freeze(self) -> Item:
         return Item(self.id, self.kind, self.title, self.subtitle, _assign_rows(self.inputs),
                     _assign_rows(self.outputs), self.position, self.diagnostics, self.node_type, self.order,
                     self.details, self.width, self.height, self.default_width, self.default_height)
 
 
-def _assign_rows(sockets):
+def _assign_rows(sockets: Sequence[Socket]) -> tuple[Socket, ...]:
     """Give each socket without a row the lowest free row on its side, in order.
 
     A row requested twice keeps its first socket; later ones are treated as
@@ -290,7 +320,8 @@ def _assign_rows(sockets):
     return tuple(result)
 
 
-def _end(builders, path, endpoint, side):
+def _end(builders: dict[object, _ItemBuilder], path: tuple[str, ...], endpoint: _outline.Endpoint,
+         side: str) -> tuple[ItemId, str | None]:
     """Return (item ID, socket key) of a connection end."""
     builder = builders.get(endpoint.element)
     if builder is None:
@@ -308,13 +339,13 @@ def _end(builders, path, endpoint, side):
     return builder.id, socket.key
 
 
-def _file_rank(filenames, filename):
+def _file_rank(filenames: Sequence[str], filename: str) -> int:
     return filenames.index(filename) if filename in filenames else len(filenames)
 
 
-def _details(node, node_type):
+def _details(node: _outline.NodeInfo, node_type: _outline.NodeTypeInfo) -> tuple[tuple[str, str | None, str], ...]:
     values = {binding.name: binding.value_text for binding in node.parameters}
-    details = []
+    details: list[tuple[str, str | None, str]] = []
     for parameter in node_type.parameters:
         if attribute_value(parameter.attributes, 'Diagram.ShowValue') is None:
             continue
@@ -327,7 +358,7 @@ def _details(node, node_type):
     return tuple(details)
 
 
-def _node_sockets(analysis, node):
+def _node_sockets(analysis: Analysis, node: _outline.NodeInfo) -> tuple[list[Socket], list[Socket]]:
     """Return the sockets of a node, with rows from its node type's port declarations."""
     rows = {}
     unordered = set()
@@ -358,7 +389,7 @@ def _node_sockets(analysis, node):
 
 
 @functools.lru_cache(maxsize=4096)
-def _reference(name):
+def _reference(name: str) -> str:
     if name.startswith('default '):
         return name
     try:

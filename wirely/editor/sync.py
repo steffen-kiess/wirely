@@ -1,10 +1,15 @@
 """Documents of the program files and their synchronization with the analysis."""
 
+from __future__ import annotations
+
 import os
+from collections.abc import Iterable
 
 from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, Signal
 from PySide6.QtGui import QTextCursor, QTextDocument
 from PySide6.QtWidgets import QPlainTextDocumentLayout
+
+from wirely.compiler.editing import TextEdit
 
 from .program import Program
 
@@ -14,7 +19,7 @@ REFRESH_DELAY_MS = 200
 class Document(QObject):
     """A program file; its QTextDocument holds the current text and undo history."""
 
-    def __init__(self, filename, text, parent=None):
+    def __init__(self, filename: str, text: str, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.filename = filename
         self.uses_crlf = '\r\n' in text
@@ -24,27 +29,27 @@ class Document(QObject):
         self.text_document.setPlainText(self.saved_text)
         self.text_document.setModified(False)
 
-    def text(self):
+    def text(self) -> str:
         return self.text_document.toPlainText()
 
     @property
-    def is_modified(self):
+    def is_modified(self) -> bool:
         return self.text_document.isModified()
 
-    def save(self):
+    def save(self) -> None:
         text = self.text()
         with open(self.filename, 'w', encoding='utf-8', newline='\r\n' if self.uses_crlf else '\n') as file:
             file.write(text)
         self.saved_text = text
         self.text_document.setModified(False)
 
-    def replace_all(self, text):
+    def replace_all(self, text: str) -> None:
         """Replace the whole text as one undoable step."""
         cursor = QTextCursor(self.text_document)
         cursor.select(QTextCursor.SelectionType.Document)
         cursor.insertText(text.replace('\r\n', '\n'))
 
-    def apply(self, edits):
+    def apply(self, edits: Iterable[TextEdit]) -> None:
         """Apply TextEdits of this file as one undoable step.
 
         Insertions at the same offset keep their order in edits, as in
@@ -72,11 +77,11 @@ class Session(QObject):
     refreshed = Signal()
     external_change = Signal(object)
 
-    def __init__(self, filenames, parent=None):
+    def __init__(self, filenames: Iterable[str], parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self.documents = {}
-        self._recent = []
-        self._redo = []
+        self.documents: dict[str, Document] = {}
+        self._recent: list[str] = []
+        self._redo: list[str] = []
         self._undoing = False
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -88,29 +93,29 @@ class Session(QObject):
             self._add(filename)
         self.program = Program(self.sources())
 
-    def add_file(self, filename):
+    def add_file(self, filename: str) -> Document:
         filename = os.path.normpath(filename)
         if filename not in self.documents:
             self._add(filename)
             self.refresh()
         return self.documents[filename]
 
-    def sources(self):
+    def sources(self) -> list[tuple[str, str]]:
         return [(filename, document.text()) for filename, document in self.documents.items()]
 
-    def refresh(self):
+    def refresh(self) -> None:
         self._timer.stop()
         self.program.refresh(self.sources())
         self.refreshed.emit()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Stop pending analysis and file notifications when the editor closes."""
         self._timer.stop()
         self._watcher.blockSignals(True)
 
-    def apply(self, edits):
+    def apply(self, edits: Iterable[TextEdit]) -> None:
         """Apply TextEdits to the documents, one undo step per file, and refresh."""
-        by_file: dict[str, list] = {}
+        by_file: dict[str, list[TextEdit]] = {}
         for edit in edits:
             by_file.setdefault(edit.filename, []).append(edit)
         for filename, file_edits in by_file.items():
@@ -118,12 +123,12 @@ class Session(QObject):
         if by_file:
             self.refresh()
 
-    def save(self, document):
+    def save(self, document: Document) -> None:
         document.save()
         if document.filename not in self._watcher.files():
             self._watcher.addPath(document.filename)
 
-    def undo(self, filenames):
+    def undo(self, filenames: Iterable[str]) -> bool:
         """Undo the most recent change of one of the files."""
         for filename in reversed(self._recent):
             document = self.documents[filename].text_document
@@ -138,7 +143,7 @@ class Session(QObject):
                 return True
         return False
 
-    def redo(self, filenames):
+    def redo(self, filenames: Iterable[str]) -> bool:
         """Redo the most recently undone change of one of the files."""
         for index in range(len(self._redo) - 1, -1, -1):
             filename = self._redo[index]
@@ -154,7 +159,7 @@ class Session(QObject):
                 return True
         return False
 
-    def _add(self, filename):
+    def _add(self, filename: str) -> None:
         filename = os.path.normpath(filename)
         try:
             with open(filename, encoding='utf-8', newline='') as file:
@@ -167,7 +172,7 @@ class Session(QObject):
         if os.path.exists(filename):
             self._watcher.addPath(filename)
 
-    def _changed(self, filename):
+    def _changed(self, filename: str) -> None:
         if filename in self._recent:
             self._recent.remove(filename)
         self._recent.append(filename)
@@ -175,7 +180,7 @@ class Session(QObject):
             self._redo.clear()
         self._timer.start()
 
-    def _file_changed(self, filename):
+    def _file_changed(self, filename: str) -> None:
         document = self.documents.get(filename)
         if document is None:
             return
@@ -194,7 +199,7 @@ class Session(QObject):
             return
         self.reload(document, text)
 
-    def reload(self, document, text=None):
+    def reload(self, document: Document, text: str | None = None) -> None:
         if text is None:
             with open(document.filename, encoding='utf-8', newline='') as file:
                 text = file.read().replace('\r\n', '\n')
@@ -204,12 +209,12 @@ class Session(QObject):
         self.refresh()
 
 
-def qt_position(text, offset):
+def qt_position(text: str, offset: int) -> int:
     """Convert a Python string offset to a QTextDocument position (UTF-16 code units)."""
     return offset + sum(1 for character in text[:offset] if ord(character) > 0xFFFF)
 
 
-def python_offset(text, position):
+def python_offset(text: str, position: int) -> int:
     """Convert a QTextDocument position to a Python string offset."""
     offset = 0
     units = 0

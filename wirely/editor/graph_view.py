@@ -5,25 +5,31 @@ text itself. Items keep their identity across models by outline ID, so
 selection survives refreshes.
 """
 
+from __future__ import annotations
+
 import math
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontMetricsF, QPainter, QPainterPath, QPalette, QPen, QTransform
+from PySide6.QtCore import QObject, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import (
+    QColor, QContextMenuEvent, QFont, QFontDatabase, QFontMetricsF, QMouseEvent, QPainter, QPainterPath,
+    QPalette, QPen, QResizeEvent, QTransform, QWheelEvent,
+)
 from PySide6.QtWidgets import (
-    QGraphicsItem, QGraphicsObject, QGraphicsPathItem, QGraphicsScene, QGraphicsView, QLabel, QStyle,
-    QVBoxLayout, QWidget,
+    QGraphicsItem, QGraphicsObject, QGraphicsPathItem, QGraphicsScene, QGraphicsSceneMouseEvent,
+    QGraphicsView, QLabel, QStyle, QStyleOptionGraphicsItem, QVBoxLayout, QWidget,
 )
 
 from wirely.compiler.analysis import ConnectionCheck
-from wirely.compiler.outline import Connection
+from wirely.compiler.outline import Connection, DeclarationId, ElementId, ProcedurePort
 from wirely.util import getEnvironmentBool
 
 from . import graph_model
 from . import layout as _layout
-from .graph_model import Unresolved, layout_edges
+from .graph_model import ItemId, Unresolved, layout_edges
 from .grid import STEP, from_pixels, snap
 
 PADDING = 8
@@ -53,7 +59,7 @@ _KIND_COLORS = {
 _PORT_COLORS = {'value': '#3c8dd8', 'event': '#e0a020', 'resource': '#9a5cc6', None: '#999999'}
 
 
-def _item_color(item):
+def _item_color(item: graph_model.Item) -> str:
     if item.kind == 'binding' and item.inputs[0].kind in ('event', 'resource'):
         return _PORT_COLORS[item.inputs[0].kind]
     return _KIND_COLORS.get(item.kind, '#888888')
@@ -63,7 +69,7 @@ _ERROR_COLOR = QColor('#e0301e')
 
 
 
-def _graph_scene(item) -> 'GraphScene':
+def _graph_scene(item: QGraphicsItem) -> 'GraphScene':
     """Return the GraphScene that shows an item."""
     scene = item.scene()
     assert isinstance(scene, GraphScene)
@@ -71,21 +77,21 @@ def _graph_scene(item) -> 'GraphScene':
 
 
 class SocketGraphic(QGraphicsItem):
-    def __init__(self, item, socket, side, row):
+    def __init__(self, item: ItemGraphic, socket: graph_model.Socket, side: str, row: int | None) -> None:
         super().__init__(item)
         self.item = item
         self.socket = socket
         self.side = side
         self.row = row
-        self.highlight = None
+        self.highlight: str | None = None
         self.setAcceptHoverEvents(True)
         self.setToolTip(_socket_tooltip(socket))
 
-    def boundingRect(self):
+    def boundingRect(self) -> QRectF:
         radius = SOCKET_RADIUS + 3
         return QRectF(-radius, -radius, 2 * radius, 2 * radius)
 
-    def paint(self, painter, option, widget=None):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         color = QColor(_PORT_COLORS.get(self.socket.kind, '#999999'))
         pen = QPen(_ERROR_COLOR if not self.socket.resolved else color.darker(140), 1.5)
@@ -100,12 +106,12 @@ class SocketGraphic(QGraphicsItem):
         else:
             painter.drawEllipse(QPointF(0, 0), SOCKET_RADIUS, SOCKET_RADIUS)
 
-    def set_highlight(self, highlight):
+    def set_highlight(self, highlight: str | None) -> None:
         if self.highlight != highlight:
             self.highlight = highlight
             self.update()
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and _graph_scene(self).interactive:
             _graph_scene(self).start_connection(self, event.scenePos())
             event.accept()
@@ -114,17 +120,17 @@ class SocketGraphic(QGraphicsItem):
 
 
 class ItemGraphic(QGraphicsObject):
-    def __init__(self, model_item, fonts):
+    def __init__(self, model_item: graph_model.Item, fonts: tuple[QFontMetricsF, QFontMetricsF, QFontMetricsF]) -> None:
         super().__init__()
-        self.edges = []
-        self.sockets = {}
+        self.edges: list[EdgeGraphic] = []
+        self.sockets: dict[tuple[str, str | None], SocketGraphic] = {}
         self.fonts = fonts
         self.linked = False
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
                       | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.set_model(model_item)
 
-    def set_model(self, model_item):
+    def set_model(self, model_item: graph_model.Item) -> None:
         self.prepareGeometryChange()
         self.model = model_item
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not isinstance(model_item.id, Unresolved))
@@ -133,13 +139,14 @@ class ItemGraphic(QGraphicsObject):
         self.header = graph_model.HEADER_HEIGHT * STEP
         self.height = graph_model.item_height(model_item) * STEP
         self.value_row = graph_model.port_rows(model_item)
-        for socket in self.sockets.values():
-            socket.setParentItem(None)
-            if socket.scene() is not None:
-                socket.scene().removeItem(socket)
+        for old_socket in self.sockets.values():
+            old_socket.setParentItem(None)  # type: ignore[arg-type]  # PySide6 omits the nullable parent.
+            if old_socket.scene() is not None:
+                old_socket.scene().removeItem(old_socket)
         self.sockets = {}
         for side, sockets, x in (('inputs', model_item.inputs, 0), ('outputs', model_item.outputs, self.width)):
             for socket in sockets:
+                assert socket.row is None or isinstance(socket.row, int)
                 graphic = SocketGraphic(self, socket, side, socket.row)
                 graphic.setPos(x, self._row_y(socket.row))
                 self.sockets[(side, socket.key)] = graphic
@@ -151,32 +158,33 @@ class ItemGraphic(QGraphicsObject):
         self._update_z()
         self.update()
 
-    def _row_y(self, row):
+    def _row_y(self, row: int | None) -> float:
         return graph_model.row_y(row) * STEP
 
-    def _update_z(self):
+    def _update_z(self) -> None:
         self.setZValue(self.model.order + (SELECTED_Z if self.isSelected() else 0))
 
-    def set_linked(self, linked):
+    def set_linked(self, linked: bool) -> None:
         if self.linked != linked:
             self.linked = linked
             self.update()
 
-    def socket_position(self, side, key):
+    def socket_position(self, side: str, key: str | None) -> QPointF:
         socket = self.sockets.get((side, key))
         if socket is None:
             return self.mapToScene(QPointF(0 if side == 'inputs' else self.width, self.header))
         return socket.scenePos()
 
-    def boundingRect(self):
+    def boundingRect(self) -> QRectF:
         return QRectF(-SOCKET_RADIUS - 3, -12, self.width + 2 * SOCKET_RADIUS + 6, self.height + 15)
 
-    def paint(self, painter, option, widget=None):
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         palette = self.scene().palette()
         model_item = self.model
         rect = QRectF(INSET, INSET, self.width - 2 * INSET, self.height - 2 * INSET)
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        # Older PySide6 stubs omit QStyleOption.state.
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore[attr-defined]
         border = palette.color(QPalette.ColorRole.Highlight) if selected else QColor(
             _item_color(model_item))
         if model_item.diagnostics:
@@ -245,7 +253,8 @@ class ItemGraphic(QGraphicsObject):
             painter.setFont(_graph_scene(self).title_font)
             painter.drawText(QRectF(self.width - 10, -10, 16, 16), Qt.AlignmentFlag.AlignCenter, '!')
 
-    def itemChange(self, change, value):
+    def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
+        # Qt passes different QVariant payloads for each change kind.
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             scene = self.scene()
             positions = getattr(scene, '_press_positions', None)
@@ -268,13 +277,13 @@ class ItemGraphic(QGraphicsObject):
             self._update_z()
         return super().itemChange(change, value)
 
-    def mouseDoubleClickEvent(self, event):
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         _graph_scene(self).item_activated.emit(self.model)
         event.accept()
 
 
 class EdgeGraphic(QGraphicsPathItem):
-    def __init__(self, edge, source, target):
+    def __init__(self, edge: graph_model.GraphEdge, source: ItemGraphic, target: ItemGraphic) -> None:
         super().__init__()
         self.source = source
         self.target = target
@@ -284,19 +293,19 @@ class EdgeGraphic(QGraphicsPathItem):
         self.set_model(edge)
         self.setZValue(-1)
 
-    def set_linked(self, linked):
+    def set_linked(self, linked: bool) -> None:
         if self.linked != linked:
             self.linked = linked
             self.update()
 
-    def set_model(self, edge):
+    def set_model(self, edge: graph_model.GraphEdge) -> None:
         self.edge = edge
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, edge.kind == 'connect')
         messages = [diagnostic.message for diagnostic in edge.diagnostics]
         self.setToolTip('\n\n'.join(messages) if messages else f'{edge.source[1] or ""} → {edge.target[1] or ""}')
         self.update_path()
 
-    def update_path(self):
+    def update_path(self) -> None:
         start = self.source.socket_position('outputs', self.edge.source[1])
         end = self.target.socket_position('inputs', self.edge.target[1])
         if self.input_group is not None:
@@ -306,10 +315,10 @@ class EdgeGraphic(QGraphicsPathItem):
             end += QPointF(0, (self.fan_index() - (count - 1) / 2) * spacing)
         self.setPath(edge_path(start, end, self.source, self.target))
 
-    def target_socket(self):
+    def target_socket(self) -> SocketGraphic | None:
         return self.target.sockets.get(('inputs', self.edge.target[1]))
 
-    def fan_index(self):
+    def fan_index(self) -> int:
         """Return the position of this edge's end among the edges at its multi input.
 
         Ends at an unordered input follow the positions of their sources, so
@@ -320,21 +329,22 @@ class EdgeGraphic(QGraphicsPathItem):
         group = edges
         socket = self.target_socket()
         if socket is not None and socket.socket.unordered:
-            def key(edge):
+            def key(edge: EdgeGraphic) -> tuple[float, float, int]:
                 position = edge.source.socket_position('outputs', edge.edge.source[1])
                 return position.y(), position.x(), edges.index(edge)
             group = sorted(edges, key=key)
         return group.index(self)
 
-    def number(self):
+    def number(self) -> int | None:
         """Return the 1-based position of this connection at an ordered multi input, or None."""
         socket = self.target_socket()
         if self.input_group is None or socket is None or socket.socket.unordered:
             return None
         return self.input_group.index(self) + 1
 
-    def paint(self, painter, option, widget=None):
-        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
+        # Older PySide6 stubs omit QStyleOption.state.
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)  # type: ignore[attr-defined]
         socket = self.source.sockets.get(('outputs', self.edge.source[1]))
         color = QColor(_PORT_COLORS.get(socket.socket.kind if socket else None, '#999999'))
         if self.edge.diagnostics:
@@ -366,17 +376,17 @@ class EdgeGraphic(QGraphicsPathItem):
             painter.setFont(_graph_scene(self).number_font)
             painter.drawText(box, Qt.AlignmentFlag.AlignCenter, str(number))
 
-    def boundingRect(self):
+    def boundingRect(self) -> QRectF:
         return super().boundingRect().adjusted(-8, -8, 8, 8)
 
-    def shape(self):
+    def shape(self) -> QPainterPath:
         from PySide6.QtGui import QPainterPathStroker
         stroker = QPainterPathStroker()
         stroker.setWidth(10)
         return stroker.createStroke(self.path())
 
 
-def edge_path(start, end, source=None, target=None):
+def edge_path(start: QPointF, end: QPointF, source: ItemGraphic | None = None, target: ItemGraphic | None = None) -> QPainterPath:
     """A cubic curve leaving and entering horizontally; backwards edges go around below."""
     path = QPainterPath(start)
     dx = end.x() - start.x()
@@ -404,7 +414,7 @@ class GraphScene(QGraphicsScene):
     item_activated = Signal(object)
     status = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.title_font = _font(TITLE_SIZE, bold=True)
         self.subtitle_font = _font(SUBTITLE_SIZE)
@@ -412,18 +422,18 @@ class GraphScene(QGraphicsScene):
         self.number_font = _font(NUMBER_SIZE)
         self.fonts = (QFontMetricsF(self.title_font), QFontMetricsF(self.subtitle_font),
                       QFontMetricsF(self.label_font))
-        self.items_by_id = {}
-        self.edge_graphics = []
-        self.model = None
-        self.linked_id = None
+        self.items_by_id: dict[ItemId, ItemGraphic] = {}
+        self.edge_graphics: list[EdgeGraphic] = []
+        self.model: graph_model.GraphModel | None = None
+        self.linked_id: ElementId | None = None
         self.interactive = True
         self.show_grid = True
         self.snapping = True
-        self.check_connection: Callable[..., ConnectionCheck] | None = None
+        self.check_connection: Callable[[str, str, Connection | None], ConnectionCheck] | None = None
         self._drag: _ConnectionDrag | None = None
-        self._press_positions = None
+        self._press_positions: dict[ItemId, QPointF] | None = None
 
-    def drawBackground(self, painter, rect):
+    def drawBackground(self, painter: QPainter, rect: QRectF | QRect) -> None:
         super().drawBackground(painter, rect)
         if not self.show_grid:
             return
@@ -442,7 +452,7 @@ class GraphScene(QGraphicsScene):
             painter.drawPoints([QPointF(x * STEP, y * STEP) for x in range(left, right + 1)])
         painter.restore()
 
-    def set_model(self, model):
+    def set_model(self, model: graph_model.GraphModel) -> None:
         """Show a model, reusing the graphics of items with the same ID."""
         self.model = model
         old = self.items_by_id
@@ -458,30 +468,30 @@ class GraphScene(QGraphicsScene):
             self.items_by_id[model_item.id] = graphic
         for graphic in old.values():
             self.removeItem(graphic)
-        for graphic in self.edge_graphics:
-            self.removeItem(graphic)
+        for edge_graphic in self.edge_graphics:
+            self.removeItem(edge_graphic)
         self.edge_graphics = []
         for edge in model.edges:
             source = self.items_by_id.get(edge.source_item)
             target = self.items_by_id.get(edge.target_item)
             if source is None or target is None:
                 continue
-            graphic = EdgeGraphic(edge, source, target)
-            self.addItem(graphic)
-            source.edges.append(graphic)
-            target.edges.append(graphic)
-            self.edge_graphics.append(graphic)
+            edge_graphic = EdgeGraphic(edge, source, target)
+            self.addItem(edge_graphic)
+            source.edges.append(edge_graphic)
+            target.edges.append(edge_graphic)
+            self.edge_graphics.append(edge_graphic)
         groups = defaultdict(list)
-        for graphic in self.edge_graphics:
-            socket = graphic.target_socket()
+        for edge_graphic in self.edge_graphics:
+            socket = edge_graphic.target_socket()
             if socket is not None and socket.socket.is_list:
-                groups[(graphic.target, graphic.edge.target[1])].append(graphic)
+                groups[(edge_graphic.target, edge_graphic.edge.target[1])].append(edge_graphic)
         for group in groups.values():
             if len(group) > 1:
-                for index, graphic in enumerate(group):
-                    graphic.input_group = group
+                for index, edge_graphic in enumerate(group):
+                    edge_graphic.input_group = group
                     # Earlier connections and their numbers lie on top, still below items.
-                    graphic.setZValue(-1 + 0.5 * (len(group) - index) / len(group))
+                    edge_graphic.setZValue(-1 + 0.5 * (len(group) - index) / len(group))
 
         positions = _layout.layout(
             [_layout.LayoutItem(model_item.id, model_item.width, graph_model.item_height(model_item),
@@ -495,19 +505,20 @@ class GraphScene(QGraphicsScene):
             layout_edges(model))
         for item_id, (x, y) in positions.items():
             self.items_by_id[item_id].setPos(x * STEP, y * STEP)
-        for graphic in self.edge_graphics:
-            graphic.update_path()
+        for edge_graphic in self.edge_graphics:
+            edge_graphic.update_path()
         self.set_link_highlight(self.linked_id)
 
-    def set_link_highlight(self, element_id):
+    def set_link_highlight(self, element_id: ElementId | None) -> None:
         """Mark the item or edge with an ID as linked to the text cursor, or nothing for None."""
         self.linked_id = element_id
-        for graphic in (*self.items_by_id.values(), *self.edge_graphics):
+        graphics: tuple[ItemGraphic | EdgeGraphic, ...] = (*self.items_by_id.values(), *self.edge_graphics)
+        for graphic in graphics:
             graphic_id = graphic.model.id if isinstance(graphic, ItemGraphic) else graphic.edge.id
             graphic.set_linked(element_id is not None and graphic_id == element_id)
 
-    def selected_ids(self):
-        ids = []
+    def selected_ids(self) -> list[DeclarationId | Connection]:
+        ids: list[DeclarationId | Connection] = []
         for graphic in self.selectedItems():
             if isinstance(graphic, ItemGraphic) and not isinstance(graphic.model.id, Unresolved):
                 ids.append(graphic.model.id)
@@ -515,12 +526,14 @@ class GraphScene(QGraphicsScene):
                 ids.append(graphic.edge.id)
         return ids
 
-    def select_id(self, element_id):
+    def select_id(self, element_id: ElementId | None) -> ItemGraphic | EdgeGraphic | None:
         """Select the item or edge with an ID, or nothing for None."""
         self.blockSignals(True)
         try:
             self.clearSelection()
-            graphic = self.items_by_id.get(element_id)
+            graphic: ItemGraphic | EdgeGraphic | None = None
+            if element_id is not None and not isinstance(element_id, (Connection, ProcedurePort)):
+                graphic = self.items_by_id.get(element_id)
             if graphic is None and isinstance(element_id, Connection):
                 graphic = next((edge for edge in self.edge_graphics if edge.edge.id == element_id), None)
             if graphic is not None:
@@ -529,7 +542,7 @@ class GraphScene(QGraphicsScene):
             self.blockSignals(False)
         return graphic
 
-    def start_connection(self, socket, position):
+    def start_connection(self, socket: SocketGraphic, position: QPointF) -> None:
         """Start dragging a connection from a socket.
 
         Dragging from an input that has exactly one connection, and is not a
@@ -561,20 +574,20 @@ class GraphScene(QGraphicsScene):
         self._drag = _ConnectionDrag(anchor, picked, path)
         self._update_drag(position)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if self._drag is not None:
             self._update_drag(event.scenePos())
             event.accept()
             return
         super().mouseMoveEvent(event)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         super().mousePressEvent(event)
         if self._drag is None:
             self._press_positions = {graphic.model.id: graphic.pos() for graphic in self.selectedItems()
                                      if isinstance(graphic, ItemGraphic)}
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent) -> None:
         if self._drag is not None:
             drag = self._drag
             self._drag = None
@@ -592,13 +605,13 @@ class GraphScene(QGraphicsScene):
             if moved:
                 self.moved.emit(moved)
 
-    def _socket_at(self, position):
+    def _socket_at(self, position: QPointF) -> SocketGraphic | None:
         for graphic in self.items(position):
             if isinstance(graphic, SocketGraphic):
                 return graphic
         return None
 
-    def _check(self, drag, socket):
+    def _check(self, drag: _ConnectionDrag, socket: SocketGraphic | None) -> tuple[str, str, ConnectionCheck] | None:
         """Return (source, target, check) for dropping a drag on a socket, or None."""
         anchor = drag.anchor
         if socket is None or socket is anchor or socket.side == anchor.side:
@@ -614,14 +627,14 @@ class GraphScene(QGraphicsScene):
             drag.checks[key] = self.check_connection(source, target, replacing)
         return source, target, drag.checks[key]
 
-    def duplicate(self, outputs, inputs, picked=None):
+    def duplicate(self, outputs: SocketGraphic, inputs: SocketGraphic, picked: EdgeGraphic | None = None) -> bool:
         """Whether a connect statement already joins an output socket to an input socket."""
         return any(edge is not picked and edge.edge.kind == 'connect' and edge.source is outputs.item
                    and edge.edge.source[1] == outputs.socket.key and edge.target is inputs.item
                    and edge.edge.target[1] == inputs.socket.key
                    for edge in inputs.item.edges)
 
-    def _update_drag(self, position):
+    def _update_drag(self, position: QPointF) -> None:
         drag = self._drag
         assert drag is not None
         start = drag.anchor.scenePos()
@@ -631,6 +644,7 @@ class GraphScene(QGraphicsScene):
         drag.hovered = socket
         result = self._check(drag, socket)
         if result is not None:
+            assert socket is not None
             _, _, check = result
             socket.set_highlight('candidate' if check.allowed else 'refused')
             self.status.emit('' if check.allowed else check.message)
@@ -640,7 +654,7 @@ class GraphScene(QGraphicsScene):
         else:
             drag.path.setPath(edge_path(position, start))
 
-    def _finish_drag(self, drag, position):
+    def _finish_drag(self, drag: _ConnectionDrag, position: QPointF) -> None:
         self.removeItem(drag.path)
         if drag.hovered is not None:
             drag.hovered.set_highlight(None)
@@ -664,12 +678,12 @@ class GraphScene(QGraphicsScene):
 
 
 class _ConnectionDrag:
-    def __init__(self, anchor, picked, path):
+    def __init__(self, anchor: SocketGraphic, picked: EdgeGraphic | None, path: QGraphicsPathItem) -> None:
         self.anchor = anchor
         self.picked = picked
         self.path = path
-        self.hovered = None
-        self.checks = {}
+        self.hovered: SocketGraphic | None = None
+        self.checks: dict[tuple[str, str, Connection | None], ConnectionCheck] = {}
 
 
 class GraphView(QGraphicsView):
@@ -678,7 +692,7 @@ class GraphView(QGraphicsView):
     context_menu = Signal(object, QPointF)
     zoom_changed = Signal(float)
 
-    def __init__(self, scene, parent=None):
+    def __init__(self, scene: GraphScene, parent: QWidget | None = None) -> None:
         super().__init__(scene, parent)
         self.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
@@ -686,10 +700,10 @@ class GraphView(QGraphicsView):
         self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.BoundingRectViewportUpdate)
         self.zoom = 0.0
-        self._pan = None
+        self._pan: QPointF | None = None
         self._debug_mouse = getEnvironmentBool('WIRELY_EDITOR_DEBUG_MOUSE', False)
 
-    def set_zoom(self, zoom):
+    def set_zoom(self, zoom: float) -> None:
         """Set logarithmic zoom; zero is normal size."""
         if not math.log(0.15) <= zoom <= math.log(4) or zoom == self.zoom:
             return
@@ -698,13 +712,13 @@ class GraphView(QGraphicsView):
         self.setTransform(QTransform.fromScale(factor, factor))
         self.zoom_changed.emit(zoom)
 
-    def wheelEvent(self, event):
+    def wheelEvent(self, event: QWheelEvent) -> None:
         # Some touchpads only report pixel deltas.
         delta = event.angleDelta().y() or event.pixelDelta().y()
         self.set_zoom(self.zoom + ZOOM_RATE * delta)
         event.accept()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         old_size = event.oldSize()
         center = None
         if old_size.isValid():
@@ -721,7 +735,7 @@ class GraphView(QGraphicsView):
             self.setSceneRect(self.sceneRect().united(visible))
             self.centerOn(center)
 
-    def _debug_mouse_event(self, event):
+    def _debug_mouse_event(self, event: QMouseEvent) -> None:
         if not self._debug_mouse:
             return
         position = event.position()
@@ -738,7 +752,7 @@ class GraphView(QGraphicsView):
               f'h={horizontal.value()}[{horizontal.minimum()}..{horizontal.maximum()}], '
               f'v={vertical.value()}[{vertical.minimum()}..{vertical.maximum()}]', flush=True)
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event: QMouseEvent) -> None:
         self._debug_mouse_event(event)
         if event.button() == Qt.MouseButton.MiddleButton:
             self._pan = event.position()
@@ -747,11 +761,11 @@ class GraphView(QGraphicsView):
             return
         super().mousePressEvent(event)
 
-    def mouseDoubleClickEvent(self, event):
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         self._debug_mouse_event(event)
         super().mouseDoubleClickEvent(event)
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
         if event.buttons() != Qt.MouseButton.NoButton or self._pan is not None:
             self._debug_mouse_event(event)
         if self._pan is not None:
@@ -781,7 +795,7 @@ class GraphView(QGraphicsView):
             return
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         self._debug_mouse_event(event)
         if event.button() == Qt.MouseButton.MiddleButton and self._pan is not None:
             self._pan = None
@@ -790,7 +804,7 @@ class GraphView(QGraphicsView):
             return
         super().mouseReleaseEvent(event)
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         position = self.mapToScene(event.pos())
         graphic = self.itemAt(event.pos())
         while graphic is not None and not isinstance(graphic, (ItemGraphic, EdgeGraphic)):
@@ -800,7 +814,7 @@ class GraphView(QGraphicsView):
             graphic.setSelected(True)
         self.context_menu.emit(graphic, position)
 
-    def fit(self):
+    def fit(self) -> None:
         origin = self.mapFromScene(QPointF())
         rect = self.scene().itemsBoundingRect().adjusted(-40, -40, 40, 40)
         # Leave room around the viewport so Qt uses scrollbars rather than
@@ -817,11 +831,11 @@ class GraphView(QGraphicsView):
 class GraphTab(QWidget):
     """A graph tab with a read-only banner and zoom percentage."""
 
-    def __init__(self, path, parent=None):
+    def __init__(self, path: tuple[str, ...], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.path = tuple(path)
-        self.model = None
-        self.state = None
+        self.model: graph_model.GraphModel | None = None
+        self.state: str | None = None
         self.graph_scene = GraphScene(self)
         self.view = GraphView(self.graph_scene, self)
         self.setFocusProxy(self.view)
@@ -843,7 +857,7 @@ class GraphTab(QWidget):
         layout.addWidget(self.zoom_label)
         self._fitted = False
 
-    def update_graph(self, model, state, banner_html=''):
+    def update_graph(self, model: graph_model.GraphModel | None, state: str, banner_html: str = '') -> None:
         """Show a model in state 'live', or keep the last one for 'frozen' and 'missing'."""
         self.state = state
         if state == 'live' and model is not None:
@@ -865,12 +879,12 @@ class GraphTab(QWidget):
             self.view.fit()
 
 
-def font_available():
+def font_available() -> bool:
     """Whether the graph font is installed; otherwise a fallback is used."""
     return FONT_FAMILY in QFontDatabase.families()
 
 
-def _font(pixel_size, bold=False):
+def _font(pixel_size: int, bold: bool = False) -> QFont:
     font = QFont(FONT_FAMILY)
     font.setPixelSize(pixel_size)
     font.setBold(bold)
@@ -878,14 +892,14 @@ def _font(pixel_size, bold=False):
     return font
 
 
-def _detail_text(detail):
+def _detail_text(detail: tuple[str, str | None, str]) -> str:
     name, value, state = detail
     if state == 'missing':
         return f'{name}: missing'
     return f'{name}: {"–" if value is None else value}'
 
 
-def _socket_tooltip(socket):
+def _socket_tooltip(socket: graph_model.Socket) -> str:
     parts = [socket.reference]
     if socket.kind is not None:
         parts.append(f'{"multi " if socket.is_list else ""}{socket.kind} {socket.type_text or "?"}')

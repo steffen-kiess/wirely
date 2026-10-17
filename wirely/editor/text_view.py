@@ -1,18 +1,22 @@
 """Source text editor with Wirely highlighting and diagnostics."""
 
+from __future__ import annotations
+
 import re
+from collections.abc import Iterable
 from typing import Any
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QAction, QColor, QFontDatabase, QPainter, QPalette, QSyntaxHighlighter, QTextCharFormat, QTextCursor,
-    QTextFormat,
+    QAction, QColor, QContextMenuEvent, QFontDatabase, QHelpEvent, QKeyEvent, QPainter, QPaintEvent,
+    QPalette, QResizeEvent, QSyntaxHighlighter, QTextCharFormat, QTextCursor, QTextDocument, QTextFormat,
 )
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit, QToolTip, QWidget
 
 from wirely.compiler import parser
+from wirely.compiler.diagnostics import Diagnostic
 
-from .sync import python_offset, qt_position
+from .sync import Document, python_offset, qt_position
 
 KEYWORDS = frozenset(terminal.pattern.value for terminal in parser.parser.terminals
                      if terminal.pattern.type == 'str' and terminal.pattern.value.isidentifier())
@@ -32,11 +36,11 @@ _DIAGNOSTIC_COLORS = {'error': '#e0301e', 'syntax_error': '#e0301e', 'internal_e
                       'warning': '#d08000', 'hint': '#2f7fd0', 'info': '#2f7fd0'}
 
 
-def _is_dark(palette):
+def _is_dark(palette: QPalette) -> bool:
     return palette.color(QPalette.ColorRole.Base).lightness() < 128
 
 
-def _format(color, bold=False, italic=False):
+def _format(color: str, bold: bool = False, italic: bool = False) -> QTextCharFormat:
     text_format = QTextCharFormat()
     text_format.setForeground(QColor(color))
     if bold:
@@ -51,7 +55,7 @@ class Highlighter(QSyntaxHighlighter):
     The block state is the depth of nested block comments at the end of a line.
     """
 
-    def __init__(self, document, dark):
+    def __init__(self, document: QTextDocument, dark: bool) -> None:
         super().__init__(document)
         colors = (('#c792ea', '#c3e88d', '#f78c6c', '#7f8c98', '#82aaff', '#ffcb6b') if dark else
                   ('#7a1fa2', '#2e7d32', '#b5530f', '#6a737d', '#1f5fbf', '#8a6d00'))
@@ -66,7 +70,7 @@ class Highlighter(QSyntaxHighlighter):
             'type': _format(type_name),
         }
 
-    def highlightBlock(self, text):
+    def highlightBlock(self, text: str) -> None:
         depth = max(self.previousBlockState(), 0)
         position = 0
         if depth:
@@ -97,7 +101,7 @@ class Highlighter(QSyntaxHighlighter):
         if self.currentBlockState() < 0:
             self.setCurrentBlockState(0)
 
-    def _comment(self, text, start, depth):
+    def _comment(self, text: str, start: int, depth: int) -> int:
         """Format a block comment from start; return where it ends on this line."""
         position = start
         while True:
@@ -115,14 +119,14 @@ class Highlighter(QSyntaxHighlighter):
 
 
 class _LineNumbers(QWidget):
-    def __init__(self, editor):
+    def __init__(self, editor: CodeEditor) -> None:
         super().__init__(editor)
         self.editor = editor
 
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
         return QSize(self.editor.line_number_width(), 0)
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent) -> None:
         self.editor.paint_line_numbers(event)
 
 
@@ -137,7 +141,7 @@ class CodeEditor(QPlainTextEdit):
     element_cursor = Signal(int)
     graph_requested = Signal()
 
-    def __init__(self, document, parent=None):
+    def __init__(self, document: Document, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.document_record = document
         self.setDocument(document.text_document)
@@ -145,10 +149,10 @@ class CodeEditor(QPlainTextEdit):
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.setTabStopDistance(self.fontMetrics().horizontalAdvance(' ') * 2)
         self.highlighter = Highlighter(document.text_document, _is_dark(self.palette()))
-        self.diagnostics: tuple = ()
-        self._diagnostic_selections = []
-        self._reveal_selections = []
-        self._link_selections = []
+        self.diagnostics: tuple[Diagnostic, ...] = ()
+        self._diagnostic_selections: list[QTextEdit.ExtraSelection] = []
+        self._reveal_selections: list[QTextEdit.ExtraSelection] = []
+        self._link_selections: list[QTextEdit.ExtraSelection] = []
         self._revealing = False
         self.line_numbers = _LineNumbers(self)
         self.blockCountChanged.connect(self._update_margin)
@@ -156,7 +160,7 @@ class CodeEditor(QPlainTextEdit):
         self.cursorPositionChanged.connect(self._cursor_moved)
         self._update_margin()
 
-    def set_diagnostics(self, diagnostics):
+    def set_diagnostics(self, diagnostics: Iterable[Diagnostic]) -> None:
         """Underline the diagnostics of this file."""
         text = self.document_record.text()
         self.diagnostics = tuple(diagnostic for diagnostic in diagnostics if diagnostic.start is not None)
@@ -174,7 +178,7 @@ class CodeEditor(QPlainTextEdit):
         self._diagnostic_selections = selections
         self._update_selections()
 
-    def reveal(self, span):
+    def reveal(self, span: tuple[int, int]) -> None:
         """Highlight a span given as Python offsets and scroll to it, without moving focus."""
         text = self.document_record.text()
         start, end = (qt_position(text, offset) for offset in span)
@@ -198,7 +202,7 @@ class CodeEditor(QPlainTextEdit):
         finally:
             self._revealing = False
 
-    def set_link_highlight(self, span):
+    def set_link_highlight(self, span: tuple[int, int] | None) -> None:
         """Mark a span given as Python offsets as linked to the diagram selection, or nothing for None.
 
         Neither the cursor nor the viewport moves.
@@ -218,7 +222,7 @@ class CodeEditor(QPlainTextEdit):
             self._link_selections = [selection]
         self._update_selections()
 
-    def go_to(self, offset):
+    def go_to(self, offset: int) -> None:
         text = self.document_record.text()
         cursor = QTextCursor(self.document())
         cursor.setPosition(qt_position(text, offset))
@@ -226,7 +230,7 @@ class CodeEditor(QPlainTextEdit):
         self.centerCursor()
         self.setFocus()
 
-    def contextMenuEvent(self, event):
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         menu = self.createStandardContextMenu(event.pos())
         first = menu.actions()[0] if menu.actions() else None
         show = QAction('Show in Diagram', menu)
@@ -236,14 +240,15 @@ class CodeEditor(QPlainTextEdit):
         menu.exec(event.globalPos())
         menu.deleteLater()
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() == Qt.Key.Key_Tab and not event.modifiers():
             self.insertPlainText('  ')
             return
         super().keyPressEvent(event)
 
-    def event(self, event):
+    def event(self, event: QEvent) -> bool:
         if event.type() == event.Type.ToolTip:
+            assert isinstance(event, QHelpEvent)
             cursor = self.cursorForPosition(event.pos())
             offset = python_offset(self.document_record.text(), cursor.position())
             text = self.document_record.text()
@@ -256,11 +261,11 @@ class CodeEditor(QPlainTextEdit):
             return True
         return super().event(event)
 
-    def line_number_width(self):
+    def line_number_width(self) -> int:
         digits = len(str(max(1, self.blockCount())))
         return 12 + self.fontMetrics().horizontalAdvance('9') * digits
 
-    def paint_line_numbers(self, event):
+    def paint_line_numbers(self, event: QPaintEvent) -> None:
         painter = QPainter(self.line_numbers)
         palette = self.palette()
         painter.fillRect(event.rect(), palette.color(QPalette.ColorRole.AlternateBase))
@@ -275,25 +280,25 @@ class CodeEditor(QPlainTextEdit):
             top += round(self.blockBoundingRect(block).height())
             block = block.next()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         contents = self.contentsRect()
         self.line_numbers.setGeometry(QRect(contents.left(), contents.top(),
                                             self.line_number_width(), contents.height()))
 
-    def _update_margin(self):
+    def _update_margin(self) -> None:
         self.setViewportMargins(self.line_number_width(), 0, 0, 0)
 
-    def _update_line_numbers(self, rect, dy):
+    def _update_line_numbers(self, rect: QRect, dy: int) -> None:
         if dy:
             self.line_numbers.scroll(0, dy)
         else:
             self.line_numbers.update(0, rect.y(), self.line_numbers.width(), rect.height())
 
-    def _update_selections(self):
+    def _update_selections(self) -> None:
         self.setExtraSelections(self._link_selections + self._diagnostic_selections + self._reveal_selections)
 
-    def _cursor_moved(self):
+    def _cursor_moved(self) -> None:
         if self._revealing:
             return
         if self._reveal_selections:
@@ -302,7 +307,8 @@ class CodeEditor(QPlainTextEdit):
         self.element_cursor.emit(python_offset(self.document_record.text(), self.textCursor().position()))
 
 
-def _diagnostic_range(text, diagnostic):
+def _diagnostic_range(text: str, diagnostic: Diagnostic) -> tuple[int, int]:
+    assert diagnostic.start is not None
     start = min(diagnostic.start, len(text))
     end = diagnostic.end
     if end is None or end <= start:

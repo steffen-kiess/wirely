@@ -1,18 +1,24 @@
 """Choosing node types and entering new declarations."""
 
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QListWidget, QListWidgetItem,
-    QVBoxLayout,
+    QVBoxLayout, QWidget,
 )
 
 from wirely.compiler import editing
+from wirely.compiler.analysis import NodeTypeEntry
 
 
 class NodePalette(QDialog):
     """A filterable list of the node types available in a scope."""
 
-    def __init__(self, entries, parent=None):
+    def __init__(self, entries: Iterable[NodeTypeEntry], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle('Add node')
         self.filter = QLineEdit(self)
@@ -31,17 +37,17 @@ class NodePalette(QDialog):
         self.list.itemActivated.connect(self.accept)
         self.resize(420, 480)
 
-    def selected_type(self):
+    def selected_type(self) -> str | None:
         item = self.list.currentItem()
         return None if item is None or item.isHidden() else item.data(Qt.ItemDataRole.UserRole)
 
-    def keyPressEvent(self, event):
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         if event.key() in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self.filter.hasFocus():
             self.list.keyPressEvent(event)
             return
         super().keyPressEvent(event)
 
-    def _filter(self, text):
+    def _filter(self, text: str) -> None:
         words = text.lower().split()
         first = None
         for row in range(self.list.count()):
@@ -54,7 +60,7 @@ class NodePalette(QDialog):
             self.list.setCurrentItem(first)
 
 
-def _describe(entry):
+def _describe(entry: NodeTypeEntry) -> str:
     lines = [entry.type_text]
     for parameter in entry.parameters:
         optional = '?' if parameter.optional or parameter.default_text is not None else ''
@@ -71,7 +77,7 @@ class DeclarationDialog(QDialog):
     kind is one of those names, or 'input' or 'output' for ports.
     """
 
-    def __init__(self, kind, name, type_names, parent=None):
+    def __init__(self, kind: str, name: str, type_names: Sequence[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.kind = kind
         self.setWindowTitle(f'Add {kind}')
@@ -107,7 +113,7 @@ class DeclarationDialog(QDialog):
         buttons.rejected.connect(self.reject)
         form.addRow(buttons)
 
-    def declaration(self):
+    def declaration(self) -> str:
         """Return the declaration text; raises ValueError for invalid input."""
         name = self.name.text().strip()
         type_text = self.type.currentText().strip()

@@ -4,11 +4,16 @@ The output does not depend on UI settings: it uses a fixed light palette, the
 fixed diagram font, and no grid.
 """
 
+from __future__ import annotations
+
 import os
+from collections.abc import Sequence
 
 from PySide6.QtCore import QMarginsF, QRectF, QSizeF
 from PySide6.QtGui import QColor, QImage, QPageLayout, QPageSize, QPainter, QPalette, QPdfWriter
 from PySide6.QtWidgets import QApplication
+
+from wirely.compiler.editing import Sources
 
 from . import graph_model
 from .graph_view import GraphScene
@@ -30,7 +35,7 @@ class ExportError(Exception):
     pass
 
 
-def export_image(sources, scope, output, *, scale=4):
+def export_image(sources: Sources, scope: Sequence[str], output: str, *, scale: float = 4) -> None:
     """Write the diagram of a scope to output, a .pdf or .png file.
 
     sources are (filename, text) pairs; scale is the PNG pixels per scene unit.
