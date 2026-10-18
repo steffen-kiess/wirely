@@ -1,4 +1,5 @@
 import io
+import os
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -277,6 +278,23 @@ checks.assertIs(cache.parse_source(Path('first.wrl'), parsed.text), parsed)
 diagnostics = []
 checks.assertIsNone(compile_strs([parsed, parsed], shuffle_seed=None, on_diagnostic=diagnostics.append))
 checks.assertEqual(diagnostics[0].filename, 'first.wrl')
+
+
+# A parser cache file is written once and then loaded; cached parsers parse alike.
+from wirely.compiler import parser as parser_module
+
+with tempfile.TemporaryDirectory(prefix='wirely-parser-cache-') as directory:
+    path = Path(directory) / 'parser.cache'
+    written = parser_module.create_parser(str(path))
+    checks.assertTrue(path.exists())
+    # Loading must not rebuild the tables, which would write the file again.
+    os.utime(path, ns=(0, 0))
+    loaded = parser_module.create_parser(str(path))
+    checks.assertEqual(path.stat().st_mtime_ns, 0)
+    for _, text in standard_library_texts():
+        expected = parser_module.parser.parse(text)
+        checks.assertEqual(written.parse(text), expected)
+        checks.assertEqual(loaded.parse(text), expected)
 
 
 async def run_test():

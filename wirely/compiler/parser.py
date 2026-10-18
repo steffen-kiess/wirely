@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import sys
 import os
@@ -13,6 +14,7 @@ from lark.parsers.lalr_parser import ParserState
 import lark
 
 from wirely.compiler import model
+from wirely.util import getEnvironmentBool
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, SyntaxElement, capture_source_path
 from .expressions import (
@@ -107,6 +109,8 @@ class NestedCommentLexer(lark.lexer.BasicLexer):
     shared_terminal_names = {'COMMENT_START'}
 
     def __init__(self, conf: LexerConf) -> None:
+        # Lark keeps conf, and saves it in its cache, so change a copy.
+        conf = copy.copy(conf)
         # Get comment terminals
         comment_terminals = list([terminal for terminal in conf.terminals if terminal.name in self.terminal_names])
         # Check whether any terminals are missing
@@ -254,7 +258,31 @@ opts = {
         'BasicLexer': NestedCommentLexer,
     },
 }
-parser = lark.Lark(grammar, **opts)
+
+
+def _cache_path() -> str | None:
+    """Return the parser cache file if WIRELY_COMPILER_CACHE_LARK is set and its directory is usable."""
+    if not getEnvironmentBool('WIRELY_COMPILER_CACHE_LARK', False):
+        return None
+    base = os.environ.get('XDG_CACHE_HOME', '')
+    if not os.path.isabs(base):
+        base = os.path.join(os.path.expanduser('~'), '.cache')
+    directory = os.path.join(base, 'wirely')
+    try:
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+    except OSError:
+        return None
+    # Lark checks that a cached file matches the grammar and options; separate
+    # files keep different Lark and Python versions from replacing each other.
+    return os.path.join(directory, f'parser-lark{lark.__version__}-py{sys.version_info[0]}{sys.version_info[1]}.cache')
+
+
+def create_parser(cache: str | None = None) -> lark.Lark:
+    """Build the parser, loading its tables from the cache file if given and current, or saving them there."""
+    return lark.Lark(grammar, cache=cache or False, **opts)
+
+
+parser = create_parser(_cache_path())
 
 
 def parse_str(input_data: str, *, filename: str | os.PathLike) -> ParsedFile:

@@ -34,6 +34,9 @@ python3 -m wirely compile program.wrl
 Use `wirely compile --dump-program program.wrl` to print the compiled
 runtime program, including its variables, configuration, and procedures.
 Add `--timings` to print the duration of each compiler stage.
+Set `WIRELY_COMPILER_CACHE_LARK=1` to keep the parser tables in
+`$XDG_CACHE_HOME/wirely/` (by default `~/.cache/wirely/`), which saves
+about 0.7 s on each start.
 
 Install optional integrations as needed:
 
