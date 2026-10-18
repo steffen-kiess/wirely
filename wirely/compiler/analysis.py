@@ -32,6 +32,7 @@ from .diagnostics import Diagnostic, WarningSink
 from .native_functions import validate_collisions, validate_native_names
 from .outline import Binding, Constant, Node, NodeType, Parameter, Port, ProcedurePort, State
 from .types import resolve_type
+from .sources import ParseCache
 
 
 @dataclass(frozen=True)
@@ -316,9 +317,9 @@ class Analysis:
         return node
 
 
-def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Analysis:
+def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False, cache: ParseCache | None = None) -> Analysis:
     """Resolve the types of (filename, text) pairs, continuing after errors."""
-    files, parsed_files = _outline.parse(sources, add_std=add_std)
+    files, parsed_files = _outline.parse(sources, add_std=add_std, cache=cache)
     result = _outline.outline_parsed(files, parsed_files)
     diagnostics = [file.error for file in files if file.error is not None]
     declarations = [declaration for _, parsed in parsed_files for declaration in parsed]

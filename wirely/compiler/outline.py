@@ -23,6 +23,7 @@ from . import ast
 from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
 from .diagnostics import Diagnostic
+from .sources import ParseCache
 
 
 @dataclass(frozen=True)
@@ -394,19 +395,20 @@ class Outline:
         return index
 
 
-def outline(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Outline:
+def outline(sources: Iterable[tuple[str, str]], *, add_std: bool = False, cache: ParseCache | None = None) -> Outline:
     """Outline (filename, text) pairs; files that fail to parse are skipped."""
-    return outline_parsed(*parse(sources, add_std=add_std))
+    return outline_parsed(*parse(sources, add_std=add_std, cache=cache))
 
 
 def parse(sources: Iterable[tuple[str, str]], *,
-          add_std: bool = False) -> tuple[tuple[SourceFile, ...], list[tuple[str, _attributes.ParsedFile]]]:
+          add_std: bool = False, cache: ParseCache | None = None) -> tuple[tuple[SourceFile, ...], list[tuple[str, _attributes.ParsedFile]]]:
     """Return the file records and the (filename, declarations) of files that parse."""
     from .sources import SourceError, parse_source, standard_library_cache, standard_library_texts
 
     parse = [(filename, text, standard_library_cache.parse_source)
              for filename, text in (standard_library_texts() if add_std else ())]
-    parse += [(filename, text, parse_source) for filename, text in sources]
+    parse_user = parse_source if cache is None else cache.parse_source
+    parse += [(filename, text, parse_user) for filename, text in sources]
     files = []
     parsed_files = []
     for filename, text, parse_function in parse:

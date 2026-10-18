@@ -71,6 +71,7 @@ python_only_tests = [
     'unit/outline',
     'unit/analysis',
     'unit/editor',
+    'unit/editor_cache',
     'unit/editor_widgets',
     'unit/editor_workspace',
     'unit/editor_export',

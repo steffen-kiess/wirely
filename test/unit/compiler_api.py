@@ -136,6 +136,85 @@ with ThreadPoolExecutor(8) as executor:
     results = [future.result() for future in [executor.submit(parse_shared) for _ in range(8)]]
 checks.assertEqual(len({id(result) for result in results}), 1)
 
+# Hits promote entries; membership queries do not. Versions count separately.
+cache = ParseCache(max_entries=2)
+a = ('<lru>', 'node type A {}')
+b = ('<lru>', 'node type B {}')
+c = ('<lru>', 'node type C {}')
+first_a = cache.parse_source(*a)
+first_b = cache.parse_source(*b)
+checks.assertIs(cache.parse_source(*a), first_a)
+cache.parse_source(*c)
+checks.assertIn(a, cache)
+checks.assertNotIn(b, cache)
+checks.assertIn(c, cache)
+checks.assertIsNot(cache.parse_source(*b), first_b)
+checks.assertNotIn(a, cache)
+checks.assertIn(c, cache)
+cache.parse_source(*a)
+checks.assertNotIn(c, cache)
+checks.assertIn(b, cache)
+checks.assertIn(a, cache)
+cache.clear()
+checks.assertNotIn(a, cache)
+checks.assertNotIn(b, cache)
+checks.assertIsNot(cache.parse_source(*a), first_a)
+
+# A failed parse does not evict a successful source.
+cache = ParseCache(max_entries=1)
+kept = cache.parse_source(*a)
+with checks.assertRaises(SourceError):
+    cache.parse_source('<invalid>', 'node')
+checks.assertIs(cache.parse_source(*a), kept)
+
+# A zero limit retains nothing; ordinary caches default to 256 entries.
+cache = ParseCache(max_entries=0)
+checks.assertIsNot(cache.parse_source(*a), cache.parse_source(*a))
+checks.assertNotIn(a, cache)
+with checks.assertRaises(ValueError):
+    ParseCache(max_entries=-1)
+cache = ParseCache()
+unbounded = ParseCache(max_entries=None)
+first = ('<capacity>', '// version 0\n')
+for index in range(257):
+    entry = ('<capacity>', f'// version {index}\n')
+    cache.parse_source(*entry)
+    unbounded.parse_source(*entry)
+    standard_library_cache.parse_source(*entry)
+checks.assertNotIn(first, cache)
+checks.assertIn(entry, cache)
+checks.assertTrue(all(('<capacity>', f'// version {index}\n') in unbounded for index in range(257)))
+checks.assertTrue(all(('<capacity>', f'// version {index}\n') in standard_library_cache for index in range(257)))
+
+# File parsing shares the same keys and retention policy as parsing text.
+with tempfile.TemporaryDirectory(prefix='wirely-parse-cache-') as directory:
+    path = Path(directory) / 'source.wrl'
+    path.write_text(a[1], encoding='utf-8')
+    cache = ParseCache(max_entries=1)
+    old = cache.parse_file(path)
+    checks.assertIs(cache.parse_source(str(path), a[1]), old)
+    path.write_text(b[1], encoding='utf-8')
+    new = cache.parse_file(path)
+    checks.assertIsNot(new, old)
+    checks.assertNotIn((path, a[1]), cache)
+    checks.assertIn((path, b[1]), cache)
+
+# Concurrent insertions keep a small cache within its entry limit.
+cache = ParseCache(max_entries=2)
+barrier = threading.Barrier(8)
+
+
+def parse_bounded(index):
+    barrier.wait()
+    return cache.parse_source(f'<bounded-{index}>', 'node type Shared {}')
+
+
+with ThreadPoolExecutor(8) as executor:
+    results = list(executor.map(parse_bounded, range(8)))
+checks.assertEqual(sum((f'<bounded-{index}>', 'node type Shared {}') in cache for index in range(8)), 2)
+checks.assertEqual([source.filename for source in results], [f'<bounded-{index}>' for index in range(8)])
+
+
 # Compilations cache the standard library, also when they fail, but not other sources.
 standard_library_cache.clear()
 checks.assertIsNone(compile_strs([('<user>', 'node broken: T {}')], add_std=True, shuffle_seed=None,

@@ -10,20 +10,21 @@ import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Literal
 
-from wirely.compiler import editing
+from wirely.compiler import ParseCache, editing
 from wirely.compiler import outline as _outline
 from wirely.compiler.analysis import ConnectionCheck, analyze
 from wirely.compiler.outline import Connection, NodeType
 
 
 class Program:
-    def __init__(self, sources: editing.Sources) -> None:
+    def __init__(self, sources: editing.Sources, *, cache: ParseCache | None = None) -> None:
+        self._parse_cache = ParseCache() if cache is None else cache
         self.refresh(sources)
 
     def refresh(self, sources: editing.Sources) -> None:
         """Analyze new (filename, text) pairs of the user files."""
         self.sources = tuple(sources)
-        self.analysis = analyze(self.sources, add_std=True)
+        self.analysis = analyze(self.sources, add_std=True, cache=self._parse_cache)
         filenames = {filename for filename, _ in self.sources}
         self.parse_errors = {file.filename: file.error for file in self.analysis.outline.files
                              if file.error is not None and file.filename in filenames}
@@ -116,7 +117,8 @@ class Program:
             def step(sources: editing.Sources, target: _outline.DeclarationId | Connection = target,
                      x: float = x, y: float = y) -> list[editing.TextEdit]:
                 return editing.set_attribute(
-                    sources, target, editing.format_metadata('Diagram.Position', X=_coordinate(x), Y=_coordinate(y)))
+                    sources, target, editing.format_metadata('Diagram.Position', X=_coordinate(x), Y=_coordinate(y)),
+                    cache=self._parse_cache)
             steps.append(step)
         return self._combined(steps)
 
@@ -125,16 +127,16 @@ class Program:
         steps: list[Callable[[editing.Sources], list[editing.TextEdit]]] = []
         for target in targets:
             def step(sources: editing.Sources, target: _outline.DeclarationId | Connection = target) -> list[editing.TextEdit]:
-                return editing.remove_attribute(sources, target, 'Diagram.Position')
+                return editing.remove_attribute(sources, target, 'Diagram.Position', cache=self._parse_cache)
             steps.append(step)
         return self._combined(steps)
 
     def connect(self, scope: Sequence[str], source: str, target: str, *, index: int | None = None) -> list[editing.TextEdit]:
-        return editing.connect(self.sources, scope, source, target, index=index)
+        return editing.connect(self.sources, scope, source, target, index=index, cache=self._parse_cache)
 
     def reconnect(self, connection: Connection, *, source: str | None = None,
                   target: str | None = None) -> list[editing.TextEdit]:
-        return editing.reconnect(self.sources, connection, source=source, target=target)
+        return editing.reconnect(self.sources, connection, source=source, target=target, cache=self._parse_cache)
 
     def delete(self, targets: Iterable[_outline.DeclarationId | Connection]) -> list[editing.TextEdit]:
         """Remove connections and declarations, with the connections referencing them."""
@@ -144,11 +146,11 @@ class Program:
         steps: list[Callable[[editing.Sources], list[editing.TextEdit]]] = []
         for connection in connections:
             def disconnect(sources: editing.Sources, connection: Connection = connection) -> list[editing.TextEdit]:
-                return editing.disconnect(sources, connection)
+                return editing.disconnect(sources, connection, cache=self._parse_cache)
             steps.append(disconnect)
         for target in declarations:
             def remove(sources: editing.Sources, target: _outline.DeclarationId = target) -> list[editing.TextEdit]:
-                return editing.remove_declaration(sources, target)
+                return editing.remove_declaration(sources, target, cache=self._parse_cache)
             steps.append(remove)
         return self._combined(steps)
 
@@ -156,7 +158,7 @@ class Program:
                         position: tuple[float, float] | None = None) -> list[editing.TextEdit]:
         attributes = () if position is None else (
             editing.format_metadata('Diagram.Position', X=_coordinate(position[0]), Y=_coordinate(position[1])),)
-        return editing.add_declaration(self.sources, scope, declaration, attributes=attributes)
+        return editing.add_declaration(self.sources, scope, declaration, attributes=attributes, cache=self._parse_cache)
 
     def add_node(self, scope: Sequence[str], type_text: str,
                  position: tuple[float, float] | None = None) -> list[editing.TextEdit]:
@@ -164,19 +166,19 @@ class Program:
         return self.add_declaration(scope, editing.format_node(name, type_text), position)
 
     def fresh_name(self, scope: Sequence[str], base: str) -> str:
-        return editing.fresh_name(self.sources, scope, base)
+        return editing.fresh_name(self.sources, scope, base, cache=self._parse_cache)
 
     def set_parameter(self, node: _outline.Node, name: str, value_text: str) -> list[editing.TextEdit]:
         """Bind a parameter of a node, or remove its binding if value_text is empty."""
         if not value_text.strip():
-            return editing.remove_parameter_binding(self.sources, node, name)
-        return editing.set_parameter_binding(self.sources, node, name, value_text)
+            return editing.remove_parameter_binding(self.sources, node, name, cache=self._parse_cache)
+        return editing.set_parameter_binding(self.sources, node, name, value_text, cache=self._parse_cache)
 
     def set_node_type(self, node: _outline.Node, type_text: str) -> list[editing.TextEdit]:
-        return editing.set_node_type(self.sources, node, type_text)
+        return editing.set_node_type(self.sources, node, type_text, cache=self._parse_cache)
 
     def rename(self, target: _outline.DeclarationId, new_name: str) -> list[editing.TextEdit]:
-        return editing.rename(self.sources, target, new_name)
+        return editing.rename(self.sources, target, new_name, cache=self._parse_cache)
 
     def _combined(self, steps: Iterable[Callable[[editing.Sources], list[editing.TextEdit]]]) -> list[editing.TextEdit]:
         """Apply edit functions one after another; return one TextEdit per changed file."""

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
 
@@ -90,13 +91,17 @@ def _parse(filename: str | os.PathLike, text: str, durations: ParseDurations | N
 class ParseCache:
     """Parsed sources by filename and text, which threads can share.
 
-    Sources that fail to parse are not cached. When threads parse the same
-    source at once, all of them get the first result.
+    The least recently used entries are evicted at max_entries; None keeps
+    all entries. Sources that fail to parse are not cached. Concurrent
+    insertions reuse an existing cached result while it remains resident.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, max_entries: int | None = 256) -> None:
+        if max_entries is not None and max_entries < 0:
+            raise ValueError('max_entries must be nonnegative or None')
+        self._max_entries = max_entries
         self._lock = threading.Lock()
-        self._sources: dict[tuple[str, str], ParsedSource] = {}
+        self._sources: OrderedDict[tuple[str, str], ParsedSource] = OrderedDict()
 
     def parse_source(self, filename: str | os.PathLike, text: str) -> ParsedSource:
         """Return the cached parse of text, parsing it if needed; raise SourceError if it does not parse."""
@@ -110,11 +115,22 @@ class ParseCache:
         key = (os.fsdecode(filename), text)
         with self._lock:
             source = self._sources.get(key)
-        if source is not None:
-            return source
+            if source is not None:
+                self._sources.move_to_end(key)
+                return source
         source = _parse(key[0], key[1], durations)
         with self._lock:
-            return self._sources.setdefault(key, source)
+            cached = self._sources.get(key)
+            if cached is not None:
+                self._sources.move_to_end(key)
+                return cached
+            if self._max_entries == 0:
+                return source
+            self._sources[key] = source
+            if self._max_entries is not None:
+                while len(self._sources) > self._max_entries:
+                    self._sources.popitem(last=False)
+            return source
 
     def __contains__(self, item: tuple[str | os.PathLike, str]) -> bool:
         filename, text = item
@@ -149,7 +165,7 @@ STANDARD_LIBRARY_NAMES = (
 )
 
 # Holds the standard library; compilations do not cache other sources.
-standard_library_cache = ParseCache()
+standard_library_cache = ParseCache(max_entries=None)
 
 
 def standard_library_texts(names: Iterable[str] | None = None) -> list[tuple[str, str]]:
