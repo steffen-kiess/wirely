@@ -238,9 +238,10 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         """Validate the attributes of statements in blocks inside element."""
         if isinstance(element, ExpressionBlock):
             for statement in element.statements:
+                statement_attributes: tuple[ValidatedAttribute, ...] = ()
                 with contain(None):
-                    statement.attributes = validate_attributes(statement.outer_attributes, 'statement')
-                allow(statement, statement.attributes)
+                    statement_attributes = validate_attributes(statement.outer_attributes, 'statement')
+                allow(statement, statement_attributes)
         for name, child in vars(element).items():
             if name in ('source_position', 'outer_attributes', 'inner_attributes', 'attributes'):
                 continue

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, replace
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeGuard, TypeVar
@@ -10,7 +11,7 @@ if TYPE_CHECKING:
     from .parameters import StaticValue
 
 from . import model
-from .ast import SourcePosition, SourceElement, ProgramError, Value as AstValue, check_struct_literal
+from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue, check_struct_literal, syntax
 from .types import resolve_type, check_runtime_type
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
@@ -27,16 +28,17 @@ Initialization: TypeAlias = dict[ExpressionKey, tuple[bool, bool]]
 SyntaxT = TypeVar('SyntaxT')
 
 
+@syntax
 class Expression(AstValue):
     pass
 
 
+@syntax
 class BinaryExpression(Expression):
-    def __init__(self, left: AstValue, right: AstValue, *, operator: str, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.left = left
-        self.right = right
-        self.operator = operator
+    left: AstValue
+    right: AstValue
+    _: dataclasses.KW_ONLY
+    operator: str
 
     @staticmethod
     def logical_or(left: AstValue, right: AstValue, *, source_position: SourcePosition) -> BinaryExpression:
@@ -116,11 +118,11 @@ SHIFT_OPERATORS = ('shift_left', 'shift_right')
 ARITHMETIC_OPERATORS = ('add', 'sub', 'mul', 'div', 'rem')
 
 
+@syntax
 class UnaryExpression(Expression):
-    def __init__(self, operand: AstValue, *, operator: str = 'not', source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.operand = operand
-        self.operator = operator
+    operand: AstValue
+    _: dataclasses.KW_ONLY
+    operator: str = 'not'
 
     @staticmethod
     def negate(operand: AstValue, *, source_position: SourcePosition) -> UnaryExpression | model.IntNumber:
@@ -130,11 +132,10 @@ class UnaryExpression(Expression):
         return UnaryExpression(operand, operator='neg', source_position=source_position)
 
 
+@syntax
 class PropertyAccess(Expression):
-    def __init__(self, receiver: AstValue, name: model.Identifier, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.receiver = receiver
-        self.name = name
+    receiver: AstValue
+    name: model.Identifier
 
 
 def property_reference(scope: model.Scope, expression: SyntaxT,
@@ -250,114 +251,105 @@ def is_type_declaration(declaration: model.DeclarationParameter) -> bool:
                 and declaration.ty.identifiers[0].id_str == 'ValueType'))
 
 
+@syntax
 class IfExpression(Expression):
-    def __init__(self, condition: AstValue, then: AstValue, otherwise: AstValue | None = None, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.condition = condition
-        self.then = then
-        self.otherwise = otherwise
+    condition: AstValue
+    then: AstValue
+    otherwise: AstValue | None = None
 
 
+@syntax
 class IfLetExpression(Expression):
-    def __init__(self, constructor: model.Identifier, name: model.Identifier, scrutinee: AstValue, then: AstValue,
-                 otherwise: AstValue | None = None, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.constructor = constructor
-        self.name = name
-        self.scrutinee = scrutinee
-        self.then = then
-        self.otherwise = otherwise
+    constructor: model.Identifier
+    name: model.Identifier
+    scrutinee: AstValue
+    then: AstValue
+    otherwise: AstValue | None = None
 
 
+@syntax
 class ForExpression(Expression):
-    def __init__(self, name: model.Identifier, iterable: AstValue, body: AstValue, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.iterable = iterable
-        self.body = body
+    name: model.Identifier
+    iterable: AstValue
+    body: AstValue
 
 
-class OnTrigger(SourceElement):
-    def __init__(self, name: model.Identifier, *, changed: bool = False, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.is_changed = changed
+@syntax
+class OnTrigger(SyntaxElement):
+    name: model.Identifier
+    _: dataclasses.KW_ONLY
+    is_changed: bool = False
 
     @staticmethod
     def changed(name: model.Identifier, *, source_position: SourcePosition) -> OnTrigger:
-        return OnTrigger(name, changed=True, source_position=source_position)
+        return OnTrigger(name, is_changed=True, source_position=source_position)
 
     @property
     def description(self) -> str:
         return f'changed {self.name.id_str!r}' if self.is_changed else repr(self.name.id_str)
 
 
+@syntax
 class OnExpression(Expression):
-    def __init__(self, triggers: Iterable[OnTrigger], body: AstValue, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.triggers = tuple(triggers)
-        self.body = body
+    triggers: tuple[OnTrigger, ...]
+    body: AstValue
 
 
+@syntax
 class EmitExpression(Expression):
-    def __init__(self, target: model.Identifier, expression: AstValue | None = None, *, optional: bool = False,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.target = target
-        self.expression = expression
-        self.is_optional = optional
+    target: model.Identifier
+    expression: AstValue | None = None
+    _: dataclasses.KW_ONLY
+    is_optional: bool = False
 
     @staticmethod
     def optional(target: model.Identifier, expression: AstValue, *, source_position: SourcePosition) -> EmitExpression:
-        return EmitExpression(target, expression, optional=True, source_position=source_position)
+        return EmitExpression(target, expression, is_optional=True, source_position=source_position)
 
 
+@syntax
 class ExpressionBlock(Expression):
-    def __init__(self, *statements: LocalBinding | ExpressionStatement, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.statements = statements
+    statements: tuple[LocalBinding | ExpressionStatement, ...]
+
+    @staticmethod
+    def of(*statements: LocalBinding | ExpressionStatement, source_position: SourcePosition) -> ExpressionBlock:
+        return ExpressionBlock(statements, source_position=source_position)
 
 
-class ExpressionStatement(SourceElement):
-    def __init__(self, expression: AstValue, *, terminated: bool = True, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.expression = expression
-        self.terminated = terminated
+@syntax
+class ExpressionStatement(SyntaxElement):
+    expression: AstValue
+    _: dataclasses.KW_ONLY
+    terminated: bool = True
 
     @staticmethod
     def unterminated(expression: AstValue, *, source_position: SourcePosition) -> ExpressionStatement:
         return ExpressionStatement(expression, terminated=False, source_position=source_position)
 
 
+@syntax
 class AssertionStatement(ExpressionStatement):
-    def __init__(self, expression: AstValue, message: model.StringConstant | None, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(expression, source_position=source_position)
-        self.message = message
+    message: model.StringConstant | None
 
 
-class LocalBinding(SourceElement):
-    def __init__(self, name: model.Identifier, annotation: AstValue | None, initializer: AstValue | None, *,
-                 mutable: bool = False, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.annotation = annotation
-        self.initializer = initializer
-        self.is_mutable = mutable
+@syntax
+class LocalBinding(SyntaxElement):
+    name: model.Identifier
+    annotation: AstValue | None
+    initializer: AstValue | None
+    _: dataclasses.KW_ONLY
+    is_mutable: bool = False
 
     @staticmethod
     def mutable(name: model.Identifier, annotation: AstValue | None, initializer: AstValue | None, *,
                 source_position: SourcePosition) -> LocalBinding:
-        return LocalBinding(name, annotation, initializer, mutable=True, source_position=source_position)
+        return LocalBinding(name, annotation, initializer, is_mutable=True, source_position=source_position)
 
 
+@syntax
 class AssignmentExpression(Expression):
-    def __init__(self, target: AstValue, expression: AstValue, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.target = target
-        self.expression = expression
+    target: AstValue
+    expression: AstValue
 
 
 @dataclass(frozen=True)

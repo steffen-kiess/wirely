@@ -2,9 +2,10 @@
 
 import typing
 import contextlib
+import dataclasses
 import os
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, TypeVar
 
 import lark
 
@@ -79,6 +80,36 @@ class SourceElement:
         return f'{type(self).__name__}()'
 
 
+SyntaxT = TypeVar('SyntaxT')
+
+
+@typing.dataclass_transform(eq_default=False, frozen_default=True, field_specifiers=(dataclasses.field,))
+def syntax(cls: type[SyntaxT]) -> type[SyntaxT]:
+    """Make cls an immutable syntax class whose constructor checks its arguments.
+
+    Syntax objects compare by identity and keep the source text as their default repr.
+    """
+    cls = dataclasses.dataclass(frozen=True, eq=False, repr=False)(cls)
+    cls.__init__ = check_parameters(cls.__init__)  # type: ignore[method-assign]
+    return cls
+
+
+@syntax
+class SyntaxElement(SourceElement):
+    """An immutable part of the syntax tree below declarations.
+
+    Compiler stages keep the information they derive elsewhere. Subclasses
+    that only declare attribute types for their own subclasses are not
+    decorated with @syntax.
+    """
+
+    _: dataclasses.KW_ONLY
+    source_position: SourcePosition
+    outer_attributes: tuple = ()
+    inner_attributes: tuple = ()
+    attributes: tuple = ()
+
+
 class CompilerHint:
     @check_parameters
     def __init__(self, source_element: SourceElement, msg: str) -> None:
@@ -128,23 +159,22 @@ class InternalCompilerError(ProgramError):
         super().__init__(source_element, msg, inner_exception)
 
 
-class Identifier(SourceElement):
-    @check_parameters
-    def __init__(self, s: str, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        if s.startswith('r#'):
-            s = s[2:]
-        self.id_str = s
+@syntax
+class Identifier(SyntaxElement):
+    id_str: str
+
+    def __post_init__(self) -> None:
+        if self.id_str.startswith('r#'):
+            object.__setattr__(self, 'id_str', self.id_str[2:])
 
     def __repr__(self) -> str:
         # return f'{self.id_str} [{self.source_position.start_line}]'
         return self.id_str
 
 
-class Value(SourceElement):
-    @check_parameters
-    def __init__(self, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
+@syntax
+class Value(SyntaxElement):
+    pass
 
 
 class Declaration(SourceElement):

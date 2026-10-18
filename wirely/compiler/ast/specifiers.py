@@ -1,10 +1,9 @@
 """Port directions, port types, and declaration specifiers."""
 
+import dataclasses
 import enum
 
-from wirely.util import check_parameters
-
-from .base import SourcePosition, SourceElement, Value, ProgramError
+from .base import SourcePosition, SyntaxElement, Value, ProgramError, syntax
 
 
 class PortDirection(enum.Enum):
@@ -12,36 +11,28 @@ class PortDirection(enum.Enum):
     Output = enum.auto()
 
 
-class PortDirectionSpecifier(SourceElement):
-    @check_parameters
-    def __init__(self, direction: PortDirection, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.direction = direction
+@syntax
+class PortDirectionSpecifier(SyntaxElement):
+    direction: PortDirection
 
     @staticmethod
-    @check_parameters
     def create_input(*, source_position: SourcePosition) -> 'PortDirectionSpecifier':
         return PortDirectionSpecifier(PortDirection.Input, source_position=source_position)
 
     @staticmethod
-    @check_parameters
     def create_output(*, source_position: SourcePosition) -> 'PortDirectionSpecifier':
         return PortDirectionSpecifier(PortDirection.Output, source_position=source_position)
 
 
-class ListSpecifier(SourceElement):
-    @check_parameters
-    def __init__(self, is_list: bool, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.is_list = is_list
+@syntax
+class ListSpecifier(SyntaxElement):
+    is_list: bool
 
     @staticmethod
-    @check_parameters
     def create_list(*, source_position: SourcePosition) -> 'ListSpecifier':
         return ListSpecifier(True, source_position=source_position)
 
     @staticmethod
-    @check_parameters
     def create_nolist(*, source_position: SourcePosition) -> 'ListSpecifier':
         return ListSpecifier(False, source_position=source_position)
 
@@ -53,70 +44,55 @@ class ConnectionKind(enum.Enum):
     Event = enum.auto()
 
 
-class ConnectionKindSpecifier(SourceElement):
-    @check_parameters
-    def __init__(self, kind: ConnectionKind, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.kind = kind
+@syntax
+class ConnectionKindSpecifier(SyntaxElement):
+    kind: ConnectionKind
 
     @staticmethod
-    @check_parameters
     def create_value(*, source_position: SourcePosition) -> 'ConnectionKindSpecifier':
         return ConnectionKindSpecifier(ConnectionKind.Value, source_position=source_position)
 
     @staticmethod
-    @check_parameters
     def create_event(*, source_position: SourcePosition) -> 'ConnectionKindSpecifier':
         return ConnectionKindSpecifier(ConnectionKind.Event, source_position=source_position)
 
 
-class PortTypeSpecification(SourceElement):
-    ty: Value  # Set by the subclasses.
-
-    @check_parameters
-    def __init__(self, list_spec: ListSpecifier, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.list_spec = list_spec
+class PortTypeSpecification(SyntaxElement):
+    list_spec: ListSpecifier
+    ty: Value
 
 
+@syntax
 class PortTypeSpecificationData(PortTypeSpecification):
-    @check_parameters
-    def __init__(self, list_spec: ListSpecifier, kind_spec: ConnectionKindSpecifier, ty: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(list_spec=list_spec, source_position=source_position)
-        self.kind_spec = kind_spec
-        self.ty = ty
+    list_spec: ListSpecifier
+    kind_spec: ConnectionKindSpecifier
+    ty: Value
 
 
+@syntax
 class PortTypeSpecificationResource(PortTypeSpecification):
-    @check_parameters
-    def __init__(self, list_spec: ListSpecifier, ty: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(list_spec=list_spec, source_position=source_position)
-        self.ty = ty
+    list_spec: ListSpecifier
+    ty: Value
 
     def check_supported_input(self) -> None:
         if self.list_spec.is_list:
             raise ProgramError(self, 'Multi resource inputs are not supported')
 
 
-class NodeTypeSpecifier(SourceElement):
-    @check_parameters
-    def __init__(self, specifier_str: str, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-
-        self.specifier_str = specifier_str
+@syntax
+class NodeTypeSpecifier(SyntaxElement):
+    specifier_str: str
 
     @staticmethod
     def create_singleton(*, source_position: SourcePosition) -> 'NodeTypeSpecifier':
-        return NodeTypeSpecifier(specifier_str='singleton', source_position=source_position)
+        return NodeTypeSpecifier('singleton', source_position=source_position)
 
 
+@syntax
 class NativeSpecifier(NodeTypeSpecifier):
-    @check_parameters
-    def __init__(self, *, source_position: SourcePosition) -> None:
-        super().__init__(specifier_str='native', source_position=source_position)
+    specifier_str: str = dataclasses.field(default='native', init=False)
 
 
+@syntax
 class OptionalSpecifier(NodeTypeSpecifier):
-    @check_parameters
-    def __init__(self, *, source_position: SourcePosition) -> None:
-        super().__init__(specifier_str='optional', source_position=source_position)
+    specifier_str: str = dataclasses.field(default='optional', init=False)

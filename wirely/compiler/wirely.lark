@@ -80,7 +80,7 @@ connection_kind: "value" -> connection_kind_specifier__create_value
 port_direction: "input" -> port_direction_specifier__create_input
     | "output" -> port_direction_specifier__create_output
 
-instantiation: reference "{" parameter_binding_list "}"
+instantiation: reference "{" parameter_binding_list "}" -> instantiation__make
 parameter_binding_list: inner_attribute* _list{parameter_binding} -> file_input
 parameter_binding: identifier ":" expression
     | identifier "?:" expression -> parameter_binding__optional
@@ -100,7 +100,7 @@ depends_declaration: ()
     | "depends" "on" _list{procedure_port}
 produces_declaration: ()
     | "produces" _list{procedure_port}
-uses_declaration: "uses" _list{static_binding}
+uses_declaration: "uses" _list{static_binding} -> uses_declaration__of
 
 // A reference port connected to what it references, or a typed port wired
 // with connect. A typed port's name is an identifier; it starts with
@@ -216,7 +216,7 @@ on_trigger: identifier -> on_trigger
 // "let Some(name) =" in an if let
 _let: "let" identifier "(" identifier ")" "="
 _else: "else" (expression_block | if_expression)
-expression_block: "{" block_statement* block_tail? "}"
+expression_block: "{" block_statement* block_tail? "}" -> expression_block__of
 
 // ---------------------------------------------------------------------------
 // Names and literals

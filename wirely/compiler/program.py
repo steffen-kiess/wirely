@@ -174,7 +174,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         with reference.context, warnings.instance(instance.instantiation_hint()):
             try:
                 value_type = resolve_type(source.var_type, instance.static_values)
-                expression = model.Reference([reference], source_position=reference.source_position)
+                expression = model.Reference((reference,), source_position=reference.source_position)
                 value = compile_constant(instance.node_type, expression, value_type, instance.static_values)
                 try:
                     concrete = value.resolve_self(instance.static_values).evaluate()

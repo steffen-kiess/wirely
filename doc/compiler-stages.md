@@ -25,7 +25,9 @@ on an instance's parameters or a cycle in procedure execution dependencies.
 2. **Parse sources.** `parser.parse_sources()` splits each file into tokens,
    checks its grammar, and builds a syntax tree of declarations and
    expressions. The tree retains attributes and source positions so later
-   stages can report errors at the relevant text.
+   stages can report errors at the relevant text. Nodes below declarations,
+   such as expressions, references, and literals, are immutable; later
+   stages keep the information they derive elsewhere.
 3. **Validate source metadata.** `validate_source_metadata()` checks file
    attributes and native function name collisions.
 

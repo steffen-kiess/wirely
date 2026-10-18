@@ -4,6 +4,8 @@ from .base import (
     capture_source_path,
     SourcePosition,
     SourceElement,
+    SyntaxElement,
+    syntax,
     CompilerHint,
     ProgramError,
     InternalCompilerError,

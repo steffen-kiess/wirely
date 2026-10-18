@@ -1,13 +1,14 @@
 """Randomized declaration order for testing order independence."""
 
+import dataclasses
 import hashlib
 import json
 import random
 from collections.abc import Sequence
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from wirely.compiler import model
-from .ast import SourceElement
+from .ast import SourceElement, SyntaxElement
 
 
 T = TypeVar('T')
@@ -52,9 +53,8 @@ def shuffle_declarations(declarations: list[model.Declaration], seed: int, *, la
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
     _shuffle_list(rng, declarations)
-    visited: set[int] = set()
-    for declaration in declarations:
-        _visit(rng, declaration, attributes, visited, layout)
+    visited: dict[int, tuple[object, object]] = {}
+    _visit(rng, declarations, attributes, visited, layout)
 
 
 def _shuffled(rng: random.Random, items: Sequence[T]) -> list[T]:
@@ -70,15 +70,27 @@ def _shuffle_list(rng: random.Random, items: list[T]) -> None:
     items[:] = _shuffled(rng, items)
 
 
-def _visit(rng: random.Random, value: object, attributes: dict[type, tuple[str, ...]],
-           visited: set[int], layout: bool) -> None:
-    if isinstance(value, (list, tuple)):
-        for item in value:
-            _visit(rng, item, attributes, visited, layout)
-        return
-    if not isinstance(value, SourceElement) or id(value) in visited:
-        return
-    visited.add(id(value))
+def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]],
+           visited: dict[int, tuple[object, object]], layout: bool) -> T:
+    """Shuffle the lists in value and return it, or a shuffled copy of a syntax element.
+
+    visited maps the ids of visited elements to the elements, which keeps their ids unique, and their results.
+    """
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            value[index] = _visit(rng, item, attributes, visited, layout)
+        return value
+    if isinstance(value, tuple):
+        items = tuple(_visit(rng, item, attributes, visited, layout) for item in value)
+        if any(new is not old for new, old in zip(items, value)):
+            return type(value)(items)  # type: ignore[return-value]
+        return value
+    if not isinstance(value, SourceElement):
+        return value
+    if id(value) in visited:
+        return visited[id(value)][1]  # type: ignore[return-value]
+    visited[id(value)] = (value, value)
+    changes: dict[str, Any] = {}
     for cls, names in attributes.items():
         if isinstance(value, cls):
             # Closed member order defines member numbers.
@@ -95,6 +107,18 @@ def _visit(rng: random.Random, value: object, attributes: dict[type, tuple[str, 
                 if isinstance(items, list):
                     _shuffle_list(rng, items)
                 else:
-                    setattr(value, name, type(items)(_shuffled(rng, items)))
-    for child in vars(value).values():
-        _visit(rng, child, attributes, visited, layout)
+                    changes[name] = type(items)(_shuffled(rng, items))
+    for name, child in vars(value).items():
+        child = changes.get(name, child)
+        visited_child = _visit(rng, child, attributes, visited, layout)
+        if visited_child is not child or name in changes:
+            changes[name] = visited_child
+    if not changes:
+        return value
+    if isinstance(value, SyntaxElement):
+        result = dataclasses.replace(value, **changes)
+        visited[id(value)] = (value, result)
+        return result
+    for name, child in changes.items():
+        setattr(value, name, child)
+    return value

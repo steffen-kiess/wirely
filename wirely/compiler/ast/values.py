@@ -1,5 +1,6 @@
 """Literals, references, calls, and resolved port references."""
 
+import dataclasses
 import typing
 import re
 from collections.abc import Collection
@@ -10,21 +11,26 @@ import lark
 from wirely.compiler import model
 from wirely.util import check_parameters
 
-from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Value
+from .base import SourcePosition, SourceElement, SyntaxElement, CompilerHint, ProgramError, Identifier, Value, syntax
 from .specifiers import PortDirection, PortDirectionSpecifier
 
 
+@syntax
 class UnitLiteral(Value):
     def __repr__(self) -> str:
         return 'UnitLiteral()'
 
 
+@syntax
 class IntNumber(Value):
-    @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.token = token
-        text = str(token)
+    token: lark.Token
+    _: dataclasses.KW_ONLY
+    # A negated literal stays a literal, so -128 can be an int8.
+    negative: bool = False
+    value: int = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        text = str(self.token)
         if text.lower().startswith('0x'):
             base = 16
         elif text.lower().startswith('0o'):
@@ -32,36 +38,38 @@ class IntNumber(Value):
         else:
             base = 10
         try:
-            self.value = int(text, base)
+            value = int(text, base)
         except ValueError:
             raise ProgramError(self, f'Invalid integer literal: {text!r}') from None
+        object.__setattr__(self, 'value', -value if self.negative else value)
 
     @classmethod
     def positive(cls, token: lark.Token, *, source_position: SourcePosition) -> 'IntNumber':
         return cls(token, source_position=source_position)
 
     def negated(self, *, source_position: SourcePosition) -> 'IntNumber':
-        result = IntNumber(self.token, source_position=source_position)
-        result.value = -self.value
-        return result
+        return IntNumber(self.token, negative=not self.negative, source_position=source_position)
 
 
+@syntax
 class FloatNumber(Value):
-    @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.token = token
+    token: lark.Token
+    value: float = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
         # TODO: Does this parse the value correctly?
-        self.value = float(token)
+        object.__setattr__(self, 'value', float(self.token))
 
 
+@syntax
 class StringConstant(Value):
-    @check_parameters
-    def __init__(self, token: lark.Token, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.token = token
+    token: lark.Token
+    value: str = dataclasses.field(init=False)
 
-        val = token.value.replace('\r\n', '\n')
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'value', self._decode(self.token.value.replace('\r\n', '\n')))
+
+    def _decode(self, val: str) -> str:
         if '\r' in val:
             raise ProgramError(self, 'Bare carriage return in string literal')
         # https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str
@@ -72,18 +80,18 @@ class StringConstant(Value):
             value = val[2:-1]
             if '"' in value:
                 raise ProgramError(self, 'Invalid raw string literal')
-            self.value = value
+            return value
         elif val.startswith('r#"'):
             if len(val) < 5 or val[-2:] != '"#':
                 raise ProgramError(self, 'Invalid raw string literal')
             value = val[3:-2]
             if '"#' in value:
                 raise ProgramError(self, 'Invalid raw string literal')
-            self.value = value
+            return value
         else:
             if len(val) < 2 or val[0] != '"' or val[-1] != '"':
                 raise ProgramError(self, 'Invalid string literal')
-            self.value = self._decode_quoted(val[1:-1])
+            return self._decode_quoted(val[1:-1])
 
     def _decode_quoted(self, value: str) -> str:
         escapes = {
@@ -137,16 +145,14 @@ class StringConstant(Value):
         return ''.join(result)
 
 
+@syntax
 class Reference(Value):
-    @check_parameters
-    def __init__(self, identifiers: typing.List[Identifier], *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.identifiers = identifiers
+    identifiers: tuple[Identifier, ...]
 
     @staticmethod
     @check_parameters
     def from_list(*identifiers: Identifier, source_position: SourcePosition) -> 'Reference':
-        return Reference(list(identifiers), source_position=source_position)
+        return Reference(identifiers, source_position=source_position)
 
     @staticmethod
     @check_parameters
@@ -160,7 +166,7 @@ class Reference(Value):
         else:
             raise Exception(f'Unknown value for direction: {direction}')
         identifier = Identifier(name, source_position=source_position)
-        return Reference([identifier], source_position=source_position)
+        return Reference((identifier,), source_position=source_position)
 
     def __repr__(self) -> str:
         # TODO: Somehow show which enclosing node a parameter belongs to?
@@ -187,27 +193,22 @@ class Reference(Value):
             raise Exception(f'Unknown PortDirection: {direction!r}')
 
 
+@syntax
 class ListLiteral(Value):
-    @check_parameters
-    def __init__(self, values: list[Value], *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.values = values
+    values: tuple[Value, ...]
 
 
+@syntax
 class FunctionCall(Value):
-    @check_parameters
-    def __init__(self, fun: Value, parameters: list[Value], *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.fun = fun
-        self.parameters = parameters
+    fun: Value
+    parameters: tuple[Value, ...]
 
 
+@syntax
 class OptionalExpression(Value):
     """optional(x): an optional parameter, or an event in a procedure body, as an option."""
 
-    def __init__(self, parameters: list[Value], *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.parameters = parameters
+    parameters: tuple[Value, ...]
 
     def argument(self) -> Value:
         if len(self.parameters) != 1:
@@ -232,12 +233,10 @@ class OptionalExpression(Value):
         return parameter
 
 
+@syntax
 class BracketOperator(Value):
-    @check_parameters
-    def __init__(self, base: Value, parameter: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.base = base
-        self.parameter = parameter
+    base: Value
+    parameter: Value
 
 
 # TODO: Remove and merge into Reference?
@@ -356,21 +355,16 @@ def static_source(declaration: 'model.DeclarationParameter', name: Identifier, p
     return model.StaticSource(declaration, name)
 
 
-class StructLiteralField(SourceElement):
-    @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.value = value
+@syntax
+class StructLiteralField(SyntaxElement):
+    name: Identifier
+    value: Value
 
 
+@syntax
 class StructLiteral(Value):
-    @check_parameters
-    def __init__(self, struct_type: Reference, fields: typing.List[StructLiteralField],
-                 *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.struct_type = struct_type
-        self.fields = fields
+    struct_type: Reference
+    fields: tuple[StructLiteralField, ...]
 
 
 def check_struct_literal(value_type: 'model.types.Type', literal: 'StructLiteral',

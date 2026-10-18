@@ -1,5 +1,6 @@
 """Instances, connections, state, and bindings."""
 
+import dataclasses
 import typing
 from collections.abc import Iterable
 from typing import Any
@@ -10,19 +11,17 @@ from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
-from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Declaration, Value
+from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value, syntax
 from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationResource
 from .values import Reference
 
 
-class ParameterBinding(SourceElement):
-    @check_parameters
-    def __init__(self, name: Identifier, value: Value, *, source_position: SourcePosition,
-                 is_optional: bool = False) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.value = value
-        self.is_optional = is_optional
+@syntax
+class ParameterBinding(SyntaxElement):
+    name: Identifier
+    value: Value
+    _: dataclasses.KW_ONLY
+    is_optional: bool = False
 
     @staticmethod
     def optional(name: Identifier, value: Value, *, source_position: SourcePosition) -> 'ParameterBinding':
@@ -35,14 +34,16 @@ class ParameterBinding(SourceElement):
         # return f'Parameter <{self.name}> [{self.name.source_position.start_line}] = <{self.value}>'
 
 
-class Instantiation(SourceElement):
-    @check_parameters
-    def __init__(self, type_name: Reference, parameters: list,
-                 *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.type_name = type_name
-        self.parameters = parameters
-        self.inner_attributes = getattr(parameters, 'inner_attributes', ())
+@syntax
+class Instantiation(SyntaxElement):
+    type_name: Reference
+    parameters: tuple[ParameterBinding, ...]
+
+    @staticmethod
+    def make(type_name: Reference, parameters: list[ParameterBinding], *,
+             source_position: SourcePosition) -> 'Instantiation':
+        return Instantiation(type_name, tuple(parameters), source_position=source_position,
+                             inner_attributes=getattr(parameters, 'inner_attributes', ()))
 
 
 class DeclarationInstance(Declaration):
@@ -81,11 +82,12 @@ class DeclarationInstance(Declaration):
         self.failed_parameters: set['model.DeclarationParameter'] = set()
         coordinator = graph.coordinator
         seen: set['model.DeclarationParameter'] = set()
+        failed_bindings: set[ParameterBinding] = set()
         for parameter in parameter_bindings:
             key = parameter.name
             value = parameter.value
             par = self.node_type.parsed_parameters.get(key.id_str)
-            with coordinator.contain(parameter):
+            with coordinator.contain(parameter, failures=failed_bindings):
                 if key.id_str in self.node_type.parsed_constants:
                     raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
                 if par is None:
@@ -95,7 +97,7 @@ class DeclarationInstance(Declaration):
                 seen.add(par)
                 if getattr(par, 'failed', False):
                     # The parameter's own error was already reported.
-                    parameter.failed = True
+                    failed_bindings.add(parameter)
                     continue
                 if parameter.is_optional:
                     if not par.is_optional:
@@ -103,12 +105,12 @@ class DeclarationInstance(Declaration):
                     from ..expressions import compile_constant
                     compile_constant(graph, value, model.types.TypeOption(par.type_resolved), {})
                     self.par_values[par] = model.value.OptionalBinding(graph, value, par)
-            if getattr(parameter, 'failed', False) and par is not None:
+            if parameter in failed_bindings and par is not None:
                 self.failed_parameters.add(par)
 
         pending = {self.node_type.parsed_parameters[parameter.name.id_str]: parameter
                    for parameter in parameter_bindings
-                   if not parameter.is_optional and not getattr(parameter, 'failed', False)}
+                   if not parameter.is_optional and parameter not in failed_bindings}
 
         def bind(par: 'model.DeclarationParameter') -> None:
             parameter = pending.pop(par, None)
@@ -118,7 +120,7 @@ class DeclarationInstance(Declaration):
             for dependency in type_parameters(par.type_resolved):
                 bind(dependency)
             value = parameter.value
-            with coordinator.contain(parameter):
+            with coordinator.contain(parameter, failures=failed_bindings):
                 par_type = resolve_type(par.type_resolved, self.par_values)
                 # TODO: Is passing par_values=self.par_values here the correct thing to do?
                 if par_type == model.types.ValueType:
@@ -127,7 +129,7 @@ class DeclarationInstance(Declaration):
                 else:
                     val = graph.get_const_value(value, par_type, par_values=self.par_values)
                     self.par_values[par] = val
-            if getattr(parameter, 'failed', False):
+            if parameter in failed_bindings:
                 self.failed_parameters.add(par)
 
         for par in list(pending):

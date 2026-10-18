@@ -38,8 +38,13 @@ class CompilerCoordinator:
         return order
 
     @contextlib.contextmanager
-    def contain(self, element: model.ast.SourceElement | None) -> Iterator[None]:
-        """Record errors inside as diagnostics and mark element as failed, unless stopping at errors."""
+    def contain(self, element: model.ast.SourceElement | None, *,
+                failures: set | None = None) -> Iterator[None]:
+        """Record errors inside as diagnostics and mark element as failed, unless stopping at errors.
+
+        With failures, add a failed element to it instead of marking it. Syntax elements are
+        immutable and only recorded in failures.
+        """
         if self.diagnostics is None:
             yield
             return
@@ -51,7 +56,9 @@ class CompilerCoordinator:
             self._report(model.InternalCompilerError(element, error))
         else:
             return
-        if element is not None:
+        if failures is not None:
+            failures.add(element)
+        elif element is not None and not isinstance(element, model.ast.SyntaxElement):
             element.failed = True
 
     def _report(self, error: model.ProgramError) -> None:

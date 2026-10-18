@@ -8,15 +8,14 @@ if TYPE_CHECKING:
 
 from wirely.compiler import model
 
-from .base import SourceElement, ProgramError, Declaration, Identifier, SourcePosition, Value
+from .base import SourceElement, SyntaxElement, ProgramError, Declaration, Identifier, SourcePosition, Value, syntax
 from .values import StringConstant
 
 
-class FunctionArgument(SourceElement):
-    def __init__(self, name: Identifier, ty: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.ty = ty
+@syntax
+class FunctionArgument(SyntaxElement):
+    name: Identifier
+    ty: Value
 
 
 class DeclarationNativeFunction(Declaration):

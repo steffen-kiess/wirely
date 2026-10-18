@@ -1,5 +1,6 @@
 """Procedures, initializers, and their ports and static bindings."""
 
+import dataclasses
 import typing
 from typing import Any
 
@@ -8,17 +9,15 @@ from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import check_runtime_type
 
-from .base import CompilerHint, Declaration, Identifier, ProgramError, SourceElement, SourcePosition, Value
+from .base import CompilerHint, Declaration, Identifier, ProgramError, SourceElement, SourcePosition, SyntaxElement, Value, syntax
 from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource, NativeSpecifier
 from .values import StringConstant, Reference
 from .nodes import DeclarationState, register_name
 
 
-class StageDeclaration(SourceElement):
-    @check_parameters
-    def __init__(self, stage: RunStage, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.stage = stage
+@syntax
+class StageDeclaration(SyntaxElement):
+    stage: RunStage
 
     @staticmethod
     def create_input(*, source_position: SourcePosition) -> 'StageDeclaration':
@@ -33,7 +32,7 @@ class StageDeclaration(SourceElement):
         return StageDeclaration(stage=RunStage.OUTPUT, source_position=source_position)
 
 
-class Port(SourceElement):
+class Port(SyntaxElement):
     """A port in a depends or produces clause."""
 
     reference: Reference | None
@@ -48,13 +47,10 @@ class Port(SourceElement):
         raise NotImplementedError
 
 
+@syntax
 class ReferencePort(Port):
     reference: Reference
-
-    def __init__(self, reference: Reference, alias: typing.Optional[typing.Union[StringConstant, Identifier]] = None, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.reference = reference
-        self.alias = alias
+    alias: StringConstant | Identifier | None = None
 
     @property
     def key(self) -> str:
@@ -73,21 +69,17 @@ class ReferencePort(Port):
         return self.key
 
 
+@syntax
 class TypedPort(Port):
     """A typed procedure port, which connections supply or consume.
 
     In native procedures, a string alias gives the Python key.
     """
 
-    alias: StringConstant | None
-
-    def __init__(self, name: Identifier, port_spec: PortTypeSpecification,
-                 alias: typing.Optional[StringConstant] = None, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.port_spec = port_spec
-        self.reference = None
-        self.alias = alias
+    name: Identifier
+    port_spec: PortTypeSpecification
+    alias: StringConstant | None = None
+    reference: None = dataclasses.field(default=None, init=False)
 
     @staticmethod
     def from_reference(reference: Reference, alias: typing.Optional[StringConstant], port_spec: PortTypeSpecification, *,
@@ -205,12 +197,10 @@ def dependency_is_resource(dependency: object) -> bool:
     return isinstance(getattr(dependency, 'port_spec', None), PortTypeSpecificationResource)
 
 
-class StaticBinding(SourceElement):
-    def __init__(self, expression: Value, alias: Identifier | StringConstant | None = None, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.expression = expression
-        self.alias = alias
+@syntax
+class StaticBinding(SyntaxElement):
+    expression: Value
+    alias: Identifier | StringConstant | None = None
 
     @property
     def key(self) -> str:
@@ -223,10 +213,13 @@ class StaticBinding(SourceElement):
         raise ProgramError(self, 'Static binding requires an alias')
 
 
-class UsesDeclaration(SourceElement):
-    def __init__(self, *bindings: StaticBinding, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.bindings = bindings
+@syntax
+class UsesDeclaration(SyntaxElement):
+    bindings: tuple[StaticBinding, ...]
+
+    @staticmethod
+    def of(*bindings: StaticBinding, source_position: SourcePosition) -> 'UsesDeclaration':
+        return UsesDeclaration(bindings, source_position=source_position)
 
     def check(self, scope: 'model.NodeType') -> None:
         from ..expressions import compile_constant

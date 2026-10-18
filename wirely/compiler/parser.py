@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import sys
 import os
 import time
@@ -15,7 +16,7 @@ import lark
 from wirely.compiler import model
 from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
-from .ast import SourceElement, capture_source_path
+from .ast import SourceElement, SyntaxElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression, OnTrigger, EmitExpression,
     ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
@@ -179,6 +180,8 @@ class Transformer(lark.Transformer):
 
     def attributed(self, *items: Any) -> Any:
         item = items[-1]
+        if isinstance(item, SyntaxElement):
+            return dataclasses.replace(item, outer_attributes=tuple(items[:-1]))
         # A dotted namespace declaration denotes its innermost namespace.
         if isinstance(item, model.DeclarationLibrary):
             while not hasattr(item.declarations, 'inner_attributes'):
@@ -228,6 +231,9 @@ class Transformer(lark.Transformer):
         if cls_name in ast_classes_byname:
             cls = ast_classes_byname[cls_name]
             if len(parts) == 1:
+                if issubclass(cls, SyntaxElement):
+                    # Syntax classes hold child sequences as tuples.
+                    children = [tuple(child) if isinstance(child, list) else child for child in children]
                 return cls(*children, source_position=source_position)
             return getattr(cls, parts[1])(*children, source_position=source_position)
 
