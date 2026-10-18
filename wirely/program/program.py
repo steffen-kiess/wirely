@@ -8,10 +8,12 @@ from pprint import pformat
 from types import MappingProxyType
 from typing import TextIO
 
+from ..util import immutable_enum
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
 from .procedures import Constant, Function, ProcedureBody
 
 
+@immutable_enum
 class RunStage(enum.Enum):
     """Ordered phases of an engine step."""
 

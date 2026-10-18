@@ -6,7 +6,6 @@ import re
 from collections.abc import Collection
 from typing import Any
 
-import lark
 
 from wirely.compiler import model
 from wirely.util import check_parameters
@@ -23,7 +22,7 @@ class UnitLiteral(Value):
 
 @syntax
 class IntNumber(Value):
-    token: lark.Token
+    token: str
     _: dataclasses.KW_ONLY
     # A negated literal stays a literal, so -128 can be an int8.
     negative: bool = False
@@ -44,8 +43,8 @@ class IntNumber(Value):
         object.__setattr__(self, 'value', -value if self.negative else value)
 
     @classmethod
-    def positive(cls, token: lark.Token, *, source_position: SourcePosition) -> 'IntNumber':
-        return cls(token, source_position=source_position)
+    def positive(cls, token: str, *, source_position: SourcePosition) -> 'IntNumber':
+        return cls(str(token), source_position=source_position)
 
     def negated(self, *, source_position: SourcePosition) -> 'IntNumber':
         return IntNumber(self.token, negative=not self.negative, source_position=source_position)
@@ -53,7 +52,7 @@ class IntNumber(Value):
 
 @syntax
 class FloatNumber(Value):
-    token: lark.Token
+    token: str
     value: float = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
@@ -63,11 +62,11 @@ class FloatNumber(Value):
 
 @syntax
 class StringConstant(Value):
-    token: lark.Token
+    token: str
     value: str = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, 'value', self._decode(self.token.value.replace('\r\n', '\n')))
+        object.__setattr__(self, 'value', self._decode(self.token.replace('\r\n', '\n')))
 
     def _decode(self, val: str) -> str:
         if '\r' in val:

@@ -37,7 +37,9 @@ To parse a file once for several compilations, call
 return a `ParsedSource`, or raise `SourceError`, whose `diagnostics()` are
 those a compilation would report. Pass `ParsedSource` objects to
 `compile_files()` and `compile_strs()` in place of a path or a
-filename/text pair, in any mix; the sources keep their order.
+filename/text pair, in any mix; the sources keep their order. Parsed
+sources are deeply immutable, including their syntax and source positions.
+Path filenames are stored as strings.
 
 `ParseCache` keeps parsed sources by filename and text, and threads can
 share it. `parse_source()` and `parse_file()` on a cache return the cached
@@ -45,8 +47,8 @@ result, or parse and keep it; sources that fail to parse are not kept. The
 compiler keeps the standard library in `standard_library_cache`, so later
 compilations in the same process do not parse it again;
 `standard_library_sources()` returns it as `ParsedSource` objects. It does
-not cache other sources. With a shuffle seed, the compiler parses all
-sources again and leaves the given and cached ones unchanged.
+not cache other sources. Shuffled compilations reuse parsed sources and
+shuffle copies of their declarations.
 
 The source outline and editing helpers parse sources themselves, taking the
 standard library from `standard_library_cache`. They stop at parsing and

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any, NoReturn, TypeGuard
+from typing import TYPE_CHECKING, Any, NoReturn, TypeGuard, overload
 
 if TYPE_CHECKING:
     from . import model
@@ -79,13 +79,29 @@ class ValidatedMetadata:
         MappingProxyType({}))
 
 
-class ParsedFile(list['model.Declaration']):
-    """A declaration list retaining the enclosing file/body's attributes."""
+@dataclass(frozen=True, eq=False, init=False)
+class ParsedFile(Sequence['model.Declaration']):
+    """An immutable declaration sequence with its file/body attributes."""
+
+    declarations: tuple[model.Declaration, ...]
+    inner_attributes: tuple[Attribute, ...]
 
     def __init__(self, declarations: Iterable[model.Declaration] = (), *,
                  inner_attributes: Iterable[Attribute] = ()) -> None:
-        super().__init__(declarations)
-        self.inner_attributes = tuple(inner_attributes)
+        object.__setattr__(self, 'declarations', tuple(declarations))
+        object.__setattr__(self, 'inner_attributes', tuple(inner_attributes))
+
+    def __len__(self) -> int:
+        return len(self.declarations)
+
+    @overload
+    def __getitem__(self, index: int) -> model.Declaration: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> tuple[model.Declaration, ...]: ...
+
+    def __getitem__(self, index: int | slice) -> model.Declaration | tuple[model.Declaration, ...]:
+        return self.declarations[index]
 
 
 def _error(source: Attribute | ValidatedAttribute | Metadata | MetadataLiteral | model.ast.SourceElement,

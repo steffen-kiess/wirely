@@ -1,3 +1,4 @@
+import enum
 import functools
 import inspect
 import os
@@ -116,6 +117,19 @@ def check_parameters(f: Callable[P, R]) -> Callable[P, R]:
         call: Callable[..., R] = f
         return call(*arguments, **keywords)
     return typing.cast(Callable[P, R], wrapper)
+
+
+EnumT = typing.TypeVar('EnumT', bound=enum.Enum)
+
+
+def immutable_enum(cls: type[EnumT]) -> type[EnumT]:
+    """Prevent assignment and deletion of attributes on enum members."""
+    def reject(self: enum.Enum, name: str, *args: object) -> typing.NoReturn:
+        raise AttributeError(f'{type(self).__name__} members are immutable')
+
+    setattr(cls, '__setattr__', reject)
+    setattr(cls, '__delattr__', reject)
+    return cls
 
 
 def getEnvironmentBool(name: str, defVal: bool) -> bool:

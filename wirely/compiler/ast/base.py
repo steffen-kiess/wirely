@@ -21,23 +21,43 @@ def capture_source_path(filename: str | os.PathLike | None) -> str | None:
     return os.path.abspath(filename)
 
 
+@dataclasses.dataclass(frozen=True)
+class SourceSpan:
+    empty: bool
+    start_pos: int = 0
+    end_pos: int = 0
+    line: int = 0
+    column: int = 0
+    end_line: int = 0
+    end_column: int = 0
+
+    @classmethod
+    def from_meta(cls, meta: lark.tree.Meta) -> 'SourceSpan':
+        return cls(meta.empty, *(getattr(meta, name, 0) for name in
+                                 ('start_pos', 'end_pos', 'line', 'column', 'end_line', 'end_column')))
+
+
+@dataclasses.dataclass(frozen=True, eq=False, init=False)
 class SourcePosition:
+    filename: str | None
+    meta: SourceSpan | None
+    input_data: str
+    source_path: str | None
+
     @check_parameters
-    def __init__(self, *, filename: str | os.PathLike | None, meta: lark.tree.Meta | None, input_data: str,
+    def __init__(self, *, filename: str | os.PathLike | None,
+                 meta: lark.tree.Meta | SourceSpan | None, input_data: str,
                  source_path: object = _UNSET_SOURCE_PATH) -> None:
-        self.filename = filename
-        self.meta = meta
-        self.input_data = input_data
-        self.source_path: str | None
+        object.__setattr__(self, 'filename', None if filename is None else str(os.fsdecode(filename)))
+        object.__setattr__(self, 'meta', SourceSpan.from_meta(meta) if isinstance(meta, lark.tree.Meta) else meta)
+        object.__setattr__(self, 'input_data', input_data)
         if source_path is _UNSET_SOURCE_PATH:
-            self.source_path = capture_source_path(filename)
-        else:
-            assert source_path is None or isinstance(source_path, str)
-            self.source_path = source_path
+            source_path = capture_source_path(filename)
+        assert source_path is None or isinstance(source_path, str)
+        object.__setattr__(self, 'source_path', source_path)
 
     @property
     def start_pos(self) -> int:
-        # TODO: Handle source elements which were created without any token where e.g. start_pos is not set?
         assert self.meta is not None
         return self.meta.start_pos
 
@@ -92,7 +112,7 @@ def syntax(cls: type[SyntaxT]) -> type[SyntaxT]:
 
 @syntax
 class SyntaxElement(SourceElement):
-    """An immutable part of the syntax tree below declarations.
+    """An immutable source syntax element.
 
     Compiler stages keep the information they derive elsewhere. Subclasses
     that only declare attribute types for their own subclasses are not
@@ -172,7 +192,8 @@ class Value(SyntaxElement):
     pass
 
 
-class Declaration(SourceElement):
+@syntax
+class Declaration(SyntaxElement):
     """Declarations implement only the preparation operations they need."""
 
     def register_interface_declarations(self, scope: Any) -> None:

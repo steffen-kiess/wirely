@@ -450,7 +450,7 @@ def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None
             if child is None:
                 child = builder.namespaces[name] = _Builder('namespace', builder.path + (name,), builder)
             # A dotted namespace declaration only has a body in its innermost namespace.
-            if hasattr(item.declarations, 'inner_attributes'):
+            if not item.dotted:
                 child.blocks.append((_filename(item), item))
             _collect(child, item.declarations)
         elif isinstance(item, ast.DeclarationNodeType):

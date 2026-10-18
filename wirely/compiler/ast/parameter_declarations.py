@@ -1,29 +1,29 @@
 """Parameter, constant, and assertion declarations."""
 
-import typing
+import dataclasses
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 
-from .base import SourcePosition, ProgramError, Identifier, Declaration, Value
+from .base import SourcePosition, ProgramError, Identifier, Declaration, Value, syntax
 from .specifiers import OptionalSpecifier
 from .values import StringConstant
 
 
+@syntax
 class DeclarationParameter(Declaration):
-    @check_parameters
-    def __init__(self, optional_specifier: typing.Optional[OptionalSpecifier], name: Identifier, ty: Value, *,
-                 default_value: Value | None = None, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.ty = ty
-        self.optional_specifier = optional_specifier
-        self.default_value = default_value
+    optional_specifier: OptionalSpecifier | None
+    name: Identifier
+    ty: Value
+    _: dataclasses.KW_ONLY
+    default_value: Value | None = None
 
+    @property
+    def is_optional(self) -> bool:
+        return self.optional_specifier is not None or self.default_value is not None
+
+    def __post_init__(self) -> None:
         if self.optional_specifier is not None and self.default_value is not None:
             raise Exception('self.optional_specifier is not None and self.default_value is not None')
-
-        self.is_optional = self.optional_specifier is not None or self.default_value is not None
 
     @staticmethod
     def with_default_value(name: Identifier, ty: Value, default_value: Value, *,
@@ -31,17 +31,17 @@ class DeclarationParameter(Declaration):
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
 
+@syntax
 class DeclarationConstant(DeclarationParameter):
-    def __init__(self, name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(None, name, ty, default_value=initializer,
-                         source_position=source_position)
+    @staticmethod
+    def make(name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> 'DeclarationConstant':
+        return DeclarationConstant(None, name, ty, default_value=initializer, source_position=source_position)
 
 
+@syntax
 class DeclarationAssertion(Declaration):
-    def __init__(self, condition: Value, message: StringConstant | None, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.condition = condition
-        self.message = message
+    condition: Value
+    message: StringConstant | None
 
     def register_interface_declarations(self, interface: 'model.NodeType') -> None:
         interface.assertions.append(self)

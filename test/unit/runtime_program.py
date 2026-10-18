@@ -8,12 +8,22 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.program import ResourceBinding
+from wirely.program import ResourceBinding, RunStage
 from wirely.runtime.engine import Engine
 from wirely.test import test_extension, test_contracts, test_engine
 
 
 checks = TestCase()
+
+# Run stages shared by immutable programs cannot be changed through a member.
+for stage in RunStage:
+    with checks.assertRaises(AttributeError):
+        stage._value_ = 99
+    with checks.assertRaises(AttributeError):
+        stage.extra = True
+    with checks.assertRaises(AttributeError):
+        del stage._name_
+    checks.assertIs(RunStage(stage.value), stage)
 
 # Runtime imports must work without loading the optional compiler dependencies.
 subprocess.run([sys.executable, '-c', dedent('''

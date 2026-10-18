@@ -17,9 +17,9 @@ from .diagnostics import Diagnostic, error_diagnostics
 
 @dataclass(frozen=True, eq=False)
 class ParsedSource:
-    """The syntax tree of a source file. Compilations do not modify it."""
+    """The deeply immutable syntax tree and text of a source file."""
 
-    filename: str | os.PathLike
+    filename: str
     text: str
     tree: ParsedFile
 
@@ -30,7 +30,7 @@ class SourceError(Exception):
     def __init__(self, filename: str | os.PathLike, text: str,
                  error: lark.UnexpectedInput | model.ProgramError) -> None:
         super().__init__(str(error))
-        self.filename = filename
+        self.filename = str(os.fsdecode(filename))
         self.text = text
         self.error = error
 
@@ -64,6 +64,9 @@ def parse_file(path: str | os.PathLike) -> ParsedSource:
 def _parse(filename: str | os.PathLike, text: str, durations: ParseDurations | None) -> ParsedSource:
     from . import parser
 
+    filename = str(os.fsdecode(filename))
+
+    text = str(text)
     start = time.perf_counter()
     try:
         tree = parser.parser.parse(text)
@@ -94,7 +97,7 @@ class ParseCache:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._sources: dict[tuple[str | bytes, str], ParsedSource] = {}
+        self._sources: dict[tuple[str, str], ParsedSource] = {}
 
     def parse_source(self, filename: str | os.PathLike, text: str) -> ParsedSource:
         """Return the cached parse of text, parsing it if needed; raise SourceError if it does not parse."""
@@ -105,19 +108,19 @@ class ParseCache:
             return self.parse_source(path, file.read())
 
     def _parse(self, filename: str | os.PathLike, text: str, durations: ParseDurations | None) -> ParsedSource:
-        key = (os.fspath(filename), text)
+        key = (str(os.fsdecode(filename)), str(text))
         with self._lock:
             source = self._sources.get(key)
         if source is not None:
             return source
-        source = _parse(filename, text, durations)
+        source = _parse(key[0], key[1], durations)
         with self._lock:
             return self._sources.setdefault(key, source)
 
     def __contains__(self, item: tuple[str | os.PathLike, str]) -> bool:
         filename, text = item
         with self._lock:
-            return (os.fspath(filename), text) in self._sources
+            return (str(os.fsdecode(filename)), text) in self._sources
 
     def clear(self) -> None:
         with self._lock:
@@ -127,22 +130,15 @@ class ParseCache:
 SourceInput = tuple[str | os.PathLike, str] | ParsedSource
 
 
-def parse_sources(sources: Iterable[SourceInput], *, cache: ParseCache | None = None, reparse: bool = False,
+def parse_sources(sources: Iterable[SourceInput], *, cache: ParseCache | None = None,
                   durations: ParseDurations | None = None) -> list[ParsedSource]:
-    """Parse (filename, text) pairs, through cache if given, and keep parsed sources, in order.
-
-    With reparse, parsed sources are parsed again from their text, so changing
-    the result does not change them.
-    """
+    """Parse (filename, text) pairs, through cache if given, and keep parsed sources, in order."""
     result = []
     for source in sources:
         if isinstance(source, ParsedSource):
-            if not reparse:
-                result.append(source)
-                continue
-            filename, text = source.filename, source.text
-        else:
-            filename, text = source
+            result.append(source)
+            continue
+        filename, text = source
         result.append(cache._parse(filename, text, durations) if cache is not None
                       else _parse(filename, text, durations))
     return result

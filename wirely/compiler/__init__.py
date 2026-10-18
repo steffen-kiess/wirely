@@ -80,19 +80,17 @@ def compile_strs(sources: Iterable[SourceInput], *, add_std: bool = False,
         if verbose_passes:
             report_progress('Starting parsing sources')
         durations = ParseDurations()
-        # Shuffling reorders the trees, so it uses fresh ones.
-        shuffled = shuffle_seed is not None
         parsed_sources = parse_sources(standard_library_texts() if add_std else (),
-                                       cache=None if shuffled else standard_library_cache, durations=durations)
-        parsed_sources += parse_sources(sources, reparse=shuffled, durations=durations)
+                                       cache=standard_library_cache, durations=durations)
+        parsed_sources += parse_sources(sources, durations=durations)
         if timings is not None:
             timings.append(('parse', durations.parse))
             timings.append(('build syntax tree', durations.build))
         parsed_files = [(source.filename, source.tree) for source in parsed_sources]
         decls = [declaration for _, parsed in parsed_files for declaration in parsed]
         if shuffle_seed is not None:
-            from .shuffle import shuffle_declarations
-            shuffle_declarations(decls, shuffle_seed, layout=shuffle_layout)
+            from .shuffle import shuffle_files
+            parsed_files, decls = shuffle_files(parsed_files, shuffle_seed, layout=shuffle_layout)
         if verbose_passes:
             report_progress('Starting validating source metadata')
         start = time.perf_counter()
@@ -100,7 +98,7 @@ def compile_strs(sources: Iterable[SourceInput], *, add_std: bool = False,
         if timings is not None:
             timings.append(('validate source metadata', time.perf_counter() - start))
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
-        global_declaration = model.DeclarationNodeType([], None, decls, source_position=global_source_position)
+        global_declaration = model.DeclarationNodeType((), None, tuple(decls), source_position=global_source_position)
         global_node_type = model.NodeType(global_declaration, None)
         global_node_type.native_extension = native_extension
         global_node_type.compiler_native_extension = compiler_native_extension

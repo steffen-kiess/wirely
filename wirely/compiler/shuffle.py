@@ -9,6 +9,7 @@ from typing import Any, TypeVar
 
 from wirely.compiler import model
 from .ast import SourceElement, SyntaxElement
+from .attributes import ParsedFile
 
 
 T = TypeVar('T')
@@ -42,19 +43,32 @@ def shuffled_source_order(order: tuple[str, int], seed: int) -> tuple[bytes, str
     return (hashlib.sha256(data).digest(), *order)
 
 
-def shuffle_declarations(declarations: list[model.Declaration], seed: int, *, layout: bool = False) -> None:
-    """Shuffle a declaration list and the order-independent lists in it.
+def shuffle_declarations(declarations: Sequence[model.Declaration], seed: int, *,
+                         layout: bool = False) -> list[model.Declaration]:
+    """Return shuffled copies, preserving connection order and native layouts."""
+    result, _ = _shuffle(declarations, seed, layout)
+    return result
 
-    The same seed and input give the same order. Connections keep their
-    relative order, which determines the order of multi input sources.
-    With layout, fields of structs and members of closed enums that are not
-    native are also shuffled.
-    """
+
+def shuffle_files(parsed_files: Sequence[tuple[T, ParsedFile]], seed: int, *,
+                  layout: bool = False) -> tuple[list[tuple[T, ParsedFile]], list[model.Declaration]]:
+    """Shuffle file declarations together and retain their enclosing file metadata."""
+    declarations = [declaration for _, parsed in parsed_files for declaration in parsed]
+    result, visited = _shuffle(declarations, seed, layout)
+    files = [(filename, ParsedFile((visited[id(declaration)][1] for declaration in parsed),
+                                   inner_attributes=parsed.inner_attributes))
+             for filename, parsed in parsed_files]
+    return files, result
+
+
+def _shuffle(declarations: Sequence[model.Declaration], seed: int, layout: bool
+             ) -> tuple[list[model.Declaration], dict[int, tuple[Any, Any]]]:
     rng = random.Random(seed)
     attributes = {**_SHUFFLED_ATTRIBUTES, **_LAYOUT_ATTRIBUTES} if layout else _SHUFFLED_ATTRIBUTES
-    _shuffle_list(rng, declarations)
-    visited: dict[int, tuple[object, object]] = {}
-    _visit(rng, declarations, attributes, visited, layout)
+    visited: dict[int, tuple[Any, Any]] = {}
+    result = [_visit(rng, declaration, attributes, visited, layout)
+              for declaration in _shuffled(rng, declarations)]
+    return result, visited
 
 
 def _shuffled(rng: random.Random, items: Sequence[T]) -> list[T]:
@@ -65,21 +79,14 @@ def _shuffled(rng: random.Random, items: Sequence[T]) -> list[T]:
             for item in result]
 
 
-def _shuffle_list(rng: random.Random, items: list[T]) -> None:
-    # Shuffle in place to keep list subclasses and their attributes.
-    items[:] = _shuffled(rng, items)
-
-
 def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]],
            visited: dict[int, tuple[object, object]], layout: bool) -> T:
-    """Shuffle the lists in value and return it, or a shuffled copy of a syntax element.
+    """Return a shuffled copy of a syntax element or sequence.
 
     visited maps the ids of visited elements to the elements, which keeps their ids unique, and their results.
     """
     if isinstance(value, list):
-        for index, item in enumerate(value):
-            value[index] = _visit(rng, item, attributes, visited, layout)
-        return value
+        return [_visit(rng, item, attributes, visited, layout) for item in value]  # type: ignore[return-value]
     if isinstance(value, tuple):
         items = tuple(_visit(rng, item, attributes, visited, layout) for item in value)
         if any(new is not old for new, old in zip(items, value)):
@@ -104,10 +111,7 @@ def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]]
                     continue
             for name in names:
                 items = getattr(value, name)
-                if isinstance(items, list):
-                    _shuffle_list(rng, items)
-                else:
-                    changes[name] = type(items)(_shuffled(rng, items))
+                changes[name] = type(items)(_shuffled(rng, items))
     for name, child in vars(value).items():
         child = changes.get(name, child)
         visited_child = _visit(rng, child, attributes, visited, layout)
@@ -119,6 +123,5 @@ def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]]
         result = dataclasses.replace(value, **changes)
         visited[id(value)] = (value, result)
         return result
-    for name, child in changes.items():
-        setattr(value, name, child)
+    assert not changes, f'Cannot replace mutable source element {type(value).__name__}'
     return value

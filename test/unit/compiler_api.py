@@ -1,3 +1,4 @@
+import io
 import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -125,12 +126,59 @@ checks.assertNotIn(('<user>', 'node broken: T {}'), standard_library_cache)
 library = standard_library_sources()
 checks.assertTrue(all(cached is again for cached, again in zip(library, standard_library_sources())))
 
-# Shuffling, which reorders nested declarations, leaves parsed sources unchanged.
-parsed = parse_source('<shuffled>', 'namespace N { node type A {} node type B {} node type C {} node type D {} }')
-declarations = list(parsed.tree[0].declarations)
-for seed in range(5):
-    checks.assertIsNotNone(compile_strs([parsed], shuffle_seed=seed))
-checks.assertEqual(list(parsed.tree[0].declarations), declarations)
+# Shared cached sources compile concurrently, including shuffled and layout builds.
+cache = ParseCache()
+parsed = cache.parse_source('<shuffled>', '''
+#![Allow(Unused)]
+namespace N {
+    struct type S { a: int32, b: int32 }
+    open enum type E: uint8 { A = 1, B = 2 }
+    closed enum type F { A, B }
+    node type T { parameter p: int32 = 3; }
+}
+node n: N.T {}
+binding result: value boolean;
+procedure run produces result { result = true; }
+''')
+barrier = threading.Barrier(8)
+
+
+def compile_shared(seed):
+    barrier.wait()
+    timings = []
+    diagnostics = []
+    graph = compile_strs([parsed], add_std=True, shuffle_seed=seed,
+                         shuffle_layout=True, timings=timings, on_diagnostic=diagnostics.append)
+    checks.assertIsNotNone(graph, diagnostics)
+    checks.assertEqual(dict(timings)['parse'], 0)
+    checks.assertEqual(dict(timings)['build syntax tree'], 0)
+    output = io.StringIO()
+    program.compile(graph).dump(output)
+    return output.getvalue()
+
+
+with ThreadPoolExecutor(8) as executor:
+    outputs = list(executor.map(compile_shared, (None, 1, 2, 3, None, 1, 2, 3)))
+checks.assertTrue(all(output == outputs[0] for output in outputs))
+checks.assertIs(cache.parse_source(parsed.filename, parsed.text), parsed)
+
+# Filenames are snapshots, independent of later changes to caller-owned paths.
+class MutablePath:
+    def __init__(self, value):
+        self.value = value
+
+    def __fspath__(self):
+        return self.value
+
+
+filename = MutablePath('first.wrl')
+parsed = cache.parse_source(filename, 'node type T {}')
+checks.assertEqual(parsed.filename, 'first.wrl')
+filename.value = 'second.wrl'
+checks.assertIs(cache.parse_source(Path('first.wrl'), parsed.text), parsed)
+diagnostics = []
+checks.assertIsNone(compile_strs([parsed, parsed], shuffle_seed=None, on_diagnostic=diagnostics.append))
+checks.assertEqual(diagnostics[0].filename, 'first.wrl')
 
 
 async def run_test():

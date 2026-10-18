@@ -6,7 +6,7 @@ if typing.TYPE_CHECKING:
     from .extensions import CompilerNativeExtension
     from ..runtime.extensions import RuntimeNativeExtension
 
-from .attributes import ParsedFile, copy_attributes
+from .attributes import copy_attributes
 from .types import check_runtime_type, resolve_type
 from .stages import ResolutionState
 
@@ -57,7 +57,7 @@ class NodeType(model.Scope):
         return self.declaration.alias
 
     @property
-    def declarations(self) -> ParsedFile | list[model.Declaration]:
+    def declarations(self) -> tuple[model.Declaration, ...]:
         return self.declaration.declarations
 
     @property

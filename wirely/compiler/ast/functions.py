@@ -1,5 +1,6 @@
 """Native function declarations."""
 
+import dataclasses
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -18,21 +19,19 @@ class FunctionArgument(SyntaxElement):
     ty: Value
 
 
+@syntax
 class DeclarationNativeFunction(Declaration):
-    def __init__(self, name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
-                 return_type: Value, *, is_constant: bool = False, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.alias = alias  # Native name replacing the qualified name.
-        self.arguments = arguments
-        self.return_type_ast = return_type
-        # Constant functions are compile-time only; others are also callable in procedure bodies.
-        self.is_constant = is_constant
+    name: Identifier
+    alias: StringConstant | None
+    arguments: tuple[FunctionArgument, ...]
+    return_type_ast: Value
+    _: dataclasses.KW_ONLY
+    is_constant: bool = False
 
     @staticmethod
     def create_constant(name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
                         return_type: Value, *, source_position: SourcePosition) -> 'DeclarationNativeFunction':
-        return DeclarationNativeFunction(name, alias, arguments, return_type, is_constant=True,
+        return DeclarationNativeFunction(name, alias, tuple(arguments), return_type, is_constant=True,
                                          source_position=source_position)
 
     def collect_declarations(self, graph: Any) -> None:

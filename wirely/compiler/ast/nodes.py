@@ -8,7 +8,6 @@ from typing import Any
 from wirely.compiler.attributes import copy_attributes
 from wirely.compiler.stages import ResolutionState
 from wirely.compiler import model
-from wirely.util import check_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
 from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value, syntax
@@ -46,13 +45,13 @@ class Instantiation(SyntaxElement):
                              inner_attributes=getattr(parameters, 'inner_attributes', ()))
 
 
+@syntax
 class DeclarationInstance(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, instantiation: Instantiation, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.instantiation = instantiation
-        self.inner_attributes = instantiation.inner_attributes
+    name: Identifier
+    instantiation: Instantiation
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'inner_attributes', self.instantiation.inner_attributes)
+
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name.id_str
@@ -152,12 +151,10 @@ class ChildNode:
         )
 
 
+@syntax
 class DeclarationConnection(Declaration):
-    @check_parameters
-    def __init__(self, sources: typing.List[Reference], target: Reference, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.sources = sources
-        self.target = target
+    sources: tuple[Reference, ...]
+    target: Reference
 
     def bind_body(self, graph: 'model.NodeType') -> None:
         sources = self.sources
@@ -175,15 +172,15 @@ class DeclarationConnection(Declaration):
                 model.connect(source.port, res_target.port, self, attributes=attributes)
 
 
+@syntax
 class DeclarationState(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, var_type: Value, initial_value: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.var_type = var_type
-        self.initial_value = initial_value
+    name: Identifier
+    var_type: Value
+    initial_value: Value
 
-        self.name_str = self.name.id_str
+    @property
+    def name_str(self) -> str:
+        return self.name.id_str
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name.id_str
@@ -309,18 +306,24 @@ def register_name(graph: 'model.NodeType', name: Identifier, declaration: Declar
     graph.name_declarations[name.id_str] = declaration
 
 
+@syntax
 class DeclarationBinding(Declaration):
     """A named value, event, or resource connection with exactly one source."""
 
-    @check_parameters
-    def __init__(self, name: Identifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.name_str = name.id_str
-        self.port_spec = port_spec
-        if port_spec.list_spec.is_list:
-            raise ProgramError(port_spec, 'Bindings cannot be multi')
-        self.var_type = port_spec.ty
+    name: Identifier
+    port_spec: PortTypeSpecification
+
+    @property
+    def name_str(self) -> str:
+        return self.name.id_str
+
+    @property
+    def var_type(self) -> Value:
+        return self.port_spec.ty
+    def __post_init__(self) -> None:
+        if self.port_spec.list_spec.is_list:
+            raise ProgramError(self.port_spec, 'Bindings cannot be multi')
+
 
     @property
     def is_resource(self) -> bool:

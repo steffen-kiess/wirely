@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 
 from . import model
 from .attributes import ValidatedAttribute, ValidatedMetadata
@@ -25,7 +25,7 @@ class CompilerCoordinator:
         # A list collects errors and continues after them; None stops at the first error.
         self.diagnostics = diagnostics
         self.node_types: list[model.NodeType] = []
-        self.declaration_groups: list[tuple[model.Scope, list[model.Declaration]]] = []
+        self.declaration_groups: list[tuple[model.Scope, Sequence[model.Declaration]]] = []
         self.containment: dict[model.NodeType, list[model.ChildNode]] = {}
         self.population_order: list[model.NodeType] = []
         # Set by the compiler once the files' attributes are validated.

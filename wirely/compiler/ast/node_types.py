@@ -1,12 +1,11 @@
 """Node type declarations."""
 
+import dataclasses
 import typing
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 
-from ..attributes import ParsedFile
-from .base import CompilerHint, Declaration, Identifier, ProgramError, SourcePosition
+from .base import CompilerHint, Declaration, Identifier, ProgramError, SourcePosition, syntax
 from .specifiers import NodeTypeSpecifier
 from .values import StringConstant
 
@@ -14,36 +13,37 @@ if typing.TYPE_CHECKING:
     from .scope import Scope
 
 
+@syntax
 class DeclarationNodeType(Declaration):
     """A node type block, or the global body without a name. Each compilation builds a NodeType from it."""
 
-    @check_parameters
-    def __init__(self, specifiers: list[NodeTypeSpecifier], name: Identifier | None,
-                 declarations: ParsedFile | list[Declaration], *, alias: StringConstant | None = None,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.alias = alias  # Native name replacing the qualified name.
-        self.declarations = declarations
-        self.inner_attributes = getattr(declarations, 'inner_attributes', ())
+    specifiers: tuple[NodeTypeSpecifier, ...]
+    name: Identifier | None
+    declarations: tuple[Declaration, ...]
+    _: dataclasses.KW_ONLY
+    alias: StringConstant | None = None
+    is_native: bool = dataclasses.field(init=False)
+    is_singleton: bool = dataclasses.field(init=False)
 
-        all_specifiers = ['native', 'singleton']
-        specifiers_status = dict({key: False for key in all_specifiers})
-        for specifier in specifiers:
-            if specifier.specifier_str not in all_specifiers:
-                raise Exception(f'Unknown specifier: {specifier.specifier_str!r}')
-            if specifiers_status[specifier.specifier_str]:
-                raise ProgramError(specifier, f'Got duplicate {specifier.specifier_str} specifier')
-            specifiers_status[specifier.specifier_str] = True
-        self.is_native = specifiers_status['native']
-        self.is_singleton = specifiers_status['singleton']
+    def __post_init__(self) -> None:
+        status = {'native': False, 'singleton': False}
+        for specifier in self.specifiers:
+            name = specifier.specifier_str
+            if name not in status:
+                raise Exception(f'Unknown specifier: {name!r}')
+            if status[name]:
+                raise ProgramError(specifier, f'Got duplicate {name} specifier')
+            status[name] = True
+        object.__setattr__(self, 'is_native', status['native'])
+        object.__setattr__(self, 'is_singleton', status['singleton'])
 
     @staticmethod
     def make(*args: typing.Any, source_position: SourcePosition) -> 'DeclarationNodeType':
         # Grammar arguments mix specifiers, a name, an alias, and declarations.
         specifiers = args[:-3]
         name, alias, declarations = args[-3:]
-        return DeclarationNodeType(list(specifiers), name, declarations, alias=alias, source_position=source_position)
+        return DeclarationNodeType(tuple(specifiers), name, tuple(declarations), alias=alias,
+                                   source_position=source_position, inner_attributes=getattr(declarations, 'inner_attributes', ()))
 
     def collect_declarations(self, graph: 'Scope') -> None:
         model.NodeType(self, graph).collect_declarations()

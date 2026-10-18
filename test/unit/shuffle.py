@@ -84,9 +84,9 @@ original = order(parse())
 results = []
 for seed in range(20):
     declarations = parse()
-    shuffle_declarations(declarations, seed)
+    declarations = shuffle_declarations(declarations, seed)
     again = parse()
-    shuffle_declarations(again, seed)
+    again = shuffle_declarations(again, seed)
     checks.assertEqual(order(declarations), order(again))
     results.append(order(declarations))
 for index in range(len(original)):
@@ -96,7 +96,7 @@ for index in range(len(original)):
 # their order.
 for seed in range(20):
     declarations = parse()
-    shuffle_declarations(declarations, seed)
+    declarations = shuffle_declarations(declarations, seed)
     connections = [(names(d.sources), str(d.target)) for d in declarations
                    if isinstance(d, model.DeclarationConnection)]
     checks.assertEqual(connections, [
@@ -117,14 +117,14 @@ original_native = native_order(parse())
 layout_results = []
 for seed in range(20):
     declarations = parse()
-    shuffle_declarations(declarations, seed)
+    declarations = shuffle_declarations(declarations, seed)
     checks.assertEqual(layout_order(declarations), original_layout)
     checks.assertEqual(native_order(declarations), original_native)
     declarations = parse()
-    shuffle_declarations(declarations, seed, layout=True)
+    declarations = shuffle_declarations(declarations, seed, layout=True)
     checks.assertEqual(native_order(declarations), original_native)
     again = parse()
-    shuffle_declarations(again, seed, layout=True)
+    again = shuffle_declarations(again, seed, layout=True)
     checks.assertEqual(layout_order(declarations), layout_order(again))
     layout_results.append(layout_order(declarations))
 for index in range(len(original_layout)):

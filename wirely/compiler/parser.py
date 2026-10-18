@@ -179,14 +179,16 @@ class Transformer(lark.Transformer):
 
     def attributed(self, *items: Any) -> Any:
         item = items[-1]
-        if isinstance(item, SyntaxElement):
-            return dataclasses.replace(item, outer_attributes=tuple(items[:-1]))
-        # A dotted namespace declaration denotes its innermost namespace.
-        if isinstance(item, model.DeclarationLibrary):
-            while not hasattr(item.declarations, 'inner_attributes'):
-                item = item.declarations[0]
-        item.outer_attributes = tuple(items[:-1])
-        return items[-1]
+        attributes = tuple(items[:-1])
+
+        def attach(element: Any) -> Any:
+            # Dotted namespace attributes belong to the innermost block.
+            if isinstance(element, model.DeclarationLibrary) and element.dotted:
+                child = attach(element.declarations[0])
+                return dataclasses.replace(element, declarations=(child,))
+            return dataclasses.replace(element, outer_attributes=attributes)
+
+        return attach(item)
 
     def metadata_path(self, *identifiers: model.Identifier) -> tuple[str, ...]:
         return tuple(identifier.id_str for identifier in identifiers)
@@ -232,7 +234,10 @@ class Transformer(lark.Transformer):
             if len(parts) == 1:
                 if issubclass(cls, SyntaxElement):
                     # Syntax classes hold child sequences as tuples.
-                    children = [tuple(child) if isinstance(child, list) else child for child in children]
+                    inner = next((child.inner_attributes for child in children if isinstance(child, ParsedFile)), ())
+                    children = [tuple(child) if isinstance(child, (list, ParsedFile)) else
+                                str(child) if isinstance(child, lark.Token) else child for child in children]
+                    return cls(*children, source_position=source_position, inner_attributes=inner)
                 return cls(*children, source_position=source_position)
             return getattr(cls, parts[1])(*children, source_position=source_position)
 

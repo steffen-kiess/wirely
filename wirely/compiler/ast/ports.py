@@ -1,5 +1,6 @@
 """Port declarations of node types."""
 
+import dataclasses
 import typing
 
 from wirely.compiler.attributes import copy_attributes
@@ -7,27 +8,32 @@ from wirely.compiler import model
 from wirely.util import check_parameters
 from wirely.compiler.types import check_runtime_type
 
-from .base import SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration
-from .specifiers import PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource
+from .base import Value, SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration, syntax
+from .specifiers import ListSpecifier, ConnectionKindSpecifier, ConnectionKind, PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource
 
 
+@syntax
 class DeclarationPort(Declaration):
-    @check_parameters
-    def __init__(self, name: typing.Optional[Identifier], direction_spec: PortDirectionSpecifier, port_spec: PortTypeSpecification, *, source_position: SourcePosition):
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.direction_spec = direction_spec
-        self.port_spec = port_spec
+    name: Identifier | None
+    direction_spec: PortDirectionSpecifier
+    port_spec: PortTypeSpecification
+    list_spec: ListSpecifier = dataclasses.field(init=False)
+    ty: Value = dataclasses.field(init=False)
+    kind_spec: ConnectionKindSpecifier = dataclasses.field(init=False)
+    kind: ConnectionKind = dataclasses.field(init=False)
+    direction: PortDirection = dataclasses.field(init=False)
+    name_str: str = dataclasses.field(init=False)
 
+    def __post_init__(self) -> None:
         # TODO: Remove?
-        self.list_spec = self.port_spec.list_spec
+        object.__setattr__(self, 'list_spec', self.port_spec.list_spec)
         if isinstance(self.port_spec, PortTypeSpecificationData):
-            self.ty = self.port_spec.ty
-            self.kind_spec = self.port_spec.kind_spec
+            object.__setattr__(self, 'ty', self.port_spec.ty)
+            object.__setattr__(self, 'kind_spec', self.port_spec.kind_spec)
 
-            self.kind = self.kind_spec.kind
+            object.__setattr__(self, 'kind', self.kind_spec.kind)
 
-        self.direction = self.direction_spec.direction
+        object.__setattr__(self, 'direction', self.direction_spec.direction)
 
         if self.list_spec.is_list and self.direction != PortDirection.Input:
             raise ProgramError(self, f'Got multi specifier for non-input')
@@ -36,13 +42,13 @@ class DeclarationPort(Declaration):
 
         if self.name is None:
             if self.direction == PortDirection.Input:
-                self.name_str = 'default input'
+                object.__setattr__(self, 'name_str', 'default input')
             elif self.direction == PortDirection.Output:
-                self.name_str = 'default output'
+                object.__setattr__(self, 'name_str', 'default output')
             else:
                 raise Exception(f'Unknown value for direction: {self.direction}')
         else:
-            self.name_str = self.name.id_str
+            object.__setattr__(self, 'name_str', self.name.id_str)
 
     @staticmethod
     @check_parameters

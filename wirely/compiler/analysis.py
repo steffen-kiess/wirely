@@ -323,7 +323,7 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Ana
     diagnostics = [file.error for file in files if file.error is not None]
     declarations = [declaration for _, parsed in parsed_files for declaration in parsed]
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
-    global_node_type = model.NodeType(model.DeclarationNodeType([], None, declarations, source_position=position), None)
+    global_node_type = model.NodeType(model.DeclarationNodeType((), None, tuple(declarations), source_position=position), None)
     global_node_type.services = MappingProxyType({})
     warnings = WarningSink(diagnostics.append)
     coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)

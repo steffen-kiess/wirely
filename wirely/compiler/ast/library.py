@@ -1,33 +1,34 @@
 """Namespace declarations and the scopes they declare."""
 
+import dataclasses
 from typing import Any
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 
-from .base import SourcePosition, CompilerHint, Declaration, ProgramError, Identifier
+from .base import SourcePosition, CompilerHint, Declaration, ProgramError, Identifier, syntax
 from .scope import Scope
 from .type_declarations import DeclarationStructType, DeclarationEnumType, DeclarationResourceType
 from .functions import DeclarationNativeFunction
 
 
+@syntax
 class DeclarationLibrary(Declaration):
     """A namespace block. Blocks with the same name in a scope declare one Namespace."""
 
-    @check_parameters
-    def __init__(self, name: Identifier, declarations: list, *, source_position: SourcePosition):
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.declarations = declarations
-        self.inner_attributes = getattr(declarations, 'inner_attributes', ())
+    name: Identifier
+    declarations: tuple[Declaration, ...]
+    _: dataclasses.KW_ONLY
+    dotted: bool = False
 
     @staticmethod
     def make(*args: Any, source_position: SourcePosition) -> 'DeclarationLibrary':
         names = args[:-1]
         declarations = args[-1]
-        for name in reversed(names):
+        for index, name in enumerate(reversed(names)):
             declarations = [DeclarationLibrary(
-                name, declarations, source_position=source_position)]
+                name, tuple(declarations), source_position=source_position,
+                inner_attributes=getattr(declarations, 'inner_attributes', ()) if index == 0 else (),
+                dotted=index != 0)]
         return declarations[0]
 
     def collect_declarations(self, graph: Scope) -> None:

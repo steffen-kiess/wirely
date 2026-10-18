@@ -1,51 +1,44 @@
 """Struct, enum, and resource type declarations."""
 
+import dataclasses
 import typing
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 from wirely.compiler.types import parse_value
 
-from .base import SourcePosition, SourceElement, CompilerHint, ProgramError, Identifier, Declaration, Value
+from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value, syntax
 from .values import IntNumber, Reference, StringConstant
 
 
-class EnumMember(SourceElement):
-    @check_parameters
-    def __init__(self, name: Identifier, value: typing.Optional[Value], *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.value = value
+@syntax
+class EnumMember(SyntaxElement):
+    name: Identifier
+    value: Value | None
 
     @staticmethod
     def create_closed(name: Identifier, *, source_position: SourcePosition) -> 'EnumMember':
         return EnumMember(name, None, source_position=source_position)
 
 
-class StructField(SourceElement):
-    @check_parameters
-    def __init__(self, name: Identifier, field_type: Value, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.field_type = field_type
+@syntax
+class StructField(SyntaxElement):
+    name: Identifier
+    field_type: Value
 
 
+@syntax
 class DeclarationStructType(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, fields: list,
-                 *, is_native: bool = False, alias: typing.Optional[StringConstant] = None,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.fields = fields
-        self.is_native = is_native
-        self.alias = alias  # Native name replacing the qualified name.
-        self.inner_attributes = getattr(fields, 'inner_attributes', ())
+    name: Identifier
+    fields: tuple[StructField, ...]
+    _: dataclasses.KW_ONLY
+    is_native: bool = False
+    alias: StringConstant | None = None
 
     @staticmethod
     def create_native(name: Identifier, alias: typing.Optional[StringConstant], fields: list, *,
                       source_position: SourcePosition) -> 'DeclarationStructType':
-        return DeclarationStructType(name, fields, is_native=True, alias=alias, source_position=source_position)
+        return DeclarationStructType(name, tuple(fields), is_native=True, alias=alias, source_position=source_position,
+                                     inner_attributes=getattr(fields, 'inner_attributes', ()))
 
     def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:
@@ -109,40 +102,40 @@ class StructDefinition:
             self.resolving = False
 
 
+@syntax
 class DeclarationEnumType(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, underlying_type: typing.Optional[Value],
-                 members: list, *, is_open: bool, is_native: bool = False,
-                 alias: typing.Optional[StringConstant] = None, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.underlying_type = underlying_type
-        self.is_open = is_open
-        self.is_native = is_native
-        self.alias = alias  # Native name replacing the qualified name.
-        self.members = members
-        self.inner_attributes = getattr(members, 'inner_attributes', ())
+    name: Identifier
+    underlying_type: Value | None
+    members: tuple[EnumMember, ...]
+    _: dataclasses.KW_ONLY
+    is_open: bool
+    is_native: bool = False
+    alias: StringConstant | None = None
 
     @staticmethod
     def create_open(name: Identifier, underlying_type: Value, members: list, *,
                     source_position: SourcePosition) -> 'DeclarationEnumType':
-        return DeclarationEnumType(name, underlying_type, members, is_open=True, source_position=source_position)
+        return DeclarationEnumType(name, underlying_type, tuple(members), is_open=True, source_position=source_position,
+                                   inner_attributes=getattr(members, 'inner_attributes', ()))
 
     @staticmethod
     def create_closed(name: Identifier, members: list, *, source_position: SourcePosition) -> 'DeclarationEnumType':
-        return DeclarationEnumType(name, None, members, is_open=False, source_position=source_position)
+        return DeclarationEnumType(name, None, tuple(members), is_open=False, source_position=source_position,
+                                   inner_attributes=getattr(members, 'inner_attributes', ()))
 
     @staticmethod
     def create_native_open(name: Identifier, alias: typing.Optional[StringConstant], underlying_type: Value,
                            members: list, *, source_position: SourcePosition) -> 'DeclarationEnumType':
-        return DeclarationEnumType(name, underlying_type, members, is_open=True, is_native=True, alias=alias,
-                                   source_position=source_position)
+        return DeclarationEnumType(name, underlying_type, tuple(members), is_open=True, is_native=True, alias=alias,
+                                   source_position=source_position,
+                                   inner_attributes=getattr(members, 'inner_attributes', ()))
 
     @staticmethod
     def create_native_closed(name: Identifier, alias: typing.Optional[StringConstant], members: list, *,
                              source_position: SourcePosition) -> 'DeclarationEnumType':
-        return DeclarationEnumType(name, None, members, is_open=False, is_native=True, alias=alias,
-                                   source_position=source_position)
+        return DeclarationEnumType(name, None, tuple(members), is_open=False, is_native=True, alias=alias,
+                                   source_position=source_position,
+                                   inner_attributes=getattr(members, 'inner_attributes', ()))
 
     def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:
@@ -208,13 +201,10 @@ class DeclarationEnumType(Declaration):
         graph.enum_types[name] = value_type
 
 
+@syntax
 class DeclarationResourceType(Declaration):
-    @check_parameters
-    def __init__(self, name: Identifier, alias: typing.Optional[StringConstant] = None, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.alias = alias  # Native name replacing the qualified name.
+    name: Identifier
+    alias: StringConstant | None = None
 
     def register_interface_declarations(self, interface: 'model.Scope') -> None:
         if interface.name is not None:

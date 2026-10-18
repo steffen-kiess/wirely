@@ -560,7 +560,7 @@ def _used_names(scope: _outline.Scope) -> set[str]:
 def _scope_items(scope: _outline.Scope) -> Iterator[tuple[str, ast.Declaration]]:
     """Yield (filename, declaration) for the declarations directly in a scope."""
     for filename, block in scope._blocks:
-        declarations = block if isinstance(block, list) else block.declarations
+        declarations = block if isinstance(block, ParsedFile) else block.declarations
         for item in declarations:
             if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
                 yield filename, item
@@ -689,12 +689,12 @@ def _reference_roots(element: object,
                 bound = bound | {statement.name.id_str}
             else:
                 yield from _reference_roots(statement, bound)
-    elif isinstance(element, (list, tuple)):
+    elif isinstance(element, (list, tuple, ParsedFile)):
         for item in element:
             yield from _reference_roots(item, bound)
     elif isinstance(element, ast.SourceElement):
         for name, child in vars(element).items():
-            if name not in _SYNTAX_SKIPPED and isinstance(child, (ast.SourceElement, list, tuple)):
+            if name not in _SYNTAX_SKIPPED and isinstance(child, (ast.SourceElement, list, tuple, ParsedFile)):
                 yield from _reference_roots(child, bound)
 
 
@@ -932,7 +932,7 @@ def _insert_at_body_start(texts: Mapping[str, str], block: tuple[str, _outline.B
                           kind: str) -> TextEdit:
     filename, element = block
     text = texts[filename]
-    if isinstance(element, list):
+    if isinstance(element, ParsedFile):
         # A file: before its first declaration, after its inner attributes.
         if element:
             first = element[0]

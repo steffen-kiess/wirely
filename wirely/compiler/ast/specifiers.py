@@ -3,9 +3,12 @@
 import dataclasses
 import enum
 
+from wirely.util import immutable_enum
+
 from .base import SourcePosition, SyntaxElement, Value, ProgramError, syntax
 
 
+@immutable_enum
 class PortDirection(enum.Enum):
     Input = enum.auto()
     Output = enum.auto()
@@ -39,6 +42,7 @@ class ListSpecifier(SyntaxElement):
 
 # TODO: Rename Value to Level or State or keep Value?
 # TODO: Rename Signal to Impulse or Trigger or Event?
+@immutable_enum
 class ConnectionKind(enum.Enum):
     Value = enum.auto()
     Event = enum.auto()

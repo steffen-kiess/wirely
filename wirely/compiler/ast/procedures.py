@@ -6,7 +6,6 @@ from typing import Any
 
 from wirely.program import RunStage
 from wirely.compiler import model
-from wirely.util import check_parameters
 from wirely.compiler.types import check_runtime_type
 
 from .base import CompilerHint, Declaration, Identifier, ProgramError, SourceElement, SourcePosition, SyntaxElement, Value, syntax
@@ -222,13 +221,11 @@ class UsesDeclaration(SyntaxElement):
                 compile_constant(scope, expression, None, {})
 
 
+@syntax
 class DeclarationInitializer(Declaration):
-    def __init__(self, depends: DependsDeclaration, produces: ProducesDeclaration, uses: UsesDeclaration | None = None, *,
-                 source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.depends = depends
-        self.produces = produces
-        self.uses = uses
+    depends: DependsDeclaration
+    produces: ProducesDeclaration
+    uses: UsesDeclaration | None = None
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         if not isinstance(graph, model.NodeType) or not graph.is_native:
@@ -311,24 +308,25 @@ class TypeInitializer:
                 raise ProgramError(port, 'Initializer dependencies must be resources')
 
 
+@syntax
 class DeclarationProcedure(Declaration):
-    @check_parameters
-    def __init__(self, native_spec: typing.Optional[NativeSpecifier], name: Identifier, alias: typing.Optional[StringConstant],
-                 stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration,
-                 uses: typing.Optional[UsesDeclaration] = None, *, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.is_native = native_spec is not None
-        self.name = name
-        self.alias = alias
-        self.stage = stage
-        self.depends = depends
-        self.produces = produces
-        self.uses = uses
-        self.body: Value | None = None
-        if alias is not None:
-            prefix, _, method = alias.value.rpartition(':')
+    native_spec: NativeSpecifier | None
+    name: Identifier
+    alias: StringConstant | None
+    stage: StageDeclaration
+    depends: DependsDeclaration
+    produces: ProducesDeclaration
+    uses: UsesDeclaration | None = None
+    _: dataclasses.KW_ONLY
+    body: Value | None = None
+    is_native: bool = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'is_native', self.native_spec is not None)
+        if self.alias is not None:
+            prefix, _, method = self.alias.value.rpartition(':')
             if not prefix or not method:
-                raise ProgramError(alias, "Native procedure names have the form 'Type:procedure'")
+                raise ProgramError(self.alias, "Native procedure names have the form 'Type:procedure'")
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state node after writing to a CSV file. The new value for the state node might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
@@ -343,8 +341,7 @@ class DeclarationProcedure(Declaration):
     def create_body(name: Identifier, stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration,
                     body: Value, *, source_position: SourcePosition) -> 'DeclarationProcedure':
         procedure = DeclarationProcedure(None, name, None, stage, depends, produces,
-                                         source_position=source_position)
-        procedure.body = body
+                                         source_position=source_position, body=body)
         for port in (*depends.dependencies, *produces.outputs):
             if isinstance(port, TypedPort) and port.alias is not None:
                 raise ProgramError(port.alias, 'Typed port keys require a native procedure')

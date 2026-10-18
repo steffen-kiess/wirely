@@ -28,7 +28,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "native" "function" _signature ";" -> declaration_native_function
     | "native" "constant" "function" _signature ";" -> declaration_native_function__create_constant
     // Compile-time values
-    | "constant" identifier ":" type "=" expression ";" -> declaration_constant
+    | "constant" identifier ":" type "=" expression ";" -> declaration_constant__make
     | [optional_specifier] "parameter" identifier ":" type ";" -> declaration_parameter
     | "parameter" identifier ":" type "=" expression ";" -> declaration_parameter__with_default_value
     | "assert" expression ["," string_constant] ";" -> declaration_assertion
