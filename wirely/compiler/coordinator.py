@@ -95,16 +95,16 @@ class CompilerCoordinator:
                 self.timings.append((name, time.perf_counter() - start))
 
     def collect_declarations(self) -> None:
-        self.global_node_type.collect_declarations(None)
+        self.global_node_type.collect_declarations()
 
     def prepare_interfaces(self) -> None:
         for node_type in self.node_types:
             node_type.prepare_type_interface()
         for scope, declarations in self.declaration_groups:
-            if not isinstance(scope, model.DeclarationLibrary):
+            if not isinstance(scope, model.Namespace):
                 continue
             for declaration in declarations:
-                if not isinstance(declaration, (model.NodeType, model.DeclarationLibrary)) and not _failed(declaration):
+                if not isinstance(declaration, (model.DeclarationNodeType, model.DeclarationLibrary)) and not _failed(declaration):
                     with self.contain(declaration), declaration.context:
                         declaration.prepare_interface(scope)
 
@@ -144,7 +144,7 @@ class CompilerCoordinator:
             complete.add(node_type)
             self.population_order.append(node_type)
 
-        for node_type in sorted(self.node_types, key=self.source_order):
+        for node_type in sorted(self.node_types, key=lambda node_type: self.source_order(node_type.declaration)):
             visit(node_type)
 
     def create_child_interfaces(self) -> None:

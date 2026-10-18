@@ -8,30 +8,31 @@ if TYPE_CHECKING:
     from ..coordinator import CompilerCoordinator
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 from wirely.compiler.types import parse_value
 
-from .base import SourcePosition, ProgramError, Declaration, Value
+from .base import ProgramError, Value
 from .values import Reference, FunctionCall, OptionalExpression, BracketOperator, StructLiteral, check_struct_literal
 
 
-# This class contains methods for resolving references in a scope
-class Scope(Declaration, abc.ABC):
+class Scope(abc.ABC):
+    """The declarations of a node type or namespace in a compilation, with name and type resolution."""
+
     # Set by the subclasses.
-    name: 'model.Identifier | None'
     services: Mapping[str, object]
     coordinator: 'CompilerCoordinator'
-    libraries: 'dict[str, model.DeclarationLibrary]'
     parent_graph: 'Scope | None'
+
+    @property
+    @abc.abstractmethod
+    def name(self) -> 'model.Identifier | None':
+        ...
 
     @property
     def fullname_tuple(self) -> tuple[str, ...]:
         raise NotImplementedError
 
-    @check_parameters
-    def __init__(self, source_position: SourcePosition):
-        super().__init__(source_position=source_position)
-
+    def __init__(self) -> None:
+        self.libraries: dict[str, model.Namespace] = {}
         self.node_types: dict[str, model.NodeType] = {}
         self.resource_types: dict[str, model.ResourceType] = {}
         self.enum_types: dict[str, model.types.TypeEnum] = {}
@@ -39,7 +40,6 @@ class Scope(Declaration, abc.ABC):
         self.connections: list[model.Connection] = []
         self.native_functions: dict[str, model.DeclarationNativeFunction] = {}
 
-    # TODO: Move to Declaration?
     @property
     @abc.abstractmethod
     def fullname(self) -> str:

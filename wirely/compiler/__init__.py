@@ -92,7 +92,8 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         if timings is not None:
             timings.append(('validate source metadata', time.perf_counter() - start))
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
-        global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
+        global_declaration = model.DeclarationNodeType([], None, decls, source_position=global_source_position)
+        global_node_type = model.NodeType(global_declaration, None)
         global_node_type.native_extension = native_extension
         global_node_type.compiler_native_extension = compiler_native_extension
         global_node_type.services = compilation_services

@@ -62,7 +62,7 @@ def struct_fields(declarations, *, is_native=False):
 
 
 def order(declarations):
-    node_type = next(d for d in declarations if isinstance(d, model.NodeType))
+    node_type = next(d for d in declarations if isinstance(d, model.DeclarationNodeType))
     procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
     nodes = [d for d in declarations if isinstance(d, model.DeclarationInstance)]
     return (names(declarations), names(node_type.declarations),
@@ -103,7 +103,7 @@ for seed in range(20):
         (['n1.d'], 'n2.c'), (['n2.d'], 'n1.c'),
         (['n1.d', 'n2.d'], 'n1.a'), (['n1.d'], 'n2.c'),
     ])
-    node_type = next(d for d in declarations if isinstance(d, model.NodeType))
+    node_type = next(d for d in declarations if isinstance(d, model.DeclarationNodeType))
     procedure = next(d for d in node_type.declarations if isinstance(d, model.DeclarationProcedure))
     statements = procedure.body.statements
     checks.assertEqual(statements[0].name.id_str, 'x')

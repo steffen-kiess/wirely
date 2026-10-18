@@ -15,7 +15,7 @@ declaration: outer_attribute* bare_declaration -> attributed
 // Namespaces and node types
 bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list "}" -> declaration_library__make
     // TODO: Can this be done in a nicer way?
-    | node_type_specifier* "node" "type" identifier ["as" string_constant] "{" declaration_list "}" -> node_type__make
+    | node_type_specifier* "node" "type" identifier ["as" string_constant] "{" declaration_list "}" -> declaration_node_type__make
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
     | "native" "struct" "type" identifier ["as" string_constant] "{" struct_field_list "}" -> declaration_struct_type__create_native

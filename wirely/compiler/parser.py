@@ -59,7 +59,7 @@ ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factori
     model.DeclarationParameter,
     model.DeclarationConstant,
     model.DeclarationAssertion,
-    model.NodeType,
+    model.DeclarationNodeType,
     model.ParameterBinding,
     model.Instantiation,
     model.DeclarationInstance,

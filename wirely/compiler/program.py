@@ -99,7 +99,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     root = None
     if graph.value_nodes or graph.procedures or graph.parsed_constants or graph.assertions:
         root = graph.create_instance_interface(name='<global>', graph=graph, par_values={},
-                                               instantiation=graph, register=False)
+                                               instantiation=graph.declaration, register=False)
         graph.populate_instance(root)
 
     variable_map: dict[tuple[NodePath, str], InputSource] = {}

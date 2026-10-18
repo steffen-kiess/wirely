@@ -44,9 +44,10 @@ A type's graph describes its ports, storage, procedures, and child nodes;
 parameter values can still depend on how the type will be instantiated.
 
 1. **`collect_declarations`.** Register names and check duplicates and
-   restrictions on where declarations may appear. Combine repeated namespace
-   blocks into the same scope. Collect nested node types for processing
-   independently of the types that enclose them.
+   restrictions on where declarations may appear. Create a graph for each
+   node type declaration and one scope for each namespace, shared by its
+   repeated blocks; the syntax tree does not refer to them. Collect nested
+   node types for processing independently of the types that enclose them.
 2. **`prepare_interfaces`.** Resolve parameter types, struct fields, and
    function signatures. Create objects for declared node ports, procedure
    ports, and local storage. A procedure port declared by reference gets its

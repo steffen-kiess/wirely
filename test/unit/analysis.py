@@ -183,7 +183,7 @@ def strict_interface_error(sources):
         return None
     declarations = [declaration for _, parsed in parsed_files for declaration in parsed]
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
-    global_node_type = model.NodeType([], None, declarations, source_position=position)
+    global_node_type = model.NodeType(model.DeclarationNodeType([], None, declarations, source_position=position), None)
     global_node_type.services = MappingProxyType({})
     warnings = WarningSink(lambda diagnostic: None)
     coordinator = CompilerCoordinator(global_node_type, warnings=warnings)

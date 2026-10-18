@@ -63,7 +63,7 @@ class DeclarationStructType(Declaration):
                 ('namespace', graph.libraries)):
             if name in declarations:
                 previous: typing.Any = declarations[name]
-                if kind in ('enum type', 'resource type'):
+                if kind != 'struct type':
                     previous = previous.declaration
                 raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
@@ -88,7 +88,7 @@ class DeclarationStructType(Declaration):
                     ])
                 fields[name] = self.scope.resolve_type(field.field_type)
                 previous[name] = field
-            fullname = self.scope.fullname + '.' + self.name.id_str if isinstance(self.scope, model.ast.DeclarationLibrary) else self.name.id_str
+            fullname = self.scope.fullname + '.' + self.name.id_str if isinstance(self.scope, model.ast.Namespace) else self.name.id_str
             native_name = None
             if self.is_native:
                 native_name = self.alias.value if self.alias is not None else fullname
@@ -152,7 +152,7 @@ class DeclarationEnumType(Declaration):
                 ('namespace', graph.libraries)):
             if name in declarations:
                 previous: typing.Any = declarations[name]
-                if kind in ('enum type', 'resource type'):
+                if kind != 'struct type':
                     previous = previous.declaration
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
@@ -192,7 +192,7 @@ class DeclarationEnumType(Declaration):
             names[member_name] = member
             values[number] = member
             numbers[member_name] = number
-        fullname = graph.fullname + '.' + name if isinstance(graph, model.ast.DeclarationLibrary) else name
+        fullname = graph.fullname + '.' + name if isinstance(graph, model.ast.Namespace) else name
         native_name = None
         if self.is_native:
             native_name = self.alias.value if self.alias is not None else fullname
@@ -231,9 +231,9 @@ class DeclarationResourceType(Declaration):
             ])
         if name in graph.node_types:
             raise ProgramError(self, f'Resource type {name} conflicts with node type', hints=[
-                CompilerHint(graph.node_types[name], 'Previous node type was here'),
+                CompilerHint(graph.node_types[name].declaration, 'Previous node type was here'),
             ])
-        if isinstance(graph, model.ast.DeclarationLibrary):
+        if isinstance(graph, model.ast.Namespace):
             name_tuple = graph.fullname_tuple + (name,)
         else:
             name_tuple = (name,)

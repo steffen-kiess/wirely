@@ -103,7 +103,7 @@ def validate_entry(name: str, declaration: model.DeclarationNativeFunction) -> N
 def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
     scopes: dict[Any, dict] = {}
 
-    def visit(items: Iterable[model.Declaration], scope: tuple[str | model.NodeType, ...]) -> None:
+    def visit(items: Iterable[model.Declaration], scope: tuple[str | model.DeclarationNodeType, ...]) -> None:
         names = scopes.setdefault(scope, {})
         for item in items:
             name = getattr(item, 'name', None)
@@ -116,7 +116,7 @@ def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
                 names[key] = item
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, scope + (item.name.id_str,))
-            elif isinstance(item, model.NodeType):
+            elif isinstance(item, model.DeclarationNodeType):
                 visit(item.declarations, scope + (item,))
 
     visit(declarations, ())
@@ -140,7 +140,7 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
         for item in items:
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, path + (item.name.id_str,))
-            elif isinstance(item, model.NodeType):
+            elif isinstance(item, model.DeclarationNodeType):
                 if item.is_native:
                     register('node type', item, path)
                 elif item.alias is not None:

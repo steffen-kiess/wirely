@@ -18,7 +18,7 @@ T = TypeVar('T')
 # connection sources, and struct literal fields, which evaluate in written
 # order, keep their order.
 _SHUFFLED_ATTRIBUTES: dict[type, tuple[str, ...]] = {
-    model.NodeType: ('declarations',),
+    model.DeclarationNodeType: ('declarations',),
     model.DeclarationLibrary: ('declarations',),
     model.Instantiation: ('parameters',),
     model.DependsDeclaration: ('dependencies',),

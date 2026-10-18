@@ -29,7 +29,6 @@ from . import parser
 from .attributes import Attribute, ParsedFile
 from . import outline as _outline
 from .expressions import ExpressionBlock, IfLetExpression, LocalBinding, PropertyAccess
-from .node_type import NodeType as _NodeType
 from wirely import types as _types
 from .outline import (
     Binding, Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State,
@@ -185,8 +184,8 @@ def add_declaration(sources: Sources, scope: Sequence[str], declaration: str, *,
             break
     texts = dict(sources)
     target = anchor.filename if anchor is not None else _block(record, filename)[0]
-    if attributes and isinstance(item, (ast.DeclarationInstance, _NodeType)):
-        if isinstance(item, _NodeType):
+    if attributes and isinstance(item, (ast.DeclarationInstance, ast.DeclarationNodeType)):
+        if isinstance(item, ast.DeclarationNodeType):
             site = _body_site(declaration, item, item.inner_attributes, _end(item.name), _end(item) - 1)
         else:
             site = _body_site(declaration, item, item.instantiation.inner_attributes,
@@ -507,7 +506,7 @@ _OUTER_TARGETS = (State, Binding, Constant, Parameter, Port, Procedure)
 
 _KIND_ORDER = (
     ast.DeclarationParameter, ast.DeclarationConstant, ast.DeclarationPort, ast.DeclarationState,
-    ast.DeclarationBinding, ast.DeclarationInstance, ast.DeclarationProcedure, _NodeType,
+    ast.DeclarationBinding, ast.DeclarationInstance, ast.DeclarationProcedure, ast.DeclarationNodeType,
 )
 
 
@@ -563,7 +562,7 @@ def _scope_items(scope: _outline.Scope) -> Iterator[tuple[str, ast.Declaration]]
     for filename, block in scope._blocks:
         declarations = block if isinstance(block, list) else block.declarations
         for item in declarations:
-            if not isinstance(item, (_NodeType, ast.DeclarationLibrary)):
+            if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
                 yield filename, item
 
 
@@ -1095,7 +1094,7 @@ def _locate(sources: Sources, target: _outline.DeclarationId | Connection) -> tu
                           declaration.outer_attributes + instantiation.inner_attributes,
                           _end(instantiation.type_name), _end(instantiation) - 1)
     elif isinstance(target, NodeType):
-        assert isinstance(declaration, _NodeType)
+        assert isinstance(declaration, ast.DeclarationNodeType)
         site = _body_site(text, declaration,
                           declaration.outer_attributes + declaration.inner_attributes,
                           _end(declaration.name), _end(declaration) - 1)

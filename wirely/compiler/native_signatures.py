@@ -154,7 +154,7 @@ def native_signatures(graph: model.Scope,
     state_types = {}
     procedures = {}
     for node_type in node_types(graph):
-        if source_paths is not None and node_type.source_position.filename not in source_paths:
+        if source_paths is not None and node_type.declaration.source_position.filename not in source_paths:
             continue
         initializer = node_type.initializer if node_type.is_native else None
         if initializer is not None and included(node_type.native_name):

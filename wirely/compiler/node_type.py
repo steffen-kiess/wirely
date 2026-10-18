@@ -11,7 +11,6 @@ from .types import check_runtime_type, resolve_type
 from .stages import ResolutionState
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 
 
 class NodeType(model.Scope):
@@ -22,26 +21,13 @@ class NodeType(model.Scope):
     # The instance of a singleton node type, set when it is instantiated.
     singleton_instance: 'model.InstanceNode'
 
-    @check_parameters
-    def __init__(self, specifiers: list[model.NodeTypeSpecifier], name: model.Identifier | None,
-                 declarations: ParsedFile | list[model.Declaration], *, alias: model.StringConstant | None = None,
-                 source_position: model.SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.name = name
-        self.alias = alias  # Native name replacing the qualified name.
-        self.declarations = declarations
-        self.inner_attributes = getattr(declarations, 'inner_attributes', ())
-
-        all_specifiers = ['native', 'singleton']
-        specifiers_status = dict({key: False for key in all_specifiers})
-        for specifier in specifiers:
-            if specifier.specifier_str not in all_specifiers:
-                raise Exception(f'Unknown specifier: {specifier.specifier_str!r}')
-            if specifiers_status[specifier.specifier_str]:
-                raise model.ProgramError(specifier, f'Got duplicate {specifier.specifier_str} specifier')
-            specifiers_status[specifier.specifier_str] = True
-        self.is_native = specifiers_status['native']
-        self.is_singleton = specifiers_status['singleton']
+    def __init__(self, declaration: model.DeclarationNodeType, parent_graph: model.Scope | None) -> None:
+        super().__init__()
+        self.declaration = declaration
+        self.parent_graph = parent_graph
+        if parent_graph is not None:
+            self.services = parent_graph.services
+            self.coordinator = parent_graph.coordinator
 
         self.instance_nodes: dict[str, model.InstanceNode] = {}
         self.procedures: dict[str, model.DeclarationProcedure] = {}
@@ -56,55 +42,43 @@ class NodeType(model.Scope):
         self.state_nodes: dict[str, model.StateNode] = {}
         self.temporary_nodes: dict[str, model.TemporaryNode] = {}
         self.local_resources: dict[str, model.LocalResource] = {}
-        self.libraries: dict[str, model.DeclarationLibrary] = {}
         self.assertions: list[model.DeclarationAssertion] = []
         self.interface_state = ResolutionState.PENDING
         self.instance_declarations_state = ResolutionState.PENDING
         self.body_state = ResolutionState.PENDING
 
-    @staticmethod
-    def make(*args: typing.Any, source_position: model.SourcePosition) -> 'NodeType':
-        # Grammar arguments mix specifiers, a name, an alias, and declarations.
-        specifiers = args[:-3]
-        name, alias, declarations = args[-3:]
-        return NodeType(list(specifiers), name, declarations, alias=alias, source_position=source_position)
+    @property
+    def name(self) -> model.Identifier | None:
+        return self.declaration.name
 
-    def _register_in(self, graph: 'model.Scope') -> None:
-        """Register this node type in its enclosing scope."""
-        assert self.name is not None
-        if self.name.id_str in graph.struct_types:
-            raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
-                model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
-            ])
-        if self.name.id_str in graph.enum_types:
-            raise model.ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
-                model.CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
-            ])
-        if self.name.id_str in graph.resource_types:
-            raise model.ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
-                model.CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
-            ])
-        if self.name.id_str in graph.node_types:
-            hints = [
-                model.CompilerHint(graph.node_types[self.name.id_str], 'Previous node type was here'),
-            ]
-            raise model.ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
-        graph.node_types[self.name.id_str] = self
+    @property
+    def alias(self) -> model.StringConstant | None:
+        """The native name replacing the qualified name."""
+        return self.declaration.alias
 
-    def collect_declarations(self, graph: 'model.Scope | None') -> None:
-        if hasattr(self, 'parent_graph'):
-            raise Exception("hasattr(self, 'parent_graph')")
-        self.parent_graph = graph
-        if graph is not None:
-            self.services = graph.services
-            self.coordinator = graph.coordinator
+    @property
+    def declarations(self) -> ParsedFile | list[model.Declaration]:
+        return self.declaration.declarations
+
+    @property
+    def is_native(self) -> bool:
+        return self.declaration.is_native
+
+    @property
+    def is_singleton(self) -> bool:
+        return self.declaration.is_singleton
+
+    @property
+    def attributes(self) -> tuple:
+        return self.declaration.attributes
+
+    def collect_declarations(self) -> None:
         self.coordinator.node_types.append(self)
         self.coordinator.declaration_groups.append((self, self.declarations))
 
         if self.parent_graph is not None:
             with self.coordinator.contain(None):
-                assert graph is not None
-                self._register_in(graph)
+                self.declaration.register(self.parent_graph, self)
 
         parsed_parameters: dict[str, model.DeclarationParameter] = {}
         parsed_constants: dict[str, model.DeclarationConstant] = {}
@@ -149,14 +123,14 @@ class NodeType(model.Scope):
         if self.interface_state is ResolutionState.COMPLETE:
             return
         if self.interface_state is not ResolutionState.PENDING:
-            raise model.ProgramError(self, f'Cannot resolve interface of {self.fullname!r}')
+            raise model.ProgramError(self.declaration, f'Cannot resolve interface of {self.fullname!r}')
         self.interface_state = ResolutionState.RESOLVING
         try:
             for declaration in self.static_declarations.values():
                 with self.coordinator.contain(declaration):
                     declaration.resolve_type()
             for declaration in self.declarations:
-                if (isinstance(declaration, (model.NodeType, model.DeclarationLibrary))
+                if (isinstance(declaration, (model.DeclarationNodeType, model.DeclarationLibrary))
                         or getattr(declaration, 'failed', False)):
                     continue
                 with self.coordinator.contain(declaration), declaration.context:
@@ -215,7 +189,7 @@ class NodeType(model.Scope):
             if isinstance(decl, model.DeclarationConnection):
                 connections.append(decl)
                 continue
-            if isinstance(decl, (model.NodeType, model.DeclarationLibrary, model.DeclarationInstance)):
+            if isinstance(decl, (model.DeclarationNodeType, model.DeclarationLibrary, model.DeclarationInstance)):
                 continue
             if isinstance(decl, model.Declaration):
                 with decl.context:

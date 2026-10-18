@@ -89,4 +89,8 @@ from .functions import (
 )
 from .library import (
     DeclarationLibrary,
+    Namespace,
+)
+from .node_types import (
+    DeclarationNodeType,
 )

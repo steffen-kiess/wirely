@@ -76,7 +76,8 @@ class ParsedFile(list['model.Declaration']):
         self.inner_attributes = tuple(inner_attributes)
 
 
-def _error(source: Attribute | Metadata | MetadataLiteral | model.ast.SourceElement, message: str) -> NoReturn:
+def _error(source: Attribute | ValidatedAttribute | Metadata | MetadataLiteral | model.ast.SourceElement,
+           message: str) -> NoReturn:
     from .ast import ProgramError, SourceElement
     raise ProgramError(SourceElement(source_position=source.source_position), message)
 
@@ -223,7 +224,6 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         contain = lambda element: contextlib.nullcontext()
     from . import ast
     from .expressions import ExpressionBlock
-    from .node_type import NodeType
 
     def allow(item: model.ast.SourceElement, attributes: Iterable[ValidatedAttribute]) -> None:
         position = item.source_position
@@ -250,7 +250,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                     visit_blocks(item)
 
     targets = {
-        NodeType: 'node_type', ast.DeclarationLibrary: 'namespace',
+        ast.DeclarationNodeType: 'node_type', ast.DeclarationLibrary: 'namespace',
         ast.DeclarationInstance: 'node',
         ast.DeclarationStructType: 'struct', ast.DeclarationEnumType: 'enum',
         ast.DeclarationResourceType: 'resource_type',
@@ -266,33 +266,32 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         ast.DeclarationNativeFunction: 'function',
         ast.StructField: 'struct_field', ast.EnumMember: 'enum_member',
     }
-    namespaces: dict[Any, Any] = {}
+    # The attributes of the namespace blocks so far, by namespace path.
+    namespaces: dict[tuple[str | model.DeclarationNodeType, ...], tuple[ValidatedAttribute, ...]] = {}
 
-    def visit(item: model.ast.SourceElement, scope: tuple[str | model.NodeType, ...]) -> None:
+    def visit(item: model.ast.SourceElement, scope: tuple[str | model.DeclarationNodeType, ...]) -> None:
         target = targets[type(item)]
         with contain(None):
             item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
         allow(item, item.attributes)
-        if not isinstance(item, (NodeType, ast.DeclarationLibrary)):
+        if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
             visit_blocks(item)
         child_scope = scope
         if isinstance(item, ast.DeclarationLibrary):
             child_scope = scope + (item.name.id_str,)
             previous = namespaces.get(child_scope)
             if previous is None:
-                namespaces[child_scope] = item
+                namespaces[child_scope] = item.attributes
             else:
-                previous.outer_attributes += item.outer_attributes
-                previous.inner_attributes += item.inner_attributes
-                merged = previous.attributes + item.attributes
+                merged = previous + item.attributes
                 seen = set()
                 with contain(None):
                     for attribute in merged:
                         if attribute.name in seen and not ATTRIBUTE_REGISTRY[attribute.name].repeatable:
                             _error(attribute, f'Duplicate attribute {attribute.name}')
                         seen.add(attribute.name)
-                previous.attributes = merged
-        elif isinstance(item, NodeType):
+                namespaces[child_scope] = merged
+        elif isinstance(item, ast.DeclarationNodeType):
             child_scope = scope + (item,)
         if isinstance(item, ast.DeclarationConnection):
             with contain(None):
@@ -305,7 +304,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             visit(child, child_scope)
         for child in getattr(item, 'members', ()):
             visit(child, child_scope)
-        if isinstance(item, NodeType):
+        if isinstance(item, ast.DeclarationNodeType):
             check_rows(item.declarations)
         if isinstance(item, ast.DeclarationPort):
             check_unordered(item)

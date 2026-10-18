@@ -26,7 +26,6 @@ from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
 from . import parser
 from .diagnostics import Diagnostic, error_diagnostics
-from .node_type import NodeType as _NodeType
 
 
 @dataclass(frozen=True)
@@ -281,7 +280,7 @@ class NodeTypeInfo:
     is_native: bool
     is_singleton: bool
     scope: Scope
-    _declaration: _NodeType | None = field(default=None, compare=False, repr=False)
+    _declaration: ast.DeclarationNodeType | None = field(default=None, compare=False, repr=False)
 
     @property
     def ports(self) -> tuple[PortInfo, ...]:
@@ -295,7 +294,7 @@ class NodeTypeInfo:
 DeclarationRecord: TypeAlias = NodeInfo | NodeTypeInfo | StateInfo | BindingInfo | ConstantInfo | ParameterInfo | PortInfo | ProcedureInfo
 Record: TypeAlias = DeclarationRecord | ProcedurePortInfo | Edge
 RecordT = TypeVar('RecordT')
-Block: TypeAlias = _attributes.ParsedFile | _NodeType | ast.DeclarationLibrary
+Block: TypeAlias = _attributes.ParsedFile | ast.DeclarationNodeType | ast.DeclarationLibrary
 
 
 @dataclass(frozen=True)
@@ -446,7 +445,7 @@ class _Builder:
         self.parent = parent
         self.items: list[ast.Declaration] = []
         self.namespaces: dict[str, _Builder] = {}
-        self.node_types: list[tuple[_NodeType, _Builder]] = []
+        self.node_types: list[tuple[ast.DeclarationNodeType, _Builder]] = []
         self.blocks: list[tuple[str, Block]] = []
         self.port_records: tuple[PortInfo, ...] | None = None
         self.name_table: dict[str, dict[str, ElementId]] | None = None
@@ -463,7 +462,7 @@ def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None
             if hasattr(item.declarations, 'inner_attributes'):
                 child.blocks.append((_filename(item), item))
             _collect(child, item.declarations)
-        elif isinstance(item, _NodeType):
+        elif isinstance(item, ast.DeclarationNodeType):
             assert item.name is not None
             child = _Builder('node_type', builder.path + (item.name.id_str,), builder)
             child.blocks.append((_filename(item), item))

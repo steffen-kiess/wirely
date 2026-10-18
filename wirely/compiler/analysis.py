@@ -95,6 +95,9 @@ class Analysis:
     outline: _outline.Outline
     diagnostics: tuple[ElementDiagnostic, ...]
     _global: model.NodeType | None = field(default=None, compare=False, repr=False)
+    # The compiled node types by declaration.
+    _node_types: Mapping[model.DeclarationNodeType, model.NodeType] = field(
+        default_factory=dict, compare=False, repr=False)
 
     def ports(self, target: Node | NodeType) -> tuple[ResolvedPort, ...] | None:
         """Return the ports of a node with resolved types, or of a node type with declared types.
@@ -183,9 +186,9 @@ class Analysis:
 
         def add(record: _outline.NodeTypeInfo, type_text: str, internal: bool) -> None:
             internal = internal or _is_internal(record.attributes)
-            compiled = record._declaration
+            declaration = record._declaration
             if (internal and not include_internal) or len(self.outline.find(record.id)) != 1 \
-                    or getattr(compiled, 'failed', False) or not hasattr(compiled, 'input_ports'):
+                    or getattr(declaration, 'failed', False) or declaration not in self._node_types:
                 return
             parameters = tuple(ParameterEntry(parameter.name, self.value_type(parameter.id), parameter.type_text,
                                               parameter.default_text, parameter.is_optional)
@@ -296,10 +299,9 @@ class Analysis:
         if not path:
             return self._global
         records = self.outline.find(NodeType(tuple(path)))
-        if len(records) != 1 or not hasattr(records[0]._declaration, 'input_ports'):
+        if len(records) != 1 or records[0]._declaration is None:
             return None
-        assert records[0]._declaration is not None
-        return records[0]._declaration
+        return self._node_types.get(records[0]._declaration)
 
     def _instance(self, target: Node) -> model.InstanceNode | None:
         records = self.outline.find(target)
@@ -319,7 +321,7 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Ana
     diagnostics = [file.error for file in files if file.error is not None]
     declarations = [declaration for _, parsed in parsed_files for declaration in parsed]
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
-    global_node_type = model.NodeType([], None, declarations, source_position=position)
+    global_node_type = model.NodeType(model.DeclarationNodeType([], None, declarations, source_position=position), None)
     global_node_type.services = MappingProxyType({})
     warnings = WarningSink(diagnostics.append)
     coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)
@@ -330,8 +332,9 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Ana
     coordinator.compile_interfaces()
     coordinator.resolve_procedure_ports()
     elements = _element_spans(result)
+    node_types = {node_type.declaration: node_type for node_type in coordinator.node_types}
     return Analysis(result, tuple(ElementDiagnostic(diagnostic, _element(elements, diagnostic))
-                                  for diagnostic in diagnostics), global_node_type)
+                                  for diagnostic in diagnostics), global_node_type, node_types)
 
 
 def _is_internal(attributes: Iterable[Attribute]) -> bool:
