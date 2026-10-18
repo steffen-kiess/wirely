@@ -127,24 +127,27 @@ def check_wakeups():
         with checks.assertRaisesRegex(ValueError, 'already set'):
             services.set_wakeup_time(None)
 
-    for deadline in [None, wirely.MonotonicTime(generation=1, ticks=100),
-                     wirely.MonotonicTime(generation=0, ticks=0), wirely.MonotonicTime(generation=2, ticks=100)]:
+    for generation_kind in [None, 'current', 'default', 'previous', 'future']:
         wakeup_probe = make_engine(
             'native procedure run;',
-            lambda services, inputs, values, deadline=deadline: check_wakeup(services, deadline),
+            lambda services, inputs, values: check_wakeup(services, deadline),
         )
-        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(generation=1, ticks=0)):
-            wakeup_probe.step()
+        wakeup_probe.enable_fixed_monotonic_time()
+        now = wakeup_probe.get_monotonic_time()
+        generations = {'current': now.generation, 'default': 0,
+                       'previous': now.generation - 1, 'future': now.generation + 1}
+        deadline = (None if generation_kind is None else
+                    wirely.MonotonicTime(generation=generations[generation_kind], ticks=100))
+        wakeup_probe.step()
         if deadline is None:
             assert wakeup_probe.next_wakeup is None
         else:
             # A wakeup from a non-current generation is due now.
-            expected = deadline if deadline.generation == 1 else wirely.MonotonicTime(generation=1, ticks=0)
+            expected = deadline if deadline.generation == now.generation else now
             assert wakeup_probe.next_wakeup == expected
 
     for explicit_cancellation in [False, True]:
         wakeup_calls = []
-        deadline = wirely.MonotonicTime(generation=1, ticks=10)
 
         def schedule_wakeup(services, inputs, values):
             assert services.wakeup_time is None
@@ -155,19 +158,20 @@ def check_wakeups():
                 services.set_wakeup_time(None)
 
         wakeup_probe = make_engine('native procedure run;', schedule_wakeup)
-        with patch.object(wirely.MonotonicTime, 'current_time', return_value=wirely.MonotonicTime(generation=1, ticks=0)):
-            wakeup_probe.step()
-            assert wakeup_probe.next_wakeup == deadline
-            wakeup_probe.step()
-            assert len(wakeup_calls) == 1
-            assert wakeup_probe.next_wakeup == deadline
-        with patch.object(wirely.MonotonicTime, 'current_time', return_value=deadline):
-            wakeup_probe.step()
-            assert len(wakeup_calls) == 2
-            assert wakeup_probe.next_wakeup is None
-            wakeup_probe.step()
-            assert len(wakeup_calls) == 2
-            wakeup_probe.assert_is_idle()
+        wakeup_probe.enable_fixed_monotonic_time()
+        deadline = wakeup_probe.get_monotonic_time() + wirely.Duration(ticks=10)
+        wakeup_probe.step()
+        assert wakeup_probe.next_wakeup == deadline
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 1
+        assert wakeup_probe.next_wakeup == deadline
+        wakeup_probe.advance_fake_monotonic_time(wirely.Duration(ticks=10))
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 2
+        assert wakeup_probe.next_wakeup is None
+        wakeup_probe.step()
+        assert len(wakeup_calls) == 2
+        wakeup_probe.assert_is_idle()
 
 
 def check_context_names():
@@ -203,8 +207,6 @@ def check_stage_times():
     stage_snapshots = {}
     clock_contexts = []
     stages = list(RunStage)
-    monotonic_times = [wirely.MonotonicTime(generation=7, ticks=index * wirely.types.time.TICKS_PER_SECOND)
-                       for index in range(1, 4)]
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
                                    tzinfo=datetime.timezone.utc)
                  for index in range(3)]
@@ -213,7 +215,7 @@ def check_stage_times():
     def check_stage_time(services, stage):
         snapshot = services.start_time_for_stage(stage)
         index = stages.index(stage)
-        assert snapshot.monotonic == monotonic_times[index] + clock_offset
+        assert snapshot.monotonic == monotonic_times[index]
         assert snapshot.utc == utc_times[index]
         assert snapshot.utc.tzinfo is datetime.timezone.utc
         assert snapshot.local.isoformat() == snapshot.utc.astimezone().isoformat()
@@ -224,6 +226,7 @@ def check_stage_times():
             assert stage_snapshots[stage] == snapshot
         else:
             stage_snapshots[stage] = snapshot
+            clock_engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
         for candidate in stages:
             if stages.index(candidate) <= index:
                 assert services.start_time_for_stage(candidate) == stage_snapshots[candidate]
@@ -262,6 +265,9 @@ def check_stage_times():
         bindings = test_extension(**clock_registry, contracts=contracts)
         clock_engine = Engine(program, override_extensions=[bindings])
     clock_engine.fake_monotonic_time_offset = clock_offset
+    clock_engine.enable_fixed_monotonic_time()
+    monotonic_times = [clock_engine.get_monotonic_time() + wirely.Duration.from_seconds(index)
+                       for index in range(3)]
 
     class ClockDateTime(datetime.datetime):
         timestamps = iter(utc_times)
@@ -271,8 +277,7 @@ def check_stage_times():
             assert tz is datetime.timezone.utc
             return next(cls.timestamps)
 
-    with patch.object(wirely.MonotonicTime, 'current_time', side_effect=monotonic_times), \
-            patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
+    with patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
         clock_engine.step()
     assert len(clock_contexts) == 6
     clock_engine.step()

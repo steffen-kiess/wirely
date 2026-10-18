@@ -37,6 +37,16 @@ in `unit/`, even when compilation provides their setup. Keep language checks
 in compiler fixtures rather than inspecting compiler representations in
 Python.
 
+## Runtime clocks
+
+Call `engine.enable_fixed_monotonic_time()` to use the engine's existing
+offset, or zero, as fixed time in a new generation. Use
+`engine.get_monotonic_time()` to read it and
+`engine.advance_fake_monotonic_time(duration)` to advance it. Call
+`engine.advance_fake_monotonic_time_generation()` to change generation
+without changing ticks. Clock changes wake a waiting engine. Fixed mode
+lasts for the engine's lifetime; use another engine for real-clock tests.
+
 ## Compiler fixtures
 
 Accepted fixtures use Wirely `assert` statements. Register their

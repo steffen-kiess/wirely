@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-import wirely
 from ..program import RunStage, Variable, VariableTable
 from ..types.time import MonotonicTime
 from .time_snapshot import TimeSnapshot
@@ -64,9 +63,7 @@ class StepContext:
         if stage in self.stage_start_time:
             raise Exception(f'Stage {stage} already started')
 
-        now_monotonic = wirely.MonotonicTime.current_time()
-        if engine.fake_monotonic_time_offset is not None:
-            now_monotonic += engine.fake_monotonic_time_offset
+        now_monotonic = engine.get_monotonic_time()
         # print(f'StepContext for {stage} started at {now_monotonic}')
 
         now_utc = datetime.datetime.now(datetime.timezone.utc)

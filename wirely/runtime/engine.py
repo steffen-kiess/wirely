@@ -67,6 +67,7 @@ class Engine:
         self.native_states = {}
 
         self.fake_monotonic_time_offset: Duration | None = None
+        self._fake_monotonic_time_generation: int | None = None
         self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program, extension)
@@ -142,9 +143,7 @@ class Engine:
     async def start_tasks_async(self, task_group: asyncio.TaskGroup,
                                 async_exit_stack: contextlib.AsyncExitStack) -> None:
         def start_task_cleanup() -> None:
-            now_monotonic = wirely.MonotonicTime.current_time()
-            if self.fake_monotonic_time_offset is not None:
-                now_monotonic += self.fake_monotonic_time_offset
+            now_monotonic = self.get_monotonic_time()
 
             now_utc = datetime.datetime.now(datetime.timezone.utc)
             now = now_utc.astimezone()
@@ -302,9 +301,7 @@ class Engine:
             await self._resumed_event.wait()
             run_count, state_change_count, step_info = self.step()
             if state_change_count == 0:
-                now = wirely.MonotonicTime.current_time()
-                if self.fake_monotonic_time_offset is not None:
-                    now += self.fake_monotonic_time_offset
+                now = self.get_monotonic_time()
 
                 # TODO: If there is a "while True" here, the code will crash (instead of looping) because of EAGAIN when writing to the terminal, seems like NONBLOCK is set
                 # while True:
@@ -318,6 +315,8 @@ class Engine:
                         or wirely.MonotonicTime.compare(self.next_wakeup, now) <= 0):
                     # The wakeup is not comparable or has already passed; don't sleep.
                     pass
+                elif self._fake_monotonic_time_generation is not None:
+                    await self.triggered_procs_event.wait()
                 else:
                     diff = self.next_wakeup - now
                     # Sleep until timeout
@@ -396,8 +395,40 @@ class Engine:
         if run_count != 0:
             raise Exception(f'Is not idle, executed {run_count} procs')
 
+    def get_monotonic_time(self) -> MonotonicTime:
+        """Return this engine's current monotonic time."""
+        offset = self.fake_monotonic_time_offset
+        if self._fake_monotonic_time_generation is not None:
+            return MonotonicTime(generation=self._fake_monotonic_time_generation,
+                                 ticks=offset.ticks if offset is not None else 0)
+        now = MonotonicTime.current_time()
+        return now + offset if offset is not None else now
+
+    def enable_fixed_monotonic_time(self) -> None:
+        """Use the offset as fixed time in a new generation for this engine's lifetime."""
+        if self._fake_monotonic_time_generation is not None:
+            return
+        generation = MonotonicTime.current_time().generation + 1
+        if generation > MonotonicTime.MAX_GENERATION:
+            raise ValueError('Monotonic time generation out of range')
+        if self.fake_monotonic_time_offset is None:
+            self.fake_monotonic_time_offset = Duration(ticks=0)
+        self._fake_monotonic_time_generation = generation
+        self.triggered_procs_event.set()
+
+    def advance_fake_monotonic_time_generation(self) -> None:
+        """Start a new fixed-clock generation without changing its ticks."""
+        generation = self._fake_monotonic_time_generation
+        if generation is None:
+            raise ValueError('Fixed monotonic time is not enabled')
+        if generation == MonotonicTime.MAX_GENERATION:
+            raise ValueError('Monotonic time generation out of range')
+        self._fake_monotonic_time_generation = generation + 1
+        self.triggered_procs_event.set()
+
     def advance_fake_monotonic_time(self, offset: Duration) -> None:
         if self.fake_monotonic_time_offset is None:
             print('Warning: Setting fake monotonic time offset', flush=True)
             self.fake_monotonic_time_offset = wirely.Duration(ticks=0)
         self.fake_monotonic_time_offset += offset
+        self.triggered_procs_event.set()

@@ -248,11 +248,60 @@ connect source -> sink.Service;
     engine.assert_value_is('sink', 7)
 
 
+def check_monotonic_clock():
+    graph = wirely.compiler.compile_strs([('<clock>', '')], add_std=False)
+    program = program_compiler.compile_nocatch(graph)
+    runtime = test_engine(program)
+    other = test_engine(program)
+    with checks.assertRaisesRegex(ValueError, 'Fixed monotonic time'):
+        runtime.advance_fake_monotonic_time_generation()
+
+    before = wirely.MonotonicTime.current_time()
+    now = runtime.get_monotonic_time()
+    after = wirely.MonotonicTime.current_time()
+    assert before.generation == now.generation == after.generation
+    assert before.ticks <= now.ticks <= after.ticks
+    offset = wirely.Duration.from_seconds(5)
+    runtime.advance_fake_monotonic_time(offset)
+    before = wirely.MonotonicTime.current_time()
+    now = runtime.get_monotonic_time()
+    after = wirely.MonotonicTime.current_time()
+    assert (before + offset).ticks <= now.ticks <= (after + offset).ticks
+
+    runtime.enable_fixed_monotonic_time()
+    fixed = runtime.get_monotonic_time()
+    assert fixed == wirely.MonotonicTime(generation=after.generation + 1, ticks=offset.ticks)
+    runtime.enable_fixed_monotonic_time()
+    runtime.step()
+    assert runtime.get_monotonic_time() == fixed
+    runtime.advance_fake_monotonic_time(wirely.Duration(ticks=1))
+    advanced = runtime.get_monotonic_time()
+    assert advanced == fixed + wirely.Duration(ticks=1)
+    runtime.advance_fake_monotonic_time_generation()
+    assert runtime.get_monotonic_time() == wirely.MonotonicTime(
+        generation=fixed.generation + 1, ticks=advanced.ticks)
+    runtime.enable_fixed_monotonic_time()
+    assert runtime.get_monotonic_time().generation == fixed.generation + 1
+
+    # Another engine still uses the real clock, and starts fixed time at zero.
+    before = wirely.MonotonicTime.current_time()
+    now = other.get_monotonic_time()
+    after = wirely.MonotonicTime.current_time()
+    assert before.generation == now.generation == after.generation
+    assert before.ticks <= now.ticks <= after.ticks
+    other.enable_fixed_monotonic_time()
+    assert other.get_monotonic_time() == wirely.MonotonicTime(generation=fixed.generation, ticks=0)
+    other.advance_fake_monotonic_time(wirely.Duration(ticks=3))
+    assert runtime.get_monotonic_time().ticks == advanced.ticks
+    assert other.get_monotonic_time().ticks == 3
+
+
 check_compilation_without_native_implementations()
 check_engine_isolation()
 check_resource_isolation()
 check_resource_binding_validation()
 check_native_names()
+check_monotonic_clock()
 
 
 async def run_test():
