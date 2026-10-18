@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import os
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
@@ -73,10 +73,11 @@ class ValidatedMetadata:
 
     files: tuple[FileMetadata, ...] = ()
     # By declaration, including struct fields and enum members.
-    attributes: Mapping[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = MappingProxyType({})
+    attributes: Mapping[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = field(
+        default_factory=lambda: MappingProxyType({}))
     # The attributes of each edge of a connection, in source order.
-    edge_attributes: Mapping[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = (
-        MappingProxyType({}))
+    edge_attributes: Mapping[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = field(
+        default_factory=lambda: MappingProxyType({}))
 
 
 @dataclass(frozen=True, eq=False, init=False)
