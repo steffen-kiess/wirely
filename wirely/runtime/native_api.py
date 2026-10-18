@@ -12,7 +12,7 @@ import contextlib
 import datetime
 from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 from ..program import RunStage
 from ..types import InternalValue, Type
@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 K = TypeVar('K', bound=str)  # Python names of a native state's resource outputs.
 F = TypeVar('F', bound=Callable[..., object])
+_UNSET = object()
 
 
 class StateServices(Generic[K]):
@@ -131,8 +132,15 @@ class ProcedureServices:
     def wall_wakeup(self) -> WallWakeup | None:
         return self._wall_wakeup
 
+    @overload
+    def set_wall_wakeup_time(self) -> None: ...
+
+    @overload
+    def set_wall_wakeup_time(self, start: datetime.datetime, end: datetime.datetime,
+                             *, utc_offset: datetime.timedelta | None) -> None: ...
+
     def set_wall_wakeup_time(self, start: datetime.datetime | None = None,
-                             end: datetime.datetime | None = None) -> None:
+                             end: datetime.datetime | None = None, *, utc_offset: object = _UNSET) -> None:
         """Request another invocation based on wall-clock validity.
 
         With both bounds supplied, register the half-open validity window
@@ -140,16 +148,20 @@ class ProcedureServices:
         precede end as an absolute instant. Bounds are normalized to UTC.
 
         Request execution when the engine observes wall time before start,
-        at or after end, or unknown. A change in the effective local UTC
-        offset from this invocation's snapshot also requests execution,
-        even if the UTC instant remains inside the window. A clock
-        adjustment that remains inside the window with unchanged offset
-        does not request execution.
+        at or after end, or unknown. The required utc_offset keyword is a
+        timedelta baseline chosen by the caller, normally from the local
+        snapshot used to compute its result. A different observed local UTC
+        offset also requests execution, even while inside the window.
+        Pass utc_offset=None to disable offset-based invalidation, for
+        example for results based on UTC time. The bounds' own offsets do
+        not determine the baseline. A clock adjustment inside the window
+        does not request execution unless offset monitoring invalidates it.
 
         With both bounds omitted, request execution when wall time becomes
         known. If time is already known, request a subsequent step. This
         allows a procedure returning an unknown result to wait for a usable
-        clock without constructing a window.
+        clock without constructing a window. Do not supply utc_offset for
+        this form.
 
         Execution occurs at the next scheduling opportunity and overrides
         normal procedure caching. Other triggers may still invoke the
@@ -170,11 +182,12 @@ class ProcedureServices:
         guaranteed at an exact wall-clock instant.
 
         Raise ValueError for partial bounds, naive datetimes, a start that
-        does not precede end, or multiple calls during one invocation.
+        does not precede end, a missing or invalid window offset, an offset
+        without bounds, or multiple calls during one invocation.
 
         For a known snapshot, register a window containing its UTC time::
 
-            services.set_wall_wakeup_time(start, end)
+            services.set_wall_wakeup_time(start, end, utc_offset=local.utcoffset())
 
         While the snapshot's local time is None, request availability::
 
@@ -183,16 +196,20 @@ class ProcedureServices:
         if self._wall_wakeup is not None:
             raise ValueError(f'Wall wakeup time on {self._name} was already set')
         if start is None and end is None:
+            if utc_offset is not _UNSET:
+                raise ValueError('Wall-clock availability requests do not accept an offset')
             self._wall_wakeup = WallWakeup()
             return
         if (not isinstance(start, datetime.datetime) or not isinstance(end, datetime.datetime)
                 or start.utcoffset() is None or end.utcoffset() is None):
             raise ValueError('Both wall-clock bounds must be timezone-aware datetimes')
+        if utc_offset is not None and not isinstance(utc_offset, datetime.timedelta):
+            raise ValueError('Window requests require utc_offset as a timedelta or None')
         start = start.astimezone(datetime.timezone.utc)
         end = end.astimezone(datetime.timezone.utc)
         if start >= end:
             raise ValueError('Wall-clock start must precede end')
-        self._wall_wakeup = WallWakeup(start, end)
+        self._wall_wakeup = WallWakeup(start, end, utc_offset)
 
     def __repr__(self) -> str:
         return f'ProcedureServices(name={self._name!r})'

@@ -22,7 +22,7 @@ class WallWakeup:
     def is_due(self, now: datetime.datetime | None) -> bool:
         if self.start is None:
             return now is not None
-        if now is None or now.utcoffset() != self.utc_offset:
+        if now is None or (self.utc_offset is not None and now.utcoffset() != self.utc_offset):
             return True
         utc = now.astimezone(datetime.timezone.utc)
         assert self.end is not None
@@ -114,7 +114,7 @@ class WallClockWaiter:
         self._fallback = False
 
     def arm(self, deadline: datetime.datetime | None, *, real: bool,
-            now: datetime.datetime | None) -> None:
+            now: datetime.datetime | None, monitor_offset: bool) -> None:
         self.close()
         if not real:
             return
@@ -134,7 +134,8 @@ class WallClockWaiter:
                     self.close()
                     raise
                 self.close()
-        self._poll_handle = self._loop.call_later(1, self._poll)
+        if self._fallback or monitor_offset:
+            self._poll_handle = self._loop.call_later(1, self._poll)
 
     def _ready(self) -> None:
         assert self._timer is not None

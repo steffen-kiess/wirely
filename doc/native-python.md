@@ -436,13 +436,17 @@ generation also causes a rerun; handle that case as
 `Timer.MonotonicTimeReached` does in
 [`timer.py`](../wirely/native/timer.py).
 
-Call `services.set_wall_wakeup_time(start, end)` to rerun when wall time
-leaves the aware-datetime window `[start, end)`, becomes unknown, or changes
-UTC offset. Call it without bounds to wait for known wall time. Renew the
-request on each invocation to remain subscribed. See the method's docstring
+Call `services.set_wall_wakeup_time(start, end, utc_offset=offset)` to rerun
+when wall time leaves the aware-datetime window `[start, end)`, becomes
+unknown, or its local UTC offset differs from `offset`. Pass the
+`timedelta` offset of the snapshot used to compute your result, or `None`
+to ignore offset changes for UTC-based results. Call it without arguments
+to wait for known wall time. Renew the request on each invocation to remain
+subscribed. See the method's docstring
 in [`native_api.py`](../wirely/runtime/native_api.py) for the full contract.
 UTC-offset detection and fallback window checks can take up to one second,
-plus scheduling delay.
+plus scheduling delay. With native timers, offset polling runs only while a
+request monitors offsets.
 
 ## Native functions
 

@@ -2,7 +2,6 @@ import asyncio
 import contextlib
 import datetime
 import functools
-from dataclasses import replace
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
@@ -289,9 +288,7 @@ class Engine:
                 if wall_wakeup is None:
                     self.wall_wakeups.pop(key, None)
                 else:
-                    local = step_info._stage_times[stage].local
-                    self.wall_wakeups[key] = replace(
-                        wall_wakeup, utc_offset=None if local is None else local.utcoffset())
+                    self.wall_wakeups[key] = wall_wakeup
                 if wakeup_time is None:
                     self.wakeups.pop(key, None)
                 else:
@@ -345,7 +342,9 @@ class Engine:
                 ends = [request.end for request in self.wall_wakeups.values() if request.end is not None]
                 wall_waiter.arm(min(ends, default=None),
                                 real=bool(self.wall_wakeups) and not self._has_fake_wall_time,
-                                now=wall_now)
+                                now=wall_now,
+                                monitor_offset=any(request.utc_offset is not None
+                                                   for request in self.wall_wakeups.values()))
                 # Close the race between sampling wall time and arming the timer.
                 if any(request.is_due(self.get_wall_time()) for request in self.wall_wakeups.values()):
                     continue

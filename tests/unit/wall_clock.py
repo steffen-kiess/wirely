@@ -17,7 +17,7 @@ from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
 from wirely.runtime.wall_clock import TimerFD, WallClockWaiter
-from tests.infra.support import test_extension
+from tests.infra.support import test_contracts, test_extension
 
 
 checks = TestCase()
@@ -85,20 +85,37 @@ def check_validation():
                        (BASE.replace(tzinfo=None), BASE), (BASE, BASE),
                        (BASE, BASE - datetime.timedelta(seconds=1))):
         with checks.assertRaises(ValueError):
-            services().set_wall_wakeup_time(start, end)
+            services().set_wall_wakeup_time(start, end, utc_offset=None)
     for bounds in ((), (BASE, BASE + datetime.timedelta(minutes=1))):
         invocation = services()
-        invocation.set_wall_wakeup_time(*bounds)
+        invocation.set_wall_wakeup_time(*bounds, **({'utc_offset': None} if bounds else {}))
         with checks.assertRaisesRegex(ValueError, 'already set'):
             invocation.set_wall_wakeup_time()
+
+    with checks.assertRaisesRegex(ValueError, 'require utc_offset'):
+        services().set_wall_wakeup_time(BASE, BASE + datetime.timedelta(minutes=1))
+    for offset in (None, datetime.timedelta(0)):
+        with checks.assertRaisesRegex(ValueError, 'do not accept an offset'):
+            services().set_wall_wakeup_time(utc_offset=offset)
+    for offset in (0, 'UTC', UTC):
+        with checks.assertRaisesRegex(ValueError, 'require utc_offset'):
+            services().set_wall_wakeup_time(BASE, BASE + datetime.timedelta(minutes=1), utc_offset=offset)
+
+    # Endpoint representations do not choose the offset baseline.
+    end = BASE + datetime.timedelta(minutes=1)
+    shifted = datetime.timezone(datetime.timedelta(hours=2))
+    first, second = services(), services()
+    first.set_wall_wakeup_time(BASE, end, utc_offset=None)
+    second.set_wall_wakeup_time(BASE.astimezone(shifted), end.astimezone(shifted), utc_offset=None)
+    assert first.wall_wakeup == second.wall_wakeup
 
     # Endpoints are ordered as instants, including repeated local times.
     berlin = ZoneInfo('Europe/Berlin')
     start = datetime.datetime(2026, 10, 25, 2, 45, tzinfo=berlin, fold=0)
     end = datetime.datetime(2026, 10, 25, 2, 15, tzinfo=berlin, fold=1)
-    services().set_wall_wakeup_time(start, end)
+    services().set_wall_wakeup_time(start, end, utc_offset=None)
     with checks.assertRaises(ValueError):
-        services().set_wall_wakeup_time(end, start)
+        services().set_wall_wakeup_time(end, start, utc_offset=None)
 
 
 async def check_windows_and_availability():
@@ -153,6 +170,40 @@ async def check_windows_and_availability():
     runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(2, 0)))
 
 
+def check_explicit_offsets():
+    for baseline in (datetime.timedelta(hours=1), None):
+        def window(services, calls):
+            local = services.start_time_for_stage(RunStage.DEFAULT).local
+            if local is None:
+                services.set_wall_wakeup_time()
+            else:
+                offset = baseline if calls == 1 else (None if baseline is None else local.utcoffset())
+                services.set_wall_wakeup_time(BASE, BASE + datetime.timedelta(minutes=1), utc_offset=offset)
+
+        runtime, probe = make_engine(window)
+        runtime.set_fake_wall_time(BASE)
+        runtime.step()
+        assert next(iter(runtime.wall_wakeups.values())).utc_offset == baseline
+        # A caller-selected baseline can already disagree with the stage snapshot.
+        runtime.step()
+        assert probe.calls == (1 if baseline is None else 2)
+
+        before = probe.calls
+        runtime.set_fake_wall_time(BASE.astimezone(datetime.timezone(datetime.timedelta(hours=2))))
+        runtime.step()
+        assert probe.calls == before + (0 if baseline is None else 1)
+
+        # Ignoring offsets still observes expiration and loss of wall time.
+        before = probe.calls
+        runtime.set_fake_wall_time(BASE + datetime.timedelta(minutes=1))
+        runtime.step()
+        assert probe.calls == before + 1
+        runtime.set_fake_wall_time(None)
+        runtime.step()
+        assert probe.calls == before + 2
+        runtime.assert_is_idle()
+
+
 async def check_one_shot_requests():
     def available(services, calls):
         if calls == 1:
@@ -167,7 +218,8 @@ async def check_one_shot_requests():
 
     def outside(services, calls):
         if calls == 1:
-            services.set_wall_wakeup_time(BASE + datetime.timedelta(seconds=1), BASE + datetime.timedelta(seconds=2))
+            services.set_wall_wakeup_time(BASE + datetime.timedelta(seconds=1), BASE + datetime.timedelta(seconds=2),
+                                          utc_offset=None)
 
     runtime, probe = make_engine(outside)
     runtime.set_fake_wall_time(BASE)
@@ -181,7 +233,7 @@ async def check_one_shot_requests():
             if calls == 1:
                 now = services.start_time_for_stage(RunStage.DEFAULT)
                 services.set_wakeup_time(now.monotonic + wirely.Duration.from_seconds(3600))
-                services.set_wall_wakeup_time(BASE, BASE + datetime.timedelta(seconds=1))
+                services.set_wall_wakeup_time(BASE, BASE + datetime.timedelta(seconds=1), utc_offset=None)
 
         runtime, probe = make_engine(both)
         runtime.enable_fixed_monotonic_time()
@@ -202,11 +254,72 @@ async def check_real_timer():
     def deadline(services, calls):
         if calls == 1:
             now = services.start_time_for_stage(RunStage.DEFAULT).utc
-            services.set_wall_wakeup_time(now - datetime.timedelta(seconds=1), now + datetime.timedelta(milliseconds=30))
+            services.set_wall_wakeup_time(now - datetime.timedelta(seconds=1), now + datetime.timedelta(milliseconds=30),
+                                          utc_offset=None)
 
     runtime, probe = make_engine(deadline)
     async with running(runtime) as task:
         await wait_for(task, lambda: probe.calls == 2)
+
+
+async def check_mixed_requests():
+    try:
+        timer = TimerFD()
+    except NotImplementedError:
+        return
+    timer.close()
+    graph = compile_strs([*standard_library_sources(['std']), ('<mixed-clocks>', '''
+namespace TestLibrary {
+  node type Clock {
+    default output: value Option[TimeOfDay];
+    native procedure run produces default output as "output";
+  }
+}
+node utc: TestLibrary.Clock {}
+node local: TestLibrary.Clock {}
+''')])
+    assert graph is not None
+    invocations = {}
+    monitor_local = True
+    with test_contracts(graph) as contracts:
+        class Clock(contracts.ClockRun):
+            def run(self, *, services):
+                invocations[services.name] = services
+                snapshot = services.start_time_for_stage(RunStage.DEFAULT)
+                if services.name == 'utc' or monitor_local:
+                    services.set_wall_wakeup_time(
+                        snapshot.utc - datetime.timedelta(hours=1), snapshot.utc + datetime.timedelta(hours=1),
+                        utc_offset=None if services.name == 'utc' else snapshot.local.utcoffset())
+                return contracts.ClockRunResult(output=None)
+
+        bindings = test_extension(contracts=contracts, procedures={'TestLibrary.Clock:run': Clock})
+        runtime = Engine(compile_nocatch(graph), override_extensions=[bindings])
+
+    reads = 0
+    get_time = runtime.get_wall_time
+
+    def read_time():
+        nonlocal reads
+        reads += 1
+        return get_time()
+
+    runtime.get_wall_time = read_time
+    async with running(runtime) as task:
+        await wait_for(task, lambda: len(invocations) == 2)
+        await asyncio.sleep(0)
+        steps, initial_reads = runtime.step_count, reads
+        await wait_for(task, lambda: reads > initial_reads)
+        # Native offset polling reads the clock without stepping the engine.
+        assert runtime.step_count == steps
+
+        monitor_local = False
+        invocations['local'].trigger_self()
+        await wait_for(task, lambda: len(runtime.wall_wakeups) == 1)
+        await asyncio.sleep(0)
+        # Removing the last offset subscription leaves only the native UTC timer.
+        initial_reads = reads
+        await asyncio.sleep(1.1)
+        assert reads == initial_reads
 
 
 async def check_timer_backends():
@@ -245,10 +358,12 @@ async def check_timer_backends():
     ready = asyncio.Event()
     waiter = WallClockWaiter(lambda: BASE, ready.set, timer_factory=unavailable)
     try:
-        waiter.arm(BASE + datetime.timedelta(minutes=1), real=True, now=BASE)
-        async with asyncio.timeout(3):
-            await ready.wait()
-        waiter.arm(None, real=False, now=None)
+        for monitor_offset in (False, True):
+            ready.clear()
+            waiter.arm(BASE + datetime.timedelta(minutes=1), real=True, now=BASE, monitor_offset=monitor_offset)
+            async with asyncio.timeout(3):
+                await ready.wait()
+        waiter.arm(None, real=False, now=None, monitor_offset=False)
         ready.clear()
         await asyncio.sleep(0)
         assert not ready.is_set()
@@ -274,7 +389,8 @@ async def check_timer_backends():
         now = datetime.datetime.now(UTC)
         waiter = WallClockWaiter(lambda: now, ready.set, timer_factory=cancelled_timer)
         try:
-            waiter.arm(now + datetime.timedelta(milliseconds=20), real=True, now=now)
+            waiter.arm(now + datetime.timedelta(milliseconds=20), real=True, now=now, monitor_offset=False)
+            assert waiter._poll_handle is None
             async with asyncio.timeout(3):
                 await ready.wait()
         finally:
@@ -286,7 +402,7 @@ async def check_timer_backends():
         ready = asyncio.Event()
         waiter = WallClockWaiter(lambda: samples[0], ready.set)
         try:
-            waiter.arm(samples[0] + datetime.timedelta(hours=1), real=True, now=samples[0])
+            waiter.arm(samples[0] + datetime.timedelta(hours=1), real=True, now=samples[0], monitor_offset=True)
             samples[0] = samples[0].astimezone(datetime.timezone(datetime.timedelta(hours=1)))
             async with asyncio.timeout(3):
                 await ready.wait()
@@ -296,7 +412,9 @@ async def check_timer_backends():
 
 async def run_test():
     check_validation()
+    check_explicit_offsets()
     await check_windows_and_availability()
     await check_one_shot_requests()
     await check_real_timer()
+    await check_mixed_requests()
     await check_timer_backends()

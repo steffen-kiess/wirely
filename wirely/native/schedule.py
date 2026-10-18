@@ -18,6 +18,7 @@ class TimeOfDayMinute:
             assert snapshot.utc is not None
             elapsed = datetime.timedelta(seconds=local.second, microseconds=local.microsecond)
             start = snapshot.utc - elapsed
-            services.set_wall_wakeup_time(start, start + datetime.timedelta(minutes=1))
+            services.set_wall_wakeup_time(start, start + datetime.timedelta(minutes=1),
+                                          utc_offset=local.utcoffset())
             return contracts.TimeOfDayMinuteGetValueResult(
                 output=wirely.Some(wirely.TimeOfDay.from_parts(local.hour, local.minute)))
