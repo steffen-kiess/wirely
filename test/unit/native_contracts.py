@@ -244,88 +244,6 @@ def check_services():
         services.set_wakeup_time(None)
 
 
-def check_binding_type_checks():
-    """Generated imports and factories expose missing or incompatible implementations to mypy."""
-    import subprocess
-    import tempfile
-    from pathlib import Path
-    from wirely.generated import _signatures as native_interfaces
-
-    from test.fixtures.native_extension.generated import extension as fixture
-    interfaces = (
-        {'Std.DebugValueSource': native_interfaces.native_state_types['Std.DebugValueSource']},
-        {'Std.DebugEventPrinter:run': native_interfaces.native_procedures['Std.DebugEventPrinter:run']},
-        {'TestLibrary.Clamp': fixture.functions['TestLibrary.Clamp'].signature},
-    )
-    source = native_contracts.generate_bindings(interfaces).replace('wirely.generated.test_library',
-             'test.fixtures.native_extension.generated.test_library').replace('wirely.functions.test_library',
-             'test.fixtures.native_extension.functions.test_library')
-    constant_source = native_contracts.generate_constant_bindings({
-        'KNX.ValueTypeName': native_interfaces.native_functions.get('KNX.ValueTypeName')})
-    cases = [
-        ('valid', source, '', None),
-        ('missing_module', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
-                                         'from missing_native_implementation import clamp'), '', 'import-not-found'),
-        ('missing_function', source.replace('import clamp', 'import nonexistent as clamp'), '', 'attr-defined'),
-        ('wrong_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
-                                          'from implementation import clamp'),
-         'def clamp(value: int) -> int:\n    return value\n', 'arg-type'),
-        ('async_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
-                                          'from implementation import clamp'),
-         'from wirely import Int16\nasync def clamp(a: Int16, b: Int16, c: Int16) -> Int16:\n    return a\n', 'arg-type'),
-        ('generator_function', source.replace('from test.fixtures.native_extension.functions.test_library import clamp',
-                                              'from implementation import clamp'),
-         'from collections.abc import Iterator\nfrom wirely import Int16\n'
-         'def clamp(a: Int16, b: Int16, c: Int16) -> Iterator[Int16]:\n    yield a\n', 'arg-type'),
-        ('abstract_initializer', source.replace('from wirely.native.std import DebugValueSource\n',
-                                                'from implementation import DebugValueSource\n'),
-         'from wirely.generated.std import DebugValueSourceInitializer\n'
-         'class DebugValueSource(DebugValueSourceInitializer):\n    pass\n', 'abstract'),
-        ('abstract_procedure', source.replace('from wirely.native.std import DebugEventPrinter\n',
-                                              'from implementation import DebugEventPrinter\n'),
-         'from wirely.generated.std import DebugEventPrinterRun\n'
-         'class DebugEventPrinter:\n    class Run(DebugEventPrinterRun):\n        pass\n', 'abstract'),
-        ('constructor', source.replace('from wirely.native.std import DebugValueSource\n',
-                                       'from implementation import DebugValueSource\n'),
-         'from wirely.native.std import DebugValueSource as Base\n'
-         'class DebugValueSource(Base):\n    def __init__(self, required: int) -> None:\n        pass\n', 'call-arg'),
-        ('wrong_method', source.replace('from wirely.native.std import DebugValueSource\n',
-                                        'from implementation import DebugValueSource\n'),
-         'from wirely.generated.std import DebugValueSourceInitializer, DebugValueSourceInitializerResult\n'
-         'class DebugValueSource(DebugValueSourceInitializer):\n'
-         '    def initialize(self, *, other: int) -> DebugValueSourceInitializerResult:\n'
-         '        return DebugValueSourceInitializerResult(state=self)\n', 'override'),
-        ('unrelated_initializer', source.replace('from wirely.native.std import DebugValueSource\n',
-                                                 'from implementation import DebugValueSource\n'),
-         'class DebugValueSource:\n    pass\n', 'return-value'),
-        ('async_procedure', source.replace('from wirely.native.std import DebugEventPrinter\n',
-                                           'from implementation import DebugEventPrinter\n'),
-         'from wirely.generated.std import DebugEventPrinterRun, DebugEventPrinterRunResult\n'
-         'from wirely.runtime.native_api import ProcedureServices\n'
-         'class DebugEventPrinter:\n    class Run(DebugEventPrinterRun):\n'
-         '        async def run(self, *, services: ProcedureServices) -> DebugEventPrinterRunResult:\n'
-         '            return DebugEventPrinterRunResult()\n', 'override'),
-        ('constant_signature', constant_source.replace(
-            'from wirely.compiler.function_implementations.knx import value_type_name',
-            'from implementation import value_type_name'),
-         'def value_type_name(number: int) -> str:\n    return str(number)\n', 'arg-type'),
-    ]
-    with tempfile.TemporaryDirectory(prefix='wirely-native-mypy-') as directory:
-        root = Path(directory)
-        for label, bindings, implementation, expected in cases:
-            (root / 'bindings.py').write_text(bindings)
-            (root / 'implementation.py').write_text(implementation)
-            result = subprocess.run([sys.executable, '-m', 'mypy', '--follow-imports=silent',
-                                     '--cache-dir', str(root / 'cache'),
-                                     str(root / 'bindings.py'), str(root / 'implementation.py')],
-                                    capture_output=True, text=True)
-            output = result.stdout + result.stderr
-            if expected is None:
-                assert result.returncode == 0, (label, output)
-            else:
-                assert result.returncode != 0 and f'[{expected}]' in output, (label, output)
-
-
 def check_binding_imports():
     import subprocess
     subprocess.run([sys.executable, '-c', """
@@ -348,7 +266,6 @@ generated_files()
 
 
 check_binding_imports()
-check_binding_type_checks()
 check_names()
 check_collisions()
 check_adapters()

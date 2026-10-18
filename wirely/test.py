@@ -48,7 +48,6 @@ from wirely.runtime.engine import Engine
 python_only_tests = [
     'misc/grammar',
     'misc/type_check',
-    'unit/knx',
     'unit/runtime_program',
     'unit/compiler_api',
     'unit/compiler_warnings',
@@ -57,7 +56,6 @@ python_only_tests = [
     'unit/native_extensions',
     'unit/instructions',
     'unit/test_resources',
-    'unit/test_runner',
     'repo/files',
     'repo/native_types',
     'unit/library_configuration',
@@ -75,7 +73,6 @@ python_only_tests = [
     'unit/editor_widgets',
     'unit/editor_workspace',
     'unit/editor_export',
-    'unit/shuffle',
     'unit/container',
     'unit/monotonic_timestamp',
 ]

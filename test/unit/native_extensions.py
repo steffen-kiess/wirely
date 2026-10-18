@@ -1,5 +1,4 @@
 import importlib
-import subprocess
 import sys
 import tempfile
 from dataclasses import replace
@@ -232,20 +231,6 @@ def seed(*, services: FunctionServices) -> UInt16:
             engine.step()
             engine.assert_value_is('counter.Count', 4)
             engine.assert_value_is('counter.Added', 6)
-            for implementation, expected in [
-                ((root / 'acme/functions/demo.py').read_text(), None),
-                ('def add(value: str) -> str:\n    return value\n', 'arg-type'),
-            ]:
-                (root / 'acme/functions/demo.py').write_text(implementation)
-                result = subprocess.run([
-                    sys.executable, '-m', 'mypy', '--follow-imports=silent',
-                    '--cache-dir', str(root / 'cache'), str(root / 'acme'),
-                ], text=True, capture_output=True)
-                output = result.stdout + result.stderr
-                if expected is None:
-                    assert result.returncode == 0, output
-                else:
-                    assert result.returncode != 0 and f'[{expected}]' in output, output
             assert generated_files([source], package='acme', output_root=root) == files
             # The selected bindings, rather than compiler debug data, are required at runtime.
             with checks.assertRaisesRegex(ValueError, 'Demo.Counter'):

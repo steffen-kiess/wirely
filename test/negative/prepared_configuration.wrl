@@ -95,3 +95,27 @@ constant Address: uint16 = KNX.ParseGroupAddress("-1");
 // TEST: empty group address
 constant Address: uint16 = KNX.ParseGroupAddress("");
 // ^E: Invalid format for KNX group address
+
+// TEST: leading space
+constant Address: uint16 = KNX.ParseGroupAddress(" 1");
+// ^E: Invalid format for KNX group address
+
+// TEST: trailing space
+constant Address: uint16 = KNX.ParseGroupAddress("1 ");
+// ^E: Invalid format for KNX group address
+
+// TEST: signed group address
+constant Address: uint16 = KNX.ParseGroupAddress("+1");
+// ^E: Invalid format for KNX group address
+
+// TEST: empty middle group
+constant Address: uint16 = KNX.ParseGroupAddress("1//2");
+// ^E: Invalid format for KNX group address
+
+// TEST: trailing slash
+constant Address: uint16 = KNX.ParseGroupAddress("1/2/");
+// ^E: Invalid format for KNX group address
+
+// TEST: three-digit main group
+constant Address: uint16 = KNX.ParseGroupAddress("001/2/3");
+// ^E: Invalid format for KNX group address
