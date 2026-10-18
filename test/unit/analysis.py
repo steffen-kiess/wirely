@@ -3,7 +3,7 @@ from types import MappingProxyType
 from unittest import TestCase
 
 from wirely import test as runner
-from wirely.compiler import model, standard_library_texts
+from wirely.compiler import ParseCache, model, standard_library_texts
 from wirely.compiler import outline as outline_module
 from wirely.compiler.analysis import ConnectionCheck, ResolvedParameter, ResolvedPort, analyze
 from wirely.compiler.attributes import validate_files
@@ -178,7 +178,7 @@ checks.assertNotIn('Type', result.type_names())
 
 def strict_interface_error(sources):
     """Return the first error of the interface stages when stopping at errors."""
-    files, parsed_files = outline_module.parse(sources)
+    files, parsed_files = outline_module.parse(sources, cache=parse_cache)
     if any(file.error is not None for file in files):
         return None
     declarations = [declaration for _, parsed in parsed_files for declaration in parsed]
@@ -197,13 +197,15 @@ def strict_interface_error(sources):
 
 
 # Every negative fixture is analyzed without internal errors, including the error stopping compilation.
+# Both checks share one parse of the libraries and of each case.
+parse_cache = ParseCache(max_entries=None)
 for name in runner.negative_tests:
     filename = 'test/' + name + '.wrl'
     with open(filename, encoding='utf-8') as file:
         text = file.read()
     for case in runner.negative_test_cases(text):
         sources = standard_library_texts(case.libraries) + [(os.path.abspath(filename), case.source)]
-        diagnostics = [item.diagnostic for item in analyze(sources).diagnostics]
+        diagnostics = [item.diagnostic for item in analyze(sources, cache=parse_cache).diagnostics]
         label = f'{filename}: {case.label}'
         checks.assertFalse([item for item in diagnostics if item.kind == 'internal_error'], label)
         strict = strict_interface_error(sources)
