@@ -205,8 +205,11 @@ async def check_runner_cleanup():
             mocks.enter_context(patch('wirely.test.importlib.util.module_from_spec', return_value=SimpleNamespace()))
             if mode == 'startup':
                 mocks.enter_context(patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=LifecycleFailure)))
-            expected = SystemExit if mode in ('compilation', 'program') else LifecycleFailure
-            with checks.assertRaises(expected):
+            if mode in ('compilation', 'program'):
+                failure = checks.assertRaisesRegex(AssertionError, 'compilation failed')
+            else:
+                failure = checks.assertRaises(LifecycleFailure)
+            with failure:
                 await runner_run_test('wrl/std')
             if mode != 'assertions':
                 construct.assert_not_called()

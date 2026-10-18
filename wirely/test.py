@@ -377,7 +377,7 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
     if prog is None:
         for diagnostic in diagnostics:
             print_diagnostic(diagnostic)
-        sys.exit(1)
+        raise AssertionError(f'{fn}: compilation failed')
     warnings = [item for item in diagnostic_items(diagnostics) if item[0] == 'W']
     missing, unexpected = match_diagnostics(expected, warnings, full_fn, 1, line_count, relaxed=relaxed)
     if missing or unexpected:
