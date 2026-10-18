@@ -74,17 +74,25 @@ async def check_connection_parameters():
         raise AssertionError(f'Accepted invalid KNX connection: {parameters!r}')
 
 
+# How long to wait for messages that should not arrive.
+SETTLE_TIME_S = 0.02
+
+
 class MessageReceiver:
+    instances = []
+
     def __init__(self, knx, name, address, value_type):
         self.name = name
         self.value_type = value_type
 
         self.values = []
+        MessageReceiver.instances.append(self)
 
+        # Monitors record written messages only; a state read would add its response.
         if value_type == 'binary':
-            self.sensor = xknx.devices.BinarySensor(knx, name="Sensor_" + name, group_address_state=address, device_updated_cb=self.update, ignore_internal_state=True)
+            self.sensor = xknx.devices.BinarySensor(knx, name="Sensor_" + name, group_address_state=address, device_updated_cb=self.update, ignore_internal_state=True, sync_state=False)
         else:
-            self.sensor = xknx.devices.Sensor(knx, name="Sensor_" + name, group_address_state=address, device_updated_cb=self.update, value_type=value_type, always_callback=True)
+            self.sensor = xknx.devices.Sensor(knx, name="Sensor_" + name, group_address_state=address, device_updated_cb=self.update, value_type=value_type, always_callback=True, sync_state=False)
         knx.devices.async_add(self.sensor)
 
     def update(self, sensor):
@@ -96,10 +104,11 @@ class MessageReceiver:
         print(f'{self.name}: Got {value}')
 
     async def expect(self, *expected):
-        # TODO: How long should this sleep?
-        # TODO: Increase timeout when waiting for a message?
-        await asyncio.sleep(0.1)
-        # TODO: Use "async with asyncio.timeout(0.02):" instead?
+        """Wait for the expected messages, then check that no other message follows."""
+        async with asyncio.timeout(5):
+            while len(self.values) < len(expected):
+                await asyncio.sleep(0.001)
+        await asyncio.sleep(SETTLE_TIME_S)
 
         for msg in expected:
             if len(self.values) == 0:
@@ -109,7 +118,7 @@ class MessageReceiver:
                 raise Exception(f'{self.name}: Expected message {msg!r}, got {actual!r}')
 
         if len(self.values) != 0:
-            raise Exception(f'Got unexpected messages: {self.values!r}')
+            raise Exception(f'{self.name}: Got unexpected messages: {self.values!r}')
 
 
 async def check_type_conversions(knx):
@@ -129,34 +138,55 @@ async def check_type_conversions(knx):
             while not predicate():
                 await asyncio.sleep(0.01)
 
-    for index, (ty, dpt, values) in enumerate(cases):
-        prefix = f'case_{ty}'
-        expose = xknx.devices.ExposeSensor(knx, name=prefix, group_address=f'0/{index}/21', value_type=dpt)
-        value_monitor = MessageReceiver(knx, prefix + '_value', f'0/{index}/22', dpt)
-        event_monitor = MessageReceiver(knx, prefix + '_event', f'0/{index}/24', dpt)
-        receiver = engine.get_native_state(prefix + '.value_receiver')
-        event_receiver = engine.get_native_state(prefix + '.event_receiver')
-        for value in values:
-            await expose.set(value)
-            await wait_for(lambda: receiver.current_value is not None
-                           and receiver.current_value == receiver.knx_type.from_knx(value, builtin_extension.native_types))
-            engine.step()
-            engine.assert_value_is(prefix + '.value_receiver', wirely.Some(value))
+    class Case:
+        def __init__(self, index, ty, dpt, values):
+            self.prefix = f'case_{ty}'
+            self.index = index
+            self.dpt = dpt
+            self.values = values
+            self.expose = xknx.devices.ExposeSensor(knx, name=self.prefix, group_address=f'0/{index}/21', value_type=dpt)
+            self.value_monitor = MessageReceiver(knx, self.prefix + '_value', f'0/{index}/22', dpt)
+            self.event_monitor = MessageReceiver(knx, self.prefix + '_event', f'0/{index}/24', dpt)
+            self.receiver = engine.get_native_state(self.prefix + '.value_receiver')
+            self.event_receiver = engine.get_native_state(self.prefix + '.event_receiver')
 
-            xknx.tools.group_value_write(knx, f'0/{index}/23', value, None if dpt == 'binary' else dpt)
-            await wait_for(lambda: len(event_receiver.received_values) > 0)
-            engine.step()
-            engine.assert_value_is(prefix + '.event_receiver', wirely.Some(value))
-            engine.step()
-            engine.assert_value_is(prefix + '.event_receiver', None)
+        def received(self, value):
+            current = self.receiver.current_value
+            return current is not None and current == self.receiver.knx_type.from_knx(value, builtin_extension.native_types)
 
-            engine.get_native_state(prefix + '.value_input').set_value(wirely.Some(value))
-            engine.step()
-            await value_monitor.expect(value)
+    # The cases use separate addresses and nodes, so they run concurrently, one
+    # value of each case per round. Values of one case stay sequential, since
+    # value receivers and providers keep only the latest value.
+    all_cases = [Case(index, *case) for index, case in enumerate(cases)]
+    for position in range(max(len(case.values) for case in all_cases)):
+        active = [(case, case.values[position]) for case in all_cases if position < len(case.values)]
 
-            engine.get_native_state(prefix + '.event_input').send_event(wirely.Some(value))
-            engine.step()
-            await event_monitor.expect(value)
+        for case, value in active:
+            await case.expose.set(value)
+        await wait_for(lambda: all(case.received(value) for case, value in active))
+        engine.step()
+        for case, value in active:
+            engine.assert_value_is(case.prefix + '.value_receiver', wirely.Some(value))
+
+        for case, value in active:
+            xknx.tools.group_value_write(knx, f'0/{case.index}/23', value, None if case.dpt == 'binary' else case.dpt)
+        await wait_for(lambda: all(len(case.event_receiver.received_values) > 0 for case, _ in active))
+        engine.step()
+        for case, value in active:
+            engine.assert_value_is(case.prefix + '.event_receiver', wirely.Some(value))
+        engine.step()
+        for case, _ in active:
+            engine.assert_value_is(case.prefix + '.event_receiver', None)
+
+        for case, value in active:
+            engine.get_native_state(case.prefix + '.value_input').set_value(wirely.Some(value))
+        engine.step()
+        await asyncio.gather(*(case.value_monitor.expect(value) for case, value in active))
+
+        for case, value in active:
+            engine.get_native_state(case.prefix + '.event_input').send_event(wirely.Some(value))
+        engine.step()
+        await asyncio.gather(*(case.event_monitor.expect(value) for case, value in active))
 
 
 async def run_test():
@@ -496,6 +526,12 @@ async def run_test():
             await event_sensor_recv.expect()
 
             await check_type_conversions(knx)
+
+            # Messages arriving after a receiver's last expect() are unexpected too.
+            await asyncio.sleep(SETTLE_TIME_S)
+            for receiver in MessageReceiver.instances:
+                if receiver.values:
+                    raise Exception(f'{receiver.name}: Got unexpected messages: {receiver.values!r}')
 
             print('c', flush=True)
         print('d', flush=True)
