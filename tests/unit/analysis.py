@@ -2,7 +2,8 @@ import os
 from types import MappingProxyType
 from unittest import TestCase
 
-from wirely import test as runner
+from tests.infra.runner.diagnostics import negative_test_cases
+from tests.infra.runner.registry import negative_tests
 from wirely.compiler import ParseCache, model, standard_library_texts
 from wirely.compiler import outline as outline_module
 from wirely.compiler.analysis import ConnectionCheck, ResolvedParameter, ResolvedPort, analyze
@@ -199,11 +200,11 @@ def strict_interface_error(sources):
 # Every negative fixture is analyzed without internal errors, including the error stopping compilation.
 # Both checks share one parse of the libraries and of each case.
 parse_cache = ParseCache(max_entries=None)
-for name in runner.negative_tests:
+for name in negative_tests:
     filename = 'tests/' + name + '.wrl'
     with open(filename, encoding='utf-8') as file:
         text = file.read()
-    for case in runner.negative_test_cases(text):
+    for case in negative_test_cases(text):
         sources = standard_library_texts(case.libraries) + [(os.path.abspath(filename), case.source)]
         diagnostics = [item.diagnostic for item in analyze(sources, cache=parse_cache).diagnostics]
         label = f'{filename}: {case.label}'

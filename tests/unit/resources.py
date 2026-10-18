@@ -9,7 +9,7 @@ from wirely.compiler import program as program_compiler
 import wirely.compiler
 from wirely.runtime.engine import Engine
 from wirely.runtime.resources import ResourceValue
-from wirely.test import test_extension, test_contracts
+from tests.infra.support import test_extension, test_contracts
 
 
 checks = TestCase()

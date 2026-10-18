@@ -16,10 +16,8 @@ import wirely
 from wirely.compiler.function_implementations.test import (
     TEST_RESOURCES_SERVICE, replace_two_n_host, replace_two_n_port, replace_two_ntlsa,
 )
-from wirely.test import (
-    TestResourceProvider, run_runtime_test as runner_run_test,
-    with_maybe_knxd, with_maybe_mqtt,
-)
+from tests.infra.runner.execution import run_runtime_test as runner_run_test
+from tests.infra.runner.services import TestResourceProvider, with_maybe_knxd, with_maybe_mqtt
 from wirely.two_n.fake_server import Server
 from wirely.runtime.engine import Engine
 
@@ -79,13 +77,13 @@ async def check_daemon_lifecycle():
     ):
         with contextlib.ExitStack() as stack:
             path = get_path(TestResourceProvider(stack))
-            with patch('wirely.test.subprocess.Popen') as start:
+            with patch('tests.infra.runner.services.subprocess.Popen') as start:
                 async with helper(None):
                     pass
                 start.assert_not_called()
             process = MagicMock()
-            with patch('wirely.test.subprocess.Popen', return_value=process), \
-                    patch('wirely.test.socket.socket'):
+            with patch('tests.infra.runner.services.subprocess.Popen', return_value=process), \
+                    patch('tests.infra.runner.services.socket.socket'):
                 with checks.assertRaises(LifecycleFailure):
                     async with helper(path):
                         raise LifecycleFailure
@@ -94,24 +92,24 @@ async def check_daemon_lifecycle():
             for exit_code, exception in [(3, Exception), (None, TimeoutError)]:
                 process = MagicMock()
                 process.poll.return_value = exit_code
-                with patch('wirely.test.subprocess.Popen', return_value=process), \
-                        patch('wirely.test.socket.socket') as connection, \
-                        patch('wirely.test.asyncio.sleep'):
+                with patch('tests.infra.runner.services.subprocess.Popen', return_value=process), \
+                        patch('tests.infra.runner.services.socket.socket') as connection, \
+                        patch('tests.infra.runner.services.asyncio.sleep'):
                     connection.return_value.__enter__.return_value.connect.side_effect = FileNotFoundError
                     with checks.assertRaisesRegex(exception, name):
                         async with helper(path):
                             raise AssertionError('Unready daemon accepted')
                 process.kill.assert_called_once()
                 process.wait.assert_called_once()
-            with patch('wirely.test.subprocess.Popen', side_effect=FileNotFoundError):
+            with patch('tests.infra.runner.services.subprocess.Popen', side_effect=FileNotFoundError):
                 with checks.assertRaises(FileNotFoundError):
                     async with helper(path):
                         raise AssertionError('Missing executable accepted')
             if name == 'mosquitto':
                 broker, monitor = MagicMock(), MagicMock()
                 with patch.dict(os.environ, {'WIRELY_TEST_RUN_MQTT_SUB': '1'}), \
-                        patch('wirely.test.subprocess.Popen', side_effect=(broker, monitor)), \
-                        patch('wirely.test.socket.socket'):
+                        patch('tests.infra.runner.services.subprocess.Popen', side_effect=(broker, monitor)), \
+                        patch('tests.infra.runner.services.socket.socket'):
                     async with helper(path):
                         pass
                 for process in (broker, monitor):
@@ -195,14 +193,14 @@ async def check_runner_cleanup():
             exec_module=lambda module: setattr(module, 'run_test', fail_assertions),
         ))
         with contextlib.ExitStack() as mocks:
-            mocks.enter_context(patch('wirely.test.model.compiler.compile_files', side_effect=compile_fixture))
-            mocks.enter_context(patch('wirely.test.program_compiler.compile',
+            mocks.enter_context(patch('tests.infra.runner.execution.model.compiler.compile_files', side_effect=compile_fixture))
+            mocks.enter_context(patch('tests.infra.runner.execution.program_compiler.compile',
                                       return_value=None if mode == 'program' else MagicMock()))
-            construct = mocks.enter_context(patch('wirely.test.Engine', return_value=SimpleNamespace()))
-            mocks.enter_context(patch('wirely.test.with_maybe_knxd', daemon))
-            mocks.enter_context(patch('wirely.test.with_maybe_mqtt', daemon))
-            mocks.enter_context(patch('wirely.test.importlib.util.spec_from_file_location', return_value=spec))
-            mocks.enter_context(patch('wirely.test.importlib.util.module_from_spec', return_value=SimpleNamespace()))
+            construct = mocks.enter_context(patch('tests.infra.support.Engine', return_value=SimpleNamespace()))
+            mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_knxd', daemon))
+            mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_mqtt', daemon))
+            mocks.enter_context(patch('tests.infra.runner.execution.importlib.util.spec_from_file_location', return_value=spec))
+            mocks.enter_context(patch('tests.infra.runner.execution.importlib.util.module_from_spec', return_value=SimpleNamespace()))
             if mode == 'startup':
                 mocks.enter_context(patch('aiohttp.web.SockSite.start', new=AsyncMock(side_effect=LifecycleFailure)))
             if mode in ('compilation', 'program'):

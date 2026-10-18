@@ -17,7 +17,7 @@ from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
 from wirely.runtime.wall_clock import TimerFD, WallClockWaiter
-from wirely.test import test_extension
+from tests.infra.support import test_extension
 
 
 checks = TestCase()

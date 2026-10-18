@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from wirely.test import example_tests, negative_tests, python_only_tests, runtime_tests, to_compile
+from tests.infra.runner.registry import example_tests, negative_tests, python_only_tests, runtime_tests, to_compile
 
 
 root = Path(__file__).resolve().parents[2]

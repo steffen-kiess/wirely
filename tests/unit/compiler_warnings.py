@@ -5,7 +5,7 @@ from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
-from wirely.test import test_constant_function
+from tests.infra.support import test_constant_function
 
 
 checks = TestCase()

@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 
 import wirely
-from wirely.test import test_engine
+from tests.infra.support import test_engine
 
 
 async def run_engine_until(runtime, condition, *, timeout_s):

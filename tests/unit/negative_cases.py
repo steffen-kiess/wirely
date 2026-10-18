@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.test import compile_negative_test
+from tests.infra.runner.execution import compile_negative_test
 
 
 checks = TestCase()

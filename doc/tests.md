@@ -29,13 +29,13 @@ interpreter lock, so with `--threads` above 1, timing-sensitive tests such as
 `wrl/mqtt` and `wrl/knx` can fail next to CPU-bound tests.
 
 List tests that change process-wide state in `exclusive_tests` in
-`wirely/test.py`: tests using Qt, `unittest.mock.patch()` of module
+`tests/infra/runner/registry.py`: tests using Qt, `unittest.mock.patch()` of module
 attributes or `os.environ`, or `contextlib.redirect_stdout()`. They run only
 while no other test runs in the same process, on its main thread.
 
 ## Categories
 
-| Location | Purpose | Registration in `wirely/test.py` |
+| Location | Purpose | Registration in `tests/infra/runner/registry.py` |
 | --- | --- | --- |
 | `tests/repo/` | Repository consistency checks | `python_only_tests` |
 | `tests/misc/` | Miscellaneous checks | `python_only_tests` |
@@ -45,8 +45,10 @@ while no other test runs in the same process, on its main thread.
 | `tests/negative/` | Rejected language forms and expected diagnostics | `negative_tests` |
 | `examples/` | Example compilation and engine construction | `example_tests` |
 
-`tests/infra/` contains test infrastructure rather than tests, such as the
-`TestLibrary` native extension that compilations of test fixtures include.
+`tests/infra/` contains test infrastructure rather than tests: the runner in
+`runner/`, the `TestLibrary` native extension that compilations of test
+fixtures include, and helpers for Python tests in `support.py`, such as
+`test_engine()`, `test_extension()`, and `test_contracts()`.
 
 `repo/files` checks that existing Python and Wirely test files and Wirely
 examples match the registered files. It reports missing and unlisted files.

@@ -11,7 +11,7 @@ import wirely.compiler
 from wirely.compiler import program as program_compiler
 from wirely.program import ResourceBinding, RunStage
 from wirely.runtime.engine import Engine
-from wirely.test import test_extension, test_contracts, test_engine
+from tests.infra.support import test_extension, test_contracts, test_engine
 
 
 checks = TestCase()

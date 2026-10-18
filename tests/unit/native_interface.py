@@ -16,7 +16,7 @@ import wirely.compiler
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
-from wirely.test import test_extension, test_contracts
+from tests.infra.support import test_extension, test_contracts
 from wirely.runtime.signatures import Builtin, Enum, Int
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
 import wirely.generated.structs

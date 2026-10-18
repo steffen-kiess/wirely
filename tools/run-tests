@@ -38,7 +38,7 @@ def main():
     runner_args = (['--timings'] if args.timings else []) + (['--keep-going'] if args.keep_going else [])
     runner_args += ['--processes', str(args.processes), '--threads', str(args.threads)]
     return subprocess.run(
-        [python, '-m', 'wirely.test', *runner_args, *args.names],
+        [python, '-m', 'tests.infra.runner', *runner_args, *args.names],
     ).returncode
 
 

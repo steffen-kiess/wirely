@@ -10,7 +10,7 @@ import wirely
 from wirely.compiler import compile_strs
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
-from wirely.test import test_extension, test_constant_function, test_contracts
+from tests.infra.support import test_extension, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
 from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
 

@@ -4,7 +4,7 @@ from unittest import TestCase
 import wirely
 from wirely import types
 from tests.infra.native_extension.generated import test_library as contracts
-from wirely.test import test_extension
+from tests.infra.support import test_extension
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,

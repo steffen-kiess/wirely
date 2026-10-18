@@ -6,7 +6,7 @@ import wirely
 from wirely.compiler import program as program_compiler
 import wirely.compiler
 from wirely.runtime.engine import Engine
-from wirely.test import test_contracts, test_extension
+from tests.infra.support import test_contracts, test_extension
 
 
 calls = Counter()

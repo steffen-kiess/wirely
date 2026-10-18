@@ -1,0 +1,107 @@
+"""Helpers for tests: engines and native bindings using the test fixture extension."""
+
+from __future__ import annotations
+
+import contextlib
+import itertools
+import sys
+import types
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, cast
+
+from wirely.compiler import model
+from wirely.runtime.engine import Engine
+
+if TYPE_CHECKING:
+    from wirely.program import Program
+
+
+_test_contract_modules = itertools.count()
+
+
+@contextlib.contextmanager
+def test_contracts(graph: object) -> Iterator[types.ModuleType]:
+    """Generate test contracts locally without changing binding tables."""
+    from wirely.compiler import native_contracts
+    from wirely.compiler.native_signatures import native_signatures
+    from tests.infra.native_extension.generated import extension
+    from tests.infra.native_extension.generated import test_library
+
+    declared = native_signatures(cast(model.Scope, graph), 'TestLibrary')
+    tables: tuple[dict[str, Any], ...] = (
+        {name: entry.signature for name, entry in extension.states.items()},
+        {name: entry.signature for name, entry in extension.procedures.items()},
+        {name: entry.signature for name, entry in extension.functions.items()},
+    )
+    generated = [{name: entry for name, entry in cast(Mapping[str, Any], entries).items() if table.get(name) != entry}
+                 for table, entries in zip(tables, declared)]
+    module = types.ModuleType(f'_wirely_test_contracts_{next(_test_contract_modules)}')
+    module.__dict__.update({name: value for name, value in vars(test_library).items() if not name.startswith('__')})
+    interfaces = cast(native_contracts.Interfaces, tuple(generated))
+    sources = native_contracts.contract_sources(
+        interfaces, resource_classes=native_contracts.resource_classes(), strict=False)
+    sys.modules[module.__name__] = module
+    try:
+        for source in sources.values():
+            exec(compile(source, f'<{module.__name__}>', 'exec'), module.__dict__)
+        module.interfaces = declared  # type: ignore[attr-defined]
+        yield module
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+def test_extension(*, contracts: types.ModuleType | None = None, initializers: Mapping[str, Any] = {},
+                   procedures: Mapping[str, Any] = {}, resources: Mapping[str, type] = {},
+                   functions: Mapping[str, Any] = {}) -> Any:
+    """Build explicit test bindings from contracts and implementations."""
+    from wirely.compiler.native_contracts import contract_location
+    from wirely.generated import extension
+    from wirely.runtime.extensions import NativeFunction, NativeInitializer, NativeProcedure, RuntimeNativeExtension
+    from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
+    from tests.infra.native_extension.generated import extension as fixture
+
+    tables: tuple[dict[str, Any], ...] = (
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.states.items()},
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.procedures.items()},
+        {name: entry.signature for ext in (extension, fixture) for name, entry in ext.functions.items()},
+    )
+    if contracts is not None:
+        for table, entries in zip(tables, contracts.interfaces):
+            table.update(entries)
+
+    def load(kind: str, name: str, factory: Any) -> Any:
+        _, attribute = contract_location(kind, name)
+        contract = getattr(contracts, attribute, factory) if contracts is not None else factory
+        cls = StateImplementation if kind == 'initializer' else ProcedureImplementation
+        return lambda: cls(factory, contract._adapter)
+
+    def loader(value: Any) -> Callable[[], Any]:
+        return lambda: value
+
+    return RuntimeNativeExtension(
+        states={name: NativeInitializer(tables[0][name], load('initializer', name, factory))
+                for name, factory in initializers.items()},
+        procedures={name: NativeProcedure(tables[1][name], load('procedure', name, factory))
+                    for name, factory in procedures.items()},
+        resources={name: loader(cls) for name, cls in resources.items()},
+        functions={name: NativeFunction(tables[2][name], loader(value))
+                   for name, value in functions.items()},
+    )
+
+
+def test_constant_function(native_name: str, implementation: Callable[..., object], signature: Any) -> Any:
+    """Build a constant function entry with an explicit signature."""
+    from wirely.compiler.extensions import NativeConstantFunction
+    from wirely.compiler.native_functions import ConstantFunctionContract, ConstantFunctionImplementation
+
+    def call(implementation: Callable[..., object], arguments: Sequence[object], services: object) -> object:
+        return implementation(*arguments, services=services)
+
+    return NativeConstantFunction(signature, lambda: ConstantFunctionImplementation(
+        implementation, ConstantFunctionContract(native_name, call)))
+
+
+def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine:
+    """Create an engine using the test fixture extension."""
+    from tests.infra.native_extension.generated import extension
+    return Engine(program, extensions=[extension], **kwargs)

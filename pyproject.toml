@@ -46,7 +46,7 @@ namespaces = true
 wirely = ["compiler/wirely.lark", "lib/*.wrl"]
 
 [tool.mypy]
-files = ["wirely"]
+files = ["wirely", "tests/infra"]
 check_untyped_defs = true
 disallow_untyped_defs = true
 
