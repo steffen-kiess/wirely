@@ -12,8 +12,8 @@ states: dict[str, Callable[[], StateImplementation]] = {
 
 
 def _load_procedures_test_library_test_node_test_procedure() -> ProcedureImplementation:
-    from test.fixtures.native_extension.generated.test_library import TestNodeTestProcedure
-    from test.fixtures.native_extension.native.test_library import TestNode
+    from tests.infra.native_extension.generated.test_library import TestNodeTestProcedure
+    from tests.infra.native_extension.native.test_library import TestNode
 
     def create() -> TestNodeTestProcedure:
         return TestNode.TestProcedure()
@@ -27,20 +27,20 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
 
 
 def _load_functions_test_library__clamp() -> FunctionImplementation:
-    from test.fixtures.native_extension.generated.test_library import _Clamp
-    from test.fixtures.native_extension.functions.test_library import clamp
+    from tests.infra.native_extension.generated.test_library import _Clamp
+    from tests.infra.native_extension.functions.test_library import clamp
     return _Clamp.implementation(clamp)
 
 
 def _load_functions_test_library__fail() -> FunctionImplementation:
-    from test.fixtures.native_extension.generated.test_library import _Fail
-    from test.fixtures.native_extension.functions.test_library import fail
+    from tests.infra.native_extension.generated.test_library import _Fail
+    from tests.infra.native_extension.functions.test_library import fail
     return _Fail.implementation(fail)
 
 
 def _load_functions_test_library__nothing() -> FunctionImplementation:
-    from test.fixtures.native_extension.generated.test_library import _Nothing
-    from test.fixtures.native_extension.functions.test_library import nothing
+    from tests.infra.native_extension.generated.test_library import _Nothing
+    from tests.infra.native_extension.functions.test_library import nothing
     return _Nothing.implementation(nothing)
 
 

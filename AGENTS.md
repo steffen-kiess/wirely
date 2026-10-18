@@ -6,7 +6,7 @@
 compiler, engine, standard libraries in `lib/`, Python native node types
 in `native/`, and the graphical editor in `editor/`, whose `program`,
 `graph_model`, and `layout` modules do not depend on Qt. From a checkout,
-use `tools/wirely` for the main CLI. `test/` contains compiler fixtures
+use `tools/wirely` for the main CLI. `tests/` contains compiler fixtures
 and runtime/component tests, with `wirely/test.py` as their test runner.
 `examples/` contains sample programs and device configuration.
 
@@ -33,7 +33,7 @@ in Markdown as `wirely`.
 
 When changing a node type, check its `.wrl` declaration in `wirely/lib/`, its
 Python implementation in `wirely/native/`, and any paired fixture in
-`test/`. Keep names, parameters, and value types aligned.
+`tests/`. Keep names, parameters, and value types aligned.
 
 ## Documentation
 
@@ -58,11 +58,11 @@ added sentence for practical value to the intended reader.
 Read the [test guide](doc/tests.md) for test structure, authoring conventions,
 and execution commands.
 
-Additions or substantive changes to `test/wrl/` or `test/misc/` require careful
+Additions or substantive changes to `tests/wrl/` or `tests/misc/` require careful
 review to preserve coverage; routine import or path adjustments are exceptions.
 
 Test compiler behavior with `.wrl` fixtures and Wirely `assert` statements.
-Keep `test/compiler/` free of Python files. Do not test compiler
+Keep `tests/compiler/` free of Python files. Do not test compiler
 representations such as ASTs, graphs, or inferred usage, or compiler
 evaluation mechanics through Python callbacks. Use compilation as setup
 when needed to test runtime or native Python APIs; keep language checks in

@@ -200,7 +200,7 @@ def strict_interface_error(sources):
 # Both checks share one parse of the libraries and of each case.
 parse_cache = ParseCache(max_entries=None)
 for name in runner.negative_tests:
-    filename = 'test/' + name + '.wrl'
+    filename = 'tests/' + name + '.wrl'
     with open(filename, encoding='utf-8') as file:
         text = file.read()
     for case in runner.negative_test_cases(text):

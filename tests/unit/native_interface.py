@@ -792,7 +792,7 @@ connect number -> stateful.Number;
 
         def link(state_types=state_types, procedures=procedures, functions=functions):
             from wirely.runtime.extensions import NativeInitializer, NativeProcedure, NativeFunction
-            from test.fixtures.native_extension.generated import extension as fixture
+            from tests.infra.native_extension.generated import extension as fixture
             bindings = test_extension(**registry, contracts=contracts,
                                       resources={'TestLibrary.ProbeState': Stateful})
             extension = RuntimeNativeExtension(

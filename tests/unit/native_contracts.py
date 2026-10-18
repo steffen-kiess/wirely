@@ -61,7 +61,7 @@ def check_names():
     # Generated loaders carry direct adapters, without contract-location strings.
     from wirely.generated import _bindings as native_bindings
     from wirely.generated import mqtt
-    from test.fixtures.native_extension.generated import test_library, extension as fixture
+    from tests.infra.native_extension.generated import test_library, extension as fixture
     assert native_bindings.procedures['MQTT.EventSender:send_value']().adapter is mqtt.EventSenderSendValue._adapter
     assert fixture.functions['TestLibrary.Clamp'].load().contract is test_library._Clamp
 

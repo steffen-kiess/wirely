@@ -391,7 +391,7 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
 
     # Diagnostics are printed only on failure, so expected warnings stay silent.
     diagnostics: list[Diagnostic] = []
-    from test.fixtures.native_extension.generated import extension
+    from tests.infra.native_extension.generated import extension
     global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=diagnostics.append,
                                                     extensions=[extension])
     prog = None if global_node_type is None else program_compiler.compile(global_node_type,
@@ -476,8 +476,8 @@ def test_contracts(graph: object) -> Iterator[types.ModuleType]:
     """Generate test contracts locally without changing binding tables."""
     from wirely.compiler import native_contracts
     from wirely.compiler.native_signatures import native_signatures
-    from test.fixtures.native_extension.generated import extension
-    from test.fixtures.native_extension.generated import test_library
+    from tests.infra.native_extension.generated import extension
+    from tests.infra.native_extension.generated import test_library
 
     declared = native_signatures(cast(model.Scope, graph), 'TestLibrary')
     tables: tuple[dict[str, Any], ...] = (
@@ -510,7 +510,7 @@ def test_extension(*, contracts: types.ModuleType | None = None, initializers: M
     from wirely.generated import extension
     from wirely.runtime.extensions import NativeFunction, NativeInitializer, NativeProcedure, RuntimeNativeExtension
     from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
-    from test.fixtures.native_extension.generated import extension as fixture
+    from tests.infra.native_extension.generated import extension as fixture
 
     tables: tuple[dict[str, Any], ...] = (
         {name: entry.signature for ext in (extension, fixture) for name, entry in ext.states.items()},
@@ -555,7 +555,7 @@ def test_constant_function(native_name: str, implementation: Callable[..., objec
 
 def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine:
     """Create an engine using the test fixture extension."""
-    from test.fixtures.native_extension.generated import extension
+    from tests.infra.native_extension.generated import extension
     return Engine(program, extensions=[extension], **kwargs)
 
 
@@ -807,7 +807,7 @@ async def run_python_test(filename: str, *, engine: Engine | None = None) -> Non
 
 async def run_python_only_test(test_name: str) -> None:
     print(f'Running test {test_name}')
-    filename = Path(__file__).resolve().parent.parent / 'test' / (test_name + '.py')
+    filename = Path(__file__).resolve().parent.parent / 'tests' / (test_name + '.py')
     await run_python_test(str(filename))
     print(f'Done running test {test_name}')
 
@@ -817,8 +817,8 @@ async def run_runtime_test(test_name: str) -> None:
 
     with contextlib.ExitStack() as resource_stack:
         resources = TestResourceProvider(resource_stack)
-        py_fn = os.path.dirname(__file__) + f'/../test/{test_name}.py'
-        prog = compile_checked(f'test/{test_name}.wrl', services={TEST_RESOURCES_SERVICE: resources})
+        py_fn = os.path.dirname(__file__) + f'/../tests/{test_name}.py'
+        prog = compile_checked(f'tests/{test_name}.wrl', services={TEST_RESOURCES_SERVICE: resources})
 
         with open(os.devnull, 'w') as file:
             prog.dump(file=file)
@@ -843,9 +843,9 @@ def run_named_test(name: str) -> None:
     if name in example_tests:
         compile_test(name + '.wrl')
     elif name in to_compile:
-        compile_test('test/' + name + '.wrl')
+        compile_test('tests/' + name + '.wrl')
     elif name in negative_tests:
-        compile_negative_test('test/' + name + '.wrl')
+        compile_negative_test('tests/' + name + '.wrl')
     elif name in python_only_tests:
         asyncio.run(run_python_only_test(name))
     else:

@@ -87,7 +87,7 @@ checkout launchers:
 
 ```
 tools/setup-venv
-tools/wirely compile test/compiler/simple.wrl
+tools/wirely compile tests/compiler/simple.wrl
 tools/run-tests
 ```
 

@@ -37,13 +37,16 @@ while no other test runs in the same process, on its main thread.
 
 | Location | Purpose | Registration in `wirely/test.py` |
 | --- | --- | --- |
-| `test/repo/` | Repository consistency checks | `python_only_tests` |
-| `test/misc/` | Miscellaneous checks | `python_only_tests` |
-| `test/unit/` | Python API, runtime, editor, and infrastructure checks | `python_only_tests` or `runtime_tests` |
-| `test/wrl/` | End-to-end behavior of compiled Wirely programs | `runtime_tests` |
-| `test/compiler/` | Accepted language forms and compile-time assertions | `to_compile` |
-| `test/negative/` | Rejected language forms and expected diagnostics | `negative_tests` |
+| `tests/repo/` | Repository consistency checks | `python_only_tests` |
+| `tests/misc/` | Miscellaneous checks | `python_only_tests` |
+| `tests/unit/` | Python API, runtime, editor, and infrastructure checks | `python_only_tests` or `runtime_tests` |
+| `tests/wrl/` | End-to-end behavior of compiled Wirely programs | `runtime_tests` |
+| `tests/compiler/` | Accepted language forms and compile-time assertions | `to_compile` |
+| `tests/negative/` | Rejected language forms and expected diagnostics | `negative_tests` |
 | `examples/` | Example compilation and engine construction | `example_tests` |
+
+`tests/infra/` contains test infrastructure rather than tests, such as the
+`TestLibrary` native extension that compilations of test fixtures include.
 
 `repo/files` checks that existing Python and Wirely test files and Wirely
 examples match the registered files. It reports missing and unlisted files.
@@ -76,7 +79,7 @@ independent.
 ## Compiler fixtures
 
 Accepted fixtures use Wirely `assert` statements. Register their
-paths relative to `test/`, without `.wrl`, in `to_compile`; use
+paths relative to `tests/`, without `.wrl`, in `to_compile`; use
 `negative_tests` for rejection fixtures.
 The runner compiles accepted fixtures and constructs an engine;
 it does not step the engine. Runtime behavior needs a Python test.

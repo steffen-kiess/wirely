@@ -10,8 +10,8 @@ loader = importlib.machinery.SourceFileLoader('generate_native_types', str(root 
 generator = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
 loader.exec_module(generator)
 files = generator.generated_files()
-files.update(generator.generated_files([root / "test/fixtures/native_extension/library.wrl"],
-                                       package="test.fixtures.native_extension", output_root=root))
+files.update(generator.generated_files([root / "tests/infra/native_extension/library.wrl"],
+                                       package="tests.infra.native_extension", output_root=root))
 outdated = [str(path.relative_to(root)) for path, content in files.items()
             if not path.exists() or path.read_text(encoding='utf-8') != content]
 outdated += [str(path.relative_to(root)) for path in generator.obsolete_files(files)]

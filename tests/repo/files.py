@@ -6,20 +6,20 @@ from wirely.test import example_tests, negative_tests, python_only_tests, runtim
 root = Path(__file__).resolve().parents[2]
 expected_files = [
     *(root / (name + '.wrl') for name in example_tests),
-    *(root / f'test/{name}.wrl' for name in negative_tests),
-    *(root / f'test/{name}.py' for name in python_only_tests),
-    *(root / f'test/{name}{suffix}' for name in runtime_tests for suffix in ('.py', '.wrl')),
-    *(root / f'test/{name}.wrl' for name in to_compile),
+    *(root / f'tests/{name}.wrl' for name in negative_tests),
+    *(root / f'tests/{name}.py' for name in python_only_tests),
+    *(root / f'tests/{name}{suffix}' for name in runtime_tests for suffix in ('.py', '.wrl')),
+    *(root / f'tests/{name}.wrl' for name in to_compile),
 ]
 existing_files = [
     *(root / 'examples').rglob('*.wrl'),
-    *(root / 'test').rglob('*.wrl'),
-    *(root / 'test').rglob('*.py'),
+    *(root / 'tests').rglob('*.wrl'),
+    *(root / 'tests').rglob('*.py'),
 ]
 expected = set(expected_files)
-# Fixture packages provide test data and implementations, rather than runnable tests.
+# The test infrastructure, including fixture packages, is not a runnable test.
 existing = {path for path in existing_files
-            if not path.is_relative_to(root / 'test/fixtures') and path != root / 'test/__init__.py'}
+            if not path.is_relative_to(root / 'tests/infra') and path != root / 'tests/__init__.py'}
 assert expected == existing, (
     f'Missing files: {sorted(str(path.relative_to(root)) for path in expected - existing)}\n'
     f'Unlisted files: {sorted(str(path.relative_to(root)) for path in existing - expected)}'

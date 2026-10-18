@@ -1,4 +1,4 @@
-from test.fixtures.native_extension.generated import test_library as contracts
+from tests.infra.native_extension.generated import test_library as contracts
 from wirely.runtime.native_api import ProcedureServices
 
 

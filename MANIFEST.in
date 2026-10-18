@@ -1,8 +1,8 @@
 include CHANGELOG.md
 recursive-include doc *.md
 recursive-include examples *.wrl
-recursive-include test *.py *.wrl
-include test/wrl/username_password.txt
+recursive-include tests *.py *.wrl
+include tests/wrl/username_password.txt
 include tools/build-pex
 include tools/git_write_wd_tree.py
 include tools/run-tests

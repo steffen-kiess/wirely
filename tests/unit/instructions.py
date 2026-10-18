@@ -3,7 +3,7 @@ from unittest import TestCase
 
 import wirely
 from wirely import types
-from test.fixtures.native_extension.generated import test_library as contracts
+from tests.infra.native_extension.generated import test_library as contracts
 from wirely.test import test_extension
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
@@ -58,7 +58,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
 
 def execute(instructions, *, override_extensions=(), **kwargs):
     program = make_program(instructions, **kwargs)
-    from test.fixtures.native_extension.generated import extension as fixture
+    from tests.infra.native_extension.generated import extension as fixture
     machine = Engine(program, extensions=[fixture], override_extensions=override_extensions)
     machine.step()
     return tuple(machine.get_value(name) for name in program.variables)

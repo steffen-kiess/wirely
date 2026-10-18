@@ -9,7 +9,7 @@ from wirely.test import test_extension, test_contracts, test_engine
 def counted_function(function_name):
     """Return recorded calls and an extension wrapping a function."""
     from wirely.runtime.extensions import resolve_extensions
-    from test.fixtures.native_extension.generated import extension as fixture
+    from tests.infra.native_extension.generated import extension as fixture
     binding = resolve_extensions([fixture]).functions[function_name].load()
     calls = []
 
@@ -70,7 +70,7 @@ def check_main_program():
 
 
 def compile_program(source, *, add_std=False):
-    from test.fixtures.native_extension.generated import extension as fixture
+    from tests.infra.native_extension.generated import extension as fixture
     graph = wirely.compiler.compile_strs([('<procedures>', source)], add_std=add_std, extensions=[fixture])
     assert graph is not None
     program = program_compiler.compile(graph)
@@ -592,7 +592,7 @@ def check_native_functions():
     function_engine.assert_is_idle()
 
     # An exception from a runtime function is an internal error, not a program error.
-    from test.fixtures.native_extension.generated import extension as fixture
+    from tests.infra.native_extension.generated import extension as fixture
     diagnostics = []
     graph = wirely.compiler.compile_strs([('<fail>', '''namespace TestLibrary {
       native function Fail(): boolean;
@@ -721,7 +721,7 @@ check_mutation()
 def check_multi_procedures():
     # Compile the accepted language fixture as setup for runtime checks. The
     # flattening order checked below follows declaration order, so do not shuffle.
-    fixture = 'test/compiler/multi_procedures.wrl'
+    fixture = 'tests/compiler/multi_procedures.wrl'
     with open(fixture, encoding='utf-8') as file:
         graph = wirely.compiler.compile_strs([(fixture, file.read())], add_std=True, shuffle_seed=None)
     machine = test_engine(program_compiler.compile(graph))
