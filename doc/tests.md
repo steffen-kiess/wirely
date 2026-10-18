@@ -1,11 +1,12 @@
 # Tests
 
-Run `tools/run-tests` from a checkout. Pass registered names to select tests;
-add `--timings` to list durations, slowest first:
+Run `tools/run-tests` from a checkout. Pass registered names or directories
+to select tests; add `--timings` to list durations, slowest first:
 
 ```sh
 tools/run-tests --timings repo/files unit/types wrl/equality
 tools/run-tests compiler/types negative/runtime_types examples/test
+tools/run-tests compiler
 ```
 
 The launcher uses `venv/bin/python`, or the current interpreter when no venv

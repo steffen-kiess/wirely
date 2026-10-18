@@ -824,17 +824,18 @@ def main() -> None:
     parser.add_argument('--keep-going', action='store_true',
                         help='Run the remaining tests after a failure and list the failed tests at the end')
     parser.add_argument('names', nargs='*', metavar='TEST',
-                        help='Extensionless test names (default: all tests)')
+                        help='Extensionless test names or directories (default: all tests)')
     args = parser.parse_intermixed_args()
-    names = args.names
-    for name in names:
-        if (name not in example_tests and name not in to_compile and name not in negative_tests
-                and name not in python_only_tests and name not in runtime_tests):
-            raise Exception(f'Unknown test name {name!r}')
-    if len(names) == 0:
-        names = None
-    else:
-        names = set(names)
+    names: set[str] | None = None
+    if args.names:
+        all_names = set(example_tests + to_compile + negative_tests + python_only_tests + runtime_tests)
+        names = set()
+        for selector in args.names:
+            prefix = selector.rstrip('/') + '/'
+            matches = {name for name in all_names if name == selector or name.startswith(prefix)}
+            if not matches:
+                raise Exception(f'Unknown test name {selector!r}')
+            names.update(matches)
 
     durations = []
     failed = []

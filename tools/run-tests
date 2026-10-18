@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--keep-going', action='store_true',
                         help='Run the remaining tests after a failure and list the failed tests at the end')
     parser.add_argument('names', nargs='*', metavar='TEST',
-                        help='Extensionless test names (default: all tests)')
+                        help='Extensionless test names or directories (default: all tests)')
     args = parser.parse_intermixed_args()
     python = args.python
     if python and (os.sep in python or (os.altsep and os.altsep in python)):
