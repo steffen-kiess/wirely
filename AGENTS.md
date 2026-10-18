@@ -72,6 +72,12 @@ preserving distinct boundaries.
 
 ## Working practices
 
+When restructuring code, preserve existing behavior and comments, including
+TODOs, explanations, and debugging notes, unless the change gives a concrete
+reason to remove or update them. Moving or indenting code is not such a
+reason. Remove TODOs resolved by the change; retain unresolved ones with
+the relevant code. Do not shorten comments in ways that lose their meaning.
+
 Prefer a focused test for the affected node type, then run the full suite when
 its external services are available. State clearly when a required
 dependency prevents a test from running.
