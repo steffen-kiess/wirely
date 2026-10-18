@@ -103,6 +103,9 @@ slowest first:
 tools/run-tests --timings unit/types wrl/equality
 ```
 
+Add `--processes 4` to run the tests in four worker processes; see the
+[test guide](doc/tests.md) for the options.
+
 To check that compilation does not depend on declaration order, set
 `WIRELY_COMPILER_SHUFFLE_SEED` to an integer. The compiler then shuffles
 declarations, node parameters, procedure ports, `uses` bindings, and open

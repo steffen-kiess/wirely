@@ -14,6 +14,10 @@ def main():
                         help='List test durations, slowest first, at the end')
     parser.add_argument('--keep-going', action='store_true',
                         help='Run the remaining tests after a failure and list the failed tests at the end')
+    parser.add_argument('--processes', type=int, default=1, metavar='N',
+                        help='Run tests in N worker processes (default: 1, serial)')
+    parser.add_argument('--threads', type=int, default=1, metavar='N',
+                        help='Run up to N tests concurrently in each worker process (default: 1)')
     parser.add_argument('names', nargs='*', metavar='TEST',
                         help='Extensionless test names or directories (default: all tests)')
     args = parser.parse_intermixed_args()
@@ -32,6 +36,7 @@ def main():
 
     os.chdir(repository_root)
     runner_args = (['--timings'] if args.timings else []) + (['--keep-going'] if args.keep_going else [])
+    runner_args += ['--processes', str(args.processes), '--threads', str(args.threads)]
     return subprocess.run(
         [python, '-m', 'wirely.test', *runner_args, *args.names],
     ).returncode

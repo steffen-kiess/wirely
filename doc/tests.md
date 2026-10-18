@@ -14,6 +14,25 @@ exists. `--python PATH` selects another interpreter. The runner stops at the
 first failure; with `--keep-going`, it runs the remaining tests, lists the
 failed ones at the end, and exits with an error.
 
+By default, the runner runs the tests one after another in its own process.
+`--processes N` runs them in N worker processes, and `--threads N` runs up to
+N tests at a time in each worker. In these runs, each test's output appears
+as one block when the test finishes, and failed tests are listed at the end.
+Without `--keep-going`, no further tests start after a failure.
+
+```sh
+tools/run-tests --processes 4
+```
+
+Use processes for parallel runs. Tests in one process share the Python
+interpreter lock, so with `--threads` above 1, timing-sensitive tests such as
+`wrl/mqtt` and `wrl/knx` can fail next to CPU-bound tests.
+
+List tests that change process-wide state in `exclusive_tests` in
+`wirely/test.py`: tests using Qt, `unittest.mock.patch()` of module
+attributes or `os.environ`, or `contextlib.redirect_stdout()`. They run only
+while no other test runs in the same process, on its main thread.
+
 ## Categories
 
 | Location | Purpose | Registration in `wirely/test.py` |

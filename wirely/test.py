@@ -16,6 +16,9 @@ import pwd
 import shlex
 import signal
 import argparse
+import multiprocessing
+import queue
+import threading
 import dataclasses
 import itertools
 import types
@@ -202,6 +205,24 @@ negative_tests = [
     'negative/attributes',
     'negative/syntax_lists',
     'negative/weak_keywords',
+]
+
+# Tests that change process-wide state, so that no other test may run in the
+# same process at the same time: Qt (which also needs the main thread),
+# patch() of module attributes or os.environ, and redirect_stdout().
+exclusive_tests = [
+    'unit/editor_widgets',
+    'unit/editor_workspace',
+    'unit/editor_export',
+    'unit/negative_cases',
+    'unit/runtime_program',
+    'unit/types',
+    'unit/test_resources',
+    'unit/library_configuration',
+    'unit/control',
+    'unit/container',
+    'wrl/std',
+    'wrl/event_bindings',
 ]
 
 annotation_pattern = re.compile(r'\s*(\^*)([EHW]):\s*(.*?)\s*$')
@@ -817,55 +838,274 @@ async def run_runtime_test(test_name: str) -> None:
     print(f'Done running test {test_name}')
 
 
+def run_named_test(name: str) -> None:
+    if name in example_tests:
+        compile_test(name + '.wrl')
+    elif name in to_compile:
+        compile_test('test/' + name + '.wrl')
+    elif name in negative_tests:
+        compile_negative_test('test/' + name + '.wrl')
+    elif name in python_only_tests:
+        asyncio.run(run_python_only_test(name))
+    else:
+        asyncio.run(run_runtime_test(name))
+
+
+class _ThreadOutput(io.TextIOBase):
+    """A stream writing to the current thread's buffer, if it has one."""
+
+    def __init__(self, original: Any) -> None:
+        self.original = original
+        self.local = threading.local()
+
+    def _target(self) -> Any:
+        buffer = getattr(self.local, 'buffer', None)
+        return self.original if buffer is None else buffer
+
+    def write(self, text: str) -> int:
+        return cast(int, self._target().write(text))
+
+    def flush(self) -> None:
+        self._target().flush()
+
+    def fileno(self) -> int:
+        return cast(int, self.original.fileno())
+
+    def isatty(self) -> bool:
+        return cast(bool, self.original.isatty())
+
+    @property
+    def encoding(self) -> str:  # type: ignore[override]
+        return cast(str, self.original.encoding)
+
+
+class _ProcessLock:
+    """Lets tests in one process run concurrently, or one exclusive test alone."""
+
+    def __init__(self) -> None:
+        self.condition = threading.Condition()
+        self.shared = 0
+        self.exclusive = False
+        self.waiting_exclusive = 0
+
+    @contextlib.contextmanager
+    def hold(self, exclusive: bool) -> Iterator[None]:
+        with self.condition:
+            if exclusive:
+                self.waiting_exclusive += 1
+                self.condition.wait_for(lambda: not self.exclusive and self.shared == 0)
+                self.waiting_exclusive -= 1
+                self.exclusive = True
+            else:
+                self.condition.wait_for(lambda: not self.exclusive and self.waiting_exclusive == 0)
+                self.shared += 1
+        try:
+            yield
+        finally:
+            with self.condition:
+                if exclusive:
+                    self.exclusive = False
+                else:
+                    self.shared -= 1
+                self.condition.notify_all()
+
+
+@contextlib.contextmanager
+def _captured_descriptors(output: io.StringIO) -> Iterator[None]:
+    """Capture file descriptors 1 and 2, including output of child processes."""
+    sys.stdout.flush()
+    sys.stderr.flush()
+    saved = [os.dup(1), os.dup(2)]
+    with tempfile.TemporaryFile() as capture:
+        os.dup2(capture.fileno(), 1)
+        os.dup2(capture.fileno(), 2)
+        try:
+            yield
+        finally:
+            sys.stdout.flush()
+            sys.stderr.flush()
+            os.dup2(saved[0], 1)
+            os.dup2(saved[1], 2)
+            for descriptor in saved:
+                os.close(descriptor)
+            capture.seek(0)
+            output.write(capture.read().decode('utf-8', errors='replace'))
+
+
+def _worker(threads: int, normal: Any, exclusive: Any, results: Any, stop: Any) -> None:
+    """Run tests from the queues until their stop markers; report to results."""
+    for stream in (sys.stdout, sys.stderr):
+        cast(io.TextIOWrapper, stream).reconfigure(line_buffering=True)
+    stdout, stderr = _ThreadOutput(sys.stdout), _ThreadOutput(sys.stderr)
+    sys.stdout, sys.stderr = stdout, stderr  # type: ignore[assignment]
+    lock = _ProcessLock()
+
+    def run(name: str, is_exclusive: bool) -> None:
+        if stop.is_set():
+            return
+        results.put(('started', os.getpid(), name))
+        output = io.StringIO()
+        error = None
+        with lock.hold(is_exclusive):
+            start = time.perf_counter()
+            alone = is_exclusive or threads == 1
+            try:
+                if alone:
+                    with _captured_descriptors(output):
+                        run_named_test(name)
+                else:
+                    stdout.local.buffer = stderr.local.buffer = output
+                    try:
+                        run_named_test(name)
+                    finally:
+                        stdout.local.buffer = stderr.local.buffer = None
+            except KeyboardInterrupt:
+                raise
+            except BaseException:
+                error = traceback.format_exc()
+        results.put(('finished', os.getpid(), name, time.perf_counter() - start, output.getvalue(), error))
+
+    def consume(tasks: Any, is_exclusive: bool) -> None:
+        while (name := tasks.get()) is not None:
+            run(name, is_exclusive)
+
+    # Exclusive tests run on the main thread, which Qt requires.
+    helpers = [threading.Thread(target=consume, args=(normal, False)) for _ in range(threads - 1)]
+    for helper in helpers:
+        helper.start()
+    consume(exclusive, True)
+    consume(normal, False)
+    for helper in helpers:
+        helper.join()
+    results.put(('exit', os.getpid()))
+
+
+def run_parallel(names: Sequence[str], *, processes: int, threads: int, keep_going: bool,
+                 durations: list[tuple[str, float]], failed: list[str]) -> None:
+    """Run tests in worker processes; record durations and failed tests."""
+    context = multiprocessing.get_context('spawn')
+    normal, exclusive, results = context.Queue(), context.Queue(), context.Queue()
+    stop = context.Event()
+    for name in names:
+        (exclusive if name in exclusive_tests else normal).put(name)
+    for _ in range(processes):
+        exclusive.put(None)
+    for _ in range(processes * threads):
+        normal.put(None)
+
+    workers: dict[int, Any] = {}
+    for _ in range(processes):
+        process = context.Process(target=_worker, args=(threads, normal, exclusive, results, stop))
+        process.start()
+        assert process.pid is not None
+        workers[process.pid] = process
+    running: dict[int, set[str]] = {pid: set() for pid in workers}
+    exited: set[int] = set()
+
+    def handle(message: tuple[Any, ...]) -> None:
+        kind, pid = message[0], message[1]
+        if kind == 'started':
+            running[pid].add(message[2])
+        elif kind == 'finished':
+            _, _, name, duration, output, error = message
+            running[pid].discard(name)
+            durations.append((name, duration))
+            sys.stdout.write(output)
+            sys.stdout.flush()
+            if error is not None:
+                print(error, file=sys.stderr, end='', flush=True)
+                failed.append(name)
+                if not keep_going:
+                    stop.set()
+        else:
+            exited.add(pid)
+
+    try:
+        while len(exited) < len(workers):
+            try:
+                handle(results.get(timeout=0.5))
+                continue
+            except queue.Empty:
+                pass
+            for pid, process in workers.items():
+                if pid in exited or process.is_alive():
+                    continue
+                # Messages sent before the worker ended arrive first.
+                with contextlib.suppress(queue.Empty):
+                    while pid not in exited:
+                        handle(results.get(timeout=0.5))
+                if pid in exited:
+                    continue
+                exited.add(pid)
+                for name in sorted(running[pid]):
+                    print(f'Test {name} failed: worker exited with code {process.exitcode}',
+                          file=sys.stderr, flush=True)
+                    failed.append(name)
+                if not running[pid]:
+                    print(f'Worker exited with code {process.exitcode}', file=sys.stderr, flush=True)
+                    failed.append(f'(worker exited with code {process.exitcode})')
+                # The other workers take over its remaining tests.
+                if not keep_going:
+                    stop.set()
+    finally:
+        for process in workers.values():
+            if process.is_alive() and stop.is_set() and len(exited) < len(workers):
+                process.terminate()
+            process.join()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description='Run Wirely tests')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
     parser.add_argument('--keep-going', action='store_true',
                         help='Run the remaining tests after a failure and list the failed tests at the end')
+    parser.add_argument('--processes', type=int, default=1, metavar='N',
+                        help='Run tests in N worker processes (default: 1, serial in this process)')
+    parser.add_argument('--threads', type=int, default=1, metavar='N',
+                        help='Run up to N tests concurrently in each worker process (default: 1)')
     parser.add_argument('names', nargs='*', metavar='TEST',
                         help='Extensionless test names or directories (default: all tests)')
     args = parser.parse_intermixed_args()
-    names: set[str] | None = None
+    if args.processes < 1 or args.threads < 1:
+        parser.error('--processes and --threads must be at least 1')
+    all_tests = example_tests + to_compile + negative_tests + python_only_tests + runtime_tests
+    unknown = set(exclusive_tests) - set(all_tests)
+    if unknown:
+        raise Exception(f'Unregistered exclusive tests: {sorted(unknown)!r}')
+    selected = set(all_tests)
     if args.names:
-        all_names = set(example_tests + to_compile + negative_tests + python_only_tests + runtime_tests)
-        names = set()
+        selected = set()
         for selector in args.names:
             prefix = selector.rstrip('/') + '/'
-            matches = {name for name in all_names if name == selector or name.startswith(prefix)}
+            matches = {name for name in all_tests if name == selector or name.startswith(prefix)}
             if not matches:
                 raise Exception(f'Unknown test name {selector!r}')
-            names.update(matches)
+            selected.update(matches)
+    names = [name for name in all_tests if name in selected]
 
-    durations = []
-    failed = []
+    durations: list[tuple[str, float]] = []
+    failed: list[str] = []
 
-    def run_one(run: Callable[[str], object], name: str) -> None:
+    def run_one(name: str) -> None:
         if not args.keep_going:
-            run(name)
+            run_named_test(name)
             return
         try:
-            run(name)
+            run_named_test(name)
         except Exception:
             traceback.print_exc()
             failed.append(name)
 
-    groups = [(example_tests, lambda name: compile_test(name + '.wrl')),
-              (to_compile, lambda name: compile_test('test/' + name + '.wrl')),
-              (negative_tests, lambda name: compile_negative_test('test/' + name + '.wrl')),
-              (python_only_tests, lambda name: asyncio.run(run_python_only_test(name))),
-              (runtime_tests, lambda name: asyncio.run(run_runtime_test(name)))]
     try:
-        for group, run in groups:
-            for name in group:
-                if names is not None and name not in names:
-                    continue
-                if not args.timings:
-                    run_one(run, name)
-                    continue
+        if args.processes > 1 or args.threads > 1:
+            run_parallel(names, processes=args.processes, threads=args.threads, keep_going=args.keep_going,
+                         durations=durations, failed=failed)
+        else:
+            for name in names:
                 start = time.perf_counter()
                 try:
-                    run_one(run, name)
+                    run_one(name)
                 finally:
                     durations.append((name, time.perf_counter() - start))
     finally:
@@ -874,9 +1114,10 @@ def main() -> None:
             for name, elapsed in sorted(durations, key=lambda item: (-item[1], item[0])):
                 print(f'  {elapsed:.3f}s  {name}', flush=True)
     if failed:
-        print('\nFailed tests:', flush=True)
-        for name in failed:
-            print(f'  {name}', flush=True)
+        if args.keep_going or args.processes > 1 or args.threads > 1:
+            print('\nFailed tests:', flush=True)
+            for name in failed:
+                print(f'  {name}', flush=True)
         sys.exit(1)
 
 
