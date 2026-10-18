@@ -5,14 +5,13 @@ import typing
 
 from wirely.compiler.attributes import copy_attributes
 from wirely.compiler import model
-from wirely.util import check_parameters
 from wirely.compiler.types import check_runtime_type
 
-from .base import Value, SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration, syntax
+from .base import Value, SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration
 from .specifiers import ListSpecifier, ConnectionKindSpecifier, ConnectionKind, PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationPort(Declaration):
     name: Identifier | None
     direction_spec: PortDirectionSpecifier
@@ -51,13 +50,11 @@ class DeclarationPort(Declaration):
             object.__setattr__(self, 'name_str', self.name.id_str)
 
     @staticmethod
-    @check_parameters
     def create(direction_spec: PortDirectionSpecifier, name: Identifier, port_spec : PortTypeSpecification, *,
                source_position: SourcePosition) -> 'DeclarationPort':
         return DeclarationPort(name, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
 
     @staticmethod
-    @check_parameters
     def create_default(direction_spec: PortDirectionSpecifier, port_spec : PortTypeSpecification, *,
                        source_position: SourcePosition) -> 'DeclarationPort':
         return DeclarationPort(None, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)

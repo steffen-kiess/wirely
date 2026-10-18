@@ -5,13 +5,13 @@ from typing import Any
 
 from wirely.compiler import model
 
-from .base import SourcePosition, CompilerHint, Declaration, ProgramError, Identifier, syntax
+from .base import SourcePosition, CompilerHint, Declaration, ProgramError, Identifier
 from .scope import Scope
 from .type_declarations import DeclarationStructType, DeclarationEnumType, DeclarationResourceType
 from .functions import DeclarationNativeFunction
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationLibrary(Declaration):
     """A namespace block. Blocks with the same name in a scope declare one Namespace."""
 

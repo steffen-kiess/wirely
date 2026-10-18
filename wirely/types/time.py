@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import overload
 
 import wirely
-from wirely.util import check_parameters
 
 # Time values count units of 2**-64 seconds.
 TICKS_PER_SECOND = 2**64
@@ -44,7 +43,6 @@ class MonotonicTime:
     MAX_GENERATION = 2**64 - 1
     MAX_TICKS = 2**128 - 1
 
-    @check_parameters
     def __init__(self, *, generation: int, ticks: int):
         if not 0 <= generation <= MonotonicTime.MAX_GENERATION or not 0 <= ticks <= MonotonicTime.MAX_TICKS:
             raise ValueError(f'Monotonic time out of range: generation {generation}, {ticks} units')
@@ -128,7 +126,6 @@ class Duration:
     # Largest duration, the range of the uint128 storage.
     MAX_TICKS = 2**128 - 1
 
-    @check_parameters
     def __init__(self, *, ticks: int):
         if ticks < 0:
             raise Exception('Negative durations are not allowed')
@@ -228,7 +225,6 @@ class TimeOfDay:
     # 24:00, the end of the day.
     END_TICKS = 86_400 * TICKS_PER_SECOND
 
-    @check_parameters
     def __init__(self, *, ticks: int):
         if not 0 <= ticks <= TimeOfDay.END_TICKS:
             raise ValueError(f'Time of day must be between 00:00 and 24:00, got {ticks} units')

@@ -31,7 +31,6 @@ from wirely.compiler import model
 from wirely.compiler import program as program_compiler
 from wirely.compiler.diagnostics import print_diagnostic
 from wirely.compiler.function_implementations.test import TEST_RESOURCES_SERVICE
-from wirely.util import check_parameters
 
 if TYPE_CHECKING:
     from wirely.compiler.diagnostics import Diagnostic
@@ -49,7 +48,6 @@ from wirely.runtime.engine import Engine
 python_only_tests = [
     'misc/grammar',
     'misc/type_check',
-    'unit/check_parameters',
     'unit/knx',
     'unit/runtime_program',
     'unit/compiler_api',

@@ -10,12 +10,12 @@ from wirely.compiler.stages import ResolutionState
 from wirely.compiler import model
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
-from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value, syntax
+from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value
 from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationResource
 from .values import Reference
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ParameterBinding(SyntaxElement):
     name: Identifier
     value: Value
@@ -33,7 +33,7 @@ class ParameterBinding(SyntaxElement):
         # return f'Parameter <{self.name}> [{self.name.source_position.start_line}] = <{self.value}>'
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Instantiation(SyntaxElement):
     type_name: Reference
     parameters: tuple[ParameterBinding, ...]
@@ -45,7 +45,7 @@ class Instantiation(SyntaxElement):
                              inner_attributes=getattr(parameters, 'inner_attributes', ()))
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationInstance(Declaration):
     name: Identifier
     instantiation: Instantiation
@@ -151,7 +151,7 @@ class ChildNode:
         )
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationConnection(Declaration):
     sources: tuple[Reference, ...]
     target: Reference
@@ -172,7 +172,7 @@ class DeclarationConnection(Declaration):
                 model.connect(source.port, res_target.port, self, attributes=attributes)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationState(Declaration):
     name: Identifier
     var_type: Value
@@ -306,7 +306,7 @@ def register_name(graph: 'model.NodeType', name: Identifier, declaration: Declar
     graph.name_declarations[name.id_str] = declaration
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationBinding(Declaration):
     """A named value, event, or resource connection with exactly one source."""
 

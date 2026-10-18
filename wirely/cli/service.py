@@ -10,7 +10,6 @@ import sys
 import logging
 
 from wirely.compiler import program as program_compiler
-from wirely.util import check_parameters
 
 # TODO: Where should this import be done?
 import wirely.compiler

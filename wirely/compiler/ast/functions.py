@@ -9,17 +9,17 @@ if TYPE_CHECKING:
 
 from wirely.compiler import model
 
-from .base import SourceElement, SyntaxElement, ProgramError, Declaration, Identifier, SourcePosition, Value, syntax
+from .base import SourceElement, SyntaxElement, ProgramError, Declaration, Identifier, SourcePosition, Value
 from .values import StringConstant
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class FunctionArgument(SyntaxElement):
     name: Identifier
     ty: Value
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationNativeFunction(Declaration):
     name: Identifier
     alias: StringConstant | None

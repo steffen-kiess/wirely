@@ -9,19 +9,18 @@ from typing import Any
 import lark
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 
-from .base import SourcePosition, SourceElement, SyntaxElement, CompilerHint, ProgramError, Identifier, Value, syntax
+from .base import SourcePosition, SourceElement, SyntaxElement, CompilerHint, ProgramError, Identifier, Value
 from .specifiers import PortDirection, PortDirectionSpecifier
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class UnitLiteral(Value):
     def __repr__(self) -> str:
         return 'UnitLiteral()'
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class IntNumber(Value):
     token: str
     _: dataclasses.KW_ONLY
@@ -55,7 +54,7 @@ class IntNumber(Value):
         return IntNumber(self.token, negative=not self.negative, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class FloatNumber(Value):
     token: str
     value: float = dataclasses.field(init=False)
@@ -69,7 +68,7 @@ class FloatNumber(Value):
         object.__setattr__(self, 'value', float(self.token))
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StringConstant(Value):
     token: str
     value: str = dataclasses.field(init=False)
@@ -157,17 +156,15 @@ class StringConstant(Value):
         return ''.join(result)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Reference(Value):
     identifiers: tuple[Identifier, ...]
 
     @staticmethod
-    @check_parameters
     def from_list(*identifiers: Identifier, source_position: SourcePosition) -> 'Reference':
         return Reference(identifiers, source_position=source_position)
 
     @staticmethod
-    @check_parameters
     def create_default(direction_spec: PortDirectionSpecifier, *, source_position: SourcePosition) -> 'Reference':
         direction = direction_spec.direction
         # TODO: Clean up
@@ -189,7 +186,6 @@ class Reference(Value):
     def length(self) -> int:
         return len(self.identifiers)
 
-    @check_parameters
     def resolve(self, graph: 'model.NodeType', direction: PortDirection, purpose: str) -> 'ResolvedPortReference':
         if direction in [PortDirection.Input, PortDirection.Output]:
             if self.length == 1:
@@ -205,18 +201,18 @@ class Reference(Value):
             raise Exception(f'Unknown PortDirection: {direction!r}')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ListLiteral(Value):
     values: tuple[Value, ...]
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class FunctionCall(Value):
     fun: Value
     parameters: tuple[Value, ...]
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class OptionalExpression(Value):
     """optional(x): an optional parameter, or an event in a procedure body, as an option."""
 
@@ -245,7 +241,7 @@ class OptionalExpression(Value):
         return parameter
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class BracketOperator(Value):
     base: Value
     parameter: Value
@@ -253,7 +249,6 @@ class BracketOperator(Value):
 
 # TODO: Remove and merge into Reference?
 class ResolvedPortReference(SourceElement):
-    @check_parameters
     # TODO: port_name should not be typing.Optional
     def __init__(self, graph: 'model.NodeType', direction: PortDirection, node_name: Identifier,
                  port_name: typing.Optional[Identifier], purpose: str) -> None:
@@ -367,13 +362,13 @@ def static_source(parameter: 'model.NodeParameter', name: Identifier, port_name:
     return model.StaticSource(parameter, name)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StructLiteralField(SyntaxElement):
     name: Identifier
     value: Value
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StructLiteral(Value):
     struct_type: Reference
     fields: tuple[StructLiteralField, ...]

@@ -5,7 +5,7 @@ import enum
 
 from wirely.util import immutable_enum
 
-from .base import SourcePosition, SyntaxElement, Value, ProgramError, syntax
+from .base import SourcePosition, SyntaxElement, Value, ProgramError
 
 
 @immutable_enum
@@ -14,7 +14,7 @@ class PortDirection(enum.Enum):
     Output = enum.auto()
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class PortDirectionSpecifier(SyntaxElement):
     direction: PortDirection
 
@@ -27,7 +27,7 @@ class PortDirectionSpecifier(SyntaxElement):
         return PortDirectionSpecifier(PortDirection.Output, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ListSpecifier(SyntaxElement):
     is_list: bool
 
@@ -48,7 +48,7 @@ class ConnectionKind(enum.Enum):
     Event = enum.auto()
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ConnectionKindSpecifier(SyntaxElement):
     kind: ConnectionKind
 
@@ -66,14 +66,14 @@ class PortTypeSpecification(SyntaxElement):
     ty: Value
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class PortTypeSpecificationData(PortTypeSpecification):
     list_spec: ListSpecifier
     kind_spec: ConnectionKindSpecifier
     ty: Value
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class PortTypeSpecificationResource(PortTypeSpecification):
     list_spec: ListSpecifier
     ty: Value
@@ -83,7 +83,7 @@ class PortTypeSpecificationResource(PortTypeSpecification):
             raise ProgramError(self, 'Multi resource inputs are not supported')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class NodeTypeSpecifier(SyntaxElement):
     specifier_str: str
 
@@ -92,11 +92,11 @@ class NodeTypeSpecifier(SyntaxElement):
         return NodeTypeSpecifier('singleton', source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class NativeSpecifier(NodeTypeSpecifier):
     specifier_str: str = dataclasses.field(default='native', init=False)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class OptionalSpecifier(NodeTypeSpecifier):
     specifier_str: str = dataclasses.field(default='optional', init=False)

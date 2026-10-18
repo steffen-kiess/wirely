@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .parameters import StaticValue
 
 from . import model
-from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue, check_struct_literal, syntax
+from .ast import SourcePosition, SourceElement, SyntaxElement, ProgramError, Value as AstValue, check_struct_literal
 from .types import resolve_type, check_runtime_type
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
@@ -28,12 +28,12 @@ Initialization: TypeAlias = dict[ExpressionKey, tuple[bool, bool]]
 SyntaxT = TypeVar('SyntaxT')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Expression(AstValue):
     pass
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class BinaryExpression(Expression):
     left: AstValue
     right: AstValue
@@ -118,7 +118,7 @@ SHIFT_OPERATORS = ('shift_left', 'shift_right')
 ARITHMETIC_OPERATORS = ('add', 'sub', 'mul', 'div', 'rem')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class UnaryExpression(Expression):
     operand: AstValue
     _: dataclasses.KW_ONLY
@@ -132,7 +132,7 @@ class UnaryExpression(Expression):
         return UnaryExpression(operand, operator='neg', source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class PropertyAccess(Expression):
     receiver: AstValue
     name: model.Identifier
@@ -251,14 +251,14 @@ def is_type_declaration(declaration: model.NodeParameter) -> bool:
                 and declaration.ty.identifiers[0].id_str == 'ValueType'))
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class IfExpression(Expression):
     condition: AstValue
     then: AstValue
     otherwise: AstValue | None = None
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class IfLetExpression(Expression):
     constructor: model.Identifier
     name: model.Identifier
@@ -267,14 +267,14 @@ class IfLetExpression(Expression):
     otherwise: AstValue | None = None
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ForExpression(Expression):
     name: model.Identifier
     iterable: AstValue
     body: AstValue
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class OnTrigger(SyntaxElement):
     name: model.Identifier
     _: dataclasses.KW_ONLY
@@ -289,13 +289,13 @@ class OnTrigger(SyntaxElement):
         return f'changed {self.name.id_str!r}' if self.is_changed else repr(self.name.id_str)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class OnExpression(Expression):
     triggers: tuple[OnTrigger, ...]
     body: AstValue
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class EmitExpression(Expression):
     target: model.Identifier
     expression: AstValue | None = None
@@ -307,7 +307,7 @@ class EmitExpression(Expression):
         return EmitExpression(target, expression, is_optional=True, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ExpressionBlock(Expression):
     statements: tuple[LocalBinding | ExpressionStatement, ...]
 
@@ -316,7 +316,7 @@ class ExpressionBlock(Expression):
         return ExpressionBlock(statements, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ExpressionStatement(SyntaxElement):
     expression: AstValue
     _: dataclasses.KW_ONLY
@@ -327,12 +327,12 @@ class ExpressionStatement(SyntaxElement):
         return ExpressionStatement(expression, terminated=False, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class AssertionStatement(ExpressionStatement):
     message: model.StringConstant | None
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class LocalBinding(SyntaxElement):
     name: model.Identifier
     annotation: AstValue | None
@@ -346,7 +346,7 @@ class LocalBinding(SyntaxElement):
         return LocalBinding(name, annotation, initializer, is_mutable=True, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class AssignmentExpression(Expression):
     target: AstValue
     expression: AstValue

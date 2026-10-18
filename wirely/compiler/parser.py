@@ -13,7 +13,6 @@ from lark.parsers.lalr_parser import ParserState
 import lark
 
 from wirely.compiler import model
-from wirely.util import check_parameters
 from .attributes import Attribute, Metadata, MetadataLiteral, ParsedFile
 from .ast import SourceElement, SyntaxElement, capture_source_path
 from .expressions import (

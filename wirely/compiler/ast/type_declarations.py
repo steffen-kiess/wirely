@@ -6,11 +6,11 @@ import typing
 from wirely.compiler import model
 from wirely.compiler.types import parse_value
 
-from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value, syntax
+from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value
 from .values import IntNumber, Reference, StringConstant
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class EnumMember(SyntaxElement):
     name: Identifier
     value: Value | None
@@ -20,13 +20,13 @@ class EnumMember(SyntaxElement):
         return EnumMember(name, None, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StructField(SyntaxElement):
     name: Identifier
     field_type: Value
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationStructType(Declaration):
     name: Identifier
     fields: tuple[StructField, ...]
@@ -102,7 +102,7 @@ class StructDefinition:
             self.resolving = False
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationEnumType(Declaration):
     name: Identifier
     underlying_type: Value | None
@@ -201,7 +201,7 @@ class DeclarationEnumType(Declaration):
         graph.enum_types[name] = value_type
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationResourceType(Declaration):
     name: Identifier
     alias: StringConstant | None = None

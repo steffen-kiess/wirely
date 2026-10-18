@@ -9,7 +9,6 @@ from types import MappingProxyType
 
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
-from wirely.util import check_parameters
 from ..runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from .extensions import CompilerNativeExtension, resolve_compiler_extensions
 from .attributes import ParsedFile, ValidatedMetadata

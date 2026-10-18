@@ -5,7 +5,7 @@ import typing
 
 from wirely.compiler import model
 
-from .base import CompilerHint, Declaration, Identifier, ProgramError, SourcePosition, syntax
+from .base import CompilerHint, Declaration, Identifier, ProgramError, SourcePosition
 from .specifiers import NodeTypeSpecifier
 from .values import StringConstant
 
@@ -13,7 +13,7 @@ if typing.TYPE_CHECKING:
     from .scope import Scope
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationNodeType(Declaration):
     """A node type block, or the global body without a name. Each compilation builds a NodeType from it."""
 

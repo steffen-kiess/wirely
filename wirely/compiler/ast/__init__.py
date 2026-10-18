@@ -5,7 +5,6 @@ from .base import (
     SourcePosition,
     SourceElement,
     SyntaxElement,
-    syntax,
     CompilerHint,
     ProgramError,
     InternalCompilerError,

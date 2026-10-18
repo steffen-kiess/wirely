@@ -6,7 +6,6 @@ import contextlib
 from typing import NoReturn
 
 from wirely.compiler import program as program_compiler
-from wirely.util import check_parameters
 
 import wirely.misc.service
 

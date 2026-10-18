@@ -8,13 +8,13 @@ from wirely.program import RunStage
 from wirely.compiler import model
 from wirely.compiler.types import check_runtime_type
 
-from .base import CompilerHint, Declaration, Identifier, ProgramError, SourceElement, SourcePosition, SyntaxElement, Value, syntax
+from .base import CompilerHint, Declaration, Identifier, ProgramError, SourceElement, SourcePosition, SyntaxElement, Value
 from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource, NativeSpecifier
 from .values import StringConstant, Reference
 from .nodes import DeclarationState, register_name
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StageDeclaration(SyntaxElement):
     stage: RunStage
 
@@ -46,7 +46,7 @@ class Port(SyntaxElement):
         raise NotImplementedError
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ReferencePort(Port):
     reference: Reference
     alias: StringConstant | Identifier | None = None
@@ -68,7 +68,7 @@ class ReferencePort(Port):
         return self.key
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class TypedPort(Port):
     """A typed procedure port, which connections supply or consume.
 
@@ -108,7 +108,7 @@ def check_port_keys(ports: typing.Iterable[Port], *, python: bool = False) -> No
         keys[key] = port
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DependsDeclaration(SyntaxElement):
     dependencies: tuple[Port, ...]
 
@@ -122,7 +122,7 @@ class DependsDeclaration(SyntaxElement):
         return DependsDeclaration(dependencies, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ProducesDeclaration(SyntaxElement):
     outputs: tuple[Port, ...]
 
@@ -180,7 +180,7 @@ def dependency_is_resource(dependency: object) -> bool:
     return isinstance(getattr(dependency, 'port_spec', None), PortTypeSpecificationResource)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class StaticBinding(SyntaxElement):
     expression: Value
     alias: Identifier | StringConstant | None = None
@@ -196,7 +196,7 @@ class StaticBinding(SyntaxElement):
         raise ProgramError(self, 'Static binding requires an alias')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class UsesDeclaration(SyntaxElement):
     bindings: tuple[StaticBinding, ...]
 
@@ -221,7 +221,7 @@ class UsesDeclaration(SyntaxElement):
                 compile_constant(scope, expression, None, {})
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationInitializer(Declaration):
     depends: DependsDeclaration
     produces: ProducesDeclaration
@@ -308,7 +308,7 @@ class TypeInitializer:
                 raise ProgramError(port, 'Initializer dependencies must be resources')
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationProcedure(Declaration):
     native_spec: NativeSpecifier | None
     name: Identifier

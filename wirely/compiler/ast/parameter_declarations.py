@@ -4,12 +4,12 @@ import dataclasses
 
 from wirely.compiler import model
 
-from .base import SourcePosition, ProgramError, Identifier, Declaration, Value, syntax
+from .base import SourcePosition, ProgramError, Identifier, Declaration, Value
 from .specifiers import OptionalSpecifier
 from .values import StringConstant
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationParameter(Declaration):
     optional_specifier: OptionalSpecifier | None
     name: Identifier
@@ -31,14 +31,14 @@ class DeclarationParameter(Declaration):
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationConstant(DeclarationParameter):
     @staticmethod
     def make(name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> 'DeclarationConstant':
         return DeclarationConstant(None, name, ty, default_value=initializer, source_position=source_position)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationAssertion(Declaration):
     condition: Value
     message: StringConstant | None

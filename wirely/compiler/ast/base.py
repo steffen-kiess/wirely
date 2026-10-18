@@ -5,11 +5,9 @@ import contextlib
 import dataclasses
 import os
 from collections.abc import Iterator
-from typing import Any, TypeVar
+from typing import Any
 
 import lark
-
-from wirely.util import check_parameters
 
 
 _UNSET_SOURCE_PATH = object()
@@ -44,7 +42,6 @@ class SourcePosition:
     input_data: str
     source_path: str | None
 
-    @check_parameters
     def __init__(self, *, filename: str | os.PathLike | None,
                  meta: lark.tree.Meta | SourceSpan | None, input_data: str,
                  source_path: object = _UNSET_SOURCE_PATH) -> None:
@@ -68,7 +65,6 @@ class SourcePosition:
 
 
 class SourceElement:
-    @check_parameters
     def __init__(self, *, source_position: SourcePosition) -> None:
         self.source_position = source_position
         self.outer_attributes: tuple = ()
@@ -96,27 +92,13 @@ class SourceElement:
         return f'{type(self).__name__}()'
 
 
-SyntaxT = TypeVar('SyntaxT')
-
-
-@typing.dataclass_transform(eq_default=False, frozen_default=True, field_specifiers=(dataclasses.field,))
-def syntax(cls: type[SyntaxT]) -> type[SyntaxT]:
-    """Make cls an immutable syntax class whose constructor checks its arguments.
-
-    Syntax objects compare by identity and keep the source text as their default repr.
-    """
-    cls = dataclasses.dataclass(frozen=True, eq=False, repr=False)(cls)
-    cls.__init__ = check_parameters(cls.__init__)  # type: ignore[method-assign]
-    return cls
-
-
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class SyntaxElement(SourceElement):
     """An immutable source syntax element.
 
     Compiler stages keep the information they derive elsewhere. Subclasses
     that only declare attribute types for their own subclasses are not
-    decorated with @syntax.
+    decorated as dataclasses.
     """
 
     _: dataclasses.KW_ONLY
@@ -126,7 +108,6 @@ class SyntaxElement(SourceElement):
 
 
 class CompilerHint:
-    @check_parameters
     def __init__(self, source_element: SourceElement, msg: str) -> None:
         self.source_element = source_element
         self.msg = msg
@@ -142,7 +123,6 @@ class CompilerHint:
 
 
 class ProgramError(Exception):
-    @check_parameters
     def __init__(self, source_element: typing.Optional[SourceElement], msg: str,
                  inner_exception: BaseException | None = None, *,
                  hints: list[CompilerHint] | tuple[CompilerHint, ...] = ()) -> None:
@@ -167,7 +147,6 @@ class ProgramError(Exception):
 
 
 class InternalCompilerError(ProgramError):
-    @check_parameters
     def __init__(self, source_element: typing.Optional[SourceElement], inner_exception: BaseException, *,
                  msg: str | None = None) -> None:
         if msg is None:
@@ -175,7 +154,7 @@ class InternalCompilerError(ProgramError):
         super().__init__(source_element, msg, inner_exception)
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Identifier(SyntaxElement):
     id_str: str
 
@@ -192,12 +171,12 @@ class Identifier(SyntaxElement):
         return self.id_str
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Value(SyntaxElement):
     pass
 
 
-@syntax
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class Declaration(SyntaxElement):
     """Declarations implement only the preparation operations they need."""
 
