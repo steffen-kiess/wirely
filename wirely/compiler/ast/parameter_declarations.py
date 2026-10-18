@@ -68,5 +68,5 @@ class DeclarationAssertion(Declaration):
             except ProgramError as error:
                 hint = instance.instantiation_hint()
                 if hint is not None:
-                    error.hints = [*error.hints, hint]
+                    error.hints = (*error.hints, hint)
                 raise

@@ -130,7 +130,6 @@ class Duration:
 
     @check_parameters
     def __init__(self, *, ticks: int):
-        ticks = int(ticks)
         if ticks < 0:
             raise Exception('Negative durations are not allowed')
         if ticks > Duration.MAX_TICKS:

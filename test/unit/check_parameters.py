@@ -1,3 +1,7 @@
+import subprocess
+import sys
+from pathlib import Path
+from textwrap import dedent
 from unittest import TestCase
 
 from wirely.util import check_parameters
@@ -89,4 +93,22 @@ check_unsupported_annotations()
 
 
 async def run_test():
-    pass
+    # Install the no-op before importing Wirely so constructors are never wrapped.
+    subprocess.run([sys.executable, '-c', dedent('''
+        import importlib.util
+        import sys
+
+        spec = importlib.util.spec_from_file_location('wirely.util', 'wirely/util.py')
+        util = importlib.util.module_from_spec(spec)
+        sys.modules['wirely.util'] = util
+        spec.loader.exec_module(util)
+        util.check_parameters = lambda function: function
+
+        import wirely
+        import wirely.test
+
+        wirely.util = util
+        sys.argv = ['wirely.test', 'compiler/literals', 'compiler/attributes',
+                    'compiler/namespaces', 'unit/compiler_api', 'unit/types']
+        wirely.test.main()
+    ''')], cwd=Path(__file__).resolve().parents[2], check=True)

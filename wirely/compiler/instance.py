@@ -604,7 +604,7 @@ class NodeTypeInstance(NodeInstance):
             except model.ProgramError as error:
                 hint = self.instantiation_hint()
                 if hint is not None:
-                    error.hints = [*error.hints, hint]
+                    error.hints = (*error.hints, hint)
                 raise
             self.static_values = ParameterValues({
                 key: static_values[key] for key in static_values if key in static_values

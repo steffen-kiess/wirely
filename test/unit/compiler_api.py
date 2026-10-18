@@ -9,10 +9,29 @@ from wirely.compiler import (
     ParseCache, SourceError, compile_files, compile_strs, parse_source, standard_library_cache,
     standard_library_sources, standard_library_texts,
 )
-from wirely.compiler import program
+from wirely.compiler import model, program
+from wirely.compiler.diagnostics import error_diagnostics
 
 
 checks = TestCase()
+
+
+# Errors retain their own ordered hints, which callers cannot modify in place.
+element = parse_source('<diagnostics>', 'node type T {}').tree[0]
+first_hint = model.CompilerHint(element, 'First hint')
+second_hint = model.CompilerHint(element, 'Second hint')
+hints = [first_hint]
+error = model.ProgramError(element, 'Main error', hints=hints)
+hints.append(second_hint)
+checks.assertEqual([diagnostic.message for diagnostic in error_diagnostics(error)],
+                   ['Main error', 'First hint'])
+with checks.assertRaises(TypeError):
+    error.hints[0] = second_hint
+error.hints = (*error.hints, second_hint)
+checks.assertEqual([diagnostic.message for diagnostic in error_diagnostics(error)],
+                   ['Main error', 'First hint', 'Second hint'])
+checks.assertEqual([diagnostic.message for diagnostic in error_diagnostics(model.ProgramError(element, 'Other error'))],
+                   ['Other error'])
 
 
 # Global graph failures are reported by both source compilation APIs.

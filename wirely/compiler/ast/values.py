@@ -6,6 +6,7 @@ import re
 from collections.abc import Collection
 from typing import Any
 
+import lark
 
 from wirely.compiler import model
 from wirely.util import check_parameters
@@ -29,7 +30,7 @@ class IntNumber(Value):
     value: int = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        text = str(self.token)
+        text = self.token
         if text.lower().startswith('0x'):
             base = 16
         elif text.lower().startswith('0o'):
@@ -43,8 +44,12 @@ class IntNumber(Value):
         object.__setattr__(self, 'value', -value if self.negative else value)
 
     @classmethod
-    def positive(cls, token: str, *, source_position: SourcePosition) -> 'IntNumber':
+    def from_token(cls, token: lark.Token, *, source_position: SourcePosition) -> 'IntNumber':
         return cls(str(token), source_position=source_position)
+
+    @classmethod
+    def positive(cls, token: lark.Token, *, source_position: SourcePosition) -> 'IntNumber':
+        return cls.from_token(token, source_position=source_position)
 
     def negated(self, *, source_position: SourcePosition) -> 'IntNumber':
         return IntNumber(self.token, negative=not self.negative, source_position=source_position)
@@ -55,6 +60,10 @@ class FloatNumber(Value):
     token: str
     value: float = dataclasses.field(init=False)
 
+    @classmethod
+    def from_token(cls, token: lark.Token, *, source_position: SourcePosition) -> 'FloatNumber':
+        return cls(str(token), source_position=source_position)
+
     def __post_init__(self) -> None:
         # TODO: Does this parse the value correctly?
         object.__setattr__(self, 'value', float(self.token))
@@ -64,6 +73,10 @@ class FloatNumber(Value):
 class StringConstant(Value):
     token: str
     value: str = dataclasses.field(init=False)
+
+    @classmethod
+    def from_token(cls, token: lark.Token, *, source_position: SourcePosition) -> 'StringConstant':
+        return cls(str(token), source_position=source_position)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'value', self._decode(self.token.replace('\r\n', '\n')))

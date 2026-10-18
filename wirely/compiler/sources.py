@@ -30,7 +30,7 @@ class SourceError(Exception):
     def __init__(self, filename: str | os.PathLike, text: str,
                  error: lark.UnexpectedInput | model.ProgramError) -> None:
         super().__init__(str(error))
-        self.filename = str(os.fsdecode(filename))
+        self.filename = os.fsdecode(filename)
         self.text = text
         self.error = error
 
@@ -64,9 +64,8 @@ def parse_file(path: str | os.PathLike) -> ParsedSource:
 def _parse(filename: str | os.PathLike, text: str, durations: ParseDurations | None) -> ParsedSource:
     from . import parser
 
-    filename = str(os.fsdecode(filename))
+    filename = os.fsdecode(filename)
 
-    text = str(text)
     start = time.perf_counter()
     try:
         tree = parser.parser.parse(text)
@@ -108,7 +107,7 @@ class ParseCache:
             return self.parse_source(path, file.read())
 
     def _parse(self, filename: str | os.PathLike, text: str, durations: ParseDurations | None) -> ParsedSource:
-        key = (str(os.fsdecode(filename)), str(text))
+        key = (os.fsdecode(filename), text)
         with self._lock:
             source = self._sources.get(key)
         if source is not None:
@@ -120,7 +119,7 @@ class ParseCache:
     def __contains__(self, item: tuple[str | os.PathLike, str]) -> bool:
         filename, text = item
         with self._lock:
-            return (str(os.fsdecode(filename)), text) in self._sources
+            return (os.fsdecode(filename), text) in self._sources
 
     def clear(self) -> None:
         with self._lock:

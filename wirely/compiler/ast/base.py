@@ -48,7 +48,7 @@ class SourcePosition:
     def __init__(self, *, filename: str | os.PathLike | None,
                  meta: lark.tree.Meta | SourceSpan | None, input_data: str,
                  source_path: object = _UNSET_SOURCE_PATH) -> None:
-        object.__setattr__(self, 'filename', None if filename is None else str(os.fsdecode(filename)))
+        object.__setattr__(self, 'filename', None if filename is None else os.fsdecode(filename))
         object.__setattr__(self, 'meta', SourceSpan.from_meta(meta) if isinstance(meta, lark.tree.Meta) else meta)
         object.__setattr__(self, 'input_data', input_data)
         if source_path is _UNSET_SOURCE_PATH:
@@ -144,12 +144,13 @@ class CompilerHint:
 class ProgramError(Exception):
     @check_parameters
     def __init__(self, source_element: typing.Optional[SourceElement], msg: str,
-                 inner_exception: BaseException | None = None, *, hints: typing.List[CompilerHint] = []) -> None:
+                 inner_exception: BaseException | None = None, *,
+                 hints: list[CompilerHint] | tuple[CompilerHint, ...] = ()) -> None:
         # raise Exception()
         self.source_element = source_element
         self.msg = msg
         self.inner_exception = inner_exception
-        self.hints = hints
+        self.hints = tuple(hints)
         if self.source_element is not None:
             self.fake_ui = lark.exceptions.UnexpectedInput()
             self.fake_ui.pos_in_stream = self.source_element.source_position.start_pos  # type: ignore[assignment]
@@ -177,6 +178,10 @@ class InternalCompilerError(ProgramError):
 @syntax
 class Identifier(SyntaxElement):
     id_str: str
+
+    @classmethod
+    def from_token(cls, token: lark.Token, *, source_position: SourcePosition) -> 'Identifier':
+        return cls(str(token), source_position=source_position)
 
     def __post_init__(self) -> None:
         if self.id_str.startswith('r#'):

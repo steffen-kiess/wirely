@@ -183,7 +183,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             except model.ProgramError as error:
                 hint = instance.instantiation_hint()
                 if hint is not None:
-                    error.hints = [*error.hints, hint]
+                    error.hints = (*error.hints, hint)
                 raise
         return InputSource(constant=constants[intern_constant(value_type, concrete)])
 

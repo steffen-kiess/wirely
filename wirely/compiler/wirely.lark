@@ -228,7 +228,7 @@ reference: identifier ("." identifier)* -> reference__from_list
 // https://doc.rust-lang.org/rust-by-example/compatibility/raw_identifiers.html
 // "!" keeps the keyword tokens, see
 // https://lark-parser.readthedocs.io/en/latest/tree_construction.html#pinning-rule-terminals-with
-!identifier: CNAME
+!identifier: (CNAME
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
     | "open"
@@ -248,13 +248,13 @@ reference: identifier ("." identifier)* -> reference__from_list
     | "stage"
     | "state"
     | "type"
-    | "value"
+    | "value") -> identifier__from_token
 
-int_number: _integer_magnitude
+int_number: _integer_magnitude -> int_number__from_token
     | "+" _integer_magnitude -> int_number__positive
 _integer_magnitude: DEC_NUMBER | HEX_NUMBER | OCT_NUMBER
-float_number: FLOAT
-string_constant: STRING | RAW_STRING
+float_number: FLOAT -> float_number__from_token
+string_constant: (STRING | RAW_STRING) -> string_constant__from_token
 
 // ---------------------------------------------------------------------------
 // Attributes: #[outer] applies to the next item, #![inner] to the enclosing one

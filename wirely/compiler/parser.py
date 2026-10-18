@@ -235,8 +235,7 @@ class Transformer(lark.Transformer):
                 if issubclass(cls, SyntaxElement):
                     # Syntax classes hold child sequences as tuples.
                     inner = next((child.inner_attributes for child in children if isinstance(child, ParsedFile)), ())
-                    children = [tuple(child) if isinstance(child, (list, ParsedFile)) else
-                                str(child) if isinstance(child, lark.Token) else child for child in children]
+                    children = [tuple(child) if isinstance(child, (list, ParsedFile)) else child for child in children]
                     return cls(*children, source_position=source_position, inner_attributes=inner)
                 return cls(*children, source_position=source_position)
             return getattr(cls, parts[1])(*children, source_position=source_position)
