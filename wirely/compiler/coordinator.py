@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import time
 from collections.abc import Callable, Iterable, Iterator
 
 from . import model
@@ -13,11 +14,13 @@ from .stages import ResolutionState
 class CompilerCoordinator:
     def __init__(self, global_node_type: model.NodeType, report_progress: Callable[[str], None] | None = None, *,
                  shuffle_seed: int | None = None, diagnostics: list[Diagnostic] | None = None,
-                 warnings: WarningSink | None = None) -> None:
+                 warnings: WarningSink | None = None, timings: list[tuple[str, float]] | None = None) -> None:
         self.global_node_type = global_node_type
         self.warnings = warnings
         self.report_progress = report_progress
         self.shuffle_seed = shuffle_seed
+        # Receives the name and duration of each completed stage, if given.
+        self.timings = timings
         # A list collects errors and continues after them; None stops at the first error.
         self.diagnostics = diagnostics
         self.node_types: list[model.NodeType] = []
@@ -76,9 +79,13 @@ class CompilerCoordinator:
 
     def _run(self, operations: Iterable[Callable[[], None]]) -> None:
         for operation in operations:
+            name = operation.__name__.replace('_', ' ')
             if self.report_progress is not None:
-                self.report_progress(f'Starting {operation.__name__.replace("_", " ")}')
+                self.report_progress(f'Starting {name}')
+            start = time.perf_counter()
             operation()
+            if self.timings is not None:
+                self.timings.append((name, time.perf_counter() - start))
 
     def collect_declarations(self) -> None:
         self.global_node_type.collect_declarations(None)

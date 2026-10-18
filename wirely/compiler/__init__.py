@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
@@ -36,7 +37,9 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
                  services: Mapping[str, object] | None = None,
                  on_diagnostic: Callable[[Diagnostic], None] | None = None,
                  shuffle_seed: int | None = _FROM_ENVIRONMENT,
-                 shuffle_layout: bool | None = None) -> model.NodeType | None:
+                 shuffle_layout: bool | None = None,
+                 timings: list[tuple[str, float]] | None = None) -> model.NodeType | None:
+    """Compile sources; if timings is given, append the name and duration of each completed stage."""
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
     def report_escaping(diagnostic: Diagnostic) -> None:
@@ -77,14 +80,17 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
     try:
         if verbose_passes:
             report_progress('Starting parsing sources')
-        parsed_files = wirely.compiler.parser.parse_sources(filename_inpudatas)
+        parsed_files = wirely.compiler.parser.parse_sources(filename_inpudatas, timings=timings)
         decls = [declaration for _, parsed in parsed_files for declaration in parsed]
         if shuffle_seed is not None:
             from .shuffle import shuffle_declarations
             shuffle_declarations(decls, shuffle_seed, layout=shuffle_layout)
         if verbose_passes:
             report_progress('Starting validating source metadata')
+        start = time.perf_counter()
         file_metadata = validate_source_metadata(parsed_files, decls, warnings)
+        if timings is not None:
+            timings.append(('validate source metadata', time.perf_counter() - start))
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
         global_node_type = model.NodeType([], None, decls, source_position=global_source_position)
         global_node_type.native_extension = native_extension
@@ -93,7 +99,7 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         global_node_type.file_metadata = file_metadata
         from .coordinator import CompilerCoordinator
         coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None,
-                                          shuffle_seed=shuffle_seed, warnings=warnings)
+                                          shuffle_seed=shuffle_seed, warnings=warnings, timings=timings)
         coordinator.compile()
     except lark.UnexpectedInput as e:
         report(Diagnostic('syntax_error', str(e), filename=e.source_filename,  # type: ignore[attr-defined]
@@ -159,7 +165,8 @@ def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool
                   compiler_override_extensions: Iterable[CompilerNativeExtension] = (),
                   include_builtin_extensions: bool = True,
                   services: Mapping[str, object] | None = None,
-                  on_diagnostic: Callable[[Diagnostic], None] | None = None) -> model.NodeType | None:
+                  on_diagnostic: Callable[[Diagnostic], None] | None = None,
+                  timings: list[tuple[str, float]] | None = None) -> model.NodeType | None:
     filename_inpudatas = []
     for input_filename in input_filenames:
         with open(input_filename, encoding='utf-8') as file:
@@ -168,4 +175,4 @@ def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool
                         on_diagnostic=on_diagnostic, extensions=extensions,
                         override_extensions=override_extensions, compiler_extensions=compiler_extensions,
                         compiler_override_extensions=compiler_override_extensions,
-                        include_builtin_extensions=include_builtin_extensions)
+                        include_builtin_extensions=include_builtin_extensions, timings=timings)
