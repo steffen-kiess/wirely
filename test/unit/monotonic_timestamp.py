@@ -1,6 +1,6 @@
 
 import wirely
-from wirely.compiler import _standard_library_sources, compile_strs
+from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
@@ -21,7 +21,7 @@ node input: TestLibrary.HeldEventSource {}
 node timestamp: Timer.MonotonicTimestamp { Type: boolean }
 connect input -> timestamp;
 '''
-graph = compile_strs(_standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
+graph = compile_strs(standard_library_sources(['std', 'timer']) + [('<held-event>', source)])
 assert graph is not None
 with test_contracts(graph) as contracts:
     registry = {'initializers': {}, 'procedures': {}}

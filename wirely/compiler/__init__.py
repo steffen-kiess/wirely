@@ -7,15 +7,16 @@ from typing import Any
 
 from types import MappingProxyType
 
-import lark
-
-import wirely
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnostics, print_diagnostic
 from wirely.util import check_parameters
 from ..runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from .extensions import CompilerNativeExtension, resolve_compiler_extensions
 from .attributes import ParsedFile, ValidatedMetadata
+from .sources import (
+    STANDARD_LIBRARY_NAMES, ParseCache, ParsedSource, ParseDurations, SourceError, SourceInput, parse_file,
+    parse_source, parse_sources, standard_library_cache, standard_library_sources, standard_library_texts,
+)
 
 
 class _DiagnosticCallbackError(Exception):
@@ -27,7 +28,7 @@ class _DiagnosticCallbackError(Exception):
 _FROM_ENVIRONMENT: Any = object()  # Omission differs from an explicit None.
 
 
-def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *, add_std: bool = False,
+def compile_strs(sources: Iterable[SourceInput], *, add_std: bool = False,
                  verbose_passes: bool | None = None, always_print_stacktrace: bool | None = None,
                  extensions: Iterable[RuntimeNativeExtension] = (),
                  override_extensions: Iterable[RuntimeNativeExtension] = (),
@@ -39,7 +40,10 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
                  shuffle_seed: int | None = _FROM_ENVIRONMENT,
                  shuffle_layout: bool | None = None,
                  timings: list[tuple[str, float]] | None = None) -> model.NodeType | None:
-    """Compile sources; if timings is given, append the name and duration of each completed stage."""
+    """Compile (filename, text) pairs and parsed sources, in order after the standard library if add_std is set.
+
+    If timings is given, append the name and duration of each completed stage.
+    """
     report = print_diagnostic if on_diagnostic is None else on_diagnostic
 
     def report_escaping(diagnostic: Diagnostic) -> None:
@@ -53,8 +57,6 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         report_escaping(Diagnostic('info', message))
 
     compilation_services = MappingProxyType(dict(services if services is not None else {}))
-    # TODO: Where should this import be done?
-    import wirely.compiler.parser
 
     if verbose_passes is None:
         verbose_passes = model.util.getEnvironmentBool('WIRELY_COMPILER_VERBOSE_PASSES', False)
@@ -66,9 +68,6 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
     if shuffle_layout is None:
         shuffle_layout = model.util.getEnvironmentBool('WIRELY_COMPILER_SHUFFLE_LAYOUT', False)
 
-    if add_std:
-        filename_inpudatas = _standard_library_sources() + list(filename_inpudatas)
-
     native_extension = resolve_extensions(extensions, override_extensions=override_extensions,
                                           include_builtin_extensions=include_builtin_extensions)
     compiler_native_extension = resolve_compiler_extensions(
@@ -76,11 +75,20 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         include_builtin_extensions=include_builtin_extensions)
 
     warnings = WarningSink(report_escaping)
-    exc = None
+    exc: Exception | None = None
     try:
         if verbose_passes:
             report_progress('Starting parsing sources')
-        parsed_files = wirely.compiler.parser.parse_sources(filename_inpudatas, timings=timings)
+        durations = ParseDurations()
+        # Shuffling reorders the trees, so it uses fresh ones.
+        shuffled = shuffle_seed is not None
+        parsed_sources = parse_sources(standard_library_texts() if add_std else (),
+                                       cache=None if shuffled else standard_library_cache, durations=durations)
+        parsed_sources += parse_sources(sources, reparse=shuffled, durations=durations)
+        if timings is not None:
+            timings.append(('parse', durations.parse))
+            timings.append(('build syntax tree', durations.build))
+        parsed_files = [(source.filename, source.tree) for source in parsed_sources]
         decls = [declaration for _, parsed in parsed_files for declaration in parsed]
         if shuffle_seed is not None:
             from .shuffle import shuffle_declarations
@@ -103,15 +111,12 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
                                           shuffle_seed=shuffle_seed, warnings=warnings, timings=timings)
         coordinator.metadata = metadata
         coordinator.compile()
-    except lark.UnexpectedInput as e:
-        report(Diagnostic('syntax_error', str(e), filename=e.source_filename,  # type: ignore[attr-defined]
-                          line=e.line, context=e.get_context(e.source_input_data),  # type: ignore[attr-defined]
-                          start=getattr(e, 'pos_in_stream', None)))
+    except SourceError as e:
+        for diagnostic in e.diagnostics(always_print_stacktrace=always_print_stacktrace):
+            report(diagnostic)
         return None
     except _DiagnosticCallbackError as e:
         raise e.error from None
-    except lark.exceptions.VisitError as e:
-        exc = e.orig_exc
     except model.ProgramError as e:
         exc = e
     except Exception as e:
@@ -140,27 +145,7 @@ def validate_source_metadata(parsed_files: Sequence[tuple[str | os.PathLike, Par
     return metadata
 
 
-_STANDARD_LIBRARY_NAMES = (
-    'std', 'path', 'matter', 'schedule', 'timer', 'knx', 'abb_jra', 'mqtt', 'csv',
-    'two_n', 'gpio', 'memory', 'process', 'test',
-)
-
-
-def _standard_library_sources(names: Iterable[str] | None = None) -> list[tuple[str, str]]:
-    names = _STANDARD_LIBRARY_NAMES if names is None else tuple(names)
-    for name in names:
-        if name not in _STANDARD_LIBRARY_NAMES:
-            raise ValueError(f'Unknown library {name!r}')
-    directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib')
-    sources = []
-    for name in names:
-        filename = os.path.join(directory, name + '.wrl')
-        with open(filename, encoding='utf-8') as file:
-            sources.append((filename, file.read()))
-    return sources
-
-
-def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool = True,
+def compile_files(inputs: Iterable[str | os.PathLike | ParsedSource], *, add_std: bool = True,
                   extensions: Iterable[RuntimeNativeExtension] = (),
                   override_extensions: Iterable[RuntimeNativeExtension] = (),
                   compiler_extensions: Iterable[CompilerNativeExtension] = (),
@@ -169,11 +154,15 @@ def compile_files(input_filenames: Iterable[str | os.PathLike], *, add_std: bool
                   services: Mapping[str, object] | None = None,
                   on_diagnostic: Callable[[Diagnostic], None] | None = None,
                   timings: list[tuple[str, float]] | None = None) -> model.NodeType | None:
-    filename_inpudatas = []
-    for input_filename in input_filenames:
-        with open(input_filename, encoding='utf-8') as file:
-            filename_inpudatas.append((input_filename, file.read()))
-    return compile_strs(filename_inpudatas, add_std=add_std, services=services,
+    """Compile files and parsed sources, in order after the standard library if add_std is set."""
+    sources: list[SourceInput] = []
+    for item in inputs:
+        if isinstance(item, ParsedSource):
+            sources.append(item)
+            continue
+        with open(item, encoding='utf-8') as file:
+            sources.append((item, file.read()))
+    return compile_strs(sources, add_std=add_std, services=services,
                         on_diagnostic=on_diagnostic, extensions=extensions,
                         override_extensions=override_extensions, compiler_extensions=compiler_extensions,
                         compiler_override_extensions=compiler_override_extensions,

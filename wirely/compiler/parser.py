@@ -3,7 +3,6 @@ from __future__ import annotations
 import dataclasses
 import sys
 import os
-import time
 from collections.abc import Iterable
 from typing import Any, TypeVar
 
@@ -258,30 +257,3 @@ parser = lark.Lark(grammar, **opts)
 def parse_str(input_data: str, *, filename: str | os.PathLike) -> ParsedFile:
     t = Transformer(filename, input_data=input_data)
     return t.transform(parser.parse(input_data))
-
-
-def parse_sources(filename_inputdatas: Iterable[tuple[str | os.PathLike, str]], *,
-                  timings: list[tuple[str, float]] | None = None) -> list[tuple[str | os.PathLike, ParsedFile]]:
-    """Parse source files while retaining syntax diagnostic context.
-
-    If timings is given, append the total durations of parsing and of building syntax trees.
-    """
-    parsed_files = []
-    parse_duration = transform_duration = 0.0
-    for filename, input_data in filename_inputdatas:
-        start = time.perf_counter()
-        try:
-            tree = parser.parse(input_data)
-        except lark.UnexpectedInput as error:
-            error.source_filename = filename  # type: ignore[attr-defined]
-            error.source_input_data = input_data  # type: ignore[attr-defined]
-            raise
-        parsed_at = time.perf_counter()
-        parsed = Transformer(filename, input_data=input_data).transform(tree)
-        parse_duration += parsed_at - start
-        transform_duration += time.perf_counter() - parsed_at
-        parsed_files.append((filename, parsed))
-    if timings is not None:
-        timings.append(('parse', parse_duration))
-        timings.append(('build syntax tree', transform_duration))
-    return parsed_files

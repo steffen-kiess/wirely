@@ -19,13 +19,10 @@ import functools
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias, TypeVar, cast, overload
 
-import lark
-
 from . import ast
 from .ast.procedures import Port as AstPort
 from . import attributes as _attributes
-from . import parser
-from .diagnostics import Diagnostic, error_diagnostics
+from .diagnostics import Diagnostic
 
 
 @dataclass(frozen=True)
@@ -405,25 +402,19 @@ def outline(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Out
 def parse(sources: Iterable[tuple[str, str]], *,
           add_std: bool = False) -> tuple[tuple[SourceFile, ...], list[tuple[str, _attributes.ParsedFile]]]:
     """Return the file records and the (filename, declarations) of files that parse."""
-    if add_std:
-        from . import _standard_library_sources
-        sources = _standard_library_sources() + list(sources)
+    from .sources import SourceError, parse_source, standard_library_cache, standard_library_texts
+
+    parse = [(filename, text, standard_library_cache.parse_source)
+             for filename, text in (standard_library_texts() if add_std else ())]
+    parse += [(filename, text, parse_source) for filename, text in sources]
     files = []
     parsed_files = []
-    for filename, text in sources:
+    for filename, text, parse_function in parse:
         try:
-            parsed_files.append((filename, parser.parse_str(text, filename=filename)))
+            parsed_files.append((filename, parse_function(filename, text).tree))
             error = None
-        except lark.UnexpectedInput as exception:
-            error = Diagnostic('syntax_error', str(exception), filename=filename,
-                               line=exception.line, context=exception.get_context(text),
-                               start=getattr(exception, 'pos_in_stream', None))
-        except ast.ProgramError as exception:
-            error = next(error_diagnostics(exception))
-        except lark.exceptions.VisitError as exception:
-            if not isinstance(exception.orig_exc, ast.ProgramError):
-                raise exception.orig_exc
-            error = next(error_diagnostics(exception.orig_exc))
+        except SourceError as exception:
+            error = exception.diagnostics()[0]
         files.append(SourceFile(filename, error))
     return tuple(files), parsed_files
 

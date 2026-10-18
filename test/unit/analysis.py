@@ -3,7 +3,7 @@ from types import MappingProxyType
 from unittest import TestCase
 
 from wirely import test as runner
-from wirely.compiler import _standard_library_sources, model
+from wirely.compiler import model, standard_library_texts
 from wirely.compiler import outline as outline_module
 from wirely.compiler.analysis import ConnectionCheck, ResolvedParameter, ResolvedPort, analyze
 from wirely.compiler.attributes import validate_files
@@ -202,7 +202,7 @@ for name in runner.negative_tests:
     with open(filename, encoding='utf-8') as file:
         text = file.read()
     for case in runner.negative_test_cases(text):
-        sources = _standard_library_sources(case.libraries) + [(os.path.abspath(filename), case.source)]
+        sources = standard_library_texts(case.libraries) + [(os.path.abspath(filename), case.source)]
         diagnostics = [item.diagnostic for item in analyze(sources).diagnostics]
         label = f'{filename}: {case.label}'
         checks.assertFalse([item for item in diagnostics if item.kind == 'internal_error'], label)

@@ -270,7 +270,7 @@ def negative_test_libraries(lines: Sequence[str], *, start_line: int) -> tuple[s
         for name in names:
             if not re.fullmatch(r'[a-z][a-z0-9_]*', name):
                 raise AssertionError(f'Malformed library name {name!r} on line {line_number}')
-            if name not in model.compiler._STANDARD_LIBRARY_NAMES:
+            if name not in model.compiler.STANDARD_LIBRARY_NAMES:
                 raise AssertionError(f'Unknown library {name!r} on line {line_number}')
         if len(set(names)) != len(names):
             raise AssertionError(f'Duplicate library name on line {line_number}')
@@ -407,7 +407,7 @@ def compile_negative_case(full_fn: str, case: NegativeTestCase) -> None:
         expected = shuffled_expected
 
     diagnostics: list = []
-    sources = model.compiler._standard_library_sources(case.libraries)
+    sources = model.compiler.standard_library_sources(case.libraries)
     graph = model.compiler.compile_strs(
         sources + [(full_fn, case.source)], add_std=False, on_diagnostic=diagnostics.append,
     )

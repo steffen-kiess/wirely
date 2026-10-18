@@ -171,7 +171,7 @@ process_keys = [subprocess.check_output(
 checks.assertEqual(*process_keys)
 
 # Compilation reads the options from keyword arguments.
-sources = wirely.compiler._standard_library_sources(['std'])
+sources = wirely.compiler.standard_library_sources(['std'])
 for seed in range(5):
     for layout in (False, True):
         result = wirely.compiler.compile_strs(sources, shuffle_seed=seed, shuffle_layout=layout)

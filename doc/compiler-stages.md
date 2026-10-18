@@ -21,7 +21,7 @@ on an instance's parameters or a cycle in procedure execution dependencies.
 
 1. **Load sources.** `compile_files()` reads the requested files.
    `compile_strs()` accepts their contents directly. Both include standard
-   library sources when `add_std` is enabled.
+   library sources when `add_std` is enabled, before the other sources.
 2. **Parse sources.** `parser.parse_sources()` splits each file into tokens,
    checks its grammar, and builds a syntax tree of declarations and
    expressions. The tree retains attributes and source positions so later
@@ -32,10 +32,26 @@ on an instance's parameters or a cycle in procedure execution dependencies.
 3. **Validate source metadata.** `validate_source_metadata()` checks file
    attributes and native function name collisions.
 
-The source outline and editing helpers use
-`parser.parse_str()` directly. They stop at parsing and syntax-tree
-construction, so they can read and edit files with errors that would be
-detected by later compiler stages.
+To parse a file once for several compilations, call
+`wirely.compiler.parse_file()` or `parse_source(filename, text)`. They
+return a `ParsedSource`, or raise `SourceError`, whose `diagnostics()` are
+those a compilation would report. Pass `ParsedSource` objects to
+`compile_files()` and `compile_strs()` in place of a path or a
+filename/text pair, in any mix; the sources keep their order.
+
+`ParseCache` keeps parsed sources by filename and text, and threads can
+share it. `parse_source()` and `parse_file()` on a cache return the cached
+result, or parse and keep it; sources that fail to parse are not kept. The
+compiler keeps the standard library in `standard_library_cache`, so later
+compilations in the same process do not parse it again;
+`standard_library_sources()` returns it as `ParsedSource` objects. It does
+not cache other sources. With a shuffle seed, the compiler parses all
+sources again and leaves the given and cached ones unchanged.
+
+The source outline and editing helpers parse sources themselves, taking the
+standard library from `standard_library_cache`. They stop at parsing and
+syntax-tree construction, so they can read and edit files with errors that
+would be detected by later compiler stages.
 
 ## Build node type graphs
 

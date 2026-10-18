@@ -68,9 +68,9 @@ import wirely.knx.address
 import wirely.knx.value_types
 assert not any(name == 'wirely.compiler' or name.startswith('wirely.compiler.') for name in sys.modules)
 from pathlib import Path
-from wirely.compiler import _standard_library_sources, compile_strs
+from wirely.compiler import compile_strs, standard_library_sources
 source = Path('test/compiler/knx.wrl')
-assert compile_strs(_standard_library_sources(['std', 'knx']) + [(str(source), source.read_text())]) is not None
+assert compile_strs(standard_library_sources(['std', 'knx']) + [(str(source), source.read_text())]) is not None
 '''], check=True)
 
 

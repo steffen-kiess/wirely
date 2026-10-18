@@ -7,13 +7,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import wirely
-from wirely.compiler import _standard_library_sources, compile_strs
+from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from wirely.test import test_extension, test_contracts, test_engine
 
 
-libraries = _standard_library_sources(['std', 'schedule', 'timer', 'memory', 'two_n', 'path'])
+libraries = standard_library_sources(['std', 'schedule', 'timer', 'memory', 'two_n', 'path'])
 
 
 def settings_engine(program):
