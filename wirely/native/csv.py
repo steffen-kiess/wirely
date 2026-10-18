@@ -94,7 +94,7 @@ class ValueWriter(contracts.ValueWriterInitializer):
                     yield
                 finally:
                     time = self.services.shutdown_time
-                    if time is None:
+                    if not self.services.is_shutting_down:
                         if self.last_value_csv != ('', False):
                             print(f'CSV.ValueWriter: Warning: shutdown time is unavailable during shutdown but a value has been written', flush=True, file=sys.stderr)
                     else:
@@ -107,12 +107,12 @@ class ValueWriter(contracts.ValueWriterInitializer):
 
     # TODO: Periodically re-write the current value
 
-    def write_value(self, new_value_csv: tuple[str, bool], time: datetime.datetime, *, force: bool = False) -> bool:
+    def write_value(self, new_value_csv: tuple[str, bool], time: datetime.datetime | None, *, force: bool = False) -> bool:
         if self.last_value_csv == new_value_csv and not force:
             return False
 
         row = [
-            CsvValue(time.isoformat(), False),
+            CsvValue('' if time is None else time.isoformat(), False),
             CsvValue(*self.last_value_csv),
             CsvValue(*new_value_csv),
         ]

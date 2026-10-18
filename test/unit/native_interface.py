@@ -228,7 +228,7 @@ def check_stage_times():
         else:
             stage_snapshots[stage] = snapshot
             clock_engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
-            clock_engine.fake_wall_time = snapshot.local + datetime.timedelta(seconds=1)
+            clock_engine.set_fake_wall_time(snapshot.local + datetime.timedelta(seconds=1))
         for candidate in stages:
             if stages.index(candidate) <= index:
                 assert services.start_time_for_stage(candidate) == stage_snapshots[candidate]
@@ -271,7 +271,7 @@ def check_stage_times():
     monotonic_times = [clock_engine.get_monotonic_time() + wirely.Duration.from_seconds(index)
                        for index in range(3)]
 
-    clock_engine.fake_wall_time = local_times[0]
+    clock_engine.set_fake_wall_time(local_times[0])
     clock_engine.step()
     assert len(clock_contexts) == 6
     clock_engine.step()
@@ -975,6 +975,7 @@ def check_port_keys():
 
 startup_observations = []
 cleanup_observations = []
+cleanup_clock_observations = []
 
 
 def make_lifecycle_engine(*, fail=False):
@@ -1006,6 +1007,7 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
 
             def observe_cleanup(self):
                 cleanup_observations.append(self.services.name)
+                cleanup_clock_observations.append((self.services.is_shutting_down, self.services.shutdown_time))
         registry['initializers']['TestLibrary.LifecycleProbe'] = LifecycleProbe
 
         bindings = test_extension(**registry, contracts=contracts)
@@ -1015,17 +1017,36 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
 async def run_test():
     startup_observations.clear()
     cleanup_observations.clear()
+    cleanup_clock_observations.clear()
     lifecycle_engine = make_lifecycle_engine()
+    assert not lifecycle_engine.is_shutting_down
     async with asyncio.TaskGroup() as task_group:
         async with contextlib.AsyncExitStack() as exit_stack:
             await lifecycle_engine.start_tasks_async(task_group, exit_stack)
     timestamp = lifecycle_engine.last_shutdown_time
     assert timestamp is not None and timestamp.tzinfo is not None
+    assert cleanup_clock_observations == [(True, timestamp)] * len(cleanup_observations)
+    assert not lifecycle_engine.is_shutting_down
+    assert lifecycle_engine.shutdown_time is None
     checks.assertCountEqual(startup_observations, ['first', 'second'])
     assert cleanup_observations == startup_observations[::-1]
 
     startup_observations.clear()
     cleanup_observations.clear()
+    cleanup_clock_observations.clear()
+    unknown_time_engine = make_lifecycle_engine()
+    unknown_time_engine.set_fake_wall_time(None)
+    async with asyncio.TaskGroup() as task_group:
+        async with contextlib.AsyncExitStack() as exit_stack:
+            await unknown_time_engine.start_tasks_async(task_group, exit_stack)
+            assert not unknown_time_engine.is_shutting_down
+    assert cleanup_clock_observations == [(True, None)] * len(cleanup_observations)
+    assert len(cleanup_observations) == 2
+    assert not unknown_time_engine.is_shutting_down
+
+    startup_observations.clear()
+    cleanup_observations.clear()
+    cleanup_clock_observations.clear()
     failing_engine = make_lifecycle_engine(fail=True)
     async with asyncio.TaskGroup() as task_group:
         with checks.assertRaisesRegex(RuntimeError, 'Startup failed'):
@@ -1034,6 +1055,8 @@ async def run_test():
     assert startup_observations in (['second'], ['first', 'second'])
     assert cleanup_observations == startup_observations[::-1]
     assert failing_engine.last_shutdown_time is None
+    assert cleanup_clock_observations == [(False, None)] * len(cleanup_observations)
+    assert not failing_engine.is_shutting_down
 
 
 def check_native_methods():

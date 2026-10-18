@@ -42,7 +42,8 @@ class Invocation:
 def check_repeat_recovery():
     writer = ValueWriter()
     writer.initialize(services=StateServices(name='writer', output_keys={'state': 'state'},
-                                             trigger=lambda key: None, shutdown_time=lambda: None, native_types=builtin_extension.native_types),
+                                             trigger=lambda key: None, shutdown_time=lambda: None,
+                                             is_shutting_down=lambda: False, native_types=builtin_extension.native_types),
                       filename='unused.csv')
     invocation = Invocation(writer)
     output = io.BytesIO()

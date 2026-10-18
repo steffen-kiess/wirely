@@ -391,8 +391,11 @@ ReceiverState = Receiver  # Used as a resource type.
 `self.services` is the `StateServices` object that `initialize()` also
 receives. It lasts for the node's lifetime and has read-only `name`, the
 dotted instance name or, for a singleton, the qualified type name, and
-`shutdown_time`, when the current shutdown started. Changes to Python
-fields do not automatically schedule procedures. Call
+`is_shutting_down`, whether cleanup follows completed startup, and
+`shutdown_time`, the wall time when that cleanup started. `shutdown_time`
+is `None` outside shutdown or when wall time is unknown; use
+`is_shutting_down` to distinguish these cases. Changes to Python fields
+do not automatically schedule procedures. Call
 `services.trigger(output)` to schedule each procedure that depends on the
 resource output with this Python name, in any node. Repeated triggers
 before execution schedule one invocation.
@@ -419,8 +422,9 @@ dependencies does not automatically run every step.
 `TimeSnapshot` from `wirely.runtime.time_snapshot`, captured at the start
 of `RunStage.INPUT`, `DEFAULT`, or `OUTPUT` (`RunStage` is defined in
 `wirely.program`). Its attributes are `monotonic` (`MonotonicTime`),
-`utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Timestamps
-are available for stages that have started.
+`utc` (UTC-aware `datetime`), and `local` (local-aware `datetime`). Both wall
+timestamps are `None` while wall time is unknown; monotonic time remains
+available. Snapshots are available for stages that have started.
 
 Call `services.trigger_self()` to schedule the running procedure again in
 the next step.
@@ -431,6 +435,14 @@ leaving it unset cancels any previous deadline. An incomparable clock
 generation also causes a rerun; handle that case as
 `Timer.MonotonicTimeReached` does in
 [`timer.py`](../wirely/native/timer.py).
+
+Call `services.set_wall_wakeup_time(start, end)` to rerun when wall time
+leaves the aware-datetime window `[start, end)`, becomes unknown, or changes
+UTC offset. Call it without bounds to wait for known wall time. Renew the
+request on each invocation to remain subscribed. See the method's docstring
+in [`native_api.py`](../wirely/runtime/native_api.py) for the full contract.
+UTC-offset detection and fallback window checks can take up to one second,
+plus scheduling delay.
 
 ## Native functions
 

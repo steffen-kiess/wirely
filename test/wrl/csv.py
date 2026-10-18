@@ -70,8 +70,8 @@ async def check_repeat_boundaries(filename):
 
 
 async def run_test():
-    engine.fake_wall_time = datetime.datetime(
-        2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
+    engine.set_fake_wall_time(datetime.datetime(
+        2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2))))
     fn = engine.get_native_state('test_value_writer').filename
     fn2 = engine.get_native_state('test_option_value_writer').filename
 
@@ -327,3 +327,38 @@ async def run_test():
     # Note: No message on shutdown because old value is None
     assert_content_is(fn2, expected)
     await check_repeat_boundaries(fn2)
+
+    # Unknown time preserves transitions and monotonic repeats, with empty timestamps.
+    os.unlink(fn2)
+    engine.set_fake_wall_time(None)
+    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+        await engine.start_tasks_async(tg, async_exit_stack)
+        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
+        engine.step()
+        engine.step()
+        expected = ',,true\r\n'
+        assert_content_is(fn2, expected)
+        engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(3600))
+        engine.step()
+        engine.step()
+        expected += ',true,true\r\n'
+        assert_content_is(fn2, expected)
+        engine.get_native_state('test_option_input').set_value(wirely.Some(False))
+        engine.step()
+        engine.step()
+        expected += ',true,false\r\n'
+        assert_content_is(fn2, expected)
+    assert engine.last_shutdown_time is None
+    expected += ',false,\r\n'
+    assert_content_is(fn2, expected)
+
+    engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc))
+    async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
+        await engine.start_tasks_async(tg, async_exit_stack)
+        engine.get_native_state('test_option_input').set_value(wirely.Some(True))
+        engine.step()
+        engine.step()
+        expected += '2026-01-01T00:00:00+00:00,,true\r\n'
+        assert_content_is(fn2, expected)
+    expected += '2026-01-01T00:00:00+00:00,true,\r\n'
+    assert_content_is(fn2, expected)

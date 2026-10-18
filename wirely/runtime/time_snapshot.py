@@ -9,5 +9,5 @@ from ..types.time import MonotonicTime
 @dataclass(frozen=True, kw_only=True)
 class TimeSnapshot:
     monotonic: MonotonicTime
-    utc: datetime.datetime
-    local: datetime.datetime
+    utc: datetime.datetime | None
+    local: datetime.datetime | None

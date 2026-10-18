@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import io
 import json
 import os
@@ -91,11 +92,10 @@ def check_event_payloads():
             program, target = node_program(node_type, output_type, output_value, forward=forward)
             runtime = test_engine(program)
             if node_type == 'Schedule.TriggerAt':
-                clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
-                clock.set_fake_time(wirely.TimeOfDay.from_parts(11, 59))
+                runtime.set_fake_wall_time(datetime.datetime(2026, 1, 1, 11, 59, tzinfo=datetime.timezone.utc))
                 runtime.step()
                 runtime.assert_value_is(target, None)
-                clock.set_fake_time(wirely.TimeOfDay.from_parts(12, 0))
+                runtime.set_fake_wall_time(datetime.datetime(2026, 1, 1, 12, tzinfo=datetime.timezone.utc))
             else:
                 runtime.get_native_state('feedback').set_value(wirely.Some(False))
                 runtime.step()
@@ -110,20 +110,45 @@ def check_event_payloads():
 def check_trigger_startup_after():
     program, target = node_program('Schedule.TriggerAt', None, None)
     runtime = test_engine(program)
-    clock = runtime.get_native_state_singleton('Schedule.TimeOfDayMinute')
     # Starting after the scheduled time must not emit or re-arm on rollback.
     for time in ('12:30', '11:59', '12:00', '15:00', '11:59'):
-        clock.set_fake_time(wirely.TimeOfDay.parse(time))
+        runtime.set_fake_wall_time(datetime.datetime.fromisoformat('2026-01-01T' + time).replace(tzinfo=datetime.timezone.utc))
         runtime.step()
         runtime.assert_value_is(target, None)
         runtime.step()
         runtime.assert_is_idle()
-    clock.set_fake_time(wirely.TimeOfDay.parse('12:00'))
+    runtime.set_fake_wall_time(datetime.datetime.fromisoformat('2026-01-01T' + '12:00').replace(tzinfo=datetime.timezone.utc))
     runtime.step()
     runtime.assert_value_is(target, wirely.Some(wirely.Unit()))
     runtime.step()
     runtime.assert_value_is(target, None)
     runtime.assert_is_idle()
+
+
+def check_trigger_unknown_time():
+    program, target = node_program('Schedule.TriggerAt', None, None)
+    runtime = test_engine(program)
+
+    def step(time, expected=None):
+        value = (None if time is None else
+                 datetime.datetime.fromisoformat('2026-01-01T' + time).replace(tzinfo=datetime.timezone.utc))
+        runtime.set_fake_wall_time(value)
+        runtime.step()
+        runtime.assert_value_is(target, expected)
+        runtime.step()
+        runtime.assert_value_is(target, None)
+        runtime.assert_is_idle()
+
+    step(None)
+    step('11:59')
+    step(None)
+    # Regaining time after the deadline must not replay the missed event.
+    step('12:00')
+    step('11:59')
+    step('12:00')
+    step('15:00')
+    step('11:59')
+    step('12:00', wirely.Some(wirely.Unit()))
 
 
 def check_delayed_event():
@@ -540,6 +565,7 @@ def check_prepared_credentials():
 
 check_event_payloads()
 check_trigger_startup_after()
+check_trigger_unknown_time()
 check_delayed_event()
 check_flipflop_behavior()
 check_debounce_duration()

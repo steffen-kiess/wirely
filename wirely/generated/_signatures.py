@@ -155,13 +155,6 @@ native_state_types: dict[str, Initializer] = {
             'ShellCommand': Builtin('String'),
         },
     ),
-    'Schedule.TimeOfDayMinute': Initializer(
-        depends={},
-        produces={
-            'state': Port('resource', ResourceType('Schedule.TimeOfDayMinuteState')),
-        },
-        uses={},
-    ),
     'Std.DebugEventSource': Initializer(
         depends={},
         produces={
@@ -368,11 +361,9 @@ native_procedures: dict[str, Procedure] = {
     ),
     'Schedule.TimeOfDayMinute:get_value': Procedure(
         stage='default',
-        depends={
-            'state': Port('resource', ResourceType('Schedule.TimeOfDayMinuteState')),
-        },
+        depends={},
         produces={
-            'output': Port('value', Builtin('TimeOfDay')),
+            'output': Port('value', Option(Builtin('TimeOfDay'))),
         },
         uses={},
     ),

@@ -6,68 +6,26 @@ from __future__ import annotations
 import abc
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import cast
 
 from wirely.runtime.native_api import (
-    InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
-    ProcedureServices, StateServices,
+    InterfaceBinding, NativeProcedure, PreparationServices, ProcedureAdapter, ProcedureServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
+from wirely.types.option import Some
 from wirely.types.time import TimeOfDay
 
-if TYPE_CHECKING:
-    from wirely.native.schedule import TimeOfDayMinuteState
-
 __all__ = [
-    'TimeOfDayMinuteInitializerResult',
-    'TimeOfDayMinuteInitializer',
     'TimeOfDayMinuteGetValueResult',
     'TimeOfDayMinuteGetValue',
 ]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class TimeOfDayMinuteInitializerResult:
-    """Resource outputs of native state type Schedule.TimeOfDayMinute."""
-
-    state: TimeOfDayMinuteState
-
-
-class TimeOfDayMinuteInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type Schedule.TimeOfDayMinute; initialize() returns its resource outputs."""
-
-    @abc.abstractmethod
-    def initialize(
-        self, *,
-        services: StateServices[Literal['state']],
-    ) -> TimeOfDayMinuteInitializerResult:
-        ...
-
-
-class _TimeOfDayMinuteInitializerAdapter(InitializerAdapter):
-    output_keys = {'state': 'state'}
-
-    def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, TimeOfDayMinuteInitializer)
-        result = state.initialize(
-            services=services,
-        )
-        binding.check_result(result, TimeOfDayMinuteInitializerResult)
-        return {
-            'state': binding.resource_output('state', result.state),
-        }
-
-
-TimeOfDayMinuteInitializer._adapter = _TimeOfDayMinuteInitializerAdapter()
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class TimeOfDayMinuteGetValueResult:
     """Outputs of native procedure Schedule.TimeOfDayMinute:get_value."""
 
-    output: TimeOfDay
+    output: Some[TimeOfDay] | None
 
 
 class TimeOfDayMinuteGetValue(NativeProcedure, abc.ABC):
@@ -76,7 +34,6 @@ class TimeOfDayMinuteGetValue(NativeProcedure, abc.ABC):
     def prepare(
         self, *,
         services: PreparationServices,
-        state: TimeOfDayMinuteState,
     ) -> None:
         pass
 
@@ -84,7 +41,6 @@ class TimeOfDayMinuteGetValue(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
-        state: TimeOfDayMinuteState,
     ) -> TimeOfDayMinuteGetValueResult:
         ...
 
@@ -95,7 +51,6 @@ class _TimeOfDayMinuteGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, TimeOfDayMinuteGetValue)
         procedure.prepare(
             services=services,
-            state=cast('TimeOfDayMinuteState', binding.resource('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -103,7 +58,6 @@ class _TimeOfDayMinuteGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, TimeOfDayMinuteGetValue)
         result = procedure.run(
             services=services,
-            state=cast('TimeOfDayMinuteState', binding.resource('state')),
         )
         binding.check_result(result, TimeOfDayMinuteGetValueResult)
         return {

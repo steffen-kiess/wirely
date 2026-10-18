@@ -304,8 +304,8 @@ def check_wall_clock():
     other = test_engine(program)
     fixed = datetime.datetime(2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
     runtime.triggered_procs_event.clear()
-    runtime.fake_wall_time = fixed
-    assert not runtime.triggered_procs_event.is_set()
+    runtime.set_fake_wall_time(fixed)
+    assert runtime.triggered_procs_event.is_set()
     assert runtime.get_wall_time() == fixed
     runtime.step()
     assert runtime.get_wall_time() == fixed
@@ -319,18 +319,23 @@ def check_wall_clock():
     assert now.utcoffset() is not None
     assert before <= now <= after
     runtime.triggered_procs_event.clear()
-    runtime.fake_wall_time = fixed + datetime.timedelta(seconds=1)
+    runtime.set_fake_wall_time(fixed + datetime.timedelta(seconds=1))
     assert runtime.get_wall_time().isoformat() == '2026-01-01T14:00:01+02:00'
-    assert not runtime.triggered_procs_event.is_set()
-    runtime.fake_wall_time = None
+    assert runtime.triggered_procs_event.is_set()
+    runtime.clear_fake_wall_time()
     before = datetime.datetime.now(datetime.timezone.utc)
     now = runtime.get_wall_time()
     after = datetime.datetime.now(datetime.timezone.utc)
     assert before <= now <= after
-    assert not runtime.triggered_procs_event.is_set()
-    runtime.fake_wall_time = datetime.datetime(2026, 1, 1)
+    assert runtime.triggered_procs_event.is_set()
+    runtime.set_fake_wall_time(None)
+    assert runtime.get_wall_time() is None
+    snapshot = runtime.step()[2]
+    assert all(time is None for time in snapshot.stage_start_time.values())
+    runtime.advance_fake_monotonic_time(wirely.Duration(ticks=1))
+    assert runtime.get_wall_time() is None
     with checks.assertRaisesRegex(ValueError, 'timezone-aware'):
-        runtime.get_wall_time()
+        runtime.set_fake_wall_time(datetime.datetime(2026, 1, 1))
 
 
 check_compilation_without_native_implementations()

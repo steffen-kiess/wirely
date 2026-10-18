@@ -127,16 +127,6 @@ def _load_states_process_launch_on_event_initializer() -> StateImplementation:
     return StateImplementation(create, LaunchOnEventInitializer._adapter)
 
 
-def _load_states_schedule_time_of_day_minute_initializer() -> StateImplementation:
-    from wirely.generated.schedule import TimeOfDayMinuteInitializer
-    from wirely.native.schedule import TimeOfDayMinute
-
-    def create() -> TimeOfDayMinuteInitializer:
-        return TimeOfDayMinute()
-
-    return StateImplementation(create, TimeOfDayMinuteInitializer._adapter)
-
-
 def _load_states_std_debug_event_source_initializer() -> StateImplementation:
     from wirely.generated.std import DebugEventSourceInitializer
     from wirely.native.std import DebugEventSource
@@ -230,7 +220,6 @@ states: dict[str, Callable[[], StateImplementation]] = {
     'MQTT.EventSender': _load_states_mqtt_event_sender_initializer,
     'MQTT.ValueOptionProvider': _load_states_mqtt_value_option_provider_initializer,
     'Process.LaunchOnEvent': _load_states_process_launch_on_event_initializer,
-    'Schedule.TimeOfDayMinute': _load_states_schedule_time_of_day_minute_initializer,
     'Std.DebugEventSource': _load_states_std_debug_event_source_initializer,
     'Std.DebugValueSource': _load_states_std_debug_value_source_initializer,
     'TwoN.CodeEnteredEvent': _load_states_two_n_code_entered_event_initializer,
@@ -745,11 +734,6 @@ def _load_resource_process_launch_on_event_state() -> type:
     return LaunchOnEventState
 
 
-def _load_resource_schedule_time_of_day_minute_state() -> type:
-    from wirely.native.schedule import TimeOfDayMinuteState
-    return TimeOfDayMinuteState
-
-
 def _load_resource_std_debug_event_source_state() -> type:
     from wirely.native.std import DebugEventSourceState
     return DebugEventSourceState
@@ -803,7 +787,6 @@ resources: dict[str, Callable[[], type]] = {
     'MQTT.EventSenderState': _load_resource_mqtt_event_sender_state,
     'MQTT.ValueOptionProviderState': _load_resource_mqtt_value_option_provider_state,
     'Process.LaunchOnEventState': _load_resource_process_launch_on_event_state,
-    'Schedule.TimeOfDayMinuteState': _load_resource_schedule_time_of_day_minute_state,
     'Std.DebugEventSourceState': _load_resource_std_debug_event_source_state,
     'Std.DebugValueSourceState': _load_resource_std_debug_value_source_state,
     'TwoN.CodeEnteredEventState': _load_resource_two_n_code_entered_event_state,

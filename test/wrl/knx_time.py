@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import datetime
 
 import xknx
 import xknx.tools
@@ -54,9 +55,7 @@ async def run_test():
         async with knx:
             print(engine.get_native_state('bus').knx.current_address, knx.current_address)
 
-            todm = engine.get_native_state_singleton('Schedule.TimeOfDayMinute')
-
-            todm.set_fake_time(wirely.TimeOfDay.parse('07:00'))
+            engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 7, tzinfo=datetime.timezone.utc))
 
             event_sensor_recv = MessageReceiver(knx, 'event_sensor', "0/7/1", "binary")
 
@@ -67,7 +66,7 @@ async def run_test():
             engine.assert_is_idle()
             await event_sensor_recv.expect()
 
-            todm.set_fake_time(wirely.TimeOfDay.parse('09:00'))
+            engine.set_fake_wall_time(datetime.datetime(2026, 1, 1, 9, tzinfo=datetime.timezone.utc))
             engine.step()
             engine.step()
             engine.assert_is_idle()

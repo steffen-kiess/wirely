@@ -3,19 +3,11 @@ namespace Schedule {
   native constant function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 
   #[Internal]
-  resource type TimeOfDayMinuteState;
+  singleton node type TimeOfDayMinute {
+    default output: value Option[TimeOfDay];
 
-  #[Internal]
-  native singleton node type TimeOfDayMinute {
-    default output: value TimeOfDay;
-
-    binding state: resource TimeOfDayMinuteState;
-    native initializer produces state as "state";
-
-    // TODO: Should this be "stage input"? Should this use some global time?
-    native procedure get_value
-      depends on state as "state"
-      produces default output as "output";
+    // TODO: Should this be "stage input"?
+    native procedure get_value produces default output as "output";
   }
 
   // TODO: Implement this in a way which does not cause code to be run every
@@ -28,7 +20,7 @@ namespace Schedule {
 
     assert IsValidDailyInterval(Start, End), "Start and End must differ";
 
-    default output: value boolean;
+    default output: value Option[boolean];
 
     node current_time: TimeOfDayMinute {}
 
@@ -36,10 +28,14 @@ namespace Schedule {
       depends on current_time
       produces default output as output
     {
-      output = if Start < End {
-        current_time >= Start && current_time < End
+      output = if let Some(time) = current_time {
+        Some(if Start < End {
+          time >= Start && time < End
+        } else {
+          time >= Start || time < End
+        })
       } else {
-        current_time >= Start || current_time < End
+        None
       };
     }
   }
@@ -90,24 +86,32 @@ namespace Schedule {
       depends on trigger_state.old as previous, before, after
       produces default output as output, trigger_state
     {
-      trigger_state = if before && after {
-        // The shared clock makes this impossible; keep the state if it occurs.
-        previous
-      } else if after {
-        // Startup here, or skipping the before interval, records the visit
-        // without emitting an event.
-        TriggerAtState.Triggered
-      } else if before {
-        if previous == TriggerAtState.Outside {
-          TriggerAtState.Before
+      trigger_state = if let Some(is_before) = before {
+        if let Some(is_after) = after {
+          if is_before && is_after {
+            // The shared clock makes this impossible; keep the state if it occurs.
+            previous
+          } else if is_after {
+            // Startup here, or skipping the before interval, records the visit
+            // without emitting an event.
+            TriggerAtState.Triggered
+          } else if is_before {
+            if previous == TriggerAtState.Outside {
+              TriggerAtState.Before
+            } else {
+              // A clock rollback into the before interval, for example during DST
+              // changes, must not re-arm a Triggered state: returning to after
+              // would emit a duplicate.
+              previous
+            }
+          } else {
+            // Leaving both intervals allows a new before-to-after transition.
+            TriggerAtState.Outside
+          }
         } else {
-          // A clock rollback into the before interval, for example during DST
-          // changes, must not re-arm a Triggered state: returning to after
-          // would emit a duplicate.
-          previous
+          TriggerAtState.Outside
         }
       } else {
-        // Leaving both intervals allows a new before-to-after transition.
         TriggerAtState.Outside
       };
       on changed trigger_state {

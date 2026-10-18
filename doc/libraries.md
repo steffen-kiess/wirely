@@ -83,8 +83,8 @@ such as `"08:00"`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value boolean`. True while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive). The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
-| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, with logic to avoid duplicate daily events during clock changes. Supply `OutputValue` when `OutputType` is not `unit`. |
+| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
+| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## Timer
 
@@ -174,6 +174,7 @@ and new value. An empty field marks an unavailable value at startup or
 shutdown. It writes on changes and repeats a current value hourly. `Type`
 must support CSV conversion, such as `boolean`, an integer type, or an
 `Option` of one. The file is opened for append when the service starts.
+The timestamp field is empty while wall time is unknown.
 
 ## TwoN
 

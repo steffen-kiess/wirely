@@ -22,6 +22,7 @@ from .extensions import NativeTypes
 from .native_values import from_native, to_native
 from .resources import ResourceType, ResourceValue
 from .time_snapshot import TimeSnapshot
+from .wall_clock import WallWakeup
 
 if TYPE_CHECKING:
     from ..functions import FunctionImplementation
@@ -33,15 +34,17 @@ F = TypeVar('F', bound=Callable[..., object])
 class StateServices(Generic[K]):
     """Runtime operations available to a native state for its lifetime."""
 
-    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time', 'native_types')
+    __slots__ = ('_name', '_output_keys', '_trigger', '_shutdown_time', '_is_shutting_down', 'native_types')
 
     def __init__(self, *, name: str, output_keys: Mapping[str, str], trigger: Callable[[str], None],
-                 shutdown_time: Callable[[], datetime.datetime | None], native_types: NativeTypes) -> None:
+                 shutdown_time: Callable[[], datetime.datetime | None], is_shutting_down: Callable[[], bool],
+                 native_types: NativeTypes) -> None:
         self.native_types = native_types
         self._name = name
         self._output_keys = output_keys  # Binding keys by Python name.
         self._trigger = trigger
         self._shutdown_time = shutdown_time
+        self._is_shutting_down = is_shutting_down
 
     @property
     def name(self) -> str:
@@ -56,8 +59,17 @@ class StateServices(Generic[K]):
         self._trigger(key)
 
     @property
+    def is_shutting_down(self) -> bool:
+        """Whether cleanup follows completed startup, even when wall time is unknown."""
+        return self._is_shutting_down()
+
+    @property
     def shutdown_time(self) -> datetime.datetime | None:
-        """When the current shutdown started, or None while running."""
+        """Wall time when shutdown started, or None if unknown or not shutting down.
+
+        Use is_shutting_down to distinguish unknown time from cleanup before
+        startup completed.
+        """
         return self._shutdown_time()
 
     def __repr__(self) -> str:
@@ -75,7 +87,8 @@ class PreparationServices:
 class ProcedureServices:
     """Runtime operations available during one invocation of a native procedure."""
 
-    __slots__ = ('_name', '_stage_times', '_trigger_self', '_wakeup_time', '_wakeup_time_set', 'native_types')
+    __slots__ = ('_name', '_stage_times', '_trigger_self', '_wakeup_time', '_wakeup_time_set',
+                 '_wall_wakeup', 'native_types')
 
     def __init__(self, *, name: str, stage_times: Mapping[RunStage, TimeSnapshot],
                  trigger_self: Callable[[], None], native_types: NativeTypes) -> None:
@@ -85,6 +98,7 @@ class ProcedureServices:
         self._trigger_self = trigger_self
         self._wakeup_time: MonotonicTime | None = None
         self._wakeup_time_set = False
+        self._wall_wakeup: WallWakeup | None = None
 
     @property
     def name(self) -> str:
@@ -112,6 +126,73 @@ class ProcedureServices:
             raise ValueError(f'Expected a MonotonicTime or None, got {deadline!r}')
         self._wakeup_time = deadline
         self._wakeup_time_set = True
+
+    @property
+    def wall_wakeup(self) -> WallWakeup | None:
+        return self._wall_wakeup
+
+    def set_wall_wakeup_time(self, start: datetime.datetime | None = None,
+                             end: datetime.datetime | None = None) -> None:
+        """Request another invocation based on wall-clock validity.
+
+        With both bounds supplied, register the half-open validity window
+        [start, end). Both datetimes must be timezone-aware and start must
+        precede end as an absolute instant. Bounds are normalized to UTC.
+
+        Request execution when the engine observes wall time before start,
+        at or after end, or unknown. A change in the effective local UTC
+        offset from this invocation's snapshot also requests execution,
+        even if the UTC instant remains inside the window. A clock
+        adjustment that remains inside the window with unchanged offset
+        does not request execution.
+
+        With both bounds omitted, request execution when wall time becomes
+        known. If time is already known, request a subsequent step. This
+        allows a procedure returning an unknown result to wait for a usable
+        clock without constructing a window.
+
+        Execution occurs at the next scheduling opportunity and overrides
+        normal procedure caching. Other triggers may still invoke the
+        procedure while its window remains valid.
+
+        Each actual invocation replaces the previous request. Call this
+        method again to remain subscribed; making no call leaves no wall
+        request. Calling without arguments is therefore different from
+        omitting the call. Skipped invocations retain their request.
+
+        A window already excluding current time requests a subsequent step,
+        rather than invoking the procedure recursively. Wall requests are
+        independent of monotonic wakeup requests.
+
+        Fake wall time does not advance or produce real-time countdowns.
+        Changing or clearing the override causes requests to be reevaluated.
+        Notifications reflect observed clock state; execution is not
+        guaranteed at an exact wall-clock instant.
+
+        Raise ValueError for partial bounds, naive datetimes, a start that
+        does not precede end, or multiple calls during one invocation.
+
+        For a known snapshot, register a window containing its UTC time::
+
+            services.set_wall_wakeup_time(start, end)
+
+        While the snapshot's local time is None, request availability::
+
+            services.set_wall_wakeup_time()
+        """
+        if self._wall_wakeup is not None:
+            raise ValueError(f'Wall wakeup time on {self._name} was already set')
+        if start is None and end is None:
+            self._wall_wakeup = WallWakeup()
+            return
+        if (not isinstance(start, datetime.datetime) or not isinstance(end, datetime.datetime)
+                or start.utcoffset() is None or end.utcoffset() is None):
+            raise ValueError('Both wall-clock bounds must be timezone-aware datetimes')
+        start = start.astimezone(datetime.timezone.utc)
+        end = end.astimezone(datetime.timezone.utc)
+        if start >= end:
+            raise ValueError('Wall-clock start must precede end')
+        self._wall_wakeup = WallWakeup(start, end)
 
     def __repr__(self) -> str:
         return f'ProcedureServices(name={self._name!r})'

@@ -56,8 +56,8 @@ class StepContext:
     def __init__(self) -> None:
         self._stage_times: dict[RunStage, TimeSnapshot] = {}
         self.stage_start_time_monotonic: dict[RunStage, MonotonicTime] = {}
-        self.stage_start_time_utc: dict[RunStage, datetime.datetime] = {}
-        self.stage_start_time: dict[RunStage, datetime.datetime] = {}
+        self.stage_start_time_utc: dict[RunStage, datetime.datetime | None] = {}
+        self.stage_start_time: dict[RunStage, datetime.datetime | None] = {}
 
     def start_stage(self, engine: Engine, stage: RunStage) -> None:
         if stage in self.stage_start_time:
@@ -67,7 +67,7 @@ class StepContext:
         # print(f'StepContext for {stage} started at {now_monotonic}')
 
         now = engine.get_wall_time()
-        now_utc = now.astimezone(datetime.timezone.utc)
+        now_utc = None if now is None else now.astimezone(datetime.timezone.utc)
 
         self._stage_times[stage] = TimeSnapshot(
             monotonic=now_monotonic, utc=now_utc, local=now,

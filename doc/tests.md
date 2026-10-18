@@ -66,10 +66,12 @@ offset, or zero, as fixed time in a new generation. Use
 without changing ticks. Clock changes wake a waiting engine. Fixed mode
 lasts for the engine's lifetime; use another engine for real-clock tests.
 
-Set `engine.fake_wall_time` to a timezone-aware `datetime` to fix stage and
-shutdown timestamps. `engine.get_wall_time()` returns that value with its
-supplied timezone until reassigned; set it to `None` to resume real local
-time. Wall-clock changes do not wake the engine or affect monotonic time.
+Call `engine.set_fake_wall_time(datetime)` with a timezone-aware value to
+fix stage and shutdown timestamps, or pass `None` to simulate unknown time.
+`engine.get_wall_time()` returns that value with its supplied timezone.
+Call `engine.clear_fake_wall_time()` to resume real local time. Changes
+wake the scheduler to reevaluate wall-clock requests; monotonic time is
+independent.
 
 ## Compiler fixtures
 

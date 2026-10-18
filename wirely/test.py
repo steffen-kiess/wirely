@@ -52,6 +52,7 @@ python_only_tests = [
     'misc/grammar',
     'misc/type_check',
     'unit/runtime_program',
+    'unit/wall_clock',
     'unit/compiler_api',
     'unit/compiler_warnings',
     'unit/native_interface',

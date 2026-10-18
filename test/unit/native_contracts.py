@@ -158,7 +158,8 @@ def check_adapters():
     state_types, procedures, functions = interfaces
     triggers = []
     services = StateServices(name='owner', output_keys=Owner._adapter.output_keys, trigger=triggers.append,
-                             shutdown_time=lambda: None, native_types=builtin_extension.native_types)
+                             shutdown_time=lambda: None, is_shutting_down=lambda: False,
+                             native_types=builtin_extension.native_types)
     owner, outputs = Owner._adapter.construct(Owner, services, InterfaceBinding(
         where='Owner', signature=state_types['TestLibrary.Owner'],
         use_types={'Limit': wirely_types.uint8, 'label': wirely_types.TypeOption(wirely_types.String)},

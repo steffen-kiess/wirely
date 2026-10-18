@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import datetime
 import functools
+from dataclasses import replace
 from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
@@ -18,6 +19,7 @@ from wirely.runtime.signatures import Procedure as SignatureProcedure
 from wirely.types import InternalValue
 from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
+from wirely.runtime.wall_clock import WallClockWaiter, WallWakeup
 
 
 class Engine:
@@ -42,7 +44,9 @@ class Engine:
 
         self.debug = False
 
-        # Is a datetime during async task shutdown unless the shutdown was triggered before all async tasks were started
+        # Set during cleanup only if all async tasks were started successfully.
+        self.is_shutting_down = False
+        # Wall time at the start of that cleanup, if known.
         self.shutdown_time: datetime.datetime | None = None
 
         # The time of the last complete async task shutdown. Should be used only for debugging / tests.
@@ -59,6 +63,7 @@ class Engine:
 
         self.wakeups: dict[tuple, MonotonicTime] = {}
         self.next_wakeup: MonotonicTime | None = None
+        self.wall_wakeups: dict[tuple, WallWakeup] = {}
 
         # The current state, will be .old during the next step.
         self.state = VariableTableInstance(self.program.state_variables)
@@ -68,7 +73,8 @@ class Engine:
 
         self.fake_monotonic_time_offset: Duration | None = None
         self._fake_monotonic_time_generation: int | None = None
-        self.fake_wall_time: datetime.datetime | None = None
+        self._fake_wall_time: datetime.datetime | None = None
+        self._has_fake_wall_time = False
         self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program, extension)
@@ -108,6 +114,7 @@ class Engine:
                     name=instance.name, output_keys=linked.adapter.output_keys,
                     trigger=functools.partial(self.trigger_dependents, node_id),
                     shutdown_time=lambda: self.shutdown_time,
+                    is_shutting_down=lambda: self.is_shutting_down,
                 )
                 native_state, outputs = linked.adapter.construct(linked.factory, services, interface)
                 for key, resource in outputs.items():
@@ -152,12 +159,14 @@ class Engine:
 
             # TODO: Set monotonic_shutdown_time?
             self.shutdown_time = now
+            self.is_shutting_down = True
 
         def finish_task_cleanup() -> None:
             print('Task cleanup done')
 
             self.last_shutdown_time = self.shutdown_time
             self.shutdown_time = None
+            self.is_shutting_down = False
 
         async_exit_stack.callback(finish_task_cleanup)
 
@@ -247,6 +256,8 @@ class Engine:
                     deadline = self.wakeups[key]
                     if not wirely.MonotonicTime.is_comparable(now, deadline) or wirely.MonotonicTime.compare(now, deadline) >= 0:
                         skip_step = False
+                if key in self.wall_wakeups and self.wall_wakeups[key].is_due(step_info._stage_times[stage].local):
+                    skip_step = False
                 if skip_step:
                     assert cache is not None
                     for output in proc.outputs.values():
@@ -270,9 +281,17 @@ class Engine:
                     inputs = {name: value for (name, _), value in zip(proc.dependencies, values)}
                     outputs = adapter.run(implementation, services, binding, inputs)
                     wakeup_time = services.wakeup_time
+                    wall_wakeup = services.wall_wakeup
                 else:
                     outputs = execute_procedure(self.program, proc, values, self.native_functions)
                     wakeup_time = None
+                    wall_wakeup = None
+                if wall_wakeup is None:
+                    self.wall_wakeups.pop(key, None)
+                else:
+                    local = step_info._stage_times[stage].local
+                    self.wall_wakeups[key] = replace(
+                        wall_wakeup, utc_offset=None if local is None else local.utcoffset())
                 if wakeup_time is None:
                     self.wakeups.pop(key, None)
                 else:
@@ -296,36 +315,48 @@ class Engine:
         return run_count, state_change_count, step_info
 
     async def run(self) -> None:
-        while True:
-            await asyncio.sleep(0)
-            await self._resumed_event.wait()
-            run_count, state_change_count, step_info = self.step()
-            if state_change_count == 0:
+        wall_waiter = WallClockWaiter(self.get_wall_time, self.triggered_procs_event.set)
+        try:
+            while True:
+                await asyncio.sleep(0)
+                await self._resumed_event.wait()
+                run_count, state_change_count, step_info = self.step()
+                if state_change_count != 0:
+                    continue
                 now = self.get_monotonic_time()
-
                 # TODO: If there is a "while True" here, the code will crash (instead of looping) because of EAGAIN when writing to the terminal, seems like NONBLOCK is set
                 # while True:
                 # import os; import fcntl; fcntl.fcntl(1, fcntl.F_GETFL)
                 # print(f'Waiting, wakeup is {self.next_wakeup}', flush=True)
                 # import os; print(os.
-                if self.next_wakeup is None:
-                    # Sleep without timeout
-                    await self.triggered_procs_event.wait()
-                elif (not wirely.MonotonicTime.is_comparable(now, self.next_wakeup)
-                        or wirely.MonotonicTime.compare(self.next_wakeup, now) <= 0):
-                    # The wakeup is not comparable or has already passed; don't sleep.
+                wall_now = self.get_wall_time()
+                if any(request.is_due(wall_now) for request in self.wall_wakeups.values()):
+                    continue
+                # Sleep without timeout unless a real monotonic deadline supplies one.
+                timeout = None
+                if self.next_wakeup is not None:
+                    if (not MonotonicTime.is_comparable(now, self.next_wakeup)
+                            or MonotonicTime.compare(self.next_wakeup, now) <= 0):
+                        # The wakeup is not comparable or has already passed; don't sleep.
+                        continue
+                    if self._fake_monotonic_time_generation is None:
+                        # Sleep until timeout, unless a trigger or wall-clock wakeup arrives first.
+                        timeout = (self.next_wakeup - now).total_seconds
+                ends = [request.end for request in self.wall_wakeups.values() if request.end is not None]
+                wall_waiter.arm(min(ends, default=None),
+                                real=bool(self.wall_wakeups) and not self._has_fake_wall_time,
+                                now=wall_now)
+                # Close the race between sampling wall time and arming the timer.
+                if any(request.is_due(self.get_wall_time()) for request in self.wall_wakeups.values()):
+                    continue
+                try:
+                    async with asyncio.timeout(timeout):
+                        await self.triggered_procs_event.wait()
+                except TimeoutError:
                     pass
-                elif self._fake_monotonic_time_generation is not None:
-                    await self.triggered_procs_event.wait()
-                else:
-                    diff = self.next_wakeup - now
-                    # Sleep until timeout
-                    try:
-                        async with asyncio.timeout(diff.total_seconds):
-                            await self.triggered_procs_event.wait()
-                    except TimeoutError:
-                        pass
                 self.triggered_procs_event.clear()
+        finally:
+            wall_waiter.close()
 
     def pause(self) -> None:
         self.paused = True
@@ -395,12 +426,24 @@ class Engine:
         if run_count != 0:
             raise Exception(f'Is not idle, executed {run_count} procs')
 
-    def get_wall_time(self) -> datetime.datetime:
-        """Return local wall time, preserving a fake time's supplied timezone."""
-        if self.fake_wall_time is not None:
-            if self.fake_wall_time.utcoffset() is None:
-                raise ValueError('Fake wall time must be timezone-aware')
-            return self.fake_wall_time
+    def set_fake_wall_time(self, value: datetime.datetime | None) -> None:
+        """Freeze wall time at an aware datetime, or simulate unknown time with None."""
+        if value is not None and (not isinstance(value, datetime.datetime) or value.utcoffset() is None):
+            raise ValueError('Fake wall time must be timezone-aware')
+        self._fake_wall_time = value
+        self._has_fake_wall_time = True
+        self.triggered_procs_event.set()
+
+    def clear_fake_wall_time(self) -> None:
+        """Restore the real wall-clock source."""
+        self._has_fake_wall_time = False
+        self._fake_wall_time = None
+        self.triggered_procs_event.set()
+
+    def get_wall_time(self) -> datetime.datetime | None:
+        """Return local wall time, or None when unknown, preserving a fake time's timezone."""
+        if self._has_fake_wall_time:
+            return self._fake_wall_time
         return datetime.datetime.now(datetime.timezone.utc).astimezone()
 
     def get_monotonic_time(self) -> MonotonicTime:
