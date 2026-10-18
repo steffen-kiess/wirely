@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import datetime
 import os
 
 import wirely
@@ -69,6 +70,8 @@ async def check_repeat_boundaries(filename):
 
 
 async def run_test():
+    engine.fake_wall_time = datetime.datetime(
+        2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
     fn = engine.get_native_state('test_value_writer').filename
     fn2 = engine.get_native_state('test_option_value_writer').filename
 
@@ -82,7 +85,7 @@ async def run_test():
 
         engine.get_native_state('test_input').set_value(False)
         _, _, step_info = engine.step()
-        expected += f'{step_info.stage_start_time[RunStage.DEFAULT].isoformat()},,false\r\n'
+        expected += '2026-01-01T14:00:00+02:00,,false\r\n'
         assert_content_is(fn, expected)
 
         engine.get_native_state('test_input').set_value(False)
@@ -136,7 +139,8 @@ async def run_test():
 
         engine.assert_is_idle()
         assert_content_is(fn, expected)
-    expected += f'{engine.last_shutdown_time.isoformat()},true,\r\n'
+    assert_equals(engine.last_shutdown_time.isoformat(), '2026-01-01T14:00:00+02:00')
+    expected += '2026-01-01T14:00:00+02:00,true,\r\n'
     assert_content_is(fn, expected)
 
     # Re-open file after deleting it

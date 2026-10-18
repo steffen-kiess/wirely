@@ -68,6 +68,7 @@ class Engine:
 
         self.fake_monotonic_time_offset: Duration | None = None
         self._fake_monotonic_time_generation: int | None = None
+        self.fake_wall_time: datetime.datetime | None = None
         self.test_twon_fake_server_info: Any = None  # Set by the test runner for 2N tests.
 
         link_native_enums(program, extension)
@@ -145,8 +146,7 @@ class Engine:
         def start_task_cleanup() -> None:
             now_monotonic = self.get_monotonic_time()
 
-            now_utc = datetime.datetime.now(datetime.timezone.utc)
-            now = now_utc.astimezone()
+            now = self.get_wall_time()
 
             print(f'Task cleanup starting at {now}')
 
@@ -394,6 +394,14 @@ class Engine:
         run_count, state_change_count, step_info = self.step()
         if run_count != 0:
             raise Exception(f'Is not idle, executed {run_count} procs')
+
+    def get_wall_time(self) -> datetime.datetime:
+        """Return local wall time, preserving a fake time's supplied timezone."""
+        if self.fake_wall_time is not None:
+            if self.fake_wall_time.utcoffset() is None:
+                raise ValueError('Fake wall time must be timezone-aware')
+            return self.fake_wall_time
+        return datetime.datetime.now(datetime.timezone.utc).astimezone()
 
     def get_monotonic_time(self) -> MonotonicTime:
         """Return this engine's current monotonic time."""

@@ -1,4 +1,5 @@
 from dataclasses import replace
+import datetime
 import subprocess
 import sys
 from textwrap import dedent
@@ -296,12 +297,49 @@ def check_monotonic_clock():
     assert other.get_monotonic_time().ticks == 3
 
 
+def check_wall_clock():
+    graph = wirely.compiler.compile_strs([('<wall-clock>', '')], add_std=False)
+    program = program_compiler.compile_nocatch(graph)
+    runtime = test_engine(program)
+    other = test_engine(program)
+    fixed = datetime.datetime(2026, 1, 1, 14, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
+    runtime.triggered_procs_event.clear()
+    runtime.fake_wall_time = fixed
+    assert not runtime.triggered_procs_event.is_set()
+    assert runtime.get_wall_time() == fixed
+    runtime.step()
+    assert runtime.get_wall_time() == fixed
+    runtime.enable_fixed_monotonic_time()
+    runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(60))
+    assert runtime.get_wall_time() == fixed
+
+    before = datetime.datetime.now(datetime.timezone.utc)
+    now = other.get_wall_time()
+    after = datetime.datetime.now(datetime.timezone.utc)
+    assert now.utcoffset() is not None
+    assert before <= now <= after
+    runtime.triggered_procs_event.clear()
+    runtime.fake_wall_time = fixed + datetime.timedelta(seconds=1)
+    assert runtime.get_wall_time().isoformat() == '2026-01-01T14:00:01+02:00'
+    assert not runtime.triggered_procs_event.is_set()
+    runtime.fake_wall_time = None
+    before = datetime.datetime.now(datetime.timezone.utc)
+    now = runtime.get_wall_time()
+    after = datetime.datetime.now(datetime.timezone.utc)
+    assert before <= now <= after
+    assert not runtime.triggered_procs_event.is_set()
+    runtime.fake_wall_time = datetime.datetime(2026, 1, 1)
+    with checks.assertRaisesRegex(ValueError, 'timezone-aware'):
+        runtime.get_wall_time()
+
+
 check_compilation_without_native_implementations()
 check_engine_isolation()
 check_resource_isolation()
 check_resource_binding_validation()
 check_native_names()
 check_monotonic_clock()
+check_wall_clock()
 
 
 async def run_test():

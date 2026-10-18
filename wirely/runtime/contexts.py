@@ -66,12 +66,8 @@ class StepContext:
         now_monotonic = engine.get_monotonic_time()
         # print(f'StepContext for {stage} started at {now_monotonic}')
 
-        now_utc = datetime.datetime.now(datetime.timezone.utc)
-        # Note: This should work with all python versions, even without PEP 495
-        # <https://peps.python.org/pep-0495/>
-        # Starting with Python 3.6 (PEP 495)
-        # datetime.datetime.now().astimezone() should return the same value.
-        now = now_utc.astimezone()
+        now = engine.get_wall_time()
+        now_utc = now.astimezone(datetime.timezone.utc)
 
         self._stage_times[stage] = TimeSnapshot(
             monotonic=now_monotonic, utc=now_utc, local=now,

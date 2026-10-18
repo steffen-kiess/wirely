@@ -7,7 +7,6 @@ from pathlib import Path
 from textwrap import indent
 from typing import NamedTuple
 from unittest import TestCase
-from unittest.mock import patch
 
 from wirely.runtime.extensions import RuntimeNativeExtension
 from wirely.generated import extension as builtin_extension
@@ -210,6 +209,8 @@ def check_stage_times():
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
                                    tzinfo=datetime.timezone.utc)
                  for index in range(3)]
+    local_timezone = datetime.timezone(datetime.timedelta(hours=2))
+    local_times = [time.astimezone(local_timezone) for time in utc_times]
     clock_offset = wirely.Duration.from_seconds(5)
 
     def check_stage_time(services, stage):
@@ -218,8 +219,8 @@ def check_stage_times():
         assert snapshot.monotonic == monotonic_times[index]
         assert snapshot.utc == utc_times[index]
         assert snapshot.utc.tzinfo is datetime.timezone.utc
-        assert snapshot.local.isoformat() == snapshot.utc.astimezone().isoformat()
-        assert snapshot.local.tzinfo is not None
+        assert snapshot.local.isoformat() == local_times[index].isoformat()
+        assert snapshot.local.tzinfo == local_timezone
         with checks.assertRaises(AttributeError):
             snapshot.utc = None
         if stage in stage_snapshots:
@@ -227,6 +228,7 @@ def check_stage_times():
         else:
             stage_snapshots[stage] = snapshot
             clock_engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
+            clock_engine.fake_wall_time = snapshot.local + datetime.timedelta(seconds=1)
         for candidate in stages:
             if stages.index(candidate) <= index:
                 assert services.start_time_for_stage(candidate) == stage_snapshots[candidate]
@@ -269,16 +271,8 @@ def check_stage_times():
     monotonic_times = [clock_engine.get_monotonic_time() + wirely.Duration.from_seconds(index)
                        for index in range(3)]
 
-    class ClockDateTime(datetime.datetime):
-        timestamps = iter(utc_times)
-
-        @classmethod
-        def now(cls, tz=None):
-            assert tz is datetime.timezone.utc
-            return next(cls.timestamps)
-
-    with patch('wirely.runtime.contexts.datetime.datetime', ClockDateTime):
-        clock_engine.step()
+    clock_engine.fake_wall_time = local_times[0]
+    clock_engine.step()
     assert len(clock_contexts) == 6
     clock_engine.step()
     assert len(clock_contexts) == 6
