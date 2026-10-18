@@ -78,6 +78,12 @@ async def check_connection_parameters():
 SETTLE_TIME_S = 0.02
 
 
+async def wait_for(predicate):
+    async with asyncio.timeout(5):
+        while not predicate():
+            await asyncio.sleep(0.01)
+
+
 class MessageReceiver:
     instances = []
 
@@ -132,11 +138,6 @@ async def check_type_conversions(knx):
         ('uint8', '1byte_unsigned', (0, 1, 255)),
         ('int64', '8byte_signed', (-2**63, -(2**53 + 1), 0, 2**53 + 1, 2**63 - 1)),
     )
-
-    async def wait_for(predicate):
-        async with asyncio.timeout(5):
-            while not predicate():
-                await asyncio.sleep(0.01)
 
     class Case:
         def __init__(self, index, ty, dpt, values):
@@ -450,6 +451,24 @@ async def run_test():
             engine.step()
             engine.assert_value_is('int_event_receiver', None)
             engine.assert_value_is('event_receiver', None)
+
+            # Read responses report the current value and are not events. The
+            # write after them arrives last, so the responses have been processed.
+            xknx.tools.group_value_response(knx, "0/3/3", True)
+            xknx.tools.group_value_response(knx, "0/3/3", False)
+            xknx.tools.group_value_write(knx, "0/3/3", False)
+            xknx.tools.group_value_response(knx, "0/3/4", 5, "4byte_signed")
+            xknx.tools.group_value_write(knx, "0/3/4", 7, "4byte_signed")
+            await wait_for(lambda: engine.get_native_state('event_receiver').received_values
+                           and engine.get_native_state('int_event_receiver').received_values)
+
+            engine.step()
+            engine.assert_value_is('event_receiver', wirely.Some(False))
+            engine.assert_value_is('int_event_receiver', wirely.Some(7))
+
+            engine.step()
+            engine.assert_value_is('event_receiver', None)
+            engine.assert_value_is('int_event_receiver', None)
 
             # Test EventSender
 

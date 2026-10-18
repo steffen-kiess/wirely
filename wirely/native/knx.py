@@ -201,7 +201,6 @@ class EventReceiver(contracts.EventReceiverInitializer):
     def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventReceiverInitializerResult:
         self.knx_type = get_value_type(type, value_type_name)
-        self.task: asyncio.Task | None = None
         self.received_values: list[DynamicValue] = []
 
         self.value_type = type
@@ -210,6 +209,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
         verbose_print('Create KNX EventReceiver', flush=True)
 
         import xknx
+        from xknx.dpt import DPTBase
 
         verbose_print(f'  Using group address: {group_address.value!r}', flush=True)
         verbose_print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
@@ -218,24 +218,38 @@ class EventReceiver(contracts.EventReceiverInitializer):
         verbose_print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address.value)
+        # Booleans are decoded in telegram_received().
+        self.transcoder = None if value_type_name == 'binary' else DPTBase.parse_transcoder(value_type_name)
 
+        # The telegrams themselves are used rather than an xknx device, which
+        # also reports read responses. Outgoing telegrams are included, so that
+        # an EventSender for the same address in this program is received too.
         # TODO: Where does this get cleaned up?
-        # TODO: Use RemoteValue directly?
-        # TODO: Try to make sure that GroupValueResponses are ignored and only GroupValueWrites are used?
-        if self.value_type_knx == "binary":
-            self.sensor: xknx.devices.BinarySensor | xknx.devices.Sensor = xknx.devices.BinarySensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, device_updated_cb=self.event_callback, sync_state=False, ignore_internal_state=True)
-        else:
-            self.sensor = xknx.devices.Sensor(self.native_bus.knx, name="Sensor", group_address_state=self.address, value_type=self.value_type_knx, device_updated_cb=self.event_callback, sync_state=False, always_callback=True)
-        self.native_bus.knx.devices.async_add(self.sensor)
+        self.native_bus.knx.telegram_queue.register_telegram_received_cb(
+            self.telegram_received, group_addresses=[self.address], match_for_outgoing=True)
         return contracts.EventReceiverInitializerResult(state=self)
 
     # TODO: Make sure exceptions here are handled somehow?
-    def event_callback(self, device: Any) -> None:
-        # print('update_callback()', flush=True)
-        if self.value_type_knx == "binary":
-            val = device.state
-        else:
-            val = device.sensor_value.value
+    def telegram_received(self, telegram: Any) -> None:
+        from xknx.dpt import DPTBinary
+        from xknx.exceptions import ConversionError, CouldNotParseTelegram
+        from xknx.telegram.apci import GroupValueWrite
+
+        # Only writes are events; read responses report the current value.
+        if not isinstance(telegram.payload, GroupValueWrite):
+            return
+        payload = telegram.payload.value
+        try:
+            if self.transcoder is None:
+                # DPT 1 values are carried in the APCI as a single bit.
+                if not isinstance(payload, DPTBinary) or payload.value not in (0, 1):
+                    raise CouldNotParseTelegram('Invalid payload for a boolean', payload=str(payload))
+                val: Any = payload.value == 1
+            else:
+                val = self.transcoder.from_knx(payload)
+        except (ConversionError, CouldNotParseTelegram) as error:
+            print(f'Warning: KNX.EventReceiver: Ignoring {telegram}: {error}', flush=True)
+            return
         verbose_print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
         value = self.knx_type.from_knx(val, self.services.native_types)
 
