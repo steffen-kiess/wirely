@@ -48,6 +48,7 @@ from .type_declarations import (
     EnumMember,
     StructField,
     DeclarationStructType,
+    StructDefinition,
     DeclarationEnumType,
     DeclarationResourceType,
 )
@@ -63,6 +64,7 @@ from .nodes import (
     ParameterBinding,
     Instantiation,
     DeclarationInstance,
+    ChildNode,
     DeclarationConnection,
     DeclarationState,
     validate_nodes,
@@ -82,10 +84,13 @@ from .procedures import (
     UsesDeclaration,
     DeclarationInitializer,
     DeclarationProcedure,
+    TypeInitializer,
+    TypeProcedure,
 )
 from .functions import (
     FunctionArgument,
     DeclarationNativeFunction,
+    CompiledFunction,
 )
 from .library import (
     DeclarationLibrary,

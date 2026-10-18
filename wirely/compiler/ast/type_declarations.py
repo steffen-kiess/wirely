@@ -41,8 +41,6 @@ class DeclarationStructType(Declaration):
         self.is_native = is_native
         self.alias = alias  # Native name replacing the qualified name.
         self.inner_attributes = getattr(fields, 'inner_attributes', ())
-        self.value_type: model.types.TypeStruct | None = None
-        self.resolving = False
 
     @staticmethod
     def create_native(name: Identifier, alias: typing.Optional[StringConstant], fields: list, *,
@@ -62,25 +60,35 @@ class DeclarationStructType(Declaration):
                 ('node type', graph.node_types), ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
-                previous: typing.Any = declarations[name]
-                if kind != 'struct type':
-                    previous = previous.declaration
+                previous = declarations[name].declaration
                 raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
-        self.scope = graph
-        graph.struct_types[name] = self
+        graph.struct_types[name] = StructDefinition(self, graph)
+
+    def prepare_interface(self, graph: 'model.Scope') -> None:
+        graph.struct_types[self.name.id_str].resolve_fields()
+
+
+class StructDefinition:
+    """A struct type declared in a scope, in a compilation."""
+
+    def __init__(self, declaration: DeclarationStructType, scope: 'model.Scope') -> None:
+        self.declaration = declaration
+        self.scope = scope
+        self.value_type: model.types.TypeStruct | None = None
+        self.resolving = False
 
     def resolve_fields(self) -> 'model.types.TypeStruct':
         if self.value_type is not None:
             return self.value_type
         if self.resolving:
-            raise ProgramError(self.name, f'Recursive struct type {self.name.id_str}')
+            raise ProgramError(self.declaration.name, f'Recursive struct type {self.declaration.name.id_str}')
         self.resolving = True
         try:
             fields = {}
             previous: dict[str, typing.Any] = {}
-            for field in self.fields:
+            for field in self.declaration.fields:
                 name = field.name.id_str
                 if name in fields:
                     raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
@@ -88,17 +96,17 @@ class DeclarationStructType(Declaration):
                     ])
                 fields[name] = self.scope.resolve_type(field.field_type)
                 previous[name] = field
-            fullname = self.scope.fullname + '.' + self.name.id_str if isinstance(self.scope, model.ast.Namespace) else self.name.id_str
+            type_name = self.declaration.name.id_str
+            fullname = (self.scope.fullname + '.' + type_name if isinstance(self.scope, model.ast.Namespace)
+                        else type_name)
             native_name = None
-            if self.is_native:
-                native_name = self.alias.value if self.alias is not None else fullname
+            if self.declaration.is_native:
+                alias = self.declaration.alias
+                native_name = alias.value if alias is not None else fullname
             self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name)
             return self.value_type
         finally:
             self.resolving = False
-
-    def prepare_interface(self, graph: 'model.Scope') -> None:
-        self.resolve_fields()
 
 
 class DeclarationEnumType(Declaration):
@@ -151,9 +159,7 @@ class DeclarationEnumType(Declaration):
                 ('resource type', graph.resource_types),
                 ('namespace', graph.libraries)):
             if name in declarations:
-                previous: typing.Any = declarations[name]
-                if kind != 'struct type':
-                    previous = previous.declaration
+                previous = declarations[name].declaration
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
@@ -196,10 +202,10 @@ class DeclarationEnumType(Declaration):
         native_name = None
         if self.is_native:
             native_name = self.alias.value if self.alias is not None else fullname
-        self.value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
-                                               native_name=native_name)
-        self.value_type.declaration = self
-        graph.enum_types[name] = self.value_type
+        value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
+                                          native_name=native_name)
+        value_type.declaration = self
+        graph.enum_types[name] = value_type
 
 
 class DeclarationResourceType(Declaration):
@@ -218,7 +224,7 @@ class DeclarationResourceType(Declaration):
         name = self.name.id_str
         if name in graph.struct_types:
             raise model.ProgramError(self.name, f'Resource type {name} conflicts with struct type', hints=[
-                model.CompilerHint(graph.struct_types[name], 'Previous declaration was here'),
+                model.CompilerHint(graph.struct_types[name].declaration, 'Previous declaration was here'),
             ])
         if name in graph.enum_types:
             raise ProgramError(self.name, f'Resource type {name} conflicts with enum type', hints=[

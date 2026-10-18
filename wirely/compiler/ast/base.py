@@ -48,15 +48,11 @@ class SourcePosition:
 
 
 class SourceElement:
-    # Set by the coordinator when declaration or port resolution fails.
-    failed: bool
-
     @check_parameters
     def __init__(self, *, source_position: SourcePosition) -> None:
         self.source_position = source_position
         self.outer_attributes: tuple = ()
         self.inner_attributes: tuple = ()
-        self.attributes: tuple = ()
 
     @property
     @contextlib.contextmanager
@@ -107,7 +103,6 @@ class SyntaxElement(SourceElement):
     source_position: SourcePosition
     outer_attributes: tuple = ()
     inner_attributes: tuple = ()
-    attributes: tuple = ()
 
 
 class CompilerHint:

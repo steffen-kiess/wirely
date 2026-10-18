@@ -58,36 +58,46 @@ class DeclarationInstance(Declaration):
         name = self.name.id_str
         if name in graph.node_declarations:
             raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
-                CompilerHint(graph.node_declarations[name], 'Previous node was here'),
+                CompilerHint(graph.node_declarations[name].declaration, 'Previous node was here'),
             ])
         register_name(graph, self.name, self)
-        graph.node_declarations[name] = self
+        graph.node_declarations[name] = ChildNode(graph, self)
 
-    def resolve_instance_arguments(self, graph: 'model.NodeType') -> None:
-        name = self.name
-        inst = self.instantiation
 
-        self.node_name = name.id_str
+class ChildNode:
+    """A node declared in a node type body, with its type and arguments resolved in a compilation."""
+
+    node_type: 'model.NodeType'  # Set by resolve_arguments().
+
+    def __init__(self, graph: 'model.NodeType', declaration: DeclarationInstance) -> None:
+        self.graph = graph
+        self.declaration = declaration
+        self.par_values: dict['model.NodeParameter', Any] = {}
+        # Parameters whose bindings failed, when the coordinator continues after errors.
+        self.failed_parameters: set['model.NodeParameter'] = set()
+
+    @property
+    def name(self) -> str:
+        return self.declaration.name.id_str
+
+    def resolve_arguments(self) -> None:
+        graph = self.graph
+        inst = self.declaration.instantiation
         parameter_bindings = inst.parameters
 
         self.node_type = graph.resolve_node_type(inst.type_name)
-        # print(self.node_name, self.node_type, parameter_bindings)
 
         # The node type may be declared after this node.
         if self.node_type.interface_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance arguments require a prepared child interface')
 
-        self.par_values: dict['model.DeclarationParameter', Any] = {}
-        # Parameters whose bindings failed, when the coordinator continues after errors.
-        self.failed_parameters: set['model.DeclarationParameter'] = set()
         coordinator = graph.coordinator
-        seen: set['model.DeclarationParameter'] = set()
-        failed_bindings: set[ParameterBinding] = set()
+        seen: set['model.NodeParameter'] = set()
         for parameter in parameter_bindings:
             key = parameter.name
             value = parameter.value
             par = self.node_type.parsed_parameters.get(key.id_str)
-            with coordinator.contain(parameter, failures=failed_bindings):
+            with coordinator.contain(parameter):
                 if key.id_str in self.node_type.parsed_constants:
                     raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
                 if par is None:
@@ -95,9 +105,9 @@ class DeclarationInstance(Declaration):
                 if par in seen:
                     raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
                 seen.add(par)
-                if getattr(par, 'failed', False):
+                if coordinator.has_failed(par.declaration):
                     # The parameter's own error was already reported.
-                    failed_bindings.add(parameter)
+                    coordinator.failed.add(parameter)
                     continue
                 if parameter.is_optional:
                     if not par.is_optional:
@@ -105,14 +115,14 @@ class DeclarationInstance(Declaration):
                     from ..expressions import compile_constant
                     compile_constant(graph, value, model.types.TypeOption(par.type_resolved), {})
                     self.par_values[par] = model.value.OptionalBinding(graph, value, par)
-            if parameter in failed_bindings and par is not None:
+            if coordinator.has_failed(parameter) and par is not None:
                 self.failed_parameters.add(par)
 
         pending = {self.node_type.parsed_parameters[parameter.name.id_str]: parameter
                    for parameter in parameter_bindings
-                   if not parameter.is_optional and parameter not in failed_bindings}
+                   if not parameter.is_optional and not coordinator.has_failed(parameter)}
 
-        def bind(par: 'model.DeclarationParameter') -> None:
+        def bind(par: 'model.NodeParameter') -> None:
             parameter = pending.pop(par, None)
             if parameter is None:
                 return
@@ -120,7 +130,7 @@ class DeclarationInstance(Declaration):
             for dependency in type_parameters(par.type_resolved):
                 bind(dependency)
             value = parameter.value
-            with coordinator.contain(parameter, failures=failed_bindings):
+            with coordinator.contain(parameter):
                 par_type = resolve_type(par.type_resolved, self.par_values)
                 # TODO: Is passing par_values=self.par_values here the correct thing to do?
                 if par_type == model.types.ValueType:
@@ -129,21 +139,20 @@ class DeclarationInstance(Declaration):
                 else:
                     val = graph.get_const_value(value, par_type, par_values=self.par_values)
                     self.par_values[par] = val
-            if parameter in failed_bindings:
+            if coordinator.has_failed(parameter):
                 self.failed_parameters.add(par)
 
         for par in list(pending):
             bind(par)
 
-    def create_instance_interface(self, graph: 'model.NodeType') -> None:
+    def create_instance_interface(self) -> None:
         self.node_type.create_instance_interface(
-            graph=graph, par_values=self.par_values, name=self.node_name, instantiation=self,
+            graph=self.graph, par_values=self.par_values, name=self.name, instantiation=self.declaration,
+            failed_parameters=self.failed_parameters,
         )
 
 
 class DeclarationConnection(Declaration):
-    edge_attributes: tuple  # Validated attributes of each edge, set by the attribute pass.
-
     @check_parameters
     def __init__(self, sources: typing.List[Reference], target: Reference, *, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
@@ -161,7 +170,8 @@ class DeclarationConnection(Declaration):
 
         # TODO: Disallow multiple connect statements to a list input?
         with self.context:
-            for source, attributes in zip(res_sources, self.edge_attributes):
+            edge_attributes = graph.coordinator.metadata.edge_attributes[self]
+            for source, attributes in zip(res_sources, edge_attributes):
                 model.connect(source.port, res_target.port, self, attributes=attributes)
 
 
@@ -185,15 +195,12 @@ class DeclarationState(Declaration):
         register_name(graph, self.name, self)
         graph.value_nodes[name] = self
 
-    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
-        self.interface = interface
-
     def prepare_interface(self, new_graph: 'model.NodeType') -> None:
-        ty = self.interface.resolve_type(self.var_type)
+        ty = new_graph.resolve_type(self.var_type)
         check_runtime_type(ty, self)
         # TODO: Resolve initial_value
         variable = model.StateNode(new_graph, ty, name=self.name_str, initial_value=self.initial_value)
-        copy_attributes(variable, self)
+        copy_attributes(variable, self, new_graph.coordinator.attributes(self))
 
 
 def validate_nodes(graph: 'model.NodeType') -> None:
@@ -230,7 +237,7 @@ def check_unused(graph: 'model.NodeType') -> None:
     read = {id(connection.source) for connection in graph.connections}
     initializer = getattr(graph, 'initializer', None)
     if initializer is not None:
-        read.update(id(dependency) for dependency in initializer.depends.get_resolved_dependencies())
+        read.update(id(dependency) for dependency in initializer.resolved_dependencies())
     warnings = graph.coordinator.warnings
     assert warnings is not None
     for name, node in graph.temporary_nodes.items():
@@ -329,16 +336,13 @@ class DeclarationBinding(Declaration):
         if not self.is_resource:
             graph.value_nodes[name] = self
 
-    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
-        self.interface = interface
-
     def prepare_interface(self, new_graph: 'model.NodeType') -> None:
         variable: model.LocalResource | model.TemporaryNode
         if self.is_resource:
-            resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
+            resource_type = new_graph.resolve_resource_type(self.port_spec.ty)
             variable = model.LocalResource(new_graph, self, resource_type)
         else:
-            ty = self.interface.resolve_type(self.var_type)
+            ty = new_graph.resolve_type(self.var_type)
             check_runtime_type(ty, self)
             variable = model.TemporaryNode(new_graph, ty, name=self.name_str, port_spec=self.port_spec)
-        copy_attributes(variable, self)
+        copy_attributes(variable, self, new_graph.coordinator.attributes(self))

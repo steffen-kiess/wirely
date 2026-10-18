@@ -20,7 +20,7 @@ from wirely.program import InputSource, Variable
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
     # Set by NodeType.instantiate().
-    parameter_values: dict[model.DeclarationParameter, StaticValue]
+    parameter_values: dict[model.NodeParameter, StaticValue]
     custom_inputs: dict[model.TypeInputPort, InstanceInputPort]
     custom_outputs: dict[model.TypeOutputPort, InstanceOutputPort]
     initializer_sources: dict[str, tuple[typing.Any, Port]]  # Data and resource dependencies.
@@ -28,14 +28,14 @@ class InstanceNode(model.GraphElement):
     port_storage: dict[model.ProcedureOutputPort, InstanceTemporary | InstanceStateVariable]
 
     def __init__(self, graph: model.NodeType, *, name: str, node_type: model.NodeType,
-                 par_values: Mapping[model.DeclarationParameter, StaticValue], instantiation: model.ast.SourceElement,
+                 par_values: Mapping[model.NodeParameter, StaticValue], instantiation: model.ast.SourceElement,
                  register: bool = True) -> None:
         super().__init__(graph=graph, name=name)
 
         self.node_type = node_type
         self.par_values = par_values
         self.instantiation = instantiation
-        copy_attributes(self, instantiation)
+        copy_attributes(self, instantiation, graph.coordinator.attributes(instantiation))
         # TODO: Clean up
         for par in self.par_values:
             val = self.par_values[par]
@@ -245,6 +245,8 @@ class InstanceTarget(InstanceElement, abc.ABC):
 # TODO: Handle var_type == None better
 # TODO: Clean up, move more functionality to TypeInputPort
 class InstanceInputPort(InstanceSource):
+    attributes: tuple  # Set by copy_attributes.
+
     def __init__(self, node: 'InstanceNode', name: str, is_list: bool, var_type: model.types.Type | None, *,
                  type_input_port: 'model.TypeInputPort | InstanceInputPort') -> None:
         super().__init__(node, name)
@@ -256,7 +258,7 @@ class InstanceInputPort(InstanceSource):
         self.is_list = bool(is_list)
         self.var_type = var_type
         self.type_input_port = type_input_port
-        copy_attributes(self, type_input_port)
+        copy_attributes(self, type_input_port, type_input_port.attributes)
 
         self.port_spec: model.PortTypeSpecification = self.type_input_port.port_spec
         self.resource_type: model.ResourceType | None = self.type_input_port.resource_type
@@ -330,7 +332,7 @@ class InstanceOutputPort(InstanceTarget):
 
         self.var_type = var_type
         self.type_output_port = type_output_port
-        copy_attributes(self, type_output_port)
+        copy_attributes(self, type_output_port, type_output_port.attributes)
 
         self.port_spec = self.type_output_port.port_spec
         self.resource_type = self.type_output_port.resource_type
@@ -464,7 +466,7 @@ class InstanceStateVariable(InstanceSource, InstanceTarget):
 
 class InstanceProcedure:
     # Set when a Wirely procedure body is compiled.
-    static_usage: frozenset[model.DeclarationParameter]
+    static_usage: frozenset[model.NodeParameter]
 
     # TODO: Make name mandatory
     def __init__(self, node: 'InstanceNode', dependencies: typing.Iterable[typing.Any],
@@ -477,7 +479,7 @@ class InstanceProcedure:
         self.node = node
         self.name = name
         self.declaration_procedure = declaration_procedure
-        copy_attributes(self, declaration_procedure)
+        copy_attributes(self, declaration_procedure, node.graph.coordinator.attributes(declaration_procedure))
         # TODO: Is this a complete static context? Probably not because the context might also depend on the parameters to the current node. Move this somewhere else?
         self.static_context = static_context
 
@@ -572,7 +574,7 @@ class NodeTypeInstance(NodeInstance):
             assert isinstance(self.node, InstanceNode)
             self.parameter_values = dict(self.node.par_values)
 
-        all_par_values: dict[model.DeclarationParameter, StaticValue] = {}
+        all_par_values: dict[model.NodeParameter, StaticValue] = {}
         next_parent = self.parent_instance
         while next_parent is not None:
             for key, value in next_parent.static_values.items():
@@ -595,7 +597,7 @@ class NodeTypeInstance(NodeInstance):
         assert warnings is not None
         with warnings.instance(self.instantiation_hint()):
             try:
-                self.constant_values: dict[model.DeclarationParameter, StaticValue] = {
+                self.constant_values: dict[model.NodeParameter, StaticValue] = {
                     declaration: static_values[declaration]
                     for declaration in self.node_type.parsed_constants.values()
                 }

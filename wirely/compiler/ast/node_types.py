@@ -53,7 +53,7 @@ class DeclarationNodeType(Declaration):
         assert self.name is not None
         if self.name.id_str in graph.struct_types:
             raise ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
-                CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
+                CompilerHint(graph.struct_types[self.name.id_str].declaration, 'Previous declaration was here'),
             ])
         if self.name.id_str in graph.enum_types:
             raise ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[

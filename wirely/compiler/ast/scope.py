@@ -36,9 +36,9 @@ class Scope(abc.ABC):
         self.node_types: dict[str, model.NodeType] = {}
         self.resource_types: dict[str, model.ResourceType] = {}
         self.enum_types: dict[str, model.types.TypeEnum] = {}
-        self.struct_types: dict[str, model.DeclarationStructType] = {}
+        self.struct_types: dict[str, model.StructDefinition] = {}
         self.connections: list[model.Connection] = []
-        self.native_functions: dict[str, model.DeclarationNativeFunction] = {}
+        self.native_functions: dict[str, model.CompiledFunction] = {}
 
     @property
     @abc.abstractmethod
@@ -46,7 +46,7 @@ class Scope(abc.ABC):
         ...
 
     @property
-    def static_declarations(self) -> dict[str, Any]:
+    def static_declarations(self) -> 'dict[str, model.NodeParameter]':
         return {**getattr(self, 'parsed_parameters', {}),
                 **getattr(self, 'parsed_constants', {})}
 
@@ -114,7 +114,7 @@ class Scope(abc.ABC):
             raise model.ProgramError(ty, f'Cannot find type {ty}')
 
     def resolve_function(self, reference: Reference, *,
-                         required: bool = True) -> 'model.DeclarationNativeFunction | None':
+                         required: bool = True) -> 'model.CompiledFunction | None':
         scope: Scope | None = self
         names = tuple(identifier.id_str for identifier in reference.identifiers)
         while scope is not None:

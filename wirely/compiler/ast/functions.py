@@ -19,8 +19,6 @@ class FunctionArgument(SyntaxElement):
 
 
 class DeclarationNativeFunction(Declaration):
-    _resolved_implementation: 'ConstantFunctionImplementation'
-    _runtime_implementation: Callable[..., object]
     def __init__(self, name: Identifier, alias: StringConstant | None, arguments: Sequence[FunctionArgument],
                  return_type: Value, *, is_constant: bool = False, source_position: SourcePosition) -> None:
         super().__init__(source_position=source_position)
@@ -41,28 +39,51 @@ class DeclarationNativeFunction(Declaration):
         from ..native_functions import validate_entry
         if not isinstance(graph, model.ast.Namespace) and graph.name is not None:
             raise ProgramError(self, 'Native functions are only allowed at root or in namespaces')
-        self.scope = graph
-        self.function_name = '.'.join(getattr(graph, 'fullname_tuple', ()) + (self.name.id_str,))
-        self.native_name = self.alias.value if self.alias is not None else self.function_name
-        if self.function_name == 'Some':
+        function = CompiledFunction(self, graph)
+        if function.function_name == 'Some':
             raise ProgramError(self.name, 'Some is reserved for the Option constructor')
         names = [argument.name.id_str for argument in self.arguments]
         if len(set(names)) != len(names):
             raise ProgramError(self, 'Duplicate function argument name')
         if self.is_constant:
-            validate_entry(self.native_name, self)
-        graph.native_functions[self.name.id_str] = self
+            validate_entry(function.native_name, self)
+        graph.native_functions[self.name.id_str] = function
 
-    def resolve_signature(self) -> 'DeclarationNativeFunction':
+    def prepare_interface(self, graph: Any) -> None:
+        graph.native_functions[self.name.id_str].resolve_signature()
+
+
+class CompiledFunction:
+    """A native function declared in a scope, in a compilation."""
+
+    # Set by resolve_signature().
+    parameter_types: list['model.types.Type']
+    return_type: 'model.types.Type'
+
+    def __init__(self, declaration: DeclarationNativeFunction, scope: Any) -> None:
+        self.declaration = declaration
+        self.scope = scope
+        self.function_name = '.'.join(getattr(scope, 'fullname_tuple', ()) + (declaration.name.id_str,))
+        self.native_name = declaration.alias.value if declaration.alias is not None else self.function_name
+        # Loaded on first use.
+        self.constant_implementation: 'ConstantFunctionImplementation | None' = None
+        self.runtime_implementation: Callable[..., object] | None = None
+
+    @property
+    def is_constant(self) -> bool:
+        return self.declaration.is_constant
+
+    def resolve_signature(self) -> 'CompiledFunction':
         if not hasattr(self, 'parameter_types'):
-            self.parameter_types = [self.scope.resolve_type(argument.ty) for argument in self.arguments]
-            self.return_type = self.scope.resolve_type(self.return_type_ast)
+            self.parameter_types = [self.scope.resolve_type(argument.ty) for argument in self.declaration.arguments]
+            self.return_type = self.scope.resolve_type(self.declaration.return_type_ast)
             if any(ty.contains_parameters for ty in self.parameter_types + [self.return_type]):
-                raise ProgramError(self, 'Native functions require fixed value types')
+                raise ProgramError(self.declaration, 'Native functions require fixed value types')
             if not self.is_constant:
                 for ty in self.parameter_types + [self.return_type]:
                     if not ty.is_runtime_type:
-                        raise ProgramError(self, f'Function {self.function_name!r} uses parameter-only type {ty}; '
+                        raise ProgramError(self.declaration,
+                                           f'Function {self.function_name!r} uses parameter-only type {ty}; '
                                            'declare it native constant function')
         return self
 
@@ -73,5 +94,5 @@ class DeclarationNativeFunction(Declaration):
         from ..native_functions import invoke_runtime_function
         return invoke_runtime_function(self, values, call)
 
-    def prepare_interface(self, graph: Any) -> None:
-        self.resolve_signature()
+    def __repr__(self) -> str:
+        return repr(self.declaration)

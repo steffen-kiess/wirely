@@ -15,7 +15,7 @@ from wirely.compiler.diagnostics import Diagnostic, WarningSink, error_diagnosti
 from wirely.util import check_parameters
 from ..runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from .extensions import CompilerNativeExtension, resolve_compiler_extensions
-from .attributes import FileMetadata, ParsedFile
+from .attributes import ParsedFile, ValidatedMetadata
 
 
 class _DiagnosticCallbackError(Exception):
@@ -88,7 +88,7 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         if verbose_passes:
             report_progress('Starting validating source metadata')
         start = time.perf_counter()
-        file_metadata = validate_source_metadata(parsed_files, decls, warnings)
+        metadata = validate_source_metadata(parsed_files, decls, warnings)
         if timings is not None:
             timings.append(('validate source metadata', time.perf_counter() - start))
         global_source_position = model.SourcePosition(filename='<global>', meta=None, input_data='')
@@ -97,10 +97,11 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
         global_node_type.native_extension = native_extension
         global_node_type.compiler_native_extension = compiler_native_extension
         global_node_type.services = compilation_services
-        global_node_type.file_metadata = file_metadata
+        global_node_type.file_metadata = metadata.files
         from .coordinator import CompilerCoordinator
         coordinator = CompilerCoordinator(global_node_type, report_progress if verbose_passes else None,
                                           shuffle_seed=shuffle_seed, warnings=warnings, timings=timings)
+        coordinator.metadata = metadata
         coordinator.compile()
     except lark.UnexpectedInput as e:
         report(Diagnostic('syntax_error', str(e), filename=e.source_filename,  # type: ignore[attr-defined]
@@ -129,7 +130,7 @@ def compile_strs(filename_inpudatas: Iterable[tuple[str | os.PathLike, str]], *,
 
 def validate_source_metadata(parsed_files: Sequence[tuple[str | os.PathLike, ParsedFile]],
                              declarations: Iterable[model.Declaration],
-                             warnings: WarningSink) -> tuple[FileMetadata, ...]:
+                             warnings: WarningSink) -> ValidatedMetadata:
     from .attributes import validate_files
     from .native_functions import validate_collisions, validate_native_names
 

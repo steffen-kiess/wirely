@@ -108,8 +108,9 @@ def port_declaration(port: Any) -> model.ast.SourceElement:
         return port.type_output_port.port_spec
     if isinstance(port, (model.TypeInputPort, model.TypeOutputPort)):
         return port.port_spec
-    if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, StaticSource,
-                         model.LocalResource)):
+    if isinstance(port, StaticSource):
+        return port.parameter.declaration
+    if isinstance(port, (model.ProcedureInputPort, model.ProcedureOutputPort, model.LocalResource)):
         return port.declaration
     return port.graph.value_nodes[port.name]
 

@@ -119,7 +119,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             if isinstance(path[-1], model.InstanceNode):  # TODO: Handle singletons here?
                 raise Exception('path[-1] != var.node')
         # TODO: Move this code somewhere else?
-        parameters: dict[model.DeclarationParameter, StaticValue] = {}
+        parameters: dict[model.NodeParameter, StaticValue] = {}
         instance: model.NodeTypeInstance | None = instances[path]
         while instance is not None:
             parameters.update(instance.static_values)
@@ -482,7 +482,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     outputs[key] = OutputTarget(output_variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
-                reference=(declaration.native_name if declaration.is_native
+                reference=(instances[path].node_type.procedures[declaration.name.id_str].native_name
+                           if declaration.is_native
                            else f'{instances[path].node_type.qualified_name}:{declaration.name.id_str}'),
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=resources,
@@ -545,7 +546,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     }
     native_types: dict[str, NativeNodeType] = {}
     native_procedures: dict[str, NativeProcedureInterface] = {}
-    native_declarations: dict[str, model.DeclarationProcedure] = {}
+    native_declarations: dict[str, model.TypeProcedure] = {}
     for instance in instances.values():
         node_type = instance.node_type
         if node_type.is_native:
@@ -558,8 +559,9 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             interface = native_procedure_interface(procedure)
             previous = native_declarations.setdefault(name, procedure)
             if previous is not procedure and native_procedures[name] != interface:
-                raise model.ProgramError(procedure, f'Native procedure {name!r} is declared with different interfaces',
-                                         hints=[model.CompilerHint(previous, 'Previous declaration was here')])
+                raise model.ProgramError(procedure.declaration,
+                                         f'Native procedure {name!r} is declared with different interfaces',
+                                         hints=[model.CompilerHint(previous.declaration, 'Previous declaration was here')])
             native_procedures[name] = interface
     return Program(
         name=str(graph), graph=graph,
@@ -578,7 +580,7 @@ def uses_names(uses: model.UsesDeclaration | None) -> tuple[str, ...]:
     return () if uses is None else tuple(binding.key for binding in uses.bindings)
 
 
-def native_procedure_interface(procedure: model.DeclarationProcedure) -> NativeProcedureInterface:
+def native_procedure_interface(procedure: model.TypeProcedure) -> NativeProcedureInterface:
     """Return the declared interface of a native procedure."""
     return NativeProcedureInterface(
         uses=uses_names(procedure.uses),
@@ -597,7 +599,7 @@ def native_node_type(node_type: model.NodeType) -> NativeNodeType:
     resource_outputs = {}
     if initializer is not None:
         for port, dependency in zip(initializer.depends.dependencies,
-                                    initializer.depends.get_resolved_dependencies()):
+                                    initializer.resolved_dependencies()):
             if isinstance(dependency, model.InstanceNode):
                 dependency = dependency.output_ports_byname['']
             initializer_resources[port.key] = dependency.resource_type.native_name

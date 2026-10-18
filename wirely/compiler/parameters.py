@@ -13,17 +13,78 @@ from wirely.compiler import model
 from wirely.compiler.types import resolve_type
 
 
-class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
-    def __init__(self, values: Mapping[model.DeclarationParameter, StaticValue], *,
+class NodeParameter:
+    """A parameter or constant of a node type in a compilation."""
+
+    type_resolved: model.Type  # Set by resolve_type().
+
+    def __init__(self, declaration: model.DeclarationParameter, node_type: model.NodeType) -> None:
+        self.declaration = declaration
+        self.node_type = node_type
+        # Set while the type resolves; a type referring to its own parameter is not a type.
+        self.resolving_type = False
+
+    @property
+    def is_constant(self) -> bool:
+        return isinstance(self.declaration, model.DeclarationConstant)
+
+    @property
+    def name(self) -> model.Identifier:
+        return self.declaration.name
+
+    @property
+    def ty(self) -> model.ast.Value:
+        return self.declaration.ty
+
+    @property
+    def default_value(self) -> model.ast.Value | None:
+        return self.declaration.default_value
+
+    @property
+    def optional_specifier(self) -> model.OptionalSpecifier | None:
+        return self.declaration.optional_specifier
+
+    @property
+    def is_optional(self) -> bool:
+        return self.declaration.is_optional
+
+    def resolve_type(self) -> None:
+        # Types may refer to parameters declared later, which resolve on demand.
+        if hasattr(self, 'type_resolved'):
+            return
+        self.resolving_type = True
+        try:
+            # TODO: Is this correct?
+            self.type_resolved = self.node_type.resolve_type(self.ty)
+        finally:
+            self.resolving_type = False
+
+    def bind_body(self) -> None:
+        """Check the default value or, for a constant, its initializer."""
+        from .expressions import compile_constant
+        if self.default_value is None:
+            return
+        if self.is_constant and self.type_resolved == model.types.ValueType:
+            # Check concrete types and expression syntax without running initializers.
+            self.node_type.get_const_value(self.default_value, self.type_resolved)
+        else:
+            compile_constant(self.node_type, self.default_value, self.type_resolved, {})
+
+    def __repr__(self) -> str:
+        return f'{self.node_type.name}.{self.name}'
+
+
+class ParameterValues(dict['NodeParameter', 'StaticValue']):
+    def __init__(self, values: Mapping[NodeParameter, StaticValue], *,
                  instance: model.NodeTypeInstance | None = None) -> None:
         super().__init__(values)
         self.instance = instance if instance is not None else getattr(values, 'instance', None)
-        self._resolved: dict[model.DeclarationParameter, StaticValue] = {}
-        self._bindings: dict[model.DeclarationParameter, model.Some | None] = {}
-        self._resolving: list[model.DeclarationParameter] = []
+        self._resolved: dict[NodeParameter, StaticValue] = {}
+        self._bindings: dict[NodeParameter, model.Some | None] = {}
+        self._resolving: list[NodeParameter] = []
 
     def __contains__(self, parameter: object) -> bool:
-        assert isinstance(parameter, model.DeclarationParameter)
+        assert isinstance(parameter, NodeParameter)
         if parameter.default_value is not None:
             return True
         if not super().__contains__(parameter):
@@ -37,7 +98,7 @@ class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
                 self._resolving.pop()
         return True
 
-    def _binding(self, parameter: model.DeclarationParameter) -> model.Some | None:
+    def _binding(self, parameter: NodeParameter) -> model.Some | None:
         if parameter not in self._bindings:
             binding = super().__getitem__(parameter)
             assert isinstance(binding, model.value.OptionalBinding)
@@ -45,15 +106,14 @@ class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
             self._bindings[parameter] = value
         return self._bindings[parameter]
 
-    def _check_cycle(self, parameter: model.DeclarationParameter) -> None:
+    def _check_cycle(self, parameter: NodeParameter) -> None:
         if parameter in self._resolving:
             names = [item.name.id_str for item in self._resolving] + [parameter.name.id_str]
-            kind = ('static value' if any(isinstance(item, model.DeclarationConstant)
-                                         for item in self._resolving + [parameter])
+            kind = ('static value' if any(item.is_constant for item in self._resolving + [parameter])
                     else 'parameter')
-            raise model.ProgramError(parameter, f'Cyclic {kind} resolution: {" -> ".join(names)}')
+            raise model.ProgramError(parameter.declaration, f'Cyclic {kind} resolution: {" -> ".join(names)}')
 
-    def __getitem__(self, parameter: model.DeclarationParameter) -> StaticValue:
+    def __getitem__(self, parameter: NodeParameter) -> StaticValue:
         if parameter in self._resolved:
             return self._resolved[parameter]
         self._check_cycle(parameter)
@@ -63,8 +123,8 @@ class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
         finally:
             self._resolving.pop()
 
-    def _resolve(self, parameter: model.DeclarationParameter) -> StaticValue:
-        source = parameter.default_value or parameter
+    def _resolve(self, parameter: NodeParameter) -> StaticValue:
+        source = parameter.default_value or parameter.declaration
         with source.context:
             value: StaticValue | None
             if super().__contains__(parameter):
@@ -80,11 +140,11 @@ class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
                 value = None
             if value is None and parameter.default_value is not None:
                 value_type = resolve_type(parameter.type_resolved, self)
-                value = parameter.interface.get_const_value(
+                value = parameter.node_type.get_const_value(
                     parameter.default_value, value_type, par_values=self,
                 )
             if value is None:
-                raise model.ProgramError(parameter, f'Unable to resolve parameter {parameter.name.id_str}')
+                raise model.ProgramError(parameter.declaration, f'Unable to resolve parameter {parameter.name.id_str}')
             value = (resolve_type(value, self) if isinstance(value, model.Type)
                      else value.resolve_self(par_values=self))
             if isinstance(value, model.Value):
@@ -100,8 +160,8 @@ class ParameterValues(dict['model.DeclarationParameter', 'StaticValue']):
             return value
 
 
-def resolve_parameter(parameter: model.DeclarationParameter,
-                      values: Mapping[model.DeclarationParameter, StaticValue]) -> StaticValue:
+def resolve_parameter(parameter: NodeParameter,
+                      values: Mapping[NodeParameter, StaticValue]) -> StaticValue:
     if not isinstance(values, ParameterValues):
         values = ParameterValues(values)
     return values[parameter]

@@ -7,7 +7,7 @@ import os
 import math
 from dataclasses import dataclass
 from types import MappingProxyType
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, NoReturn, TypeGuard
 
@@ -65,6 +65,18 @@ class FileMetadata:
     filename: str | os.PathLike
     inner_attributes: tuple[Attribute, ...]
     attributes: tuple[ValidatedAttribute, ...]
+
+
+@dataclass(frozen=True)
+class ValidatedMetadata:
+    """The validated attributes of the files of a compilation and their declarations."""
+
+    files: tuple[FileMetadata, ...] = ()
+    # By declaration, including struct fields and enum members.
+    attributes: Mapping[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = MappingProxyType({})
+    # The attributes of each edge of a connection, in source order.
+    edge_attributes: Mapping[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = (
+        MappingProxyType({}))
 
 
 class ParsedFile(list['model.Declaration']):
@@ -214,7 +226,7 @@ def validate_attributes(attributes: Iterable[Attribute], target: str) -> tuple[V
 
 def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                    contain: Callable[[model.ast.SourceElement | None], AbstractContextManager[None]] | None = None,
-                   warnings: WarningSink) -> tuple[FileMetadata, ...]:
+                   warnings: WarningSink) -> ValidatedMetadata:
     """Validate all metadata before the ordinary compilation passes.
 
     contain is CompilerCoordinator.contain when continuing after errors.
@@ -243,7 +255,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                     statement_attributes = validate_attributes(statement.outer_attributes, 'statement')
                 allow(statement, statement_attributes)
         for name, child in vars(element).items():
-            if name in ('source_position', 'outer_attributes', 'inner_attributes', 'attributes'):
+            if name in ('source_position', 'outer_attributes', 'inner_attributes'):
                 continue
             for item in child if isinstance(child, (tuple, list)) else (child,):
                 if isinstance(item, ast.SourceElement):
@@ -268,12 +280,16 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
     }
     # The attributes of the namespace blocks so far, by namespace path.
     namespaces: dict[tuple[str | model.DeclarationNodeType, ...], tuple[ValidatedAttribute, ...]] = {}
+    attributes: dict[model.ast.SourceElement, tuple[ValidatedAttribute, ...]] = {}
+    edge_attributes: dict[model.DeclarationConnection, tuple[tuple[ValidatedAttribute, ...], ...]] = {}
 
     def visit(item: model.ast.SourceElement, scope: tuple[str | model.DeclarationNodeType, ...]) -> None:
         target = targets[type(item)]
+        item_attributes: tuple[ValidatedAttribute, ...] = ()
         with contain(None):
-            item.attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
-        allow(item, item.attributes)
+            item_attributes = validate_attributes(item.outer_attributes + item.inner_attributes, target)
+        attributes[item] = item_attributes
+        allow(item, item_attributes)
         if not isinstance(item, (ast.DeclarationNodeType, ast.DeclarationLibrary)):
             visit_blocks(item)
         child_scope = scope
@@ -281,9 +297,9 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             child_scope = scope + (item.name.id_str,)
             previous = namespaces.get(child_scope)
             if previous is None:
-                namespaces[child_scope] = item.attributes
+                namespaces[child_scope] = item_attributes
             else:
-                merged = previous + item.attributes
+                merged = previous + item_attributes
                 seen = set()
                 with contain(None):
                     for attribute in merged:
@@ -295,7 +311,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             child_scope = scope + (item,)
         if isinstance(item, ast.DeclarationConnection):
             with contain(None):
-                item.edge_attributes = tuple(validate_attributes(
+                edge_attributes[item] = tuple(validate_attributes(
                     item.outer_attributes + source.outer_attributes, 'connection',
                 ) for source in item.sources)
         for child in getattr(item, 'declarations', ()):
@@ -310,7 +326,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             check_unordered(item)
 
     def check_unordered(port: model.DeclarationPort) -> None:
-        for attribute in getattr(port, 'attributes', ()):
+        for attribute in attributes[port]:
             if attribute.name == 'Unordered' and not (
                     port.direction == ast.PortDirection.Input and port.port_spec.list_spec.is_list):
                 with contain(None):
@@ -322,7 +338,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
         for declaration in declarations:
             if not isinstance(declaration, ast.DeclarationPort):
                 continue
-            for attribute in getattr(declaration, 'attributes', ()):
+            for attribute in attributes.get(declaration, ()):
                 if attribute.name != 'Diagram.Row':
                     continue
                 key = (declaration.direction, attribute.value)
@@ -334,23 +350,24 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
 
     metadata = []
     for filename, parsed in files:
-        attributes: tuple[ValidatedAttribute, ...] = ()
+        file_attributes: tuple[ValidatedAttribute, ...] = ()
         with contain(None):
-            attributes = validate_attributes(parsed.inner_attributes, 'file')
-        for attribute in attributes:
+            file_attributes = validate_attributes(parsed.inner_attributes, 'file')
+        for attribute in file_attributes:
             if attribute.name == 'Allow':
                 assert isinstance(attribute.value, tuple)
                 for name in attribute.value:
                     warnings.allow(name, filename)
-        metadata.append(FileMetadata(filename, parsed.inner_attributes, attributes))
+        metadata.append(FileMetadata(filename, parsed.inner_attributes, file_attributes))
         for declaration in parsed:
             visit(declaration, ())
     check_rows([declaration for _, parsed in files for declaration in parsed])
-    return tuple(metadata)
+    return ValidatedMetadata(tuple(metadata), MappingProxyType(attributes), MappingProxyType(edge_attributes))
 
 
 # AST objects and instantiated graph objects share these metadata fields.
-def copy_attributes(target: Any, source: Any) -> None:
+def copy_attributes(target: Any, source: Any, attributes: tuple[ValidatedAttribute, ...]) -> None:
+    """Copy the parsed attributes of source and set the validated attributes of target."""
     target.outer_attributes = source.outer_attributes
     target.inner_attributes = source.inner_attributes
-    target.attributes = source.attributes
+    target.attributes = attributes

@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 
 from . import model
+from .attributes import ValidatedAttribute, ValidatedMetadata
 from .diagnostics import Diagnostic, WarningSink, error_diagnostics
 from .stages import ResolutionState
 
@@ -25,9 +26,20 @@ class CompilerCoordinator:
         self.diagnostics = diagnostics
         self.node_types: list[model.NodeType] = []
         self.declaration_groups: list[tuple[model.Scope, list[model.Declaration]]] = []
-        self.containment: dict[model.NodeType, list[model.DeclarationInstance]] = {}
+        self.containment: dict[model.NodeType, list[model.ChildNode]] = {}
         self.population_order: list[model.NodeType] = []
+        # Set by the compiler once the files' attributes are validated.
+        self.metadata = ValidatedMetadata()
+        # Elements whose errors were recorded when continuing after errors.
+        self.failed: set[model.ast.SourceElement] = set()
         global_node_type.coordinator = self
+
+    def attributes(self, element: model.ast.SourceElement) -> tuple[ValidatedAttribute, ...]:
+        """Return the validated attributes of a declaration."""
+        return self.metadata.attributes.get(element, ())
+
+    def has_failed(self, element: model.ast.SourceElement) -> bool:
+        return element in self.failed
 
     def source_order(self, element: model.ast.SourceElement) -> tuple[str, int] | tuple[bytes, str, int]:
         position = element.source_position
@@ -38,13 +50,8 @@ class CompilerCoordinator:
         return order
 
     @contextlib.contextmanager
-    def contain(self, element: model.ast.SourceElement | None, *,
-                failures: set | None = None) -> Iterator[None]:
-        """Record errors inside as diagnostics and mark element as failed, unless stopping at errors.
-
-        With failures, add a failed element to it instead of marking it. Syntax elements are
-        immutable and only recorded in failures.
-        """
+    def contain(self, element: model.ast.SourceElement | None) -> Iterator[None]:
+        """Record errors inside as diagnostics and add element to failed, unless stopping at errors."""
         if self.diagnostics is None:
             yield
             return
@@ -56,10 +63,8 @@ class CompilerCoordinator:
             self._report(model.InternalCompilerError(element, error))
         else:
             return
-        if failures is not None:
-            failures.add(element)
-        elif element is not None and not isinstance(element, model.ast.SyntaxElement):
-            element.failed = True
+        if element is not None:
+            self.failed.add(element)
 
     def _report(self, error: model.ProgramError) -> None:
         assert self.diagnostics is not None
@@ -104,7 +109,7 @@ class CompilerCoordinator:
             if not isinstance(scope, model.Namespace):
                 continue
             for declaration in declarations:
-                if not isinstance(declaration, (model.DeclarationNodeType, model.DeclarationLibrary)) and not _failed(declaration):
+                if not isinstance(declaration, (model.DeclarationNodeType, model.DeclarationLibrary)) and not self.has_failed(declaration):
                     with self.contain(declaration), declaration.context:
                         declaration.prepare_interface(scope)
 
@@ -112,32 +117,34 @@ class CompilerCoordinator:
         for node_type in self.node_types:
             node_type.resolve_instance_declarations()
             self.containment[node_type] = sorted(
-                (declaration for declaration in node_type.node_declarations.values() if not _failed(declaration)),
-                key=self.source_order)
+                (child for child in node_type.node_declarations.values() if not self.has_failed(child.declaration)),
+                key=lambda child: self.source_order(child.declaration))
 
     def check_containment_cycles(self) -> None:
         """Only child instantiation creates a dependency between type bodies."""
         complete: set[model.NodeType] = set()
         active: list[model.NodeType] = []
-        edges: list[model.DeclarationInstance] = []
+        edges: list[model.ChildNode] = []
 
         def visit(node_type: model.NodeType) -> None:
             if node_type in complete:
                 return
             active.append(node_type)
-            for declaration in self.containment[node_type]:
-                if _failed(declaration):
+            for child_node in self.containment[node_type]:
+                declaration = child_node.declaration
+                if self.has_failed(declaration):
                     continue
-                child = declaration.node_type
+                child = child_node.node_type
                 if child in active:
                     cycle = edges[active.index(child):]
                     with self.contain(declaration):
                         raise model.ProgramError(
                             declaration, f'Recursive node type instantiation of {child.fullname!r}',
-                            hints=[model.CompilerHint(edge, 'Instantiation continues here') for edge in cycle],
+                            hints=[model.CompilerHint(edge.declaration, 'Instantiation continues here')
+                                   for edge in cycle],
                         )
                     continue
-                edges.append(declaration)
+                edges.append(child_node)
                 visit(child)
                 edges.pop()
             active.pop()
@@ -149,16 +156,16 @@ class CompilerCoordinator:
 
     def create_child_interfaces(self) -> None:
         for node_type in self.node_types:
-            for declaration in node_type.node_declarations.values():
-                if _failed(declaration):
+            for child in node_type.node_declarations.values():
+                if self.has_failed(child.declaration):
                     continue
-                with self.contain(declaration), declaration.context:
-                    declaration.create_instance_interface(node_type)
+                with self.contain(child.declaration), child.declaration.context:
+                    child.create_instance_interface()
 
     def resolve_procedure_ports(self) -> None:
         """Give reference procedure ports the specification of the port they reference."""
         for node_type in self.node_types:
-            ports = [port for procedure in node_type.procedures.values() if not _failed(procedure)
+            ports = [port for procedure in node_type.procedures.values() if not self.has_failed(procedure.declaration)
                      for port in (*procedure.input_ports.values(), *procedure.output_ports.values())]
             for port in sorted(ports, key=lambda port: self.source_order(port.declaration)):
                 if port.reference_state is ResolutionState.FAILED:
@@ -181,6 +188,3 @@ class CompilerCoordinator:
                 with node.instantiation.context:
                     node.node_type.populate_instance(node)
 
-
-def _failed(element: model.ast.SourceElement) -> bool:
-    return getattr(element, 'failed', False)

@@ -57,9 +57,7 @@ class DeclarationPort(Declaration):
         return DeclarationPort(None, port_spec=port_spec, direction_spec=direction_spec, source_position=source_position)
 
     def register_interface_declarations(self, interface: 'model.NodeType') -> None:
-        self.interface = interface
-
-        if self.interface.is_singleton and self.direction_spec.direction == PortDirection.Input:
+        if interface.is_singleton and self.direction_spec.direction == PortDirection.Input:
             raise model.ProgramError(self, 'Singleton node type cannot have inputs')
 
     def prepare_interface(self, new_graph: 'model.NodeType') -> None:
@@ -67,12 +65,12 @@ class DeclarationPort(Declaration):
         # TODO: Pass par_values to resolve_type?
         # TODO: Should the entires port_spec instance be passed?
         if isinstance(self.port_spec, PortTypeSpecificationData):
-            ty = self.interface.resolve_type(self.ty)
+            ty = new_graph.resolve_type(self.ty)
             check_runtime_type(ty, self)
             resource_type = None
         elif isinstance(self.port_spec, PortTypeSpecificationResource):
             ty = None
-            resource_type = self.interface.resolve_resource_type(self.port_spec.ty)
+            resource_type = new_graph.resolve_resource_type(self.port_spec.ty)
         else:
             raise InternalCompilerError(self, Exception('Unknown port type specification'))
         port: model.TypeInputPort | model.TypeOutputPort
@@ -97,7 +95,7 @@ class DeclarationPort(Declaration):
         else:
             raise Exception(f'Unknown direction: {self.direction!r}')
 
-        copy_attributes(port, self)
+        copy_attributes(port, self, new_graph.coordinator.attributes(self))
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         if self.name is None:

@@ -159,11 +159,10 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
     visit(declarations, ())
 
 
-def resolve_implementation(function: model.DeclarationNativeFunction,
+def resolve_implementation(function: model.CompiledFunction,
                            call: model.ast.SourceElement) -> ConstantFunctionImplementation:
-    # Declaration objects belong to one compilation, so this cache cannot leak.
-    if hasattr(function, '_resolved_implementation'):
-        return function._resolved_implementation
+    if function.constant_implementation is not None:
+        return function.constant_implementation
     try:
         entry = function.scope.coordinator.global_node_type.compiler_native_extension.functions.get(function.native_name)
         if entry is None:
@@ -173,11 +172,11 @@ def resolve_implementation(function: model.DeclarationNativeFunction,
         binding = entry.load()
     except (ImportError, TypeError, ValueError) as error:
         raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
-    function._resolved_implementation = binding
+    function.constant_implementation = binding
     return binding
 
 
-def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], sources: Sequence[object],
+def invoke(function: model.CompiledFunction, values: Sequence[object], sources: Sequence[object],
            call: model.ast.SourceElement) -> object:
     from wirely.runtime.native_values import from_native, to_native
 
@@ -206,20 +205,25 @@ def invoke(function: model.DeclarationNativeFunction, values: Sequence[object], 
                                  f'{error}') from error
 
 
-def invoke_runtime_function(function: model.DeclarationNativeFunction, values: Sequence[object],
-                            call: model.ast.SourceElement) -> object:
-    """Evaluate a runtime-callable native function during compilation."""
-    from wirely.functions import bind_native_function
-    name = function.function_name
-    if not hasattr(function, '_runtime_implementation'):
+def runtime_implementation(function: model.CompiledFunction, call: model.ast.SourceElement) -> Callable[..., object]:
+    if function.runtime_implementation is None:
+        from wirely.functions import bind_native_function
         try:
-            function._runtime_implementation = bind_native_function(
+            function.runtime_implementation = bind_native_function(
                 function.native_name, function.parameter_types, function.return_type,
                 extension=function.scope.coordinator.global_node_type.native_extension)
         except (ImportError, ValueError) as error:
-            raise model.ProgramError(call, f'Cannot load function {name!r}: {error}') from error
+            raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
+    return function.runtime_implementation
+
+
+def invoke_runtime_function(function: model.CompiledFunction, values: Sequence[object],
+                            call: model.ast.SourceElement) -> object:
+    """Evaluate a runtime-callable native function during compilation."""
+    name = function.function_name
+    implementation = runtime_implementation(function, call)
     try:
-        return function._runtime_implementation(values)
+        return implementation(values)
     except Exception as error:
         # Runtime functions must not fail, so an exception is a library error.
         inner = RuntimeError(f'Internal error in function {name!r}: {type(error).__name__}: {error}')

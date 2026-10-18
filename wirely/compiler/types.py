@@ -32,48 +32,48 @@ class ResourceType:
 
 
 class TypeParameter(Type):
-    def __init__(self, parameter: model.DeclarationParameter, *,
+    def __init__(self, parameter: model.NodeParameter, *,
                  ast_element: model.ast.SourceElement | None = None) -> None:
-        if not isinstance(parameter, model.DeclarationParameter):
-            raise Exception("not isinstance(parameter, model.DeclarationParameter)")
+        if not isinstance(parameter, model.NodeParameter):
+            raise Exception("not isinstance(parameter, model.NodeParameter)")
 
         self.parameter = parameter
-        self.ast_element = ast_element or parameter
+        self.ast_element = ast_element or parameter.declaration
 
     @property
     def contains_parameters(self) -> bool:
         return True
 
-    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> StaticValue:
+    def resolve_self(self, par_values: Mapping[model.NodeParameter, StaticValue]) -> StaticValue:
         from .parameters import ParameterValues, resolve_parameter
 
         if not isinstance(par_values, ParameterValues) and self.parameter in par_values:
             value = par_values[self.parameter]
             return self if isinstance(value, model.Value) else value
         if (not isinstance(par_values, ParameterValues)
-                and isinstance(self.parameter, model.DeclarationConstant)):
+                and self.parameter.is_constant):
             return self
         if not isinstance(par_values, ParameterValues) and self.parameter.default_value is not None:
             from .expressions import Expression
             if isinstance(self.parameter.default_value, (model.FunctionCall, Expression)):
                 return self
-            return self.parameter.interface.resolve_type(self.parameter.default_value, par_values)
+            return self.parameter.node_type.resolve_type(self.parameter.default_value, par_values)
         if self.parameter in par_values or self.parameter.default_value is not None:
             return resolve_parameter(self.parameter, par_values)
         else:
             # TODO
             hints = []
             for par in par_values:
-                if not isinstance(par, model.DeclarationParameter):
-                    raise Exception("not isinstance(par, model.DeclarationParameter)")
+                if not isinstance(par, model.NodeParameter):
+                    raise Exception("not isinstance(par, model.NodeParameter)")
                 hints += [
-                    model.CompilerHint(par, f'Available parameter: {par.interface}.{par.name}'),
+                    model.CompilerHint(par.declaration, f'Available parameter: {par.node_type}.{par.name}'),
                 ]
-            raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.interface}.{self.parameter.name}', hints=hints)
+            raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.node_type}.{self.parameter.name}', hints=hints)
 
     def __repr__(self) -> str:
         # return f'TypeParameter({self.parameter})'
-        return f'TypeParameter({self.parameter.interface.name}.{self.parameter.name})'
+        return f'TypeParameter({self.parameter})'
 
     def __str__(self) -> str:
         return self.parameter.name.id_str
@@ -105,13 +105,13 @@ def check_runtime_type(value_type: Type, source: model.ast.SourceElement | None)
         raise model.ProgramError(source, f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
 
 
-def resolve_type(value_type: Type, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> Type:
+def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, StaticValue]) -> Type:
     if not value_type.contains_parameters:
         return value_type
     if isinstance(value_type, TypeParameter):
         result = value_type.resolve_self(par_values)
         if not isinstance(result, Type):
-            raise model.ProgramError(value_type.parameter,
+            raise model.ProgramError(value_type.parameter.declaration,
                                       f'Expected ValueType for {value_type.parameter.name.id_str!r}')
         return result
     if isinstance(value_type, TypeOption):
@@ -257,7 +257,7 @@ def parse_value(value_type: Type, value: model.ast.Value, *, scope: model.Scope 
     return value_type.verify_value(parser(value_type, value, scope=scope))
 
 
-def type_parameters(value_type: Type) -> Iterator[model.DeclarationParameter]:
+def type_parameters(value_type: Type) -> Iterator[model.NodeParameter]:
     """Yield the parameters a parameter-dependent type refers to."""
     if isinstance(value_type, TypeParameter):
         yield value_type.parameter

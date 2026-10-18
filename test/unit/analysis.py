@@ -188,7 +188,7 @@ def strict_interface_error(sources):
     warnings = WarningSink(lambda diagnostic: None)
     coordinator = CompilerCoordinator(global_node_type, warnings=warnings)
     try:
-        global_node_type.file_metadata = validate_files(parsed_files, warnings=warnings)
+        coordinator.metadata = validate_files(parsed_files, warnings=warnings)
         validate_collisions(declarations)
         coordinator.compile_interfaces()
     except model.ProgramError as error:

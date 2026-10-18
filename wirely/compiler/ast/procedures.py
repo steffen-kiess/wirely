@@ -109,86 +109,70 @@ def check_port_keys(ports: typing.Iterable[Port], *, python: bool = False) -> No
         keys[key] = port
 
 
-class DependsDeclaration(SourceElement):
-    @check_parameters
-    def __init__(self, *dependencies: Port, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.dependencies = dependencies
+@syntax
+class DependsDeclaration(SyntaxElement):
+    dependencies: tuple[Port, ...]
 
-        for port in dependencies:
+    def __post_init__(self) -> None:
+        for port in self.dependencies:
             if isinstance(port, TypedPort) and isinstance(port.port_spec, PortTypeSpecificationResource):
                 port.port_spec.check_supported_input()
 
-        self.resolved_dependencies_value: list | None = None
-        self.resolved_dependencies_value_in_process = False
+    @staticmethod
+    def of(*dependencies: Port, source_position: SourcePosition) -> 'DependsDeclaration':
+        return DependsDeclaration(dependencies, source_position=source_position)
 
-    def collect_declarations(self, graph: 'model.NodeType', proc: Declaration) -> None:
-        self.graph = graph
-        self.proc = proc
 
-    # Trigger resolution of dependencies and return them
-    def get_resolved_dependencies(self) -> list:
-        if self.resolved_dependencies_value is not None:
-            return self.resolved_dependencies_value
-        if self.resolved_dependencies_value_in_process:
-            raise Exception('self.resolved_dependencies_value_in_process')
-        self.resolved_dependencies_value_in_process = True
+@syntax
+class ProducesDeclaration(SyntaxElement):
+    outputs: tuple[Port, ...]
 
-        resolved: list[Any] = []
-        check_port_keys(self.dependencies)
-        for port in self.dependencies:
-            dep = port.reference
-            assert dep is not None
-            if dep.length == 2:
-                name, member = [identifier.id_str for identifier in dep.identifiers]
-                variable = self.graph.value_nodes.get(name)
-                if isinstance(variable, DeclarationState) and member in ('old', 'new'):
-                    resolved.append(model.StateRead(variable, member, dep))
+    @staticmethod
+    def of(*outputs: Port, source_position: SourcePosition) -> 'ProducesDeclaration':
+        return ProducesDeclaration(outputs, source_position=source_position)
+
+
+def resolve_dependencies(graph: 'model.NodeType', depends: DependsDeclaration) -> list:
+    """Return the graph element each dependency of a depends clause references."""
+    resolved: list[Any] = []
+    check_port_keys(depends.dependencies)
+    for port in depends.dependencies:
+        dep = port.reference
+        assert dep is not None
+        if dep.length == 2:
+            name, member = [identifier.id_str for identifier in dep.identifiers]
+            variable = graph.value_nodes.get(name)
+            if isinstance(variable, DeclarationState) and member in ('old', 'new'):
+                resolved.append(model.StateRead(variable, member, dep))
+                continue
+            child = graph.instance_nodes.get(name)
+            if child is not None:
+                output = child.output_ports_byname.get(member)
+                if output is not None:
+                    resolved.append(output)
                     continue
-                child = self.graph.instance_nodes.get(name)
-                if child is not None:
-                    output = child.output_ports_byname.get(member)
-                    if output is not None:
-                        resolved.append(output)
-                        continue
-                raise ProgramError(dep, f'Cannot resolve procedure dependency {dep}')
-            if dep.length != 1:
-                raise ProgramError(dep, 'Unsupported procedure dependency reference')
-            identifier = dep.identifiers[0]
-            name = identifier.id_str
-            # TODO: Should not be done using nodes
-            res: Any
-            if name in self.graph.instance_nodes:
-                res = self.graph.instance_nodes[name]
-            elif name in self.graph.value_nodes:
-                res = self.graph.value_nodes[name]
-                if isinstance(res, DeclarationState):
-                    raise ProgramError(dep, 'State dependencies must explicitly reference .old or .new')
-            elif name in self.graph.input_ports:
-                res = self.graph.input_ports[name]
-            elif name in self.graph.local_resources:
-                res = self.graph.local_resources[name]
-            else:
-                raise ProgramError(dep, f'Could not find dependency')
-            resolved.append(res)
+            raise ProgramError(dep, f'Cannot resolve procedure dependency {dep}')
+        if dep.length != 1:
+            raise ProgramError(dep, 'Unsupported procedure dependency reference')
+        identifier = dep.identifiers[0]
+        name = identifier.id_str
+        # TODO: Should not be done using nodes
+        res: Any
+        if name in graph.instance_nodes:
+            res = graph.instance_nodes[name]
+        elif name in graph.value_nodes:
+            res = graph.value_nodes[name]
+            if isinstance(res, DeclarationState):
+                raise ProgramError(dep, 'State dependencies must explicitly reference .old or .new')
+        elif name in graph.input_ports:
+            res = graph.input_ports[name]
+        elif name in graph.local_resources:
+            res = graph.local_resources[name]
+        else:
+            raise ProgramError(dep, f'Could not find dependency')
+        resolved.append(res)
 
-        self.resolved_dependencies_value = resolved
-        return self.resolved_dependencies_value
-
-    def bind_body(self, graph: 'model.NodeType', proc: Declaration) -> None:
-        # Make sure get_resolved_dependencies() is executed at some point
-        self.get_resolved_dependencies()
-
-
-class ProducesDeclaration(SourceElement):
-    @check_parameters
-    def __init__(self, *outputs: Port, source_position: SourcePosition) -> None:
-        super().__init__(source_position=source_position)
-        self.outputs = outputs
-
-    def collect_declarations(self, graph: 'model.NodeType', proc: Declaration) -> None:
-        self.graph = graph
-        self.proc = proc
+    return resolved
 
 
 def dependency_is_resource(dependency: object) -> bool:
@@ -245,20 +229,58 @@ class DeclarationInitializer(Declaration):
         self.depends = depends
         self.produces = produces
         self.uses = uses
-        self.output_keys: dict[model.GraphElement, str] = {}  # Produced resource output or local resource -> key.
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         if not isinstance(graph, model.NodeType) or not graph.is_native:
             raise ProgramError(self, 'Native initializer requires a native node type')
         if graph.initializer is not None:
             raise ProgramError(self, 'Duplicate native initializer', hints=[
-                CompilerHint(graph.initializer, 'Previous initializer was here'),
+                CompilerHint(graph.initializer.declaration, 'Previous initializer was here'),
             ])
-        graph.initializer = self
-        self.depends.collect_declarations(graph, self)
-        self.produces.collect_declarations(graph, self)
+        graph.initializer = TypeInitializer(graph, self)
 
     def bind_body(self, graph: 'model.NodeType') -> None:
+        assert graph.initializer is not None and graph.initializer.declaration is self
+        graph.initializer.bind_body()
+
+
+class TypeInitializer:
+    """The native initializer of a node type in a compilation."""
+
+    def __init__(self, graph: 'model.NodeType', declaration: DeclarationInitializer) -> None:
+        self.graph = graph
+        self.declaration = declaration
+        self.output_keys: dict[model.GraphElement, str] = {}  # Produced resource output or local resource -> key.
+        self._dependencies: list | None = None
+        self._resolving = False
+
+    @property
+    def depends(self) -> DependsDeclaration:
+        return self.declaration.depends
+
+    @property
+    def produces(self) -> ProducesDeclaration:
+        return self.declaration.produces
+
+    @property
+    def uses(self) -> 'UsesDeclaration | None':
+        return self.declaration.uses
+
+    def resolved_dependencies(self) -> list:
+        """Return the graph elements of the dependencies, resolving them first if needed."""
+        if self._dependencies is not None:
+            return self._dependencies
+        if self._resolving:
+            raise Exception('Recursive initializer dependency resolution')
+        self._resolving = True
+        try:
+            self._dependencies = resolve_dependencies(self.graph, self.depends)
+        finally:
+            self._resolving = False
+        return self._dependencies
+
+    def bind_body(self) -> None:
+        graph = self.graph
         for port in self.depends.dependencies:
             if isinstance(port, TypedPort):
                 raise ProgramError(port, 'Initializer dependencies must reference resources')
@@ -281,10 +303,10 @@ class DeclarationInitializer(Declaration):
                 ])
             declarations[output] = port
             self.output_keys[output] = port.key
-        self.depends.bind_body(graph, self)
+        self.resolved_dependencies()
         if self.uses is not None:
             self.uses.check(graph)
-        for port, dep in zip(self.depends.dependencies, self.depends.get_resolved_dependencies()):
+        for port, dep in zip(self.depends.dependencies, self.resolved_dependencies()):
             if not dependency_is_resource(dep):
                 raise ProgramError(port, 'Initializer dependencies must be resources')
 
@@ -334,7 +356,7 @@ class DeclarationProcedure(Declaration):
         name = self.name.id_str
         if name in graph.procedures:
             hints = [
-                CompilerHint(graph.procedures[name], 'Previous procedure was here'),
+                CompilerHint(graph.procedures[name].declaration, 'Previous procedure was here'),
             ]
             raise ProgramError(self, f'Duplicate procedure name {name} in {graph}', hints=hints)
         register_name(graph, self.name, self)
@@ -343,16 +365,60 @@ class DeclarationProcedure(Declaration):
                 raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name {self.python_name!r}', hints=[
                     CompilerHint(previous.alias or previous.name, 'Previous Python procedure name was here'),
                 ])
-        graph.procedures[name] = self
-        self.graph = graph
-
-        self.depends.collect_declarations(graph, self)
-        self.produces.collect_declarations(graph, self)
+        graph.procedures[name] = TypeProcedure(graph, self)
 
     @property
     def python_name(self) -> str:
         """The method name, which native code also uses for triggers."""
         return self.alias.value.rpartition(':')[2] if self.alias is not None else self.name.id_str
+
+    def prepare_interface(self, graph: 'model.NodeType') -> None:
+        graph.procedures[self.name.id_str].prepare_interface()
+
+    def bind_body(self, graph: 'model.NodeType') -> None:
+        graph.procedures[self.name.id_str].bind_body()
+
+
+class TypeProcedure:
+    """A procedure of a node type in a compilation."""
+
+    def __init__(self, graph: 'model.NodeType', declaration: DeclarationProcedure) -> None:
+        self.graph = graph
+        self.declaration = declaration
+        self.input_ports: dict[str, model.ProcedureInputPort] = {}
+        self.output_ports: dict[str, model.ProcedureOutputPort] = {}
+
+    @property
+    def name(self) -> Identifier:
+        return self.declaration.name
+
+    @property
+    def alias(self) -> StringConstant | None:
+        return self.declaration.alias
+
+    @property
+    def is_native(self) -> bool:
+        return self.declaration.is_native
+
+    @property
+    def stage(self) -> StageDeclaration:
+        return self.declaration.stage
+
+    @property
+    def depends(self) -> DependsDeclaration:
+        return self.declaration.depends
+
+    @property
+    def produces(self) -> ProducesDeclaration:
+        return self.declaration.produces
+
+    @property
+    def uses(self) -> 'UsesDeclaration | None':
+        return self.declaration.uses
+
+    @property
+    def python_name(self) -> str:
+        return self.declaration.python_name
 
     @property
     def native_name(self) -> str:
@@ -362,10 +428,10 @@ class DeclarationProcedure(Declaration):
         prefix = self.graph.native_name if self.graph.is_native else self.graph.qualified_name
         return f'{prefix}:{self.name.id_str}'
 
-    def bind_body(self, graph: 'model.NodeType') -> None:
-        if graph.parent_graph is None and self.is_native:
-            raise ProgramError(self, 'Native procedures must belong to a node type')
-        self.bind_connections(graph)
+    def bind_body(self) -> None:
+        if self.graph.parent_graph is None and self.is_native:
+            raise ProgramError(self.declaration, 'Native procedures must belong to a node type')
+        self.bind_connections(self.graph)
 
     def bind_connections(self, graph: 'model.NodeType') -> None:
         # Reference ports connect to the ports they reference.
@@ -414,17 +480,18 @@ class DeclarationProcedure(Declaration):
             if not port.is_list and port.connected_source is None:
                 raise ProgramError(port.declaration, f'Input port {port.name!r} of procedure {self.name.id_str!r} has no source')
 
-    def prepare_interface(self, new_graph: 'model.NodeType') -> None:
+    def prepare_interface(self) -> None:
+        new_graph = self.graph
         check_port_keys(self.depends.dependencies)
         check_port_keys(self.produces.outputs)
         if self.is_native:
             check_port_keys(self.depends.dependencies, python=True)
             check_port_keys(self.produces.outputs, python=True)
-        self.input_ports: dict[str, model.ProcedureInputPort] = {
+        self.input_ports = {
             declaration.key: self.create_port(new_graph, declaration, is_input=True)
             for declaration in self.depends.dependencies
         }
-        self.output_ports: dict[str, model.ProcedureOutputPort] = {
+        self.output_ports = {
             declaration.key: self.create_port(new_graph, declaration, is_input=False)
             for declaration in self.produces.outputs
         }

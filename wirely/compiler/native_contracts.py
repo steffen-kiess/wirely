@@ -589,10 +589,10 @@ def native_enums(scope: Any) -> Iterator[tuple[Any, Any]]:
 
 def native_structs(scope: Any) -> Iterator[tuple[Any, Any]]:
     """Yield (TypeStruct, declaration) for each native struct declared in a scope and its namespaces."""
-    for declaration in scope.struct_types.values():
-        value_type = declaration.resolve_fields()
+    for definition in scope.struct_types.values():
+        value_type = definition.resolve_fields()
         if value_type.native_name is not None:
-            yield value_type, declaration
+            yield value_type, definition.declaration
     for library in scope.libraries.values():
         yield from native_structs(library)
 

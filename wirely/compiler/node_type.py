@@ -1,5 +1,5 @@
 import typing
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 if typing.TYPE_CHECKING:
     from .parameters import StaticValue
@@ -30,11 +30,11 @@ class NodeType(model.Scope):
             self.coordinator = parent_graph.coordinator
 
         self.instance_nodes: dict[str, model.InstanceNode] = {}
-        self.procedures: dict[str, model.DeclarationProcedure] = {}
-        self.node_declarations: dict[str, model.DeclarationInstance] = {}
+        self.procedures: dict[str, model.TypeProcedure] = {}
+        self.node_declarations: dict[str, model.ChildNode] = {}
         # Nodes, named ports, parameters, and constants share names.
         self.name_declarations: dict[str, model.Declaration] = {}
-        self.initializer: model.DeclarationInitializer | None = None
+        self.initializer: model.TypeInitializer | None = None
         self.value_nodes: dict[str, model.DeclarationState | model.DeclarationBinding] = {}
         # TODO: Clarify what is the key here (name or input_name)
         self.input_ports: dict[str, model.TypeInputPort] = {}
@@ -68,10 +68,6 @@ class NodeType(model.Scope):
     def is_singleton(self) -> bool:
         return self.declaration.is_singleton
 
-    @property
-    def attributes(self) -> tuple:
-        return self.declaration.attributes
-
     def collect_declarations(self) -> None:
         self.coordinator.node_types.append(self)
         self.coordinator.declaration_groups.append((self, self.declarations))
@@ -80,15 +76,15 @@ class NodeType(model.Scope):
             with self.coordinator.contain(None):
                 self.declaration.register(self.parent_graph, self)
 
-        parsed_parameters: dict[str, model.DeclarationParameter] = {}
-        parsed_constants: dict[str, model.DeclarationConstant] = {}
+        parsed_parameters: dict[str, model.NodeParameter] = {}
+        parsed_constants: dict[str, model.NodeParameter] = {}
         static_declarations: dict[str, model.DeclarationParameter] = {}
         for decl in self.declarations:
             with self.coordinator.contain(decl):
                 decl.register_interface_declarations(self)
 
             # TODO: Clean up isinstance?
-            if not isinstance(decl, model.DeclarationParameter) or getattr(decl, 'failed', False):
+            if not isinstance(decl, model.DeclarationParameter) or self.coordinator.has_failed(decl):
                 continue
             with self.coordinator.contain(decl), decl.context:
                 is_constant = isinstance(decl, model.DeclarationConstant)
@@ -105,17 +101,18 @@ class NodeType(model.Scope):
                     ])
                 static_declarations[name] = decl
                 model.ast.register_name(self, decl.name, decl)
-                if isinstance(decl, model.DeclarationConstant):
-                    parsed_constants[name] = decl
+                parameter = model.NodeParameter(decl, self)
+                if parameter.is_constant:
+                    parsed_constants[name] = parameter
                 else:
-                    parsed_parameters[name] = decl
+                    parsed_parameters[name] = parameter
         if hasattr(self, 'parsed_parameters'):
             raise Exception("hasattr(self, 'parsed_parameters')")
         self.parsed_parameters = parsed_parameters
         self.parsed_constants = parsed_constants
 
         for decl in self.declarations:
-            if isinstance(decl, model.Declaration) and not getattr(decl, 'failed', False):
+            if isinstance(decl, model.Declaration) and not self.coordinator.has_failed(decl):
                 with self.coordinator.contain(decl), decl.context:
                     decl.collect_declarations(self)
 
@@ -126,12 +123,12 @@ class NodeType(model.Scope):
             raise model.ProgramError(self.declaration, f'Cannot resolve interface of {self.fullname!r}')
         self.interface_state = ResolutionState.RESOLVING
         try:
-            for declaration in self.static_declarations.values():
-                with self.coordinator.contain(declaration):
-                    declaration.resolve_type()
+            for parameter in self.static_declarations.values():
+                with self.coordinator.contain(parameter.declaration):
+                    parameter.resolve_type()
             for declaration in self.declarations:
                 if (isinstance(declaration, (model.DeclarationNodeType, model.DeclarationLibrary))
-                        or getattr(declaration, 'failed', False)):
+                        or self.coordinator.has_failed(declaration)):
                     continue
                 with self.coordinator.contain(declaration), declaration.context:
                     declaration.prepare_interface(self)
@@ -149,9 +146,9 @@ class NodeType(model.Scope):
             raise RuntimeError('Instance declarations require a prepared interface')
         self.instance_declarations_state = ResolutionState.RESOLVING
         try:
-            for declaration in self.node_declarations.values():
-                with self.coordinator.contain(declaration), declaration.context:
-                    declaration.resolve_instance_arguments(self)
+            for child in self.node_declarations.values():
+                with self.coordinator.contain(child.declaration), child.declaration.context:
+                    child.resolve_arguments()
         except Exception:
             self.instance_declarations_state = ResolutionState.FAILED
             raise
@@ -191,6 +188,13 @@ class NodeType(model.Scope):
                 continue
             if isinstance(decl, (model.DeclarationNodeType, model.DeclarationLibrary, model.DeclarationInstance)):
                 continue
+            if isinstance(decl, model.DeclarationParameter):
+                parameter = self.static_declarations.get(decl.name.id_str)
+                # A duplicate declaration has no parameter.
+                if parameter is not None and parameter.declaration is decl:
+                    with decl.context:
+                        parameter.bind_body()
+                continue
             if isinstance(decl, model.Declaration):
                 with decl.context:
                     decl.bind_body(self)
@@ -203,8 +207,9 @@ class NodeType(model.Scope):
                 decl.bind_body(self)
 
     def create_instance_interface(self, *, name: str, graph: 'NodeType',
-                                  par_values: 'Mapping[model.DeclarationParameter, StaticValue]',
-                                  instantiation: 'model.ast.SourceElement', register: bool = True) -> 'model.InstanceNode':
+                                  par_values: 'Mapping[model.NodeParameter, StaticValue]',
+                                  instantiation: 'model.ast.SourceElement', register: bool = True,
+                                  failed_parameters: Collection[model.NodeParameter] = ()) -> 'model.InstanceNode':
         if self.interface_state is not ResolutionState.COMPLETE:
             raise RuntimeError('Instance creation requires a prepared interface')
         node = model.InstanceNode(name=name, graph=graph, node_type=self, par_values=par_values,
@@ -213,19 +218,19 @@ class NodeType(model.Scope):
         node.parameter_values = dict(par_values)
 
         # Parameters without a value because of an earlier error are not reported again.
-        failed: set[model.DeclarationParameter] = getattr(instantiation, 'failed_parameters', set())
+        failed = failed_parameters
         # Port types are not checked again without all parameter values.
         incomplete = bool(failed)
         for par in self.parsed_parameters.values():
             # print(par, par.is_optional)
             if not par.is_optional and par not in node.parameter_values:
                 incomplete = True
-                if par in failed or getattr(par, 'failed', False):
+                if par in failed or self.coordinator.has_failed(par.declaration):
                     continue
                 with self.coordinator.contain(None):
                     raise model.ProgramError(
                         instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
-                        hints=[model.CompilerHint(par, 'Parameter was declared here')])
+                        hints=[model.CompilerHint(par.declaration, 'Parameter was declared here')])
 
         # TODO: Pass list of connections to constructor instead of getting them from self.graph
         node.custom_inputs = {}
@@ -279,7 +284,7 @@ class NodeType(model.Scope):
                 storage = model.InstanceStateVariable(
                     node, variable.name.id_str, var_type, variable.initial_value,
                 )
-                copy_attributes(storage, variable)
+                copy_attributes(storage, variable, self.coordinator.attributes(variable))
                 state_variables[variable.name.id_str] = storage
             elif isinstance(variable, model.ast.DeclarationBinding):
                 var_type = self.resolve_type(variable.var_type, par_values=node.parameter_values)
@@ -288,7 +293,7 @@ class NodeType(model.Scope):
                                  if model.connection_kind(variable) == model.ConnectionKind.Event else var_type)
                 temporary = model.InstanceTemporary(node, variable.name.id_str, var_type, impl_var_type=impl_var_type)
                 temporary.port_spec = variable.port_spec
-                copy_attributes(temporary, variable)
+                copy_attributes(temporary, variable, self.coordinator.attributes(variable))
                 temporaries[variable.name.id_str] = temporary
             else:
                 raise Exception(f'Got unexpected variable: {variable}')
@@ -345,7 +350,7 @@ class NodeType(model.Scope):
         if self.initializer is not None:
             depends = self.initializer.depends
             source_port: typing.Any  # Data and resource dependencies use different source classes.
-            for dependency_port, dep in zip(depends.dependencies, depends.get_resolved_dependencies()):
+            for dependency_port, dep in zip(depends.dependencies, self.initializer.resolved_dependencies()):
                 if isinstance(dep, model.TypeInputPort):
                     source_port = node.custom_inputs[dep]
                 elif isinstance(dep, model.InstanceNode):
@@ -373,7 +378,7 @@ class NodeType(model.Scope):
 
             model.InstanceProcedure(
                 node, list(sources.values()), list(targets.values()), name=procedure.name.id_str,
-                static_context=static_context, declaration_procedure=procedure,
+                static_context=static_context, declaration_procedure=procedure.declaration,
             )
 
     def __repr__(self) -> str:

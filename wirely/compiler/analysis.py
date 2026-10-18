@@ -26,7 +26,7 @@ from wirely import types as _types
 from . import outline as _outline
 from . import support
 from .ast import PortDirection
-from .attributes import Attribute, ParsedFile, validate_files
+from .attributes import Attribute, ParsedFile, ValidatedAttribute, validate_files
 from .coordinator import CompilerCoordinator
 from .diagnostics import Diagnostic, WarningSink
 from .native_functions import validate_collisions, validate_native_names
@@ -187,8 +187,9 @@ class Analysis:
         def add(record: _outline.NodeTypeInfo, type_text: str, internal: bool) -> None:
             internal = internal or _is_internal(record.attributes)
             declaration = record._declaration
+            compiled = self._node_types.get(declaration) if declaration is not None else None
             if (internal and not include_internal) or len(self.outline.find(record.id)) != 1 \
-                    or getattr(declaration, 'failed', False) or declaration not in self._node_types:
+                    or compiled is None or compiled.coordinator.has_failed(compiled.declaration):
                 return
             parameters = tuple(ParameterEntry(parameter.name, self.value_type(parameter.id), parameter.type_text,
                                               parameter.default_text, parameter.is_optional)
@@ -213,13 +214,14 @@ class Analysis:
     def type_names(self, scope: Sequence[str] = (), *, include_internal: bool = False) -> tuple[str, ...]:
         """Return the names of value types usable in a scope, as written in declarations."""
         names = [name for name in _types.type_by_name if name != 'ValueType'] + ['Option', 'List']
-        declared = []
+        declared: list[str] = []
+        assert self._global is not None
+        coordinator = self._global.coordinator
 
-        def add(declarations: Mapping[str, model.DeclarationStructType | model.types.TypeEnum], prefix: str,
+        def add(declarations: Mapping[str, model.StructDefinition | model.types.TypeEnum], prefix: str,
                 internal: bool) -> None:
             for name, declaration in declarations.items():
-                item = declaration.declaration if isinstance(declaration, model.types.TypeEnum) else declaration
-                if include_internal or not (internal or _is_internal(item.attributes)):
+                if include_internal or not (internal or _is_internal(coordinator.attributes(declaration.declaration))):
                     declared.append(prefix + name)
 
         def visit(library: model.Scope, prefix: str, internal: bool) -> None:
@@ -282,7 +284,7 @@ class Analysis:
             node = (scope.input_ports if target.direction == 'input' else scope.output_ports).get(name)
         elif isinstance(target, ProcedurePort):
             procedure = scope.procedures.get(target.procedure.path[-1])
-            if procedure is None or getattr(procedure, 'failed', False):
+            if procedure is None or scope.coordinator.has_failed(procedure.declaration):
                 return None
             port = ((procedure.input_ports if target.direction == 'input' else procedure.output_ports).get(target.key)
                     if target.key is not None else None)
@@ -325,7 +327,8 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Ana
     global_node_type.services = MappingProxyType({})
     warnings = WarningSink(diagnostics.append)
     coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)
-    global_node_type.file_metadata = validate_files(parsed_files, contain=coordinator.contain, warnings=warnings)
+    coordinator.metadata = validate_files(parsed_files, contain=coordinator.contain, warnings=warnings)
+    global_node_type.file_metadata = coordinator.metadata.files
     with coordinator.contain(None):
         validate_collisions(declarations)
         validate_native_names(declarations)
@@ -337,7 +340,7 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False) -> Ana
                                   for diagnostic in diagnostics), global_node_type, node_types)
 
 
-def _is_internal(attributes: Iterable[Attribute]) -> bool:
+def _is_internal(attributes: Iterable[Attribute | ValidatedAttribute]) -> bool:
     return any(attribute.name == 'Internal' for attribute in attributes)
 
 
@@ -357,7 +360,7 @@ def _target_references(graph: model.NodeType) -> Iterator[str]:
     yield from (_reference(name) for name in graph.output_ports)
     yield from (_reference(name) for name in (*graph.state_nodes, *graph.temporary_nodes))
     for name, procedure in graph.procedures.items():
-        if not getattr(procedure, 'failed', False):
+        if not graph.coordinator.has_failed(procedure.declaration):
             yield from (_reference(name, key) for key in procedure.input_ports)
 
 
@@ -370,13 +373,13 @@ def _source_references(graph: model.NodeType) -> Iterator[str]:
         yield from (_reference(name, 'old'), _reference(name, 'new'))
     yield from (_reference(name) for name in graph.temporary_nodes)
     for name, procedure in graph.procedures.items():
-        if not getattr(procedure, 'failed', False):
+        if not graph.coordinator.has_failed(procedure.declaration):
             yield from (_reference(name, key) for key in procedure.output_ports)
     yield from (_reference(name) for name in graph.static_declarations)
 
 
 def _resolve(value_type: model.Type | None,
-             parameter_values: Mapping[model.DeclarationParameter, StaticValue] | None) -> model.Type | None:
+             parameter_values: Mapping[model.NodeParameter, StaticValue] | None) -> model.Type | None:
     if value_type is None or parameter_values is None:
         return value_type
     try:
@@ -386,7 +389,7 @@ def _resolve(value_type: model.Type | None,
 
 
 def _resolved_port(port: model.TypeInputPort | model.TypeOutputPort, direction: str,
-                   parameter_values: Mapping[model.DeclarationParameter, StaticValue] | None) -> ResolvedPort:
+                   parameter_values: Mapping[model.NodeParameter, StaticValue] | None) -> ResolvedPort:
     spec = port.port_spec
     if isinstance(spec, model.PortTypeSpecificationResource):
         kind = 'resource'

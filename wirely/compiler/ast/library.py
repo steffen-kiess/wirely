@@ -37,7 +37,7 @@ class DeclarationLibrary(Declaration):
 
         if self.name.id_str in graph.struct_types:
             raise model.ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with struct type', hints=[
-                model.CompilerHint(graph.struct_types[self.name.id_str], 'Previous declaration was here'),
+                model.CompilerHint(graph.struct_types[self.name.id_str].declaration, 'Previous declaration was here'),
             ])
         if self.name.id_str in graph.enum_types:
             raise ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with enum type', hints=[
@@ -85,7 +85,7 @@ class Namespace(Scope):
     @property
     def attributes(self) -> tuple:
         """The validated attributes of all blocks."""
-        return tuple(attribute for block in self.blocks for attribute in block.attributes)
+        return tuple(attribute for block in self.blocks for attribute in self.coordinator.attributes(block))
 
     @property
     def fullname(self) -> str:

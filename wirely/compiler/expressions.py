@@ -205,7 +205,7 @@ INTEGER_MEMBERS.update({
 })
 
 
-def type_member(scope: model.Scope, reference: AstValue, parameters: Mapping[model.DeclarationParameter, StaticValue],
+def type_member(scope: model.Scope, reference: AstValue, parameters: Mapping[model.NodeParameter, StaticValue],
                 local_names: Collection[str] = ()) -> tuple[model.Type, tuple[str, str]] | None:
     """Resolve Type.Member to (type, member), or None when the callee is not a type member."""
     if not isinstance(reference, model.Reference) or reference.length < 2:
@@ -244,7 +244,7 @@ def is_some_call(expression: object) -> TypeGuard[model.FunctionCall]:
             and expression.fun.length == 1 and expression.fun.identifiers[0].id_str == 'Some')
 
 
-def is_type_declaration(declaration: model.DeclarationParameter) -> bool:
+def is_type_declaration(declaration: model.NodeParameter) -> bool:
     declared_type = getattr(declaration, 'type_resolved', None)
     return (declared_type == model.types.ValueType
             or (isinstance(declaration.ty, model.Reference) and declaration.ty.length == 1
@@ -468,7 +468,7 @@ class TypedExpression:
                 or (self.operation == 'constant' and self.payload.contains_parameters)
                 or any(argument.contains_parameters for argument in self.arguments))
 
-    def resolve(self, parameters: Mapping[model.DeclarationParameter, StaticValue]) -> TypedExpression:
+    def resolve(self, parameters: Mapping[model.NodeParameter, StaticValue]) -> TypedExpression:
         resolved = replace(
             self, value_type=resolve_type(self.value_type, parameters),
             expected_type=(resolve_type(self.expected_type, parameters)
@@ -711,7 +711,7 @@ class ExpressionValue(Value):
     def contains_parameters(self) -> bool:
         return self.expression.contains_parameters
 
-    def resolve_self(self, par_values: Mapping[model.DeclarationParameter, StaticValue]) -> ExpressionValue:
+    def resolve_self(self, par_values: Mapping[model.NodeParameter, StaticValue]) -> ExpressionValue:
         return ExpressionValue(self.expression.resolve(par_values), ast_element=self.ast_element)
 
     def evaluate(self) -> Any:
@@ -920,7 +920,7 @@ OPTIONAL_RUNTIME_MESSAGE = 'optional requires an optional parameter without a de
 
 
 class ExpressionCompiler:
-    def __init__(self, scope: model.Scope, parameters: Mapping[model.DeclarationParameter, StaticValue], *,
+    def __init__(self, scope: model.Scope, parameters: Mapping[model.NodeParameter, StaticValue], *,
                  runtime: bool = False, names: Mapping[str, TypedExpression] | None = None,
                  protected: Iterable[str] = ()) -> None:
         self.scope = scope
@@ -929,7 +929,7 @@ class ExpressionCompiler:
         self.names = dict(names or {})
         self.protected = set(protected)
         self.next_slot = 0
-        self.static_usage: set[model.DeclarationParameter] = set()
+        self.static_usage: set[model.NodeParameter] = set()
         self.bindings: dict[ExpressionKey, Binding] = {}
         self.initialization: Initialization = {}
         self.loop_outer_keys: set[ExpressionKey] | None = None
@@ -959,7 +959,7 @@ class ExpressionCompiler:
             return value is not None and value.runtime
         return False
 
-    def optional_parameter_declaration(self, expression: model.OptionalExpression) -> model.DeclarationParameter:
+    def optional_parameter_declaration(self, expression: model.OptionalExpression) -> model.NodeParameter:
         local_names = {name for name, value in self.names.items() if value.operation != 'constant'}
         assert isinstance(self.scope, model.NodeType)
         return expression.declaration(self.scope, local_names, events=self.runtime)
@@ -1776,7 +1776,7 @@ class ExpressionCompiler:
 
 
 def input_length_source(expression: TypedExpression,
-                        seen: set[model.DeclarationParameter] | None = None) -> SourceElement | None:
+                        seen: set[model.NodeParameter] | None = None) -> SourceElement | None:
     """Find structural dependencies when a type is requested before specialization."""
     seen = set() if seen is None else seen
     if expression.operation == 'constant':
@@ -1787,7 +1787,7 @@ def input_length_source(expression: TypedExpression,
             declaration = value.parameter
             if declaration.default_value is not None and declaration not in seen:
                 seen.add(declaration)
-                compiler = ExpressionCompiler(declaration.interface, {})
+                compiler = ExpressionCompiler(declaration.node_type, {})
                 default = compiler.compile(declaration.default_value, declaration.type_resolved)
                 source = input_length_source(default, seen)
                 if source is not None:
@@ -1800,7 +1800,7 @@ def input_length_source(expression: TypedExpression,
 
 
 def compile_constant(scope: model.Scope, expression: AstValue, expected: model.Type | None,
-                     parameters: Mapping[model.DeclarationParameter, StaticValue]) -> ExpressionValue:
+                     parameters: Mapping[model.NodeParameter, StaticValue]) -> ExpressionValue:
     compiler = ExpressionCompiler(scope, parameters)
     typed_expression = compiler.compile(expression, expected)
     if typed_expression.value_type == model.types.ValueType and getattr(parameters, 'instance', None) is None:
@@ -1845,7 +1845,7 @@ def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTy
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
         if isinstance(value, model.types.Type):
-            value = ConstantValue(model.types.ValueType, value, ast_element=parameter)
+            value = ConstantValue(model.types.ValueType, value, ast_element=parameter.declaration)
         if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,

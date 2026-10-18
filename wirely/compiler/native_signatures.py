@@ -23,7 +23,7 @@ def node_types(scope: model.Scope) -> Iterator[model.NodeType]:
         yield from node_types(library)
 
 
-def native_functions(scope: model.Scope, constant: bool) -> Iterator[model.DeclarationNativeFunction]:
+def native_functions(scope: model.Scope, constant: bool) -> Iterator[model.CompiledFunction]:
     """Yield the runtime or constant native functions declared in a scope and its namespaces."""
     for function in scope.native_functions.values():
         if function.is_constant == constant:
@@ -41,7 +41,7 @@ def function_signatures(graph: model.Scope, *, constant: bool,
     """
     functions = {}
     for function in native_functions(graph, constant):
-        if source_paths is not None and function.source_position.filename not in source_paths:
+        if source_paths is not None and function.declaration.source_position.filename not in source_paths:
             continue
         if namespace is not None and not function.native_name.startswith(namespace + '.'):
             continue
@@ -53,7 +53,7 @@ def function_signatures(graph: model.Scope, *, constant: bool,
     return functions
 
 
-def signature_type(value_type: types.Type, variables: Mapping[model.DeclarationParameter, str],
+def signature_type(value_type: types.Type, variables: Mapping[model.NodeParameter, str],
                    where: str) -> signatures.SignatureType:
     """Describe a compiler value type; type parameters become their type variables."""
     if isinstance(value_type, TypeParameter):
@@ -81,7 +81,7 @@ def signature_type(value_type: types.Type, variables: Mapping[model.DeclarationP
 
 
 # Data and resource ports expose different interfaces.
-def signature_port(port: Any, variables: Mapping[model.DeclarationParameter, str], where: str) -> signatures.Port:
+def signature_port(port: Any, variables: Mapping[model.NodeParameter, str], where: str) -> signatures.Port:
     specification = port_specification(port)
     if specification.resource_type is not None:
         return signatures.Port('resource', signatures.ResourceType(specification.resource_type.native_name),
@@ -93,7 +93,7 @@ def signature_port(port: Any, variables: Mapping[model.DeclarationParameter, str
 
 
 def procedure_ports(ports: Mapping[str, model.ProcedureInputPort | model.ProcedureOutputPort],
-                    variables: Mapping[model.DeclarationParameter, str], where: str) -> dict[str, signatures.Port]:
+                    variables: Mapping[model.NodeParameter, str], where: str) -> dict[str, signatures.Port]:
     result = {}
     for port in ports.values():
         port.resolve_reference()
@@ -102,9 +102,9 @@ def procedure_ports(ports: Mapping[str, model.ProcedureInputPort | model.Procedu
 
 
 def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None,
-                   where: str) -> dict[model.DeclarationParameter, str]:
+                   where: str) -> dict[model.NodeParameter, str]:
     """Map each ValueType parameter in a `uses` clause to the key passing it."""
-    variables: dict[model.DeclarationParameter, str] = {}
+    variables: dict[model.NodeParameter, str] = {}
     for binding in () if uses is None else uses.bindings:
         expression = binding.expression
         parameter = (node_type.parsed_parameters.get(expression.identifiers[0].id_str)
@@ -122,10 +122,10 @@ def uses_type(node_type: model.NodeType, binding: model.StaticBinding, variables
 
 @overload
 def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
-              variables: Mapping[model.DeclarationParameter, str], where: str) -> signatures.SignatureType: ...
+              variables: Mapping[model.NodeParameter, str], where: str) -> signatures.SignatureType: ...
 
 def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
-              variables: Mapping[model.DeclarationParameter, str] | None,
+              variables: Mapping[model.NodeParameter, str] | None,
               where: str) -> types.Type | signatures.SignatureType:
     with binding.expression.context:
         value_type = compile_constant(node_type, binding.expression, None, {}).value_type
@@ -133,7 +133,7 @@ def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
 
 
 def signature_uses(node_type: model.NodeType, uses: model.UsesDeclaration | None,
-                   variables: Mapping[model.DeclarationParameter, str],
+                   variables: Mapping[model.NodeParameter, str],
                    where: str) -> dict[str, signatures.SignatureType]:
     if uses is None:
         return {}
@@ -163,7 +163,7 @@ def native_signatures(graph: model.Scope,
             variables = type_variables(node_type, initializer.uses, where)
             depends = {}
             for port, dependency in zip(initializer.depends.dependencies,
-                                        initializer.depends.get_resolved_dependencies()):
+                                        initializer.resolved_dependencies()):
                 if isinstance(dependency, model.InstanceNode):
                     dependency = dependency.output_ports_byname['']
                 depends[port.key] = signature_port(dependency, variables, where)

@@ -216,7 +216,7 @@ class OptionalExpression(Value):
         return self.parameters[0]
 
     def declaration(self, scope: 'model.NodeType', local_names: Collection[str] = (), *,
-                    events: bool = False) -> 'model.DeclarationParameter':
+                    events: bool = False) -> 'model.NodeParameter':
         """Return the optional parameter the argument names.
 
         events mentions event dependencies as alternatives in errors, for
@@ -341,18 +341,18 @@ class ResolvedPortReference(SourceElement):
                 raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
 
 
-def static_source(declaration: 'model.DeclarationParameter', name: Identifier, port_name: Identifier | None,
+def static_source(parameter: 'model.NodeParameter', name: Identifier, port_name: Identifier | None,
                   direction: PortDirection) -> 'model.StaticSource':
     """Return the connection source for a parameter or constant."""
-    kind = 'Constant' if isinstance(declaration, model.ast.DeclarationConstant) else 'Parameter'
+    kind = 'Constant' if parameter.is_constant else 'Parameter'
     if direction == PortDirection.Input:
         raise ProgramError(name, f'Cannot connect to {kind.lower()} {name.id_str!r}')
     if port_name is not None:
         raise ProgramError(port_name, f'{kind} {name.id_str!r} has no output port {port_name.id_str!r}')
-    declaration.resolve_type()
-    if declaration.type_resolved == model.types.ValueType:
+    parameter.resolve_type()
+    if parameter.type_resolved == model.types.ValueType:
         raise ProgramError(name, f'Type-valued {kind.lower()} {name.id_str!r} cannot be a connection source')
-    return model.StaticSource(declaration, name)
+    return model.StaticSource(parameter, name)
 
 
 @syntax

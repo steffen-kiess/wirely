@@ -96,10 +96,10 @@ _procedure_clauses: stage_declaration depends_declaration produces_declaration
 stage_declaration: () -> stage_declaration__create_default
     | "stage" "input" -> stage_declaration__create_input
     | "stage" "output" -> stage_declaration__create_output
-depends_declaration: ()
-    | "depends" "on" _list{procedure_port}
-produces_declaration: ()
-    | "produces" _list{procedure_port}
+depends_declaration: () -> depends_declaration__of
+    | "depends" "on" _list{procedure_port} -> depends_declaration__of
+produces_declaration: () -> produces_declaration__of
+    | "produces" _list{procedure_port} -> produces_declaration__of
 uses_declaration: "uses" _list{static_binding} -> uses_declaration__of
 
 // A reference port connected to what it references, or a typed port wired

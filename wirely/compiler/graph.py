@@ -39,7 +39,7 @@ class StateRead:
 class StaticSource:
     """A parameter or constant used as a connection source."""
 
-    declaration: 'model.DeclarationParameter'
+    parameter: 'model.NodeParameter'
     reference: object
 
     # TODO: Remove
@@ -49,15 +49,15 @@ class StaticSource:
 
     @property
     def graph(self) -> 'model.NodeType':
-        return self.declaration.interface
+        return self.parameter.node_type
 
     @property
     def name(self) -> str:
-        return self.declaration.name.id_str
+        return self.parameter.name.id_str
 
     @property
     def var_type(self) -> 'model.types.Type | None':
-        return self.declaration.type_resolved
+        return self.parameter.type_resolved
 
 
 @dataclass(frozen=True)
@@ -296,7 +296,7 @@ class ProcedurePort(GraphElement):
     specification of the port it references.
     """
 
-    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port', *,
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.TypeProcedure', declaration: 'Port', *,
                  specification: PortSpecification | None = None, counterpart: Callable[[], Any] | None = None) -> None:
         super().__init__(graph, name=declaration.key)
         self.procedure = procedure
@@ -365,7 +365,7 @@ class ProcedurePort(GraphElement):
 
 
 class ProcedureInputPort(ProcedurePort):
-    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port',
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.TypeProcedure', declaration: 'Port',
                  **kwargs: Any) -> None:
         super().__init__(graph, procedure, declaration, **kwargs)
         # A single source, or a multi input forwarded as a whole.
@@ -385,7 +385,7 @@ class ProcedureInputPort(ProcedurePort):
 
 
 class ProcedureOutputPort(ProcedurePort):
-    def __init__(self, graph: 'model.NodeType', procedure: 'model.DeclarationProcedure', declaration: 'Port',
+    def __init__(self, graph: 'model.NodeType', procedure: 'model.TypeProcedure', declaration: 'Port',
                  **kwargs: Any) -> None:
         super().__init__(graph, procedure, declaration, **kwargs)
         # The state node this port writes, if any.

@@ -30,47 +30,11 @@ class DeclarationParameter(Declaration):
                            source_position: SourcePosition) -> 'DeclarationParameter':
         return DeclarationParameter(optional_specifier=None, name=name, ty=ty, default_value=default_value, source_position=source_position)
 
-    def register_interface_declarations(self, interface: 'model.NodeType') -> None:
-        self.interface = interface
-
-    def resolve_type(self) -> None:
-        # Types may refer to parameters declared later, which resolve on demand.
-        if hasattr(self, 'type_resolved'):
-            return
-        self.resolving_type = True
-        try:
-            # TODO: Is this correct?
-            self.type_resolved = self.interface.resolve_type(self.ty)
-        finally:
-            self.resolving_type = False
-
-    def __repr__(self) -> str:
-        # return f'Parameter <{self.name}> [{self.name.source_position.start_line}] : <{self.ty}>'
-        if not hasattr(self, 'interface'):
-            # return f'Parameter <(unknown node).{self.name}> : <{self.ty}>'
-            return f'(unknown node).{self.name}'
-        else:
-            return f'{self.interface.name}.{self.name}'
-
-    def bind_body(self, graph: 'model.NodeType') -> None:
-        if self.default_value is not None:
-            from ..expressions import compile_constant
-            compile_constant(graph, self.default_value, self.type_resolved, {})
-
 
 class DeclarationConstant(DeclarationParameter):
     def __init__(self, name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> None:
         super().__init__(None, name, ty, default_value=initializer,
                          source_position=source_position)
-
-    def bind_body(self, graph: 'model.NodeType') -> None:
-        # Check concrete types and expression syntax without running initializers.
-        assert self.default_value is not None
-        if self.type_resolved == model.types.ValueType:
-            graph.get_const_value(self.default_value, self.type_resolved)
-        else:
-            from ..expressions import compile_constant
-            compile_constant(graph, self.default_value, self.type_resolved, {})
 
 
 class DeclarationAssertion(Declaration):
