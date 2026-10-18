@@ -32,3 +32,9 @@ def getEnvironmentBool(name: str, defVal: bool) -> bool:
         return True
     else:
         raise Exception('Invalid value for environment variant %s: %s' % (repr(name), repr(value)))
+
+
+def verbose_print(*values: object, flush: bool = False) -> None:
+    """Print routine messages of native nodes only if WIRELY_VERBOSE is set."""
+    if getEnvironmentBool('WIRELY_VERBOSE', False):
+        print(*values, flush=flush)

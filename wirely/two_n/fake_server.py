@@ -14,6 +14,7 @@ from typing import Any
 from . import cert
 
 import wirely.misc.service
+from wirely.util import verbose_print
 
 import OpenSSL
 import cryptography.x509
@@ -172,7 +173,7 @@ class Server:
         params = await self.get_params(request)
         par_filter = params.get('filter')
         par_include = params.get('include')
-        print('api_log_subscribe', par_filter, par_include)
+        verbose_print('api_log_subscribe', par_filter, par_include)
         id = self.next_subscription_id
         self.next_subscription_id += 1
         reply = {
@@ -184,15 +185,15 @@ class Server:
         self.subscriptions[id] = {
             'pending': [],
         }
-        print(f'Added {list(self.subscriptions)}')
+        verbose_print(f'Added {list(self.subscriptions)}')
         # TODO: Prevent charset from being added to reply?
         return aiohttp.web.json_response(data=reply)
 
     async def api_log_unsubscribe(self, request: aiohttp.web.Request) -> aiohttp.web.Response:
         params = await self.get_params(request)
         par_id = int(params['id'])
-        print('api_log_unsubscribe', par_id)
-        print(f'Subscriptions {list(self.subscriptions)!r}')
+        verbose_print('api_log_unsubscribe', par_id)
+        verbose_print(f'Subscriptions {list(self.subscriptions)!r}')
         # TODO: Check error messages
         if par_id not in self.subscriptions:
             reply = {
@@ -225,8 +226,8 @@ class Server:
             # TODO: Default value?
             par_timeout = 60.0
 
-        print('api_log_pull', par_id, par_timeout)
-        print(f'Lookup {par_id!r} {list(self.subscriptions)}')
+        verbose_print('api_log_pull', par_id, par_timeout)
+        verbose_print(f'Lookup {par_id!r} {list(self.subscriptions)}')
         subscription = self.subscriptions[par_id]
         remaining_timeout = par_timeout
         while remaining_timeout > 0 and len(subscription['pending']) == 0:
@@ -341,7 +342,7 @@ class Server:
     def emit_event_raw(self, event: dict[str, Any]) -> None:
         for subscription in self.subscriptions.values():
             subscription['pending'].append(event)
-        print(f'Emitted for {len(self.subscriptions.values())} listeners: {event}', flush=True)
+        verbose_print(f'Emitted for {len(self.subscriptions.values())} listeners: {event}', flush=True)
         self.wait_event.set()
 
     def emit_event(self, event_type: str, params: dict[str, Any]) -> None:

@@ -47,6 +47,9 @@ python3 -m pip install 'wirely[all]'           # all optional integrations
 python3 -m pip install 'wirely[editor]'        # graphical editor
 ```
 
+Set `WIRELY_VERBOSE=1` to print node creation, connection setup, and each
+value sent or received by the KNX, MQTT, 2N, CSV, and Process nodes.
+
 `wirely edit program.wrl` opens a program in a graphical editor with tabs
 for its source files and diagrams. Edits in either view update the other.
 Right-click a tab to split the view, move it to another pane, or detach it

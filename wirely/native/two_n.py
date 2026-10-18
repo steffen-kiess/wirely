@@ -9,6 +9,7 @@ from wirely import Int32, Some, UInt16
 from wirely.generated import two_n as contracts
 from wirely.runtime.native_api import ProcedureServices, StateServices
 from wirely.generated.structs import TwoNCredentials
+from wirely.util import verbose_print
 
 
 class Connection(contracts.ConnectionInitializer):
@@ -16,11 +17,11 @@ class Connection(contracts.ConnectionInitializer):
                    tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionInitializerResult:
         import wirely.two_n.client
 
-        print('Create TwoN Connection', flush=True)
+        verbose_print('Create TwoN Connection', flush=True)
 
         hostname = host
-        print(f'  Connecting to: {hostname!r}:{port.value}', flush=True)
-        print(f'  Using TLSA: {tlsa!r}', flush=True)
+        verbose_print(f'  Connecting to: {hostname!r}:{port.value}', flush=True)
+        verbose_print(f'  Using TLSA: {tlsa!r}', flush=True)
 
         self.client = wirely.two_n.client.Client(hostname=hostname, port=port.value, tlsa=tlsa, http_api_username_password=(credentials.username, credentials.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
@@ -29,12 +30,12 @@ class Connection(contracts.ConnectionInitializer):
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
-        print('Starting TwoN client', flush=True)
+        verbose_print('Starting TwoN client', flush=True)
         await async_exit_stack.enter_async_context(self.client)
-        print('Starting log receiver', flush=True)
+        verbose_print('Starting log receiver', flush=True)
         # TODO: Should this try to unsubscribe on shutdown and if yes, how long should it wait?
         await self.log_receiver.start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
-        print('Starting TwoN client done', flush=True)
+        verbose_print('Starting TwoN client done', flush=True)
 
 
 class KeyEvent(contracts.KeyEventInitializer):
@@ -44,13 +45,13 @@ class KeyEvent(contracts.KeyEventInitializer):
 
         self.received_value: bool | None = None
 
-        print('Create TwoN KeyEvent', flush=True)
+        verbose_print('Create TwoN KeyEvent', flush=True)
 
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f'  Key: {self.key!r}', flush=True)
 
         self.native_device = device
-        print(f'  Using native device object: {self.native_device}', flush=True)
+        verbose_print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['KeyPressed', 'KeyReleased'], self.handler)
@@ -100,13 +101,13 @@ class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
 
         self.pending = False
 
-        print('Create TwoN CodeEnteredEvent', flush=True)
+        verbose_print('Create TwoN CodeEnteredEvent', flush=True)
 
         if wirely.util.getEnvironmentBool('WIRELY_TWON_TRACE_KEYS', False):
             print(f'  Code: {self.code!r}', flush=True)
 
         self.native_device = device
-        print(f'  Using native device object: {self.native_device}', flush=True)
+        verbose_print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['CodeEntered'], self.handler)
@@ -156,12 +157,12 @@ class IOState(contracts.IOStateInitializer):
 
         # TODO: Read current value on start-up in a race-free way
 
-        print('Create TwoN IOState', flush=True)
+        verbose_print('Create TwoN IOState', flush=True)
 
-        print(f'  Port: {self.port!r}', flush=True)
+        verbose_print(f'  Port: {self.port!r}', flush=True)
 
         self.native_device = device
-        print(f'  Using native device object: {self.native_device}', flush=True)
+        verbose_print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['InputChanged', 'OutputChanged'], self.handler)
@@ -231,12 +232,12 @@ class SwitchState(contracts.SwitchStateInitializer):
 
         # TODO: Read current value on start-up in a race-free way
 
-        print('Create TwoN SwitchState', flush=True)
+        verbose_print('Create TwoN SwitchState', flush=True)
 
-        print(f'  SwitchNumber: {self.switch_number!r}', flush=True)
+        verbose_print(f'  SwitchNumber: {self.switch_number!r}', flush=True)
 
         self.native_device = device
-        print(f'  Using native device object: {self.native_device}', flush=True)
+        verbose_print(f'  Using native device object: {self.native_device}', flush=True)
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['SwitchStateChanged'], self.handler)
@@ -306,12 +307,12 @@ class OutputControl(contracts.OutputControlInitializer):
         # self.condition_var = asyncio.Condition()
         self.event = asyncio.Event()
 
-        print('Create TwoN OutputControl', flush=True)
+        verbose_print('Create TwoN OutputControl', flush=True)
 
-        print(f'  Port: {self.port!r}', flush=True)
+        verbose_print(f'  Port: {self.port!r}', flush=True)
 
         self.native_device = device
-        print(f'  Using native device object: {self.native_device}', flush=True)
+        verbose_print(f'  Using native device object: {self.native_device}', flush=True)
         return contracts.OutputControlInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -357,14 +358,14 @@ class OutputControl(contracts.OutputControlInitializer):
                 print(f'Warning: TwoN.OutputControl: Unexpected value: {value}', flush=True)
                 continue
 
-            print(f"Sending {value} to port {self.port}", flush=True)
+            verbose_print(f"Sending {value} to port {self.port}", flush=True)
             # response = await self.native_device.client.json_request("GET", "/api/io/ctrl", params={
             # response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={}, params={
             response = await self.native_device.client.json_request("POST", "/api/io/ctrl", data={
                 'port': self.port,
                 'action': action,
             })
-            print(f"Sending {value} to port {self.port} done with result {response}", flush=True)
+            verbose_print(f"Sending {value} to port {self.port} done with result {response}", flush=True)
 
 
 Device = Connection  # Used as a resource type.

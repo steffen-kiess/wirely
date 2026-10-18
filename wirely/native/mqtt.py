@@ -13,6 +13,7 @@ from wirely.native import check_state_type
 from wirely.generated.enums import MQTTFormat
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import MQTTTemplateParts
+from wirely.util import verbose_print
 
 
 _JSON_FORMATS = {MQTTFormat.Default: None, MQTTFormat.SnakeCase: 'SnakeCase'}
@@ -146,9 +147,9 @@ class Connection(contracts.ConnectionInitializer):
                    uri: str) -> contracts.ConnectionInitializerResult:
         aiomqtt = get_aiomqtt()
 
-        print('Create MQTT connection', flush=True)
+        verbose_print('Create MQTT connection', flush=True)
 
-        print(f'  Using URI: {uri!r}', flush=True)
+        verbose_print(f'  Using URI: {uri!r}', flush=True)
 
         self.parsed_uri = parse_mqtt_uri(uri)
 
@@ -172,11 +173,11 @@ class Connection(contracts.ConnectionInitializer):
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
-        print('Connecting to MQTT server', flush=True)
+        verbose_print('Connecting to MQTT server', flush=True)
         # Note: Has to be done here so that asyncio.get_event_loop() is correct
         self.client = self.create_client()
         await async_exit_stack.enter_async_context(self.client)
-        print('Connecting to MQTT server done', flush=True)
+        verbose_print('Connecting to MQTT server done', flush=True)
 
         self.task = self.start_task(task_group, async_exit_stack, self.read_messages_task())
 
@@ -272,14 +273,14 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 
         aiomqtt = get_aiomqtt()
 
-        print('Create MQTT ValueOptionProvider', flush=True)
+        verbose_print('Create MQTT ValueOptionProvider', flush=True)
 
-        print(f'  Using topic: {self.topic!r}', flush=True)
-        print(f'  Using type: {self.value_type!r}', flush=True)
-        print(f'  Using format: {self.format!r}', flush=True)
+        verbose_print(f'  Using topic: {self.topic!r}', flush=True)
+        verbose_print(f'  Using type: {self.value_type!r}', flush=True)
+        verbose_print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = broker
-        print(f'  Using native server object: {self.native_server}', flush=True)
+        verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         return contracts.ValueOptionProviderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -308,7 +309,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
-            print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
+            verbose_print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
 
             # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
             # TODO: Provide some notification if this is happening?
@@ -325,9 +326,9 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             value = self.value_to_send
             self.value_to_send = None
 
-            print(f'Sending {value!r} to {self.topic}', flush=True)
+            verbose_print(f'Sending {value!r} to {self.topic}', flush=True)
             await self.native_server.client.publish(self.topic, payload=value)
-            print(f'Sending {value!r} to {self.topic} done', flush=True)
+            verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
 class EventSender(contracts.EventSenderInitializer):
@@ -350,14 +351,14 @@ class EventSender(contracts.EventSenderInitializer):
 
         aiomqtt = get_aiomqtt()
 
-        print('Create MQTT EventSender', flush=True)
+        verbose_print('Create MQTT EventSender', flush=True)
 
-        print(f'  Using topic: {self.topic!r}', flush=True)
-        print(f'  Using type: {self.value_type!r}', flush=True)
-        print(f'  Using format: {self.format!r}', flush=True)
+        verbose_print(f'  Using topic: {self.topic!r}', flush=True)
+        verbose_print(f'  Using type: {self.value_type!r}', flush=True)
+        verbose_print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = broker
-        print(f'  Using native server object: {self.native_server}', flush=True)
+        verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         return contracts.EventSenderInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -385,7 +386,7 @@ class EventSender(contracts.EventSenderInitializer):
                 value = state.template_prefix + value + state.template_suffix
                 value_bytes = bytes(value, 'utf-8')
 
-            print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
+            verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
 
             # Note: If sending is too slow, there might be multiple events queued up.
             # TODO: Provide a notification in this case?
@@ -404,9 +405,9 @@ class EventSender(contracts.EventSenderInitializer):
                 await self.event.wait()
             value = self.values_to_send.pop(0)
 
-            print(f'Sending {value} to {self.topic}', flush=True)
+            verbose_print(f'Sending {value} to {self.topic}', flush=True)
             await self.native_server.client.publish(self.topic, payload=value)
-            print(f'Sending {value} to {self.topic} done', flush=True)
+            verbose_print(f'Sending {value} to {self.topic} done', flush=True)
 
 
 class EventReceiver(contracts.EventReceiverInitializer):
@@ -423,14 +424,14 @@ class EventReceiver(contracts.EventReceiverInitializer):
 
         aiomqtt = get_aiomqtt()
 
-        print('Create MQTT EventReceiver', flush=True)
+        verbose_print('Create MQTT EventReceiver', flush=True)
 
-        print(f'  Using topic: {self.topic!r}', flush=True)
-        print(f'  Using type: {self.value_type!r}', flush=True)
-        print(f'  Using format: {self.format!r}', flush=True)
+        verbose_print(f'  Using topic: {self.topic!r}', flush=True)
+        verbose_print(f'  Using type: {self.value_type!r}', flush=True)
+        verbose_print(f'  Using format: {self.format!r}', flush=True)
 
         self.native_server = broker
-        print(f'  Using native server object: {self.native_server}', flush=True)
+        verbose_print(f'  Using native server object: {self.native_server}', flush=True)
         return contracts.EventReceiverInitializerResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
@@ -466,7 +467,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
             async with self.native_server.register_topic_queue(self.topic) as queue:
                 async for message in queue:
                     try:
-                        print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
+                        verbose_print(f'Received MQTT message: topic {message.topic.value!r} data {message.payload!r}', flush=True)
 
                         if message.topic.value == self.topic:
                             value_bytes = message.payload

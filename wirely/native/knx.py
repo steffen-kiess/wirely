@@ -9,6 +9,7 @@ from wirely.knx.value_types import get_value_type
 from wirely.native import check_state_type
 from wirely.generated.enums import KNXProtocol
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.util import verbose_print
 
 
 def _protocol_name(option: Some[KNXProtocol] | None) -> str | None:
@@ -28,7 +29,7 @@ class Connection(contracts.ConnectionInitializer):
         from wirely.knx.connection_config import create_connection_config
         from wirely.knx.connection_adapter import create_xknx
 
-        print('Create KNX connection', flush=True)
+        verbose_print('Create KNX connection', flush=True)
 
         def parameter(value: Some[str] | None) -> str | None:
             return None if value is None else value.value
@@ -48,9 +49,9 @@ class Connection(contracts.ConnectionInitializer):
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
-        print('Connecting to KNX bus', flush=True)
+        verbose_print('Connecting to KNX bus', flush=True)
         await async_exit_stack.enter_async_context(self.knx)
-        print('Connecting to KNX bus done', flush=True)
+        verbose_print('Connecting to KNX bus done', flush=True)
 
 
 class ValueReceiver(contracts.ValueReceiverInitializer):
@@ -61,13 +62,13 @@ class ValueReceiver(contracts.ValueReceiverInitializer):
 
         import xknx
 
-        print('Create KNX ValueReceiver', flush=True)
+        verbose_print('Create KNX ValueReceiver', flush=True)
 
-        print(f'  Using group address: {group_address.value!r}', flush=True)
-        print(f'  Using type: {type!r}', flush=True)
+        verbose_print(f'  Using group address: {group_address.value!r}', flush=True)
+        verbose_print(f'  Using type: {type!r}', flush=True)
 
         self.native_bus = bus
-        print(f'  Using native bus object: {self.native_bus}', flush=True)
+        verbose_print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address.value)
 
@@ -130,13 +131,13 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 
         import xknx
 
-        print('Create KNX ValueOptionProvider', flush=True)
+        verbose_print('Create KNX ValueOptionProvider', flush=True)
 
-        print(f'  Using group address: {group_address.value!r}', flush=True)
-        print(f'  Using type: {type!r}', flush=True)
+        verbose_print(f'  Using group address: {group_address.value!r}', flush=True)
+        verbose_print(f'  Using type: {type!r}', flush=True)
 
         self.native_bus = bus
-        print(f'  Using native bus object: {self.native_bus}', flush=True)
+        verbose_print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address.value)
 
@@ -171,7 +172,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             else:
                 value = state.knx_type.to_knx(input.value, state.services.native_types)
 
-            print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
+            verbose_print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
 
             # This does not work because this function is not async
             # Also this would have to handle None values
@@ -191,9 +192,9 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             value = self.value_to_send
             self.value_to_send = None
 
-            print(f'Sending {value} to {self.address}', flush=True)
+            verbose_print(f'Sending {value} to {self.address}', flush=True)
             await self.expose.set(value)
-            print(f'Sending {value} to {self.address} done', flush=True)
+            verbose_print(f'Sending {value} to {self.address} done', flush=True)
 
 
 class EventReceiver(contracts.EventReceiverInitializer):
@@ -206,15 +207,15 @@ class EventReceiver(contracts.EventReceiverInitializer):
         self.value_type = type
         self.value_type_knx = value_type_name
 
-        print('Create KNX EventReceiver', flush=True)
+        verbose_print('Create KNX EventReceiver', flush=True)
 
         import xknx
 
-        print(f'  Using group address: {group_address.value!r}', flush=True)
-        print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
+        verbose_print(f'  Using group address: {group_address.value!r}', flush=True)
+        verbose_print(f'  Using type: {self.value_type!r} / {self.value_type_knx}', flush=True)
 
         self.native_bus = bus
-        print(f'  Using native bus object: {self.native_bus}', flush=True)
+        verbose_print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address.value)
 
@@ -235,7 +236,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
             val = device.state
         else:
             val = device.sensor_value.value
-        print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
+        verbose_print(f'KNX.EventReceiver: got value: {val!r}', flush=True)
         value = self.knx_type.from_knx(val, self.services.native_types)
 
         self.received_values.append(value)
@@ -274,13 +275,13 @@ class EventSender(contracts.EventSenderInitializer):
 
         import xknx
 
-        print('Create KNX ValueOptionProvider', flush=True)
+        verbose_print('Create KNX ValueOptionProvider', flush=True)
 
         self.value_type = type
         self.value_type_knx = value_type_name
 
         self.native_bus = bus
-        print(f'  Using native bus object: {self.native_bus}', flush=True)
+        verbose_print(f'  Using native bus object: {self.native_bus}', flush=True)
 
         self.address = xknx.telegram.GroupAddress(group_address.value)
 
@@ -312,7 +313,7 @@ class EventSender(contracts.EventSenderInitializer):
             else:
                 value = state.knx_type.to_knx(input.value, state.services.native_types)
 
-            print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
+            verbose_print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
 
             # Note: If sending is too slow, there might be multiple events queued up.
             # TODO: Provide a notification in this case?
@@ -331,10 +332,10 @@ class EventSender(contracts.EventSenderInitializer):
                 await self.event.wait()
             value = self.values_to_send.pop(0)
 
-            print(f'Sending {value} to {self.address}', flush=True)
+            verbose_print(f'Sending {value} to {self.address}', flush=True)
             # TODO: Call self.sensor.sensor_value.set(value) directly instead?
             await self.sensor.set(value)
-            print(f'Sending {value} to {self.address} done', flush=True)
+            verbose_print(f'Sending {value} to {self.address} done', flush=True)
 
 
 Bus = Connection  # Used as a resource type.

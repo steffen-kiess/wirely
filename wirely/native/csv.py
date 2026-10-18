@@ -12,6 +12,7 @@ from wirely import DynamicValue, MonotonicTime, Some, ValueType
 from wirely.generated import csv as contracts
 from wirely.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.util import verbose_print
 
 
 class CsvValue:
@@ -71,16 +72,16 @@ class ValueWriter(contracts.ValueWriterInitializer):
         if self.file is not None:
             raise Exception('File already open')
 
-        print(f'Opening CSV file {self.filename!r}', flush=True)
+        verbose_print(f'Opening CSV file {self.filename!r}', flush=True)
         with open(self.filename, 'a+b', buffering=0) as file:
             size = file.seek(0, 2)
             if size != 0:
                 last_byte = os.pread(file.fileno(), 1, size - 1)
-                print(f'  got byte at end: {last_byte!r}', flush=True)
+                verbose_print(f'  got byte at end: {last_byte!r}', flush=True)
                 if last_byte == b'':
                     raise Exception('Failed to read last byte')
                 elif last_byte != b'\n':
-                    print(f'  Incomplete line at end, writing newline', flush=True)
+                    print(f'CSV.ValueWriter: Warning: Incomplete line at end of {self.filename!r}, writing newline', flush=True)
                     # Note: Write only \n instead of \r\n, so a reader can see that this was an incomplete line
                     # TODO: Use os.write instead?
                     file.write(b'\n')

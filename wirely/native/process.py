@@ -5,6 +5,7 @@ from typing import Any, Literal
 from wirely import DynamicValue, Some, ValueType
 from wirely.generated import process as contracts
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.util import verbose_print
 
 
 class LaunchOnEvent(contracts.LaunchOnEventInitializer):
@@ -50,10 +51,13 @@ class LaunchOnEvent(contracts.LaunchOnEventInitializer):
                 await self.event.wait()
             self.pending = False
 
-            print(f"Launching command {self.shell_command!r}", flush=True)
+            verbose_print(f"Launching command {self.shell_command!r}", flush=True)
             proc = await asyncio.create_subprocess_exec('/bin/sh', '-c', self.shell_command)
             code = await proc.wait()
-            print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)
+            if code != 0:
+                print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)
+            else:
+                verbose_print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)
 
 
 LaunchOnEventState = LaunchOnEvent  # Used as a resource type.
