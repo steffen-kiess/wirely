@@ -38,8 +38,10 @@ async def run_test():
         engine.step()
         engine.step()
         engine.assert_is_idle()
-        for name in ('t0', 't1', 'all_day', 'never', 'overnight'):
+        for name in ('t0', 't1', 'overnight'):
             engine.assert_value_is(name, None)
+        engine.assert_value_is('all_day', wirely.Some(True))
+        engine.assert_value_is('never', wirely.Some(False))
 
         # Note: There are 2 engine.step() calls because if the first call changes the TriggerAt state, TriggerAt.run() will be re-run.
 

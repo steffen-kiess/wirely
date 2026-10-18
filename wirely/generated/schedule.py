@@ -16,9 +16,63 @@ from wirely.types.option import Some
 from wirely.types.time import TimeOfDay
 
 __all__ = [
+    'IsInDailyIntervalRunResult',
+    'IsInDailyIntervalRun',
     'TimeOfDayMinuteGetValueResult',
     'TimeOfDayMinuteGetValue',
 ]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class IsInDailyIntervalRunResult:
+    """Outputs of native procedure Schedule.IsInDailyInterval:run."""
+
+    output: Some[bool] | None
+
+
+class IsInDailyIntervalRun(NativeProcedure, abc.ABC):
+    """Native procedure Schedule.IsInDailyInterval:run."""
+
+    @abc.abstractmethod
+    def prepare(
+        self, *,
+        services: PreparationServices,
+        start: TimeOfDay,
+        end: TimeOfDay,
+    ) -> None:
+        ...
+
+    @abc.abstractmethod
+    def run(
+        self, *,
+        services: ProcedureServices,
+    ) -> IsInDailyIntervalRunResult:
+        ...
+
+
+class _IsInDailyIntervalRunAdapter(ProcedureAdapter):
+    def prepare(self, procedure: NativeProcedure, services: PreparationServices,
+                binding: InterfaceBinding) -> None:
+        assert isinstance(procedure, IsInDailyIntervalRun)
+        procedure.prepare(
+            services=services,
+            start=cast('TimeOfDay', binding.use('Start')),
+            end=cast('TimeOfDay', binding.use('End')),
+        )
+
+    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
+            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+        assert isinstance(procedure, IsInDailyIntervalRun)
+        result = procedure.run(
+            services=services,
+        )
+        binding.check_result(result, IsInDailyIntervalRunResult)
+        return {
+            'output': binding.output('output', result.output),
+        }
+
+
+IsInDailyIntervalRun._adapter = _IsInDailyIntervalRunAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

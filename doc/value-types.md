@@ -180,8 +180,8 @@ before it.
 `"24:00"` is the end of the day. It differs from `"00:00"` and orders
 after every other time, so a pair of times can describe a whole day:
 `Schedule.IsInDailyInterval` with `Start: "00:00", End: "24:00"` returns
-`Some(true)` when wall time is known; `Start: "24:00", End: "00:00"` returns
-`Some(false)`. Both return `None` while wall time is unknown.
+`Some(true)`; `Start: "24:00", End: "00:00"` returns
+`Some(false)`. These two results remain known even when wall time is unknown.
 
 The `std` library declares these functions, which work in procedure bodies
 and compile-time expressions:

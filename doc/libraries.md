@@ -79,11 +79,12 @@ dependencies.
 ## Schedule
 
 Daily schedules use local clock time. `TimeOfDay` parameters use strings
-such as `"08:00"`.
+such as `"08:00"`. Interval boundaries take effect at the first representable
+wall-clock microsecond at or after the specified time.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight; `00:00` to `24:00` is the whole day and `24:00` to `00:00` never. |
+| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight. `00:00` to `24:00` always returns `Some(true)` and `24:00` to `00:00` always returns `Some(false)`, including while wall time is unknown. |
 | `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## Timer

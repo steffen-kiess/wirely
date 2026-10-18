@@ -359,6 +359,17 @@ native_procedures: dict[str, Procedure] = {
             'Type': Builtin('ValueType'),
         },
     ),
+    'Schedule.IsInDailyInterval:run': Procedure(
+        stage='default',
+        depends={},
+        produces={
+            'output': Port('value', Option(Builtin('boolean'))),
+        },
+        uses={
+            'Start': Builtin('TimeOfDay'),
+            'End': Builtin('TimeOfDay'),
+        },
+    ),
     'Schedule.TimeOfDayMinute:get_value': Procedure(
         stage='default',
         depends={},

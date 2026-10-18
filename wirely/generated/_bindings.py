@@ -331,6 +331,16 @@ def _load_procedures_process_launch_on_event_run() -> ProcedureImplementation:
     return ProcedureImplementation(create, LaunchOnEventRun._adapter)
 
 
+def _load_procedures_schedule_is_in_daily_interval_run() -> ProcedureImplementation:
+    from wirely.generated.schedule import IsInDailyIntervalRun
+    from wirely.native.schedule import IsInDailyInterval
+
+    def create() -> IsInDailyIntervalRun:
+        return IsInDailyInterval.Run()
+
+    return ProcedureImplementation(create, IsInDailyIntervalRun._adapter)
+
+
 def _load_procedures_schedule_time_of_day_minute_get_value() -> ProcedureImplementation:
     from wirely.generated.schedule import TimeOfDayMinuteGetValue
     from wirely.native.schedule import TimeOfDayMinute
@@ -472,6 +482,7 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
     'MQTT.EventSender:send_value': _load_procedures_mqtt_event_sender_send_value,
     'MQTT.ValueOptionProvider:set_value': _load_procedures_mqtt_value_option_provider_set_value,
     'Process.LaunchOnEvent:run': _load_procedures_process_launch_on_event_run,
+    'Schedule.IsInDailyInterval:run': _load_procedures_schedule_is_in_daily_interval_run,
     'Schedule.TimeOfDayMinute:get_value': _load_procedures_schedule_time_of_day_minute_get_value,
     'Std.DebugEventPrinter:run': _load_procedures_std_debug_event_printer_run,
     'Std.DebugEventSource:run': _load_procedures_std_debug_event_source_run,

@@ -12,7 +12,7 @@ from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler.program import compile_nocatch
 from wirely.generated import extension
 from wirely.generated import schedule as contracts
-from wirely.native.schedule import TimeOfDayMinute
+from wirely.native.schedule import IsInDailyInterval, TimeOfDayMinute
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
@@ -168,6 +168,111 @@ async def check_windows_and_availability():
     runtime.step()
     assert probe.calls == 2
     runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(2, 0)))
+
+
+def check_daily_intervals():
+    def interval(start, end):
+        probes = []
+
+        class Probe(IsInDailyInterval.Run):
+            def __init__(self):
+                self.calls = 0
+                probes.append(self)
+
+            def run(self, *, services):
+                self.calls += 1
+                return super().run(services=services)
+
+        graph = compile_strs([*standard_library_sources(['std', 'schedule']), ('<interval>', f'''
+node interval: Schedule.IsInDailyInterval {{ Start: "{start}", End: "{end}" }}
+''')])
+        assert graph is not None
+        bindings = test_extension(procedures={'Schedule.IsInDailyInterval:run': Probe})
+        runtime = Engine(compile_nocatch(graph), override_extensions=[bindings])
+
+        def step(value, expected, calls):
+            if isinstance(value, str):
+                value = datetime.datetime.fromisoformat(value).replace(tzinfo=UTC)
+            runtime.set_fake_wall_time(value)
+            runtime.step()
+            runtime.assert_value_is('interval', None if expected is None else wirely.Some(expected))
+            assert probes[0].calls == calls
+            runtime.assert_is_idle()
+
+        return runtime, step
+
+    runtime, step = interval('08:00', '12:00')
+    step('2026-01-01T07:59:59', False, 1)
+    step('2026-01-01T07:59:58', False, 1)
+    step('2026-01-01T08:00', True, 2)
+    step('2026-01-01T09:00', True, 2)
+    step('2026-01-01T12:00', False, 3)
+    step('2026-01-01T09:00', True, 4)
+    step('2025-12-31T23:00', False, 5)
+    step('2026-01-02T07:00', False, 6)
+    step(None, None, 7)
+    step(None, None, 7)
+    step('2026-01-02T09:00', True, 8)
+
+    runtime, step = interval('08:00', '12:00')
+    instant = BASE.replace(hour=10)
+    step(instant, True, 1)
+    # The UTC instant stays inside the window, but its local offset changes.
+    step(instant.astimezone(datetime.timezone(datetime.timedelta(hours=1))), True, 2)
+    step(instant.astimezone(datetime.timezone(datetime.timedelta(hours=3))), False, 3)
+
+    runtime, step = interval('22:00', '06:00')
+    step('2026-01-01T21:59:59', False, 1)
+    step('2026-01-01T22:00', True, 2)
+    step('2026-01-01T23:00', True, 2)
+    step('2026-01-02T00:00', True, 2)
+    step('2026-01-02T05:59:59', True, 2)
+    step('2026-01-02T06:00', False, 3)
+    step('2026-01-02T00:00', True, 4)
+
+    for start, end in (('00:00', '12:00'), ('24:00', '12:00')):
+        runtime, step = interval(start, end)
+        step('2026-01-01T23:59:59.999999', False, 1)
+        step('2026-01-02T00:00', True, 2)
+        step('2026-01-01T23:59:59.999999', False, 3)
+    for start, end in (('12:00', '24:00'), ('12:00', '00:00')):
+        runtime, step = interval(start, end)
+        step('2026-01-01T23:59:59.999999', True, 1)
+        step('2026-01-02T00:00', False, 2)
+
+    for start, end, expected in (('00:00', '24:00', True), ('24:00', '00:00', False)):
+        runtime, step = interval(start, end)
+        for value in (None, BASE, BASE.astimezone(datetime.timezone(datetime.timedelta(hours=2))), None):
+            step(value, expected, 1)
+            assert not runtime.wall_wakeups
+
+    runtime, step = interval('08:00:00.5', '08:00:01.5')
+    step('2026-01-01T08:00:00.499999', False, 1)
+    step('2026-01-01T08:00:00.500000', True, 2)
+    step('2026-01-01T08:00:01.499999', True, 2)
+    step('2026-01-01T08:00:01.500000', False, 3)
+
+    # Exact binary fractions fall between snapshots; neither boundary may fire early.
+    runtime, step = interval('08:00:00.00000095367431640625', '08:00:00.0000019073486328125')
+    step('2026-01-01T08:00:00', False, 1)
+    step('2026-01-01T08:00:00.000001', True, 2)
+    step('2026-01-01T08:00:00.000002', False, 3)
+
+    # Two distinct boundaries can map to the same representable microsecond.
+    runtime, step = interval('08:00:00.00000000000000000005', '08:00:00.0000000000000000001')
+    step('2026-01-01T08:00:00', False, 1)
+    step('2026-01-01T08:00:00.000001', False, 2)
+
+    berlin = ZoneInfo('Europe/Berlin')
+    runtime, step = interval('02:30', '03:30')
+    step(datetime.datetime(2026, 10, 25, 2, 45, tzinfo=berlin, fold=0), True, 1)
+    step(datetime.datetime(2026, 10, 25, 2, 45, tzinfo=berlin, fold=1), True, 2)
+    step(datetime.datetime(2026, 10, 25, 2, 15, tzinfo=berlin, fold=1), False, 3)
+    step(datetime.datetime(2026, 10, 25, 2, 30, tzinfo=berlin, fold=1), True, 4)
+    runtime, step = interval('02:30', '03:30')
+    step(datetime.datetime(2026, 3, 29, 1, 59, tzinfo=berlin), False, 1)
+    step(datetime.datetime(2026, 3, 29, 3, 0, tzinfo=berlin), True, 2)
+    step(datetime.datetime(2026, 3, 29, 3, 30, tzinfo=berlin), False, 3)
 
 
 def check_explicit_offsets():
@@ -412,6 +517,7 @@ async def check_timer_backends():
 
 async def run_test():
     check_validation()
+    check_daily_intervals()
     check_explicit_offsets()
     await check_windows_and_availability()
     await check_one_shot_requests()
