@@ -367,22 +367,22 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
     if any(kind != 'W' for kind, _, _ in expected):
         raise AssertionError(f'{fn}: only warning annotations are allowed outside negative tests')
 
-    diagnostics = []
-
-    def report(diagnostic: Diagnostic) -> None:
-        diagnostics.append(diagnostic)
-        print_diagnostic(diagnostic)
-
+    # Diagnostics are printed only on failure, so expected warnings stay silent.
+    diagnostics: list[Diagnostic] = []
     from test.fixtures.native_extension.generated import extension
-    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=report,
+    global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=diagnostics.append,
                                                     extensions=[extension])
     prog = None if global_node_type is None else program_compiler.compile(global_node_type,
-                                                                          on_diagnostic=report)
+                                                                          on_diagnostic=diagnostics.append)
     if prog is None:
+        for diagnostic in diagnostics:
+            print_diagnostic(diagnostic)
         sys.exit(1)
     warnings = [item for item in diagnostic_items(diagnostics) if item[0] == 'W']
     missing, unexpected = match_diagnostics(expected, warnings, full_fn, 1, line_count, relaxed=relaxed)
     if missing or unexpected:
+        for diagnostic in diagnostics:
+            print_diagnostic(diagnostic)
         raise AssertionError(f'{fn}: warning mismatch; missing={missing}, unexpected={unexpected}')
     return prog
 

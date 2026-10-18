@@ -756,7 +756,7 @@ namespace TestLibrary {
   native node type Stateful {
     input Number: value int16;
     output Clamped: value int16;
-    binding state: resource ProbeState;
+    #[Allow(Unused)] binding state: resource ProbeState;
     native initializer produces state as "state";
     procedure clamp depends on Number produces Clamped { Clamped = TestLibrary.Clamp(Number, 0, 100); }
   }

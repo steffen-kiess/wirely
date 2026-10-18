@@ -133,7 +133,7 @@ def check_output_storage():
     # Output storage does not share slots with declared temporaries.
     program = compile_program('''node type Split {
       output Value: value boolean;
-      binding Value_val: value boolean;
+      #[Allow(Unused)] binding Value_val: value boolean;
       procedure run produces Value as value, Value_val {
         value = true;
         Value_val = false;
@@ -311,7 +311,7 @@ def check_mixed_procedures():
 def check_root_only():
     # The root exists without child nodes and does not require native lookup.
     root_only = compile_program('''binding t: value int8;
-    binding sum: value Option[int8];
+    #[Allow(Unused)] binding sum: value Option[int8];
     procedure p1 produces t { t = 50; }
     procedure p2 depends on t produces sum { sum = int8.CheckedAdd(t, 100); }
     ''')
@@ -366,8 +366,8 @@ def check_root_dependencies():
 def check_root_state():
     # Root state keeps old snapshots and exposes new values to same-step readers.
     root_state = compile_program('''state saved: boolean = false;
-    binding previous: value boolean;
-    binding current: value boolean;
+    #[Allow(Unused)] binding previous: value boolean;
+    #[Allow(Unused)] binding current: value boolean;
     procedure write depends on source as input produces saved { saved = input; }
     procedure read_old depends on saved.old as old produces previous {
       previous = old;
