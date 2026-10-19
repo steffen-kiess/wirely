@@ -468,6 +468,11 @@ async def check_timer_backends():
             waiter.arm(BASE + datetime.timedelta(minutes=1), real=True, now=BASE, monitor_offset=monitor_offset)
             async with asyncio.timeout(3):
                 await ready.wait()
+        # A close deadline is polled before the regular interval elapses.
+        ready.clear()
+        waiter.arm(BASE + datetime.timedelta(milliseconds=20), real=True, now=BASE, monitor_offset=False)
+        async with asyncio.timeout(0.5):
+            await ready.wait()
         waiter.arm(None, real=False, now=None, monitor_offset=False)
         ready.clear()
         await asyncio.sleep(0)

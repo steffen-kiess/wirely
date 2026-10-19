@@ -444,9 +444,9 @@ to ignore offset changes for UTC-based results. Call it without arguments
 to wait for known wall time. Renew the request on each invocation to remain
 subscribed. See the method's docstring
 in [`native_api.py`](../wirely/runtime/native_api.py) for the full contract.
-UTC-offset detection and fallback window checks can take up to one second,
-plus scheduling delay. With native timers, offset polling runs only while a
-request monitors offsets.
+Detecting UTC-offset changes, and wall-clock changes or resume without
+native timers, can take up to one second, plus scheduling delay. With native
+timers, offset polling runs only while a request monitors offsets.
 
 ## Native functions
 

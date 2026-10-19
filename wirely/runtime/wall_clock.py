@@ -12,6 +12,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+# Bounds how long it takes to notice wall-clock steps, resume from suspend,
+# and UTC-offset changes, which a monotonic delay cannot predict.
+_POLL_INTERVAL = 1.0
+# Avoids rapid repeated wakeups near a deadline when the wall clock runs at a
+# different rate than the monotonic clock.
+_MIN_POLL_DELAY = 0.001
+
 
 @dataclass(frozen=True)
 class WallWakeup:
@@ -111,6 +118,7 @@ class WallClockWaiter:
         self._timer: TimerFD | None = None
         self._poll_handle: asyncio.TimerHandle | None = None
         self._offset: datetime.timedelta | None = None
+        self._deadline: datetime.datetime | None = None
         self._fallback = False
 
     def arm(self, deadline: datetime.datetime | None, *, real: bool,
@@ -119,6 +127,7 @@ class WallClockWaiter:
         if not real:
             return
         self._offset = None if now is None else now.utcoffset()
+        self._deadline = deadline
         self._fallback = True
         if deadline is not None:
             try:
@@ -135,7 +144,7 @@ class WallClockWaiter:
                     raise
                 self.close()
         if self._fallback or monitor_offset:
-            self._poll_handle = self._loop.call_later(1, self._poll)
+            self._schedule_poll(now)
 
     def _ready(self) -> None:
         assert self._timer is not None
@@ -149,7 +158,13 @@ class WallClockWaiter:
         if self._fallback or offset != self._offset:
             self._offset = offset
             self._wake()
-        self._poll_handle = self._loop.call_later(1, self._poll)
+        self._schedule_poll(now)
+
+    def _schedule_poll(self, now: datetime.datetime | None) -> None:
+        delay = _POLL_INTERVAL
+        if self._fallback and self._deadline is not None and now is not None:
+            delay = min(delay, max((self._deadline - now).total_seconds(), _MIN_POLL_DELAY))
+        self._poll_handle = self._loop.call_later(delay, self._poll)
 
     def close(self) -> None:
         if self._poll_handle is not None:
