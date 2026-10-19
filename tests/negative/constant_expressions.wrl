@@ -76,9 +76,9 @@ procedure run {
 // TEST: compile-time function with runtime arguments
 // LIBRARIES: std, schedule
 #[Allow(Unused)] binding result: value boolean;
-procedure run depends on input: value TimeOfDay produces result {
+procedure run depends on input: value Schedule.TimeOfDay produces result {
   result = Schedule.IsValidDailyInterval(input, "09:00");
   // ^E: is a compile-time function and requires constant arguments
 }
-constant InputValue: TimeOfDay = "08:00";
+constant InputValue: Schedule.TimeOfDay = "08:00";
 connect InputValue -> run.input;

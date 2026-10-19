@@ -1,4 +1,29 @@
 namespace Std {
+  // Non-negative elapsed time.
+  opaque struct type Duration {
+    // Ticks of 2^-64 s.
+    Ticks: uint128,
+  }
+  namespace Duration {
+    #[Internal]
+    native function Less(a: Duration, b: Duration): boolean;
+    native function SaturatingAdd(a: Duration, b: Duration): Duration;
+    native function SaturatingSub(a: Duration, b: Duration): Duration;
+    native function SaturatingMul(duration: Duration, factor: uint32): Duration;
+    native function CheckedAdd(a: Duration, b: Duration): Option[Duration];
+    native function CheckedSub(a: Duration, b: Duration): Option[Duration];
+    native function CheckedMul(duration: Duration, factor: uint32): Option[Duration];
+    native function CheckedDiv(duration: Duration, divisor: uint32): Option[Duration];
+    native function FromSecs(secs: uint32): Duration;
+    native function FromMillis(millis: uint32): Duration;
+    native function FromMicros(micros: uint32): Duration;
+    native function FromNanos(nanos: uint64): Duration;
+    native function AsSecs(duration: Duration): uint64;
+    native function AsMillis(duration: Duration): uint128;
+    native function AsMicros(duration: Duration): uint128;
+    native function AsNanos(duration: Duration): uint128;
+  }
+
   closed enum type EdgeType {
     Rising,
     Falling,
@@ -217,41 +242,4 @@ namespace Std {
       }
     }
   }
-}
-
-namespace Duration {
-  #[Internal]
-  native function Less(a: Duration, b: Duration): boolean;
-  native function SaturatingAdd(a: Duration, b: Duration): Duration;
-  native function SaturatingSub(a: Duration, b: Duration): Duration;
-  native function SaturatingMul(duration: Duration, factor: uint32): Duration;
-  native function CheckedAdd(a: Duration, b: Duration): Option[Duration];
-  native function CheckedSub(a: Duration, b: Duration): Option[Duration];
-  native function CheckedMul(duration: Duration, factor: uint32): Option[Duration];
-  native function CheckedDiv(duration: Duration, divisor: uint32): Option[Duration];
-  native function FromSecs(secs: uint32): Duration;
-  native function FromMillis(millis: uint32): Duration;
-  native function FromMicros(micros: uint32): Duration;
-  native function FromNanos(nanos: uint64): Duration;
-  native function AsSecs(duration: Duration): uint64;
-  native function AsMillis(duration: Duration): uint128;
-  native function AsMicros(duration: Duration): uint128;
-  native function AsNanos(duration: Duration): uint128;
-}
-
-namespace MonotonicTime {
-  native function SaturatingAdd(time: MonotonicTime, duration: Duration): MonotonicTime;
-  native function SaturatingSub(time: MonotonicTime, duration: Duration): MonotonicTime;
-  native function CheckedAdd(time: MonotonicTime, duration: Duration): Option[MonotonicTime];
-  native function CheckedSub(time: MonotonicTime, duration: Duration): Option[MonotonicTime];
-  native function CheckedDurationSince(time: MonotonicTime, earlier: MonotonicTime): Option[Duration];
-  native function CheckedLess(a: MonotonicTime, b: MonotonicTime): Option[boolean];
-}
-
-namespace TimeOfDay {
-  #[Internal]
-  native function Less(a: TimeOfDay, b: TimeOfDay): boolean;
-  native function WrappingAdd(time: TimeOfDay, duration: Duration): TimeOfDay;
-  native function WrappingSub(time: TimeOfDay, duration: Duration): TimeOfDay;
-  native function DurationUntil(from: TimeOfDay, to: TimeOfDay): Duration;
 }

@@ -7,11 +7,11 @@ assert 1 < 2 && 2 > 1 && 2 <= 2 && 2 >= 2;
 constant Max: uint64 = 18446744073709551615;
 assert Max > 0 && 18446744073709551614 < Max;
 
-constant At: TimeOfDay = "08:00";
+constant At: Schedule.TimeOfDay = "08:00";
 assert "07:59" < At && At < "08:01" && At <= "08:00" && "23:59" >= At;
 assert !(At > "08:00") && !("00:00" > At);
 
-constant Span: Duration = "PT1M";
+constant Span: Std.Duration = "PT1M";
 assert Span > "PT59S" && "PT61S" > Span && Span >= "PT60S" && !(Span < "PT1M");
 
 constant Late: boolean = if At >= "08:00" { true } else { false };

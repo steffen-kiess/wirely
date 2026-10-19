@@ -373,10 +373,10 @@ async def check_mixed_requests():
     except NotImplementedError:
         return
     timer.close()
-    graph = compile_strs([*standard_library_sources(['std']), ('<mixed-clocks>', '''
+    graph = compile_strs([*standard_library_sources(['std', 'schedule']), ('<mixed-clocks>', '''
 namespace TestLibrary {
   node type Clock {
-    default output: value Option[TimeOfDay];
+    default output: value Option[Schedule.TimeOfDay];
     native procedure run produces default output as "output";
   }
 }

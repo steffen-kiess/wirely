@@ -1,4 +1,17 @@
 namespace Schedule {
+  // Time within a day.
+  opaque struct type TimeOfDay {
+    // Ticks of 2^-64 s since midnight; at most 24 hours.
+    Ticks: uint128,
+  }
+  namespace TimeOfDay {
+    #[Internal]
+    native function Less(a: TimeOfDay, b: TimeOfDay): boolean;
+    native function WrappingAdd(time: TimeOfDay, duration: Std.Duration): TimeOfDay;
+    native function WrappingSub(time: TimeOfDay, duration: Std.Duration): TimeOfDay;
+    native function DurationUntil(from: TimeOfDay, to: TimeOfDay): Std.Duration;
+  }
+
   #[Internal]
   native constant function IsValidDailyInterval(start: TimeOfDay, end: TimeOfDay): boolean;
 

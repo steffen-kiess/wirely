@@ -20,11 +20,11 @@ node delay_output: Std.DebugValuePrinter { Type: int8 }
 connect delay_input -> delay;
 connect delay -> delay_output;
 
-node reached_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
+node reached_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime] }
 node reached: Timer.MonotonicTimeReached {}
 connect reached_input -> reached;
 
-node elapsed_input: Std.DebugValueSource { Type: Option[MonotonicTime] }
+node elapsed_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime] }
 node elapsed: Timer.DurationElapsed { Duration: "PT10S" }
 connect elapsed_input -> elapsed;
 node elapsed_zero: Timer.DurationElapsed { Duration: "PT0S" }

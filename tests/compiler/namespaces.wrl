@@ -41,3 +41,26 @@ node top_level: Fixture.TopLevel {}
 node dotted: Fixture.Deep.Level.AddedWithDottedName {}
 node first: Fixture.Inner.First {}
 node second: Fixture.Inner.Second {}
+
+// A namespace can share its name with a struct or enum type in the same scope.
+namespace Pair {
+  struct type Inner {
+    value: uint8,
+  }
+}
+struct type Pair {
+  left: uint8,
+}
+closed enum type Mode {
+  On,
+  Off,
+}
+namespace Mode {
+  node type Probe {
+  }
+}
+
+constant First: Pair = Pair { left: 1 };
+constant Second: Pair.Inner = Pair.Inner { value: 2 };
+assert First.left == 1 && Second.value == 2 && Mode.On != Mode.Off;
+node probe: Mode.Probe {}

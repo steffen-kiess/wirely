@@ -31,8 +31,8 @@ constant Value: int16 = Small + Large; // E: Expected value of type int16, got i
 constant Value: boolean = true + false; // E: Integer arithmetic requires an integer value, got boolean
 
 // TEST: duration operands
-constant Span: Duration = "PT1S";
-constant Value: Duration = Span * Span; // E: got Duration
+constant Span: Std.Duration = "PT1S";
+constant Value: Std.Duration = Span * Span; // E: got Std.Duration
 
 // TEST: enum operands
 open enum type Mode: uint8 { Off = 0, }

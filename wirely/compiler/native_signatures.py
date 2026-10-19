@@ -75,7 +75,8 @@ def signature_type(value_type: types.Type, variables: Mapping[model.NodeParamete
         if value_type.native_name is None:
             raise ValueError(f'{where} uses struct {value_type}, which is not native')
         return signatures.Struct(value_type.native_name)
-    if str(value_type) in ('unit', 'boolean', 'String', 'Duration', 'TimeOfDay', 'MonotonicTime', 'ValueType'):
+    if str(value_type) in ('unit', 'boolean', 'String', 'Std.Duration', 'Schedule.TimeOfDay', 'Timer.MonotonicTime',
+                           'ValueType'):
         return signatures.Builtin(str(value_type))
     raise ValueError(f'{where} uses unsupported type {value_type}')
 

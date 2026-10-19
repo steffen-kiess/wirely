@@ -324,13 +324,13 @@ are only used for static values in this format.
 
 ### Built-in types
 
-Opaque structs represent the built-in types `Duration`, `TimeOfDay`, and
-`MonotonicTime`. Each has its type name as `Name` and `NativeName` and the
-fields declared below, in order. Opaque and non-opaque structs have
-separate native-name namespaces.
+Opaque structs represent the built-in types `Std.Duration`,
+`Schedule.TimeOfDay`, and `Timer.MonotonicTime`. Each has its qualified name
+as `Name` and `NativeName` and the fields declared below, in order. Opaque
+and non-opaque structs have separate native-name namespaces.
 
 ```wirely
-// Non-negative elapsed time. Opaque struct Duration.
+// Non-negative elapsed time. Opaque struct Std.Duration.
 struct type Duration {
   // Ticks of 2^-64 s.
   Ticks: uint128,
@@ -338,7 +338,7 @@ struct type Duration {
 ```
 
 ```wirely
-// Time within a day. Opaque struct TimeOfDay.
+// Time within a day. Opaque struct Schedule.TimeOfDay.
 struct type TimeOfDay {
   // Ticks of 2^-64 s since midnight; at most 24 hours (86400 * 2^64).
   Ticks: uint128,
@@ -346,7 +346,7 @@ struct type TimeOfDay {
 ```
 
 ```wirely
-// A monotonic clock reading. Opaque struct MonotonicTime.
+// A monotonic clock reading. Opaque struct Timer.MonotonicTime.
 struct type MonotonicTime {
   // Ticks of 2^-64 s.
   Ticks: uint128,
@@ -356,8 +356,9 @@ struct type MonotonicTime {
 ```
 
 The values of these types are described in [Value types](value-types.md);
-`Duration` and `TimeOfDay` are ordered. Each type's default is its
-all-zero struct default. Files contain only the default `MonotonicTime`.
+`Std.Duration` and `Schedule.TimeOfDay` are ordered. Each type's default is
+its all-zero struct default. Files contain only the default
+`Timer.MonotonicTime`.
 
 ### EnumMemberNames
 
@@ -947,16 +948,16 @@ parameter count so that instructions can be decoded without the table;
 they match, and the argument and destination types match the entry.
 Functions are pure and return a value for every argument.
 
-Ordering comparisons of `Duration` and `TimeOfDay` use native functions
-`Duration.Less` and `TimeOfDay.Less`, respectively.
+Ordering comparisons of `Std.Duration` and `Schedule.TimeOfDay` use native
+functions `Std.Duration.Less` and `Schedule.TimeOfDay.Less`, respectively.
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
 options `None`, for enums zero, and for structs, including built-in types,
-the defaults of their fields. The default `MonotonicTime` has generation 0,
-which is never current, so it compares to no current time. Values remain
-valid and canonical, including padding and unused option payloads, as
-specified by the runtime binary representation.
+the defaults of their fields. The default `Timer.MonotonicTime` has
+generation 0, which is never current, so it compares to no current time.
+Values remain valid and canonical, including padding and unused option
+payloads, as specified by the runtime binary representation.
 
 Instructions read all source values before modifying their destination,
 allowing a destination also to be a source. `COPY` preserves its source
@@ -1141,9 +1142,10 @@ or `uint32` large enough to represent `Members.Count - 1`.
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Closed enum values
 are below their member count; open enum values fit their underlying type.
-`TimeOfDay` values are at most 24 hours, and `MonotonicTime` values are the
-default. List elements are checked with the list's inner type, which
-precedes the list type, so checks terminate even when lists share bytes.
+`Schedule.TimeOfDay` values are at most 24 hours, and `Timer.MonotonicTime`
+values are the default. List elements are checked with the list's inner
+type, which precedes the list type, so checks terminate even when lists
+share bytes.
 
 `StateVariables` and `Temporaries` are sorted by offset, and each slot
 starts at or after the end of the previous one. Comparing each entry with

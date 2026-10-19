@@ -290,7 +290,7 @@ def check_flipflop_behavior():
 
 def check_debounce_duration():
     program = compile_program('''node type Wrapper {
-  parameter Span: Duration;
+  parameter Span: Std.Duration;
   default input: value uint16;
   default output: value uint16;
   node child: Timer.DebounceStable { Type: uint16, Duration: Span }
@@ -318,7 +318,7 @@ def check_debounce_behavior():
     def make_runtime(value_type='uint16', duration='PT10S'):
         program = compile_program(f'''node type Wrapper {{
   parameter Type: ValueType;
-  parameter Span: Duration;
+  parameter Span: Std.Duration;
   default input: value Type;
   default output: value Type;
   node child: Timer.DebounceStable {{ Type: Type, Duration: Span }}

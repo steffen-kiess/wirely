@@ -6,7 +6,7 @@ assert RootValue == 12;
 struct type Settings {
   enabled: boolean,
   number: int16,
-  at: TimeOfDay,
+  at: Schedule.TimeOfDay,
 }
 node type Capture {
   parameter Value: int16;
@@ -25,14 +25,14 @@ node type Select {
   constant Later: int16 = 12;
   constant Items: List[Option[int16]] = [Some(Selected), None];
   constant Pair: Settings = {
-    let at: TimeOfDay = "23:30";
+    let at: Schedule.TimeOfDay = "23:30";
     Settings {
       enabled: Enabled,
       number: Selected,
-      at: TimeOfDay.WrappingAdd(at, "PT1H"),
+      at: Schedule.TimeOfDay.WrappingAdd(at, "PT1H"),
     }
   };
-  constant ExpectedAt: TimeOfDay = "00:30";
+  constant ExpectedAt: Schedule.TimeOfDay = "00:30";
   assert Selected == Expected && Default == Expected;
   assert Items == [Some(Expected), None];
   assert Pair == Settings { enabled: Enabled, number: Expected, at: ExpectedAt };

@@ -1,45 +1,45 @@
 // LIBRARIES: std
 
 // TEST: addition overflow
-constant Max: Duration = "P213503982334601DT7H15.99999999999999999995S";
-constant Value: Duration = Max + "PT0.00000000000000000005S"; // E: Duration overflow: result exceeds the maximum duration
+constant Max: Std.Duration = "P213503982334601DT7H15.99999999999999999995S";
+constant Value: Std.Duration = Max + "PT0.00000000000000000005S"; // E: Duration overflow: result exceeds the maximum duration
 
 // TEST: negative subtraction
-constant Value: Duration = "PT1S" - "PT2S"; // E: Negative duration
+constant Value: Std.Duration = "PT1S" - "PT2S"; // E: Negative duration
 
 // TEST: literal above the maximum
-constant Value: Duration = "P213503982334601DT7H16S"; // E: Invalid Duration value
+constant Value: Std.Duration = "P213503982334601DT7H16S"; // E: Invalid Std.Duration value
 
 // TEST: multiplication operator
-constant Value: Duration = "PT1S" * "PT2S"; // E: Integer arithmetic requires an integer value, got Duration
+constant Value: Std.Duration = "PT1S" * "PT2S"; // E: Integer arithmetic requires an integer value, got Std.Duration
 
 // TEST: negation
-constant Second: Duration = "PT1S";
-constant Value: Duration = -Second; // E: Integer arithmetic requires an integer value, got Duration
+constant Second: Std.Duration = "PT1S";
+constant Value: Std.Duration = -Second; // E: Integer arithmetic requires an integer value, got Std.Duration
 
 // TEST: operator in a procedure
-#[Allow(Unused)] binding result: value Duration;
+#[Allow(Unused)] binding result: value Std.Duration;
 procedure run produces result {
-  let span: Duration = "PT1S";
-  result = span + span; // E: Arithmetic operators are compile-time only; use Duration.SaturatingAdd or Duration.CheckedAdd
+  let span: Std.Duration = "PT1S";
+  result = span + span; // E: Arithmetic operators are compile-time only; use Std.Duration.SaturatingAdd or Std.Duration.CheckedAdd
 }
 
 // TEST: factor type
 constant Factor: int16 = 2;
-constant Value: Duration = Duration.SaturatingMul("PT1S", Factor); // E: Expected value of type uint32, got int16
+constant Value: Std.Duration = Std.Duration.SaturatingMul("PT1S", Factor); // E: Expected value of type uint32, got int16
 
 // TEST: argument count
-constant Value: Duration = Duration.SaturatingAdd("PT1S"); // E: Function 'Duration.SaturatingAdd' expected 2 parameters
+constant Value: Std.Duration = Std.Duration.SaturatingAdd("PT1S"); // E: Function 'Std.Duration.SaturatingAdd' expected 2 parameters
 
 // TEST: checked result type
-constant Value: Duration = Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Duration, got Option[Duration]
+constant Value: Std.Duration = Std.Duration.CheckedAdd("PT1S", "PT1S"); // E: Expected value of type Std.Duration, got Option[Std.Duration]
 
 // TEST: conversion argument type
 constant Count: uint64 = 2;
-constant Value: Duration = Duration.FromSecs(Count); // E: Expected value of type uint32, got uint64
+constant Value: Std.Duration = Std.Duration.FromSecs(Count); // E: Expected value of type uint32, got uint64
 
 // TEST: conversion literal above uint32
-constant Value: Duration = Duration.FromMillis(4294967296); // E: Int value out of range: 4294967296
+constant Value: Std.Duration = Std.Duration.FromMillis(4294967296); // E: Int value out of range: 4294967296
 
 // TEST: conversion result type
-constant Value: uint32 = Duration.AsSecs("PT1S"); // E: Expected value of type uint32, got uint64
+constant Value: uint32 = Std.Duration.AsSecs("PT1S"); // E: Expected value of type uint32, got uint64

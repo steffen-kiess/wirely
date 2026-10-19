@@ -9,7 +9,7 @@ assert Small & Large == 0; // E: Expected value of type uint8, got uint16
 assert true | 1; // E: Invalid boolean value 1
 
 // TEST: unsupported complement
-constant Value: Duration = !"PT1S"; // E: Bitwise operation requires an integer or boolean
+constant Value: Std.Duration = !"PT1S"; // E: Bitwise operation requires an integer or boolean
 
 // TEST: unsupported enum
 open enum type Mode: uint8 {
@@ -46,7 +46,7 @@ node type Generic {
   parameter Value: Type;
   constant Result: Type = !Value; // E: Bitwise operation requires an integer or boolean
 }
-node generic: Generic { Type: Duration, Value: "PT1S" } // H: While instantiating 'generic'
+node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instantiating 'generic'
 
 // TEST: procedure input count
 node source: Std.Constant { Type: uint32, Value: 1 }

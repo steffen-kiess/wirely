@@ -31,7 +31,7 @@ namespace CSV {
 
     // Time of the last write. Repeat a nonempty value after one hour, or when
     // this time is absent or not comparable to the current time.
-    state last_written_at: Option[MonotonicTime] = None;
+    state last_written_at: Option[Timer.MonotonicTime] = None;
 
     node repeat_elapsed: Timer.DurationElapsed { Duration: "PT1H" }
     connect last_written_at.old -> repeat_elapsed;

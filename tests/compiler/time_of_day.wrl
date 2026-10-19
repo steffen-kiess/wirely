@@ -1,10 +1,10 @@
-constant Morning: TimeOfDay = "08:00";
-constant EndOfDay: TimeOfDay = "24:00";
-constant Midnight: TimeOfDay = "00:00";
+constant Morning: Schedule.TimeOfDay = "08:00";
+constant EndOfDay: Schedule.TimeOfDay = "24:00";
+constant Midnight: Schedule.TimeOfDay = "00:00";
 
 // Parsing forms and 2^-64 s resolution.
 assert Morning == "08:00:00" && Morning == "08:00:00.000000000";
-constant Last: TimeOfDay = "23:59:59.99999999999999999995";
+constant Last: Schedule.TimeOfDay = "23:59:59.99999999999999999995";
 assert "00:00:00.00000000000000000005" > Midnight && Last < EndOfDay;
 
 // Fractions round to the nearest unit; times before 24:00 stay before it.
@@ -16,25 +16,25 @@ assert EndOfDay == "24:00:00" && EndOfDay == "24:00:00.0";
 assert EndOfDay != Midnight && EndOfDay > "23:59:59.999999999";
 
 // Whole days leave a time unchanged; other results wrap below 24:00.
-assert TimeOfDay.WrappingAdd(Morning, "PT2H30M") == "10:30";
-assert TimeOfDay.WrappingAdd("23:00", "PT2H") == "01:00";
-assert TimeOfDay.WrappingAdd("23:00", "PT1H") == Midnight;
-assert TimeOfDay.WrappingAdd(EndOfDay, "PT1H") == "01:00";
-assert TimeOfDay.WrappingAdd(Morning, "P2D") == Morning;
-assert TimeOfDay.WrappingAdd(EndOfDay, "PT0S") == EndOfDay;
-assert TimeOfDay.WrappingAdd(EndOfDay, "P1D") == EndOfDay;
-assert TimeOfDay.WrappingSub(EndOfDay, "P2D") == EndOfDay;
-assert TimeOfDay.WrappingSub(Midnight, "PT0S") == Midnight;
-assert TimeOfDay.WrappingAdd("23:00", "P1DT1H") == Midnight;
-assert TimeOfDay.WrappingSub("01:00", "PT2H") == "23:00";
-assert TimeOfDay.WrappingSub(EndOfDay, "PT1H") == "23:00";
-assert TimeOfDay.WrappingSub(Midnight, "PT0.000000001S") == "23:59:59.999999999";
+assert Schedule.TimeOfDay.WrappingAdd(Morning, "PT2H30M") == "10:30";
+assert Schedule.TimeOfDay.WrappingAdd("23:00", "PT2H") == "01:00";
+assert Schedule.TimeOfDay.WrappingAdd("23:00", "PT1H") == Midnight;
+assert Schedule.TimeOfDay.WrappingAdd(EndOfDay, "PT1H") == "01:00";
+assert Schedule.TimeOfDay.WrappingAdd(Morning, "P2D") == Morning;
+assert Schedule.TimeOfDay.WrappingAdd(EndOfDay, "PT0S") == EndOfDay;
+assert Schedule.TimeOfDay.WrappingAdd(EndOfDay, "P1D") == EndOfDay;
+assert Schedule.TimeOfDay.WrappingSub(EndOfDay, "P2D") == EndOfDay;
+assert Schedule.TimeOfDay.WrappingSub(Midnight, "PT0S") == Midnight;
+assert Schedule.TimeOfDay.WrappingAdd("23:00", "P1DT1H") == Midnight;
+assert Schedule.TimeOfDay.WrappingSub("01:00", "PT2H") == "23:00";
+assert Schedule.TimeOfDay.WrappingSub(EndOfDay, "PT1H") == "23:00";
+assert Schedule.TimeOfDay.WrappingSub(Midnight, "PT0.000000001S") == "23:59:59.999999999";
 
 // DurationUntil goes forward from the first time to the second.
-assert TimeOfDay.DurationUntil(Morning, Morning) == "PT0S";
-assert TimeOfDay.DurationUntil(Morning, "10:30") == "PT2H30M";
-assert TimeOfDay.DurationUntil("23:00", "01:00") == "PT2H";
-assert TimeOfDay.DurationUntil(Midnight, EndOfDay) == "PT24H";
-assert TimeOfDay.DurationUntil(EndOfDay, Midnight) == "PT0S";
-assert TimeOfDay.DurationUntil(EndOfDay, EndOfDay) == "PT0S";
-assert TimeOfDay.DurationUntil("23:00", EndOfDay) == "PT1H";
+assert Schedule.TimeOfDay.DurationUntil(Morning, Morning) == "PT0S";
+assert Schedule.TimeOfDay.DurationUntil(Morning, "10:30") == "PT2H30M";
+assert Schedule.TimeOfDay.DurationUntil("23:00", "01:00") == "PT2H";
+assert Schedule.TimeOfDay.DurationUntil(Midnight, EndOfDay) == "PT24H";
+assert Schedule.TimeOfDay.DurationUntil(EndOfDay, Midnight) == "PT0S";
+assert Schedule.TimeOfDay.DurationUntil(EndOfDay, EndOfDay) == "PT0S";
+assert Schedule.TimeOfDay.DurationUntil("23:00", EndOfDay) == "PT1H";

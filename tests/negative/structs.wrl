@@ -223,18 +223,6 @@ struct type Bad {} // E: conflicts with node
 struct type Bad {} // H: Previous declaration was here
 node type Bad {} // E: conflicts with struct type
 
-// TEST: struct_after_namespace
-// SH: Previous
-// SE: Bad conflicts with
-namespace Bad {} // H: Previous declaration was here
-struct type Bad {} // E: conflicts with namespace
-
-// TEST: namespace_after_struct
-// SH: Previous
-// SE: Bad conflicts with
-struct type Bad {} // H: Previous declaration was here
-namespace Bad {} // E: conflicts with struct type
-
 // TEST: parameter_only_string_value
 struct type Record {
   x: String,
@@ -385,3 +373,42 @@ namespace Example {
 namespace Other {
   native struct type Couple as "Example.Pair" { flag: boolean } // E: Duplicate native name 'Example.Pair'
 }
+
+// TEST: opaque struct with an unknown default native name
+namespace Example {
+  opaque struct type Span { Ticks: uint128 } // E: Unknown opaque struct native name 'Example.Span'
+}
+
+// TEST: opaque struct with an unknown native name
+opaque struct type Span as "Example.Span" { Ticks: uint128 } // E: Unknown opaque struct native name 'Example.Span'
+
+// TEST: opaque struct field type
+opaque struct type Span as "Std.Duration" { Ticks: uint64 } // E: Opaque struct Std.Duration requires field types (uint128)
+
+// TEST: opaque struct field count
+opaque struct type Time as "Timer.MonotonicTime" { Ticks: uint128 } // E: requires field types (uint128, uint64)
+
+// TEST: opaque struct field names are not compared
+opaque struct type Span as "Std.Duration" { units: uint128 }
+constant Value: Span = "PT1S";
+constant Bad: uint8 = Value; // E: Expected value of type uint8, got Std.Duration
+
+// TEST: duplicate opaque struct native name
+// SH: Previous declaration was here
+// SE: Duplicate native name 'Std.Duration'
+opaque struct type Span as "Std.Duration" { Ticks: uint128 } // H: Previous declaration was here
+opaque struct type Interval as "Std.Duration" { Ticks: uint128 } // E: Duplicate native name 'Std.Duration'
+
+// TEST: opaque and native struct native names are separate
+opaque struct type Span as "Std.Duration" { Ticks: uint128 }
+native struct type Record as "Std.Duration" { Ticks: uint128 }
+constant Bad: Span = Record { Ticks: 1 }; // E: Expected Std.Duration, got struct literal
+
+// TEST: opaque struct field access
+// LIBRARIES: std
+constant Value: Std.Duration = "PT1S";
+constant Ticks: uint128 = Value.Ticks; // E: Value of type Std.Duration has no property 'Ticks'
+
+// TEST: opaque struct literal
+// LIBRARIES: std
+constant Value: Std.Duration = Std.Duration { Ticks: 1 }; // E: Expected Std.Duration, got struct literal

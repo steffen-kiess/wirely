@@ -30,8 +30,8 @@ _SHUFFLED_ATTRIBUTES: dict[type, tuple[str, ...]] = {
 
 # Lists whose order defines the runtime representation. Closed enum members
 # also define it and are handled in _visit. The order of native struct fields
-# and native closed enum members is the contract with native code, so they
-# are never shuffled.
+# and native closed enum members is the contract with native code, and opaque
+# struct fields must match their built-in type, so they are never shuffled.
 _LAYOUT_ATTRIBUTES: dict[type, tuple[str, ...]] = {
     model.DeclarationStructType: ('fields',),
 }
@@ -107,7 +107,7 @@ def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]]
                     continue
             if cls is model.DeclarationStructType:
                 assert isinstance(value, model.DeclarationStructType)
-                if value.is_native:
+                if value.is_native or value.is_opaque:
                     continue
             for name in names:
                 items = getattr(value, name)

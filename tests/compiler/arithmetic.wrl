@@ -64,4 +64,4 @@ node type Counter {
 node counter: Counter { Type: uint8, Start: 255 }
 
 // A namespace function remains reachable beside a type of the same name.
-assert TimeOfDay.WrappingAdd("23:00", "PT2H") == "01:00";
+assert Schedule.TimeOfDay.WrappingAdd("23:00", "PT2H") == "01:00";

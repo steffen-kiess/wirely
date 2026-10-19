@@ -114,7 +114,7 @@ class Constant:
 class Function:
     """A native function called by procedure bodies, linked by name at runtime."""
 
-    name: str  # Native name, such as 'Duration.CheckedAdd'.
+    name: str  # Native name, such as 'Std.Duration.CheckedAdd'.
     parameter_types: tuple[Type, ...]
     return_type: Type
 

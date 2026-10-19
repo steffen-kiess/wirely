@@ -113,12 +113,12 @@ namespace ProcedureTests {
   node type Constants {
     parameter Enabled: boolean = true;
     parameter Number: uint8 = if Enabled { 7 } else { 0 };
-    parameter Time: TimeOfDay = if Enabled { "08:00" } else { "09:00" };
+    parameter Time: Schedule.TimeOfDay = if Enabled { "08:00" } else { "09:00" };
     parameter ModeValue: Mode = Mode.On;
     parameter PairValue: Pair = Pair { enabled: true, number: 7 };
 
     default output: value boolean;
-    output TimeValue: value TimeOfDay;
+    output TimeValue: value Schedule.TimeOfDay;
     output ModeEqual: value boolean;
     output UnitEqual: value boolean;
     output PairCopy: value Pair;
@@ -128,7 +128,7 @@ namespace ProcedureTests {
         UnitEqual, PairCopy
     {
       let number: uint8 = 7;
-      let time: TimeOfDay = "08:00";
+      let time: Schedule.TimeOfDay = "08:00";
       let mode = Mode.On;
       let unit = ();
       output = 7 == number && Number != 0;
@@ -224,11 +224,11 @@ node type Ordering {
 }
 
 node int_source: Std.DebugValueSource { Type: int16 }
-node duration_source: Std.DebugValueSource { Type: Duration }
-node time_source: Std.DebugValueSource { Type: TimeOfDay }
+node duration_source: Std.DebugValueSource { Type: Std.Duration }
+node time_source: Std.DebugValueSource { Type: Schedule.TimeOfDay }
 node int_ordering: Ordering { Type: int16, Limit: -1 }
-node duration_ordering: Ordering { Type: Duration, Limit: "PT1S" }
-node time_ordering: Ordering { Type: TimeOfDay, Limit: "08:00" }
+node duration_ordering: Ordering { Type: Std.Duration, Limit: "PT1S" }
+node time_ordering: Ordering { Type: Schedule.TimeOfDay, Limit: "08:00" }
 connect int_source -> int_ordering;
 connect duration_source -> duration_ordering;
 connect time_source -> time_ordering;
@@ -328,43 +328,43 @@ node conversions: Conversions {}
 connect int_source -> conversions;
 
 node type DurationMath {
-  default input: value Duration;
+  default input: value Std.Duration;
   input Factor: value uint32;
-  output Sum: value Duration;
-  output Difference: value Duration;
-  output Scaled: value Option[Duration];
-  output Divided: value Option[Duration];
-  output FactorSecs: value Duration;
+  output Sum: value Std.Duration;
+  output Difference: value Std.Duration;
+  output Scaled: value Option[Std.Duration];
+  output Divided: value Option[Std.Duration];
+  output FactorSecs: value Std.Duration;
   output Millis: value uint128;
 
   procedure run depends on default input as span, Factor as factor
     produces Sum, Difference, Scaled, Divided, FactorSecs, Millis
   {
-    Sum = Duration.SaturatingAdd(span, "PT1S");
-    Difference = Duration.SaturatingSub(span, "PT1S");
-    Scaled = Duration.CheckedMul(span, factor);
-    Divided = Duration.CheckedDiv(span, factor);
-    FactorSecs = Duration.FromSecs(factor);
-    Millis = Duration.AsMillis(span);
+    Sum = Std.Duration.SaturatingAdd(span, "PT1S");
+    Difference = Std.Duration.SaturatingSub(span, "PT1S");
+    Scaled = Std.Duration.CheckedMul(span, factor);
+    Divided = Std.Duration.CheckedDiv(span, factor);
+    FactorSecs = Std.Duration.FromSecs(factor);
+    Millis = Std.Duration.AsMillis(span);
   }
 }
 
-node span_source: Std.DebugValueSource { Type: Duration }
+node span_source: Std.DebugValueSource { Type: Std.Duration }
 node factor_source: Std.DebugValueSource { Type: uint32 }
 node duration_math: DurationMath {}
 connect span_source -> duration_math;
 connect factor_source -> duration_math.Factor;
 
 node type TimeMath {
-  default input: value TimeOfDay;
-  output Later: value TimeOfDay;
-  output Earlier: value TimeOfDay;
-  output UntilEnd: value Duration;
+  default input: value Schedule.TimeOfDay;
+  output Later: value Schedule.TimeOfDay;
+  output Earlier: value Schedule.TimeOfDay;
+  output UntilEnd: value Std.Duration;
 
   procedure run depends on default input as time produces Later, Earlier, UntilEnd {
-    Later = TimeOfDay.WrappingAdd(time, "PT2H");
-    Earlier = TimeOfDay.WrappingSub(time, "PT2H");
-    UntilEnd = TimeOfDay.DurationUntil(time, "24:00");
+    Later = Schedule.TimeOfDay.WrappingAdd(time, "PT2H");
+    Earlier = Schedule.TimeOfDay.WrappingSub(time, "PT2H");
+    UntilEnd = Schedule.TimeOfDay.DurationUntil(time, "24:00");
   }
 }
 
@@ -372,31 +372,31 @@ node time_math: TimeMath {}
 connect time_source -> time_math;
 
 node type MonotonicMath {
-  default input: value MonotonicTime;
-  input Other: value MonotonicTime;
-  input Span: value Duration;
-  output Later: value MonotonicTime;
-  output Earlier: value MonotonicTime;
-  output CheckedLater: value Option[MonotonicTime];
-  output CheckedEarlier: value Option[MonotonicTime];
-  output Elapsed: value Option[Duration];
+  default input: value Timer.MonotonicTime;
+  input Other: value Timer.MonotonicTime;
+  input Span: value Std.Duration;
+  output Later: value Timer.MonotonicTime;
+  output Earlier: value Timer.MonotonicTime;
+  output CheckedLater: value Option[Timer.MonotonicTime];
+  output CheckedEarlier: value Option[Timer.MonotonicTime];
+  output Elapsed: value Option[Std.Duration];
   output Less: value Option[boolean];
 
   procedure run depends on default input as time, Other as other, Span as span
     produces Later, Earlier, CheckedLater, CheckedEarlier, Elapsed, Less
   {
-    Later = MonotonicTime.SaturatingAdd(time, span);
-    Earlier = MonotonicTime.SaturatingSub(time, span);
-    CheckedLater = MonotonicTime.CheckedAdd(time, span);
-    CheckedEarlier = MonotonicTime.CheckedSub(time, span);
-    Elapsed = MonotonicTime.CheckedDurationSince(time, other);
-    Less = MonotonicTime.CheckedLess(time, other);
+    Later = Timer.MonotonicTime.SaturatingAdd(time, span);
+    Earlier = Timer.MonotonicTime.SaturatingSub(time, span);
+    CheckedLater = Timer.MonotonicTime.CheckedAdd(time, span);
+    CheckedEarlier = Timer.MonotonicTime.CheckedSub(time, span);
+    Elapsed = Timer.MonotonicTime.CheckedDurationSince(time, other);
+    Less = Timer.MonotonicTime.CheckedLess(time, other);
   }
 }
 
-node monotonic_source: Std.DebugValueSource { Type: MonotonicTime }
-node monotonic_other: Std.DebugValueSource { Type: MonotonicTime }
-node monotonic_span: Std.DebugValueSource { Type: Duration }
+node monotonic_source: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node monotonic_other: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node monotonic_span: Std.DebugValueSource { Type: Std.Duration }
 node monotonic_math: MonotonicMath {}
 connect monotonic_source -> monotonic_math;
 connect monotonic_other -> monotonic_math.Other;

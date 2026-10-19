@@ -1,5 +1,5 @@
 assert MQTT.SupportsType(boolean);
-assert !MQTT.SupportsType(Option[uint16]) && !MQTT.SupportsType(MonotonicTime);
+assert !MQTT.SupportsType(Option[uint16]) && !MQTT.SupportsType(Timer.MonotonicTime);
 assert MQTT.ParseTemplate(None)
   == MQTT.TemplateParts { prefix: "", suffix: "" };
 assert MQTT.ParseTemplate(Some("%s"))

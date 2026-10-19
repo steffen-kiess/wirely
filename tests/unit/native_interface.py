@@ -723,10 +723,10 @@ def check_native_interface_signatures():
     )
     assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'] == Procedure(
         stage='default', depends={'input': Port('event', TypeVar('Type'))},
-        produces={'output': Port('event', Builtin('MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
+        produces={'output': Port('event', Builtin('Timer.MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
     )
-    assert native_interfaces.native_functions['Duration.CheckedMul'] == Function(
-        (Builtin('Duration'), Int(32, False)), Option(Builtin('Duration')))
+    assert native_interfaces.native_functions['Std.Duration.CheckedMul'] == Function(
+        (Builtin('Std.Duration'), Int(32, False)), Option(Builtin('Std.Duration')))
     # Constant functions run in the compiler, not the runtime.
     assert 'Std.ParseFormat' not in native_interfaces.native_functions
 

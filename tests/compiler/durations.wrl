@@ -1,42 +1,42 @@
-constant Second: Duration = "PT1S";
-constant Max: Duration = "P213503982334601DT7H15.99999999999999999995S";
-constant Unit: Duration = "PT0.00000000000000000005S";
+constant Second: Std.Duration = "PT1S";
+constant Max: Std.Duration = "P213503982334601DT7H15.99999999999999999995S";
+constant Unit: Std.Duration = "PT0.00000000000000000005S";
 
 // Saturating functions clamp to zero and the maximum.
-assert Duration.SaturatingAdd(Second, "PT2S") == "PT3S";
-assert Duration.SaturatingAdd(Max, Second) == Max;
-assert Duration.SaturatingSub("PT3S", Second) == "PT2S";
-assert Duration.SaturatingSub(Second, "PT3S") == "PT0S";
-assert Duration.SaturatingMul(Second, 60) == "PT1M";
-assert Duration.SaturatingMul(Max, 2) == Max && Duration.SaturatingMul(Max, 0) == "PT0S";
+assert Std.Duration.SaturatingAdd(Second, "PT2S") == "PT3S";
+assert Std.Duration.SaturatingAdd(Max, Second) == Max;
+assert Std.Duration.SaturatingSub("PT3S", Second) == "PT2S";
+assert Std.Duration.SaturatingSub(Second, "PT3S") == "PT0S";
+assert Std.Duration.SaturatingMul(Second, 60) == "PT1M";
+assert Std.Duration.SaturatingMul(Max, 2) == Max && Std.Duration.SaturatingMul(Max, 0) == "PT0S";
 
 // Checked functions give None outside 0 to the maximum, or for divisor 0.
-assert Duration.CheckedAdd(Second, Second) == Some("PT2S");
-assert Duration.CheckedAdd(Max, Unit) == None;
-assert Duration.CheckedSub(Second, Second) == Some("PT0S");
-assert Duration.CheckedSub(Second, Second + Unit) == None;
-assert Duration.CheckedMul("PT1H", 24) == Some("P1D") && Duration.CheckedMul(Max, 2) == None;
-assert Duration.CheckedDiv(Second, 3) == Some("PT0.3333333333333333333S");
-assert Duration.CheckedDiv(Second, 0) == None;
-assert Duration.CheckedDiv(Max, 4294967295) == Some("P49710DT6H28M17.0000000002328306437S");
+assert Std.Duration.CheckedAdd(Second, Second) == Some("PT2S");
+assert Std.Duration.CheckedAdd(Max, Unit) == None;
+assert Std.Duration.CheckedSub(Second, Second) == Some("PT0S");
+assert Std.Duration.CheckedSub(Second, Second + Unit) == None;
+assert Std.Duration.CheckedMul("PT1H", 24) == Some("P1D") && Std.Duration.CheckedMul(Max, 2) == None;
+assert Std.Duration.CheckedDiv(Second, 3) == Some("PT0.3333333333333333333S");
+assert Std.Duration.CheckedDiv(Second, 0) == None;
+assert Std.Duration.CheckedDiv(Max, 4294967295) == Some("P49710DT6H28M17.0000000002328306437S");
 
 // Compile-time operators.
-constant Total: Duration = Second + "PT2S" - "PT0.5S";
+constant Total: Std.Duration = Second + "PT2S" - "PT0.5S";
 assert Total == "PT2.5S" && Max - Max == "PT0S";
 assert Second + Second > Second && "PT1M" - Second == "PT59S";
 
 // Conversions from integer counts round to the nearest unit and never
 // overflow; extraction rounds down and inverts them.
-assert Duration.FromSecs(90) == "PT1M30S" && Duration.FromMillis(1500) == "PT1.5S";
-assert Duration.FromMicros(1) == "PT0.000001S" && Duration.FromNanos(1) == "PT0.000000001S";
-assert Duration.FromSecs(4294967295) == "PT4294967295S";
-assert Duration.FromMillis(4294967295) == "PT4294967.295S";
-assert Duration.FromMicros(4294967295) == "PT4294.967295S";
-assert Duration.FromNanos(18446744073709551615) == "PT18446744073.709551615S";
-assert Duration.FromMillis(100) == "PT0.1S" && Duration.AsMillis(Duration.FromMillis(2)) == 2;
-constant Almost: Duration = "PT1.999999999S";
-assert Duration.AsSecs(Almost) == 1 && Duration.AsMillis(Almost) == 1999;
-assert Duration.AsMicros(Almost) == 1999999 && Duration.AsNanos(Almost) == 1999999999;
-assert Duration.AsNanos(Max) == 18446744073709551615999999999;
-assert Duration.AsSecs(Max) == 18446744073709551615;
-assert Duration.AsSecs(Duration.FromSecs(4294967295)) == 4294967295;
+assert Std.Duration.FromSecs(90) == "PT1M30S" && Std.Duration.FromMillis(1500) == "PT1.5S";
+assert Std.Duration.FromMicros(1) == "PT0.000001S" && Std.Duration.FromNanos(1) == "PT0.000000001S";
+assert Std.Duration.FromSecs(4294967295) == "PT4294967295S";
+assert Std.Duration.FromMillis(4294967295) == "PT4294967.295S";
+assert Std.Duration.FromMicros(4294967295) == "PT4294.967295S";
+assert Std.Duration.FromNanos(18446744073709551615) == "PT18446744073.709551615S";
+assert Std.Duration.FromMillis(100) == "PT0.1S" && Std.Duration.AsMillis(Std.Duration.FromMillis(2)) == 2;
+constant Almost: Std.Duration = "PT1.999999999S";
+assert Std.Duration.AsSecs(Almost) == 1 && Std.Duration.AsMillis(Almost) == 1999;
+assert Std.Duration.AsMicros(Almost) == 1999999 && Std.Duration.AsNanos(Almost) == 1999999999;
+assert Std.Duration.AsNanos(Max) == 18446744073709551615999999999;
+assert Std.Duration.AsSecs(Max) == 18446744073709551615;
+assert Std.Duration.AsSecs(Std.Duration.FromSecs(4294967295)) == 4294967295;

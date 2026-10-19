@@ -19,6 +19,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     // Types
     | "struct" "type" identifier "{" struct_field_list "}" -> declaration_struct_type
     | "native" "struct" "type" identifier ["as" string_constant] "{" struct_field_list "}" -> declaration_struct_type__create_native
+    | "opaque" "struct" "type" identifier ["as" string_constant] "{" struct_field_list "}" -> declaration_struct_type__create_opaque
     | "open" "enum" "type" identifier ":" type "{" enum_member_list "}" -> declaration_enum_type__create_open
     | "closed" "enum" "type" identifier "{" closed_enum_member_list "}" -> declaration_enum_type__create_closed
     | "native" "open" "enum" "type" identifier ["as" string_constant] ":" type "{" enum_member_list "}" -> declaration_enum_type__create_native_open
@@ -232,6 +233,7 @@ reference: identifier ("." identifier)* -> reference__from_list
     | RAW_IDENTIFIER
     // Weak keywords are also accepted as identifiers.
     | "open"
+    | "opaque"
     | "closed"
     | "binding"
     | "changed"

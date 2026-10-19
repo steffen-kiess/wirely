@@ -499,189 +499,189 @@ procedures: dict[str, Callable[[], ProcedureImplementation]] = {
 }
 
 
-def _load_functions_duration__as_micros() -> FunctionImplementation:
-    from wirely.generated.duration import _AsMicros
-    from wirely.functions.duration import as_micros
-    return _AsMicros.implementation(as_micros)
-
-
-def _load_functions_duration__as_millis() -> FunctionImplementation:
-    from wirely.generated.duration import _AsMillis
-    from wirely.functions.duration import as_millis
-    return _AsMillis.implementation(as_millis)
-
-
-def _load_functions_duration__as_nanos() -> FunctionImplementation:
-    from wirely.generated.duration import _AsNanos
-    from wirely.functions.duration import as_nanos
-    return _AsNanos.implementation(as_nanos)
-
-
-def _load_functions_duration__as_secs() -> FunctionImplementation:
-    from wirely.generated.duration import _AsSecs
-    from wirely.functions.duration import as_secs
-    return _AsSecs.implementation(as_secs)
-
-
-def _load_functions_duration__checked_add() -> FunctionImplementation:
-    from wirely.generated.duration import _CheckedAdd
-    from wirely.functions.duration import checked_add
-    return _CheckedAdd.implementation(checked_add)
-
-
-def _load_functions_duration__checked_div() -> FunctionImplementation:
-    from wirely.generated.duration import _CheckedDiv
-    from wirely.functions.duration import checked_div
-    return _CheckedDiv.implementation(checked_div)
-
-
-def _load_functions_duration__checked_mul() -> FunctionImplementation:
-    from wirely.generated.duration import _CheckedMul
-    from wirely.functions.duration import checked_mul
-    return _CheckedMul.implementation(checked_mul)
-
-
-def _load_functions_duration__checked_sub() -> FunctionImplementation:
-    from wirely.generated.duration import _CheckedSub
-    from wirely.functions.duration import checked_sub
-    return _CheckedSub.implementation(checked_sub)
-
-
-def _load_functions_duration__from_micros() -> FunctionImplementation:
-    from wirely.generated.duration import _FromMicros
-    from wirely.functions.duration import from_micros
-    return _FromMicros.implementation(from_micros)
-
-
-def _load_functions_duration__from_millis() -> FunctionImplementation:
-    from wirely.generated.duration import _FromMillis
-    from wirely.functions.duration import from_millis
-    return _FromMillis.implementation(from_millis)
-
-
-def _load_functions_duration__from_nanos() -> FunctionImplementation:
-    from wirely.generated.duration import _FromNanos
-    from wirely.functions.duration import from_nanos
-    return _FromNanos.implementation(from_nanos)
-
-
-def _load_functions_duration__from_secs() -> FunctionImplementation:
-    from wirely.generated.duration import _FromSecs
-    from wirely.functions.duration import from_secs
-    return _FromSecs.implementation(from_secs)
-
-
-def _load_functions_duration__less() -> FunctionImplementation:
-    from wirely.generated.duration import _Less
-    from wirely.functions.duration import less
-    return _Less.implementation(less)
-
-
-def _load_functions_duration__saturating_add() -> FunctionImplementation:
-    from wirely.generated.duration import _SaturatingAdd
-    from wirely.functions.duration import saturating_add
-    return _SaturatingAdd.implementation(saturating_add)
-
-
-def _load_functions_duration__saturating_mul() -> FunctionImplementation:
-    from wirely.generated.duration import _SaturatingMul
-    from wirely.functions.duration import saturating_mul
-    return _SaturatingMul.implementation(saturating_mul)
-
-
-def _load_functions_duration__saturating_sub() -> FunctionImplementation:
-    from wirely.generated.duration import _SaturatingSub
-    from wirely.functions.duration import saturating_sub
-    return _SaturatingSub.implementation(saturating_sub)
-
-
-def _load_functions_monotonic_time__checked_add() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _CheckedAdd
-    from wirely.functions.monotonic_time import checked_add
-    return _CheckedAdd.implementation(checked_add)
-
-
-def _load_functions_monotonic_time__checked_duration_since() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _CheckedDurationSince
-    from wirely.functions.monotonic_time import checked_duration_since
-    return _CheckedDurationSince.implementation(checked_duration_since)
-
-
-def _load_functions_monotonic_time__checked_less() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _CheckedLess
-    from wirely.functions.monotonic_time import checked_less
-    return _CheckedLess.implementation(checked_less)
-
-
-def _load_functions_monotonic_time__checked_sub() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _CheckedSub
-    from wirely.functions.monotonic_time import checked_sub
-    return _CheckedSub.implementation(checked_sub)
-
-
-def _load_functions_monotonic_time__saturating_add() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _SaturatingAdd
-    from wirely.functions.monotonic_time import saturating_add
-    return _SaturatingAdd.implementation(saturating_add)
-
-
-def _load_functions_monotonic_time__saturating_sub() -> FunctionImplementation:
-    from wirely.generated.monotonic_time import _SaturatingSub
-    from wirely.functions.monotonic_time import saturating_sub
-    return _SaturatingSub.implementation(saturating_sub)
-
-
-def _load_functions_time_of_day__duration_until() -> FunctionImplementation:
-    from wirely.generated.time_of_day import _DurationUntil
-    from wirely.functions.time_of_day import duration_until
+def _load_functions_schedule_time_of_day__duration_until() -> FunctionImplementation:
+    from wirely.generated.schedule_time_of_day import _DurationUntil
+    from wirely.functions.schedule_time_of_day import duration_until
     return _DurationUntil.implementation(duration_until)
 
 
-def _load_functions_time_of_day__less() -> FunctionImplementation:
-    from wirely.generated.time_of_day import _Less
-    from wirely.functions.time_of_day import less
+def _load_functions_schedule_time_of_day__less() -> FunctionImplementation:
+    from wirely.generated.schedule_time_of_day import _Less
+    from wirely.functions.schedule_time_of_day import less
     return _Less.implementation(less)
 
 
-def _load_functions_time_of_day__wrapping_add() -> FunctionImplementation:
-    from wirely.generated.time_of_day import _WrappingAdd
-    from wirely.functions.time_of_day import wrapping_add
+def _load_functions_schedule_time_of_day__wrapping_add() -> FunctionImplementation:
+    from wirely.generated.schedule_time_of_day import _WrappingAdd
+    from wirely.functions.schedule_time_of_day import wrapping_add
     return _WrappingAdd.implementation(wrapping_add)
 
 
-def _load_functions_time_of_day__wrapping_sub() -> FunctionImplementation:
-    from wirely.generated.time_of_day import _WrappingSub
-    from wirely.functions.time_of_day import wrapping_sub
+def _load_functions_schedule_time_of_day__wrapping_sub() -> FunctionImplementation:
+    from wirely.generated.schedule_time_of_day import _WrappingSub
+    from wirely.functions.schedule_time_of_day import wrapping_sub
     return _WrappingSub.implementation(wrapping_sub)
 
 
+def _load_functions_std_duration__as_micros() -> FunctionImplementation:
+    from wirely.generated.std_duration import _AsMicros
+    from wirely.functions.std_duration import as_micros
+    return _AsMicros.implementation(as_micros)
+
+
+def _load_functions_std_duration__as_millis() -> FunctionImplementation:
+    from wirely.generated.std_duration import _AsMillis
+    from wirely.functions.std_duration import as_millis
+    return _AsMillis.implementation(as_millis)
+
+
+def _load_functions_std_duration__as_nanos() -> FunctionImplementation:
+    from wirely.generated.std_duration import _AsNanos
+    from wirely.functions.std_duration import as_nanos
+    return _AsNanos.implementation(as_nanos)
+
+
+def _load_functions_std_duration__as_secs() -> FunctionImplementation:
+    from wirely.generated.std_duration import _AsSecs
+    from wirely.functions.std_duration import as_secs
+    return _AsSecs.implementation(as_secs)
+
+
+def _load_functions_std_duration__checked_add() -> FunctionImplementation:
+    from wirely.generated.std_duration import _CheckedAdd
+    from wirely.functions.std_duration import checked_add
+    return _CheckedAdd.implementation(checked_add)
+
+
+def _load_functions_std_duration__checked_div() -> FunctionImplementation:
+    from wirely.generated.std_duration import _CheckedDiv
+    from wirely.functions.std_duration import checked_div
+    return _CheckedDiv.implementation(checked_div)
+
+
+def _load_functions_std_duration__checked_mul() -> FunctionImplementation:
+    from wirely.generated.std_duration import _CheckedMul
+    from wirely.functions.std_duration import checked_mul
+    return _CheckedMul.implementation(checked_mul)
+
+
+def _load_functions_std_duration__checked_sub() -> FunctionImplementation:
+    from wirely.generated.std_duration import _CheckedSub
+    from wirely.functions.std_duration import checked_sub
+    return _CheckedSub.implementation(checked_sub)
+
+
+def _load_functions_std_duration__from_micros() -> FunctionImplementation:
+    from wirely.generated.std_duration import _FromMicros
+    from wirely.functions.std_duration import from_micros
+    return _FromMicros.implementation(from_micros)
+
+
+def _load_functions_std_duration__from_millis() -> FunctionImplementation:
+    from wirely.generated.std_duration import _FromMillis
+    from wirely.functions.std_duration import from_millis
+    return _FromMillis.implementation(from_millis)
+
+
+def _load_functions_std_duration__from_nanos() -> FunctionImplementation:
+    from wirely.generated.std_duration import _FromNanos
+    from wirely.functions.std_duration import from_nanos
+    return _FromNanos.implementation(from_nanos)
+
+
+def _load_functions_std_duration__from_secs() -> FunctionImplementation:
+    from wirely.generated.std_duration import _FromSecs
+    from wirely.functions.std_duration import from_secs
+    return _FromSecs.implementation(from_secs)
+
+
+def _load_functions_std_duration__less() -> FunctionImplementation:
+    from wirely.generated.std_duration import _Less
+    from wirely.functions.std_duration import less
+    return _Less.implementation(less)
+
+
+def _load_functions_std_duration__saturating_add() -> FunctionImplementation:
+    from wirely.generated.std_duration import _SaturatingAdd
+    from wirely.functions.std_duration import saturating_add
+    return _SaturatingAdd.implementation(saturating_add)
+
+
+def _load_functions_std_duration__saturating_mul() -> FunctionImplementation:
+    from wirely.generated.std_duration import _SaturatingMul
+    from wirely.functions.std_duration import saturating_mul
+    return _SaturatingMul.implementation(saturating_mul)
+
+
+def _load_functions_std_duration__saturating_sub() -> FunctionImplementation:
+    from wirely.generated.std_duration import _SaturatingSub
+    from wirely.functions.std_duration import saturating_sub
+    return _SaturatingSub.implementation(saturating_sub)
+
+
+def _load_functions_timer_monotonic_time__checked_add() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _CheckedAdd
+    from wirely.functions.timer_monotonic_time import checked_add
+    return _CheckedAdd.implementation(checked_add)
+
+
+def _load_functions_timer_monotonic_time__checked_duration_since() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _CheckedDurationSince
+    from wirely.functions.timer_monotonic_time import checked_duration_since
+    return _CheckedDurationSince.implementation(checked_duration_since)
+
+
+def _load_functions_timer_monotonic_time__checked_less() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _CheckedLess
+    from wirely.functions.timer_monotonic_time import checked_less
+    return _CheckedLess.implementation(checked_less)
+
+
+def _load_functions_timer_monotonic_time__checked_sub() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _CheckedSub
+    from wirely.functions.timer_monotonic_time import checked_sub
+    return _CheckedSub.implementation(checked_sub)
+
+
+def _load_functions_timer_monotonic_time__saturating_add() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _SaturatingAdd
+    from wirely.functions.timer_monotonic_time import saturating_add
+    return _SaturatingAdd.implementation(saturating_add)
+
+
+def _load_functions_timer_monotonic_time__saturating_sub() -> FunctionImplementation:
+    from wirely.generated.timer_monotonic_time import _SaturatingSub
+    from wirely.functions.timer_monotonic_time import saturating_sub
+    return _SaturatingSub.implementation(saturating_sub)
+
+
 functions: dict[str, Callable[[], FunctionImplementation]] = {
-    'Duration.AsMicros': _load_functions_duration__as_micros,
-    'Duration.AsMillis': _load_functions_duration__as_millis,
-    'Duration.AsNanos': _load_functions_duration__as_nanos,
-    'Duration.AsSecs': _load_functions_duration__as_secs,
-    'Duration.CheckedAdd': _load_functions_duration__checked_add,
-    'Duration.CheckedDiv': _load_functions_duration__checked_div,
-    'Duration.CheckedMul': _load_functions_duration__checked_mul,
-    'Duration.CheckedSub': _load_functions_duration__checked_sub,
-    'Duration.FromMicros': _load_functions_duration__from_micros,
-    'Duration.FromMillis': _load_functions_duration__from_millis,
-    'Duration.FromNanos': _load_functions_duration__from_nanos,
-    'Duration.FromSecs': _load_functions_duration__from_secs,
-    'Duration.Less': _load_functions_duration__less,
-    'Duration.SaturatingAdd': _load_functions_duration__saturating_add,
-    'Duration.SaturatingMul': _load_functions_duration__saturating_mul,
-    'Duration.SaturatingSub': _load_functions_duration__saturating_sub,
-    'MonotonicTime.CheckedAdd': _load_functions_monotonic_time__checked_add,
-    'MonotonicTime.CheckedDurationSince': _load_functions_monotonic_time__checked_duration_since,
-    'MonotonicTime.CheckedLess': _load_functions_monotonic_time__checked_less,
-    'MonotonicTime.CheckedSub': _load_functions_monotonic_time__checked_sub,
-    'MonotonicTime.SaturatingAdd': _load_functions_monotonic_time__saturating_add,
-    'MonotonicTime.SaturatingSub': _load_functions_monotonic_time__saturating_sub,
-    'TimeOfDay.DurationUntil': _load_functions_time_of_day__duration_until,
-    'TimeOfDay.Less': _load_functions_time_of_day__less,
-    'TimeOfDay.WrappingAdd': _load_functions_time_of_day__wrapping_add,
-    'TimeOfDay.WrappingSub': _load_functions_time_of_day__wrapping_sub,
+    'Schedule.TimeOfDay.DurationUntil': _load_functions_schedule_time_of_day__duration_until,
+    'Schedule.TimeOfDay.Less': _load_functions_schedule_time_of_day__less,
+    'Schedule.TimeOfDay.WrappingAdd': _load_functions_schedule_time_of_day__wrapping_add,
+    'Schedule.TimeOfDay.WrappingSub': _load_functions_schedule_time_of_day__wrapping_sub,
+    'Std.Duration.AsMicros': _load_functions_std_duration__as_micros,
+    'Std.Duration.AsMillis': _load_functions_std_duration__as_millis,
+    'Std.Duration.AsNanos': _load_functions_std_duration__as_nanos,
+    'Std.Duration.AsSecs': _load_functions_std_duration__as_secs,
+    'Std.Duration.CheckedAdd': _load_functions_std_duration__checked_add,
+    'Std.Duration.CheckedDiv': _load_functions_std_duration__checked_div,
+    'Std.Duration.CheckedMul': _load_functions_std_duration__checked_mul,
+    'Std.Duration.CheckedSub': _load_functions_std_duration__checked_sub,
+    'Std.Duration.FromMicros': _load_functions_std_duration__from_micros,
+    'Std.Duration.FromMillis': _load_functions_std_duration__from_millis,
+    'Std.Duration.FromNanos': _load_functions_std_duration__from_nanos,
+    'Std.Duration.FromSecs': _load_functions_std_duration__from_secs,
+    'Std.Duration.Less': _load_functions_std_duration__less,
+    'Std.Duration.SaturatingAdd': _load_functions_std_duration__saturating_add,
+    'Std.Duration.SaturatingMul': _load_functions_std_duration__saturating_mul,
+    'Std.Duration.SaturatingSub': _load_functions_std_duration__saturating_sub,
+    'Timer.MonotonicTime.CheckedAdd': _load_functions_timer_monotonic_time__checked_add,
+    'Timer.MonotonicTime.CheckedDurationSince': _load_functions_timer_monotonic_time__checked_duration_since,
+    'Timer.MonotonicTime.CheckedLess': _load_functions_timer_monotonic_time__checked_less,
+    'Timer.MonotonicTime.CheckedSub': _load_functions_timer_monotonic_time__checked_sub,
+    'Timer.MonotonicTime.SaturatingAdd': _load_functions_timer_monotonic_time__saturating_add,
+    'Timer.MonotonicTime.SaturatingSub': _load_functions_timer_monotonic_time__saturating_sub,
 }
 
 

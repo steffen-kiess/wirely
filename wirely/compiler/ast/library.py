@@ -36,14 +36,6 @@ class DeclarationLibrary(Declaration):
         if not isinstance(graph, Namespace) and graph.name is not None:
             raise ProgramError(self, 'Attempt to put namespace into invalid context')
 
-        if self.name.id_str in graph.struct_types:
-            raise model.ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with struct type', hints=[
-                model.CompilerHint(graph.struct_types[self.name.id_str].declaration, 'Previous declaration was here'),
-            ])
-        if self.name.id_str in graph.enum_types:
-            raise ProgramError(self.name, f'Namespace {self.name.id_str} conflicts with enum type', hints=[
-                CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
-            ])
         namespace = graph.libraries.get(self.name.id_str)
         if namespace is None:
             namespace = graph.libraries[self.name.id_str] = Namespace(self, graph)

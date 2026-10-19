@@ -52,7 +52,9 @@ the fixture's lifetime.
 
 ## Std
 
-General data flow, optional values, edge detection, and debug nodes.
+General data flow, optional values, edge detection, and debug nodes. The
+library also declares the [`Std.Duration`](value-types.md#duration) type and
+its functions.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
@@ -78,26 +80,29 @@ dependencies.
 
 ## Schedule
 
-Daily schedules use local clock time. `TimeOfDay` parameters use strings
-such as `"08:00"`. Interval boundaries take effect at the first representable
-wall-clock microsecond at or after the specified time.
+Daily schedules use local clock time. `Schedule.TimeOfDay` parameters use
+strings such as `"08:00"`. Interval boundaries take effect at the first
+representable wall-clock microsecond at or after the specified time. The
+library declares the [`Schedule.TimeOfDay`](value-types.md#time-of-day) type
+and its functions.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `IsInDailyInterval` | `Start: TimeOfDay`, `End: TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight. `00:00` to `24:00` always returns `Some(true)` and `24:00` to `00:00` always returns `Some(false)`, including while wall time is unknown. |
-| `TriggerAt` | `Time: TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
+| `IsInDailyInterval` | `Start: Schedule.TimeOfDay`, `End: Schedule.TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight. `00:00` to `24:00` always returns `Some(true)` and `24:00` to `00:00` always returns `Some(false)`, including while wall time is unknown. |
+| `TriggerAt` | `Time: Schedule.TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## Timer
 
-Timers use monotonic time. `Duration` parameters use strings such as
-`"PT1S"`.
+Timers use monotonic time, declared with its functions as
+[`Timer.MonotonicTime`](value-types.md#monotonic-time). `Std.Duration`
+parameters use strings such as `"PT1S"`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `MonotonicTimestamp` | `Type: ValueType = unit` | In: `event Type`; out: `event MonotonicTime`. Emits the step's monotonic time while the input event is present, keeping the engine stepping. |
-| `MonotonicTimeReached` | None | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
-| `DurationElapsed` | `Duration: Duration` | In: `value Option[MonotonicTime]`; out: `value Option[boolean]`. True once `Duration` has elapsed since the input time, false before it, or `None` if the input is `None` or not comparable to the current time. |
-| `DebounceStable` | `Type: ValueType`, `Duration: Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. If monotonic time is lost while waiting, accepts the current input immediately. |
+| `MonotonicTimestamp` | `Type: ValueType = unit` | In: `event Type`; out: `event Timer.MonotonicTime`. Emits the step's monotonic time while the input event is present, keeping the engine stepping. |
+| `MonotonicTimeReached` | None | In: `value Option[Timer.MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
+| `DurationElapsed` | `Duration: Std.Duration` | In: `value Option[Timer.MonotonicTime]`; out: `value Option[boolean]`. True once `Duration` has elapsed since the input time, false before it, or `None` if the input is `None` or not comparable to the current time. |
+| `DebounceStable` | `Type: ValueType`, `Duration: Std.Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. If monotonic time is lost while waiting, accepts the current input immediately. |
 
 ## KNX
 
@@ -187,7 +192,7 @@ connect its default `resource TwoN.Device` output to each client's named
 | --- | --- | --- |
 | `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
-| `KeyState` | `Key: String`, `Timeout: Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
+| `KeyState` | `Key: String`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
 | `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value boolean`. Tracks whether a switch is active. |
 | `CodeEnteredEvent` | `Code: String` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
@@ -229,7 +234,7 @@ to change. It takes a default `event boolean` command input (`true` for on,
 `false` for off) and a named `Feedback: value Option[boolean]` input. Its
 default `event OutputType` output provides the trigger pulse. If feedback is
 `None`, commands are ignored. Its parameters are `OutputType: ValueType = unit`,
-`OutputValue: OutputType = ()`, and `MinimumDelay: Duration = "PT1S"`.
+`OutputValue: OutputType = ()`, and `MinimumDelay: Std.Duration = "PT1S"`.
 Set `OutputValue` when `OutputType` is not `unit`. The minimum delay limits
 successive output events. During that delay, the latest command remains pending
 until feedback matches it or becomes unavailable. Lost monotonic time discards

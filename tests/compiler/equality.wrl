@@ -12,9 +12,9 @@ assert Nested != Some(Some(()));
 constant Absent: Option[Option[unit]] = None;
 assert Absent == None && None == Absent;
 
-constant At: TimeOfDay = "08:00";
+constant At: Schedule.TimeOfDay = "08:00";
 assert At == "08:00" && "08:00" == At && At != "08:01";
-constant Span: Duration = "PT60S";
+constant Span: Std.Duration = "PT60S";
 assert Span == "PT1M" && "PT1M" == Span && Span != "PT61S";
 
 struct type Settings {
@@ -55,5 +55,5 @@ node structs: Compare {
   Type: Settings, Left: SettingsValue, Right: SettingsValue, Equal: true,
 }
 node times: Compare {
-  Type: Duration, Left: "PT60S", Right: "PT1M", Equal: true,
+  Type: Std.Duration, Left: "PT60S", Right: "PT1M", Equal: true,
 }

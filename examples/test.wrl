@@ -62,11 +62,11 @@ node prnt: Std.DebugValuePrinter { Type: boolean }
 connect res -> prnt;
 
 node time_1: Schedule.TimeOfDayMinute {}
-node prnt_time_1: Std.DebugValuePrinter { Type: Option[TimeOfDay] }
+node prnt_time_1: Std.DebugValuePrinter { Type: Option[Schedule.TimeOfDay] }
 connect time_1 -> prnt_time_1;
 
 node time_2: Schedule.TimeOfDayMinute {}
-node prnt_time_2: Std.DebugValuePrinter { Type: Option[TimeOfDay] }
+node prnt_time_2: Std.DebugValuePrinter { Type: Option[Schedule.TimeOfDay] }
 connect time_2 -> prnt_time_2;
 
 node between_1: Schedule.IsInDailyInterval { Start: "10:33", End: "22:51" }

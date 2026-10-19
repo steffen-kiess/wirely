@@ -174,7 +174,7 @@ def _parse_value_type(self: types.TypeValueType, value: model.ast.Value, *,
 
 def _parse_monotonic_time(self: types.TypeMonotonicTime, value: model.ast.Value, *,
                           scope: model.Scope | None = None) -> NoReturn:
-    raise model.ProgramError(value, f'Invalid MonotonicTime value {value!r}')
+    raise model.ProgramError(value, f'Invalid {self} value {value!r}')
 
 
 def _parse_duration(self: types.TypeDuration, expr: model.ast.Value, *,
@@ -185,8 +185,8 @@ def _parse_duration(self: types.TypeDuration, expr: model.ast.Value, *,
         try:
             return self.parse(s)
         except Exception:
-            raise model.ProgramError(expr, f'Invalid Duration value {s!r}')
-    raise model.ProgramError(expr, f'Invalid Duration value {expr!r}')
+            raise model.ProgramError(expr, f'Invalid {self} value {s!r}')
+    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
 
 
 def _parse_time_of_day(self: types.TypeTimeOfDay, expr: model.ast.Value, *,
@@ -197,8 +197,8 @@ def _parse_time_of_day(self: types.TypeTimeOfDay, expr: model.ast.Value, *,
         try:
             return self.parse(s)
         except Exception:
-            raise model.ProgramError(expr, f'Invalid TimeOfDay value {s!r}')
-    raise model.ProgramError(expr, f'Invalid TimeOfDay value {expr!r}')
+            raise model.ProgramError(expr, f'Invalid {self} value {s!r}')
+    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
 
 
 def _parse_string(self: types.TypeString, value: model.ast.Value, *, scope: model.Scope | None = None) -> str:

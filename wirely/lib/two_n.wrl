@@ -58,7 +58,7 @@ namespace TwoN {
     // Timeout after which the key will be assumed to be released (because "2N
     // -> Calling -> Dialing -> Quick dial button functionality test" will
     // trigger a KeyPressed event but no KeyReleased event).
-    parameter Timeout: Duration = "PT30S";
+    parameter Timeout: Std.Duration = "PT30S";
 
     input Device: resource Device;
 
@@ -69,7 +69,7 @@ namespace TwoN {
     connect Device -> key_event.Device;
 
     // Start of the current press, or None while the key is released.
-    state pressed_at: Option[MonotonicTime] = None;
+    state pressed_at: Option[Timer.MonotonicTime] = None;
 
     node event_time: Timer.MonotonicTimestamp { Type: boolean }
     connect key_event -> event_time;

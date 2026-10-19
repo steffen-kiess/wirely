@@ -85,7 +85,7 @@ procedure run produces result {
 }
 
 // TEST: ordering booleans
-assert false < true; // E: Ordering comparison requires an integer, Duration, or TimeOfDay value, got boolean
+assert false < true; // E: Ordering comparison requires an integer, Std.Duration, or Schedule.TimeOfDay value, got boolean
 
 // TEST: ordering strings
 assert "a" <= "b"; // E: got String
@@ -99,8 +99,9 @@ constant Value: Option[uint8] = None;
 assert Value >= None; // E: got Option[uint8]
 
 // TEST: ordering monotonic times
-constant Deadline: Option[MonotonicTime] = None;
-assert if let Some(time) = Deadline { time > time } else { false }; // E: got MonotonicTime
+// LIBRARIES: std, timer
+constant Deadline: Option[Timer.MonotonicTime] = None;
+assert if let Some(time) = Deadline { time > time } else { false }; // E: got Timer.MonotonicTime
 
 // TEST: ordering types
 assert int8 < int16; // E: got ValueType

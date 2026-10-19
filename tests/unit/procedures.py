@@ -457,9 +457,9 @@ def check_ordering():
 
 
 def check_builtin_ordering():
-    # Operators link their helpers without std and evaluate operands before reversing them.
+    # Operators link their helpers and evaluate operands before reversing them.
     maximum = 'P213503982334601DT7H15.99999999999999999995S'
-    for type_name, low, high in [('Duration', 'PT0S', maximum), ('TimeOfDay', '00:00', '24:00')]:
+    for type_name, low, high in [('Std.Duration', 'PT0S', maximum), ('Schedule.TimeOfDay', '00:00', '24:00')]:
         for left, right, expected in [(low, high, (True, True, False, False)),
                                       (high, high, (False, True, False, True)),
                                       (high, low, (False, False, True, True))]:
@@ -489,7 +489,7 @@ def check_builtin_ordering():
               }
             }
             node ordering: Ordering { Type: TYPE, Left: "LEFT", Right: "RIGHT" }
-            '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right))
+            '''.replace('TYPE', type_name).replace('LEFT', left).replace('RIGHT', right), add_std=True)
             calls, extension = counted_function(f'{type_name}.Less')
             machine = test_engine(program, override_extensions=[extension])
             machine.step()

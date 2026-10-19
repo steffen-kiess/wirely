@@ -107,8 +107,8 @@ constant Items: List[Option[int8]] = [Some(1), None, Some(-42)];
 assert Items == [Some(1), None, Some(-42)];
 constant Numbers: Option[List[int8]] = Some([1, 2]);
 assert Numbers == Some([1, 2]);
-constant At: Option[TimeOfDay] = Some(TimeOfDay.WrappingAdd("23:30", "PT1H"));
-constant ExpectedAt: Option[TimeOfDay] = Some("00:30");
+constant At: Option[Schedule.TimeOfDay] = Some(Schedule.TimeOfDay.WrappingAdd("23:30", "PT1H"));
+constant ExpectedAt: Option[Schedule.TimeOfDay] = Some("00:30");
 assert At == ExpectedAt;
 constant Modes: List[ThermostatSystemModeEnum] = [
   ThermostatSystemModeEnum.Off, ThermostatSystemModeEnum.Cool,

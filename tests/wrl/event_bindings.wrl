@@ -70,8 +70,8 @@ connect shared -> warning;
 // A native procedure can produce an event binding through a reference port.
 node type NativeBinding {
   default input: event unit;
-  default output: event MonotonicTime;
-  binding timestamp: event MonotonicTime;
+  default output: event Timer.MonotonicTime;
+  binding timestamp: event Timer.MonotonicTime;
   native procedure run as "Timer.MonotonicTimestamp:run"
     depends on default input as "input"
     produces timestamp as "output"

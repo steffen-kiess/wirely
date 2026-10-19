@@ -1,22 +1,22 @@
-// LIBRARIES: std
+// LIBRARIES: std, schedule
 
 // TEST: after the end of the day
-constant Value: TimeOfDay = "24:01"; // E: Invalid TimeOfDay value '24:01'
+constant Value: Schedule.TimeOfDay = "24:01"; // E: Invalid Schedule.TimeOfDay value '24:01'
 
 // TEST: fraction after the end of the day
-constant Value: TimeOfDay = "24:00:00.1"; // E: Invalid TimeOfDay value
+constant Value: Schedule.TimeOfDay = "24:00:00.1"; // E: Invalid Schedule.TimeOfDay value
 
 // TEST: hour out of range
-constant Value: TimeOfDay = "25:00"; // E: Invalid TimeOfDay value
+constant Value: Schedule.TimeOfDay = "25:00"; // E: Invalid Schedule.TimeOfDay value
 
 // TEST: minute out of range
-constant Value: TimeOfDay = "08:60"; // E: Invalid TimeOfDay value
+constant Value: Schedule.TimeOfDay = "08:60"; // E: Invalid Schedule.TimeOfDay value
 
 // TEST: removed AddWrap
-constant Value: TimeOfDay = TimeOfDay.AddWrap("08:00", "01:00"); // E: Type TimeOfDay has no member 'AddWrap'
+constant Value: Schedule.TimeOfDay = Schedule.TimeOfDay.AddWrap("08:00", "01:00"); // E: Type Schedule.TimeOfDay has no member 'AddWrap'
 
 // TEST: adding times
-constant Value: TimeOfDay = "08:00" + "01:00"; // E: Integer arithmetic requires an integer value, got TimeOfDay
+constant Value: Schedule.TimeOfDay = "08:00" + "01:00"; // E: Integer arithmetic requires an integer value, got Schedule.TimeOfDay
 
 // TEST: duration argument
-constant Value: TimeOfDay = TimeOfDay.WrappingAdd("08:00", "01:00"); // E: Invalid Duration value '01:00'
+constant Value: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("08:00", "01:00"); // E: Invalid Std.Duration value '01:00'

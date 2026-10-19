@@ -13,8 +13,8 @@ constant Multiple: List[Option[uint8]] = [Some(1 /* value */,), None,];
 assert (Empty == [])
   && (Single == [Some(1)])
   && (Multiple == [Some(1), None]);
-constant At: TimeOfDay = TimeOfDay.WrappingAdd("23:30", "PT1H",);
-constant ExpectedAt: TimeOfDay = "00:30";
+constant At: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("23:30", "PT1H",);
+constant ExpectedAt: Schedule.TimeOfDay = "00:30";
 assert At == ExpectedAt;
 
 node forward: Later { Value: 1 }
@@ -31,13 +31,14 @@ node type WeakNames {
   parameter input: boolean;
   parameter multi: boolean;
   parameter on: boolean;
+  parameter opaque: boolean;
   parameter output: boolean;
   parameter resource: boolean;
   parameter stage: boolean;
   parameter state: boolean;
   parameter type: boolean;
   parameter value: boolean;
-  assert constant && default && event && input && multi && on
+  assert constant && default && event && input && multi && on && opaque
     && output && resource && stage && state && type && value;
 }
 
@@ -48,6 +49,7 @@ struct type WeakFields {
   input: boolean,
   multi: boolean,
   on: boolean,
+  opaque: boolean,
   output: boolean,
   resource: boolean,
   stage: boolean,
@@ -63,6 +65,7 @@ open enum type WeakMembers: uint8 {
   input = 3,
   multi = 4,
   on = 5,
+  opaque = 12,
   output = 6,
   resource = 7,
   stage = 8,
@@ -78,6 +81,7 @@ node plain: WeakNames {
   input: true,
   multi: true,
   on: true,
+  opaque: true,
   output: true,
   resource: true,
   stage: true,
@@ -92,6 +96,7 @@ node escaped: WeakNames {
   r#input: true,
   r#multi: true,
   r#on: true,
+  r#opaque: true,
   r#output: true,
   r#resource: true,
   r#stage: true,
@@ -106,6 +111,7 @@ constant Fields: WeakFields = WeakFields {
   input: true,
   multi: true,
   on: true,
+  opaque: true,
   output: true,
   resource: true,
   stage: true,
@@ -120,6 +126,7 @@ assert Fields == WeakFields {
   r#input: true,
   r#multi: true,
   r#on: true,
+  r#opaque: true,
   r#output: true,
   r#resource: true,
   r#stage: true,
@@ -133,6 +140,7 @@ assert WeakMembers.event == WeakMembers.r#event;
 assert WeakMembers.input == WeakMembers.r#input;
 assert WeakMembers.multi == WeakMembers.r#multi;
 assert WeakMembers.on == WeakMembers.r#on;
+assert WeakMembers.opaque == WeakMembers.r#opaque;
 assert WeakMembers.output == WeakMembers.r#output;
 assert WeakMembers.resource == WeakMembers.r#resource;
 assert WeakMembers.stage == WeakMembers.r#stage;

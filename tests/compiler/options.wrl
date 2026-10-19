@@ -52,7 +52,7 @@ assert { let maybe = Some(true); maybe.IsSome && maybe.UnwrapOr(false) };
 constant Five: uint8 = Present.Unwrap();
 assert Five == 5 && int8.CheckedAdd(1, 2).Unwrap() == 3;
 assert Nested.Unwrap() == None && Some(Some(true)).Unwrap().Unwrap();
-assert Duration.CheckedMul("PT1S", 60).Unwrap() == "PT1M";
+assert Std.Duration.CheckedMul("PT1S", 60).Unwrap() == "PT1M";
 // Untaken branches and short-circuited operands are not evaluated.
 assert (if true { 1 } else { Absent.Unwrap() }) == 1;
 assert !(false && Absent.Unwrap() == 1);

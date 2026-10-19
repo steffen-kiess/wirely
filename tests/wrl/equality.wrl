@@ -1,8 +1,8 @@
 struct type Packet {
   flag: boolean,
-  at: TimeOfDay,
-  span: Duration,
-  instant: MonotonicTime,
+  at: Schedule.TimeOfDay,
+  span: Std.Duration,
+  instant: Timer.MonotonicTime,
 }
 struct type Nested {
   packet: Option[Packet],
@@ -23,27 +23,27 @@ node type Compare {
   }
 }
 
-node time_left: Std.DebugValueSource { Type: TimeOfDay }
-node time_right: Std.DebugValueSource { Type: TimeOfDay }
-node time: Compare { Type: TimeOfDay }
+node time_left: Std.DebugValueSource { Type: Schedule.TimeOfDay }
+node time_right: Std.DebugValueSource { Type: Schedule.TimeOfDay }
+node time: Compare { Type: Schedule.TimeOfDay }
 connect time_left -> time.Left;
 connect time_right -> time.Right;
 
-node duration_left: Std.DebugValueSource { Type: Duration }
-node duration_right: Std.DebugValueSource { Type: Duration }
-node duration: Compare { Type: Duration }
+node duration_left: Std.DebugValueSource { Type: Std.Duration }
+node duration_right: Std.DebugValueSource { Type: Std.Duration }
+node duration: Compare { Type: Std.Duration }
 connect duration_left -> duration.Left;
 connect duration_right -> duration.Right;
 
-node monotonic_left: Std.DebugValueSource { Type: MonotonicTime }
-node monotonic_right: Std.DebugValueSource { Type: MonotonicTime }
-node monotonic: Compare { Type: MonotonicTime }
+node monotonic_left: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node monotonic_right: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node monotonic: Compare { Type: Timer.MonotonicTime }
 connect monotonic_left -> monotonic.Left;
 connect monotonic_right -> monotonic.Right;
 
-node option_left: Std.DebugValueSource { Type: Option[TimeOfDay] }
-node option_right: Std.DebugValueSource { Type: Option[TimeOfDay] }
-node option: Compare { Type: Option[TimeOfDay] }
+node option_left: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay] }
+node option_right: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay] }
+node option: Compare { Type: Option[Schedule.TimeOfDay] }
 connect option_left -> option.Left;
 connect option_right -> option.Right;
 
@@ -75,8 +75,8 @@ connect empty_right -> empty.Right;
 #[Allow(Unused)] binding LiteralEqual: value boolean;
 #[Allow(Unused)] binding LiteralUnequal: value boolean;
 procedure literals produces LiteralEqual, LiteralUnequal {
-  let at: TimeOfDay = "08:00";
-  let span: Duration = "PT60S";
+  let at: Schedule.TimeOfDay = "08:00";
+  let span: Std.Duration = "PT60S";
   LiteralEqual = at == "08:00" && "PT1M" == span;
   LiteralUnequal = "08:01" != at && span != "PT61S";
 }

@@ -1,4 +1,20 @@
 namespace Timer {
+  // A monotonic clock reading.
+  opaque struct type MonotonicTime {
+    // Ticks of 2^-64 s.
+    Ticks: uint128,
+    // Clock generation; generation 0 is never current.
+    Generation: uint64,
+  }
+  namespace MonotonicTime {
+    native function SaturatingAdd(time: MonotonicTime, duration: Std.Duration): MonotonicTime;
+    native function SaturatingSub(time: MonotonicTime, duration: Std.Duration): MonotonicTime;
+    native function CheckedAdd(time: MonotonicTime, duration: Std.Duration): Option[MonotonicTime];
+    native function CheckedSub(time: MonotonicTime, duration: Std.Duration): Option[MonotonicTime];
+    native function CheckedDurationSince(time: MonotonicTime, earlier: MonotonicTime): Option[Std.Duration];
+    native function CheckedLess(a: MonotonicTime, b: MonotonicTime): Option[boolean];
+  }
+
   // Emits the start time of each step in which the input event is present.
   node type MonotonicTimestamp {
     parameter Type: ValueType = unit;
@@ -25,7 +41,7 @@ namespace Timer {
   }
 
   node type DurationElapsed {
-    parameter Duration: Duration;
+    parameter Duration: Std.Duration;
 
     default input: value Option[MonotonicTime];
     default output: value Option[boolean];
@@ -51,7 +67,7 @@ namespace Timer {
   node type DebounceStable {
     parameter Type: ValueType;
     #[Diagram.ShowValue]
-    parameter Duration: Duration;
+    parameter Duration: Std.Duration;
 
     default input: value Type;
     default output: value Type;

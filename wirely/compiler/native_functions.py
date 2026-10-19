@@ -118,12 +118,25 @@ def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
                 visit(item.declarations, scope + (item.name.id_str,))
             elif isinstance(item, model.DeclarationNodeType):
                 visit(item.declarations, scope + (item,))
+            elif isinstance(item, model.DeclarationEnumType):
+                enums.append((scope, item))
 
+    enums: list[tuple[tuple, model.DeclarationEnumType]] = []
     visit(declarations, ())
+    # Enum.Name refers to a member, so the enum's namespace cannot declare a function with that name.
+    for scope, enum in enums:
+        names = scopes.get(scope + (enum.name.id_str,), {})
+        for member in enum.members:
+            function = names.get(member.name.id_str)
+            if isinstance(function, model.DeclarationNativeFunction):
+                raise model.ProgramError(function, f'Function {member.name.id_str!r} conflicts with a member of '
+                                         f'enum type {enum.name.id_str}', hints=[
+                    model.CompilerHint(member, 'Enum member was here'),
+                ])
 
 
 def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
-    """Reject native names shared by two node types, resource types, enum types, struct types, or functions."""
+    """Reject native names shared by two node types, resource types, enum types, struct types, opaque structs, or functions."""
     names: dict[tuple[str, str], Any] = {}
 
     # Native declarations have different concrete classes but share name and alias fields.
@@ -153,6 +166,8 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
                 register('enum type', item, path)
             elif isinstance(item, model.DeclarationStructType) and item.is_native:
                 register('struct type', item, path)
+            elif isinstance(item, model.DeclarationStructType) and item.is_opaque:
+                register('opaque struct type', item, path)
             elif isinstance(item, model.DeclarationNativeFunction):
                 register('function', item, path)
 

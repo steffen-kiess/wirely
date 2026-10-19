@@ -5,78 +5,86 @@ native constant function Missing(): boolean; // E: Missing implementation
 native constant function Missing(); // E: Syntax error
 
 // TEST: node scope
+// LIBRARIES: std, schedule
 node type Invalid {
-  native constant function AddWrap(): TimeOfDay; // E: only allowed at root
+  native constant function AddWrap(): Schedule.TimeOfDay; // E: only allowed at root
 }
 
 // TEST: constructor name
 native constant function Some(value: uint8): Option[uint8]; // E: Some is reserved
 
 // TEST: duplicate argument
+// LIBRARIES: std, schedule
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, time: String): TimeOfDay; // E: Duplicate function argument
+  native constant function AddWrap(time: Schedule.TimeOfDay, time: String): Schedule.TimeOfDay; // E: Duplicate function argument
 }
 
 // TEST: duplicate function
+// LIBRARIES: std, schedule
 // SE: conflicting function
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native constant function AddWrap(time: Schedule.TimeOfDay, offset: String): Schedule.TimeOfDay;
 }
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
+  native constant function AddWrap(time: Schedule.TimeOfDay, offset: String): Schedule.TimeOfDay; // E: conflicting function
 }
 
 // TEST: declaration collision
+// LIBRARIES: std, schedule
 // SE: conflicting function
 namespace TimeOfDay {
-  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay;
+  native constant function AddWrap(time: Schedule.TimeOfDay, offset: String): Schedule.TimeOfDay;
   struct type AddWrap {} // E: conflicting function
 }
 
 // TEST: reverse declaration collision
+// LIBRARIES: std, schedule
 // SE: conflicting function
 namespace TimeOfDay {
   node type AddWrap {}
-  native constant function AddWrap(time: TimeOfDay, offset: String): TimeOfDay; // E: conflicting function
+  native constant function AddWrap(time: Schedule.TimeOfDay, offset: String): Schedule.TimeOfDay; // E: conflicting function
 }
 
 // TEST: unknown argument type
+// LIBRARIES: std, schedule
 namespace TimeOfDay {
-  native function WrappingAdd(time: Unknown, duration: Duration): TimeOfDay; // E: Cannot find type Unknown
+  native function WrappingAdd(time: Unknown, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type Unknown
 }
 
 // TEST: unknown return type
+// LIBRARIES: std, schedule
 namespace TimeOfDay {
-  native function WrappingAdd(time: TimeOfDay, duration: Duration): Unknown; // E: Cannot find type Unknown
+  native function WrappingAdd(time: Schedule.TimeOfDay, duration: Std.Duration): Unknown; // E: Cannot find type Unknown
 }
 
 // TEST: unavailable signature type
+// LIBRARIES: std, schedule
 parameter Kind: ValueType;
 namespace TimeOfDay {
-  native function WrappingAdd(time: Kind, duration: Duration): TimeOfDay; // E: Cannot find type Kind
+  native function WrappingAdd(time: Kind, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type Kind
 }
 
 // TEST: argument count
-// LIBRARIES: std
-constant Invalid: TimeOfDay = TimeOfDay.WrappingAdd("12:00"); // E: expected 2 parameters
+// LIBRARIES: std, schedule
+constant Invalid: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("12:00"); // E: expected 2 parameters
 
 // TEST: argument type
-// LIBRARIES: std
-constant Invalid: TimeOfDay = TimeOfDay.WrappingAdd(true, "PT1H"); // E: Invalid TimeOfDay value
+// LIBRARIES: std, schedule
+constant Invalid: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd(true, "PT1H"); // E: Invalid Schedule.TimeOfDay value
 
 // TEST: return type
-// LIBRARIES: std
-constant Invalid: boolean = TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expected value of type boolean
+// LIBRARIES: std, schedule
+constant Invalid: boolean = Schedule.TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expected value of type boolean
 
 // TEST: function bodies
 native constant function Missing(): boolean { true } // E: Syntax error
 
 // TEST: constant function expression with mismatched result type
-// LIBRARIES: std, path
+// LIBRARIES: std, path, schedule
 node type Invalid {
-  default output: value TimeOfDay;
+  default output: value Schedule.TimeOfDay;
   procedure run produces default output as output {
-    output = Path.Parent("file") == ""; // E: Expected value of type TimeOfDay, got boolean
+    output = Path.Parent("file") == ""; // E: Expected value of type Schedule.TimeOfDay, got boolean
   }
 }
 node invalid: Invalid {}

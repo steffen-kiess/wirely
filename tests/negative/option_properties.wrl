@@ -48,7 +48,8 @@ constant Value: Option[boolean] = None;
 constant Bad: boolean = (Value).IsNone(); // E: properties cannot be called
 
 // TEST: call result property call
-constant Bad: boolean = TimeOfDay.WrappingAdd("08:00", "PT1H").IsSome(); // E: properties cannot be called
+// LIBRARIES: std, schedule
+constant Bad: boolean = Schedule.TimeOfDay.WrappingAdd("08:00", "PT1H").IsSome(); // E: properties cannot be called
 
 // TEST: chained properties
 constant Value: Option[boolean] = None;

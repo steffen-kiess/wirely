@@ -13,7 +13,7 @@ assert KNX.SupportsValueType(String), "Unsupported value type for KNX";
 // ^E: Compile-time assertion failed: Unsupported value type for KNX
 
 // TEST: unsupported MQTT JSON type
-assert MQTT.SupportsType(MonotonicTime), "Unsupported type for MQTT";
+assert MQTT.SupportsType(Timer.MonotonicTime), "Unsupported type for MQTT";
 // ^E: Compile-time assertion failed: Unsupported type for MQTT
 
 // TEST: missing MQTT placeholder

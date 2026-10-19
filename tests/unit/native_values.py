@@ -7,7 +7,7 @@ from wirely.generated import extension as builtin_extension
 from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.signatures import Function as FunctionSignature, Int
 import wirely
-from wirely.compiler import compile_strs
+from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_constant_function, test_contracts
@@ -103,9 +103,9 @@ def check_values():
     parameter Type: ValueType = uint16;
     constant Seed: uint16 = Example.Same(Number);
     constant Items: List[Option[uint16]] = [Some(7), None];
-    constant At: TimeOfDay = "00:30";
-    constant Span: Duration = "PT1S";
-    constant Instant: Option[MonotonicTime] = None;
+    constant At: Schedule.TimeOfDay = "00:30";
+    constant Span: Std.Duration = "PT1S";
+    constant Instant: Option[Timer.MonotonicTime] = None;
     constant Types: List[Option[ValueType]] = [Some(uint16), None];
     input Connection: resource Service;
     output Result: value uint16;
@@ -148,7 +148,8 @@ connect provider -> second.Connection;
     compiler_bindings = CompilerNativeExtension(functions={'TestLibrary.Identity': test_constant_function('TestLibrary.Identity', identity, FunctionSignature((Int(16, False),), Int(16, False)))})
     enum_bindings = RuntimeNativeExtension(enums=enums)
     struct_bindings = RuntimeNativeExtension(structs=structs)
-    graph = compile_strs([('<values>', source)], override_extensions=[enum_bindings, struct_bindings], compiler_override_extensions=[compiler_bindings])
+    graph = compile_strs([*standard_library_sources(['std', 'schedule', 'timer']), ('<values>', source)],
+                         override_extensions=[enum_bindings, struct_bindings], compiler_override_extensions=[compiler_bindings])
     assert graph is not None
     program = program_compiler.compile_nocatch(graph)
     with test_contracts(graph) as contracts:

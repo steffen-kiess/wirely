@@ -222,9 +222,9 @@ resolved defaults are ordinary values.
 | `boolean` | `bool` |
 | Integer types | `wirely.Int8` through `wirely.Int128`, `wirely.UInt8` through `wirely.UInt128` |
 | `String` | `str` |
-| `Duration` | `wirely.Duration`, with `ticks` |
-| `TimeOfDay` | `wirely.TimeOfDay`, with `ticks` since midnight (up to 24:00) |
-| `MonotonicTime` | `wirely.MonotonicTime`, with `generation` and `ticks` |
+| `Std.Duration` | `wirely.Duration`, with `ticks` |
+| `Schedule.TimeOfDay` | `wirely.TimeOfDay`, with `ticks` since midnight (up to 24:00) |
+| `Timer.MonotonicTime` | `wirely.MonotonicTime`, with `generation` and `ticks` |
 | Native enums | Generated Python enum |
 | Native structs | Generated `NamedTuple` |
 | `ValueType` | `wirely.ValueType` |

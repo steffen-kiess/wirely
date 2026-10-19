@@ -509,8 +509,8 @@ class TypedExpression:
             check_value_type(right.value_type, left.value_type, right.source)
             if (self.operation not in ('eq', 'ne') and not left.value_type.contains_parameters
                     and not left.value_type.is_ordered):
-                raise ProgramError(self.source, 'Ordering comparison requires an integer, Duration, '
-                                   f'or TimeOfDay value, got {left.value_type}')
+                raise ProgramError(self.source, 'Ordering comparison requires an integer, Std.Duration, '
+                                   f'or Schedule.TimeOfDay value, got {left.value_type}')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
@@ -1369,7 +1369,7 @@ class ExpressionCompiler:
                 name = expression.operator.capitalize()
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
                 if isinstance(operand_type, model.types.TypeDuration) and name in ('Add', 'Sub'):
-                    alternatives = f'Duration.Saturating{name} or Duration.Checked{name}'
+                    alternatives = f'Std.Duration.Saturating{name} or Std.Duration.Checked{name}'
                 else:
                     alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
                                     else f'T.Wrapping{name}, T.Saturating{name}, or T.Checked{name}')

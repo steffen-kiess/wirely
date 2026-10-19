@@ -21,11 +21,11 @@ namespace Memory {
     default output: event OutputType;
 
     // Minimum delay between two output events.
-    parameter MinimumDelay: Duration = "PT1S";
+    parameter MinimumDelay: Std.Duration = "PT1S";
 
     // Start of the minimum delay after an output, cleared when the delay ends
     // without another output. None or lost monotonic time allows output now.
-    state last_output_at: Option[MonotonicTime] = None;
+    state last_output_at: Option[Timer.MonotonicTime] = None;
     // If this is not None, there is a pending change.
     state pending_event: Option[boolean] = None;
 

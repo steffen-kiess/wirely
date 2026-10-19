@@ -1,5 +1,5 @@
-constant Wrapped: TimeOfDay = TimeOfDay.WrappingAdd("23:30", "PT1H");
-constant Expected: TimeOfDay = "00:30";
+constant Wrapped: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("23:30", "PT1H");
+constant Expected: Schedule.TimeOfDay = "00:30";
 assert Wrapped == Expected;
 // Untaken branches and unused types do not evaluate failing calls.
 constant Selected: uint16 = if true { 1 } else {

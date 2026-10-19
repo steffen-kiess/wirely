@@ -166,6 +166,10 @@ Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
 unique. Namespaces contain node, enum, struct, and resource types or other
 namespaces, not instances.
+A namespace can share its name with a struct or enum type in the same scope
+to hold functions for that type, which are called as in
+`Std.Duration.FromSecs(5)`. Such a function cannot share its name with a
+member of the enum.
 Nodes and named ports in one node type, or at the top level, share one
 namespace.
 A `singleton node type` shares one instance across its uses and cannot declare
@@ -182,11 +186,11 @@ implementation, as in
 Each native name identifies one declaration of its kind.
 
 Identifiers are case-sensitive. Weak keywords `binding`, `changed`, `closed`,
-`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`, `open`,
-`output`, `resource`, `stage`, `state`, `type`, and `value` can also be used
-as identifiers. Other keywords require the `r#` prefix when used as names,
-for example `node r#node: Std.And {}`. Declarations end with `;`, except
-node instances and type and namespace bodies, which end at `}`.
+`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`,
+`opaque`, `open`, `output`, `resource`, `stage`, `state`, `type`, and `value`
+can also be used as identifiers. Other keywords require the `r#` prefix when
+used as names, for example `node r#node: Std.And {}`. Declarations end with
+`;`, except node instances and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
@@ -271,9 +275,10 @@ code. Messages may also use raw string literals.
 
 Built-in types are `unit`, `boolean`, signed
 `int8`/`int16`/`int32`/`int64`/`int128`, unsigned
-`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, `String`, `Duration`,
-`TimeOfDay`, and `MonotonicTime`. `ValueType` is used for type parameters.
-`Option[T]` and `List[T]` construct types from `T`.
+`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, and `String`. `ValueType` is
+used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
+The libraries declare the time types `Std.Duration`, `Schedule.TimeOfDay`,
+and `Timer.MonotonicTime`.
 See the [value type reference](value-types.md) for allowed values, runtime
 status, and serialization support.
 
@@ -303,6 +308,11 @@ in `native struct type Credentials as "TwoN.Credentials" { ... }`. A
 program using a native struct runs only on a runtime that knows its native
 name with the same field types in the same order; field names are not
 compared.
+`opaque struct type` declares a type with a built-in implementation, such as
+the library time types. Its native name, given with `as` or defaulting as for
+native structs, must name a built-in type, and its field types must match
+that type's in order; field names are not compared. Opaque structs have no
+literals or field access.
 Read a field with `value.field`, for example `reading.temperature`, also in
 procedure bodies. Field access needs a struct type known where the code is
 written, not a `ValueType` parameter.
@@ -345,8 +355,8 @@ are also accepted.
 Durations and times of day are passed as strings, for example `"PT1S"` and
 `"08:00"`. `None` is an absent `Option[T]` value, while `Some(x)` contains a
 value of type `T`. Without an expected type, `Some(x)` takes `T` from `x`.
-Monotonic times have no literals; use `Option[MonotonicTime]` with `None`
-when a time may be absent.
+Monotonic times have no literals; use `Option[Timer.MonotonicTime]` with
+`None` when a time may be absent.
 
 Compile-time expressions support literals, parameter and constant
 references, lists, generic types, expression blocks, conditionals, Boolean
@@ -616,7 +626,7 @@ compilation:
 ```wirely
 let enabled = true;
 let count: uint8 = 3;
-let time: TimeOfDay = "08:00";
+let time: Schedule.TimeOfDay = "08:00";
 ```
 
 An uninitialized local requires a type annotation. Assign it on every path
@@ -660,9 +670,10 @@ compare generation and timestamp. `!=` is the complement of `==`.
 Put a struct literal in parentheses when it appears directly in an `if`
 condition.
 
-`<`, `<=`, `>`, and `>=` order integers, `Duration`, and `TimeOfDay` values
-of the same type. Times of day compare within one day, so `"23:00"` is
-after `"01:00"`. Comparisons do not chain: write `a < b && b < c`.
+`<`, `<=`, `>`, and `>=` order integers, `Std.Duration`, and
+`Schedule.TimeOfDay` values of the same type. Times of day compare within one
+day, so `"23:00"` is after `"01:00"`. Comparisons do not chain: write
+`a < b && b < c`.
 
 `&`, `|`, and `^` combine same-type integers bit by bit, or booleans
 without short-circuiting. `!` complements an integer within its type's

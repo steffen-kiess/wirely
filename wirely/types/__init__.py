@@ -605,7 +605,7 @@ class TypeValueType(TypePrimitive):
 
 class TypeMonotonicTime(TypePrimitive):
     def __init__(self) -> None:
-        super().__init__(name='MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='Timer.MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self) -> Any:
         # Generation 0 is never current, so the default compares to no current time.
@@ -626,7 +626,7 @@ class TypeDuration(TypePrimitive):
     is_ordered = True
 
     def __init__(self) -> None:
-        super().__init__(name='Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='Std.Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self) -> Any:
         return RuntimeDuration(ticks=0)
@@ -643,7 +643,7 @@ class TypeTimeOfDay(TypePrimitive):
     is_ordered = True
 
     def __init__(self) -> None:
-        super().__init__(name='TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='Schedule.TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
 
     def default_value(self) -> Any:
         return RuntimeTimeOfDay(ticks=0)
@@ -873,6 +873,13 @@ for ty in [
         boolean, unit,
         int8, int16, int32, int64, int128,
         uint8, uint16, uint32, uint64, uint128,
-        ValueType, Duration, TimeOfDay, MonotonicTime, String,
+        ValueType, String,
 ]:
     type_by_name[ty.name] = ty
+
+# Types declared by opaque structs, with their field types, by native name.
+opaque_struct_types: dict[str, tuple[Type, tuple[Type, ...]]] = {
+    Duration.name: (Duration, (uint128,)),
+    TimeOfDay.name: (TimeOfDay, (uint128,)),
+    MonotonicTime.name: (MonotonicTime, (uint128, uint64)),
+}

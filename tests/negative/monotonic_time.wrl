@@ -1,51 +1,50 @@
+// LIBRARIES: std, timer
+
 // TEST: removed invalid constant
-constant Deadline: MonotonicTime = MonotonicTime.Invalid; // E: Invalid MonotonicTime value MonotonicTime.Invalid
+constant Deadline: Timer.MonotonicTime = Timer.MonotonicTime.Invalid; // E: Invalid Timer.MonotonicTime value Timer.MonotonicTime.Invalid
 
 // TEST: removed invalid constant in a procedure
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    let deadline: MonotonicTime = MonotonicTime.Invalid; // E: Unknown procedure value MonotonicTime.Invalid
+    let deadline: Timer.MonotonicTime = Timer.MonotonicTime.Invalid; // E: Unknown procedure value Timer.MonotonicTime.Invalid
     output = true;
   }
 }
 node probe: Probe {}
 
 // TEST: duration in place of a time
-// LIBRARIES: std
 node type Probe {
-  default input: value Duration;
+  default input: value Std.Duration;
   default output: value Option[boolean];
   procedure run depends on default input as span produces default output as output {
-    output = MonotonicTime.CheckedLess(span, span); // E: Expected value of type MonotonicTime, got Duration
+    output = Timer.MonotonicTime.CheckedLess(span, span); // E: Expected value of type Timer.MonotonicTime, got Std.Duration
   }
 }
-node source: Std.DebugValueSource { Type: Duration }
+node source: Std.DebugValueSource { Type: Std.Duration }
 node probe: Probe {}
 connect source -> probe;
 
 // TEST: checked comparison used as a boolean
-// LIBRARIES: std
 node type Probe {
-  default input: value MonotonicTime;
+  default input: value Timer.MonotonicTime;
   default output: value boolean;
   procedure run depends on default input as time produces default output as output {
-    output = MonotonicTime.CheckedLess(time, time); // E: Expected value of type boolean, got Option[boolean]
+    output = Timer.MonotonicTime.CheckedLess(time, time); // E: Expected value of type boolean, got Option[boolean]
   }
 }
-node source: Std.DebugValueSource { Type: MonotonicTime }
+node source: Std.DebugValueSource { Type: Timer.MonotonicTime }
 node probe: Probe {}
 connect source -> probe;
 
 // TEST: ordering operator
-// LIBRARIES: std
 node type Probe {
-  default input: value MonotonicTime;
+  default input: value Timer.MonotonicTime;
   default output: value boolean;
   procedure run depends on default input as time produces default output as output {
-    output = time < time; // E: got MonotonicTime
+    output = time < time; // E: got Timer.MonotonicTime
   }
 }
-node source: Std.DebugValueSource { Type: MonotonicTime }
+node source: Std.DebugValueSource { Type: Timer.MonotonicTime }
 node probe: Probe {}
 connect source -> probe;

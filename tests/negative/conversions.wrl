@@ -30,8 +30,9 @@ constant Result: int8 = int8.From(128); // E: Int value out of range: 128
 constant Result: uint8 = uint8.WrappingFrom(true); // E: Conversion requires an integer or open enum value, got boolean
 
 // TEST: duration source
-constant Span: Duration = "PT1S";
-constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requires an integer or open enum value, got Duration
+// LIBRARIES: std
+constant Span: Std.Duration = "PT1S";
+constant Result: Option[uint8] = uint8.CheckedFrom(Span); // E: Conversion requires an integer or open enum value, got Std.Duration
 
 // TEST: boolean target
 constant Result: boolean = boolean.From(1); // E: Type boolean has no member 'From'

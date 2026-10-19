@@ -136,8 +136,8 @@ class _Imports:
 
 _builtins = {
     'unit': ('wirely.types.unit', 'Unit'), 'boolean': (None, 'bool'), 'String': (None, 'str'),
-    'Duration': ('wirely.types.time', 'Duration'), 'TimeOfDay': ('wirely.types.time', 'TimeOfDay'),
-    'MonotonicTime': ('wirely.types.time', 'MonotonicTime'),
+    'Std.Duration': ('wirely.types.time', 'Duration'), 'Schedule.TimeOfDay': ('wirely.types.time', 'TimeOfDay'),
+    'Timer.MonotonicTime': ('wirely.types.time', 'MonotonicTime'),
 }
 
 
@@ -590,6 +590,8 @@ def native_enums(scope: Any) -> Iterator[tuple[Any, Any]]:
 def native_structs(scope: Any) -> Iterator[tuple[Any, Any]]:
     """Yield (TypeStruct, declaration) for each native struct declared in a scope and its namespaces."""
     for definition in scope.struct_types.values():
+        if definition.declaration.is_opaque:
+            continue
         value_type = definition.resolve_fields()
         if value_type.native_name is not None:
             yield value_type, definition.declaration

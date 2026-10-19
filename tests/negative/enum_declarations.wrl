@@ -137,22 +137,20 @@ open enum type Bad: int8 { // H: Previous declaration was here
 }
 resource type Bad; // E: Resource type Bad conflicts with enum type
 
-// TEST: enum_after_namespace
-// SH: Previous
-// SE: Bad conflicts with
-namespace Bad { // H: Previous declaration was here
+// TEST: function_after_member
+closed enum type Bad {
+  One, // H: Enum member was here
 }
-open enum type Bad: int8 { // E: Enum type Bad conflicts with namespace
-  One = 1,
+namespace Bad {
+  native function One(): boolean; // E: Function 'One' conflicts with a member of enum type Bad
 }
 
-// TEST: namespace_after_enum
-// SH: Previous
-// SE: Bad conflicts with
-open enum type Bad: int8 { // H: Previous declaration was here
-  One = 1,
+// TEST: function_before_member
+namespace Bad {
+  native function One(): boolean; // E: Function 'One' conflicts with a member of enum type Bad
 }
-namespace Bad { // E: Namespace Bad conflicts with enum type
+open enum type Bad: int8 {
+  One = 1, // H: Enum member was here
 }
 
 // TEST: enum_inside_node

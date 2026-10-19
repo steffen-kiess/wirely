@@ -27,9 +27,9 @@ runtime types. Runtime types can also be used for parameters.
 | `uint64` | 0 to 18,446,744,073,709,551,615 | Runtime |
 | `uint128` | 0 to 2^128-1 | Runtime |
 | `String` | Text | Parameter-only |
-| `Duration` | Non-negative elapsed time, in units of 2^-64 s | Runtime |
-| `TimeOfDay` | Time within a day, without a timezone | Runtime |
-| `MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
+| `Std.Duration` | Non-negative elapsed time, in units of 2^-64 s | Runtime |
+| `Schedule.TimeOfDay` | Time within a day, without a timezone | Runtime |
+| `Timer.MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
 | Declared enums | A named member, or an unnamed open value | Runtime |
 | Declared structs | Named fields | Runtime within the limits below |
 | `ValueType` | A value type | Parameter-only |
@@ -118,7 +118,7 @@ node type TextSettings {
 Duration literals are based on
 [ISO 8601-1:2019](https://www.iso.org/standard/70907.html), section 5.5.2.
 
-`Duration` represents a non-negative amount of elapsed time in units of
+`Std.Duration` represents a non-negative amount of elapsed time in units of
 2^-64 s. Its string format uses `P`, optional days (`D`), and an optional
 time part introduced by `T` containing hours (`H`), minutes (`M`), and
 seconds (`S`). At least one component is required. Seconds can have a
@@ -144,11 +144,11 @@ and compile-time expressions:
 
 | Function | Result |
 | --- | --- |
-| `Duration.SaturatingAdd(a, b)`, `Duration.SaturatingSub(a, b)` | The sum or difference, clamped to the range. |
-| `Duration.SaturatingMul(duration, factor)` | The product with a `uint32` factor, at most the maximum. |
-| `Duration.CheckedAdd(a, b)`, `Duration.CheckedSub(a, b)` | `Some` with the sum or difference, or `None` outside the range. |
-| `Duration.CheckedMul(duration, factor)` | `Some` with the product, or `None` above the maximum. |
-| `Duration.CheckedDiv(duration, divisor)` | `Some` with the quotient rounded down to whole units, or `None` for divisor 0. |
+| `Std.Duration.SaturatingAdd(a, b)`, `Std.Duration.SaturatingSub(a, b)` | The sum or difference, clamped to the range. |
+| `Std.Duration.SaturatingMul(duration, factor)` | The product with a `uint32` factor, at most the maximum. |
+| `Std.Duration.CheckedAdd(a, b)`, `Std.Duration.CheckedSub(a, b)` | `Some` with the sum or difference, or `None` outside the range. |
+| `Std.Duration.CheckedMul(duration, factor)` | `Some` with the product, or `None` above the maximum. |
+| `Std.Duration.CheckedDiv(duration, divisor)` | `Some` with the quotient rounded down to whole units, or `None` for divisor 0. |
 
 In compile-time expressions, `a + b` and `a - b` also combine two
 durations; a result outside the range fails compilation.
@@ -158,24 +158,25 @@ milliseconds, microseconds, or nanoseconds:
 
 | Function | Result |
 | --- | --- |
-| `Duration.FromSecs(secs)`, `Duration.FromMillis(millis)`, `Duration.FromMicros(micros)` | The duration of a `uint32` count of the unit, rounded to the nearest 2^-64 s. |
-| `Duration.FromNanos(nanos)` | The duration of a `uint64` count of nanoseconds, rounded to the nearest 2^-64 s. |
-| `Duration.AsSecs(duration)` | The `uint64` count of whole seconds, rounded down. |
-| `Duration.AsMillis(duration)`, `Duration.AsMicros(duration)`, `Duration.AsNanos(duration)` | The `uint128` count of whole units, rounded down. |
+| `Std.Duration.FromSecs(secs)`, `Std.Duration.FromMillis(millis)`, `Std.Duration.FromMicros(micros)` | The duration of a `uint32` count of the unit, rounded to the nearest 2^-64 s. |
+| `Std.Duration.FromNanos(nanos)` | The duration of a `uint64` count of nanoseconds, rounded to the nearest 2^-64 s. |
+| `Std.Duration.AsSecs(duration)` | The `uint64` count of whole seconds, rounded down. |
+| `Std.Duration.AsMillis(duration)`, `Std.Duration.AsMicros(duration)`, `Std.Duration.AsNanos(duration)` | The `uint128` count of whole units, rounded down. |
 
-For example, `Duration.AsSecs("PT1.9S")` is 1. The `As` functions invert
-the `From` functions: `Duration.AsMillis(Duration.FromMillis(n))` is `n`.
+For example, `Std.Duration.AsSecs("PT1.9S")` is 1. The `As` functions
+invert the `From` functions:
+`Std.Duration.AsMillis(Std.Duration.FromMillis(n))` is `n`.
 Convert other integer types with `uint32.From` or `uint32.CheckedFrom`.
 
 ### Time of day
 
-`TimeOfDay` describes a clock time without a date or timezone, in units of
-2^-64 s since midnight. Strings use two-digit hours and minutes, optionally
-followed by seconds and a decimal fraction: `"08:00"`, `"08:00:30"`, and
-`"08:00:30.125"`. Hours range from 0 to 23, minutes and seconds from 0 to
-59. Strings round to the nearest unit and format like durations; a time
-written before 24:00 that would round to 24:00 becomes the last unit
-before it.
+`Schedule.TimeOfDay` describes a clock time without a date or timezone, in
+units of 2^-64 s since midnight. Strings use two-digit hours and minutes,
+optionally followed by seconds and a decimal fraction: `"08:00"`,
+`"08:00:30"`, and `"08:00:30.125"`. Hours range from 0 to 23, minutes and
+seconds from 0 to 59. Strings round to the nearest unit and format like
+durations; a time written before 24:00 that would round to 24:00 becomes the
+last unit before it.
 
 `"24:00"` is the end of the day. It differs from `"00:00"` and orders
 after every other time, so a pair of times can describe a whole day:
@@ -183,27 +184,28 @@ after every other time, so a pair of times can describe a whole day:
 `Some(true)`; `Start: "24:00", End: "00:00"` returns
 `Some(false)`. These two results remain known even when wall time is unknown.
 
-The `std` library declares these functions, which work in procedure bodies
-and compile-time expressions:
+The `schedule` library declares these functions, which work in procedure
+bodies and compile-time expressions:
 
 | Function | Result |
 | --- | --- |
-| `TimeOfDay.WrappingAdd(time, duration)` | The time `duration` later, wrapping at midnight. |
-| `TimeOfDay.WrappingSub(time, duration)` | The time `duration` earlier, wrapping at midnight. |
-| `TimeOfDay.DurationUntil(from, to)` | The `Duration` from `from` forward to `to`. |
+| `Schedule.TimeOfDay.WrappingAdd(time, duration)` | The time `duration` later, wrapping at midnight. |
+| `Schedule.TimeOfDay.WrappingSub(time, duration)` | The time `duration` earlier, wrapping at midnight. |
+| `Schedule.TimeOfDay.DurationUntil(from, to)` | The `Std.Duration` from `from` forward to `to`. |
 
 Adding or subtracting a whole number of days, including zero, returns the
-time unchanged, so `TimeOfDay.WrappingAdd("24:00", "PT0S")` is 24:00. Other
-results range from 00:00 to just before 24:00; `24:00` counts as 24 hours,
-so `TimeOfDay.WrappingSub("24:00", "PT1H")` is 23:00.
+time unchanged, so `Schedule.TimeOfDay.WrappingAdd("24:00", "PT0S")` is
+24:00. Other results range from 00:00 to just before 24:00; `24:00` counts as
+24 hours, so `Schedule.TimeOfDay.WrappingSub("24:00", "PT1H")` is 23:00.
 `DurationUntil` is `to` minus `from`, plus 24 hours when negative: zero for
 equal times, 24 hours from `"00:00"` to `"24:00"`, and zero from `"24:00"`
 to `"00:00"`.
 
 ```wirely
 node type DailySchedule {
-  parameter Start: TimeOfDay = "22:00";
-  constant End: TimeOfDay = TimeOfDay.WrappingAdd(Start, "PT8H");
+  parameter Start: Schedule.TimeOfDay = "22:00";
+  constant End: Schedule.TimeOfDay =
+    Schedule.TimeOfDay.WrappingAdd(Start, "PT8H");
   node active: Schedule.IsInDailyInterval { Start: Start, End: End }
 }
 ```
@@ -212,9 +214,9 @@ Here, `End` is 06:00 and the interval crosses midnight.
 
 ### Monotonic time
 
-`MonotonicTime` is a point on a monotonic clock, used for deadlines and
-elapsed-time calculations. It contains a clock generation and a reading in
-units of 2^-64 s. A monotonic time is distinct from a wall-clock time or a
+`Timer.MonotonicTime` is a point on a monotonic clock, used for deadlines
+and elapsed-time calculations. It contains a clock generation and a reading
+in units of 2^-64 s. A monotonic time is distinct from a wall-clock time or a
 time of day.
 
 A new generation starts whenever the runtime loses track of how much time
@@ -228,13 +230,13 @@ from an earlier generation may lie after the current time. Library nodes
 report such times as not comparable, for example
 `Timer.MonotonicTimeReached` yields `None`.
 
-Monotonic times have no literals. Use `Option[MonotonicTime]` with `None`
-when there is no deadline, and decide at each use what an absent time
+Monotonic times have no literals. Use `Option[Timer.MonotonicTime]` with
+`None` when there is no deadline, and decide at each use what an absent time
 means:
 
 ```wirely
 node type Timeout {
-  state deadline: Option[MonotonicTime] = None;
+  state deadline: Option[Timer.MonotonicTime] = None;
 }
 ```
 
@@ -242,26 +244,26 @@ Where a runtime value is needed without one, such as an uninitialized
 temporary, the default is a time from a generation that is never current,
 so it compares to no current time.
 
-Timestamps range from zero to 2^128 − 1 units. The `std` library
+Timestamps range from zero to 2^128 − 1 units. The `timer` library
 declares these functions, which work in procedure bodies and keep the
 generation of `time`:
 
 | Function | Result |
 | --- | --- |
-| `MonotonicTime.SaturatingAdd(time, duration)`, `MonotonicTime.SaturatingSub(time, duration)` | The later or earlier time, clamped to the timestamp range. |
-| `MonotonicTime.CheckedAdd(time, duration)`, `MonotonicTime.CheckedSub(time, duration)` | `Some` with the later or earlier time, or `None` outside the range. |
-| `MonotonicTime.CheckedDurationSince(time, earlier)` | `Some` with the `Duration` from `earlier` to `time`, or `None` when they belong to different generations or `earlier` is later. |
-| `MonotonicTime.CheckedLess(a, b)` | `Some(true)` when `a` is before `b`, `Some(false)` otherwise, or `None` for different generations. |
+| `Timer.MonotonicTime.SaturatingAdd(time, duration)`, `Timer.MonotonicTime.SaturatingSub(time, duration)` | The later or earlier time, clamped to the timestamp range. |
+| `Timer.MonotonicTime.CheckedAdd(time, duration)`, `Timer.MonotonicTime.CheckedSub(time, duration)` | `Some` with the later or earlier time, or `None` outside the range. |
+| `Timer.MonotonicTime.CheckedDurationSince(time, earlier)` | `Some` with the `Std.Duration` from `earlier` to `time`, or `None` when they belong to different generations or `earlier` is later. |
+| `Timer.MonotonicTime.CheckedLess(a, b)` | `Some(true)` when `a` is before `b`, `Some(false)` otherwise, or `None` for different generations. |
 
 For example, a deadline computed from a time input:
 
 ```wirely
 node type Deadline {
-  parameter Timeout: Duration;
-  input Start: value MonotonicTime;
-  default output: value MonotonicTime;
+  parameter Timeout: Std.Duration;
+  input Start: value Timer.MonotonicTime;
+  default output: value Timer.MonotonicTime;
   procedure run depends on Start as start produces default output as deadline {
-    deadline = MonotonicTime.SaturatingAdd(start, Timeout);
+    deadline = Timer.MonotonicTime.SaturatingAdd(start, Timeout);
   }
 }
 ```
@@ -325,9 +327,9 @@ Wirely literal syntax where it exists:
 | --- | --- |
 | `unit`, `boolean`, integers | `()`, `true`, `-42` |
 | Declared enums | Qualified member, such as `Std.EdgeType.Falling`; unnamed open values use decimal numbers |
-| `Duration` | Unquoted canonical literal, such as `PT0S`, `PT1.5S`, or `P1DT4H` |
-| `TimeOfDay` | Unquoted literal, such as `08:00` or `08:00:30.5` |
-| `MonotonicTime` | `MonotonicTime(1, 12.5s)`; `MonotonicTime(invalid)` for generation 0 |
+| `Std.Duration` | Unquoted canonical literal, such as `PT0S`, `PT1.5S`, or `P1DT4H` |
+| `Schedule.TimeOfDay` | Unquoted literal, such as `08:00` or `08:00:30.5` |
+| `Timer.MonotonicTime` | `MonotonicTime(1, 12.5s)`; `MonotonicTime(invalid)` for generation 0 |
 | `Option[T]` | `None` or `Some(value)` |
 | Structs | Fields in declaration order: `Example.Reading { mode: Example.Mode.Heat, level: 3 }` |
 | `String`, `List[T]` | `"text"` with escapes, `[1, 2]` |
@@ -347,7 +349,7 @@ Serialization support is used by library nodes such as MQTT providers and
 | All integer types | Number | Decimal integer |
 | `String` | String | No |
 | Declared enums | Member name; number for an unnamed open value | No |
-| `unit`, `Duration`, `TimeOfDay`, `MonotonicTime`, `ValueType`, structs | No | No |
+| `unit`, `Std.Duration`, `Schedule.TimeOfDay`, `Timer.MonotonicTime`, `ValueType`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
 
@@ -382,9 +384,9 @@ complement.
 | Integer of width N bytes | N | N | Declared integer width |
 | Enum | Underlying integer size | Underlying integer alignment | Member number |
 | Struct | Through the last field's data bytes | Maximum field alignment | Fields in declaration order |
-| `Duration` | 16 | 16 | `u128` units of 2^-64 s |
-| `MonotonicTime` | 24 | 16 | `u128` units of 2^-64 s, then `u64` generation |
-| `TimeOfDay` | 16 | 16 | `u128` units of 2^-64 s since midnight |
+| `Std.Duration` | 16 | 16 | `u128` units of 2^-64 s |
+| `Timer.MonotonicTime` | 24 | 16 | `u128` units of 2^-64 s, then `u64` generation |
+| `Schedule.TimeOfDay` | 16 | 16 | `u128` units of 2^-64 s since midnight |
 | `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
 
 Open enums use their declared underlying integer type. Closed enums use

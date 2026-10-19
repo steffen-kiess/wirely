@@ -32,12 +32,19 @@ class DeclarationStructType(Declaration):
     fields: tuple[StructField, ...]
     _: dataclasses.KW_ONLY
     is_native: bool = False
+    is_opaque: bool = False
     alias: StringConstant | None = None
 
     @staticmethod
     def create_native(name: Identifier, alias: typing.Optional[StringConstant], fields: list, *,
                       source_position: SourcePosition) -> 'DeclarationStructType':
         return DeclarationStructType(name, tuple(fields), is_native=True, alias=alias, source_position=source_position,
+                                     inner_attributes=getattr(fields, 'inner_attributes', ()))
+
+    @staticmethod
+    def create_opaque(name: Identifier, alias: typing.Optional[StringConstant], fields: list, *,
+                      source_position: SourcePosition) -> 'DeclarationStructType':
+        return DeclarationStructType(name, tuple(fields), is_opaque=True, alias=alias, source_position=source_position,
                                      inner_attributes=getattr(fields, 'inner_attributes', ()))
 
     def register_interface_declarations(self, interface: 'model.Scope') -> None:
@@ -50,8 +57,7 @@ class DeclarationStructType(Declaration):
             raise ProgramError(self.name, f'Struct type {name} conflicts with built-in type')
         for kind, declarations in (
                 ('struct type', graph.struct_types), ('enum type', graph.enum_types),
-                ('node type', graph.node_types), ('resource type', graph.resource_types),
-                ('namespace', graph.libraries)):
+                ('node type', graph.node_types), ('resource type', graph.resource_types)):
             if name in declarations:
                 previous = declarations[name].declaration
                 raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
@@ -69,10 +75,11 @@ class StructDefinition:
     def __init__(self, declaration: DeclarationStructType, scope: 'model.Scope') -> None:
         self.declaration = declaration
         self.scope = scope
-        self.value_type: model.types.TypeStruct | None = None
+        self.value_type: model.types.Type | None = None
         self.resolving = False
 
-    def resolve_fields(self) -> 'model.types.TypeStruct':
+    def resolve_fields(self) -> 'model.types.Type':
+        """Return the struct type, or the built-in type of an opaque struct."""
         if self.value_type is not None:
             return self.value_type
         if self.resolving:
@@ -93,13 +100,27 @@ class StructDefinition:
             fullname = (self.scope.fullname + '.' + type_name if isinstance(self.scope, model.ast.Namespace)
                         else type_name)
             native_name = None
-            if self.declaration.is_native:
+            if self.declaration.is_native or self.declaration.is_opaque:
                 alias = self.declaration.alias
                 native_name = alias.value if alias is not None else fullname
-            self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name)
+            if native_name is not None and self.declaration.is_opaque:
+                self.value_type = self._opaque_type(native_name, tuple(fields.values()))
+            else:
+                self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name)
             return self.value_type
         finally:
             self.resolving = False
+
+    def _opaque_type(self, native_name: str, field_types: tuple['model.types.Type', ...]) -> 'model.types.Type':
+        entry = model.types.opaque_struct_types.get(native_name)
+        position = self.declaration.alias or self.declaration.name
+        if entry is None:
+            raise ProgramError(position, f'Unknown opaque struct native name {native_name!r}')
+        value_type, expected = entry
+        if field_types != expected:
+            raise ProgramError(position, f'Opaque struct {native_name} requires field types '
+                               f'({", ".join(str(field_type) for field_type in expected)})')
+        return value_type
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -149,8 +170,7 @@ class DeclarationEnumType(Declaration):
                 ('enum type', graph.enum_types),
                 ('struct type', graph.struct_types),
                 ('node type', graph.node_types),
-                ('resource type', graph.resource_types),
-                ('namespace', graph.libraries)):
+                ('resource type', graph.resource_types)):
             if name in declarations:
                 previous = declarations[name].declaration
                 raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
