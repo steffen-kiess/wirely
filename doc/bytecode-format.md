@@ -239,16 +239,6 @@ struct type IntegerType {
 ```
 
 ```wirely
-// Kind Builtin: a built-in type defined by this format.
-struct type BuiltinType {
-  // Builtin kind.
-  Kind: uint8,
-  // Built-in type identifier.
-  Builtin: uint32,
-}
-```
-
-```wirely
 // Kind ClosedEnum: a nonempty, densely numbered enumeration.
 struct type ClosedEnumType {
   Kind: uint8,
@@ -281,10 +271,13 @@ struct type OpenEnumType {
 ```
 
 ```wirely
-// Kind Struct: a named struct.
+// Kind Struct: a named struct or a built-in type.
 struct type StructType {
   // Struct kind.
   Kind: uint8,
+  // Whether the struct is a built-in type; field access instructions are
+  // invalid for it.
+  Opaque: boolean,
   // Qualified name in Names.
   Name: StringRef,
   // Native name in Names; empty if the struct is not native.
@@ -311,17 +304,10 @@ will be assigned when the format is finalized.
 | --- | --- |
 | `Unit`, `Boolean`, `String`, `ValueType` | `SimpleType` |
 | `Integer` | `IntegerType` |
-| `Builtin` | `BuiltinType` |
 | `ClosedEnum` | `ClosedEnumType` |
 | `OpenEnum` | `OpenEnumType` |
 | `Struct` | `StructType` |
 | `Option`, `List` | `CompositeType` |
-
-Built-in types are `Duration`, `TimeOfDay`, and `MonotonicTime`. Their
-identifiers will be assigned when the format is finalized. Their values,
-defaults, and representation are described in
-[Value types](value-types.md); `Duration` and `TimeOfDay` are ordered.
-Files contain only `MonotonicTime` values of generation 0.
 
 Enum and struct names support native type reconstruction, display, and
 conversions such as JSON. Both enum kinds explicitly store their underlying
@@ -335,6 +321,43 @@ Inner, underlying, and field types occur before the types using them,
 making size calculation possible in one forward pass. `String`,
 `ValueType`, and lists, including composites and structs containing them,
 are only used for static values in this format.
+
+### Built-in types
+
+Opaque structs represent the built-in types `Duration`, `TimeOfDay`, and
+`MonotonicTime`. Each has its type name as `Name` and `NativeName` and the
+fields declared below, in order. Opaque and non-opaque structs have
+separate native-name namespaces.
+
+```wirely
+// Non-negative elapsed time. Opaque struct Duration.
+struct type Duration {
+  // Ticks of 2^-64 s.
+  Ticks: uint128,
+}
+```
+
+```wirely
+// Time within a day. Opaque struct TimeOfDay.
+struct type TimeOfDay {
+  // Ticks of 2^-64 s since midnight; at most 24 hours (86400 * 2^64).
+  Ticks: uint128,
+}
+```
+
+```wirely
+// A monotonic clock reading. Opaque struct MonotonicTime.
+struct type MonotonicTime {
+  // Ticks of 2^-64 s.
+  Ticks: uint128,
+  // Clock generation; generation 0 is never current.
+  Generation: uint64,
+}
+```
+
+The values of these types are described in [Value types](value-types.md);
+`Duration` and `TimeOfDay` are ordered. Each type's default is its
+all-zero struct default. Files contain only the default `MonotonicTime`.
 
 ### EnumMemberNames
 
@@ -776,10 +799,10 @@ name with the same kind, underlying type, and, for a closed enum, member
 count. Member names and numbers are not compared. Other enums need no
 linking.
 
-A struct with a `NativeName` links only when the runtime knows that native
-name with the same field types in the same order; nested native enums and
-structs match by native name. Field names are not compared. Other structs
-need no linking.
+A non-opaque struct with a `NativeName` links only when the runtime knows
+that native name with the same field types in the same order; nested native
+enums and structs match by kind, opacity, and native name. Field names are
+not compared. Other structs, including opaque ones, need no linking.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes
@@ -876,8 +899,8 @@ Each name below denotes a value operand except `field`, `offset`,
 | --- | --- |
 | `COPY destination, source` | Copy the whole value, including structs and options. Both operands have the same type. |
 | `SET_DEFAULT destination` | Assign the destination type's default value. |
-| `GET_FIELD destination, source, field` | Copy a struct field into a destination of the field's type. |
-| `SET_FIELD destination, source, field` | Copy the source into a struct destination's field of the same type, preserving other fields. |
+| `GET_FIELD destination, source, field` | Copy a non-opaque struct field into a destination of the field's type. |
+| `SET_FIELD destination, source, field` | Copy the source into a non-opaque struct destination's field of the same type, preserving other fields. |
 | `MAKE_SOME destination, source` | Copy a value of type `T` into a destination of type `Option[T]` as `Some`. |
 | `GET_OPTION_VALUE destination, source` | Copy the value of `Some`, or assign the contained type's default for `None`. The destination has that contained type. |
 | `IS_SOME destination, source` | Assign a boolean indicating whether the option is `Some`. |
@@ -929,9 +952,9 @@ Ordering comparisons of `Duration` and `TimeOfDay` use native functions
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums zero, for built-in types their default, and for
-structs the defaults of their fields. The default `MonotonicTime` has generation
-0, which is never current, so it compares to no current time. Values remain
+options `None`, for enums zero, and for structs, including built-in types,
+the defaults of their fields. The default `MonotonicTime` has generation 0,
+which is never current, so it compares to no current time. Values remain
 valid and canonical, including padding and unused option payloads, as
 specified by the runtime binary representation.
 
@@ -1109,16 +1132,18 @@ Inner, underlying, and field types precede the types using them, so one
 pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
 runtime types from static-only types. Integer types have a listed width,
-built-in types a known identifier, and open enum underlying types are
-integers. Open enum named numbers are in strictly ascending order. Closed
+and open enum underlying types are integers. Opaque structs have the native
+name of a built-in type and its field types; field names are not
+compared. Open enum named numbers are in strictly ascending order. Closed
 enums have at least one member and an underlying type of `uint8`, `uint16`,
 or `uint32` large enough to represent `Members.Count - 1`.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Closed enum values
 are below their member count; open enum values fit their underlying type.
-List elements are checked with the list's inner type, which precedes the
-list type, so checks terminate even when lists share bytes.
+`TimeOfDay` values are at most 24 hours, and `MonotonicTime` values are the
+default. List elements are checked with the list's inner type, which
+precedes the list type, so checks terminate even when lists share bytes.
 
 `StateVariables` and `Temporaries` are sorted by offset, and each slot
 starts at or after the end of the previous one. Comparing each entry with
@@ -1196,9 +1221,8 @@ struct type TypeMapEntry {
 Each type map has one entry per `ValueTypes` entry of its program. A mapped
 type and its transition type have the same kind, and integers the same
 width and signedness. Their inner, underlying, and field types are mapped
-to each other's. Built-in types have equal identifiers, enums and structs
-equal qualified names, enums equal member names and numbers, and structs equal
-field names.
+to each other's. Enums and structs have equal qualified names, enums equal
+member names and numbers, and structs equal opacity and field names.
 Dependencies precede their users, so one forward pass verifies a map.
 Operand types of inputs and outputs are looked up through the maps; the
 types of used inputs and of all outputs are mapped.
