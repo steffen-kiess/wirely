@@ -100,13 +100,13 @@ def check_values():
     optional parameter Missing: boolean;
     optional parameter Absent: Option[boolean];
     parameter Default: boolean = true;
-    parameter Type: ValueType = uint16;
+    parameter Type: type = uint16;
     constant Seed: uint16 = Example.Same(Number);
     constant Items: List[Option[uint16]] = [Some(7), None];
     constant At: Schedule.TimeOfDay = "00:30";
     constant Span: Std.Duration = "PT1S";
     constant Instant: Option[Timer.MonotonicTime] = None;
-    constant Types: List[Option[ValueType]] = [Some(uint16), None];
+    constant Types: List[Option[type]] = [Some(uint16), None];
     input Connection: resource Service;
     output Result: value uint16;
     binding state: resource ValuesState;
@@ -172,7 +172,7 @@ def check_optional_values():
         graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
       native node type OptionalProbe {{
         optional parameter Maybe: Option[boolean];
-        optional parameter Type: ValueType;
+        optional parameter Type: type;
         parameter Default: Option[boolean] = None;
         native initializer uses optional(Maybe) as Maybe,
           optional(Maybe) as "", optional(Type) as Type, Default;
@@ -180,7 +180,7 @@ def check_optional_values():
     }}
     node type Forward {{
       optional parameter Maybe: Option[boolean];
-      optional parameter Type: ValueType;
+      optional parameter Type: type;
       node child: TestLibrary.OptionalProbe {{
         Maybe?: optional(Maybe), Type?: optional(Type),
       }}

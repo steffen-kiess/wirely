@@ -59,7 +59,7 @@ constant Value: boolean = int16.WrappingAdd(1, 2); // E: Value of type boolean h
 
 // TEST: checked member result of a type parameter
 node type Generic {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Value: Type = Type.CheckedDiv(1, 2);
   // ^E: Expected value of type
 }

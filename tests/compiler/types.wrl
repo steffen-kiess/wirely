@@ -19,7 +19,7 @@ namespace Types {
 assert int16 == int16;
 assert int16 != uint16;
 assert boolean != unit;
-assert ValueType == ValueType;
+assert type == type;
 assert Option[int16] == Option[int16];
 assert Option[List[Option[int16]]] == Option[List[Option[int16]]];
 assert Option[List[int16]] != Option[List[uint16]];
@@ -34,16 +34,16 @@ assert true == true && false != true && 1 == 1 && 1 != 2 && () == ();
 
 constant Same: boolean = Later == int16;
 constant Reverse: boolean = int16 == Later;
-constant Later: ValueType = int16;
+constant Later: type = int16;
 assert Same && Reverse;
 
 node type Compare {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Same: boolean = Type == unit;
   parameter Reverse: boolean = unit == Type;
-  constant Alias: ValueType = Type;
+  constant Alias: type = Type;
   constant Nested: boolean = Option[List[Alias]] == Option[List[unit]];
-  constant Selected: ValueType = if Type == unit { uint8 } else { int16 };
+  constant Selected: type = if Type == unit { uint8 } else { int16 };
   parameter Expected: boolean;
   assert Same == Expected;
   assert Reverse == Expected;
@@ -56,7 +56,7 @@ node empty: Compare { Type: unit, Expected: true }
 node number: Compare { Type: int16, Expected: false }
 
 node type OptionalOutput {
-  parameter OutputType: ValueType = unit;
+  parameter OutputType: type = unit;
   optional parameter OutputValue: OutputType;
   assert OutputType == unit || optional(OutputValue).IsSome,
     "OutputValue is required when OutputType is not unit";
@@ -140,7 +140,7 @@ assert Escaped == r#enum.r#node;
 
 namespace Example {
   node type Settings {
-    parameter ModeType: ValueType = Mode;
+    parameter ModeType: type = Mode;
     parameter Initial: ModeType = Mode.On;
     assert ModeType == Mode;
     assert Initial == Mode.On;
@@ -166,7 +166,7 @@ struct type Packet {
 struct type Settings {
   text: String,
   items: List[Option[Packet]],
-  type: ValueType,
+  type: type,
 }
 struct type EscapedFields {
   r#struct: unit,
@@ -174,7 +174,7 @@ struct type EscapedFields {
 }
 struct type EmptyStruct {}
 node type Structs {
-  parameter Type: ValueType = Settings;
+  parameter Type: type = Settings;
   parameter Value: Type = Settings {
     text: "hello",
     items: [Some(Packet { number: 513, mode: Example.Mode.On, flag: true }), None],

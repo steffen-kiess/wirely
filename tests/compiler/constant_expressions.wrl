@@ -4,7 +4,7 @@ struct type Settings {
 constant Text: String = "hello";
 constant Items: List[uint8] = [1, 2];
 constant InputValue: boolean = true;
-constant Type: ValueType = unit;
+constant Type: type = unit;
 assert Text == "hello" && Items == [1, 2];
 
 // Bodies without runtime dependencies support compile-time locals and mutation.
@@ -31,7 +31,7 @@ procedure unused_input depends on ignored: value boolean {
 connect InputValue -> unused_input.ignored;
 
 node type Generic {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   procedure compile_only {
     let value: Type = Value;
@@ -45,7 +45,7 @@ node option: Generic { Type: Option[String], Value: Some("hello") }
 node settings: Generic { Type: Settings, Value: Settings { text: "hello" } }
 
 node type OptionalValue {
-  parameter Type: ValueType;
+  parameter Type: type;
   optional parameter Value: Type;
   procedure compile_only {
     let option = optional(Value);
@@ -54,7 +54,7 @@ node type OptionalValue {
 }
 node absent: OptionalValue { Type: String }
 node present: OptionalValue { Type: String, Value: "hello" }
-node type_value: OptionalValue { Type: ValueType, Value: uint8 }
+node type_value: OptionalValue { Type: type, Value: uint8 }
 
 #[Allow(Unused)] binding comparison: value boolean;
 #[Allow(Unused)] binding selected: value uint8;

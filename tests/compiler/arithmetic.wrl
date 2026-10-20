@@ -55,7 +55,7 @@ assert Checked == None;
 
 // Members of a type parameter.
 node type Counter {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Start: Type;
   constant Next: Type = Type.WrappingAdd(Start, 1);
   assert Type.CheckedAdd(Start, 1) == None;

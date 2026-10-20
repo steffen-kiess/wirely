@@ -273,7 +273,7 @@ struct type Wide16 {
 
 
 node type Invalid {
-  parameter Type: ValueType;
+  parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }
@@ -318,7 +318,7 @@ struct type Member128 {
 }
 
 node type Invalid {
-  parameter Type: ValueType;
+  parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }
@@ -395,7 +395,7 @@ struct type Depth17 {
 
 
 node type Invalid {
-  parameter Type: ValueType;
+  parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
   native procedure write produces value;
 }

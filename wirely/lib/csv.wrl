@@ -1,6 +1,6 @@
 namespace CSV {
   #[Internal]
-  native constant function SupportsType(type: ValueType): boolean;
+  native constant function SupportsType(type: type): boolean;
 
   #[Internal]
   resource type ValueWriterState;
@@ -17,7 +17,7 @@ namespace CSV {
   // TODO: Make restarts clear? Should already be clear because null is written
   // on shutdown.
   native node type ValueWriter {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Filename: String;
 

@@ -214,7 +214,7 @@ class Analysis:
 
     def type_names(self, scope: Sequence[str] = (), *, include_internal: bool = False) -> tuple[str, ...]:
         """Return the names of value types usable in a scope, as written in declarations."""
-        names = [name for name in _types.type_by_name if name != 'ValueType'] + ['Option', 'List']
+        names = [name for name in _types.type_by_name if name != 'type'] + ['Option', 'List']
         declared: list[str] = []
         assert self._global is not None
         coordinator = self._global.coordinator

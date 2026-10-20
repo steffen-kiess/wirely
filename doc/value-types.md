@@ -32,7 +32,7 @@ runtime types. Runtime types can also be used for parameters.
 | `Timer.MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
 | Declared enums | A named member, or an unnamed open value | Runtime |
 | Declared structs | Named fields | Runtime within the limits below |
-| `ValueType` | A value type | Parameter-only |
+| `type` | A value type | Parameter-only |
 | `Option[T]` | No value, or one value of type `T` | Runtime within the limits below |
 | `List[T]` | An ordered list of values of type `T`, including an empty list | Parameter-only |
 
@@ -273,13 +273,13 @@ Timer library nodes produce and work with monotonic times, including
 
 ### Type parameters
 
-`ValueType` is the type of a parameter whose value is itself a type, such as
+`type` is the type of a parameter whose value is itself a type, such as
 `boolean`, `uint16`, or `Option[boolean]`. Other parameters and ports
 can refer to that parameter:
 
 ```wirely
 node type ConstantValue {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Initial: Type;
   default output: value Type;
   connect Initial -> default output;
@@ -335,7 +335,7 @@ Wirely literal syntax where it exists:
 | `String`, `List[T]` | `"text"` with escapes, `[1, 2]` |
 
 Canonical durations use the largest units first and omit zero components
-and trailing zeros. `ValueType` values are displayed on a best-effort
+and trailing zeros. `type` values are displayed on a best-effort
 basis; do not rely on their text.
 
 ## JSON and CSV support
@@ -349,7 +349,7 @@ Serialization support is used by library nodes such as MQTT providers and
 | All integer types | Number | Decimal integer |
 | `String` | String | No |
 | Declared enums | Member name; number for an unnamed open value | No |
-| `unit`, `Std.Duration`, `Schedule.TimeOfDay`, `Timer.MonotonicTime`, `ValueType`, structs | No | No |
+| `unit`, `Std.Duration`, `Schedule.TimeOfDay`, `Timer.MonotonicTime`, `type`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |
 | `List[T]` | No | No |
 

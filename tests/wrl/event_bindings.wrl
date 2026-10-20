@@ -3,7 +3,7 @@ node unit: Std.DebugEventSource { Type: unit }
 node nested: Std.DebugEventSource { Type: Option[uint8] }
 
 node type Relay {
-  parameter Type: ValueType;
+  parameter Type: type;
   default input: event Type;
   default output: event Type;
   output Optional: event Type;

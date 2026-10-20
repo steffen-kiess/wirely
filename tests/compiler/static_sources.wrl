@@ -2,7 +2,7 @@ constant Enabled: boolean = true;
 
 // A parameter typed by a type parameter, forwarded to an output.
 node type Source {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   default output: value Type;
   connect Value -> default output;

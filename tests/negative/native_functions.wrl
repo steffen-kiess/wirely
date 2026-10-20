@@ -59,7 +59,7 @@ namespace TimeOfDay {
 
 // TEST: unavailable signature type
 // LIBRARIES: std, schedule
-parameter Kind: ValueType;
+parameter Kind: type;
 namespace TimeOfDay {
   native function WrappingAdd(time: Kind, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type Kind
 }

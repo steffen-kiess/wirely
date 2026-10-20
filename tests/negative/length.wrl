@@ -85,7 +85,7 @@ constant Count: int32 = Items.Length; // E: Expected value of type int32, got ui
 
 // TEST: generic receiver
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Item: Type;
   constant Count: uint32 = Item.Length; // E: Value of type boolean has no property 'Length'
 }
@@ -93,7 +93,7 @@ node probe: Probe { Type: boolean, Item: true } // H: While instantiating 'probe
 
 // TEST: early type selection
 node type Child {
-  parameter Type: ValueType;
+  parameter Type: type;
   input Value: value Type;
 }
 node type Probe {
@@ -131,7 +131,7 @@ node type Probe {
   default input: multi value boolean;
   constant Count: uint32 = (default input).Length;
   // ^E: Input length is unavailable before instance specialization
-  constant Type: ValueType = if Count == 0 { boolean } else { uint8 };
+  constant Type: type = if Count == 0 { boolean } else { uint8 };
 }
 
 // TEST: recursive forwarding

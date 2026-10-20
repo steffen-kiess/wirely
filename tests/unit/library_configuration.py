@@ -61,7 +61,7 @@ def node_program(node_type, output_type, output_value, *, forward=False, minimum
             connections = '  connect default input -> child;\n  connect Feedback -> child.Feedback;\n'
         arguments = ', '.join(settings).replace('OutputType:', 'Type:').replace('OutputValue:', 'Value:')
         source = f'''node type Wrapper {{
-  parameter Type: ValueType = unit;
+  parameter Type: type = unit;
   optional parameter Value: Type;
 {ports}  node child: {node_type} {{ {', '.join(child_settings)} }}
 {connections}}}
@@ -317,7 +317,7 @@ connect input -> wrapper;
 def check_debounce_behavior():
     def make_runtime(value_type='uint16', duration='PT10S'):
         program = compile_program(f'''node type Wrapper {{
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Span: Std.Duration;
   default input: value Type;
   default output: value Type;

@@ -6,7 +6,7 @@ node invalid: Invalid {}
 
 // TEST: parameter_default_invalid_type
 node type Invalid {
-  parameter Type: ValueType = Unknown; // E: Cannot find type Unknown
+  parameter Type: type = Unknown; // E: Cannot find type Unknown
 }
 node invalid: Invalid {}
 
@@ -21,8 +21,8 @@ node invalid: Invalid {}
 // TEST: parameter_default_type_cycle
 // SE: Cyclic parameter resolution
 node type Invalid {
-  parameter First: ValueType = Option[Second]; // E: Cyclic parameter resolution: First -> Second -> First
-  parameter Second: ValueType = First;
+  parameter First: type = Option[Second]; // E: Cyclic parameter resolution: First -> Second -> First
+  parameter Second: type = First;
 }
 node invalid: Invalid {}
 

@@ -33,7 +33,7 @@ assert (if true { 1 } else { Unwrapped }) == 1;
 
 // Type parameters.
 node type Fallback {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Option[Type];
   parameter Default: Type;
   constant Result: Type = Value.UnwrapOr(Default);

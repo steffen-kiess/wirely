@@ -77,7 +77,7 @@ def signature_type(value_type: types.Type, variables: Mapping[model.NodeParamete
         if value_type.is_opaque:
             return signatures.Opaque(value_type.native_name)
         return signatures.Struct(value_type.native_name)
-    if str(value_type) in ('unit', 'boolean', 'String', 'ValueType'):
+    if str(value_type) in ('unit', 'boolean', 'String', 'type'):
         return signatures.Builtin(str(value_type))
     raise ValueError(f'{where} uses unsupported type {value_type}')
 
@@ -105,7 +105,7 @@ def procedure_ports(ports: Mapping[str, model.ProcedureInputPort | model.Procedu
 
 def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None,
                    where: str) -> dict[model.NodeParameter, str]:
-    """Map each ValueType parameter in a `uses` clause to the key passing it."""
+    """Map each `type` parameter in a `uses` clause to the key passing it."""
     variables: dict[model.NodeParameter, str] = {}
     for binding in () if uses is None else uses.bindings:
         expression = binding.expression
@@ -115,7 +115,7 @@ def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None
             if variables.setdefault(parameter, binding.key) != binding.key:
                 raise ValueError(f'{where} passes type {expression} under two names')
         elif uses_type(node_type, binding, None, where) == types.ValueType:
-            raise ValueError(f'{where} passes a ValueType that is not a parameter: {expression}')
+            raise ValueError(f'{where} passes a type that is not a parameter: {expression}')
     return variables
 
 

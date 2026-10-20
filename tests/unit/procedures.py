@@ -250,13 +250,13 @@ def check_generic_copies():
                                 ('Pair', 'Pair { flag: true }')]:
         generic = compile_program('''struct type Pair { flag: boolean }
     node type Constant {
-      parameter Type: ValueType;
+      parameter Type: type;
       parameter Value: Type;
       default output: value Type;
       procedure run produces default output as output { output = Value; }
     }
     node type Copy {
-      parameter Type: ValueType;
+      parameter Type: type;
       default input: value Type;
       default output: value Type;
       procedure run depends on default input as input
@@ -279,7 +279,7 @@ def check_mixed_procedures():
     # A native procedure and a .wrl procedure can share a node.
     mixed_source = '''namespace Std {
       node type Constant {
-        parameter Type: ValueType;
+        parameter Type: type;
         parameter Value: Type;
         default output: value Type;
         binding temp: value Type;
@@ -464,7 +464,7 @@ def check_builtin_ordering():
                                       (high, high, (False, True, False, True)),
                                       (high, low, (False, False, True, True))]:
             program = compile_program('''node type Ordering {
-              parameter Type: ValueType;
+              parameter Type: type;
               parameter Left: Type;
               parameter Right: Type;
               state left: Type = Left;

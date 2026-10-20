@@ -77,7 +77,7 @@ def implementations(contracts):
 definitions = '''
 namespace TestLibrary {
   node type Forward {
-    parameter Type: ValueType;
+    parameter Type: type;
     default input: value Type;
     default output: value Type;
     native procedure run
@@ -87,14 +87,14 @@ namespace TestLibrary {
   }
 
   node type Relay {
-    parameter Type: ValueType;
+    parameter Type: type;
     default input: value Type;
     default output: value Type;
     connect default input -> default output;
   }
 
   node type Owner {
-    parameter Type: ValueType;
+    parameter Type: type;
     parameter InitialValue: Type;
     default input: value Type;
     default output: value Type;
@@ -270,7 +270,7 @@ def check_old_snapshots():
 current_definitions = definitions + '''
 namespace TestLibrary {
   node type Mixed {
-    parameter Type: ValueType;
+    parameter Type: type;
     default input: multi value Type;
     default output: value uint32;
     procedure run
@@ -287,7 +287,7 @@ namespace TestLibrary {
   }
 
   node type Current {
-    parameter Type: ValueType;
+    parameter Type: type;
     parameter InitialValue: Type;
     default input: value Type;
     default output: value boolean;

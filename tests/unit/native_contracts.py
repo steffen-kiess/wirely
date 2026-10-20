@@ -114,7 +114,7 @@ source = '''namespace TestLibrary {
     native initializer produces state as "state" uses Limit, optional(Label) as label;
   }
   node type Probe {
-    parameter Type: ValueType;
+    parameter Type: type;
     input Owner: resource Handle;
     input Value: value Option[Type];
     input Trigger: event uint8;

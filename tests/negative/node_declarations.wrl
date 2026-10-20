@@ -117,7 +117,7 @@ node probe: Probe { Flag: 5 } // E: Invalid boolean value 5
 
 // TEST: literal as a type
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
 }
 node probe: Probe { Type: 5 } // E: Expected Reference or BracketOperator as type name, got 5
 

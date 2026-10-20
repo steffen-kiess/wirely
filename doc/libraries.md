@@ -58,19 +58,19 @@ its functions.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Constant` | `Type: ValueType`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
+| `Constant` | `Type: type`, `Value: Type` | Out: `value Type`. Produces the supplied value. |
 | `And` | None | In: unordered `multi value boolean`; out: `value boolean`. True when every connected input is true, including an empty list. |
-| `TwoStageValueForward` | `Type: ValueType` | In/out: `value Type`. Passes the input to the output. |
-| `DebugValuePrinter` | `Type: ValueType` | In: `value Type`. Prints changes in the output stage. |
-| `DebugEventPrinter` | `Type: ValueType` | In: `event Type`. Prints events in the output stage. |
-| `WarnOnEvent` | `Format: String`, `Type: ValueType = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
-| `DebugValueSource` | `Type: ValueType` | Out: `value Type`. Debug-controlled value source. |
-| `DebugEventSource` | `Type: ValueType` | Out: `event Type`. Debug-controlled event source. |
-| `OptionNone` | `InnerType: ValueType` | Out: `value Option[InnerType]`. Produces `None`. |
-| `OptionSome` | `InnerType: ValueType` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |
-| `OptionUnwrapOr` | `InnerType: ValueType`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
-| `OptionIsSome` | `InnerType: ValueType` | In: `value Option[InnerType]`; out: `value boolean`. True when a value is present. |
-| `OptionCreate` | `InnerType: ValueType` | Named in: `HasValue: value boolean`, `Value: value InnerType`; out: `value Option[InnerType]`. Wraps `Value` when `HasValue` is true; otherwise produces `None`. |
+| `TwoStageValueForward` | `Type: type` | In/out: `value Type`. Passes the input to the output. |
+| `DebugValuePrinter` | `Type: type` | In: `value Type`. Prints changes in the output stage. |
+| `DebugEventPrinter` | `Type: type` | In: `event Type`. Prints events in the output stage. |
+| `WarnOnEvent` | `Format: String`, `Type: type = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
+| `DebugValueSource` | `Type: type` | Out: `value Type`. Debug-controlled value source. |
+| `DebugEventSource` | `Type: type` | Out: `event Type`. Debug-controlled event source. |
+| `OptionNone` | `InnerType: type` | Out: `value Option[InnerType]`. Produces `None`. |
+| `OptionSome` | `InnerType: type` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |
+| `OptionUnwrapOr` | `InnerType: type`, `Default: InnerType` | In: `value Option[InnerType]`; out: `value InnerType`. Uses `Default` for `None`. |
+| `OptionIsSome` | `InnerType: type` | In: `value Option[InnerType]`; out: `value boolean`. True when a value is present. |
+| `OptionCreate` | `InnerType: type` | Named in: `HasValue: value boolean`, `Value: value InnerType`; out: `value Option[InnerType]`. Wraps `Value` when `HasValue` is true; otherwise produces `None`. |
 | `DetectEdge` | `EdgeType: Std.EdgeType` | In: `value boolean`; out: `event boolean`. `Rising` detects false → true, `Falling` true → false, and `Both` either transition. Emits the new value; initialization emits nothing. |
 
 The debug sources are intended for testing and interactive control. Their
@@ -89,7 +89,7 @@ and its functions.
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `IsInDailyInterval` | `Start: Schedule.TimeOfDay`, `End: Schedule.TimeOfDay` | Out: `value Option[boolean]`. `Some(true)` while the current local time is in the daily interval from `Start` (inclusive) to `End` (exclusive), `Some(false)` outside it, and `None` while wall time is unknown. The interval may cross midnight. `00:00` to `24:00` always returns `Some(true)` and `24:00` to `00:00` always returns `Some(false)`, including while wall time is unknown. |
-| `TriggerAt` | `Time: Schedule.TimeOfDay`, `OutputType: ValueType = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
+| `TriggerAt` | `Time: Schedule.TimeOfDay`, `OutputType: type = unit`, `OutputValue: OutputType = ()` | Out: `event OutputType`. Emits around the requested time, avoiding duplicate daily events during clock changes. Unknown time resets its arming state; restoring time does not replay missed events. Supply `OutputValue` when `OutputType` is not `unit`. |
 
 ## Timer
 
@@ -99,10 +99,10 @@ parameters use strings such as `"PT1S"`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `MonotonicTimestamp` | `Type: ValueType = unit` | In: `event Type`; out: `event Timer.MonotonicTime`. Emits the step's monotonic time while the input event is present, keeping the engine stepping. |
+| `MonotonicTimestamp` | `Type: type = unit` | In: `event Type`; out: `event Timer.MonotonicTime`. Emits the step's monotonic time while the input event is present, keeping the engine stepping. |
 | `MonotonicTimeReached` | None | In: `value Option[Timer.MonotonicTime]`; out: `value Option[boolean]`. True once the time is reached, false before it, or `None` if the input is `None` or not comparable to the current time. |
 | `DurationElapsed` | `Duration: Std.Duration` | In: `value Option[Timer.MonotonicTime]`; out: `value Option[boolean]`. True once `Duration` has elapsed since the input time, false before it, or `None` if the input is `None` or not comparable to the current time. |
-| `DebounceStable` | `Type: ValueType`, `Duration: Std.Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. If monotonic time is lost while waiting, accepts the current input immediately. |
+| `DebounceStable` | `Type: type`, `Duration: Std.Duration` | In/out: `value Type`. Outputs the initial value immediately, then accepts changes after the input remains stable for `Duration`. If monotonic time is lost while waiting, accepts the current input immediately. |
 
 ## KNX
 
@@ -113,11 +113,11 @@ KNX nodes use a `KNX.Connection` node and a named
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Connection` | Optional `Host: String`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
-| `ValueReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
-| `ValueOptionProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
-| `ValueProvider` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
-| `EventReceiver` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits values written to the group address; read responses are not events. |
-| `EventSender` | `Type: ValueType`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
+| `ValueReceiver` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
+| `ValueOptionProvider` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
+| `ValueProvider` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
+| `EventReceiver` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits values written to the group address; read responses are not events. |
+| `EventSender` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
 
 Value and event nodes support `boolean`, `int8`, `uint8`, `int16`,
 `uint16`, `int32`, `uint32`, and `int64`. Running KNX nodes requires the
@@ -164,17 +164,17 @@ string controlling JSON output. A template embeds the encoded value at one
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
 | `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
-| `ValueOptionProvider` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
+| `ValueOptionProvider` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
-| `EventSender` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
-| `EventReceiver` | `Type: ValueType`, `Topic: String`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
+| `EventSender` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
+| `EventReceiver` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
 
 ## CSV
 
-`CSV.ValueWriter` takes `Type: ValueType` and `Filename: String`. It appends
+`CSV.ValueWriter` takes `Type: type` and `Filename: String`. It appends
 rows from a default `value Type` input, recording the timestamp, old value,
 and new value. An empty field marks an unavailable value at startup or
 shutdown. It writes on changes and repeats a current value hourly. `Type`
@@ -233,7 +233,7 @@ the requested state with feedback and emits a pulse only when the state needs
 to change. It takes a default `event boolean` command input (`true` for on,
 `false` for off) and a named `Feedback: value Option[boolean]` input. Its
 default `event OutputType` output provides the trigger pulse. If feedback is
-`None`, commands are ignored. Its parameters are `OutputType: ValueType = unit`,
+`None`, commands are ignored. Its parameters are `OutputType: type = unit`,
 `OutputValue: OutputType = ()`, and `MinimumDelay: Std.Duration = "PT1S"`.
 Set `OutputValue` when `OutputType` is not `unit`. The minimum delay limits
 successive output events. During that delay, the latest command remains pending
@@ -244,7 +244,7 @@ the pending command; a fresh command can emit immediately.
 
 `Process.LaunchOnEvent` launches a shell command when an input event arrives.
 Events received while a launch is pending may be combined into one launch.
-It takes `ShellCommand: String` and `Type: ValueType = unit`, with a default
+It takes `ShellCommand: String` and `Type: type = unit`, with a default
 `event Type` input. The event payload is ignored. The command is passed to
 `sh -c` in the output stage and runs with the service process's permissions.
 

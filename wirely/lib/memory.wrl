@@ -14,7 +14,7 @@ namespace Memory {
     // available? Probably not.
     input Feedback: value Option[boolean];
 
-    parameter OutputType: ValueType = unit;
+    parameter OutputType: type = unit;
     // Defaults to () when OutputType is unit
     parameter OutputValue: OutputType = ();
 

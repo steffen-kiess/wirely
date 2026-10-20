@@ -52,7 +52,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('KNX.EventReceiverState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
@@ -65,7 +65,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('KNX.EventSenderState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
@@ -78,7 +78,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('KNX.ValueOptionProviderState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
@@ -91,7 +91,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('KNX.ValueReceiverState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'group_address': Int(16, False),
             'value_type_name': Builtin('String'),
         },
@@ -113,7 +113,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('MQTT.EventReceiverState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'Topic': Builtin('String'),
             'Format': Option(Enum('MQTT.Format')),
         },
@@ -126,7 +126,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('MQTT.EventSenderState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'Topic': Builtin('String'),
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
@@ -140,7 +140,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('MQTT.ValueOptionProviderState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'Topic': Builtin('String'),
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
@@ -161,7 +161,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('Std.DebugEventSourceState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Std.DebugValueSource': Initializer(
@@ -170,7 +170,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('Std.DebugValueSourceState')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'TwoN.CodeEnteredEvent': Initializer(
@@ -256,7 +256,7 @@ native_procedures: dict[str, Procedure] = {
             'last_written_at': Port('value', Option(Opaque('Timer.MonotonicTime'))),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'GPIO.Output:set_value': Procedure(
@@ -277,7 +277,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('event', TypeVar('Type')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'KNX.EventSender:send_value': Procedure(
@@ -288,7 +288,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'KNX.ValueOptionProvider:set_value': Procedure(
@@ -299,7 +299,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'KNX.ValueReceiver:get_value': Procedure(
@@ -311,7 +311,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('value', Option(TypeVar('Type'))),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'MQTT.EventReceiver:get_value': Procedure(
@@ -323,7 +323,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('event', TypeVar('Type')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'MQTT.EventSender:send_value': Procedure(
@@ -334,7 +334,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'MQTT.ValueOptionProvider:set_value': Procedure(
@@ -345,7 +345,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Process.LaunchOnEvent:run': Procedure(
@@ -356,7 +356,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Schedule.IsInDailyInterval:run': Procedure(
@@ -385,7 +385,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Std.DebugEventSource:run': Procedure(
@@ -397,7 +397,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('event', TypeVar('Type')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Std.DebugValuePrinter:run': Procedure(
@@ -407,7 +407,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Std.DebugValueSource:run': Procedure(
@@ -419,7 +419,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('value', TypeVar('Type')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'Std.WarnOnEvent:run': Procedure(
@@ -429,7 +429,7 @@ native_procedures: dict[str, Procedure] = {
         },
         produces={},
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
             'format_parts': Struct('Std.FormatParts'),
         },
     ),
@@ -452,7 +452,7 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('event', Opaque('Timer.MonotonicTime')),
         },
         uses={
-            'Type': Builtin('ValueType'),
+            'Type': Builtin('type'),
         },
     ),
     'TwoN.CodeEnteredEvent:get_value': Procedure(

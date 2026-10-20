@@ -131,7 +131,7 @@ assert {
 };
 
 node type Generic {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Initial: Type;
   parameter Other: Type;
   constant Result: Type = {

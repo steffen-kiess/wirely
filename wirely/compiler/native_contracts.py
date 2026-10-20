@@ -161,7 +161,7 @@ def annotation(signature: signatures.SignatureType | signatures.ResourceType, im
     if isinstance(signature, signatures.TypeVar):
         return imports.add('wirely.types.value_types', 'DynamicValue')
     if isinstance(signature, signatures.Builtin):
-        if signature.name == 'ValueType':
+        if signature.name == 'type':
             imports.add('typing', 'Any')
             return imports.add('wirely.types.value_types', 'ValueType') + '[Any]'
         module, name = _builtins[signature.name]

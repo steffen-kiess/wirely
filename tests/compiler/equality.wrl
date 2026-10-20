@@ -20,7 +20,7 @@ assert Span == "PT1M" && "PT1M" == Span && Span != "PT61S";
 struct type Settings {
   text: String,
   items: List[Option[int16]],
-  type: ValueType,
+  type: type,
 }
 constant SettingsValue: Settings = Settings {
   text: "hello", items: [Some(1), None], type: uint8,
@@ -41,7 +41,7 @@ struct type EmptyStruct {}
 assert EmptyStruct {} == EmptyStruct {};
 
 node type Compare {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Left: Type;
   parameter Right: Type;
   parameter Equal: boolean;

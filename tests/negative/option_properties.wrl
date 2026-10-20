@@ -13,8 +13,8 @@ namespace Names {
 constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: Value of type Names.Mode has no property 'IsNone'
 
 // TEST: type descriptor receiver
-constant Type: ValueType = boolean;
-constant Bad: boolean = Type.IsSome; // E: Value of type ValueType has no property 'IsSome'
+constant Type: type = boolean;
+constant Bad: boolean = Type.IsSome; // E: Value of type type has no property 'IsSome'
 
 // TEST: unresolved None
 constant Bad: boolean = None.IsNone; // E: Cannot infer expression type
@@ -57,7 +57,7 @@ constant Bad: boolean = Value.IsSome.IsNone; // E: Value of type boolean has no 
 
 // TEST: parameter-dependent receiver rejected after resolution
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   constant Bad: boolean = Value.IsSome; // E: Value of type boolean has no property 'IsSome'
 }
@@ -104,7 +104,7 @@ node probe: Probe {}
 
 // TEST: runtime generic non-option receiver
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   default output: value boolean;
   procedure run produces default output as output {

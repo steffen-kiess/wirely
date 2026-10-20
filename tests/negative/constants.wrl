@@ -73,8 +73,8 @@ node probe: Probe {}
 // SE: Cyclic static value resolution
 // SH: While instantiating 'probe'
 node type Probe {
-  constant First: ValueType = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
-  constant Second: ValueType = First;
+  constant First: type = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
+  constant Second: type = First;
 }
 node probe: Probe {} // H: While instantiating 'probe'
 
@@ -83,7 +83,7 @@ node probe: Probe {} // H: While instantiating 'probe'
 // SH: While instantiating 'probe'
 node type Probe {
   constant First: Second = 0;
-  constant Second: ValueType = Second; // E: Cyclic static value resolution: First -> Second -> Second
+  constant Second: type = Second; // E: Cyclic static value resolution: First -> Second -> Second
 }
 node probe: Probe {} // H: While instantiating 'probe'
 
@@ -152,26 +152,26 @@ constant Flag: boolean = probe.Flag; // E: Invalid boolean value
 
 // TEST: parameter dependent unknown name in unused node
 node type Unused {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Value: Type = Missing; // E: Unknown static value Missing
 }
 
 // TEST: parameter dependent malformed expression in unused node
 node type Unused {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Value: Type = if 7 { 0 } else { 1 }; // E: Invalid boolean value
 }
 
 // TEST: parameter dependent type mismatch
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Value: Type = true; // E: Invalid int value
 }
 node probe: Probe { Type: int16 } // H: While instantiating 'probe'
 
 // TEST: parameter dependent range
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Value: Type = 256; // E: out of range
 }
 node probe: Probe { Type: uint8 } // H: While instantiating 'probe'
@@ -188,18 +188,18 @@ node probe: Probe {}
 
 // TEST: constant type in runtime port
 node type Probe {
-  constant Type: ValueType = String;
+  constant Type: type = String;
   default output: value Type;
   procedure run produces default output as output { output = "hello"; }
 }
 node probe: Probe {} // E: parameter-only
 
 // TEST: constant type in root temporary
-constant Type: ValueType = String;
+constant Type: type = String;
 #[Allow(Unused)] binding text: value Type; // E: parameter-only
 procedure run produces text { text = "hello"; }
 
 // TEST: constant type in root state
-constant Type: ValueType = String;
+constant Type: type = String;
 state text: Type = "hello"; // E: parameter-only
 procedure run produces text { text = "hello"; }

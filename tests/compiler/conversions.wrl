@@ -41,7 +41,7 @@ assert uint64.SaturatingFrom(uint128.WrappingFrom(-1)) == 18446744073709551615;
 
 // Type parameters.
 node type Narrow {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: int16;
   constant Result: Option[Type] = Type.CheckedFrom(Value);
   constant Wide: int64 = int64.From(Type.SaturatingFrom(Value));

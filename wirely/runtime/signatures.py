@@ -23,7 +23,7 @@ class SignatureType:
 
 @dataclass(frozen=True, slots=True)
 class Builtin(SignatureType):
-    name: str  # 'unit', 'boolean', 'String', or 'ValueType'.
+    name: str  # 'unit', 'boolean', 'String', or 'type'.
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +119,7 @@ class Function:
 def _builtin_types() -> dict[str, type]:
     from .. import types
     return {'unit': types.TypeUnit, 'boolean': types.TypeBoolean, 'String': types.TypeString,
-            'ValueType': types.TypeValueType}
+            'type': types.TypeValueType}
 
 
 def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[str, Type]) -> bool:

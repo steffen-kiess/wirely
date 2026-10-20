@@ -135,10 +135,10 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
     def check_uses(where: str, signature: Initializer | SignatureProcedure,
                    values: Mapping[str, Constant]) -> dict[str, Type]:
         check_keys(where, 'uses bindings', values, signature.uses)
-        # Each ValueType binding gives the type of the type variable with its key.
+        # Each `type` binding gives the type of the type variable with its key.
         bindings: dict[str, Type] = {}
         for key, signature_type in signature.uses.items():
-            if signature_type == Builtin('ValueType') and matches(signature_type, values[key].value_type, {}):
+            if signature_type == Builtin('type') and matches(signature_type, values[key].value_type, {}):
                 value = values[key].value
                 assert isinstance(value, Type)
                 bindings[key] = value

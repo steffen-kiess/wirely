@@ -37,10 +37,10 @@ namespace Std {
     has_value: boolean,
   }
   #[Internal]
-  native constant function ParseFormat(format: String, type: ValueType): FormatParts;
+  native constant function ParseFormat(format: String, type: type): FormatParts;
 
   node type Constant {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Value: Type;
 
@@ -67,7 +67,7 @@ namespace Std {
   }
 
   node type TwoStageValueForward {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default input: value Type;
     default output: value Type;
@@ -83,7 +83,7 @@ namespace Std {
   }
 
   node type DebugValuePrinter {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default input: value Type;
 
@@ -91,7 +91,7 @@ namespace Std {
   }
 
   node type DebugEventPrinter {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default input: event Type;
 
@@ -101,7 +101,7 @@ namespace Std {
   node type WarnOnEvent {
     #[Diagram.ShowValue]
     parameter Format: String;
-    parameter Type: ValueType = unit;
+    parameter Type: type = unit;
 
     constant format_parts: FormatParts = ParseFormat(Format, Type);
 
@@ -116,7 +116,7 @@ namespace Std {
   resource type DebugValueSourceState;
 
   native node type DebugValueSource {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default output: value Type;
 
@@ -133,7 +133,7 @@ namespace Std {
   resource type DebugEventSourceState;
 
   native node type DebugEventSource {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default output: event Type;
 
@@ -147,7 +147,7 @@ namespace Std {
   }
 
   node type OptionNone {
-    parameter InnerType: ValueType;
+    parameter InnerType: type;
 
     default output: value Option[InnerType];
 
@@ -156,7 +156,7 @@ namespace Std {
   }
 
   node type OptionSome {
-    parameter InnerType: ValueType;
+    parameter InnerType: type;
 
     default input: value InnerType;
     default output: value Option[InnerType];
@@ -170,7 +170,7 @@ namespace Std {
   }
 
   node type OptionUnwrapOr {
-    parameter InnerType: ValueType;
+    parameter InnerType: type;
     // TODO: Should this be a parameter or an input? Use an input an allow
     // inputs to be specified as options?
     #[Diagram.ShowValue]
@@ -188,7 +188,7 @@ namespace Std {
   }
 
   node type OptionIsSome {
-    parameter InnerType: ValueType;
+    parameter InnerType: type;
 
     default input: value Option[InnerType];
     default output: value boolean;
@@ -202,7 +202,7 @@ namespace Std {
   }
 
   node type OptionCreate {
-    parameter InnerType: ValueType;
+    parameter InnerType: type;
 
     input HasValue: value boolean;
     input Value: value InnerType;

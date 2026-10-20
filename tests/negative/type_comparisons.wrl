@@ -1,31 +1,31 @@
 // TEST: type and boolean
-assert int16 == true; // E: Expected value of type ValueType, got boolean
+assert int16 == true; // E: Expected value of type type, got boolean
 
 // TEST: boolean and type
 assert true != int16; // E: Invalid boolean value
 
 // TEST: type and unit value
-assert unit == (); // E: Expected value of type ValueType, got unit
+assert unit == (); // E: Expected value of type type, got unit
 
 // TEST: type and integer
-assert int16 == 1; // E: Expected value of type ValueType, got int32
+assert int16 == 1; // E: Expected value of type type, got int32
 
 // TEST: integer and type
-assert 1 != int16; // E: Expected value of type ValueType, got int32
+assert 1 != int16; // E: Expected value of type type, got int32
 
 // TEST: a value name takes precedence over a built-in type name
 constant int16: boolean = true;
-assert unit == int16; // E: Expected value of type ValueType, got boolean
+assert unit == int16; // E: Expected value of type type, got boolean
 
 // TEST: mixed type and enum value
 open enum type Mode: uint8 {
   On = 1,
 }
-assert Mode == Mode.On; // E: Expected value of type ValueType, got Mode
+assert Mode == Mode.On; // E: Expected value of type type, got Mode
 
 // TEST: optional output required
 node type OptionalOutput {
-  parameter OutputType: ValueType = unit;
+  parameter OutputType: type = unit;
   optional parameter OutputValue: OutputType;
   assert OutputType == unit || optional(OutputValue).IsSome,
     "OutputValue is required when OutputType is not unit";
@@ -62,7 +62,7 @@ assert Number != Mode.On; // E: Invalid int value Mode.On
 
 // TEST: generic mismatched aggregate
 node type Compare {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Left: Type;
   parameter Right: List[uint8];
   assert Left == Right; // E: Expected value of type List[int8], got List[uint8]
@@ -104,7 +104,7 @@ constant Deadline: Option[Timer.MonotonicTime] = None;
 assert if let Some(time) = Deadline { time > time } else { false }; // E: got Timer.MonotonicTime
 
 // TEST: ordering types
-assert int8 < int16; // E: got ValueType
+assert int8 < int16; // E: got type
 
 // TEST: ordering mismatched integer types
 constant Small: int8 = 1;

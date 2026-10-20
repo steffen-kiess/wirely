@@ -9,9 +9,9 @@ namespace KNX {
   #[Internal]
   native constant function ParseGroupAddress(address: String): uint16;
   #[Internal]
-  native constant function ValueTypeName(type: ValueType): String;
+  native constant function ValueTypeName(type: type): String;
   #[Internal]
-  native constant function SupportsValueType(type: ValueType): boolean;
+  native constant function SupportsValueType(type: type): boolean;
 
   resource type Bus;
 
@@ -39,7 +39,7 @@ namespace KNX {
   resource type ValueReceiverState;
 
   native node type ValueReceiver {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: String;
     // TODO: Mores parameter with information about read-on-init etc.?
@@ -70,7 +70,7 @@ namespace KNX {
   resource type ValueOptionProviderState;
 
   native node type ValueOptionProvider {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: String;
     // TODO: More parameter with information about transmitting behavior etc.?
@@ -96,7 +96,7 @@ namespace KNX {
   }
 
   node type ValueProvider {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: String;
 
@@ -115,7 +115,7 @@ namespace KNX {
   resource type EventReceiverState;
 
   native node type EventReceiver {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: String;
 
@@ -140,7 +140,7 @@ namespace KNX {
   resource type EventSenderState;
 
   native node type EventSender {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: String;
 

@@ -8,17 +8,17 @@ from . import _bindings
 __all__ = ["extension"]
 
 extension = CompilerNativeExtension(functions={
-    'CSV.SupportsType': NativeConstantFunction(Function((Builtin('ValueType'),), Builtin('boolean')), _bindings.functions['CSV.SupportsType']),
+    'CSV.SupportsType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['CSV.SupportsType']),
     'KNX.ParseGroupAddress': NativeConstantFunction(Function((Builtin('String'),), Int(16, False)), _bindings.functions['KNX.ParseGroupAddress']),
-    'KNX.SupportsValueType': NativeConstantFunction(Function((Builtin('ValueType'),), Builtin('boolean')), _bindings.functions['KNX.SupportsValueType']),
-    'KNX.ValueTypeName': NativeConstantFunction(Function((Builtin('ValueType'),), Builtin('String')), _bindings.functions['KNX.ValueTypeName']),
+    'KNX.SupportsValueType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['KNX.SupportsValueType']),
+    'KNX.ValueTypeName': NativeConstantFunction(Function((Builtin('type'),), Builtin('String')), _bindings.functions['KNX.ValueTypeName']),
     'MQTT.ParseTemplate': NativeConstantFunction(Function((Option(Builtin('String')),), Struct('MQTT.TemplateParts')), _bindings.functions['MQTT.ParseTemplate']),
-    'MQTT.SupportsType': NativeConstantFunction(Function((Builtin('ValueType'),), Builtin('boolean')), _bindings.functions['MQTT.SupportsType']),
+    'MQTT.SupportsType': NativeConstantFunction(Function((Builtin('type'),), Builtin('boolean')), _bindings.functions['MQTT.SupportsType']),
     'Path.Join': NativeConstantFunction(Function((Builtin('String'), Builtin('String')), Builtin('String')), _bindings.functions['Path.Join']),
     'Path.Parent': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Path.Parent']),
     'Path.SourceFile': NativeConstantFunction(Function((), Builtin('String')), _bindings.functions['Path.SourceFile']),
     'Schedule.IsValidDailyInterval': NativeConstantFunction(Function((Opaque('Schedule.TimeOfDay'), Opaque('Schedule.TimeOfDay')), Builtin('boolean')), _bindings.functions['Schedule.IsValidDailyInterval']),
-    'Std.ParseFormat': NativeConstantFunction(Function((Builtin('String'), Builtin('ValueType')), Struct('Std.FormatParts')), _bindings.functions['Std.ParseFormat']),
+    'Std.ParseFormat': NativeConstantFunction(Function((Builtin('String'), Builtin('type')), Struct('Std.FormatParts')), _bindings.functions['Std.ParseFormat']),
     'Test.ReplaceKNXPath': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Test.ReplaceKNXPath']),
     'Test.ReplaceMQTTURI': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Test.ReplaceMQTTURI']),
     'Test.ReplaceOutputPath': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Test.ReplaceOutputPath']),

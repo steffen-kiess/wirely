@@ -108,7 +108,7 @@ connect int_event_receiver -> int_event_receiver_prnt;
 
 // Exercise each native node with every supported datapoint type.
 node type KNXConversionCase {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter ValueReceiveAddress: String;
   parameter ValueSendAddress: String;
   parameter EventReceiveAddress: String;

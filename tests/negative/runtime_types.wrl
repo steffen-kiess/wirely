@@ -40,7 +40,7 @@ node type Invalid {
 
 // TEST: runtime_value_type_state
 node type Invalid {
-  state selected: ValueType = uint16; // E: parameter-only
+  state selected: type = uint16; // E: parameter-only
 }
 
 // TEST: runtime_generic_string
@@ -53,7 +53,7 @@ node source: Std.DebugValueSource { Type: List[uint8] } // E: parameter-only
 
 // TEST: runtime_generic_state
 node type Invalid {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Initial: Type;
   state saved: Type = Initial;
   native procedure write produces saved;
@@ -62,7 +62,7 @@ node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 
 // TEST: runtime_generic_temporary
 node type Invalid {
-  parameter Type: ValueType;
+  parameter Type: type;
   #[Allow(Unused)] binding saved: value Type;
   native procedure write produces saved;
 }

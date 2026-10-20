@@ -142,7 +142,7 @@ procedure run depends on values: multi value boolean {
 
 // TEST: deferred block non boolean
 node type Checked {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   constant Checked: boolean = {
     assert Value; // E: Expected value of type boolean, got int16
@@ -202,7 +202,7 @@ assert {
 
 // TEST: deferred non boolean
 node type Checked {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   assert Value; // E: Expected value of type boolean, got int16
 }

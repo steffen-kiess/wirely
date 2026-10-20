@@ -319,7 +319,7 @@ Types are equal exactly when their indices are equal. Producers intern
 structurally equal types; enums and structs have one entry per declaration.
 Inner, underlying, and field types occur before the types using them,
 making size calculation possible in one forward pass. `String`,
-`ValueType`, and lists, including composites and structs containing them,
+`type`, and lists, including composites and structs containing them,
 are only used for static values in this format.
 
 ### Opaque structs

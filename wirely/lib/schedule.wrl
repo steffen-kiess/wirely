@@ -61,7 +61,7 @@ namespace Schedule {
     parameter Time: TimeOfDay;
 
     // Defaults to unit
-    parameter OutputType: ValueType = unit;
+    parameter OutputType: type = unit;
     // Defaults to () when OutputType is unit
     parameter OutputValue: OutputType = ();
 

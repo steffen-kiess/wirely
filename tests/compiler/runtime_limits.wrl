@@ -152,12 +152,12 @@ procedure compare_constants produces constant_comparisons {
 }
 
 node type Destination {
-  parameter Type: ValueType;
+  parameter Type: type;
   optional parameter Value: Type;
   assert optional(Value).IsNone;
 }
 node type Forward {
-  parameter Type: ValueType;
+  parameter Type: type;
   optional parameter Value: Type;
   node child: Destination {
     Type: Type,

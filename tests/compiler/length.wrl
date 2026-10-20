@@ -17,7 +17,7 @@ constant MeasurementValue: Measurement = Measurement { Length: 7 };
 assert MeasurementValue.Length == 7;
 
 node type GenericList {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Items: Type;
   parameter Expected: uint32;
   constant Count: uint32 = Items.Length;

@@ -193,7 +193,7 @@ for function, arguments in ((format_state, ('s', 'int', '')), (format_port, ('ou
         function(*arguments)
 
 body = '''node type T {
-  parameter P: ValueType;
+  parameter P: type;
   input a: value P;
   node x: Std.Constant { Type: P, Value: 1 }
   connect x -> y.in;
@@ -459,7 +459,7 @@ with checks.assertRaises(ValueError):
 
 # Renaming updates references; unaliased procedure ports keep the old name as alias.
 program = '''node type T {
-  parameter P: ValueType;
+  parameter P: type;
   constant C: P = { let C = 1; C };
   input a: value P;
   default output: value P;
@@ -500,7 +500,7 @@ check_rename(Procedure(('T', 'run')), 'go', ('procedure run', 'procedure go'), (
 check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "T:check"'))
 check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),
              ('uses C', 'uses D as C'))
-check_rename(Parameter(('T', 'P')), 'Q', ('P: ValueType', 'Q: ValueType'), ('C: P', 'C: Q'), ('value P', 'value Q'),
+check_rename(Parameter(('T', 'P')), 'Q', ('P: type', 'Q: type'), ('C: P', 'C: Q'), ('value P', 'value Q'),
              ('s: P', 's: Q'), ('Type: P', 'Type: Q'),
              (', P;', ', Q as P;'), ('optional(P) == P', 'optional(Q) == Q'), ('{ P:', '{ Q:'))
 check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), ('x: T', 'x: U'))
@@ -559,7 +559,7 @@ constant Saved: boolean = {
   Flag
 };
 node type Block {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Initial: Type;
   default output: value Type;
   procedure run produces default output as output {

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 # How the compiler and runtime represent a value: integers and enums as int,
 # structs, including opaque structs, as tuples of their fields, lists as
-# tuples, and ValueType values as their Type. Native code receives other
+# tuples, and `type` values as their Type. Native code receives other
 # representations; see value_types.
 InternalValue: TypeAlias = (
     'bool | int | str | Unit | Type | Some[InternalValue] | tuple[InternalValue, ...] | None'
@@ -633,7 +633,7 @@ class TypeInt(TypePrimitive):
 
 class TypeValueType(TypePrimitive):
     def __init__(self) -> None:
-        super().__init__(name='ValueType', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
+        super().__init__(name='type', python_type=Type, is_runtime_type=False, is_json_serializable=False, has_to_csv_value=False)
 
     def verify_value(self, value: Any) -> Any:
         if not isinstance(value, Type):

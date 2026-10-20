@@ -10,7 +10,7 @@ checks = TestCase()
 
 source = '''
 node type T {
-  parameter P: ValueType;
+  parameter P: type;
   constant C: int = 1;
   input a: multi value P;
   input e: event int;
@@ -56,7 +56,7 @@ checks.assertEqual([(port.name, port.type_text) for port in constant.ports], [(N
 # Declarations keep their source text.
 parameter, = result.find(Parameter(('T', 'P')))
 checks.assertEqual((parameter.type_text, parameter.default_text, parameter.is_optional),
-                   ('ValueType', None, False))
+                   ('type', None, False))
 checks.assertEqual(result.find(Constant(('T', 'C')))[0].value_text, '1')
 state, = result.find(State(('T', 's')))
 checks.assertEqual((state.type_text, state.initial_text), ('int', '0'))

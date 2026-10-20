@@ -1,9 +1,9 @@
 struct type Pair { flag: boolean, }
 node type Destination {
-  parameter Type: ValueType = int16;
+  parameter Type: type = int16;
   parameter Number: Type = 9;
   parameter Expected: Type;
-  parameter ExpectedType: ValueType = int16;
+  parameter ExpectedType: type = int16;
   assert Type == ExpectedType;
   parameter Flag: boolean = false;
   parameter ExpectedFlag: boolean = false;
@@ -63,8 +63,8 @@ node type NestedForward {
 node outer_omitted: NestedForward { Expected: 9 }
 node outer_supplied: NestedForward { Number: 4, Expected: 4 }
 node type TypeForward {
-  optional parameter Type: ValueType;
-  parameter ExpectedType: ValueType;
+  optional parameter Type: type;
+  parameter ExpectedType: type;
   node child: Destination {
     Type?: optional(Type), Expected: 9, ExpectedType: ExpectedType,
   }
@@ -72,7 +72,7 @@ node type TypeForward {
 node default_type: TypeForward { ExpectedType: int16 }
 node supplied_type: TypeForward { Type: uint8, ExpectedType: uint8 }
 node type Generic {
-  parameter Type: ValueType;
+  parameter Type: type;
   optional parameter Value: Type;
   parameter Expected: Option[Type];
   constant Maybe: Option[Type] = optional(Value);
@@ -91,7 +91,7 @@ node type DefaultExpression {
 node default_expression: DefaultExpression { Expected: None }
 node supplied_expression: DefaultExpression { Flag: true, Expected: Some(true) }
 node type Dependent {
-  parameter Type: ValueType = boolean;
+  parameter Type: type = boolean;
   parameter Value: Type;
   parameter Expected: Type;
   assert Value == Expected;
@@ -99,19 +99,19 @@ node type Dependent {
 node dependent_before_type: Dependent { Value: -3, Type?: Some(int8), Expected: -3 }
 node dependent_before_bound_type: Dependent { Value: -3, Type: int8, Expected: -3 }
 node type Chained {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Inner: Type;
   parameter Value: Inner;
   assert Value == 5;
 }
-node chained_reversed: Chained { Value: 5, Inner: int8, Type: ValueType }
+node chained_reversed: Chained { Value: 5, Inner: int8, Type: type }
 node type ChainedReverse {
   parameter Value: Inner;
   parameter Inner: Type;
-  parameter Type: ValueType;
+  parameter Type: type;
   assert Value == 5;
 }
-node chained_declared_reversed: ChainedReverse { Type: ValueType, Inner: int8, Value: 5 }
+node chained_declared_reversed: ChainedReverse { Type: type, Inner: int8, Value: 5 }
 node dependent_default_type: Dependent { Value: true, Type?: None, Expected: true }
 node type Raw {
   optional parameter r#type: boolean;
@@ -121,7 +121,7 @@ node type Raw {
 node raw: Raw { r#type?: Some(true), }
 
 node type Presence {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Option[Type];
   optional parameter Optional: Option[Type];
   parameter Expected: boolean;

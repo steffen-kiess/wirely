@@ -28,7 +28,7 @@ For example, `Std.DebugEventPrinter` declares:
 ```wirely
 namespace Std {
   node type DebugEventPrinter {
-    parameter Type: ValueType;
+    parameter Type: type;
 
     default input: event Type;
 
@@ -233,10 +233,10 @@ resolved defaults are ordinary values.
 | Native enums | Generated Python enum |
 | Native structs | Generated `NamedTuple` |
 | Opaque structs | The class implementing it |
-| `ValueType` | `wirely.ValueType` |
+| `type` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
-| A `ValueType` parameter `T` | `wirely.DynamicValue` |
+| A `type` parameter `T` | `wirely.DynamicValue` |
 | Resources | The object the provider returned |
 
 Integer values are immutable and check their type's range when
@@ -295,7 +295,7 @@ Run `tools/generate-native-types` after changing any native declaration.
 
 ## Value type descriptors and dynamic values
 
-Ports of a type given by a `ValueType` parameter, such as `value Type`,
+Ports of a type given by a `type` parameter, such as `value Type`,
 carry `wirely.DynamicValue`s. A dynamic value is immutable and has a
 `type`, a `wirely.ValueType`. Dynamic values are equal when their types
 and values are equal.
@@ -502,7 +502,7 @@ program calls when it is constructed.
 
 A `native constant function` runs only in compile-time expressions. It can
 take and return types without a runtime representation, such as `String`
-and `ValueType`. Implementations live in the snake-case namespace module
+and `type`. Implementations live in the snake-case namespace module
 under [`wirely/compiler/function_implementations/`](../wirely/compiler/function_implementations/),
 with the snake-case function name:
 

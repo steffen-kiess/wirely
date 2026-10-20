@@ -10,7 +10,7 @@ struct type Nested {
 }
 struct type Empty {}
 node type Compare {
-  parameter Type: ValueType;
+  parameter Type: type;
   input Left: value Type;
   input Right: value Type;
   output Equal: value boolean;

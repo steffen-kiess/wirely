@@ -31,7 +31,7 @@ procedure iterate depends on values: multi value boolean {
 }
 
 node type BlockChecked {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   parameter Expected: Type;
   parameter Default: Type = { assert Value == Expected; Value };

@@ -201,11 +201,11 @@ list literals, connection sources, and procedure ports.
 A node type declares parameters with `parameter Name: Type;`. A parameter
 may have a default (`= value`) or be marked `optional`. Instantiation passes
 named parameters, for example `Schedule.TriggerAt { Time: "08:00" }`. Type
-parameters use `ValueType`; a later parameter or port can refer to one:
+parameters have type `type`; a later parameter or port can refer to one:
 
 ```wirely
 node type Example {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Initial: Type;
   default output: value Type;
   connect Initial -> default output;
@@ -236,7 +236,7 @@ also inside procedure bodies, where it can also read an event; see
 
 Declare a constant in a node type or at the program root with
 `constant Name: Type = expression;`. Constants use the same types as
-parameters, including `ValueType`, and cannot be overridden. Each instance
+parameters, including `type`, and cannot be overridden. Each instance
 resolves all its constants once, even unused ones. Initializers may refer to
 parameters and other constants in the same scope, in any declaration order.
 Pass constants to children through ordinary parameter bindings:
@@ -275,7 +275,7 @@ code. Messages may also use raw string literals.
 
 Built-in types are `unit`, `boolean`, signed
 `int8`/`int16`/`int32`/`int64`/`int128`, unsigned
-`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, and `String`. `ValueType` is
+`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, and `String`. `type` is
 used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
 The libraries declare the time types `Std.Duration`, `Schedule.TimeOfDay`,
 and `Timer.MonotonicTime`.
@@ -317,7 +317,7 @@ static values. As for native structs, `as` gives the native name, and field
 names are not compared.
 Read a field with `value.field`, for example `reading.temperature`, also in
 procedure bodies. Field access needs a struct type known where the code is
-written, not a `ValueType` parameter.
+written, not a `type` parameter.
 
 Declare a closed or open enum at top level or inside a namespace:
 
@@ -386,7 +386,7 @@ Calls take positional arguments and may appear in constants, parameter
 values and defaults, assertions, and procedure bodies. Constant functions
 require compile-time arguments. Within a namespace, an unqualified name
 searches enclosing scopes. Declarations may follow their calls.
-A `ValueType` result can initialize a type-valued constant or parameter.
+A `type` result can initialize a type-valued constant or parameter.
 See [native Python implementations](native-python.md#native-functions)
 to supply an implementation.
 
@@ -472,7 +472,7 @@ that namespace. A declaration may appear after its uses.
 Resource ports are compatible only when they refer to the same
 resource declaration. Resources identify opaque service state rather than
 carrying data values. They cannot be used for parameters, state, value
-bindings, `ValueType` arguments, or value types such as `Option[T]` and
+bindings, `type` arguments, or value types such as `Option[T]` and
 `List[T]`.
 Composite nodes can forward resources through their inputs and outputs.
 A native node type produces each resource output in its
@@ -701,7 +701,7 @@ runtime arithmetic functions.
 
 Runtime arithmetic uses members of integer types instead.
 Write a type, a dot, and the member name, as in `uint8.WrappingAdd(a, b)`
-or `Type.CheckedDiv(a, b)` for a `ValueType` parameter. Both arguments have
+or `Type.CheckedDiv(a, b)` for a `type` parameter. Both arguments have
 that type:
 
 | Member | Result |
@@ -733,7 +733,7 @@ otherwise.
 All concrete value types support equality at compile time. Runtime
 expressions can compare times, options, and structs; strings,
 lists, and aggregates containing parameter-only types are compile-time-only.
-For `ValueType` values, built-in types compare by type, `Option` and `List`
+For `type` values, built-in types compare by type, `Option` and `List`
 compare their inner types, and structs and enums compare by declaration.
 For example, `OutputType == unit` or `Option[int16] == Option[int16]`.
 Blocks contain local declarations and expression statements. A statement

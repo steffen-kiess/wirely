@@ -82,7 +82,7 @@ node parent: Forward {} // H: While instantiating 'parent'
 // TEST: presence_type_cycle
 node type Forward {
   optional parameter Foo: Type;
-  parameter Type: ValueType = { let ignored = optional(Foo); boolean }; // E: Cyclic parameter resolution
+  parameter Type: type = { let ignored = optional(Foo); boolean }; // E: Cyclic parameter resolution
 }
 node parent: Forward {}
 

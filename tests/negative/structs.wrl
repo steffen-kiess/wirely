@@ -339,7 +339,7 @@ constant Number: uint8 = Value.flag; // E: Expected value of type uint8, got boo
 // TEST: field_access_on_type_parameter
 struct type Pair { flag: boolean, }
 node type Generic {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   constant Flag: boolean = Value.flag; // E: Field access requires a known struct type
 }

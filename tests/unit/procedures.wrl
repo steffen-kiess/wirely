@@ -140,7 +140,7 @@ namespace ProcedureTests {
   }
 
   node type Forward {
-    parameter Type: ValueType;
+    parameter Type: type;
     default input: value Type;
     default output: value Type;
     node inner: Std.TwoStageValueForward { Type: Type }
@@ -173,7 +173,7 @@ connect source -> delayed;
 connect source -> forwarded;
 
 node type Presence {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Default: Type;
   default input: value Option[Type];
   output Present: value boolean;
@@ -205,7 +205,7 @@ connect option_source -> presence;
 connect nested_source -> nested_presence;
 
 node type Ordering {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Limit: Type;
   default input: value Type;
   output Less: value boolean;
@@ -234,7 +234,7 @@ connect duration_source -> duration_ordering;
 connect time_source -> time_ordering;
 
 node type Arithmetic {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Step: Type;
   default input: value Type;
   output Wrapped: value Type;
@@ -263,7 +263,7 @@ connect int8_source -> int8_arithmetic;
 connect uint8_source -> uint8_arithmetic;
 
 node type PendingOption {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Default: Type;
   default input: value Option[Type];
   default output: value Type;

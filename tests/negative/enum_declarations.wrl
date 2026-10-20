@@ -235,7 +235,7 @@ namespace B {
   }
 }
 node type LiteralParameter {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
 }
 node n: LiteralParameter {

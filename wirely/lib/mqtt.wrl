@@ -5,7 +5,7 @@ namespace MQTT {
   }
 
   #[Internal]
-  native constant function SupportsType(type: ValueType): boolean;
+  native constant function SupportsType(type: type): boolean;
 
   #[Internal]
   native struct type TemplateParts {
@@ -29,7 +29,7 @@ namespace MQTT {
   resource type ValueOptionProviderState;
 
   native node type ValueOptionProvider {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
@@ -54,7 +54,7 @@ namespace MQTT {
   }
 
   node type ValueProvider {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
@@ -80,7 +80,7 @@ namespace MQTT {
   resource type EventSenderState;
 
   native node type EventSender {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;
@@ -108,7 +108,7 @@ namespace MQTT {
   resource type EventReceiverState;
 
   native node type EventReceiver {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: String;
     optional parameter Format: MQTT.Format;

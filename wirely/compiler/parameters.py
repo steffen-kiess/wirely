@@ -168,7 +168,7 @@ def resolve_parameter(parameter: NodeParameter,
 
 
 def native_parameters(values: Mapping[str, StaticValue]) -> Mapping[str, Any]:
-    """Return ValueType parameters as ValueTypes and others as DynamicValues."""
+    """Return `type` parameters as ValueTypes and others as DynamicValues."""
     return MappingProxyType({
         name: (model.ValueType(value) if isinstance(value, model.Type)
                else model.value_types.DynamicValue._make(value.value_type, value.evaluate()))

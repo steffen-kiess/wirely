@@ -181,10 +181,10 @@ connect Flag -> probe.Service; // E: Cannot connect resource and data ports
 
 // TEST: type-valued constant source
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   input Value: value Type;
 }
-constant Selected: ValueType = boolean;
+constant Selected: type = boolean;
 node probe: Probe { Type: boolean }
 connect Selected -> probe.Value; // E: Type-valued constant 'Selected' cannot be a connection source
 

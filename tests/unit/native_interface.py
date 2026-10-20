@@ -506,7 +506,7 @@ def check_outputs():
 
     # Generic outputs are DynamicValues of their bound type.
     generic = '''
-    parameter Type: ValueType;
+    parameter Type: type;
     default output: value Type;
 
     native procedure run produces default output as "output" uses Type;
@@ -711,22 +711,22 @@ def check_native_interface_signatures():
     assert native_interfaces.native_state_types['MQTT.EventSender'] == Initializer(
         depends={'Broker': Port('resource', ResourceType('MQTT.Broker'))},
         produces={'state': Port('resource', ResourceType('MQTT.EventSenderState'))},
-        uses={'Type': Builtin('ValueType'), 'Topic': Builtin('String'), 'Format': Option(Enum('MQTT.Format')),
+        uses={'Type': Builtin('type'), 'Topic': Builtin('String'), 'Format': Option(Enum('MQTT.Format')),
               'template_parts': Struct('MQTT.TemplateParts')},
     )
     assert native_interfaces.native_procedures['MQTT.EventSender:send_value'] == Procedure(
         stage='output',
         depends={'state': Port('resource', ResourceType('MQTT.EventSenderState')),
                  'input': Port('event', TypeVar('Type'))},
-        produces={}, uses={'Type': Builtin('ValueType')},
+        produces={}, uses={'Type': Builtin('type')},
     )
     assert native_interfaces.native_procedures['Std.DebugValuePrinter:run'] == Procedure(
         stage='output', depends={'input': Port('value', TypeVar('Type'))}, produces={},
-        uses={'Type': Builtin('ValueType')},
+        uses={'Type': Builtin('type')},
     )
     assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'] == Procedure(
         stage='default', depends={'input': Port('event', TypeVar('Type'))},
-        produces={'output': Port('event', Opaque('Timer.MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
+        produces={'output': Port('event', Opaque('Timer.MonotonicTime'))}, uses={'Type': Builtin('type')},
     )
     assert native_interfaces.native_functions['Std.Duration.CheckedMul'] == Function(
         (Opaque('Std.Duration'), Int(32, False)), Option(Opaque('Std.Duration')))
@@ -748,7 +748,7 @@ namespace TestLibrary {
   native function Clamp(value: int16, low: int16, high: int16): int16;
 
   node type Probe {
-    parameter Type: ValueType;
+    parameter Type: type;
     input In: value Type;
     output Out: event uint8;
     native procedure run stage output
@@ -814,11 +814,11 @@ connect number -> stateful.Number;
             ({'procedures': {'TestLibrary.Probe:run': replace(run, stage='input')}},
              'runs in stage output, expected input'),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('String')})}},
-             "uses binding 'Type' has type ValueType, expected String"),
+             "uses binding 'Type' has type type, expected String"),
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Int(8, False))})}},
              "'input' has type uint16, expected uint8"),
-            # Type variables are bound to the entry's own ValueType bindings.
+            # Type variables are bound to the entry's own `type` bindings.
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Option(TypeVar('Type')))})}},
              "'input' has type uint16, expected Option\\[uint16\\]"),

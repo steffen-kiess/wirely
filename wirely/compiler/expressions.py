@@ -255,7 +255,7 @@ def is_type_declaration(declaration: model.NodeParameter) -> bool:
     declared_type = getattr(declaration, 'type_resolved', None)
     return (declared_type == model.types.ValueType
             or (isinstance(declaration.ty, model.Reference) and declaration.ty.length == 1
-                and declaration.ty.identifiers[0].id_str == 'ValueType'))
+                and declaration.ty.identifiers[0].id_str == 'type'))
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)

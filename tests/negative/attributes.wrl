@@ -127,7 +127,7 @@ node type T {}
 
 // TEST: misplaced inner node type
 node type T {
-  parameter P: ValueType;
+  parameter P: type;
   #![unknown] // E: Unexpected token
 }
 

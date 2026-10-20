@@ -45,7 +45,7 @@ node three: Std.Constant { Type: uint8, Value: 3 }
 
 // Forwarded, parameterized multi inputs and per-iteration locals.
 node type Sum {
-  parameter Type: ValueType = uint8;
+  parameter Type: type = uint8;
   default input: multi value Type;
   default output: value Type;
   procedure run

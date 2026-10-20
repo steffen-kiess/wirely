@@ -17,7 +17,7 @@ namespace Timer {
 
   // Emits the start time of each step in which the input event is present.
   node type MonotonicTimestamp {
-    parameter Type: ValueType = unit;
+    parameter Type: type = unit;
 
     default input: event Type;
     default output: event MonotonicTime;
@@ -65,7 +65,7 @@ namespace Timer {
   // Output the initial value immediately, then accept changes after the input
   // remains stable for Duration.
   node type DebounceStable {
-    parameter Type: ValueType;
+    parameter Type: type;
     #[Diagram.ShowValue]
     parameter Duration: Std.Duration;
 

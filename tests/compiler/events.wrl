@@ -1,6 +1,6 @@
 // Event dependencies in procedure bodies.
 node type Events {
-  parameter Type: ValueType = uint8;
+  parameter Type: type = uint8;
   input Press: event unit;
   input Values: multi event Type;
   input Changed: event Type;

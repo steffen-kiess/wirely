@@ -22,7 +22,7 @@ boolean, uint8, int32 = (model.types.type_by_name[name] for name in ('boolean', 
 
 # Unfinished programs resolve: connections and sources are not checked.
 source = '''node type Box {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Zero: int32 = 0;
   input value: value Type;
   default output: value Type;
@@ -52,7 +52,7 @@ checks.assertEqual(result.value_type(Parameter(('Box', 'Type'))), model.types.Va
 
 # Errors are reported at their elements, and other elements keep their types.
 source = '''node type Box {
-  parameter Type: ValueType;
+  parameter Type: type;
   default output: value Type;
 }
 node good: Box { Type: uint8 }
@@ -104,7 +104,7 @@ source = '''namespace Lib {
 }
 open enum type Mode: uint8 { Off = 0, }
 node type Box {
-  parameter Type: ValueType;
+  parameter Type: type;
   constant Zero: int32 = 0;
   input value: value Type;
   input many: multi value boolean;
@@ -160,7 +160,7 @@ checks.assertEqual(result.value_type(ProcedurePort(Procedure(('Box', 'run')), 't
 entries = {entry.type_text: entry for entry in result.node_types()}
 constant = entries['Std.Constant']
 checks.assertEqual([(parameter.name, parameter.type_text, parameter.optional) for parameter in constant.parameters],
-                   [('Type', 'ValueType', False), ('Value', 'Type', False)])
+                   [('Type', 'type', False), ('Value', 'Type', False)])
 checks.assertEqual([(port.name, port.direction, port.kind) for port in constant.ports], [(None, 'output', 'value')])
 checks.assertEqual(entries['Lib.Gate'].id, NodeType(('Lib', 'Gate')))
 checks.assertIn('Box', entries)
@@ -173,7 +173,7 @@ checks.assertIn('Inner', [entry.type_text for entry in result.node_types(('Box',
 names = result.type_names(('Box',))
 for name in ('boolean', 'uint8', 'Option', 'List', 'Lib.Point', 'Mode', 'Std.EdgeType', 'Type'):
     checks.assertIn(name, names)
-for name in ('ValueType', 'Lib.Secret'):
+for name in ('type', 'Lib.Secret'):
     checks.assertNotIn(name, names)
 checks.assertNotIn('Type', result.type_names())
 

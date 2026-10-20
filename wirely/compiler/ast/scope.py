@@ -82,7 +82,7 @@ class Scope(abc.ABC):
                         par.resolve_type()
                     declared_type = getattr(par, 'type_resolved', None)
                     is_type = (isinstance(par.ty, Reference) and par.ty.length == 1
-                               and par.ty.identifiers[0].id_str == 'ValueType')
+                               and par.ty.identifiers[0].id_str == 'type')
                     if (is_type or declared_type == model.types.ValueType
                             or (declared_type is not None and declared_type.contains_parameters)):
                         if par not in par_values:
@@ -91,7 +91,7 @@ class Scope(abc.ABC):
                         if isinstance(result, model.Value):
                             return model.TypeParameter(par, ast_element=ty)
                         if not isinstance(result, model.Type):
-                            raise ProgramError(ty, f'Expected ValueType for {name!r}')
+                            raise ProgramError(ty, f'Expected a type for {name!r}')
                         return result
                 if name in model.types.type_by_name:
                     return model.types.type_by_name[name]
@@ -224,7 +224,7 @@ class Scope(abc.ABC):
                     if name in self.static_declarations:
                         par = self.static_declarations[name]
                         if not(isinstance(par.ty, model.Reference) and par.ty.length == 1
-                               and par.ty.identifiers[0].id_str == 'ValueType'):
+                               and par.ty.identifiers[0].id_str == 'type'):
                             parameter_type = self.resolve_type(par.ty, par_values=par_values)
                             model.value.check_value_type(parameter_type, value_type, value)
                             # value = par_values[name]

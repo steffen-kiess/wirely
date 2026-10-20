@@ -303,7 +303,7 @@ node probe: Probe {}
 
 // TEST: compile-time generic Boolean operand
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   parameter Enabled: boolean = !Value; // E: Expected value of type boolean
   default output: value boolean;
@@ -313,7 +313,7 @@ node probe: Probe { Type: int32, Value: 7 }
 
 // TEST: compile-time generic local annotation
 node type Probe {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Value: Type;
   parameter Enabled: boolean = {
     let value: boolean = Value; // E: Expected value of type boolean

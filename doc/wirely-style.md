@@ -21,7 +21,7 @@ a node and its connections. Avoid blank lines immediately inside braces.
 ```wirely
 namespace Example {
   node type Forward {
-    parameter Type: ValueType;
+    parameter Type: type;
     default input: value Type;
     default output: value Type;
 

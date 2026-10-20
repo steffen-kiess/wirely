@@ -28,7 +28,7 @@ assert { let mut value = 3; value & { value = 0; 1 } } == 1;
 
 // Generic expressions resolve the operand width and signedness.
 node type Bits {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Width: uint8;
   parameter Maximum: Type;
   parameter Minimum: Type;

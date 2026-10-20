@@ -111,7 +111,7 @@ def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, Stat
         result = value_type.resolve_self(par_values)
         if not isinstance(result, Type):
             raise model.ProgramError(value_type.parameter.declaration,
-                                      f'Expected ValueType for {value_type.parameter.name.id_str!r}')
+                                      f'Expected a type for {value_type.parameter.name.id_str!r}')
         return result
     if isinstance(value_type, TypeOption):
         return TypeOption(resolve_type(value_type.inner_type, par_values))

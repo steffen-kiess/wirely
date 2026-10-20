@@ -1,5 +1,5 @@
 node type Operations {
-  parameter Type: ValueType;
+  parameter Type: type;
   parameter Count: uint64 = 3;
   constant RightCount: uint8 = 2;
 
