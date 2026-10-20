@@ -218,7 +218,7 @@ def check_type_member_collision():
     constant Value: int16 = int16.WrappingAdd(1, 2);
     ''')], on_diagnostic=diagnostics.append, compiler_override_extensions=[compiler_bindings])
     assert graph is None
-    assert any('int16.WrappingAdd is both a type member and a function' in diagnostic.message
+    assert any('`int16.WrappingAdd` is both a type member and a function' in diagnostic.message
                for diagnostic in diagnostics), diagnostics
 
 
@@ -245,7 +245,7 @@ def check_state_types():
     from wirely.native import check_state_type
 
     check_state_type('node', wirely.value_types.uint8, wirely.value_types.uint8)
-    with checks.assertRaisesRegex(ValueError, 'node: procedure type String does not match state type uint8'):
+    with checks.assertRaisesRegex(ValueError, 'node: procedure type `String` does not match state type `uint8`'):
         check_state_type('node', wirely.value_types.string, wirely.value_types.uint8)
 
 
@@ -303,15 +303,15 @@ def check_native_conversions():
 
     for signature, value_type, value, message in [
         (signature, option, wirely.Some(wirely.value_types.uint16.from_native(wirely.UInt16(4), native_types=native_types)),
-         'in option: Expected a DynamicValue of Option\\[uint16\\], got one of uint16'),
+         'in option: Expected a DynamicValue of `Option\\[uint16\\]`, got one of `uint16`'),
         (signature, option, wirely.Some(wirely.Some(wirely.UInt16(4))), 'in option: Expected a DynamicValue'),
-        (None, pair, Pair(True, 7), "in field 'count': Expected a wirely.UInt8 for uint8, got 7"),
-        (None, pair, (True, wirely.UInt8(7)), 'Expected a Pair for Pair'),
-        (None, mode, 1, 'Expected a Mode for Mode'),
+        (None, pair, Pair(True, 7), "in field `count`: Expected a wirely.UInt8 for `uint8`, got 7"),
+        (None, pair, (True, wirely.UInt8(7)), 'Expected a Pair for `Pair`'),
+        (None, mode, 1, 'Expected a Mode for `Mode`'),
         (None, types.TypeList(types.boolean), [True], 'Expected a tuple'),
-        (None, types.TypeList(types.boolean), (True, 1), 'in item 1: Expected a value of boolean'),
-        (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for uint8'),
-        (None, types.uint8, True, 'Expected a wirely.UInt8 for uint8'),
+        (None, types.TypeList(types.boolean), (True, 1), 'in item 1: Expected a value of `boolean`'),
+        (None, types.uint8, wirely.Int8(1), 'Expected a wirely.UInt8 for `uint8`'),
+        (None, types.uint8, True, 'Expected a wirely.UInt8 for `uint8`'),
         (None, types.TypeOption(types.boolean), True, 'Expected None or wirely.Some'),
         (None, types.ValueType, types.uint8, 'Expected a wirely.ValueType'),
     ]:

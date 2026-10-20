@@ -177,7 +177,7 @@ def check_calls():
 
     # Linking requires an implementation for every table entry.
     missing = Function('TestLibrary.Missing', (), types.boolean)
-    with checks.assertRaisesRegex(ValueError, "Cannot find the signature of native function 'TestLibrary.Missing'"):
+    with checks.assertRaisesRegex(ValueError, "Cannot find the signature of native function `TestLibrary.Missing`"):
         execute([instruction(Opcode.RETURN)], functions=(missing,))
 
     # Implementations must not fail; an exception propagates.
@@ -193,9 +193,9 @@ def check_calls():
     expect_invalid([instruction(Opcode.CALL, output(0), 0, 3, local(0), local(0)), ret], 'Invalid operands',
                    **options)
     expect_invalid([instruction(Opcode.CALL, output(0), 0, 3, local(0), local(1), local(0)), ret],
-                   'Expected type int16, got uint8', **options)
+                   'Expected type `int16`, got `uint8`', **options)
     expect_invalid([instruction(Opcode.CALL, local(1), 0, 3, local(0), local(0), local(0)), ret],
-                   'Expected type int16, got uint8', **options)
+                   'Expected type `int16`, got `uint8`', **options)
     expect_invalid([ret], 'Function func.0', functions=(Function('Test', (types.String,), types.unit),))
 
 

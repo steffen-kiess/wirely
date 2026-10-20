@@ -28,16 +28,16 @@ TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureIn
 # Connection helpers handle heterogeneous graph and instance ports dynamically.
 def describe_target(target: Any) -> str:
     if isinstance(target, model.InstanceInputPort):
-        port = 'Default input' if target.name == '' else f'Input {target.name!r}'
-        return f'{port} of node {target.node.name!r}'
+        port = 'Default input' if target.name == '' else f'Input `{target.name}`'
+        return f'{port} of node `{target.node.name}`'
     if isinstance(target, model.TypeOutputPort):
-        return 'Default output' if target.output_name == '' else f'Output {target.output_name!r}'
+        return 'Default output' if target.output_name == '' else f'Output `{target.output_name}`'
     if isinstance(target, (model.ProcedureInputPort, model.ProcedureOutputPort)):
         return target.description[0].upper() + target.description[1:]
     if isinstance(target, model.LocalResource):
-        return f'Binding {target.name!r}'
+        return f'Binding `{target.name}`'
     kind = 'State' if isinstance(target, model.StateNode) else 'Binding'
-    return f'{kind} {target.name!r}'
+    return f'{kind} `{target.name}`'
 
 
 def connection_kind(port: object) -> model.ConnectionKind:
@@ -129,7 +129,7 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
         if not (source_resource and target_resource):
             incompatible('Cannot connect resource and data ports')
         if source.resource_type is not target.resource_type:
-            incompatible(f'source has resource type {source.resource_type} but target has resource type {target.resource_type}')
+            incompatible(f'source has resource type `{source.resource_type}` but target has resource type `{target.resource_type}`')
         return True
 
     source_kind = connection_kind(source)
@@ -144,7 +144,7 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
     if isinstance(target.node, model.InstanceNode):
         target_type = resolve_type(target_type, target.node.par_values)
     if source_type != target_type:
-        incompatible(f'source has type {source_type} but target has type {target_type}')
+        incompatible(f'source has type `{source_type}` but target has type `{target_type}`')
     return False
 
 

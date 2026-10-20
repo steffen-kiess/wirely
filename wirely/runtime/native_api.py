@@ -56,7 +56,7 @@ class StateServices(Generic[K]):
         """Schedule each procedure that depends on the resource output with this Python name."""
         key = self._output_keys.get(output)
         if key is None:
-            raise ValueError(f'Unknown output {output!r} on {self._name}')
+            raise ValueError(f'Unknown output `{output}` on {self._name}')
         self._trigger(key)
 
     @property
@@ -279,7 +279,7 @@ class InterfaceBinding:
         try:
             return to_native(self.signature.uses[key], self.use_types[key], self.use_values[key], native_types=self.native_types)
         except ValueError as error:
-            raise ValueError(f'{self.where}: invalid uses binding {key!r}: {error}') from error
+            raise ValueError(f'{self.where}: invalid uses binding `{key}`: {error}') from error
 
     def resource(self, key: str) -> object:
         return self.resources[key].object
@@ -289,20 +289,20 @@ class InterfaceBinding:
         try:
             return to_native(self._port_signature(key), self.port_types[key], inputs[key], native_types=self.native_types)
         except ValueError as error:
-            raise ValueError(f'{self.where}: invalid input {key!r}: {error}') from error
+            raise ValueError(f'{self.where}: invalid input `{key}`: {error}') from error
 
     def output(self, key: str, value: object) -> InternalValue:
         """Return the internal value of an output that an implementation returned."""
         try:
             return from_native(self._port_signature(key), self.port_types[key], value, native_types=self.native_types)
         except ValueError as error:
-            raise ValueError(f'{self.where}: invalid value for output {key!r}: {error}') from error
+            raise ValueError(f'{self.where}: invalid value for output `{key}`: {error}') from error
 
     def resource_output(self, key: str, value: object) -> ResourceValue:
         try:
             return ResourceValue(self.output_resource_types[key], value)
         except TypeError as error:
-            raise ValueError(f'{self.where}: invalid value for output {key!r}: {error}') from error
+            raise ValueError(f'{self.where}: invalid value for output `{key}`: {error}') from error
 
     def check_result(self, result: object, result_type: type) -> None:
         if type(result) is not result_type:
@@ -356,7 +356,7 @@ class FunctionBinding:
         try:
             return from_native(None, self.return_type, value, native_types=self.native_types)
         except ValueError as error:
-            raise ValueError(f'Native function {self.name!r} returned an invalid value: {error}') from error
+            raise ValueError(f'Native function `{self.name}` returned an invalid value: {error}') from error
 
 
 class FunctionContract(Generic[F]):

@@ -602,7 +602,7 @@ def check_native_functions():
     assert graph is not None
     assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is None
     assert any(diagnostic.kind == 'internal_error'
-               and "Internal error in function 'TestLibrary.Fail'" in diagnostic.message
+               and "Internal error in function `TestLibrary.Fail`" in diagnostic.message
                for diagnostic in diagnostics), diagnostics
 
 

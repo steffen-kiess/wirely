@@ -145,6 +145,14 @@ def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[s
 
 
 def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str:
+    """Render a signature type for messages, quoting it or the name of a native type with backticks."""
+    for kind, cls in (('native enum', Enum), ('native struct', Struct), ('opaque struct', Opaque)):
+        if isinstance(signature_type, cls):
+            return f'{kind} `{signature_type.native_name}`'
+    return f'`{_syntax(signature_type, bindings)}`'
+
+
+def _syntax(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str:
     """Render a signature type in Wirely syntax, with bound type variables replaced."""
     if isinstance(signature_type, TypeVar):
         bound = bindings.get(signature_type.name)
@@ -154,7 +162,7 @@ def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str
     if isinstance(signature_type, Int):
         return f'{"int" if signature_type.signed else "uint"}{signature_type.bits}'
     if isinstance(signature_type, (Option, List)):
-        return f'{type(signature_type).__name__}[{describe(signature_type.inner, bindings)}]'
+        return f'{type(signature_type).__name__}[{_syntax(signature_type.inner, bindings)}]'
     if isinstance(signature_type, Enum):
         return f'native enum {signature_type.native_name}'
     if isinstance(signature_type, Struct):
@@ -167,12 +175,12 @@ def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str
 def validate_function(name: str, signature: Function, parameters: Sequence[Type], result: Type) -> None:
     """Check a resolved declaration against a native function entry."""
     if len(parameters) != len(signature.parameters):
-        raise ValueError(f'Native function {name!r}: has {len(parameters)} parameters, '
+        raise ValueError(f'Native function `{name}`: has {len(parameters)} parameters, '
                          f'expected {len(signature.parameters)}')
     for index, (expected, actual) in enumerate(zip(signature.parameters, parameters)):
         if not matches(expected, actual, {}):
-            raise ValueError(f'Native function {name!r}: parameter {index} has type {actual}, '
+            raise ValueError(f'Native function `{name}`: parameter {index} has type `{actual}`, '
                              f'expected {describe(expected, {})}')
     if not matches(signature.result, result, {}):
-        raise ValueError(f'Native function {name!r}: result has type {result}, '
+        raise ValueError(f'Native function `{name}`: result has type `{result}`, '
                          f'expected {describe(signature.result, {})}')

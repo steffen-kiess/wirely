@@ -39,9 +39,9 @@ node third: Probe { Number: 2 }
     assert program_compiler.compile(graph, on_diagnostic=diagnostics.append) is not None
     assert [(diagnostic.kind, diagnostic.line, diagnostic.message) for diagnostic in diagnostics] == [
         ('warning', 6, 'Got 1 [NativeFunction]'),
-        ('hint', 10, "While instantiating 'first'"),
+        ('hint', 10, "While instantiating `first`"),
         ('warning', 6, 'Got 2 [NativeFunction]'),
-        ('hint', 12, "While instantiating 'third'"),
+        ('hint', 12, "While instantiating `third`"),
     ], diagnostics
 
 

@@ -195,7 +195,7 @@ class Reference(Value):
                 node_name_id = self.identifiers[0]
                 port_name_id = self.identifiers[1]
             else:
-                raise ProgramError(self, f'Got unexpected number of identifiers in {purpose}: {self}')
+                raise ProgramError(self, f'Got unexpected number of identifiers in {purpose}: `{self}`')
             return ResolvedPortReference(graph, direction, node_name_id, port_name_id, purpose)
         else:
             raise Exception(f'Unknown PortDirection: {direction!r}')
@@ -290,7 +290,7 @@ class ResolvedPortReference(SourceElement):
         local = getattr(graph, 'local_resources', {}).get(self.node_name_str)
         if local is not None:
             if self.port_name is not None:
-                raise ProgramError(self.port_name, f'Binding {self.node_name_str!r} has no port {self.port_name_str!r}')
+                raise ProgramError(self.port_name, f'Binding `{self.node_name_str}` has no port `{self.port_name_str}`')
             self.port = local
             return
 
@@ -305,7 +305,7 @@ class ResolvedPortReference(SourceElement):
                 is_state = isinstance(variable, model.ast.DeclarationState)
                 if self.port_name is not None:
                     kind = 'State' if is_state else 'Binding'
-                    raise ProgramError(self.port_name, f'{kind} {self.node_name_str!r} has no input port {self.port_name_str!r}')
+                    raise ProgramError(self.port_name, f'{kind} `{self.node_name_str}` has no input port `{self.port_name_str}`')
                 variables = graph.state_nodes if is_state else graph.temporary_nodes
                 self.port = variables[self.node_name_str]
                 return
@@ -325,7 +325,7 @@ class ResolvedPortReference(SourceElement):
                 return
             if self.node_name_str in graph.temporary_nodes:
                 if self.port_name_str != '':
-                    raise ProgramError(self.port_name_elem, f'Binding {self.node_name_str!r} has no output port {self.port_name_str!r}')
+                    raise ProgramError(self.port_name_elem, f'Binding `{self.node_name_str}` has no output port `{self.port_name_str}`')
                 self.port = graph.temporary_nodes[self.node_name_str]
                 # TODO: This is a hack
                 return
@@ -336,16 +336,16 @@ class ResolvedPortReference(SourceElement):
             return
 
         if self.node_name_str not in graph.instance_nodes:
-            raise ProgramError(self.node_name, f'Unable to find {purpose} node {self.node_name_str!r}')
+            raise ProgramError(self.node_name, f'Unable to find {purpose} node `{self.node_name_str}`')
         self.node = graph.instance_nodes[self.node_name_str]
         port_dict = port_dict_lambda(self.node)
         if self.port_name_str in port_dict:
             self.port = port_dict[self.port_name_str]
         else:
             if self.port_name_str == '':
-                raise ProgramError(self.node_name, f'{purpose.capitalize()} node {self.node_name_str!r} does not have a default {port_direction}')
+                raise ProgramError(self.node_name, f'{purpose.capitalize()} node `{self.node_name_str}` does not have a default {port_direction}')
             else:
-                raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port {self.node_name_str}.{self.port_name_str}')
+                raise ProgramError(self.port_name_elem, f'Unable to find {purpose} {port_direction} port `{self.node_name_str}.{self.port_name_str}`')
 
 
 def static_source(parameter: 'model.NodeParameter', name: Identifier, port_name: Identifier | None,
@@ -353,12 +353,12 @@ def static_source(parameter: 'model.NodeParameter', name: Identifier, port_name:
     """Return the connection source for a parameter or constant."""
     kind = 'Constant' if parameter.is_constant else 'Parameter'
     if direction == PortDirection.Input:
-        raise ProgramError(name, f'Cannot connect to {kind.lower()} {name.id_str!r}')
+        raise ProgramError(name, f'Cannot connect to {kind.lower()} `{name.id_str}`')
     if port_name is not None:
-        raise ProgramError(port_name, f'{kind} {name.id_str!r} has no output port {port_name.id_str!r}')
+        raise ProgramError(port_name, f'{kind} `{name.id_str}` has no output port `{port_name.id_str}`')
     parameter.resolve_type()
     if parameter.type_resolved == model.types.ValueType:
-        raise ProgramError(name, f'Type-valued {kind.lower()} {name.id_str!r} cannot be a connection source')
+        raise ProgramError(name, f'Type-valued {kind.lower()} `{name.id_str}` cannot be a connection source')
     return model.StaticSource(parameter, name)
 
 
@@ -377,20 +377,20 @@ class StructLiteral(Value):
 def check_struct_literal(value_type: 'model.types.Type', literal: 'StructLiteral',
                          scope: 'model.Scope | None') -> dict[str, 'StructLiteralField']:
     if not isinstance(value_type, model.types.TypeStruct) or value_type.is_opaque:
-        raise ProgramError(literal, f'Expected {value_type}, got struct literal')
+        raise ProgramError(literal, f'Expected `{value_type}`, got struct literal')
     if scope is None or scope.resolve_type(literal.struct_type) is not value_type:
-        raise ProgramError(literal.struct_type, f'Expected struct type {value_type}, got {literal.struct_type}')
+        raise ProgramError(literal.struct_type, f'Expected struct type `{value_type}`, got `{literal.struct_type}`')
     fields: dict[str, StructLiteralField] = {}
     for field in literal.fields:
         name = field.name.id_str
         if name in fields:
-            raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
+            raise ProgramError(field.name, f'Duplicate struct field `{name}`', hints=[
                 CompilerHint(fields[name].name, 'Previous field was here'),
             ])
         if name not in value_type.fields:
-            raise ProgramError(field.name, f'Unknown field {name!r} of {value_type}')
+            raise ProgramError(field.name, f'Unknown field `{name}` of `{value_type}`')
         fields[name] = field
     missing = value_type.fields.keys() - fields.keys()
     if missing:
-        raise ProgramError(literal, f'Missing fields of {value_type}: {", ".join(sorted(missing))}')
+        raise ProgramError(literal, f'Missing fields of `{value_type}`: {", ".join(f"`{name}`" for name in sorted(missing))}')
     return fields

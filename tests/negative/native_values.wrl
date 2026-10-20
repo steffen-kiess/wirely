@@ -1,33 +1,33 @@
 // TEST: duplicate bare name
 node type Probe {
   parameter Flag: boolean;
-  native procedure run uses Flag, Flag; // E: Duplicate static binding key 'Flag'
+  native procedure run uses Flag, Flag; // E: Duplicate static binding key `Flag`
 }
 
 // TEST: bare name and alias collision
 node type Probe {
   parameter Flag: boolean;
-  native procedure run uses Flag, false as Flag; // E: Duplicate static binding key 'Flag'
+  native procedure run uses Flag, false as Flag; // E: Duplicate static binding key `Flag`
 }
 
 // TEST: identifier and string alias collision
 node type Probe {
-  native procedure run uses true as flag, false as "flag"; // E: Duplicate static binding key 'flag'
+  native procedure run uses true as flag, false as "flag"; // E: Duplicate static binding key `flag`
 }
 
 // TEST: initializer duplicate key
 native node type Probe {
-  native initializer uses true as flag, false as flag; // E: Duplicate static binding key 'flag'
+  native initializer uses true as flag, false as flag; // E: Duplicate static binding key `flag`
 }
 
 // TEST: unknown bare declaration
 node type Probe {
-  native procedure run uses Missing; // E: Unknown static declaration 'Missing'
+  native procedure run uses Missing; // E: Unknown static declaration `Missing`
 }
 
 // TEST: bare value must name a static declaration
 node type Probe {
-  native procedure run uses true; // E: Unknown static declaration 'true'
+  native procedure run uses true; // E: Unknown static declaration `true`
 }
 
 // TEST: expression requires alias
@@ -72,17 +72,17 @@ node type Probe {
 // TEST: bad function argument
 // LIBRARIES: std, schedule
 node type Probe {
-  native procedure run uses Schedule.TimeOfDay.WrappingAdd(7, "PT1M") as value; // E: Invalid Schedule.TimeOfDay value
+  native procedure run uses Schedule.TimeOfDay.WrappingAdd(7, "PT1M") as value; // E: Invalid `Schedule.TimeOfDay` value
 }
 
 // TEST: unknown call
 node type Probe {
-  native procedure run uses Missing() as value; // E: Cannot find function 'Missing'
+  native procedure run uses Missing() as value; // E: Cannot find function `Missing`
 }
 
 // TEST: initializer unknown declaration
 native node type Probe {
-  native initializer uses Missing; // E: Unknown static declaration 'Missing'
+  native initializer uses Missing; // E: Unknown static declaration `Missing`
 }
 
 // TEST: Wirely body rejects uses

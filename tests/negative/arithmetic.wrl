@@ -4,7 +4,7 @@
 assert 2 + 2 == 5; // E: Compile-time assertion failed
 
 // TEST: operator overflow
-constant Value: uint8 = 200 + 100; // E: Arithmetic overflow: result does not fit uint8
+constant Value: uint8 = 200 + 100; // E: Arithmetic overflow: result does not fit `uint8`
 
 // TEST: intermediate overflow
 constant Value: uint8 = 200 + 100 - 150; // E: Arithmetic overflow
@@ -25,37 +25,37 @@ constant Value: int16 = 1 % 0; // E: Division by zero
 // TEST: mismatched integer types
 constant Small: int8 = 1;
 constant Large: int16 = 2;
-constant Value: int16 = Small + Large; // E: Expected value of type int16, got int8
+constant Value: int16 = Small + Large; // E: Expected value of type `int16`, got `int8`
 
 // TEST: boolean operands
-constant Value: boolean = true + false; // E: Integer arithmetic requires an integer value, got boolean
+constant Value: boolean = true + false; // E: Integer arithmetic requires an integer value, got `boolean`
 
 // TEST: duration operands
 constant Span: Std.Duration = "PT1S";
-constant Value: Std.Duration = Span * Span; // E: got Std.Duration
+constant Value: Std.Duration = Span * Span; // E: got `Std.Duration`
 
 // TEST: enum operands
 open enum type Mode: uint8 { Off = 0, }
-constant Value: Mode = Mode.Off + Mode.Off; // E: got Mode
+constant Value: Mode = Mode.Off + Mode.Off; // E: got `Mode`
 
 // TEST: member of a non-integer type
-constant Value: boolean = boolean.WrappingAdd(true, false); // E: Type boolean has no member 'WrappingAdd'
+constant Value: boolean = boolean.WrappingAdd(true, false); // E: Type `boolean` has no member `WrappingAdd`
 
 // TEST: unknown integer member
-constant Value: int16 = int16.WrappingDiv(1, 2); // E: Type int16 has no member 'WrappingDiv'
+constant Value: int16 = int16.WrappingDiv(1, 2); // E: Type `int16` has no member `WrappingDiv`
 
 // TEST: member argument count
-constant Value: int16 = int16.WrappingAdd(1); // E: int16.WrappingAdd expects exactly two arguments
+constant Value: int16 = int16.WrappingAdd(1); // E: `int16.WrappingAdd` expects exactly two arguments
 
 // TEST: member argument type
 constant Value: int16 = int16.WrappingAdd(1, true); // E: Invalid int value true
 
 // TEST: checked result type
-constant Value: int16 = int16.CheckedAdd(1, 2); // E: got Option[int16]
+constant Value: int16 = int16.CheckedAdd(1, 2); // E: got `Option[int16]`
 
 // TEST: value names shadow type names
 constant int16: boolean = true;
-constant Value: boolean = int16.WrappingAdd(1, 2); // E: Value of type boolean has no method 'WrappingAdd'
+constant Value: boolean = int16.WrappingAdd(1, 2); // E: Value of type `boolean` has no method `WrappingAdd`
 
 // TEST: checked member result of a type parameter
 node type Generic {
@@ -64,20 +64,20 @@ node type Generic {
   // ^E: Expected value of type
 }
 node generic: Generic { Type: int16 }
-// ^H: While instantiating 'generic'
+// ^H: While instantiating `generic`
 
 // TEST: operators in procedures
 #[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   let value: int16 = 1;
-  result = value + 1; // E: Arithmetic operators are compile-time only; use T.WrappingAdd, T.SaturatingAdd, or T.CheckedAdd
+  result = value + 1; // E: Arithmetic operators are compile-time only; use `T.WrappingAdd`, `T.SaturatingAdd`, or `T.CheckedAdd`
 }
 
 // TEST: division in procedures
 #[Allow(Unused)] binding result: value int16;
 procedure run produces result {
   let value: int16 = 4;
-  result = value / 2; // E: Arithmetic operators are compile-time only; use T.CheckedDiv
+  result = value / 2; // E: Arithmetic operators are compile-time only; use `T.CheckedDiv`
 }
 
 // TEST: negation in procedures

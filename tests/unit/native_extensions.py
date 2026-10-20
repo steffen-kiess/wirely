@@ -29,7 +29,7 @@ def check_resolution():
     first = RuntimeNativeExtension(resources={'Demo.Service': lambda: int})
     second = RuntimeNativeExtension(resources={'Demo.Service': lambda: str})
     for normal, overrides in [([first, second], []), ([], [first, second])]:
-        with checks.assertRaisesRegex(ValueError, "Duplicate native resources 'Demo.Service'"):
+        with checks.assertRaisesRegex(ValueError, "Duplicate native resources `Demo.Service`"):
             resolve_extensions(normal, override_extensions=overrides)
     selected = resolve_extensions([first], override_extensions=[second], include_builtin_extensions=False)
     assert selected.resources['Demo.Service']() is str

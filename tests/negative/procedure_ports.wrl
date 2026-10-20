@@ -46,38 +46,38 @@ node type Invalid {
 
 // TEST: procedure_duplicate_input_key
 // SH: Previous port was here
-// SE: Duplicate port name 'Value'
+// SE: Duplicate port name `Value`
 node type Invalid {
   input Value: value boolean;
   input Other: value boolean;
 
   native procedure run
     depends on Value, // H: Previous port was here
-      Other as "Value"; // E: Duplicate port name 'Value'
+      Other as "Value"; // E: Duplicate port name `Value`
 }
 
 // TEST: procedure_duplicate_result_key
 // SH: Previous port was here
-// SE: Duplicate port name 'Value'
+// SE: Duplicate port name `Value`
 node type Invalid {
   output Value: value boolean;
   output Other: value boolean;
 
   native procedure run
     produces Value, // H: Previous port was here
-      Other as "Value"; // E: Duplicate port name 'Value'
+      Other as "Value"; // E: Duplicate port name `Value`
 }
 
 // TEST: procedure_duplicate_decoded_alias
 // SH: Previous port was here
-// SE: Duplicate port name 'a'
+// SE: Duplicate port name `a`
 node type Invalid {
   input First: value boolean;
   input Second: value boolean;
 
   native procedure run
     depends on First as "\x61", // H: Previous port was here
-      Second as r"a"; // E: Duplicate port name 'a'
+      Second as r"a"; // E: Duplicate port name `a`
 }
 
 // TEST: procedure_unknown_child_output
@@ -92,7 +92,7 @@ node type Invalid {
   node child: Child {}
 
   native procedure run depends on child.Missing as "value";
-  // ^E: Unable to find dependency output port child.Missing
+  // ^E: Unable to find dependency output port `child.Missing`
 }
 
 // TEST: procedure_deep_dependency
@@ -114,13 +114,13 @@ node type Invalid {
   state value: boolean = false;
 
   native procedure run produces value.old as "value";
-  // ^E: State 'value' has no input port 'old'
+  // ^E: State `value` has no input port `old`
 }
 
 // TEST: procedure_port_without_source
 node type Invalid {
   native procedure run
-    depends on value: value boolean; // E: Input port 'value' of procedure 'run' has no source
+    depends on value: value boolean; // E: Input port `value` of procedure `run` has no source
 }
 
 // TEST: procedure_port_second_source
@@ -130,7 +130,7 @@ node type Invalid {
   native procedure run
     depends on value: value boolean;
   connect default input -> run.value; // H: Previous connection was here
-  connect Other -> run.value; // E: Port 'value' of procedure 'run' already has a source
+  connect Other -> run.value; // E: Port `value` of procedure `run` already has a source
 }
 
 // TEST: procedure_port_reference
@@ -141,7 +141,7 @@ node type Invalid {
   native procedure run
     depends on default input as value
     produces default output as "output";
-  connect run.output -> default output; // E: Port 'output' of procedure 'run' is not a typed port
+  connect run.output -> default output; // E: Port `output` of procedure `run` is not a typed port
 }
 
 // TEST: procedure_port_multi_forward
@@ -151,7 +151,7 @@ node type Invalid {
   native procedure run
     depends on values: multi value boolean;
   connect Values -> run.values; // H: Previous connection was here
-  connect Other -> run.values; // E: Port 'values' of procedure 'run' cannot combine a multi input with other sources
+  connect Other -> run.values; // E: Port `values` of procedure `run` cannot combine a multi input with other sources
 }
 
 // TEST: procedure_port_unknown
@@ -160,17 +160,17 @@ node type Invalid {
   input Flag: value boolean;
   native procedure run
     depends on value as "missing": value boolean;
-  connect Flag -> run.missing; // E: Unable to find port 'missing' of procedure 'run'
+  connect Flag -> run.missing; // E: Unable to find port `missing` of procedure `run`
 }
 
 // TEST: procedure_port_duplicate_key
 // SH: Previous port was here
-// SE: Duplicate port key 'value'
+// SE: Duplicate port key `value`
 node type Invalid {
   input Flag: value boolean;
   native procedure run
     depends on Flag as "value", // H: Previous port was here
-      other as "value": value boolean; // E: Duplicate port key 'value'
+      other as "value": value boolean; // E: Duplicate port key `value`
 }
 
 // TEST: procedure_port_default_name
@@ -186,7 +186,7 @@ node type Invalid {
   default output: value boolean;
   native procedure run
     depends on value: value boolean;
-  connect run.value -> default output; // E: Port 'value' of procedure 'run' is an input
+  connect run.value -> default output; // E: Port `value` of procedure `run` is an input
 }
 
 // TEST: procedure_port_missing_name
@@ -194,7 +194,7 @@ node type Invalid {
   default output: value boolean;
   native procedure run
     produces value: value boolean;
-  connect run -> default output; // E: Procedure references require a port, as in run.port
+  connect run -> default output; // E: Procedure references require a port, as in `run.port`
 }
 
 // TEST: procedure_port_type_mismatch
@@ -202,7 +202,7 @@ node type Invalid {
   input Flag: value boolean; // H: Source was declared here
   native procedure run
     depends on value: value uint8; // H: Target was declared here
-  connect Flag -> run.value; // E: source has type boolean but target has type uint8
+  connect Flag -> run.value; // E: source has type `boolean` but target has type `uint8`
 }
 
 // TEST: procedure_port_kind_mismatch
@@ -237,7 +237,7 @@ node type Invalid {
 node a: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
 procedure run depends on a produces result {
-  result = a; // E: Event 'a' can only be read inside 'on a'
+  result = a; // E: Event `a` can only be read inside `on a`
 }
 
 // TEST: event_read_with_other_trigger
@@ -247,7 +247,7 @@ node b: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
 procedure run depends on a, b produces result {
   let mut value = false;
-  on a, b { value = a; } // E: Event 'a' can only be read inside 'on a'
+  on a, b { value = a; } // E: Event `a` can only be read inside `on a`
   result = value;
 }
 
@@ -259,7 +259,7 @@ procedure run depends on values: multi event boolean produces result {
   let mut value = false;
   on values {
     for item in values {
-      value = item; // E: Event 'item' can only be read inside 'on item'
+      value = item; // E: Event `item` can only be read inside `on item`
     }
   }
   result = value;
@@ -296,7 +296,7 @@ procedure run depends on a produces result {
 node a: Std.DebugValueSource { Type: boolean }
 state result: boolean = false;
 procedure run depends on a produces result {
-  on a {} // E: 'a' is not an event dependency
+  on a {} // E: `a` is not an event dependency
   result = a;
 }
 
@@ -354,7 +354,7 @@ node type Invalid {
     depends on Input as input, Values as values
     produces default output as output
   {
-    emit output; // E: Expected value of type boolean, got unit
+    emit output; // E: Expected value of type `boolean`, got `unit`
   }
 }
 node invalid: Invalid {}

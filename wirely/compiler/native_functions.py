@@ -97,7 +97,7 @@ class ConstantFunctionImplementation:
 def validate_entry(name: str, declaration: model.DeclarationNativeFunction) -> None:
     # Loading is deferred until evaluation; generation must work before bindings exist.
     if not name.rpartition('.')[0]:
-        raise model.ProgramError(declaration, f'Missing implementation for function {name!r}')
+        raise model.ProgramError(declaration, f'Missing implementation for function `{name}`')
 
 
 def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
@@ -112,7 +112,7 @@ def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
                 previous = names.get(key)
                 if previous is not None and (isinstance(item, model.DeclarationNativeFunction)
                                              or isinstance(previous, model.DeclarationNativeFunction)):
-                    raise model.ProgramError(item, f'Duplicate or conflicting function declaration {key!r}')
+                    raise model.ProgramError(item, f'Duplicate or conflicting function declaration `{key}`')
                 names[key] = item
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, scope + (item.name.id_str,))
@@ -129,8 +129,8 @@ def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
         for member in enum.members:
             function = names.get(member.name.id_str)
             if isinstance(function, model.DeclarationNativeFunction):
-                raise model.ProgramError(function, f'Function {member.name.id_str!r} conflicts with a member of '
-                                         f'enum type {enum.name.id_str}', hints=[
+                raise model.ProgramError(function, f'Function `{member.name.id_str}` conflicts with a member of '
+                                         f'enum type `{enum.name.id_str}`', hints=[
                     model.CompilerHint(member, 'Enum member was here'),
                 ])
 
@@ -145,7 +145,7 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
         previous = names.setdefault((kind, name), item)
         # Wirely name checks report clashes between unkeyed declarations.
         if previous is not item and (item.alias is not None or previous.alias is not None):
-            raise model.ProgramError(item.alias or item.name, f'Duplicate native name {name!r}', hints=[
+            raise model.ProgramError(item.alias or item.name, f'Duplicate native name `{name}`', hints=[
                 model.CompilerHint(previous.alias or previous.name, 'Previous declaration was here'),
             ])
 
@@ -181,12 +181,12 @@ def resolve_implementation(function: model.CompiledFunction,
     try:
         entry = function.scope.coordinator.global_node_type.compiler_native_extension.functions.get(function.native_name)
         if entry is None:
-            raise ValueError(f'Cannot find native function {function.native_name!r}')
+            raise ValueError(f'Cannot find native function `{function.native_name}`')
         from ..runtime.signatures import validate_function
         validate_function(function.native_name, entry.signature, function.parameter_types, function.return_type)
         binding = entry.load()
     except (ImportError, TypeError, ValueError) as error:
-        raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
+        raise model.ProgramError(call, f'Cannot load function `{function.function_name}`: {error}') from error
     function.constant_implementation = binding
     return binding
 
@@ -202,7 +202,7 @@ def invoke(function: model.CompiledFunction, values: Sequence[object], sources: 
         arguments = [to_native(None, value_type, value, native_types=native_types)  # type: ignore[arg-type]  # Values are internal.
                      for value_type, value in zip(function.parameter_types, values)]
     except ValueError as error:
-        raise model.ProgramError(call, f'Cannot pass the arguments of function {name!r}: {error}') from error
+        raise model.ProgramError(call, f'Cannot pass the arguments of function `{name}`: {error}') from error
     warnings = function.scope.coordinator.warnings
     assert warnings is not None
     services = FunctionServices(function_name=function.native_name, services=function.scope.services, call=call,
@@ -216,7 +216,7 @@ def invoke(function: model.CompiledFunction, values: Sequence[object], sources: 
     try:
         return from_native(None, function.return_type, result, native_types=native_types)
     except ValueError as error:
-        raise model.ProgramError(call, f'Function {name!r} expected result of type {function.return_type}: '
+        raise model.ProgramError(call, f'Function `{name}` expected result of type `{function.return_type}`: '
                                  f'{error}') from error
 
 
@@ -228,7 +228,7 @@ def runtime_implementation(function: model.CompiledFunction, call: model.ast.Sou
                 function.native_name, function.parameter_types, function.return_type,
                 extension=function.scope.coordinator.global_node_type.native_extension)
         except (ImportError, ValueError) as error:
-            raise model.ProgramError(call, f'Cannot load function {function.function_name!r}: {error}') from error
+            raise model.ProgramError(call, f'Cannot load function `{function.function_name}`: {error}') from error
     return function.runtime_implementation
 
 
@@ -241,6 +241,6 @@ def invoke_runtime_function(function: model.CompiledFunction, values: Sequence[o
         return implementation(values)
     except Exception as error:
         # Runtime functions must not fail, so an exception is a library error.
-        inner = RuntimeError(f'Internal error in function {name!r}: {type(error).__name__}: {error}')
+        inner = RuntimeError(f'Internal error in function `{name}`: {type(error).__name__}: {error}')
         inner.__cause__ = error
         raise model.ast.InternalCompilerError(call, inner) from error

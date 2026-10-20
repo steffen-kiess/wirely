@@ -1,27 +1,27 @@
 // TEST: type and boolean
-assert int16 == true; // E: Expected value of type type, got boolean
+assert int16 == true; // E: Expected value of type `type`, got `boolean`
 
 // TEST: boolean and type
 assert true != int16; // E: Invalid boolean value
 
 // TEST: type and unit value
-assert unit == (); // E: Expected value of type type, got unit
+assert unit == (); // E: Expected value of type `type`, got `unit`
 
 // TEST: type and integer
-assert int16 == 1; // E: Expected value of type type, got int32
+assert int16 == 1; // E: Expected value of type `type`, got `int32`
 
 // TEST: integer and type
-assert 1 != int16; // E: Expected value of type type, got int32
+assert 1 != int16; // E: Expected value of type `type`, got `int32`
 
 // TEST: a value name takes precedence over a built-in type name
 constant int16: boolean = true;
-assert unit == int16; // E: Expected value of type type, got boolean
+assert unit == int16; // E: Expected value of type `type`, got `boolean`
 
 // TEST: mixed type and enum value
 open enum type Mode: uint8 {
   On = 1,
 }
-assert Mode == Mode.On; // E: Expected value of type type, got Mode
+assert Mode == Mode.On; // E: Expected value of type `type`, got `Mode`
 
 // TEST: optional output required
 node type OptionalOutput {
@@ -31,29 +31,29 @@ node type OptionalOutput {
     "OutputValue is required when OutputType is not unit";
   // ^^E: OutputValue is required when OutputType is not unit
 }
-node missing: OptionalOutput { OutputType: int16 } // H: While instantiating 'missing'
+node missing: OptionalOutput { OutputType: int16 } // H: While instantiating `missing`
 
 // TEST: mismatched lists
 constant Left: List[int8] = [];
 constant Right: List[uint8] = [];
-assert Left == Right; // E: Expected value of type List[int8], got List[uint8]
+assert Left == Right; // E: Expected value of type `List[int8]`, got `List[uint8]`
 
 // TEST: mismatched options
 constant Left: Option[int8] = None;
 constant Right: Option[uint8] = None;
-assert Left != Right; // E: Expected value of type Option[int8], got Option[uint8]
+assert Left != Right; // E: Expected value of type `Option[int8]`, got `Option[uint8]`
 
 // TEST: nominal structs
 struct type Left { flag: boolean, }
 struct type Right { flag: boolean, }
 constant A: Left = Left { flag: true };
 constant B: Right = Right { flag: true };
-assert A == B; // E: Expected value of type Left, got Right
+assert A == B; // E: Expected value of type `Left`, got `Right`
 
 // TEST: enum and integer
 open enum type Mode: uint8 { On = 1, }
 constant Number: uint8 = 1;
-assert Mode.On == Number; // E: Expected value of type Mode, got uint8
+assert Mode.On == Number; // E: Expected value of type `Mode`, got `uint8`
 
 // TEST: integer and enum
 open enum type Mode: uint8 { On = 1, }
@@ -65,51 +65,51 @@ node type Compare {
   parameter Type: type;
   parameter Left: Type;
   parameter Right: List[uint8];
-  assert Left == Right; // E: Expected value of type List[int8], got List[uint8]
+  assert Left == Right; // E: Expected value of type `List[int8]`, got `List[uint8]`
 }
 node compare: Compare { Type: List[int8], Left: [], Right: [] }
-// ^H: While instantiating 'compare'
+// ^H: While instantiating `compare`
 
 // TEST: procedure list operand
 #[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
-  let items: List[uint8] = []; // E: Type List[uint8] is not a runtime type: List[uint8] is parameter-only
+  let items: List[uint8] = []; // E: Type `List[uint8]` is not a runtime type: `List[uint8]` is parameter-only
   result = items == items;
 }
 
 // TEST: procedure parameter-only option operand
 #[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
-  let value: Option[String] = None; // E: Type Option[String] is not a runtime type: inner type: String is parameter-only
+  let value: Option[String] = None; // E: Type `Option[String]` is not a runtime type: inner type: `String` is parameter-only
   result = value == value;
 }
 
 // TEST: ordering booleans
-assert false < true; // E: Ordering comparison requires an integer, Std.Duration, or Schedule.TimeOfDay value, got boolean
+assert false < true; // E: Ordering comparison requires an integer, Std.Duration, or Schedule.TimeOfDay value, got `boolean`
 
 // TEST: ordering strings
-assert "a" <= "b"; // E: got String
+assert "a" <= "b"; // E: got `String`
 
 // TEST: ordering enums
 open enum type Mode: uint8 { Off = 0, On = 1, }
-assert Mode.Off < Mode.On; // E: got Mode
+assert Mode.Off < Mode.On; // E: got `Mode`
 
 // TEST: ordering options
 constant Value: Option[uint8] = None;
-assert Value >= None; // E: got Option[uint8]
+assert Value >= None; // E: got `Option[uint8]`
 
 // TEST: ordering monotonic times
 // LIBRARIES: std, timer
 constant Deadline: Option[Timer.MonotonicTime] = None;
-assert if let Some(time) = Deadline { time > time } else { false }; // E: got Timer.MonotonicTime
+assert if let Some(time) = Deadline { time > time } else { false }; // E: got `Timer.MonotonicTime`
 
 // TEST: ordering types
-assert int8 < int16; // E: got type
+assert int8 < int16; // E: got `type`
 
 // TEST: ordering mismatched integer types
 constant Small: int8 = 1;
 constant Large: int16 = 2;
-assert Small < Large; // E: Expected value of type int8, got int16
+assert Small < Large; // E: Expected value of type `int8`, got `int16`
 
 // TEST: chained ordering
 assert 1 < 2 < 3; // E: Unexpected token
@@ -117,5 +117,5 @@ assert 1 < 2 < 3; // E: Unexpected token
 // TEST: procedure ordering booleans
 #[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
-  result = true > false; // E: got boolean
+  result = true > false; // E: got `boolean`
 }

@@ -32,7 +32,7 @@ node type Invalid {
 
 // TEST: procedure_name_without_type
 node type Invalid {
-  native procedure run as "run"; // E: Native procedure names have the form 'Type:procedure'
+  native procedure run as "run"; // E: Native procedure names have the form `Type:procedure`
 }
 
 // TEST: procedure_name_with_different_interfaces

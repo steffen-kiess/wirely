@@ -33,7 +33,7 @@ node type Forward {
     Time: "12:00",
     OutputType: boolean,
     OutputValue?: optional(Value),
-    // ^E: Expected value of type Option[boolean], got Option[uint16]
+    // ^E: Expected value of type `Option[boolean]`, got `Option[uint16]`
   }
 }
 node forward: Forward { Value: 0 }
@@ -44,7 +44,7 @@ node type Forward {
   node child: Memory.ToggleFlipFlopTrigger {
     OutputType: uint16,
     OutputValue?: optional(Value),
-    // ^E: Expected value of type Option[uint16], got Option[boolean]
+    // ^E: Expected value of type `Option[uint16]`, got `Option[boolean]`
   }
 }
 node forward: Forward { Value: false }
@@ -56,7 +56,7 @@ node type Output {
   assert Type == unit || optional(Value).IsSome;
   // ^E: Compile-time assertion failed
 }
-node output: Output { Type: boolean } // H: While instantiating 'output'
+node output: Output { Type: boolean } // H: While instantiating `output`
 
 // TEST: unit default with missing non-unit payload
 node type DefaultOutput {

@@ -6,14 +6,14 @@ node invalid: Invalid {}
 
 // TEST: parameter_default_invalid_type
 node type Invalid {
-  parameter Type: type = Unknown; // E: Cannot find type Unknown
+  parameter Type: type = Unknown; // E: Cannot find type `Unknown`
 }
 node invalid: Invalid {}
 
 // TEST: parameter_default_value_cycle
 // SE: Cyclic parameter resolution
 node type Invalid {
-  parameter First: uint8 = Second; // E: Cyclic parameter resolution: First -> Second -> First
+  parameter First: uint8 = Second; // E: Cyclic parameter resolution: `First` -> `Second` -> `First`
   parameter Second: uint8 = First;
 }
 node invalid: Invalid {}
@@ -21,16 +21,16 @@ node invalid: Invalid {}
 // TEST: parameter_default_type_cycle
 // SE: Cyclic parameter resolution
 node type Invalid {
-  parameter First: type = Option[Second]; // E: Cyclic parameter resolution: First -> Second -> First
+  parameter First: type = Option[Second]; // E: Cyclic parameter resolution: `First` -> `Second` -> `First`
   parameter Second: type = First;
 }
 node invalid: Invalid {}
 
 // TEST: parameter_type_self_reference
 node type Invalid {
-  parameter Type: Type; // E: Cannot find type Type
+  parameter Type: Type; // E: Cannot find type `Type`
 }
 
 // TEST: unknown_parameter
 // LIBRARIES: std
-node node1: Std.DebugEventSource { missing_keyword: boolean } // E: Unknown parameter for DebugEventSource: missing_keyword
+node node1: Std.DebugEventSource { missing_keyword: boolean } // E: Unknown parameter for `DebugEventSource`: `missing_keyword`

@@ -131,7 +131,7 @@ class ValueType(Generic[N]):
     def json_decode(self, value: Any, format: str | None = None) -> DynamicValue:
         """Convert a JSON-compatible Python value."""
         if not self.supports_json:
-            raise ValueError(f'{self} does not support JSON conversion')
+            raise ValueError(f'`{self}` does not support JSON conversion')
         try:
             value = self._type.json_decode(value, format)
         except Exception as error:
@@ -165,7 +165,7 @@ class DynamicValue:
         try:
             value = value_type.verify_value(value)
         except Exception as error:
-            raise ValueError(f'Invalid {descriptor} value {value!r}: {error}') from error
+            raise ValueError(f'Invalid `{descriptor}` value {value!r}: {error}') from error
         result = object.__new__(cls)
         object.__setattr__(result, '_type', value_type)
         object.__setattr__(result, '_value', value)
@@ -209,7 +209,7 @@ class DynamicValue:
     def json_encode(self, format: str | None = None) -> Any:
         """Return the value as a JSON-compatible Python value."""
         if not self.type.supports_json:
-            raise ValueError(f'{self._type} does not support JSON conversion')
+            raise ValueError(f'`{self._type}` does not support JSON conversion')
         try:
             return self._type.json_encode(self._value, format)
         except Exception as error:
@@ -218,7 +218,7 @@ class DynamicValue:
     def to_csv_value(self) -> tuple[str, bool]:
         """Return the CSV text of the value and whether it needs quotes."""
         if not self.type.supports_csv:
-            raise ValueError(f'{self._type} does not support CSV conversion')
+            raise ValueError(f'`{self._type}` does not support CSV conversion')
         try:
             return self._type.to_csv_value(self._value)
         except Exception as error:
@@ -227,7 +227,7 @@ class DynamicValue:
     def extract(self, value_type: ValueType[N], *, native_types: NativeTypes) -> N:
         """Return the native representation, requiring the value to have this type."""
         if value_type._type != self._type:
-            raise ValueError(f'Expected a value of type {value_type}, got {self._type}')
+            raise ValueError(f'Expected a value of type `{value_type}`, got `{self._type}`')
         return cast(N, self.to_native(native_types=native_types))
 
     def to_native(self, *, native_types: NativeTypes) -> object:

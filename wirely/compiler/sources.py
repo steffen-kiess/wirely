@@ -173,7 +173,7 @@ def standard_library_texts(names: Iterable[str] | None = None) -> list[tuple[str
     names = STANDARD_LIBRARY_NAMES if names is None else tuple(names)
     for name in names:
         if name not in STANDARD_LIBRARY_NAMES:
-            raise ValueError(f'Unknown library {name!r}')
+            raise ValueError(f'Unknown library `{name}`')
     directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'lib')
     sources = []
     for name in names:

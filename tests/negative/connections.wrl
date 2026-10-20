@@ -6,20 +6,20 @@ node type Probe {
     output = input;
   }
 }
-node probe: Probe {} // E: Default input of node 'probe' is not connected
+node probe: Probe {} // E: Default input of node `probe` is not connected
 
 // TEST: unconnected resource input
 resource type Service;
 node type Probe {
   input Service: resource Service; // H: Input was declared here
 }
-node probe: Probe {} // E: Input 'Service' of node 'probe' is not connected
+node probe: Probe {} // E: Input `Service` of node `probe` is not connected
 
 // TEST: unconnected unused input
 node type Probe {
   input Enabled: value boolean; // H: Input was declared here
 }
-node probe: Probe {} // E: Input 'Enabled' of node 'probe' is not connected
+node probe: Probe {} // E: Input `Enabled` of node `probe` is not connected
 
 // TEST: unconnected composite input
 node type Inner {
@@ -30,14 +30,14 @@ node type Outer {
   node inner: Inner {}
   connect default input -> inner;
 }
-node outer: Outer {} // E: Default input of node 'outer' is not connected
+node outer: Outer {} // E: Default input of node `outer` is not connected
 
 // TEST: unconnected child input
 node type Inner {
   default input: value boolean; // H: Input was declared here
 }
 node type Outer {
-  node inner: Inner {} // E: Default input of node 'outer.inner' is not connected
+  node inner: Inner {} // E: Default input of node `outer.inner` is not connected
 }
 node outer: Outer {}
 
@@ -45,13 +45,13 @@ node outer: Outer {}
 node type Probe {
   default output: value boolean; // E: Default output has no source
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: named output without source
 node type Probe {
-  output Ready: value boolean; // E: Output 'Ready' has no source
+  output Ready: value boolean; // E: Output `Ready` has no source
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: second source for a single input
 // LIBRARIES: std
@@ -59,7 +59,7 @@ node first: Std.Constant { Type: boolean, Value: true }
 node second: Std.Constant { Type: boolean, Value: false }
 node printer: Std.DebugValuePrinter { Type: boolean }
 connect first -> printer; // H: Previous connection was here
-connect second -> printer; // E: Default input of node 'printer' already has a source; only multi inputs accept several
+connect second -> printer; // E: Default input of node `printer` already has a source; only multi inputs accept several
 
 // TEST: second source for a composite input
 // LIBRARIES: std
@@ -72,7 +72,7 @@ node first: Std.Constant { Type: boolean, Value: true }
 node second: Std.Constant { Type: boolean, Value: false }
 node forward: Forward {}
 connect first -> forward.Value; // H: Previous connection was here
-connect second -> forward.Value; // E: Input 'Value' of node 'forward' already has a source
+connect second -> forward.Value; // E: Input `Value` of node `forward` already has a source
 
 // TEST: second source for a node type output
 // LIBRARIES: std
@@ -107,18 +107,18 @@ node type Probe {
 
 // TEST: second procedure for a temporary
 // SH: Previous connection was here
-// SE: Binding 'flag' already has a source
+// SE: Binding `flag` already has a source
 node type Probe {
   binding flag: value boolean;
   procedure first produces flag { flag = true; } // H: Previous connection was here
-  procedure second produces flag { flag = false; } // E: Binding 'flag' already has a source
+  procedure second produces flag { flag = false; } // E: Binding `flag` already has a source
 }
 node probe: Probe {}
 
 // TEST: temporary without source
 node type Probe {
   default output: value boolean;
-  binding flag: value boolean; // E: Binding 'flag' has no source
+  binding flag: value boolean; // E: Binding `flag` has no source
   connect flag -> default output;
 }
 
@@ -160,7 +160,7 @@ node outer: Outer {}
 // TEST: constant source type mismatch
 constant Count: int16 = 1; // H: Source was declared here
 binding flag: value boolean; // H: Target was declared here
-connect Count -> flag; // E: source has type int16 but target has type boolean
+connect Count -> flag; // E: source has type `int16` but target has type `boolean`
 
 // TEST: constant source to an event input
 node type Probe {
@@ -186,18 +186,18 @@ node type Probe {
 }
 constant Selected: type = boolean;
 node probe: Probe { Type: boolean }
-connect Selected -> probe.Value; // E: Type-valued constant 'Selected' cannot be a connection source
+connect Selected -> probe.Value; // E: Type-valued constant `Selected` cannot be a connection source
 
 // TEST: constant target
 constant Flag: boolean = true;
 binding flag: value boolean;
-connect flag -> Flag; // E: Cannot connect to constant 'Flag'
+connect flag -> Flag; // E: Cannot connect to constant `Flag`
 
 // TEST: parameter output port
 node type Probe {
   parameter Flag: boolean;
   default output: value boolean;
-  connect Flag.Value -> default output; // E: Parameter 'Flag' has no output port 'Value'
+  connect Flag.Value -> default output; // E: Parameter `Flag` has no output port `Value`
 }
 node probe: Probe { Flag: true }
 
@@ -205,9 +205,9 @@ node probe: Probe { Flag: true }
 node type Probe {
   optional parameter Flag: boolean;
   default output: value boolean;
-  connect Flag -> default output; // E: Unable to resolve value parameter Probe.Flag
+  connect Flag -> default output; // E: Unable to resolve value parameter `Probe.Flag`
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: multi input to a single child input
 node type Inner {

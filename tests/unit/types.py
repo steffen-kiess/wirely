@@ -287,7 +287,7 @@ def check_dynamic_values():
     assert seven != wirely.value_types.uint8.from_native(wirely.UInt8(7), native_types=builtin_extension.native_types) and seven != wirely.UInt16(7)
     assert (seven.to_text(), seven.json_encode(), seven.to_csv_value()) == ('7', 7, ('7', False))
     assert repr(seven) == 'DynamicValue(uint16: 7)'
-    with checks.assertRaisesRegex(ValueError, 'Expected a value of type uint8, got uint16'):
+    with checks.assertRaisesRegex(ValueError, 'Expected a value of type `uint8`, got `uint16`'):
         seven.extract(wirely.value_types.uint8, native_types=builtin_extension.native_types)
     for value in (7, wirely.UInt8(7), True, None):
         with checks.assertRaises(ValueError):
@@ -322,7 +322,7 @@ def check_dynamic_values():
     # Enums and structs that are not native have no native representation.
     mode = wirely.ValueType(wirely.types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False,
                                                   underlying_type=wirely.types.uint8))
-    with checks.assertRaisesRegex(ValueError, 'Enum Mode has no native representation'):
+    with checks.assertRaisesRegex(ValueError, 'Enum `Mode` has no native representation'):
         mode.from_native(1, native_types=builtin_extension.native_types)
 
 
@@ -587,7 +587,7 @@ def check_runtime_limits():
     assert 'parameter-only' in items.runtime_type_error()
     settings = types.TypeStruct('Settings', {'payload': types.TypeOption(types.String)})
     assert not settings.has_runtime_representation
-    assert settings.runtime_type_error() == 'field payload: inner type: String is parameter-only'
+    assert settings.runtime_type_error() == 'field `payload`: inner type: `String` is parameter-only'
 
     depth = types.unit
     for _ in range(MAX_NESTING_DEPTH):
@@ -631,7 +631,7 @@ def check_runtime_limits():
 
     # Representation support takes precedence; then depth, count, and storage.
     unsupported = types.TypeStruct('Unsupported', {'large': too_large, 'text': types.String})
-    assert unsupported.runtime_type_error() == 'field text: String is parameter-only'
+    assert unsupported.runtime_type_error() == 'field `text`: `String` is parameter-only'
     multiple_limits = types.TypeStruct('MultipleLimits', {str(i): types.uint64 for i in range(128)})
     assert multiple_limits.runtime_type_error() == 'total member count 129 exceeds 128'
     deep_and_wide = types.TypeStruct('DeepAndWide', {'deep': too_deep, 'wide': multiple_limits})

@@ -114,7 +114,7 @@ node type Probe {
   parameter Text: String = "text";
   default output: value boolean;
   procedure run produces default output as output {
-    let value = Text; // E: String is parameter-only
+    let value = Text; // E: `String` is parameter-only
     output = true;
   }
 }
@@ -126,7 +126,7 @@ node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    let path: String = Path.Parent("file"); // E: String is parameter-only
+    let path: String = Path.Parent("file"); // E: `String` is parameter-only
     output = true;
   }
 }
@@ -150,7 +150,7 @@ node type Probe {
   procedure run produces default output as output {
     let number: uint8 = 7;
     let other: int32 = 7;
-    output = number == other; // E: Expected value of type uint8
+    output = number == other; // E: Expected value of type `uint8`
   }
 }
 node probe: Probe {  }
@@ -305,7 +305,7 @@ node probe: Probe {}
 node type Probe {
   parameter Type: type;
   parameter Value: Type;
-  parameter Enabled: boolean = !Value; // E: Expected value of type boolean
+  parameter Enabled: boolean = !Value; // E: Expected value of type `boolean`
   default output: value boolean;
   procedure run produces default output as output { output = Enabled; }
 }
@@ -316,7 +316,7 @@ node type Probe {
   parameter Type: type;
   parameter Value: Type;
   parameter Enabled: boolean = {
-    let value: boolean = Value; // E: Expected value of type boolean
+    let value: boolean = Value; // E: Expected value of type `boolean`
     value
   };
   default output: value boolean;
@@ -394,14 +394,14 @@ procedure run produces result {
 struct type Pair { enabled: boolean, number: uint8, }
 #[Allow(Unused)] binding result: value Pair;
 procedure run produces result {
-  result = Pair { enabled: true }; // E: Missing fields of Pair: number
+  result = Pair { enabled: true }; // E: Missing fields of `Pair`: `number`
 }
 
 // TEST: struct literal unknown field in a procedure
 struct type Pair { enabled: boolean, }
 #[Allow(Unused)] binding result: value Pair;
 procedure run produces result {
-  result = Pair { enabled: true, number: 1 }; // E: Unknown field 'number' of Pair
+  result = Pair { enabled: true, number: 1 }; // E: Unknown field `number` of `Pair`
 }
 
 // TEST: procedure reference to a reference port
@@ -415,10 +415,10 @@ node type References {
     result = input;
   }
   procedure second
-    depends on first.result as value // E: Port 'result' of procedure 'first' is not a typed port
+    depends on first.result as value // E: Port `result` of procedure `first` is not a typed port
   {
   }
 }
 
 // TEST: root temporary without a source
-binding unused: value boolean; // E: Binding 'unused' has no source
+binding unused: value boolean; // E: Binding `unused` has no source

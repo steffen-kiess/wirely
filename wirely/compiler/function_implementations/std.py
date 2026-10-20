@@ -17,7 +17,7 @@ def parse_format(format_string: str, value_type: ValueType[Any], *, services: Fu
     if has_value and value_type == wirely.value_types.unit:
         raise services.error('Format with {} for unit type', argument=0)
     if not has_value and value_type != wirely.value_types.unit:
-        raise services.error(f'Format without {{}} for type {value_type}', argument=0)
+        raise services.error(f'Format without {{}} for type `{value_type}`', argument=0)
     return StdFormatParts(prefix, suffix, has_value)
 
 

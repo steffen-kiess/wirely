@@ -3,7 +3,7 @@
 // TEST: mismatched operands
 constant Small: uint8 = 1;
 constant Large: uint16 = 1;
-assert Small & Large == 0; // E: Expected value of type uint8, got uint16
+assert Small & Large == 0; // E: Expected value of type `uint8`, got `uint16`
 
 // TEST: mixed Boolean and integer
 assert true | 1; // E: Invalid boolean value 1
@@ -38,7 +38,7 @@ node type Generic {
   parameter Type: type;
   constant Value: Type = 1 << 8; // E: Shift count must be between 0 and 7
 }
-node generic: Generic { Type: uint8 } // H: While instantiating 'generic'
+node generic: Generic { Type: uint8 } // H: While instantiating `generic`
 
 // TEST: invalid generic operand
 node type Generic {
@@ -46,7 +46,7 @@ node type Generic {
   parameter Value: Type;
   constant Result: Type = !Value; // E: Bitwise operation requires an integer or boolean
 }
-node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instantiating 'generic'
+node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instantiating `generic`
 
 // TEST: procedure input count
 node source: Std.Constant { Type: uint32, Value: 1 }
@@ -93,7 +93,7 @@ connect other_source -> run.other;
 procedure run depends on input: value uint8, other: value uint16
   produces result
 {
-  result = input ^ other; // E: Expected value of type uint8, got uint16
+  result = input ^ other; // E: Expected value of type `uint8`, got `uint16`
 }
 
 // TEST: invalid count in empty loop

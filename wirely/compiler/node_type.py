@@ -96,7 +96,7 @@ class NodeType(model.Scope):
                 if name in static_declarations:
                     previous = static_declarations[name]
                     kind = 'constant' if is_constant else 'parameter'
-                    raise model.ProgramError(decl, f'Duplicate {kind} name {name!r}', hints=[
+                    raise model.ProgramError(decl, f'Duplicate {kind} name `{name}`', hints=[
                         model.CompilerHint(previous, 'Previous declaration was here'),
                     ])
                 static_declarations[name] = decl
@@ -120,7 +120,7 @@ class NodeType(model.Scope):
         if self.interface_state is ResolutionState.COMPLETE:
             return
         if self.interface_state is not ResolutionState.PENDING:
-            raise model.ProgramError(self.declaration, f'Cannot resolve interface of {self.fullname!r}')
+            raise model.ProgramError(self.declaration, f'Cannot resolve interface of `{self.fullname}`')
         self.interface_state = ResolutionState.RESOLVING
         try:
             for parameter in self.static_declarations.values():
@@ -229,7 +229,7 @@ class NodeType(model.Scope):
                     continue
                 with self.coordinator.contain(None):
                     raise model.ProgramError(
-                        instantiation, f'Missing value for parameter {par.name.id_str!r} of node {name!r}',
+                        instantiation, f'Missing value for parameter `{par.name.id_str}` of node `{name}`',
                         hints=[model.CompilerHint(par.declaration, 'Parameter was declared here')])
 
         # TODO: Pass list of connections to constructor instead of getting them from self.graph

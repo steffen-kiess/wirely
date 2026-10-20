@@ -41,7 +41,7 @@ def _inner(signature: signatures.SignatureType | None) -> signatures.SignatureTy
 def _native_enum(value_type: types.TypeEnum, path: tuple[str, ...], native_types: NativeTypes) -> type:
     native = None if value_type.native_name is None else native_types.enums.get(value_type.native_name)
     if native is None:
-        raise _error(path, f'Enum {value_type} has no native representation')
+        raise _error(path, f'Enum `{value_type}` has no native representation')
     return native.python_type
 
 
@@ -49,7 +49,7 @@ def _native_struct(value_type: types.TypeStruct, path: tuple[str, ...], native_t
     table = native_types.opaque_types if value_type.is_opaque else native_types.structs
     native = None if value_type.native_name is None else table.get(value_type.native_name)
     if native is None:
-        raise _error(path, f'{"Opaque struct" if value_type.is_opaque else "Struct"} {value_type} '
+        raise _error(path, f'{"Opaque struct" if value_type.is_opaque else "Struct"} `{value_type}` '
                      'has no native representation')
     return native.python_type
 
@@ -62,25 +62,25 @@ def _to_native(signature: signatures.SignatureType | None, value_type: types.Typ
         if value is None:
             return None
         if type(value) is not Some:
-            raise _error(path, f'Expected None or Some for {value_type}, got {value!r}')
+            raise _error(path, f'Expected None or Some for `{value_type}`, got {value!r}')
         return Some(_to_native(_inner(signature), value_type.inner_type, value.value, path + ('in option',), native_types))
     if isinstance(value_type, types.TypeList):
         if type(value) is not tuple:
-            raise _error(path, f'Expected a tuple for {value_type}, got {value!r}')
+            raise _error(path, f'Expected a tuple for `{value_type}`, got {value!r}')
         return tuple(_to_native(_inner(signature), value_type.inner_type, item, path + (f'in item {index}',), native_types)
                      for index, item in enumerate(value))
     if isinstance(value_type, types.TypeStruct):
         python_type = _native_struct(value_type, path, native_types)
         if type(value) is not tuple or len(value) != len(value_type.fields):
-            raise _error(path, f'Expected a tuple of {len(value_type.fields)} fields for {value_type}, got {value!r}')
-        fields = (_to_native(None, field_type, field, path + (f'in field {name!r}',), native_types)
+            raise _error(path, f'Expected a tuple of {len(value_type.fields)} fields for `{value_type}`, got {value!r}')
+        fields = (_to_native(None, field_type, field, path + (f'in field `{name}`',), native_types)
                   for (name, field_type), field in zip(value_type.fields.items(), value))
         if not value_type.is_opaque:
             return python_type(*fields)
         try:
             return python_type.from_fields(*fields)  # type: ignore[attr-defined]
         except ValueError as error:
-            raise _error(path, f'Invalid {value_type} value {value!r}: {error}') from error
+            raise _error(path, f'Invalid `{value_type}` value {value!r}: {error}') from error
     if isinstance(value_type, types.TypeEnum):
         return _native_enum(value_type, path, native_types)(value_type.verify_value(value))
     if isinstance(value_type, types.TypeInt):
@@ -94,41 +94,41 @@ def _from_native(signature: signatures.SignatureType | None, value_type: types.T
                  path: tuple[str, ...], native_types: NativeTypes) -> Any:
     if isinstance(signature, signatures.TypeVar):
         if not isinstance(value, DynamicValue):
-            raise _error(path, f'Expected a DynamicValue of {value_type}, got {value!r}')
+            raise _error(path, f'Expected a DynamicValue of `{value_type}`, got {value!r}')
         if value._type != value_type:
-            raise _error(path, f'Expected a DynamicValue of {value_type}, got one of {value._type}')
+            raise _error(path, f'Expected a DynamicValue of `{value_type}`, got one of `{value._type}`')
         return value._value
     if isinstance(value_type, types.TypeOption):
         if value is None:
             return None
         if not isinstance(value, Some):
-            raise _error(path, f'Expected None or wirely.Some for {value_type}, got {value!r}')
+            raise _error(path, f'Expected None or wirely.Some for `{value_type}`, got {value!r}')
         return Some(_from_native(_inner(signature), value_type.inner_type, value.value, path + ('in option',), native_types))
     if isinstance(value_type, types.TypeList):
         if type(value) is not tuple:
-            raise _error(path, f'Expected a tuple for {value_type}, got {value!r}')
+            raise _error(path, f'Expected a tuple for `{value_type}`, got {value!r}')
         return tuple(_from_native(_inner(signature), value_type.inner_type, item, path + (f'in item {index}',), native_types)
                      for index, item in enumerate(value))
     if isinstance(value_type, types.TypeStruct):
         python_type = _native_struct(value_type, path, native_types)
         if type(value) is not python_type:
-            raise _error(path, f'Expected a {python_type.__name__} for {value_type}, got {value!r}')
+            raise _error(path, f'Expected a {python_type.__name__} for `{value_type}`, got {value!r}')
         fields = value.to_fields() if value_type.is_opaque else value  # type: ignore[attr-defined]
         assert isinstance(fields, tuple)
         if len(fields) != len(value_type.fields):
             raise _error(path, f'Expected {len(value_type.fields)} fields from {python_type.__name__}, got {fields!r}')
-        return tuple(_from_native(None, field_type, field, path + (f'in field {name!r}',), native_types)
+        return tuple(_from_native(None, field_type, field, path + (f'in field `{name}`',), native_types)
                      for (name, field_type), field in zip(value_type.fields.items(), fields))
     if isinstance(value_type, types.TypeEnum):
         python_type = _native_enum(value_type, path, native_types)
         if type(value) is not python_type:
-            raise _error(path, f'Expected a {python_type.__name__} for {value_type}, got {value!r}')
+            raise _error(path, f'Expected a {python_type.__name__} for `{value_type}`, got {value!r}')
         assert isinstance(value, int)
         return value_type.verify_value(int(value))
     if isinstance(value_type, types.TypeInt):
         cls = integer_class(value_type.bits, value_type.is_signed)
         if type(value) is not cls:
-            raise _error(path, f'Expected a wirely.{cls.__name__} for {value_type}, got {value!r}')
+            raise _error(path, f'Expected a wirely.{cls.__name__} for `{value_type}`, got {value!r}')
         assert isinstance(value, cls)
         return value.value
     if isinstance(value_type, types.TypeValueType):
@@ -137,4 +137,4 @@ def _from_native(signature: signatures.SignatureType | None, value_type: types.T
         return value._type
     if isinstance(value_type, types.TypePrimitive) and type(value) is value_type.python_type:
         return value
-    raise _error(path, f'Expected a value of {value_type}, got {value!r}')
+    raise _error(path, f'Expected a value of `{value_type}`, got {value!r}')

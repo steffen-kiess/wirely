@@ -63,7 +63,7 @@ class Scope(abc.ABC):
                 elif ty.base.length == 1 and ty.base.identifiers[0].id_str == 'List':
                     gen_type = model.types.TypeList
                 else:
-                    raise model.ProgramError(ty, f'Cannot find generic type {ty.base}')
+                    raise model.ProgramError(ty, f'Cannot find generic type `{ty.base}`')
                 # if len(ty.parameters) != 1:
                 #     raise model.ProgramError(ty, f'Expected 1 type parameter, got {len(ty.parameters)}: {ty}')
                 par_type = self.resolve_type(ty.parameter, par_values=par_values)
@@ -91,7 +91,7 @@ class Scope(abc.ABC):
                         if isinstance(result, model.Value):
                             return model.TypeParameter(par, ast_element=ty)
                         if not isinstance(result, model.Type):
-                            raise ProgramError(ty, f'Expected a type for {name!r}')
+                            raise ProgramError(ty, f'Expected a type for `{name}`')
                         return result
                 if name in model.types.type_by_name:
                     return model.types.type_by_name[name]
@@ -111,7 +111,7 @@ class Scope(abc.ABC):
                     if enum_type is not None:
                         return enum_type
                 scope = scope.parent_graph
-            raise model.ProgramError(ty, f'Cannot find type {ty}')
+            raise model.ProgramError(ty, f'Cannot find type `{ty}`')
 
     def resolve_function(self, reference: Reference, *,
                          required: bool = True) -> 'model.CompiledFunction | None':
@@ -128,7 +128,7 @@ class Scope(abc.ABC):
                 return candidate.native_functions[names[-1]].resolve_signature()
             scope = scope.parent_graph
         if required:
-            raise ProgramError(reference, f'Cannot find function {".".join(names)!r}')
+            raise ProgramError(reference, f'Cannot find function `{".".join(names)}`')
         return None
 
     def resolve_resource_type(self, name: Value) -> 'model.ResourceType':
@@ -146,7 +146,7 @@ class Scope(abc.ABC):
                 if resource_type is not None:
                     return resource_type
             scope = scope.parent_graph
-        raise model.ProgramError(name, f'Cannot find resource type {name}')
+        raise model.ProgramError(name, f'Cannot find resource type `{name}`')
 
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value: Value, value_type: 'model.types.Type',
@@ -175,7 +175,7 @@ class Scope(abc.ABC):
                     try:
                         self.resolve_type(value, par_values)
                     except ProgramError:
-                        raise ProgramError(value, f'Unknown static value {value}') from None
+                        raise ProgramError(value, f'Unknown static value `{value}`') from None
                 return model.value.DeferredValue(self, value, value_type)
             if (isinstance(value, Expression)
                     or (isinstance(value, Reference) and value.length == 1
@@ -211,7 +211,7 @@ class Scope(abc.ABC):
                 assert function is not None
                 model.value.check_value_type(function.return_type, value_type, value)
                 if len(value.parameters) != len(function.parameter_types):
-                    raise model.ProgramError(value, f'Function {function_name!r} expected {len(function.parameter_types)} parameters, but got {len(value.parameters)}')
+                    raise model.ProgramError(value, f'Function `{function_name}` expected {len(function.parameter_types)} parameters, but got {len(value.parameters)}')
                 parameters = [self.get_const_value(parameter, function.parameter_types[i], par_values=par_values) for i, parameter in enumerate(value.parameters)]
                 return model.value.ValueFunctionCall(function=function, parameters=parameters, ast_element=value)
 
@@ -258,5 +258,5 @@ class Scope(abc.ABC):
                 return self.node_types[node_type_name_id.id_str]
 
         if self.parent_graph is None:
-            raise model.ProgramError(name, f'Cannot find node type {name}')
+            raise model.ProgramError(name, f'Cannot find node type `{name}`')
         return self.parent_graph.resolve_node_type(name, par_values=par_values)

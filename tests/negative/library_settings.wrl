@@ -2,116 +2,116 @@
 
 // TEST: edge type: string
 node checked: Std.DetectEdge {
-  EdgeType: "Falling", // E: Expected enum literal Std.EdgeType.Member
+  EdgeType: "Falling", // E: Expected enum literal `Std.EdgeType.Member`
 }
 
 // TEST: edge type: unknown member
 node checked: Std.DetectEdge {
-  EdgeType: Std.EdgeType.Missing, // E: Unknown member 'Missing' of Std.EdgeType
+  EdgeType: Std.EdgeType.Missing, // E: Unknown member `Missing` of `Std.EdgeType`
 }
 
 // TEST: edge type: wrong enum
 node checked: Std.DetectEdge {
-  EdgeType: GPIO.ActiveState.High, // E: Expected enum type Std.EdgeType
+  EdgeType: GPIO.ActiveState.High, // E: Expected enum type `Std.EdgeType`
 }
 
 // TEST: GPIO active state: string
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  ActiveState: "High", // E: Expected enum literal GPIO.ActiveState.Member
+  ActiveState: "High", // E: Expected enum literal `GPIO.ActiveState.Member`
 }
 
 // TEST: GPIO active state: unknown member
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  ActiveState: GPIO.ActiveState.Missing, // E: Unknown member 'Missing' of GPIO.ActiveState
+  ActiveState: GPIO.ActiveState.Missing, // E: Unknown member `Missing` of `GPIO.ActiveState`
 }
 
 // TEST: GPIO active state: wrong enum
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  ActiveState: GPIO.Drive.PushPull, // E: Expected enum type GPIO.ActiveState
+  ActiveState: GPIO.Drive.PushPull, // E: Expected enum type `GPIO.ActiveState`
 }
 
 // TEST: GPIO drive: string
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Drive: "PushPull", // E: Expected enum literal GPIO.Drive.Member
+  Drive: "PushPull", // E: Expected enum literal `GPIO.Drive.Member`
 }
 
 // TEST: GPIO drive: unknown member
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Drive: GPIO.Drive.Missing, // E: Unknown member 'Missing' of GPIO.Drive
+  Drive: GPIO.Drive.Missing, // E: Unknown member `Missing` of `GPIO.Drive`
 }
 
 // TEST: GPIO drive: wrong enum
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Drive: GPIO.Bias.AsIs, // E: Expected enum type GPIO.Drive
+  Drive: GPIO.Bias.AsIs, // E: Expected enum type `GPIO.Drive`
 }
 
 // TEST: GPIO bias: string
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Bias: "AsIs", // E: Expected enum literal GPIO.Bias.Member
+  Bias: "AsIs", // E: Expected enum literal `GPIO.Bias.Member`
 }
 
 // TEST: GPIO bias: unknown member
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Bias: GPIO.Bias.Missing, // E: Unknown member 'Missing' of GPIO.Bias
+  Bias: GPIO.Bias.Missing, // E: Unknown member `Missing` of `GPIO.Bias`
 }
 
 // TEST: GPIO bias: wrong enum
 node checked: GPIO.Output {
   ChipDeviceFile: "/unused",
   Name: "LED",
-  Bias: GPIO.Drive.PushPull, // E: Expected enum type GPIO.Bias
+  Bias: GPIO.Drive.PushPull, // E: Expected enum type `GPIO.Bias`
 }
 
 // TEST: KNX protocol: string
 node checked: KNX.Connection {
-  Protocol: "Auto", // E: Expected enum literal KNX.Protocol.Member
+  Protocol: "Auto", // E: Expected enum literal `KNX.Protocol.Member`
 }
 
 // TEST: KNX protocol: unknown member
 node checked: KNX.Connection {
-  Protocol: KNX.Protocol.Missing, // E: Unknown member 'Missing' of KNX.Protocol
+  Protocol: KNX.Protocol.Missing, // E: Unknown member `Missing` of `KNX.Protocol`
 }
 
 // TEST: KNX protocol: wrong enum
 node checked: KNX.Connection {
-  Protocol: Std.EdgeType.Rising, // E: Expected enum type KNX.Protocol
+  Protocol: Std.EdgeType.Rising, // E: Expected enum type `KNX.Protocol`
 }
 
 // TEST: MQTT format: string
 node checked: MQTT.EventSender {
   Topic: "unused",
   Type: boolean,
-  Format: "SnakeCase", // E: Expected enum literal MQTT.Format.Member
+  Format: "SnakeCase", // E: Expected enum literal `MQTT.Format.Member`
 }
 
 // TEST: MQTT format: unknown member
 node checked: MQTT.EventSender {
   Topic: "unused",
   Type: boolean,
-  Format: MQTT.Format.Missing, // E: Unknown member 'Missing' of MQTT.Format
+  Format: MQTT.Format.Missing, // E: Unknown member `Missing` of `MQTT.Format`
 }
 
 // TEST: MQTT format: wrong enum
 node checked: MQTT.EventSender {
   Topic: "unused",
   Type: boolean,
-  Format: KNX.Protocol.TCP, // E: Expected enum type MQTT.Format
+  Format: KNX.Protocol.TCP, // E: Expected enum type `MQTT.Format`
 }
 
 // TEST: unsupported CSV type

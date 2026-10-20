@@ -102,7 +102,7 @@ def check_port_keys(ports: typing.Iterable[Port], *, python: bool = False) -> No
     for port in ports:
         key = port.python_key if python else port.key
         if key in keys:
-            raise ProgramError(port, f'Duplicate port {"key" if python else "name"} {key!r}', hints=[
+            raise ProgramError(port, f'Duplicate port {"key" if python else "name"} `{key}`', hints=[
                 CompilerHint(keys[key], 'Previous port was here'),
             ])
         keys[key] = port
@@ -150,7 +150,7 @@ def resolve_dependencies(graph: 'model.NodeType', depends: DependsDeclaration) -
                 if output is not None:
                     resolved.append(output)
                     continue
-            raise ProgramError(dep, f'Cannot resolve procedure dependency {dep}')
+            raise ProgramError(dep, f'Cannot resolve procedure dependency `{dep}`')
         if dep.length != 1:
             raise ProgramError(dep, 'Unsupported procedure dependency reference')
         identifier = dep.identifiers[0]
@@ -212,12 +212,12 @@ class UsesDeclaration(SyntaxElement):
             with binding.context:
                 key = binding.key
                 if key in keys:
-                    raise ProgramError(binding, f'Duplicate static binding key {key!r}')
+                    raise ProgramError(binding, f'Duplicate static binding key `{key}`')
                 keys.add(key)
                 expression = binding.expression
                 if binding.alias is None:
                     if key not in scope.static_declarations:
-                        raise ProgramError(expression, f'Unknown static declaration {key!r}')
+                        raise ProgramError(expression, f'Unknown static declaration `{key}`')
                 compile_constant(scope, expression, None, {})
 
 
@@ -326,7 +326,7 @@ class DeclarationProcedure(Declaration):
         if self.alias is not None:
             prefix, _, method = self.alias.value.rpartition(':')
             if not prefix or not method:
-                raise ProgramError(self.alias, "Native procedure names have the form 'Type:procedure'")
+                raise ProgramError(self.alias, 'Native procedure names have the form `Type:procedure`')
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state node after writing to a CSV file. The new value for the state node might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
@@ -355,11 +355,11 @@ class DeclarationProcedure(Declaration):
             hints = [
                 CompilerHint(graph.procedures[name].declaration, 'Previous procedure was here'),
             ]
-            raise ProgramError(self, f'Duplicate procedure name {name} in {graph}', hints=hints)
+            raise ProgramError(self, f'Duplicate procedure name `{name}` in `{graph}`', hints=hints)
         register_name(graph, self.name, self)
         for previous in graph.procedures.values():
             if self.is_native and previous.is_native and previous.python_name == self.python_name:
-                raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name {self.python_name!r}', hints=[
+                raise ProgramError(self.alias or self.name, f'Duplicate Python procedure name `{self.python_name}`', hints=[
                     CompilerHint(previous.alias or previous.name, 'Previous Python procedure name was here'),
                 ])
         graph.procedures[name] = TypeProcedure(graph, self)
@@ -449,7 +449,7 @@ class TypeProcedure:
         if self.stage.stage == RunStage.INPUT:
             for port in self.input_ports.values():
                 if not isinstance(port.port_spec, PortTypeSpecificationResource):
-                    raise ProgramError(self.stage, f'Procedure name {self.name} is declared as input stage but depends on something else', hints=[
+                    raise ProgramError(self.stage, f'Procedure name `{self.name}` is declared as input stage but depends on something else', hints=[
                         CompilerHint(self.depends, 'Dependencies declared here'),
                     ])
 
@@ -458,24 +458,24 @@ class TypeProcedure:
         """Resolve a reference to a port, given as procedure and port name."""
         procedure = name.id_str
         if port_name is None:
-            raise ProgramError(name, f'Procedure references require a port, as in {procedure}.port')
+            raise ProgramError(name, f'Procedure references require a port, as in `{procedure}.port`')
         ports, others = ((self.input_ports, self.output_ports) if is_input
                          else (self.output_ports, self.input_ports))
         port = ports.get(port_name.id_str)
         if port is None:
             if port_name.id_str in others:
                 direction = 'output' if is_input else 'input'
-                raise ProgramError(port_name, f'Port {port_name.id_str!r} of procedure {procedure!r} is an {direction}')
-            raise ProgramError(port_name, f'Unable to find port {port_name.id_str!r} of procedure {procedure!r}')
+                raise ProgramError(port_name, f'Port `{port_name.id_str}` of procedure `{procedure}` is an {direction}')
+            raise ProgramError(port_name, f'Unable to find port `{port_name.id_str}` of procedure `{procedure}`')
         # Reference ports are connected to what they reference and are not addressable.
         if not isinstance(port.declaration, TypedPort):
-            raise ProgramError(port_name, f'Port {port_name.id_str!r} of procedure {procedure!r} is not a typed port')
+            raise ProgramError(port_name, f'Port `{port_name.id_str}` of procedure `{procedure}` is not a typed port')
         return port
 
     def validate_ports(self) -> None:
         for port in self.input_ports.values():
             if not port.is_list and port.connected_source is None:
-                raise ProgramError(port.declaration, f'Input port {port.name!r} of procedure {self.name.id_str!r} has no source')
+                raise ProgramError(port.declaration, f'Input port `{port.name}` of procedure `{self.name.id_str}` has no source')
 
     def prepare_interface(self) -> None:
         new_graph = self.graph

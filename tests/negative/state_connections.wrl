@@ -34,7 +34,7 @@ node type ResourceSink {
   default input: resource Handle;
 }
 node type Invalid {
-  state saved: boolean = false; // E: State 'saved' has no source
+  state saved: boolean = false; // E: State `saved` has no source
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -110,7 +110,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect temporary_value.old -> sink; // E: Binding 'temporary_value' has no output port 'old'
+  connect temporary_value.old -> sink; // E: Binding `temporary_value` has no output port `old`
 }
 
 // TEST: unknown_state
@@ -176,7 +176,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.old; // E: State 'saved' has no input port
+  connect source -> saved.old; // E: State `saved` has no input port
 }
 
 // TEST: nested_state_reference
@@ -220,7 +220,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect source -> saved.new; // E: State 'saved' has no input port
+  connect source -> saved.new; // E: State `saved` has no input port
 }
 
 // TEST: unknown_state_phase

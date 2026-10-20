@@ -239,10 +239,10 @@ def type_member(scope: model.Scope, reference: AstValue, parameters: Mapping[mod
     function = scope.resolve_function(reference, required=False)
     if member is None:
         if function is None:
-            raise ProgramError(reference, f'Type {value_type} has no member {name!r}')
+            raise ProgramError(reference, f'Type `{value_type}` has no member `{name}`')
         return None
     if function is not None:
-        raise ProgramError(reference, f'{reference} is both a type member and a function')
+        raise ProgramError(reference, f'`{reference}` is both a type member and a function')
     return value_type, member
 
 
@@ -293,7 +293,7 @@ class OnTrigger(SyntaxElement):
 
     @property
     def description(self) -> str:
-        return f'changed {self.name.id_str!r}' if self.is_changed else repr(self.name.id_str)
+        return f'`changed {self.name.id_str}`' if self.is_changed else f'`{self.name.id_str}`'
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -494,7 +494,7 @@ class TypedExpression:
         if self.operation == 'list_length':
             receiver_type = self.arguments[0].value_type
             if not receiver_type.contains_parameters and not isinstance(receiver_type, model.types.TypeList):
-                raise ProgramError(self.source, f"Value of type {receiver_type} has no property 'Length'")
+                raise ProgramError(self.source, f'Value of type `{receiver_type}` has no property `Length`')
         elif self.operation in ('and', 'or', 'assert'):
             for argument in self.arguments:
                 check_value_type(argument.value_type, boolean, argument.source)
@@ -504,20 +504,20 @@ class TypedExpression:
                 check_value_type(argument.value_type, operand_type, argument.source)
             if (not operand_type.contains_parameters
                     and not isinstance(operand_type, (model.types.TypeInt, model.types.TypeBoolean))):
-                raise ProgramError(self.source, f'Bitwise operation requires an integer or boolean, got {operand_type}')
+                raise ProgramError(self.source, f'Bitwise operation requires an integer or boolean, got `{operand_type}`')
         elif self.operation in SHIFT_OPERATORS:
             value, count = self.arguments
             for argument in (value, count):
                 if (not argument.value_type.contains_parameters
                         and not isinstance(argument.value_type, model.types.TypeInt)):
-                    raise ProgramError(argument.source, f'Shift requires an integer, got {argument.value_type}')
+                    raise ProgramError(argument.source, f'Shift requires an integer, got `{argument.value_type}`')
         elif self.operation in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
             left, right = self.arguments
             check_value_type(right.value_type, left.value_type, right.source)
             if (self.operation not in ('eq', 'ne') and not left.value_type.contains_parameters
                     and not left.value_type.is_ordered):
                 raise ProgramError(self.source, 'Ordering comparison requires an integer, Std.Duration, '
-                                   f'or Schedule.TimeOfDay value, got {left.value_type}')
+                                   f'or Schedule.TimeOfDay value, got `{left.value_type}`')
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
@@ -526,13 +526,13 @@ class TypedExpression:
         elif self.operation == 'unwrap':
             option = self.arguments[0]
             if not option.value_type.contains_parameters and not isinstance(option.value_type, model.types.TypeOption):
-                raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
+                raise ProgramError(option.source, f'Expected an Option value, got `{option.value_type}`')
         elif self.operation in ('unwrap_or', 'if_let'):
             option = self.arguments[0]
             if option.value_type.contains_parameters and not isinstance(option.value_type, model.types.TypeOption):
                 return
             if not isinstance(option.value_type, model.types.TypeOption):
-                raise ProgramError(option.source, f'Expected an Option value, got {option.value_type}')
+                raise ProgramError(option.source, f'Expected an Option value, got `{option.value_type}`')
             if self.operation == 'unwrap_or':
                 check_value_type(self.arguments[1].value_type, option.value_type.inner_type, self.arguments[1].source)
             else:
@@ -548,7 +548,7 @@ class TypedExpression:
                                  and is_duration(integer_type))
             if (not integer_type.contains_parameters and not duration_operator
                     and not isinstance(integer_type, model.types.TypeInt)):
-                raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
+                raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got `{integer_type}`')
         elif self.operation == 'convert':
             source_type = self.arguments[0].value_type
             target_type = (self.value_type.inner_type if self.payload == 'checked'
@@ -556,23 +556,23 @@ class TypedExpression:
             if source_type.contains_parameters or target_type.contains_parameters:
                 return
             if not isinstance(target_type, model.types.TypeInt):
-                raise ProgramError(self.source, f'Conversion requires an integer target, got {target_type}')
+                raise ProgramError(self.source, f'Conversion requires an integer target, got `{target_type}`')
             # Closed enum numbers follow declaration order and are hidden from Wirely code.
             if not (isinstance(source_type, model.types.TypeInt)
                     or isinstance(source_type, model.types.TypeEnum) and source_type.is_open):
                 raise ProgramError(self.arguments[0].source,
-                                   f'Conversion requires an integer or open enum value, got {source_type}')
+                                   f'Conversion requires an integer or open enum value, got `{source_type}`')
             source_min, source_max = model.types.integer_range(source_type)
             if self.payload == 'lossless' and not (target_type.min_value <= source_min
                                                    and source_max <= target_type.max_value):
-                raise ProgramError(self.source, f'{target_type}.From cannot convert every {source_type} value; '
+                raise ProgramError(self.source, f'`{target_type}.From` cannot convert every `{source_type}` value; '
                                    'use CheckedFrom, WrappingFrom, or SaturatingFrom')
         elif self.operation in ('is_some', 'is_none'):
             receiver = self.arguments[0]
             if (not receiver.value_type.contains_parameters
                     and not isinstance(receiver.value_type, model.types.TypeOption)):
                 name = 'IsSome' if self.operation == 'is_some' else 'IsNone'
-                raise ProgramError(self.source, f'Value of type {receiver.value_type} has no property {name!r}')
+                raise ProgramError(self.source, f'Value of type `{receiver.value_type}` has no property `{name}`')
 
     def check_shift_count(self, count: int) -> None:
         width = self.arguments[0].value_type.bits
@@ -698,7 +698,7 @@ class TypedExpression:
             raise ProgramError(self.source, 'Division by zero')
         result = integer_type.arithmetic(operation, 'checked', *operands)
         if result is None:
-            raise ProgramError(self.source, f'Arithmetic overflow: result does not fit {integer_type}')
+            raise ProgramError(self.source, f'Arithmetic overflow: result does not fit `{integer_type}`')
         return result.value
 
 
@@ -1010,7 +1010,7 @@ class ExpressionCompiler:
     def local(self, binding: LocalBinding) -> TypedExpression:
         name = binding.name.id_str
         if name in self.protected:
-            raise ProgramError(binding.name, f'Cannot shadow procedure port or parameter {name!r}')
+            raise ProgramError(binding.name, f'Cannot shadow procedure port or parameter `{name}`')
         if self.runtime and binding.annotation is not None:
             self.record_static_usage(binding.annotation)
         expected = (self.scope.resolve_type(binding.annotation, par_values=self.parameters)
@@ -1051,11 +1051,11 @@ class ExpressionCompiler:
         key = (value.operation, value.payload) if value is not None else None
         binding = self.bindings.get(key) if key is not None else None
         if binding is None:
-            raise ProgramError(target, f'Cannot assign to {name!r}; expected a local variable or output')
+            raise ProgramError(target, f'Cannot assign to `{name}`; expected a local variable or output')
         if name in self.event_outputs:
-            raise ProgramError(target, f'Cannot assign event output {name!r}; use emit')
+            raise ProgramError(target, f'Cannot assign event output `{name}`; use emit')
         if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
-            raise ProgramError(target, f'Cannot assign outer immutable binding {name!r} inside a loop')
+            raise ProgramError(target, f'Cannot assign outer immutable binding `{name}` inside a loop')
         rhs = self.compile(expression.expression, binding.value.value_type)
         return self.assign_binding(target, binding, rhs)
 
@@ -1064,9 +1064,9 @@ class ExpressionCompiler:
         name = target.id_str if isinstance(target, model.Identifier) else target.identifiers[0].id_str
         key = binding.value.operation, binding.value.payload
         if not binding.mutable and self.loop_outer_keys is not None and key in self.loop_outer_keys:
-            raise ProgramError(target, f'Cannot assign outer immutable binding {name!r} inside a loop')
+            raise ProgramError(target, f'Cannot assign outer immutable binding `{name}` inside a loop')
         if not binding.mutable and self.initialization[key][0]:
-            raise ProgramError(target, f'Immutable binding {name!r} may be assigned more than once')
+            raise ProgramError(target, f'Immutable binding `{name}` may be assigned more than once')
         self.initialization[key] = True, True
         return TypedExpression(model.types.unit, 'assign', (rhs,), key)
 
@@ -1075,7 +1075,7 @@ class ExpressionCompiler:
             raise ProgramError(expression, 'emit is only allowed in procedure bodies')
         name = expression.target.id_str
         if name not in self.event_outputs:
-            raise ProgramError(expression.target, f'{name!r} is not an event output')
+            raise ProgramError(expression.target, f'`{name}` is not an event output')
         binding = self.bindings['output', name]
         option_type = binding.value.value_type
         if expression.expression is None:
@@ -1091,13 +1091,13 @@ class ExpressionCompiler:
             candidates = [target for target in self.changed_states
                           if self.names[target].operation != 'output'
                           or self.initialization['output', target][1]]
-            suggestion = (f"; available state triggers: {', '.join('on changed ' + target for target in candidates)}"
+            suggestion = (f"; available state triggers: {', '.join(f'`on changed {target}`' for target in candidates)}"
                           if candidates else '')
             warnings = self.scope.coordinator.warnings
             assert warnings is not None
             warnings.warn(
                 'UnguardedEvent', expression,
-                f'Emission of {name!r} is outside an on block; '
+                f'Emission of `{name}` is outside an on block; '
                 f'use on or suppress with #[Allow(UnguardedEvent)]{suggestion}',
             )
         return result
@@ -1117,7 +1117,7 @@ class ExpressionCompiler:
             raise ProgramError(iterable, 'For loops require a multi value or event input name')
         name = expression.name.id_str
         if name in self.protected:
-            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
+            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter `{name}`')
         previous_names = dict(self.names)
         before = dict(self.initialization)
         slot = self.next_slot
@@ -1149,7 +1149,7 @@ class ExpressionCompiler:
             if trigger.is_changed:
                 state = self.changed_states.get(name)
                 if state is None:
-                    raise ProgramError(trigger, f'{name!r} is not a direct .new dependency or state output')
+                    raise ProgramError(trigger, f'`{name}` is not a direct .new dependency or state output')
                 reference = model.Reference.from_list(trigger.name, source_position=trigger.source_position)
                 current = self.compile(reference)
                 old = self.old_state_inputs.get(state)
@@ -1161,7 +1161,7 @@ class ExpressionCompiler:
                 keys.append(('changed', state))
             else:
                 if value is None or (value.operation, value.payload) not in self.events:
-                    raise ProgramError(trigger, f'{name!r} is not an event dependency')
+                    raise ProgramError(trigger, f'`{name}` is not an event dependency')
                 keys.append((value.operation, value.payload))
                 options = ([TypedExpression(value.value_type, 'input', payload=member, runtime=True)
                             for member in value.payload] if value.operation == 'multi_input' else [value])
@@ -1321,7 +1321,7 @@ class ExpressionCompiler:
                                        (receiver,))
             if receiver_type.contains_parameters:
                 raise ProgramError(expression.name, 'Field access requires a known struct type')
-            raise ProgramError(expression.name, f'Value of type {receiver_type} has no property {name!r}')
+            raise ProgramError(expression.name, f'Value of type `{receiver_type}` has no property `{name}`')
         if isinstance(expression, model.FunctionCall):
             member = type_member(self.scope, expression.fun, self.parameters, self.names)
             if member is not None:
@@ -1341,7 +1341,7 @@ class ExpressionCompiler:
                     raise ProgramError(expression, 'Option properties cannot be called; omit parentheses')
                 receiver = self.compile(method.receiver)
                 raise ProgramError(method.name,
-                                   f'Value of type {receiver.value_type} has no method {method.name.id_str!r}')
+                                   f'Value of type `{receiver.value_type}` has no method `{method.name.id_str}`')
         if isinstance(expression, model.OptionalExpression):
             event = self.optional_event(expression)
             if event is not None:
@@ -1377,10 +1377,10 @@ class ExpressionCompiler:
                 name = expression.operator.capitalize()
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
                 if operand_type is not None and is_duration(operand_type) and name in ('Add', 'Sub'):
-                    alternatives = f'Std.Duration.Saturating{name} or Std.Duration.Checked{name}'
+                    alternatives = f'`Std.Duration.Saturating{name}` or `Std.Duration.Checked{name}`'
                 else:
-                    alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
-                                    else f'T.Wrapping{name}, T.Saturating{name}, or T.Checked{name}')
+                    alternatives = ('`T.CheckedDiv`' if name == 'Div' else '`T.CheckedRem`' if name == 'Rem'
+                                    else f'`T.Wrapping{name}`, `T.Saturating{name}`, or `T.Checked{name}`')
                 raise ProgramError(expression, f'Arithmetic operators are compile-time only; use {alternatives}')
             operand_type = expected or self.context_type(expression.left) or self.context_type(expression.right)
             left = self.compile(expression.left, operand_type)
@@ -1426,16 +1426,16 @@ class ExpressionCompiler:
                                        'or receivers of .Length')
                 key = value.operation, value.payload
                 if name in self.event_outputs:
-                    raise ProgramError(expression, f'Cannot read event output {name!r}')
+                    raise ProgramError(expression, f'Cannot read event output `{name}`')
                 if key in self.events:
                     if key not in self.present:
-                        raise ProgramError(expression, f"Event {name!r} can only be read inside 'on {name}'")
+                        raise ProgramError(expression, f'Event `{name}` can only be read inside `on {name}`')
                     return self.present[key]
                 if key in self.initialization and not self.initialization[key][1]:
-                    raise ProgramError(expression, f'Binding {name!r} is not definitely initialized')
+                    raise ProgramError(expression, f'Binding `{name}` is not definitely initialized')
                 return value
             if self.runtime and name in self.protected:
-                raise ProgramError(expression, f'Cannot read output or unavailable parameter {name!r}')
+                raise ProgramError(expression, f'Cannot read output or unavailable parameter `{name}`')
         if self.is_runtime(expression):
             self.check_runtime_syntax(expression)
         if self.runtime and isinstance(expression, model.Reference):
@@ -1443,7 +1443,7 @@ class ExpressionCompiler:
             if (names not in (['true'], ['false'], ['None'])
                     and self.known_type(expression) != model.types.ValueType
                     and not isinstance(self.known_type(expression), model.types.TypeEnum)):
-                raise ProgramError(expression, f'Unknown procedure value {expression}; declare inputs in depends on')
+                raise ProgramError(expression, f'Unknown procedure value `{expression}`; declare inputs in depends on')
         if isinstance(expression, model.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)
@@ -1483,12 +1483,12 @@ class ExpressionCompiler:
             name = '.'.join(identifier.id_str for identifier in expression.fun.identifiers)
             function = self.scope.resolve_function(expression.fun, required=False)
             if function is None:
-                raise ProgramError(expression.fun, f'Cannot find function {name!r}')
+                raise ProgramError(expression.fun, f'Cannot find function `{name}`')
             if self.is_runtime(expression) and function.is_constant:
                 raise ProgramError(expression.fun,
-                                   f'{name} is a compile-time function and requires constant arguments')
+                                   f'`{name}` is a compile-time function and requires constant arguments')
             if len(expression.parameters) != len(function.parameter_types):
-                raise ProgramError(expression, f'Function {name!r} expected {len(function.parameter_types)} parameters')
+                raise ProgramError(expression, f'Function `{name}` expected {len(function.parameter_types)} parameters')
             arguments = tuple(self.compile(argument, value_type)
                               for argument, value_type in zip(expression.parameters, function.parameter_types))
             return TypedExpression(function.return_type, 'call', arguments,
@@ -1510,7 +1510,7 @@ class ExpressionCompiler:
         result_type = model.types.TypeOption(value_type) if overflow == 'checked' else value_type
         if operation == 'convert':
             if len(call.parameters) != 1:
-                raise ProgramError(call, f'{call.fun} expects exactly one argument')
+                raise ProgramError(call, f'`{call.fun}` expects exactly one argument')
             # As in Rust, a literal takes the target type for From (i8::from(5)) and
             # otherwise the default literal type (i8::try_from(300) converts an i32).
             argument = call.parameters[0]
@@ -1518,7 +1518,7 @@ class ExpressionCompiler:
             source = self.compile(argument, None if self.context_type(argument) else literal_type)
             return TypedExpression(result_type, 'convert', (source,), overflow)
         if len(call.parameters) != 2:
-            raise ProgramError(call, f'{call.fun} expects exactly two arguments')
+            raise ProgramError(call, f'`{call.fun}` expects exactly two arguments')
         left = self.compile(call.parameters[0], value_type)
         right = self.compile(call.parameters[1], value_type)
         return TypedExpression(result_type, 'arith', (left, right), member)
@@ -1528,7 +1528,7 @@ class ExpressionCompiler:
         option = self.compile(expression, expected)
         if isinstance(option.value_type, model.types.TypeOption):
             return option, option.value_type.inner_type
-        raise ProgramError(expression, f'Expected an Option value, got {option.value_type}')
+        raise ProgramError(expression, f'Expected an Option value, got `{option.value_type}`')
 
     def unwrap(self, call: model.FunctionCall, receiver: AstValue, expected: model.Type | None) -> TypedExpression:
         # Programs must not fail at runtime, so Unwrap is compile-time only.
@@ -1557,7 +1557,7 @@ class ExpressionCompiler:
         if name == '_':
             return None
         if name in self.protected:
-            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter {name!r}')
+            raise ProgramError(expression.name, f'Cannot shadow procedure port or parameter `{name}`')
         slot = self.next_slot
         self.next_slot += 1
         self.bind(name, TypedExpression(inner_type, 'local', payload=slot, runtime=self.is_runtime(expression)),
@@ -1849,7 +1849,7 @@ def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTy
     overlap = ((input_names & protected)
                | (set(output_types) & set(instance.node_type.static_declarations)))
     if overlap:
-        raise ProgramError(declaration, f'Procedure names must be distinct: {sorted(overlap)!r}')
+        raise ProgramError(declaration, f'Procedure names must be distinct: {", ".join(f"`{name}`" for name in sorted(overlap))}')
     for parameter, value in {**instance.parameter_values, **instance.constant_values}.items():
         name = parameter.name.id_str
         if isinstance(value, model.types.Type):
@@ -1871,7 +1871,7 @@ def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTy
     missing = [name for name in output_types
                if name not in compiler.event_outputs and not compiler.initialization['output', name][1]]
     if missing:
-        raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {sorted(missing)!r}')
+        raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {", ".join(f"`{name}`" for name in sorted(missing))}')
     procedure.static_usage = frozenset(compiler.static_usage)
     body = fold_constants(body)
     event_outputs = tuple(name for name in output_types if name in compiler.event_outputs)

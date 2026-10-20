@@ -102,17 +102,17 @@ class InstanceNode(model.GraphElement):
         name = InstanceNode.path_name(path, qualified=True)
         for input in self.all_input_ports:
             if input.connected_source is None and not isinstance(input.node, model.TypeOutputPort):
-                port = 'Default input' if input.name == '' else f'Input {input.name!r}'
-                raise model.ProgramError(self.instantiation, f'{port} of node {name!r} is not connected',
+                port = 'Default input' if input.name == '' else f'Input `{input.name}`'
+                raise model.ProgramError(self.instantiation, f'{port} of node `{name}` is not connected',
                                           hints=[model.CompilerHint(input.port_spec, 'Input was declared here')])
 
         for output in self.output_ports:
             if (isinstance(output.port_spec, model.PortTypeSpecificationResource)
                     or output.type_output_port.connected_source is not None):
                 continue
-            port = 'Default output' if output.name == '' else f'Output {output.name!r}'
+            port = 'Default output' if output.name == '' else f'Output `{output.name}`'
             raise model.ProgramError(output.port_spec, f'{port} has no source', hints=[
-                model.CompilerHint(self.instantiation, f'While instantiating {name!r}'),
+                model.CompilerHint(self.instantiation, f'While instantiating `{name}`'),
             ])
 
     # TODO: Clean up
@@ -510,9 +510,9 @@ class InstanceProcedure:
             # TODO: Clean up temporary / output stuff
             previous = output.temporary.producer
             if previous is not None:
-                target = f'Variable {output.name!r}'
+                target = f'Variable `{output.name}`'
                 raise model.ProgramError(
-                    declaration_procedure, f'{target} is already produced by procedure {previous.name!r}',
+                    declaration_procedure, f'{target} is already produced by procedure `{previous.name}`',
                     hints=[model.CompilerHint(previous.declaration_procedure, 'Previous producer was here')])
             # print(f'Setting output for {output} / {output.temporary}')
             output.temporary.producer = self
@@ -633,7 +633,7 @@ class NodeTypeInstance(NodeInstance):
         if owner.is_root:
             return None
         name = InstanceNode.path_name(self.path, qualified=True)
-        return model.CompilerHint(owner.instantiation, f'While instantiating {name!r}')
+        return model.CompilerHint(owner.instantiation, f'While instantiating `{name}`')
 
     @property
     def path(self) -> NodePath:

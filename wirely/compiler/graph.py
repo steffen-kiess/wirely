@@ -358,7 +358,7 @@ class ProcedurePort(GraphElement):
 
     @property
     def description(self) -> str:
-        return f'port {self.name!r} of procedure {self.procedure.name.id_str!r}'
+        return f'port `{self.name}` of procedure `{self.procedure.name.id_str}`'
 
     def __repr__(self) -> str:
         return f'<{type(self).__name__} {self.procedure.name.id_str}.{self.name}>'

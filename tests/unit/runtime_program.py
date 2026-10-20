@@ -194,8 +194,8 @@ connect service -> consumer.Service;
     assert graph is not None
     program = program_compiler.compile_nocatch(graph)
     consumer = program.instances['consumer']
-    for binding, message in ((ResourceBinding('service', 'missing'), 'unknown output service.missing'),
-                             (ResourceBinding('other', 'other'), 'of type TestLibrary.Service is bound to other.other')):
+    for binding, message in ((ResourceBinding('service', 'missing'), 'unknown output `service.missing`'),
+                             (ResourceBinding('other', 'other'), 'of type `TestLibrary.Service` is bound to `other.other`')):
         instances = {**program.instances, 'consumer': replace(consumer, initializer_bindings={'Service': binding})}
         with checks.assertRaisesRegex(ValueError, message):
             test_engine(replace(program, instances=instances))

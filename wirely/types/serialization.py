@@ -10,7 +10,7 @@ from .unit import Unit
 def _check_runtime(value_type: Type) -> None:
     """Reject types without an eligible runtime representation."""
     if not value_type.is_runtime_type:
-        raise ValueError(f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
+        raise ValueError(f'Type `{value_type}` is not a runtime type: {value_type.runtime_type_error()}')
 
 
 def _layout(value_type: Type) -> tuple[int, int, int]:
@@ -39,7 +39,7 @@ def _layout(value_type: Type) -> tuple[int, int, int]:
             raise ValueError(f'Unsupported integer width {value_type.bits}')
         alignment = data_size = value_type.bits // 8
     else:
-        raise ValueError(f'Unsupported runtime type {value_type}')
+        raise ValueError(f'Unsupported runtime type `{value_type}`')
     size = (data_size + alignment - 1) & ~(alignment - 1)
     return alignment, data_size, size
 
@@ -99,7 +99,7 @@ def _serialize(value_type: Type, value: Any) -> bytes:
         return bytes([int(value)])
     if isinstance(value_type, TypeInt):
         return _integer_bytes(value, length, signed=value_type.is_signed)
-    raise ValueError(f'Unsupported runtime type {value_type}')
+    raise ValueError(f'Unsupported runtime type `{value_type}`')
 
 
 def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
@@ -107,7 +107,7 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
     length = value_type.data_size
     data = memoryview(data).tobytes()
     if len(data) != length:
-        raise ValueError(f'Expected {length} bytes for {value_type}, got {len(data)}')
+        raise ValueError(f'Expected {length} bytes for `{value_type}`, got {len(data)}')
     if isinstance(value_type, TypeStruct):
         fields = []
         end = 0
@@ -139,4 +139,4 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
         return bool(data[0])
     if isinstance(value_type, TypeInt):
         return int.from_bytes(data, 'little', signed=value_type.is_signed)
-    raise ValueError(f'Unsupported runtime type {value_type}')
+    raise ValueError(f'Unsupported runtime type `{value_type}`')

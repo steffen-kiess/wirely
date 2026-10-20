@@ -1,99 +1,99 @@
 // TEST: unknown outer
-#[unknown] node type T {} // E: Unknown attribute unknown
+#[unknown] node type T {} // E: Unknown attribute `unknown`
 
 // TEST: unknown qualified
 #[tool.position(x = 1, y = 2)] node type T {}
-// ^E: Unknown attribute tool.position
+// ^E: Unknown attribute `tool.position`
 
 // TEST: unknown file inner
-#![unknown] // E: Unknown attribute unknown
+#![unknown] // E: Unknown attribute `unknown`
 
 // TEST: unknown body inner
 node type T {
-  #![unknown] // E: Unknown attribute unknown
+  #![unknown] // E: Unknown attribute `unknown`
 }
 
 // TEST: unknown field
 struct type S {
-  #[unknown] f: uint8, // E: Unknown attribute unknown
+  #[unknown] f: uint8, // E: Unknown attribute `unknown`
 }
 
 // TEST: unknown member
 open enum type E: uint8 {
-  #[unknown] First = 0, // E: Unknown attribute unknown
+  #[unknown] First = 0, // E: Unknown attribute `unknown`
 }
 
 // TEST: unknown source
-connect #[unknown] a -> b; // E: Unknown attribute unknown
+connect #[unknown] a -> b; // E: Unknown attribute `unknown`
 
 // TEST: wrong target
 #[Diagram.Position(X = 1, Y = 2)] node type T {}
-// ^E: Attribute Diagram.Position is not permitted on node_type
+// ^E: Attribute `Diagram.Position` is not permitted on node_type
 
 // TEST: wrong inner target
 struct type S {
-  #![Diagram.Position(X = 1, Y = 2)] // E: Attribute Diagram.Position is not permitted on struct
+  #![Diagram.Position(X = 1, Y = 2)] // E: Attribute `Diagram.Position` is not permitted on struct
 }
 
 // TEST: wrong connection target
 #[Diagram.Position(X = 1, Y = 2)] connect a -> b;
-// ^E: Attribute Diagram.Position is not permitted on connection
+// ^E: Attribute `Diagram.Position` is not permitted on connection
 
 // TEST: wrong assertion target
 #[Diagram.Position(X = 1, Y = 2)] assert true;
-// ^E: Attribute Diagram.Position is not permitted on assertion
+// ^E: Attribute `Diagram.Position` is not permitted on assertion
 
 // TEST: missing arguments
-node n: Missing { #![Diagram.Position] } // E: Diagram.Position requires X and Y arguments
+node n: Missing { #![Diagram.Position] } // E: `Diagram.Position` requires `X` and `Y` arguments
 
 // TEST: empty arguments
-#[Diagram.Position()] node n: Missing {} // E: Diagram.Position requires X and Y arguments
+#[Diagram.Position()] node n: Missing {} // E: `Diagram.Position` requires `X` and `Y` arguments
 
 // TEST: missing y
-#[Diagram.Position(X = 1)] node n: Missing {} // E: Diagram.Position requires X and Y arguments
+#[Diagram.Position(X = 1)] node n: Missing {} // E: `Diagram.Position` requires `X` and `Y` arguments
 
 // TEST: missing x
-#[Diagram.Position(Y = 1)] node n: Missing {} // E: Diagram.Position requires X and Y arguments
+#[Diagram.Position(Y = 1)] node n: Missing {} // E: `Diagram.Position` requires `X` and `Y` arguments
 
 // TEST: duplicate argument
 #[Diagram.Position(X = 1, X = 2, Y = 0)] node n: Missing {}
-// ^E: Duplicate Diagram.Position argument X
+// ^E: Duplicate `Diagram.Position` argument `X`
 
 // TEST: unknown argument
 #[Diagram.Position(X = 1, Y = 2, z = 3)] node n: Missing {}
-// ^E: Unknown Diagram.Position argument
+// ^E: Unknown `Diagram.Position` argument
 
 // TEST: qualified argument
 #[Diagram.Position(point.X = 1, Y = 2)] node n: Missing {}
-// ^E: Unknown Diagram.Position argument
+// ^E: Unknown `Diagram.Position` argument
 
 // TEST: boolean argument
 #[Diagram.Position(X = true, Y = 2)] node n: Missing {}
-// ^E: Diagram.Position X requires a finite numeric literal
+// ^E: `Diagram.Position` `X` requires a finite numeric literal
 
 // TEST: string argument
 #[Diagram.Position(X = "1", Y = 2)] node n: Missing {}
-// ^E: Diagram.Position X requires a finite numeric literal
+// ^E: `Diagram.Position` `X` requires a finite numeric literal
 
 // TEST: flag argument
 #[Diagram.Position(X, Y = 2)] node n: Missing {}
-// ^E: Diagram.Position X requires a finite numeric literal
+// ^E: `Diagram.Position` `X` requires a finite numeric literal
 
 // TEST: nested argument
 #[Diagram.Position(X(1), Y = 2)] node n: Missing {}
-// ^E: Diagram.Position X requires a finite numeric literal
+// ^E: `Diagram.Position` `X` requires a finite numeric literal
 
 // TEST: literal argument
 #[Diagram.Position(1, Y = 2)] node n: Missing {}
-// ^E: Unknown Diagram.Position argument
+// ^E: Unknown `Diagram.Position` argument
 
 // TEST: nonfinite argument
 #[Diagram.Position(X = 1e999, Y = 2)] node n: Missing {}
-// ^E: Diagram.Position X requires a finite numeric literal
+// ^E: `Diagram.Position` `X` requires a finite numeric literal
 
 // TEST: name value attribute
 #[Diagram.Position = 1] node n: Missing {}
-// ^E: Diagram.Position requires X and Y arguments
+// ^E: `Diagram.Position` requires `X` and `Y` arguments
 
 // TEST: reference value
 #[Diagram.Position(X = Something, Y = 2)] node n: Missing {}
@@ -101,7 +101,7 @@ node n: Missing { #![Diagram.Position] } // E: Diagram.Position requires X and Y
 
 // TEST: duplicate attribute
 #[Diagram.Position(X = 1, Y = 2)]
-node n: Missing { #![Diagram.Position(X = 3, Y = 4)] } // E: Duplicate attribute Diagram.Position
+node n: Missing { #![Diagram.Position(X = 3, Y = 4)] } // E: Duplicate attribute `Diagram.Position`
 
 // TEST: dangling outer file
 #[Diagram.Position(X = 1, Y = 2)] // E: Unexpected token
@@ -173,119 +173,119 @@ node type T {
 connect a -> #[unknown] b; // E: Unexpected token
 
 // TEST: lowercase internal
-#[internal] node type T {} // E: Unknown attribute internal
+#[internal] node type T {} // E: Unknown attribute `internal`
 
 // TEST: Internal empty arguments
 #[Internal()] node type T {}
-// ^E: Internal must be a flag without arguments or a value
+// ^E: `Internal` must be a flag without arguments or a value
 
 // TEST: Internal arguments
 #[Internal(reason = "implementation")] node type T {}
-// ^E: Internal must be a flag without arguments or a value
+// ^E: `Internal` must be a flag without arguments or a value
 
 // TEST: Internal assigned value
 #[Internal = true] node type T {}
-// ^E: Internal must be a flag without arguments or a value
+// ^E: `Internal` must be a flag without arguments or a value
 
 // TEST: duplicate Internal outer
-#[Internal] #[Internal] node type T {} // E: Duplicate attribute Internal
+#[Internal] #[Internal] node type T {} // E: Duplicate attribute `Internal`
 
 // TEST: duplicate Internal outer and inner
 #[Internal]
 node type T {
-  #![Internal] // E: Duplicate attribute Internal
+  #![Internal] // E: Duplicate attribute `Internal`
 }
 
 // TEST: Internal file
-#![Internal] // E: Attribute Internal is not permitted on file
+#![Internal] // E: Attribute `Internal` is not permitted on file
 
 // TEST: Internal connection
-#[Internal] connect a -> b; // E: Attribute Internal is not permitted on connection
+#[Internal] connect a -> b; // E: Attribute `Internal` is not permitted on connection
 
 // TEST: Internal assertion
-#[Internal] assert true; // E: Attribute Internal is not permitted on assertion
+#[Internal] assert true; // E: Attribute `Internal` is not permitted on assertion
 
 // TEST: Internal procedure
 node type T {
   #[Internal] native procedure run;
-  // ^E: Attribute Internal is not permitted on procedure
+  // ^E: Attribute `Internal` is not permitted on procedure
 }
 
 // TEST: Internal initializer
 native node type T {
   #[Internal] native initializer;
-  // ^E: Attribute Internal is not permitted on initializer
+  // ^E: Attribute `Internal` is not permitted on initializer
 }
 
 // TEST: old position name
-#[position(x = 1, y = 2)] node n: Missing {} // E: Unknown attribute position
+#[position(x = 1, y = 2)] node n: Missing {} // E: Unknown attribute `position`
 
 // TEST: old summary name
 node type T {
-  #[summary] parameter P: boolean; // E: Unknown attribute summary
+  #[summary] parameter P: boolean; // E: Unknown attribute `summary`
 }
 
 // TEST: ShowValue arguments
 node type T {
   #[Diagram.ShowValue(Always)] parameter P: boolean;
-  // ^E: Diagram.ShowValue must be a flag without arguments or a value
+  // ^E: `Diagram.ShowValue` must be a flag without arguments or a value
 }
 
 // TEST: ShowValue node type
 #[Diagram.ShowValue] node type T {}
-// ^E: Attribute Diagram.ShowValue is not permitted on node_type
+// ^E: Attribute `Diagram.ShowValue` is not permitted on node_type
 
 // TEST: ShowValue state
 node type T {
   #[Diagram.ShowValue] state s: boolean = true;
-  // ^E: Attribute Diagram.ShowValue is not permitted on state
+  // ^E: Attribute `Diagram.ShowValue` is not permitted on state
 }
 
 // TEST: zero width
 #[Diagram.Width = 0] node n: Missing {}
-// ^E: Diagram.Width requires a positive finite number
+// ^E: `Diagram.Width` requires a positive finite number
 
 // TEST: negative height
 node n: Missing { #![Diagram.Height = -1] }
-// ^E: Diagram.Height requires a positive finite number
+// ^E: `Diagram.Height` requires a positive finite number
 
 // TEST: nonfinite width
 #[Diagram.Width = 1e999] node n: Missing {}
-// ^E: Diagram.Width requires a positive finite number
+// ^E: `Diagram.Width` requires a positive finite number
 
 // TEST: width arguments
 #[Diagram.Width(8)] node n: Missing {}
-// ^E: Diagram.Width requires a positive finite number
+// ^E: `Diagram.Width` requires a positive finite number
 
 // TEST: width on node type
 #[Diagram.Width = 8] node type T {}
-// ^E: Attribute Diagram.Width is not permitted on node_type
+// ^E: Attribute `Diagram.Width` is not permitted on node_type
 
 // TEST: default width on node
 #[Diagram.DefaultWidth = 8] node n: Missing {}
-// ^E: Attribute Diagram.DefaultWidth is not permitted on node
+// ^E: Attribute `Diagram.DefaultWidth` is not permitted on node
 
 // TEST: zero default height
 node type T {
-  #![Diagram.DefaultHeight = 0] // E: Diagram.DefaultHeight requires a positive finite number
+  #![Diagram.DefaultHeight = 0] // E: `Diagram.DefaultHeight` requires a positive finite number
 }
 
 // TEST: fractional row
 node type T {
   #[Diagram.Row = 1.5] input A: value boolean;
-  // ^E: Diagram.Row requires a non-negative integer
+  // ^E: `Diagram.Row` requires a non-negative integer
 }
 
 // TEST: negative row
 node type T {
   #[Diagram.Row = -1] input A: value boolean;
-  // ^E: Diagram.Row requires a non-negative integer
+  // ^E: `Diagram.Row` requires a non-negative integer
 }
 
 // TEST: row on state
 node type T {
   #[Diagram.Row = 0] state s: boolean = true;
-  // ^E: Attribute Diagram.Row is not permitted on state
+  // ^E: Attribute `Diagram.Row` is not permitted on state
 }
 
 // TEST: duplicate row
@@ -294,7 +294,7 @@ node type T {
   #[Diagram.Row = 1] input A: value boolean;
   #[Diagram.Row = 1] output B: value boolean;
   #[Diagram.Row = 1] input C: value boolean;
-  // ^E: Port row 1 is already used by input A
+  // ^E: Port row 1 is already used by `input A`
 }
 
 // TEST: duplicate default port row
@@ -302,57 +302,57 @@ node type T {
 node type T {
   #[Diagram.Row = 0] default output: value boolean;
   #[Diagram.Row = 0] output B: value boolean;
-  // ^E: Port row 0 is already used by default output
+  // ^E: Port row 0 is already used by `default output`
 }
 
 // TEST: duplicate top-level row
 #[Diagram.Row = 2] input A: value boolean;
 #[Diagram.Row = 2] input B: value boolean;
-// ^E: Port row 2 is already used by input A
+// ^E: Port row 2 is already used by `input A`
 
 // TEST: Unordered single input
 node type T {
-  #[Unordered] input A: value boolean; // E: Unordered requires a multi input
+  #[Unordered] input A: value boolean; // E: `Unordered` requires a `multi` input
 }
 
 // TEST: Unordered output
 node type T {
-  #[Unordered] output A: value boolean; // E: Unordered requires a multi input
+  #[Unordered] output A: value boolean; // E: `Unordered` requires a `multi` input
 }
 
 // TEST: Unordered parameter
 node type T {
   #[Unordered] parameter P: boolean;
-  // ^E: Attribute Unordered is not permitted on parameter
+  // ^E: Attribute `Unordered` is not permitted on parameter
 }
 
 // TEST: Unordered arguments
 node type T {
   #[Unordered(Always)] input A: multi value boolean;
-  // ^E: Unordered must be a flag without arguments or a value
+  // ^E: `Unordered` must be a flag without arguments or a value
 }
 
 // TEST: Allow unknown warning
-#[Allow(Missing)] constant C: boolean = true; // E: Unknown warning Missing
+#[Allow(Missing)] constant C: boolean = true; // E: Unknown warning `Missing`
 
 // TEST: Allow without names
-#[Allow] constant C: boolean = true; // E: Allow requires warning names
+#[Allow] constant C: boolean = true; // E: `Allow` requires warning names
 
 // TEST: Allow value argument
 #[Allow(CoincidentTriggers = 1)] constant C: boolean = true;
-// ^E: Allow arguments must be warning names
+// ^E: `Allow` arguments must be warning names
 
 // TEST: Allow on connection
 node type T {
   input A: value boolean;
   output B: value boolean;
   #[Allow(CoincidentTriggers)] connect A -> B;
-  // ^E: Attribute Allow is not permitted on connection
+  // ^E: Attribute `Allow` is not permitted on connection
 }
 
 // TEST: statement attribute
 constant C: boolean = {
   #[Internal] let value = true;
-  // ^E: Attribute Internal is not permitted on statement
+  // ^E: Attribute `Internal` is not permitted on statement
   value
 };

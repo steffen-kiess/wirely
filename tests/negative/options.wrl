@@ -1,6 +1,6 @@
 // TEST: UnwrapOr on a non-option
 constant Value: uint8 = 1;
-constant Result: uint8 = Value.UnwrapOr(2); // E: Expected an Option value, got uint8
+constant Result: uint8 = Value.UnwrapOr(2); // E: Expected an Option value, got `uint8`
 
 // TEST: UnwrapOr argument count
 constant Value: Option[uint8] = None;
@@ -12,15 +12,15 @@ constant Result: uint8 = Value.UnwrapOr(true); // E: Invalid int value true
 
 // TEST: UnwrapOr result type
 constant Value: Option[uint8] = None;
-constant Result: boolean = Value.UnwrapOr(1); // E: Expected value of type boolean, got uint8
+constant Result: boolean = Value.UnwrapOr(1); // E: Expected value of type `boolean`, got `uint8`
 
 // TEST: unknown option method
 constant Value: Option[uint8] = None;
-constant Result: uint8 = Value.Take(); // E: Value of type Option[uint8] has no method 'Take'
+constant Result: uint8 = Value.Take(); // E: Value of type `Option[uint8]` has no method `Take`
 
 // TEST: method of a non-option value
 constant Value: uint8 = 1;
-constant Result: uint8 = Value.Take(); // E: Value of type uint8 has no method 'Take'
+constant Result: uint8 = Value.Take(); // E: Value of type `uint8` has no method `Take`
 
 // TEST: calling an option property
 constant Value: Option[uint8] = None;
@@ -40,11 +40,11 @@ constant Result: uint8 = if let Some(Some(value)) = Value { value } else { 0 }; 
 
 // TEST: if let on a non-option
 constant Value: uint8 = 1;
-constant Result: uint8 = if let Some(value) = Value { value } else { 0 }; // E: Expected an Option value, got uint8
+constant Result: uint8 = if let Some(value) = Value { value } else { 0 }; // E: Expected an Option value, got `uint8`
 
 // TEST: value-producing if let without else
 constant Value: Option[uint8] = None;
-constant Result: uint8 = if let Some(value) = Value { value }; // E: Expected value of type unit
+constant Result: uint8 = if let Some(value) = Value { value }; // E: Expected value of type `unit`
 
 // TEST: if let scrutinee with a logical operator
 constant Value: Option[uint8] = None;
@@ -64,7 +64,7 @@ node type Shadow {
   default input: value Option[uint8];
   default output: value uint8;
   procedure run depends on default input as input produces default output as output {
-    output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure port or parameter 'input'
+    output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure port or parameter `input`
   }
 }
 node shadow: Shadow {}
@@ -78,7 +78,7 @@ node type Shadow {
   default input: value Option[uint8];
   default output: value uint8;
   procedure run depends on default input as input produces default output as output {
-    output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure port or parameter 'Limit'
+    output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure port or parameter `Limit`
   }
 }
 node shadow: Shadow { Limit: 1 }
@@ -95,7 +95,7 @@ constant Result: uint8 = Value.Unwrap(2); // E: Unwrap expects no arguments
 
 // TEST: Unwrap on a non-option
 constant Value: uint8 = 1;
-constant Result: uint8 = Value.Unwrap(); // E: Expected an Option value, got uint8
+constant Result: uint8 = Value.Unwrap(); // E: Expected an Option value, got `uint8`
 
 // TEST: Unwrap of a runtime value
 node type Probe {
@@ -117,4 +117,4 @@ node type Probe {
   parameter Value: Option[uint8];
   constant Result: uint8 = Value.Unwrap(); // E: Called Unwrap on a None value
 }
-node probe: Probe { Value: None } // H: While instantiating 'probe'
+node probe: Probe { Value: None } // H: While instantiating `probe`

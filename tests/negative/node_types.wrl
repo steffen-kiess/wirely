@@ -1,6 +1,6 @@
 // TEST: unknown_node_type
 // LIBRARIES: std
-node node2: Std.NonExisting { Type: Option[boolean] } // E: Cannot find node type Std.NonExisting
+node node2: Std.NonExisting { Type: Option[boolean] } // E: Cannot find node type `Std.NonExisting`
 
 // TEST: singleton_input
 singleton node type QWE {
@@ -14,20 +14,20 @@ singleton node type QWE {
 
 // TEST: duplicate_node_type_in_reopened_library
 // SH: Previous node type was here
-// SE: Duplicate node type Duplicate
+// SE: Duplicate node type `Duplicate`
 namespace Fixture {
   node type Duplicate { // H: Previous node type was here
   }
 }
 
 namespace Fixture {
-  node type Duplicate { // E: Duplicate node type Duplicate
+  node type Duplicate { // E: Duplicate node type `Duplicate`
   }
 }
 
 // TEST: unknown_abb_jra
 node status: ABB_JRA.InterpretStatusInformation {}
-// ^E: Cannot find node type ABB_JRA.InterpretStatusInformation
+// ^E: Cannot find node type `ABB_JRA.InterpretStatusInformation`
 
 // TEST: library_inside_node_type
 node type Enclosing {
@@ -37,12 +37,12 @@ node type Enclosing {
 
 // TEST: duplicate_native_name
 // SH: Previous declaration was here
-// SE: Duplicate native name 'Fixture.Device'
+// SE: Duplicate native name `Fixture.Device`
 namespace Fixture {
   native node type Device {} // H: Previous declaration was here
 }
 namespace Other {
-  native node type Switch as "Fixture.Device" {} // E: Duplicate native name 'Fixture.Device'
+  native node type Switch as "Fixture.Device" {} // E: Duplicate native name `Fixture.Device`
 }
 
 // TEST: key_without_native_state

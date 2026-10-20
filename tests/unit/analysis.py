@@ -66,11 +66,11 @@ result = analyze([('main.wrl', source)], add_std=True)
 errors = [(item.element, source[item.diagnostic.start:item.diagnostic.end], item.diagnostic.message)
           for item in result.diagnostics if item.diagnostic.kind == 'error']
 checks.assertEqual(errors, [
-    (Node(('unknown',)), 'Nope', 'Cannot find node type Nope'),
-    (Node(('bad',)), 'Extra', 'Unknown parameter for Constant: Extra'),
+    (Node(('unknown',)), 'Nope', 'Cannot find node type `Nope`'),
+    (Node(('bad',)), 'Extra', 'Unknown parameter for `Constant`: `Extra`'),
     (Node(('bad',)), '3', 'Invalid boolean value 3'),
-    (Node(('B', 'a')), 'node a: A {}', "Recursive node type instantiation of 'A'"),
-    (Node(('missing',)), 'node missing: Box {}', "Missing value for parameter 'Type' of node 'missing'"),
+    (Node(('B', 'a')), 'node a: A {}', "Recursive node type instantiation of `A`"),
+    (Node(('missing',)), 'node missing: Box {}', "Missing value for parameter `Type` of node `missing`"),
 ])
 checks.assertEqual([port.type for port in result.ports(Node(('good',)))], [uint8])
 checks.assertIsNone(result.ports(Node(('unknown',))))
@@ -86,8 +86,8 @@ messages = [(item.diagnostic.kind, item.diagnostic.filename, item.element, item.
             for item in result.diagnostics if item.diagnostic.kind != 'hint']
 checks.assertEqual(messages[0][:3], ('syntax_error', 'b.wrl', None))
 checks.assertEqual(messages[1:], [
-    ('error', 'a.wrl', NodeType(('T',)), 'Duplicate node type T'),
-    ('error', 'a.wrl', Port(('T', 'default output'), 'output'), 'Cannot find type Missing'),
+    ('error', 'a.wrl', NodeType(('T',)), 'Duplicate node type `T`'),
+    ('error', 'a.wrl', Port(('T', 'default output'), 'output'), 'Cannot find type `Missing`'),
 ])
 checks.assertEqual([port.type for port in result.ports(Node(('u',)))], [uint8])
 
@@ -132,17 +132,17 @@ for scope, source_text, target_text, expected in (
         ((), 'flag', 'both', allowed),
         ((), 'flag', 'box.many', allowed),
         (('Box',), 'last.new', 'last', allowed),
-        ((), 'flag', 'printer', ConnectionCheck(False, 'source has type boolean but target has type uint8')),
+        ((), 'flag', 'printer', ConnectionCheck(False, 'source has type `boolean` but target has type `uint8`')),
         ((), 'flag', 'gate.enable', ConnectionCheck(
             False, 'source has kind ConnectionKind.Value but target has kind ConnectionKind.Event')),
-        ((), 'flag', 'box.missing', ConnectionCheck(False, 'Unable to find target input port box.missing')),
-        ((), 'printer', 'flag', ConnectionCheck(False, "Source node 'printer' does not have a default output")),
+        ((), 'flag', 'box.missing', ConnectionCheck(False, 'Unable to find target input port `box.missing`')),
+        ((), 'printer', 'flag', ConnectionCheck(False, "Source node `printer` does not have a default output")),
         ((), 'number', 'box.value', ConnectionCheck(
-            False, "Input 'value' of node 'box' already has a source; only multi inputs accept several")),
+            False, "Input `value` of node `box` already has a source; only multi inputs accept several")),
         (('Box',), 'last.new', 'default output', ConnectionCheck(False, 'Default output already has a source')),
-        (('Box',), 'Zero', 'run.typed', ConnectionCheck(False, "Port 'typed' of procedure 'run' already has a source")),
-        (('Box',), 'value', 'run.input', ConnectionCheck(False, "Port 'input' of procedure 'run' is not a typed port")),
-        ((), 'broken', 'printer', ConnectionCheck(False, "Unable to find source node 'broken'"))):
+        (('Box',), 'Zero', 'run.typed', ConnectionCheck(False, "Port `typed` of procedure `run` already has a source")),
+        (('Box',), 'value', 'run.input', ConnectionCheck(False, "Port `input` of procedure `run` is not a typed port")),
+        ((), 'broken', 'printer', ConnectionCheck(False, "Unable to find source node `broken`"))):
     checks.assertEqual(result.can_connect(scope, source_text, target_text), expected, (source_text, target_text))
 checks.assertEqual(result.can_connect((), 'number', 'box.value', replacing=Connection((), 'number', 'box.value')),
                    allowed)

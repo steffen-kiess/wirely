@@ -38,7 +38,7 @@ checks.assertEqual([diagnostic.message for diagnostic in error_diagnostics(model
 # Global graph failures are reported by both source compilation APIs.
 for source, message in (
         ('native procedure run;', 'Native procedures must belong to a node type'),
-        ('binding unused: value boolean;', "Binding 'unused' has no source")):
+        ('binding unused: value boolean;', "Binding `unused` has no source")):
     diagnostics = []
     checks.assertIsNone(compile_strs([('<root>', source)], on_diagnostic=diagnostics.append))
     checks.assertEqual(len(diagnostics), 1)
@@ -102,7 +102,7 @@ for sources, later in (([first, ('<second>', 'node type T {}')], '<second>'),
                        ([('<second>', 'node type T {}'), first], '<first>')):
     diagnostics = []
     checks.assertIsNone(compile_strs(sources, on_diagnostic=diagnostics.append, shuffle_seed=None))
-    checks.assertEqual((diagnostics[0].message, diagnostics[0].filename), ("Duplicate node type T", later))
+    checks.assertEqual((diagnostics[0].message, diagnostics[0].filename), ('Duplicate node type `T`', later))
 with tempfile.TemporaryDirectory(prefix='wirely-compiler-api-') as directory:
     filename = Path(directory) / 'child.wrl'
     filename.write_text('node child: Empty {}', encoding='utf-8')

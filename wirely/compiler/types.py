@@ -66,9 +66,9 @@ class TypeParameter(Type):
                 if not isinstance(par, model.NodeParameter):
                     raise Exception("not isinstance(par, model.NodeParameter)")
                 hints += [
-                    model.CompilerHint(par.declaration, f'Available parameter: {par.node_type}.{par.name}'),
+                    model.CompilerHint(par.declaration, f'Available parameter: `{par.node_type}.{par.name}`'),
                 ]
-            raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter {self.parameter.node_type}.{self.parameter.name}', hints=hints)
+            raise model.ProgramError(self.ast_element, f'Unable to resolve type parameter `{self.parameter.node_type}.{self.parameter.name}`', hints=hints)
 
     def __repr__(self) -> str:
         # return f'TypeParameter({self.parameter})'
@@ -101,7 +101,7 @@ class TypeParameter(Type):
 def check_runtime_type(value_type: Type, source: model.ast.SourceElement | None) -> None:
     """Check runtime eligibility once any type parameters have resolved."""
     if not value_type.contains_parameters and not value_type.is_runtime_type:
-        raise model.ProgramError(source, f'Type {value_type} is not a runtime type: {value_type.runtime_type_error()}')
+        raise model.ProgramError(source, f'Type `{value_type}` is not a runtime type: {value_type.runtime_type_error()}')
 
 
 def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, StaticValue]) -> Type:
@@ -111,7 +111,7 @@ def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, Stat
         result = value_type.resolve_self(par_values)
         if not isinstance(result, Type):
             raise model.ProgramError(value_type.parameter.declaration,
-                                      f'Expected a type for {value_type.parameter.name.id_str!r}')
+                                      f'Expected a type for `{value_type.parameter.name.id_str}`')
         return result
     if isinstance(value_type, TypeOption):
         return TypeOption(resolve_type(value_type.inner_type, par_values))
@@ -179,7 +179,7 @@ def _parse_string(self: types.TypeString, value: model.ast.Value, *, scope: mode
 
 def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
     if not isinstance(expr, model.Reference) or expr.length < 2:
-        raise model.ProgramError(expr, f'Expected enum literal {self.name}.Member')
+        raise model.ProgramError(expr, f'Expected enum literal `{self.name}.Member`')
     type_name = '.'.join(identifier.id_str for identifier in expr.identifiers[:-1])
     member_name = expr.identifiers[-1].id_str
     if scope is not None:
@@ -191,7 +191,7 @@ def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Sco
     else:
         matches = type_name == self.name
     if not matches:
-        raise model.ProgramError(expr, f'Expected enum type {self.name}, got {type_name}')
+        raise model.ProgramError(expr, f'Expected enum type `{self.name}`, got `{type_name}`')
     try:
         return self._parse_impl(member_name)
     except ValueError as error:
@@ -201,23 +201,23 @@ def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Sco
 def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value) -> Any:
     """Parse a string literal with the implementation of an opaque struct."""
     if isinstance(expr, model.StructLiteral):
-        raise model.ProgramError(expr, f'Expected {self}, got struct literal')
+        raise model.ProgramError(expr, f'Expected `{self}`, got struct literal')
     python_type = self.opaque_class()
     if isinstance(expr, model.StringConstant) and python_type is not None and hasattr(python_type, 'parse'):
         try:
             return self.parse(expr.value)
         except Exception:
-            raise model.ProgramError(expr, f'Invalid {self} value {expr.value!r}') from None
+            raise model.ProgramError(expr, f'Invalid `{self}` value {expr.value!r}') from None
     if isinstance(expr, model.StringConstant) and python_type is None:
-        raise model.ProgramError(expr, f'{self} has no literals without a native implementation')
-    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
+        raise model.ProgramError(expr, f'`{self}` has no literals without a native implementation')
+    raise model.ProgramError(expr, f'Invalid `{self}` value {expr!r}')
 
 
 def _parse_struct(self: types.TypeStruct, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
     if self.is_opaque:
         return _parse_opaque(self, value)
     if not isinstance(value, model.StructLiteral):
-        raise model.ProgramError(value, f'Expected struct literal {self.name} {{ ... }}')
+        raise model.ProgramError(value, f'Expected struct literal `{self.name} {{ ... }}`')
     fields = model.ast.check_struct_literal(self, value, scope)
     return self.make_value({name: parse_value(self.fields[name], field.value, scope=scope)
                             for name, field in fields.items()})

@@ -54,13 +54,13 @@ class DeclarationStructType(Declaration):
     def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
-            raise ProgramError(self.name, f'Struct type {name} conflicts with built-in type')
+            raise ProgramError(self.name, f'Struct type `{name}` conflicts with built-in type')
         for kind, declarations in (
                 ('struct type', graph.struct_types), ('enum type', graph.enum_types),
                 ('node type', graph.node_types), ('resource type', graph.resource_types)):
             if name in declarations:
                 previous = declarations[name].declaration
-                raise ProgramError(self.name, f'Struct type {name} conflicts with {kind}', hints=[
+                raise ProgramError(self.name, f'Struct type `{name}` conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
         graph.struct_types[name] = StructDefinition(self, graph)
@@ -82,7 +82,7 @@ class StructDefinition:
         if self.value_type is not None:
             return self.value_type
         if self.resolving:
-            raise ProgramError(self.declaration.name, f'Recursive struct type {self.declaration.name.id_str}')
+            raise ProgramError(self.declaration.name, f'Recursive struct type `{self.declaration.name.id_str}`')
         self.resolving = True
         try:
             fields = {}
@@ -90,7 +90,7 @@ class StructDefinition:
             for field in self.declaration.fields:
                 name = field.name.id_str
                 if name in fields:
-                    raise ProgramError(field.name, f'Duplicate struct field {name}', hints=[
+                    raise ProgramError(field.name, f'Duplicate struct field `{name}`', hints=[
                         CompilerHint(previous[name].name, 'Previous field was here'),
                     ])
                 fields[name] = self.scope.resolve_type(field.field_type)
@@ -164,7 +164,7 @@ class DeclarationEnumType(Declaration):
     def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in model.types.type_by_name or name in ('Option', 'List'):
-            raise ProgramError(self.name, f'Enum type {name} conflicts with built-in type')
+            raise ProgramError(self.name, f'Enum type `{name}` conflicts with built-in type')
         for kind, declarations in (
                 ('enum type', graph.enum_types),
                 ('struct type', graph.struct_types),
@@ -172,7 +172,7 @@ class DeclarationEnumType(Declaration):
                 ('resource type', graph.resource_types)):
             if name in declarations:
                 previous = declarations[name].declaration
-                raise ProgramError(self.name, f'Enum type {name} conflicts with {kind}', hints=[
+                raise ProgramError(self.name, f'Enum type `{name}` conflicts with {kind}', hints=[
                     CompilerHint(previous, 'Previous declaration was here'),
                 ])
         underlying: typing.Any
@@ -194,7 +194,7 @@ class DeclarationEnumType(Declaration):
         for index, member in enumerate(self.members):
             member_name = member.name.id_str
             if member_name in names:
-                raise ProgramError(member.name, f'Duplicate enum member {member_name}', hints=[
+                raise ProgramError(member.name, f'Duplicate enum member `{member_name}`', hints=[
                     CompilerHint(names[member_name], 'Previous member was here'),
                 ])
             if self.is_open:
@@ -232,20 +232,20 @@ class DeclarationResourceType(Declaration):
     def collect_declarations(self, graph: 'model.Scope') -> None:
         name = self.name.id_str
         if name in graph.struct_types:
-            raise model.ProgramError(self.name, f'Resource type {name} conflicts with struct type', hints=[
+            raise model.ProgramError(self.name, f'Resource type `{name}` conflicts with struct type', hints=[
                 model.CompilerHint(graph.struct_types[name].declaration, 'Previous declaration was here'),
             ])
         if name in graph.enum_types:
-            raise ProgramError(self.name, f'Resource type {name} conflicts with enum type', hints=[
+            raise ProgramError(self.name, f'Resource type `{name}` conflicts with enum type', hints=[
                 CompilerHint(graph.enum_types[name].declaration, 'Previous declaration was here'),
             ])
         if name in graph.resource_types:
             previous = graph.resource_types[name].declaration
-            raise ProgramError(self, f'Duplicate resource type {name}', hints=[
+            raise ProgramError(self, f'Duplicate resource type `{name}`', hints=[
                 CompilerHint(previous, 'Previous resource type was here'),
             ])
         if name in graph.node_types:
-            raise ProgramError(self, f'Resource type {name} conflicts with node type', hints=[
+            raise ProgramError(self, f'Resource type `{name}` conflicts with node type', hints=[
                 CompilerHint(graph.node_types[name].declaration, 'Previous node type was here'),
             ])
         if isinstance(graph, model.ast.Namespace):

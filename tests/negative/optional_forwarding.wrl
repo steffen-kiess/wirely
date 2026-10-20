@@ -49,20 +49,20 @@ node child: Destination { Foo?: Some(1) } // E: Invalid boolean value
 
 // TEST: incorrect_intrinsic_type
 optional parameter Foo: int16;
-constant Value: Option[boolean] = optional(Foo); // E: Expected value of type Option[boolean], got Option[int16]
+constant Value: Option[boolean] = optional(Foo); // E: Expected value of type `Option[boolean]`, got `Option[int16]`
 
 // TEST: ordinary_binding_does_not_unwrap
 node type Destination { optional parameter Foo: boolean; }
 optional parameter Foo: boolean;
-node child: Destination { Foo: optional(Foo) } // E: Expected value of type boolean, got Option[boolean]
+node child: Destination { Foo: optional(Foo) } // E: Expected value of type `boolean`, got `Option[boolean]`
 
 // TEST: duplicate_bindings
 node type Destination { optional parameter Foo: boolean; }
-node child: Destination { Foo: true, Foo?: None } // E: Duplicate parameter binding 'Foo'
+node child: Destination { Foo: true, Foo?: None } // E: Duplicate parameter binding `Foo`
 
 // TEST: duplicate_optional_bindings
 node type Destination { optional parameter Foo: boolean; }
-node child: Destination { Foo?: None, Foo?: Some(true) } // E: Duplicate parameter binding 'Foo'
+node child: Destination { Foo?: None, Foo?: Some(true) } // E: Duplicate parameter binding `Foo`
 
 // TEST: omitted_ordinary_read
 node type Destination { optional parameter Foo: boolean; } // H: Available parameter
@@ -77,7 +77,7 @@ node type Forward {
   optional parameter Foo: boolean;
   constant Value: boolean = Foo; // E: Unable to resolve value parameter
 }
-node parent: Forward {} // H: While instantiating 'parent'
+node parent: Forward {} // H: While instantiating `parent`
 
 // TEST: presence_type_cycle
 node type Forward {

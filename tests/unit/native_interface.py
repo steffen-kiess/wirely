@@ -409,7 +409,7 @@ def check_triggers():
     trigger_engine.step()
     trigger_engine.assert_is_idle()
 
-    with checks.assertRaisesRegex(ValueError, "Unknown output 'missing' on first"):
+    with checks.assertRaisesRegex(ValueError, "Unknown output `missing` on first"):
         first.services.trigger('missing')
     trigger_engine.step()
     assert first.calls == first_startup
@@ -492,8 +492,8 @@ def check_outputs():
     native procedure run produces default output as "output";
     '''
     for invalid in ('invalid', 7, True, wirely.UInt16(7), wirely.Int8(7)):
-        expect_output_error(declaration, invalid, "Native procedure 'TestLibrary.Probe:run' of probe: "
-                                                  "invalid value for output 'output': Expected a wirely.UInt8")
+        expect_output_error(declaration, invalid, "Native procedure `TestLibrary.Probe:run` of `probe`: "
+                                                  "invalid value for output `output`: Expected a wirely.UInt8")
     probe = make_engine(declaration, lambda services, inputs, values: {'output': wirely.UInt8(7)})
     probe.step()
     probe.assert_value_is('probe', 7)
@@ -501,7 +501,7 @@ def check_outputs():
     # Implementations return their contract's result class.
     for result in (None, {'output': wirely.UInt8(7)}):
         probe = make_engine(declaration, lambda services, inputs, values, result=result: Raw(result))
-        with checks.assertRaisesRegex(ValueError, re.escape(f'of probe must return a ProbeRunResult, got {result!r}')):
+        with checks.assertRaisesRegex(ValueError, re.escape(f'of `probe` must return a ProbeRunResult, got {result!r}')):
             probe.step()
 
     # Generic outputs are DynamicValues of their bound type.
@@ -512,9 +512,9 @@ def check_outputs():
     native procedure run produces default output as "output" uses Type;
     '''
     option = wirely.value_types.option(wirely.value_types.boolean)
-    for invalid, message in [(wirely.Some(True), 'Expected a DynamicValue of Option\\[boolean\\], got Some'),
+    for invalid, message in [(wirely.Some(True), 'Expected a DynamicValue of `Option\\[boolean\\]`, got Some'),
                              (wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types),
-                              'Expected a DynamicValue of Option\\[boolean\\], got one of boolean')]:
+                              'Expected a DynamicValue of `Option\\[boolean\\]`, got one of `boolean`')]:
         expect_output_error(generic, invalid, message, parameters='Type: Option[boolean]')
 
     def generic_output(services, inputs, values):
@@ -632,7 +632,7 @@ namespace Example {
 
     enum_bindings = RuntimeNativeExtension(enums=registry)
     for invalid in [2, Other.On]:
-        expect_output_error(declaration, invalid, 'Expected a Mode for Example.Mode', extra=extra, override_extensions=[enum_bindings])
+        expect_output_error(declaration, invalid, 'Expected a Mode for `Example.Mode`', extra=extra, override_extensions=[enum_bindings])
     probe = make_engine(declaration, check_enum_output, extra=extra, override_extensions=[enum_bindings])
     probe.step()
     # Inside the runtime, named and unnamed enum values are numbers.
@@ -685,15 +685,15 @@ namespace Example {
     make({'Test.Level': level, 'Test.Day': day})
     assert len(runs) == 1
     for registry, message in [
-        ({'Test.Day': day}, "Cannot find native enum type 'Test.Level'"),
+        ({'Test.Day': day}, "Cannot find native enum type `Test.Level`"),
         ({'Test.Level': NativeEnum(Level, is_open=False, underlying_type='uint8'), 'Test.Day': day},
-         "Native enum type 'Test.Level' must be closed, got open"),
+         "Native enum type `Test.Level` must be closed, got open"),
         ({'Test.Level': NativeEnum(Level, is_open=True, underlying_type='int8'), 'Test.Day': day},
-         "Native enum type 'Test.Level' must have underlying type int8, got uint8"),
+         "Native enum type `Test.Level` must have underlying type `int8`, got `uint8`"),
         ({'Test.Level': level, 'Test.Day': NativeEnum(Day, is_open=False, underlying_type='uint16')},
-         "Native enum type 'Test.Day' must have underlying type uint16, got uint8"),
+         "Native enum type `Test.Day` must have underlying type `uint16`, got `uint8`"),
         ({'Test.Level': level, 'Test.Day': NativeEnum(Week, is_open=False, underlying_type='uint8')},
-         "Native enum type 'Test.Day' must have 3 members, got 2"),
+         "Native enum type `Test.Day` must have 3 members, got 2"),
     ]:
         with checks.assertRaisesRegex(ValueError, message):
             make(registry)
@@ -808,34 +808,34 @@ connect number -> stateful.Number;
 
         link()
         for changes, message in [
-            (dict(procedures={}), "Cannot find the signature of native procedure 'TestLibrary.Probe:run'"),
-            (dict(state_types={}), "Cannot find the signature of native state type 'TestLibrary.Stateful'"),
-            (dict(functions={}), "Cannot find the signature of native function 'TestLibrary.Clamp'"),
+            (dict(procedures={}), "Cannot find the signature of native procedure `TestLibrary.Probe:run`"),
+            (dict(state_types={}), "Cannot find the signature of native state type `TestLibrary.Stateful`"),
+            (dict(functions={}), "Cannot find the signature of native function `TestLibrary.Clamp`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, stage='input')}},
              'runs in stage output, expected input'),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('String')})}},
-             "uses binding 'Type' has type type, expected String"),
+             "uses binding `Type` has type `type`, expected `String`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Int(8, False))})}},
-             "'input' has type uint16, expected uint8"),
+             "`input` has type `uint16`, expected `uint8`"),
             # Type variables are bound to the entry's own `type` bindings.
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Option(TypeVar('Type')))})}},
-             "'input' has type uint16, expected Option\\[uint16\\]"),
+             "`input` has type `uint16`, expected `Option\\[uint16\\]`"),
             # Programs store an event of T as Option[T].
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, produces={'output': Port('value', Int(8, False))})}},
-             "'output' has type Option\\[uint8\\], expected uint8"),
+             "`output` has type `Option\\[uint8\\]`, expected `uint8`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={**run.depends, 'extra': Port('value', Builtin('boolean'))})}},
              "inputs \\['input'\\] do not match the expected \\['extra', 'input'\\]"),
             ({'state_types': {'TestLibrary.Stateful': replace(
                 stateful, produces={'state': Port('resource', ResourceType('TestLibrary.Other'))})}},
-             "'state' is TestLibrary.ProbeState, expected resource TestLibrary.Other"),
+             "`state` is `TestLibrary.ProbeState`, expected resource `TestLibrary.Other`"),
             ({'functions': {'TestLibrary.Clamp': Function(clamp.parameters[:2], clamp.result)}},
              'has 3 parameters, expected 2'),
             ({'functions': {'TestLibrary.Clamp': Function((Int(16, False),) * 3, clamp.result)}},
-             'parameter 0 has type int16, expected uint16'),
+             'parameter 0 has type `int16`, expected `uint16`'),
         ]:
             with checks.assertRaisesRegex(ValueError, message):
                 link(**changes)
@@ -874,8 +874,8 @@ namespace Example {
 
     struct_bindings = RuntimeNativeExtension(structs=registry)
     for invalid in [(True, wirely.UInt8(7)), Other(True, wirely.UInt8(7))]:
-        expect_output_error(declaration, invalid, 'Expected a Pair for Example.Pair', extra=extra, override_extensions=[struct_bindings])
-    expect_output_error(declaration, Pair(True, 7), "in field 'number': Expected a wirely.UInt8", extra=extra, override_extensions=[struct_bindings])
+        expect_output_error(declaration, invalid, 'Expected a Pair for `Example.Pair`', extra=extra, override_extensions=[struct_bindings])
+    expect_output_error(declaration, Pair(True, 7), "in field `number`: Expected a wirely.UInt8", extra=extra, override_extensions=[struct_bindings])
     probe = make_engine(declaration, check_struct_output, extra=extra, override_extensions=[struct_bindings])
     probe.step()
     # Inside the runtime, a struct is a tuple of its field values.
@@ -920,13 +920,13 @@ namespace Example {
     empty = NativeStruct(Empty, ())
     make({'Test.Reading': reading, 'Test.Empty': empty})
     for registry, message in [
-        ({'Test.Empty': empty}, "Cannot find native struct type 'Test.Reading'"),
+        ({'Test.Empty': empty}, "Cannot find native struct type `Test.Reading`"),
         ({'Test.Reading': NativeStruct(Reading, (Int(16, False),)), 'Test.Empty': empty},
-         "Native struct type 'Test.Reading' must have 1 fields, got 2"),
+         "Native struct type `Test.Reading` must have 1 fields, got 2"),
         ({'Test.Reading': NativeStruct(Reading, (Int(8, False), Enum('Test.Level'))), 'Test.Empty': empty},
-         "Native struct type 'Test.Reading' field 0 has type uint16, expected uint8"),
+         "Native struct type `Test.Reading` field 0 has type `uint16`, expected `uint8`"),
         ({'Test.Reading': NativeStruct(Reading, (Int(16, False), Enum('Test.Other'))), 'Test.Empty': empty},
-         "Native struct type 'Test.Reading' field 1 has type Example.Level, expected native enum Test.Other"),
+         "Native struct type `Test.Reading` field 1 has type `Example.Level`, expected native enum `Test.Other`"),
     ]:
         with checks.assertRaisesRegex(ValueError, message):
             make(registry)
@@ -991,10 +991,10 @@ node constant: Std.Constant { Type: Example.Percent, Value: "7%" }
     percent = wirely.ValueType(probe.program.variables['constant'].constant.value_type)
     assert percent.from_native(Percent(5), native_types=probe.native_types).to_text() == '5%'
     for opaque_type, level, message in [
-        (None, '"42%"', "Cannot find opaque struct type 'Test.Percent'"),
+        (None, '"42%"', "Cannot find opaque struct type `Test.Percent`"),
         (NativeOpaque((Int(16, False),), lambda: Percent), '"42%"',
-         "Opaque struct type 'Test.Percent' field 0 has type uint8, expected uint16"),
-        (NativeOpaque((Int(8, False),), lambda: Percent), '"150%"', 'Invalid Example.Percent value'),
+         "Opaque struct type `Test.Percent` field 0 has type `uint8`, expected `uint16`"),
+        (NativeOpaque((Int(8, False),), lambda: Percent), '"150%"', 'Invalid `Example.Percent` value'),
     ]:
         with checks.assertRaisesRegex(ValueError, message):
             make(opaque_type, level)

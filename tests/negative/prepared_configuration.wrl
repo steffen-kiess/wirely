@@ -38,7 +38,7 @@ constant Parts: MQTT.TemplateParts = MQTT.ParseTemplate(Some("%x"));
 
 // TEST: missing format placeholder
 constant Parts: Std.FormatParts = Std.ParseFormat("text", boolean);
-// ^E: Format without {} for type boolean
+// ^E: Format without {} for type `boolean`
 
 // TEST: format placeholder for unit
 constant Parts: Std.FormatParts = Std.ParseFormat("{}", unit);

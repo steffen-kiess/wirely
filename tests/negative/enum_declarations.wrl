@@ -55,10 +55,10 @@ open enum type Bad: uint128 {
 
 // TEST: duplicate_member_name
 // SH: Previous member was here
-// SE: Duplicate enum member One
+// SE: Duplicate enum member `One`
 open enum type Bad: int8 {
   One = 1, // H: Previous member was here
-  One = 2, // E: Duplicate enum member One
+  One = 2, // E: Duplicate enum member `One`
 }
 
 // TEST: duplicate_member_value
@@ -71,83 +71,83 @@ open enum type Bad: int8 {
 
 // TEST: duplicate_global_enum
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 open enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
-open enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
+open enum type Bad: int8 { // E: Enum type `Bad` conflicts with enum type
   One = 1,
 }
 
 // TEST: duplicate_namespaced_enum
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 namespace A {
   open enum type Bad: int8 { // H: Previous declaration was here
     One = 1,
   }
 }
 namespace A {
-  open enum type Bad: int8 { // E: Enum type Bad conflicts with enum type
+  open enum type Bad: int8 { // E: Enum type `Bad` conflicts with enum type
     One = 1,
   }
 }
 
 // TEST: builtin_type_collision
-open enum type int8: int8 { // E: Enum type int8 conflicts with built-in type
+open enum type int8: int8 { // E: Enum type `int8` conflicts with built-in type
   One = 1,
 }
 
 // TEST: generic_type_collision
-open enum type List: int8 { // E: Enum type List conflicts with built-in type
+open enum type List: int8 { // E: Enum type `List` conflicts with built-in type
   One = 1,
 }
 
 // TEST: enum_after_node
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 node type Bad { // H: Previous declaration was here
 }
-open enum type Bad: int8 { // E: Enum type Bad conflicts with node type
+open enum type Bad: int8 { // E: Enum type `Bad` conflicts with node type
   One = 1,
 }
 
 // TEST: node_after_enum
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 open enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
-node type Bad { // E: Node type Bad conflicts with enum type
+node type Bad { // E: Node type `Bad` conflicts with enum type
 }
 
 // TEST: enum_after_resource
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 resource type Bad; // H: Previous declaration was here
-open enum type Bad: int8 { // E: Enum type Bad conflicts with resource type
+open enum type Bad: int8 { // E: Enum type `Bad` conflicts with resource type
   One = 1,
 }
 
 // TEST: resource_after_enum
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 open enum type Bad: int8 { // H: Previous declaration was here
   One = 1,
 }
-resource type Bad; // E: Resource type Bad conflicts with enum type
+resource type Bad; // E: Resource type `Bad` conflicts with enum type
 
 // TEST: function_after_member
 closed enum type Bad {
   One, // H: Enum member was here
 }
 namespace Bad {
-  native function One(): boolean; // E: Function 'One' conflicts with a member of enum type Bad
+  native function One(): boolean; // E: Function `One` conflicts with a member of enum type `Bad`
 }
 
 // TEST: function_before_member
 namespace Bad {
-  native function One(): boolean; // E: Function 'One' conflicts with a member of enum type Bad
+  native function One(): boolean; // E: Function `One` conflicts with a member of enum type `Bad`
 }
 open enum type Bad: int8 {
   One = 1, // H: Enum member was here
@@ -182,7 +182,7 @@ open enum type Bad: int8 {
 }
 node n: Std.Constant {
   Type: Bad,
-  Value: Bad.Two, // E: Unknown member 'Two' of Bad
+  Value: Bad.Two, // E: Unknown member `Two` of `Bad`
 }
 
 // TEST: wrong_qualified_enum
@@ -199,7 +199,7 @@ namespace B {
 }
 node n: Std.Constant {
   Type: A.Mode,
-  Value: B.Mode.One, // E: Expected enum type A.Mode, got B.Mode
+  Value: B.Mode.One, // E: Expected enum type `A.Mode`, got `B.Mode`
 }
 
 // TEST: wrong_relative_enum
@@ -214,7 +214,7 @@ namespace B {
     One = 1,
   }
   node type Bad {
-    parameter Value: A.Mode = Mode.One; // E: Expected enum type A.Mode, got Mode
+    parameter Value: A.Mode = Mode.One; // E: Expected enum type `A.Mode`, got `Mode`
     node value: Std.Constant {
       Type: A.Mode,
       Value: Value,
@@ -240,7 +240,7 @@ node type LiteralParameter {
 }
 node n: LiteralParameter {
   Type: List[Option[A.Mode]],
-  Value: [Some(B.Mode.One)], // E: Expected enum type A.Mode, got B.Mode
+  Value: [Some(B.Mode.One)], // E: Expected enum type `A.Mode`, got `B.Mode`
 }
 
 // TEST: empty_enum
@@ -265,10 +265,10 @@ open enum type Bad { One = 0 } // E: Syntax error
 
 // TEST: closed_duplicate_member
 // SH: Previous member was here
-// SE: Duplicate enum member One
+// SE: Duplicate enum member `One`
 closed enum type Bad {
   One, // H: Previous member was here
-  One, // E: Duplicate enum member One
+  One, // E: Duplicate enum member `One`
 }
 
 // TEST: native name on a non-native enum
@@ -276,10 +276,10 @@ open enum type Bad as "Example.Bad": uint8 { One = 1, } // E: Unexpected token
 
 // TEST: duplicate native enum name
 // SH: Previous declaration was here
-// SE: Duplicate native name 'Example.Mode'
+// SE: Duplicate native name `Example.Mode`
 namespace Example {
   native open enum type Mode: uint8 { On = 1, } // H: Previous declaration was here
 }
 namespace Other {
-  native closed enum type State as "Example.Mode" { On, } // E: Duplicate native name 'Example.Mode'
+  native closed enum type State as "Example.Mode" { On, } // E: Duplicate native name `Example.Mode`
 }

@@ -47,7 +47,7 @@ def get_value_type(value_type: ValueType[Any], name: str | None = None) -> KNXVa
     try:
         entry = VALUE_TYPES[value_type]
     except KeyError:
-        raise ValueError(f'Unsupported type for KNX: {value_type}') from None
+        raise ValueError(f'Unsupported type for KNX: `{value_type}`') from None
     if name is not None and name != entry.name:
-        raise ValueError(f'Expected KNX type {entry.name!r} for {value_type}, got {name!r}')
+        raise ValueError(f'Expected KNX type `{entry.name}` for `{value_type}`, got `{name}`')
     return entry

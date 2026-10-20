@@ -118,21 +118,21 @@ def _number(value: object) -> TypeGuard[int | float]:
 def _position(attribute: Attribute) -> tuple[int | float, int | float]:
     metadata = attribute.metadata
     if metadata.kind != 'list':
-        _error(attribute, f'{attribute.name} requires X and Y arguments')
+        _error(attribute, f'`{attribute.name}` requires `X` and `Y` arguments')
     coordinates = {}
     for argument in metadata.value:
         if not isinstance(argument, Metadata) or argument.name not in ('X', 'Y'):
-            _error(argument, f'Unknown {attribute.name} argument; expected X or Y')
+            _error(argument, f'Unknown `{attribute.name}` argument; expected `X` or `Y`')
         name = argument.name
         if name in coordinates:
-            _error(argument, f'Duplicate {attribute.name} argument {name}')
+            _error(argument, f'Duplicate `{attribute.name}` argument `{name}`')
         if argument.kind != 'value' or not isinstance(argument.value, MetadataLiteral) \
                 or not _number(argument.value.value):
-            _error(argument, f'{attribute.name} {name} requires a finite numeric literal')
+            _error(argument, f'`{attribute.name}` `{name}` requires a finite numeric literal')
         assert _number(argument.value.value)
         coordinates[name] = argument.value.value
     if set(coordinates) != {'X', 'Y'}:
-        _error(attribute, f'{attribute.name} requires X and Y arguments')
+        _error(attribute, f'`{attribute.name}` requires `X` and `Y` arguments')
     return coordinates['X'], coordinates['Y']
 
 
@@ -146,14 +146,14 @@ def _literal(attribute: Attribute) -> object:
 def _size(attribute: Attribute) -> int | float:
     value = _literal(attribute)
     if not _number(value) or value <= 0:
-        _error(attribute, f'{attribute.name} requires a positive finite number, as in {attribute.name} = 8')
+        _error(attribute, f'`{attribute.name}` requires a positive finite number, as in `{attribute.name} = 8`')
     return value
 
 
 def _row(attribute: Attribute) -> int:
     value = _literal(attribute)
     if type(value) is not int or value < 0:
-        _error(attribute, f'{attribute.name} requires a non-negative integer, as in {attribute.name} = 0')
+        _error(attribute, f'`{attribute.name}` requires a non-negative integer, as in `{attribute.name} = 0`')
     return value
 
 
@@ -162,20 +162,20 @@ def _warning_names(attribute: Attribute) -> tuple[str, ...]:
 
     metadata = attribute.metadata
     if metadata.kind != 'list' or not metadata.value:
-        _error(attribute, f'{attribute.name} requires warning names, as in {attribute.name}(CoincidentTriggers)')
+        _error(attribute, f'`{attribute.name}` requires warning names, as in `{attribute.name}(CoincidentTriggers)`')
     names = []
     for argument in metadata.value:
         if not isinstance(argument, Metadata) or argument.kind != 'flag':
-            _error(argument, f'{attribute.name} arguments must be warning names')
+            _error(argument, f'`{attribute.name}` arguments must be warning names')
         if argument.name not in WARNINGS:
-            _error(argument, f'Unknown warning {argument.name}')
+            _error(argument, f'Unknown warning `{argument.name}`')
         names.append(argument.name)
     return tuple(names)
 
 
 def _flag(attribute: Attribute) -> bool:
     if attribute.metadata.kind != 'flag':
-        _error(attribute, f'{attribute.name} must be a flag without arguments or a value')
+        _error(attribute, f'`{attribute.name}` must be a flag without arguments or a value')
     return True
 
 
@@ -228,11 +228,11 @@ def validate_attributes(attributes: Iterable[Attribute], target: str) -> tuple[V
     for attribute in attributes:
         definition = ATTRIBUTE_REGISTRY.get(attribute.name)
         if definition is None:
-            _error(attribute, f'Unknown attribute {attribute.name}')
+            _error(attribute, f'Unknown attribute `{attribute.name}`')
         if target not in definition.targets:
-            _error(attribute, f'Attribute {attribute.name} is not permitted on {target}')
+            _error(attribute, f'Attribute `{attribute.name}` is not permitted on {target}')
         if attribute.name in seen and not definition.repeatable:
-            _error(attribute, f'Duplicate attribute {attribute.name}')
+            _error(attribute, f'Duplicate attribute `{attribute.name}`')
         seen.add(attribute.name)
         result.append(ValidatedAttribute(
             attribute.name, _immutable(definition.validate(attribute)),
@@ -321,7 +321,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                 with contain(None):
                     for attribute in merged:
                         if attribute.name in seen and not ATTRIBUTE_REGISTRY[attribute.name].repeatable:
-                            _error(attribute, f'Duplicate attribute {attribute.name}')
+                            _error(attribute, f'Duplicate attribute `{attribute.name}`')
                         seen.add(attribute.name)
                 namespaces[child_scope] = merged
         elif isinstance(item, ast.DeclarationNodeType):
@@ -347,7 +347,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
             if attribute.name == 'Unordered' and not (
                     port.direction == ast.PortDirection.Input and port.port_spec.list_spec.is_list):
                 with contain(None):
-                    _error(attribute, 'Unordered requires a multi input')
+                    _error(attribute, '`Unordered` requires a `multi` input')
 
     def check_rows(declarations: Iterable[model.Declaration]) -> None:
         """Reject two ports on the same side of a diagram item with the same row."""
@@ -361,7 +361,7 @@ def validate_files(files: Sequence[tuple[str | os.PathLike, ParsedFile]], *,
                 key = (declaration.direction, attribute.value)
                 with contain(None):
                     if key in used:
-                        _error(attribute, f'Port row {attribute.value} is already used by {used[key]}')
+                        _error(attribute, f'Port row {attribute.value} is already used by `{used[key]}`')
                 used.setdefault(key, declaration.name_str if declaration.name is None
                                 else f'{_direction_name(declaration)} {declaration.name_str}')
 

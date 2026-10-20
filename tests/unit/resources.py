@@ -287,7 +287,7 @@ namespace TestLibrary {
 }
 node source: TestLibrary.Incomplete {}
 ''')
-with checks.assertRaisesRegex(ValueError, "Native state type 'TestLibrary.Incomplete' of source must return "
+with checks.assertRaisesRegex(ValueError, "Native state type `TestLibrary.Incomplete` of `source` must return "
                               'a IncompleteInitializerResult, got None'):
     make_engine(incomplete_graph)
 
@@ -312,7 +312,7 @@ namespace TestLibrary {
 node source: TestLibrary.WrongProvider {}
 ''')
 with checks.assertRaisesRegex(
-        ValueError, "invalid value for output 'service': Resource TestLibrary.Service requires a Service"):
+        ValueError, "invalid value for output `service`: Resource `TestLibrary.Service` requires a Service"):
     make_engine(wrong_graph)
 
 unknown_graph = compile_resources('''
@@ -325,7 +325,7 @@ namespace TestLibrary {
 }
 node source: TestLibrary.Provider {}
 ''')
-with checks.assertRaisesRegex(ValueError, "Cannot find native resource type 'TestLibrary.Unknown'"):
+with checks.assertRaisesRegex(ValueError, "Cannot find native resource type `TestLibrary.Unknown`"):
     make_engine(unknown_graph)
 
 

@@ -33,7 +33,7 @@ class Variable:
         if not isinstance(self.name, str):
             raise Exception('name parameter is not a str')
         if not self.var_type.is_runtime_type:
-            raise ValueError(f'Type {self.var_type} is not a runtime type: {self.var_type.runtime_type_error()}')
+            raise ValueError(f'Type `{self.var_type}` is not a runtime type: {self.var_type.runtime_type_error()}')
         object.__setattr__(self, 'name', str(self.name))
 
     def __repr__(self) -> str:

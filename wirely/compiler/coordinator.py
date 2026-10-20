@@ -139,7 +139,7 @@ class CompilerCoordinator:
                     cycle = edges[active.index(child):]
                     with self.contain(declaration):
                         raise model.ProgramError(
-                            declaration, f'Recursive node type instantiation of {child.fullname!r}',
+                            declaration, f'Recursive node type instantiation of `{child.fullname}`',
                             hints=[model.CompilerHint(edge.declaration, 'Instantiation continues here')
                                    for edge in cycle],
                         )

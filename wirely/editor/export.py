@@ -49,7 +49,7 @@ def export_image(sources: Sources, scope: Sequence[str], output: str, *, scale: 
         raise ExportError(f'{filename}:{error.line}: syntax error')
     model = graph_model.build(program, tuple(scope))
     if model is None:
-        raise ExportError(f'Scope {".".join(scope) or "Program"} does not exist or is ambiguous')
+        raise ExportError(f'Scope `{".".join(scope) or "Program"}` does not exist or is ambiguous')
 
     QApplication.instance() or QApplication([])
     scene = GraphScene()

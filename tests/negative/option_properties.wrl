@@ -1,20 +1,20 @@
 // LIBRARIES: std
 
 // TEST: Boolean receiver
-constant Bad: boolean = true.IsSome; // E: Value of type boolean has no property 'IsSome'
+constant Bad: boolean = true.IsSome; // E: Value of type `boolean` has no property `IsSome`
 
 // TEST: integer receiver
-constant Bad: boolean = (7).IsNone; // E: Value of type int32 has no property 'IsNone'
+constant Bad: boolean = (7).IsNone; // E: Value of type `int32` has no property `IsNone`
 
 // TEST: enum receiver
 namespace Names {
   open enum type Mode: uint8 { IsSome = 1, IsNone = 2, }
 }
-constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: Value of type Names.Mode has no property 'IsNone'
+constant Bad: boolean = Names.Mode.IsSome.IsNone; // E: Value of type `Names.Mode` has no property `IsNone`
 
 // TEST: type descriptor receiver
 constant Type: type = boolean;
-constant Bad: boolean = Type.IsSome; // E: Value of type type has no property 'IsSome'
+constant Bad: boolean = Type.IsSome; // E: Value of type `type` has no property `IsSome`
 
 // TEST: unresolved None
 constant Bad: boolean = None.IsNone; // E: Cannot infer expression type
@@ -30,14 +30,14 @@ constant Bad: boolean = { None }.IsNone; // E: Cannot infer expression type
 
 // TEST: unknown reference property
 constant Value: Option[boolean] = None;
-constant Bad: boolean = Value.Unknown; // E: Value of type Option[boolean] has no property 'Unknown'
+constant Bad: boolean = Value.Unknown; // E: Value of type `Option[boolean]` has no property `Unknown`
 
 // TEST: property of a non-option value
 constant Value: uint8 = 1;
-constant Bad: boolean = Value.Unknown; // E: Value of type uint8 has no property 'Unknown'
+constant Bad: boolean = Value.Unknown; // E: Value of type `uint8` has no property `Unknown`
 
 // TEST: unknown postfix property
-constant Bad: boolean = { let value: Option[boolean] = None; value }.Unknown; // E: Value of type Option[boolean] has no property 'Unknown'
+constant Bad: boolean = { let value: Option[boolean] = None; value }.Unknown; // E: Value of type `Option[boolean]` has no property `Unknown`
 
 // TEST: property call
 constant Value: Option[boolean] = None;
@@ -53,13 +53,13 @@ constant Bad: boolean = Schedule.TimeOfDay.WrappingAdd("08:00", "PT1H").IsSome()
 
 // TEST: chained properties
 constant Value: Option[boolean] = None;
-constant Bad: boolean = Value.IsSome.IsNone; // E: Value of type boolean has no property 'IsNone'
+constant Bad: boolean = Value.IsSome.IsNone; // E: Value of type `boolean` has no property `IsNone`
 
 // TEST: parameter-dependent receiver rejected after resolution
 node type Probe {
   parameter Type: type;
   parameter Value: Type;
-  constant Bad: boolean = Value.IsSome; // E: Value of type boolean has no property 'IsSome'
+  constant Bad: boolean = Value.IsSome; // E: Value of type `boolean` has no property `IsSome`
 }
 node probe: Probe { Type: boolean, Value: true } // H: While instantiating
 
@@ -68,7 +68,7 @@ node type Probe {
   parameter Value: boolean = false;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.IsNone; // E: Value of type boolean has no property 'IsNone'
+    output = Value.IsNone; // E: Value of type `boolean` has no property `IsNone`
   }
 }
 node probe: Probe {}
@@ -87,7 +87,7 @@ node type Probe {
   parameter Value: Option[boolean] = None;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.Unknown; // E: Value of type Option[boolean] has no property 'Unknown'
+    output = Value.Unknown; // E: Value of type `Option[boolean]` has no property `Unknown`
   }
 }
 node probe: Probe {}
@@ -108,7 +108,7 @@ node type Probe {
   parameter Value: Type;
   default output: value boolean;
   procedure run produces default output as output {
-    output = Value.IsSome; // E: Value of type int8 has no property 'IsSome'
+    output = Value.IsSome; // E: Value of type `int8` has no property `IsSome`
   }
 }
 node probe: Probe { Type: int8, Value: 7 }
@@ -118,7 +118,7 @@ node type Probe {
   parameter Value: Option[boolean] = Some(true);
   default output: value boolean;
   procedure run produces default output as output {
-    output = if Value.IsSome { Value } else { false }; // E: Expected value of type boolean
+    output = if Value.IsSome { Value } else { false }; // E: Expected value of type `boolean`
   }
 }
 node probe: Probe {}
@@ -128,7 +128,7 @@ node probe: Probe {}
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = Path.Parent("file").IsSome; // E: Value of type String has no property 'IsSome'
+    output = Path.Parent("file").IsSome; // E: Value of type `String` has no property `IsSome`
   }
 }
 node probe: Probe {}
@@ -140,7 +140,7 @@ node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      flag: Path.Parent("file").IsSome, // E: Value of type String has no property 'IsSome'
+      flag: Path.Parent("file").IsSome, // E: Value of type `String` has no property `IsSome`
     };
   }
 }

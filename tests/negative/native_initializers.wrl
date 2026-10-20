@@ -120,7 +120,7 @@ native node type Invalid {
 resource type Handle;
 native node type Invalid {
   default output: resource Handle;
-  output Named: resource Handle; // E: Output 'Named' has no source
+  output Named: resource Handle; // E: Output `Named` has no source
   native initializer produces default output as "service";
 }
 

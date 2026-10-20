@@ -55,7 +55,7 @@ def check_names():
                                  ('initializer', 'KNX.Connection', ('knx', 'ConnectionInitializer')),
                                  ('function', 'MonotonicTime.CheckedAdd', ('monotonic_time', '_CheckedAdd'))]:
         assert native_contracts.contract_location(kind, name) == location
-    with checks.assertRaisesRegex(ValueError, "Native name 'Probe' has no namespace"):
+    with checks.assertRaisesRegex(ValueError, "Native name `Probe` has no namespace"):
         native_contracts.contract_location('initializer', 'Probe')
 
     # Generated loaders carry direct adapters, without contract-location strings.
@@ -72,18 +72,18 @@ def check_collisions():
               input Value: value boolean;
               input value: value boolean;
               native procedure run depends on Value, value;
-            }''', "input 'Value' and input 'value' have the same Python name 'value'"),
+            }''', "input `Value` and input `value` have the same Python name `value`"),
         ('''node type Probe {
               parameter Value: boolean;
               native procedure run uses Value, Value as "value";
-            }''', "uses binding 'Value' and uses binding 'value' have the same Python name"),
+            }''', "uses binding `Value` and uses binding `value` have the same Python name"),
         ('''node type Probe {
               native procedure run as "TestLibrary.Probe:a_b";
               native procedure other as "TestLibrary.Probe:aB";
-            }''', "Contracts of TestLibrary.Probe:aB and TestLibrary.Probe:a_b both define 'ProbeAB"),
+            }''', 'Contracts of `TestLibrary.Probe:aB` and `TestLibrary.Probe:a_b` both define `ProbeAB'),
         # Contracts cannot shadow the names their module imports.
         ('node type Native { native procedure run as "TestLibrary.Native:Procedure"; }',
-         "Contract name 'NativeProcedure' of TestLibrary.Native:Procedure is also an imported name"),
+         "Contract name `NativeProcedure` of `TestLibrary.Native:Procedure` is also an imported name"),
     ]:
         interfaces = compile_interfaces(f'namespace TestLibrary {{ {declarations} }}')
         with checks.assertRaisesRegex(ValueError, message):
@@ -97,7 +97,7 @@ def check_collisions():
         native initializer produces state as "state";
       }
     }''')
-    with checks.assertRaisesRegex(ValueError, 'Cannot find the Python class of resource type TestLibrary.Handle'):
+    with checks.assertRaisesRegex(ValueError, 'Cannot find the Python class of resource type `TestLibrary.Handle`'):
         native_contracts.contract_sources(interfaces, resource_classes={})
     source = native_contracts.contract_sources(
         interfaces, resource_classes={'TestLibrary.Handle': ('example.module', 'Handle')})['test_library']
@@ -169,7 +169,7 @@ def check_adapters():
     assert owner.services is services and outputs['state'].object is owner and outputs['state'].type is handle_type
     owner.services.trigger('state')
     assert triggers == ['state']
-    with checks.assertRaisesRegex(ValueError, "Unknown output 'other' on owner"):
+    with checks.assertRaisesRegex(ValueError, "Unknown output `other` on owner"):
         owner.services.trigger('other')
 
     probe = Probe()
@@ -201,10 +201,10 @@ def check_adapters():
     for result, message in [
         (None, 'Probe must return a ProbeRunResult, got None'),
         (contracts.ProbeRunResult(out=None, count=2),
-         "Probe: invalid value for output 'Count': Expected a wirely.UInt8 for uint8, got 2"),
+         "Probe: invalid value for output `Count`: Expected a wirely.UInt8 for `uint8`, got 2"),
         (contracts.ProbeRunResult(out=wirely.Some(wirely.value_types.boolean.from_native(True, native_types=builtin_extension.native_types)), count=wirely.UInt8(0)),
-         "Probe: invalid value for output 'Out': in option: Expected a DynamicValue of List\\[boolean\\], "
-         'got one of boolean'),
+         "Probe: invalid value for output `Out`: in option: Expected a DynamicValue of `List\\[boolean\\]`, "
+         'got one of `boolean`'),
     ]:
         probe.result = result
         with checks.assertRaisesRegex(ValueError, message):
@@ -222,7 +222,7 @@ def check_adapters():
     assert contracts._Twice.name == 'TestLibrary.Twice'
     assert contracts._Twice.call(twice, function_binding, [7]) == wirely.Some(14)
     assert contracts._Twice.call(twice, function_binding, [200]) is None
-    with checks.assertRaisesRegex(ValueError, "Native function 'TestLibrary.Twice' returned an invalid value"):
+    with checks.assertRaisesRegex(ValueError, "Native function `TestLibrary.Twice` returned an invalid value"):
         contracts._Twice.call(lambda value: wirely.Some(14), function_binding, [7])
 
 

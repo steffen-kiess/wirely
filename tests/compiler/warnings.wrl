@@ -12,36 +12,36 @@ state nested: boolean = false;
 procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
   let mut value = false;
   on a {
-    on b { value = b; } // W: Block runs only if 'b' occurs in the same step as 'a'
-    on b, c {} // W: Block runs only if 'b' or 'c' occurs
+    on b { value = b; } // W: Block runs only if `b` occurs in the same step as `a`
+    on b, c {} // W: Block runs only if `b` or `c` occurs
     if value {
-      on c {} // W: Block runs only if 'c'
+      on c {} // W: Block runs only if `c`
     }
-    on a {} // W: Block always runs, since 'a' holds here
-    on a, b {} // W: Block always runs, since 'a' holds here
+    on a {} // W: Block always runs, since `a` holds here
+    on a, b {} // W: Block always runs, since `a` holds here
     on b {
-      // ^W: Block runs only if 'b'
-      on a {} // W: Block always runs, since 'a' holds here
+      // ^W: Block runs only if `b`
+      on a {} // W: Block always runs, since `a` holds here
     }
     for item in inputs {
-      on item {} // W: Block runs only if 'item'
+      on item {} // W: Block runs only if `item`
     }
   }
   on a, b {
     on a { value = a; }
-    on a, b {} // W: Block always runs, since 'a' or 'b' holds here
+    on a, b {} // W: Block always runs, since `a` or `b` holds here
   }
   on inputs {
     for item in inputs {
       on item {
-        on inputs {} // W: Block always runs, since 'inputs' holds here
-        on item {} // W: Block always runs, since 'item' holds here
+        on inputs {} // W: Block always runs, since `inputs` holds here
+        on item {} // W: Block always runs, since `item` holds here
       }
     }
   }
   for item in inputs {
     on item {
-      on inputs {} // W: Block always runs, since 'item' holds here
+      on inputs {} // W: Block always runs, since `item` holds here
     }
   }
   nested = value;
@@ -87,7 +87,7 @@ connect b -> allowed_type.Other;
 
 // Temporaries and resources need a reader in their node type; an output of
 // the node type counts even if no instance uses it. States are not checked.
-binding unread: value boolean; // W: Binding 'unread' is never read
+binding unread: value boolean; // W: Binding `unread` is never read
 procedure write_unread produces unread { unread = true; }
 
 state unread_state: boolean = false;
@@ -99,7 +99,7 @@ namespace TestLibrary {
     binding read_by_initializer: resource Std.DebugEventSourceState;
     connect Service -> read_by_initializer;
     binding read_by_procedure: resource Std.DebugEventSourceState;
-    binding unread_resource: resource Std.DebugEventSourceState; // W: Binding 'unread_resource' is never read
+    binding unread_resource: resource Std.DebugEventSourceState; // W: Binding `unread_resource` is never read
     native initializer depends on read_by_initializer
       produces read_by_procedure, unread_resource;
     native procedure run depends on read_by_procedure;
@@ -118,7 +118,7 @@ node type Readers {
   procedure check depends on referenced produces checked { checked = referenced; }
   connect checked -> forwarded;
   connect forwarded -> default output;
-  binding unread: value boolean; // W: Binding 'unread' is never read
+  binding unread: value boolean; // W: Binding `unread` is never read
   connect Value -> unread;
 }
 node readers: Readers {}
@@ -164,7 +164,7 @@ procedure state_nesting
     trigger_b.new as second, a as event
 {
   on changed first {
-    on changed alias {} // W: Block always runs, since changed 'first' holds here
+    on changed alias {} // W: Block always runs, since `changed first` holds here
     on changed second {} // W: [CoincidentTriggers]
     on event {} // W: [CoincidentTriggers]
   }
@@ -184,13 +184,13 @@ procedure suggest
   depends on trigger_a.new as current
   produces suggested as next, before: event unit, after: event unit
 {
-  emit before; // W: available state triggers: on changed current
+  emit before; // W: available state triggers: `on changed current`
   next = true;
-  emit after; // W: available state triggers: on changed current, on changed next
+  emit after; // W: available state triggers: `on changed current`, `on changed next`
 }
 
 // Event bindings share unused and guard warnings with the other event outputs.
-binding unread_event: event unit; // W: Binding 'unread_event' is never read
+binding unread_event: event unit; // W: Binding `unread_event` is never read
 procedure emit_unread produces unread_event {
   emit unread_event; // W: [UnguardedEvent]
 }

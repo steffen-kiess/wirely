@@ -52,20 +52,20 @@ class DeclarationNodeType(Declaration):
         """Register the node type built from this declaration in its enclosing scope."""
         assert self.name is not None
         if self.name.id_str in graph.struct_types:
-            raise ProgramError(self.name, f'Node type {self.name.id_str} conflicts with struct type', hints=[
+            raise ProgramError(self.name, f'Node type `{self.name.id_str}` conflicts with struct type', hints=[
                 CompilerHint(graph.struct_types[self.name.id_str].declaration, 'Previous declaration was here'),
             ])
         if self.name.id_str in graph.enum_types:
-            raise ProgramError(self.name, f'Node type {self.name.id_str} conflicts with enum type', hints=[
+            raise ProgramError(self.name, f'Node type `{self.name.id_str}` conflicts with enum type', hints=[
                 CompilerHint(graph.enum_types[self.name.id_str].declaration, 'Previous declaration was here'),
             ])
         if self.name.id_str in graph.resource_types:
-            raise ProgramError(self, f'Node type {self.name.id_str} conflicts with resource type', hints=[
+            raise ProgramError(self, f'Node type `{self.name.id_str}` conflicts with resource type', hints=[
                 CompilerHint(graph.resource_types[self.name.id_str].declaration, 'Previous resource type was here'),
             ])
         if self.name.id_str in graph.node_types:
             hints = [
                 CompilerHint(graph.node_types[self.name.id_str].declaration, 'Previous node type was here'),
             ]
-            raise ProgramError(self, f'Duplicate node type {self.name!r}', hints=hints)
+            raise ProgramError(self, f'Duplicate node type `{self.name}`', hints=hints)
         graph.node_types[self.name.id_str] = node_type

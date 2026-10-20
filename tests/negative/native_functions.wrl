@@ -48,20 +48,20 @@ namespace TimeOfDay {
 // TEST: unknown argument type
 // LIBRARIES: std, schedule
 namespace TimeOfDay {
-  native function WrappingAdd(time: Unknown, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type Unknown
+  native function WrappingAdd(time: Unknown, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type `Unknown`
 }
 
 // TEST: unknown return type
 // LIBRARIES: std, schedule
 namespace TimeOfDay {
-  native function WrappingAdd(time: Schedule.TimeOfDay, duration: Std.Duration): Unknown; // E: Cannot find type Unknown
+  native function WrappingAdd(time: Schedule.TimeOfDay, duration: Std.Duration): Unknown; // E: Cannot find type `Unknown`
 }
 
 // TEST: unavailable signature type
 // LIBRARIES: std, schedule
 parameter Kind: type;
 namespace TimeOfDay {
-  native function WrappingAdd(time: Kind, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type Kind
+  native function WrappingAdd(time: Kind, duration: Std.Duration): Schedule.TimeOfDay; // E: Cannot find type `Kind`
 }
 
 // TEST: argument count
@@ -70,11 +70,11 @@ constant Invalid: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd("12:00"); 
 
 // TEST: argument type
 // LIBRARIES: std, schedule
-constant Invalid: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd(true, "PT1H"); // E: Invalid Schedule.TimeOfDay value
+constant Invalid: Schedule.TimeOfDay = Schedule.TimeOfDay.WrappingAdd(true, "PT1H"); // E: Invalid `Schedule.TimeOfDay` value
 
 // TEST: return type
 // LIBRARIES: std, schedule
-constant Invalid: boolean = Schedule.TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expected value of type boolean
+constant Invalid: boolean = Schedule.TimeOfDay.WrappingAdd("12:00", "PT1H"); // E: Expected value of type `boolean`
 
 // TEST: function bodies
 native constant function Missing(): boolean { true } // E: Syntax error
@@ -84,19 +84,19 @@ native constant function Missing(): boolean { true } // E: Syntax error
 node type Invalid {
   default output: value Schedule.TimeOfDay;
   procedure run produces default output as output {
-    output = Path.Parent("file") == ""; // E: Expected value of type Schedule.TimeOfDay, got boolean
+    output = Path.Parent("file") == ""; // E: Expected value of type `Schedule.TimeOfDay`, got `boolean`
   }
 }
 node invalid: Invalid {}
 
 // TEST: runtime function with a parameter-only type
-native function Describe(value: uint8): String; // E: Function 'Describe' uses parameter-only type String; declare it native constant function
+native function Describe(value: uint8): String; // E: Function `Describe` uses parameter-only type `String`; declare it native constant function
 
 // TEST: runtime function without an implementation
 namespace TestLibrary {
   native function Missing(): boolean;
 }
-constant Value: boolean = TestLibrary.Missing(); // E: Cannot load function 'TestLibrary.Missing': Cannot find native function 'TestLibrary.Missing'
+constant Value: boolean = TestLibrary.Missing(); // E: Cannot load function `TestLibrary.Missing`: Cannot find native function `TestLibrary.Missing`
 
 // TEST: runtime function argument type in a procedure
 namespace TestLibrary {
@@ -109,10 +109,10 @@ procedure run produces result {
 
 // TEST: duplicate native name
 // SH: Previous declaration was here
-// SE: Duplicate native name 'Fixture.Parse'
+// SE: Duplicate native name `Fixture.Parse`
 namespace Fixture {
   native function Parse(text: String): uint16; // H: Previous declaration was here
 }
 namespace Other {
-  native function Read as "Fixture.Parse"(text: String): uint16; // E: Duplicate native name 'Fixture.Parse'
+  native function Read as "Fixture.Parse"(text: String): uint16; // E: Duplicate native name `Fixture.Parse`
 }

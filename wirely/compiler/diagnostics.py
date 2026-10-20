@@ -114,7 +114,7 @@ class WarningSink:
     def warn(self, name: str, element: model.ast.SourceElement, message: str, *,
              hints: Iterable[model.CompilerHint] = (), instance_trace: bool = True) -> None:
         if name not in WARNINGS:
-            raise ValueError(f'Unknown warning {name!r}')
+            raise ValueError(f'Unknown warning `{name}`')
         position = element.source_position
         offset = position.start_pos
         for allowed, filename, start, end in self._allowed:

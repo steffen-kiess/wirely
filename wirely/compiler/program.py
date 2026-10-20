@@ -560,7 +560,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             previous = native_declarations.setdefault(name, procedure)
             if previous is not procedure and native_procedures[name] != interface:
                 raise model.ProgramError(procedure.declaration,
-                                         f'Native procedure {name!r} is declared with different interfaces',
+                                         f'Native procedure `{name}` is declared with different interfaces',
                                          hints=[model.CompilerHint(previous.declaration, 'Previous declaration was here')])
             native_procedures[name] = interface
     return Program(

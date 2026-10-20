@@ -17,7 +17,7 @@ node source: Std.Constant { Type: Option[boolean], Value: Some(42) } // E: Inval
 node source: Std.Constant {
   Type: Option[boolean],
   Value: Some(Schedule.TimeOfDay.WrappingAdd("23:30", "PT1H")),
-} // ^E: Expected value of type boolean, got Schedule.TimeOfDay
+} // ^E: Expected value of type `boolean`, got `Schedule.TimeOfDay`
 
 // TEST: missing_unit_argument
 node constant: Std.Constant {
@@ -35,6 +35,6 @@ node constant: Std.Constant {
 node type Settings {
   parameter Number: int8;
 
-  node constant: Std.Constant { Type: Option[boolean], Value: Some(Number) } // E: Expected value of type boolean, got int8
+  node constant: Std.Constant { Type: Option[boolean], Value: Some(Number) } // E: Expected value of type `boolean`, got `int8`
 }
 node settings: Settings { Number: 1 }

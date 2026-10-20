@@ -82,7 +82,7 @@ class DeclarationPort(Declaration):
             if name == '':
                 name = 'default input'
             if name in new_graph.input_ports:
-                raise ProgramError(self, f'Duplicate input {name!r}', hints=[
+                raise ProgramError(self, f'Duplicate input `{name}`', hints=[
                     CompilerHint(new_graph.input_ports[name].port_spec, 'Previous input was here'),
                 ])
             port = model.TypeInputPort(new_graph, ty, name=name, input_name=self.name_str, is_list=self.list_spec.is_list, port_spec=self.port_spec, resource_type=resource_type)
@@ -91,7 +91,7 @@ class DeclarationPort(Declaration):
             if name == '':
                 name = 'default output'
             if name in new_graph.output_ports:
-                raise ProgramError(self, f'Duplicate output {name!r}', hints=[
+                raise ProgramError(self, f'Duplicate output `{name}`', hints=[
                     CompilerHint(new_graph.output_ports[name].port_spec, 'Previous output was here'),
                 ])
             port = model.TypeOutputPort(new_graph, ty, name=name, output_name=self.name_str, port_spec=self.port_spec, resource_type=resource_type)

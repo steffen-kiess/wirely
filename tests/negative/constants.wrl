@@ -6,31 +6,31 @@ constant Missing: boolean; // E: Syntax error
 
 // TEST: duplicate constants
 // SH: Previous declaration was here
-// SE: Duplicate constant name 'Flag'
+// SE: Duplicate constant name `Flag`
 constant Flag: boolean = true; // H: Previous declaration was here
-constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
+constant Flag: boolean = false; // E: Duplicate constant name `Flag`
 
 // TEST: parameter followed by constant
 // SH: Previous declaration was here
-// SE: name 'Flag'
+// SE: name `Flag`
 node type Unused {
   parameter Flag: boolean; // H: Previous declaration was here
-  constant Flag: boolean = false; // E: Duplicate constant name 'Flag'
+  constant Flag: boolean = false; // E: Duplicate constant name `Flag`
 }
 
 // TEST: constant followed by parameter
 // SH: Previous declaration was here
-// SE: name 'Flag'
+// SE: name `Flag`
 node type Unused {
   constant Flag: boolean = false; // H: Previous declaration was here
-  parameter Flag: boolean; // E: Duplicate parameter name 'Flag'
+  parameter Flag: boolean; // E: Duplicate parameter name `Flag`
 }
 
 // TEST: override
 node type Probe {
   constant Flag: boolean = true;
 }
-node probe: Probe { Flag: false } // E: Cannot override constant 'Flag'
+node probe: Probe { Flag: false } // E: Cannot override constant `Flag`
 
 // TEST: unknown name in unused node
 node type Unused {
@@ -39,13 +39,13 @@ node type Unused {
 
 // TEST: unknown type in unused node
 node type Unused {
-  constant Value: Unknown = 0; // E: Cannot find type Unknown
+  constant Value: Unknown = 0; // E: Cannot find type `Unknown`
 }
 
 // TEST: wrong type in unused node
 node type Unused {
   constant Flag: boolean = true;
-  constant Value: int16 = Flag; // E: Expected value of type int16, got boolean
+  constant Value: int16 = Flag; // E: Expected value of type `int16`, got `boolean`
 }
 
 // TEST: out of range in unused node
@@ -55,37 +55,37 @@ node type Unused {
 
 // TEST: constant cycle
 // SE: Cyclic static value resolution
-// SH: While instantiating 'probe'
+// SH: While instantiating `probe`
 node type Probe {
-  constant First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
+  constant First: int16 = Second; // E: Cyclic static value resolution: `First` -> `Second` -> `First`
   constant Second: int16 = First;
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: mixed cycle
 node type Probe {
-  parameter First: int16 = Second; // E: Cyclic static value resolution: First -> Second -> First
+  parameter First: int16 = Second; // E: Cyclic static value resolution: `First` -> `Second` -> `First`
   constant Second: int16 = First;
 }
 node probe: Probe {}
 
 // TEST: type cycle
 // SE: Cyclic static value resolution
-// SH: While instantiating 'probe'
+// SH: While instantiating `probe`
 node type Probe {
-  constant First: type = Option[Second]; // E: Cyclic static value resolution: First -> Second -> First
+  constant First: type = Option[Second]; // E: Cyclic static value resolution: `First` -> `Second` -> `First`
   constant Second: type = First;
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: type and initializer cycle
 // SE: Cyclic static value resolution
-// SH: While instantiating 'probe'
+// SH: While instantiating `probe`
 node type Probe {
   constant First: Second = 0;
-  constant Second: type = Second; // E: Cyclic static value resolution: First -> Second -> Second
+  constant Second: type = Second; // E: Cyclic static value resolution: `First` -> `Second` -> `Second`
 }
-node probe: Probe {} // H: While instantiating 'probe'
+node probe: Probe {} // H: While instantiating `probe`
 
 // TEST: procedure port collision
 node type Probe {
@@ -101,7 +101,7 @@ node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
   procedure run produces default output as output {
-    let Flag = false; // E: Cannot shadow procedure port or parameter 'Flag'
+    let Flag = false; // E: Cannot shadow procedure port or parameter `Flag`
     output = Flag;
   }
 }
@@ -112,7 +112,7 @@ node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
   procedure run produces default output as output {
-    Flag = false; // E: Cannot assign to 'Flag'
+    Flag = false; // E: Cannot assign to `Flag`
     output = Flag;
   }
 }
@@ -132,7 +132,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   binding flag: value boolean;
-  procedure run produces Flag as flag { // E: Cannot connect to constant 'Flag'
+  procedure run produces Flag as flag { // E: Cannot connect to constant `Flag`
     flag = true;
   }
 }
@@ -153,7 +153,7 @@ constant Flag: boolean = probe.Flag; // E: Invalid boolean value
 // TEST: parameter dependent unknown name in unused node
 node type Unused {
   parameter Type: type;
-  constant Value: Type = Missing; // E: Unknown static value Missing
+  constant Value: Type = Missing; // E: Unknown static value `Missing`
 }
 
 // TEST: parameter dependent malformed expression in unused node
@@ -167,21 +167,21 @@ node type Probe {
   parameter Type: type;
   constant Value: Type = true; // E: Invalid int value
 }
-node probe: Probe { Type: int16 } // H: While instantiating 'probe'
+node probe: Probe { Type: int16 } // H: While instantiating `probe`
 
 // TEST: parameter dependent range
 node type Probe {
   parameter Type: type;
   constant Value: Type = 256; // E: out of range
 }
-node probe: Probe { Type: uint8 } // H: While instantiating 'probe'
+node probe: Probe { Type: uint8 } // H: While instantiating `probe`
 
 // TEST: enclosing constants are not child procedure names
 constant Flag: boolean = true;
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = Flag; // E: Unknown procedure value Flag
+    output = Flag; // E: Unknown procedure value `Flag`
   }
 }
 node probe: Probe {}

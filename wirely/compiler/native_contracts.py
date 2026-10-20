@@ -69,7 +69,7 @@ def contract_location(kind: str, native_name: str) -> tuple[str, str]:
         if kind == 'function':
             attribute = '_' + attribute
     if not namespace:
-        raise ValueError(f'Native name {native_name!r} has no namespace')
+        raise ValueError(f'Native name `{native_name}` has no namespace')
     return module_name(namespace), attribute
 
 
@@ -80,8 +80,8 @@ def _python_names(where: str, items: Iterable[tuple[str, str]]) -> dict[str, str
     for label, key in items:
         name = snake_case(key)
         if name in labels:
-            raise ValueError(f'{where}: {labels[name]} and {label} {key!r} have the same Python name {name!r}')
-        labels[name] = f'{label} {key!r}'
+            raise ValueError(f'{where}: {labels[name]} and {label} `{key}` have the same Python name `{name}`')
+        labels[name] = f'{label} `{key}`'
         names[key] = name
     return names
 
@@ -144,7 +144,7 @@ def opaque_location(native_name: str, package: str = 'wirely') -> tuple[str, str
     """Return the module and class name implementing an opaque struct, such as wirely.native.std, Duration."""
     namespace, _, name = native_name.rpartition('.')
     if not namespace:
-        raise ValueError(f'Native name {native_name!r} has no namespace')
+        raise ValueError(f'Native name `{native_name}` has no namespace')
     return f'{package}.native.{module_name(namespace)}', name
 
 
@@ -192,7 +192,7 @@ def annotation(signature: signatures.SignatureType | signatures.ResourceType, im
         if location is not None:
             return imports.add(*location, type_checking=True)
         if strict:
-            raise ValueError(f'Cannot find the Python class of resource type {signature.native_name}')
+            raise ValueError(f'Cannot find the Python class of resource type `{signature.native_name}`')
         return 'object'
     raise ValueError(f'Unknown signature type {signature!r}')
 
@@ -256,7 +256,7 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
 
     for key, port in [*signature.depends.items(), *signature.produces.items()]:
         if port.kind != 'resource' or port.multi:
-            raise ValueError(f'{where}: {key!r} must be a single resource')
+            raise ValueError(f'{where}: `{key}` must be a single resource')
     arguments = _python_names(where, [*(('input', key) for key in signature.depends),
                                       *(('uses binding', key) for key in signature.uses)])
     outputs = _python_names(where, (('output', key) for key in signature.produces))
@@ -320,10 +320,10 @@ def _procedure_code(native_name: str, signature: signatures.Procedure, imports: 
 
     for key, port in [*signature.depends.items(), *signature.produces.items()]:
         if port.multi:
-            raise ValueError(f'{where}: multi port {key!r} is not supported')
+            raise ValueError(f'{where}: multi port `{key}` is not supported')
     for key, port in signature.produces.items():
         if port.kind == 'resource':
-            raise ValueError(f'{where}: output {key!r} cannot be a resource')
+            raise ValueError(f'{where}: output `{key}` cannot be a resource')
     resources = [key for key, port in signature.depends.items() if port.kind == 'resource']
     prepared = _python_names(where, [*(('input', key) for key in resources),
                                      *(('uses binding', key) for key in signature.uses)])
@@ -529,11 +529,11 @@ def _module_sources(tables: Iterable[tuple[str, Mapping[str, Any]]],
             for name in _module_names(code):
                 previous = definitions.setdefault(name, native_name)
                 if previous != native_name:
-                    raise ValueError(f'Contracts of {previous} and {native_name} both define {name!r}')
+                    raise ValueError(f'Contracts of `{previous}` and `{native_name}` both define `{name}`')
             body += ['', '', *code]
         imports.add('__future__', 'annotations')
         for name in sorted(imports.names() & definitions.keys()):
-            raise ValueError(f'Contract name {name!r} of {definitions[name]} is also an imported name')
+            raise ValueError(f'Contract name `{name}` of `{definitions[name]}` is also an imported name')
         if any(line.startswith('if TYPE_CHECKING:') for line in imports.lines()):
             imports.add('typing', 'TYPE_CHECKING')
         import_lines = imports.lines()
@@ -640,7 +640,7 @@ def library_interfaces(*graphs: Any) -> Interfaces:
 
     def merge(table: dict[str, T], entries: Mapping[str, T]) -> None:
         for name in sorted(entries.keys() & table.keys()):
-            raise ValueError(f'Duplicate native interface {name!r}')
+            raise ValueError(f'Duplicate native interface `{name}`')
         table.update(entries)
 
     result: Interfaces = ({}, {}, {})
@@ -717,7 +717,7 @@ def generate_enums(graph: Any, source_paths: set[str] | None = None, *,
     for python_name, name, value_type, declaration in classes:
         if not value_type.members:
             # Python cannot look up values of an enum without members.
-            raise ValueError(f'Native enum {value_type.name} must have members')
+            raise ValueError(f'Native enum `{value_type.name}` must have members')
         underlying = value_type.underlying_type
         base = (f'OpenIntEnum, minimum={underlying.min_value}, maximum={underlying.max_value}'
                 if value_type.is_open else 'enum.IntEnum')

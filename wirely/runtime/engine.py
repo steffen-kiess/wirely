@@ -100,7 +100,7 @@ class Engine:
                 linked = linked_states[instance.type_name]
                 interface = InterfaceBinding(
                     native_types=self.native_types,
-                    where=f'Native state type {instance.type_name!r} of {instance.name}',
+                    where=f'Native state type `{instance.type_name}` of `{instance.name}`',
                     signature=linked.signature,
                     use_types={key: constant.value_type for key, constant in instance.initializer_values.items()},
                     use_values={key: cast(InternalValue, constant.value)
@@ -142,7 +142,7 @@ class Engine:
         port_types.update((name, target.variable.var_type) for name, target in proc.outputs.items())
         return InterfaceBinding(
             native_types=self.native_types,
-            where=f'Native procedure {proc.reference!r} of {proc.node_context.name}', signature=signature,
+            where=f'Native procedure `{proc.reference}` of `{proc.node_context.name}`', signature=signature,
             use_types={key: constant.value_type for key, constant in proc.values.items()},
             use_values={key: cast(InternalValue, constant.value) for key, constant in proc.values.items()},
             resources=self._resource_inputs(proc.resources), port_types=port_types, output_resource_types={},
@@ -184,7 +184,7 @@ class Engine:
         if not isinstance(proc_name, str) or not any(
             proc.key == key for schedule in self.program.procs.values() for proc in schedule
         ):
-            raise ValueError(f'Unknown procedure name {proc_name!r} on {node_id}')
+            raise ValueError(f'Unknown procedure name `{proc_name}` on {node_id}')
         self._trigger_key(key)
 
     def trigger_dependents(self, node_id: str, output: str) -> None:
@@ -375,13 +375,13 @@ class Engine:
         try:
             return self.program.node_aliases[name]
         except KeyError:
-            raise ValueError(f'Cannot find node {name!r}') from None
+            raise ValueError(f'Cannot find node `{name}`') from None
 
     def get_node_path_singleton(self, name: str) -> str:
         try:
             return self.program.singleton_aliases[name]
         except KeyError:
-            raise ValueError(f'Cannot find singleton {name!r}') from None
+            raise ValueError(f'Cannot find singleton `{name}`') from None
 
     def get_native_state(self, name: str) -> NativeState | None:
         return self.native_states[self.get_node_path(name)]
@@ -392,14 +392,14 @@ class Engine:
     def get_variable(self, name: str) -> Variable:
         variable = self._get_source(name).variable
         if variable is None:
-            raise ValueError(f'Variable alias {name!r} refers to a constant')
+            raise ValueError(f'Variable alias `{name}` refers to a constant')
         return variable
 
     def _get_source(self, name: str) -> InputSource:
         try:
             return self.program.variables[name]
         except KeyError:
-            raise ValueError(f'Could not find variable {name!r}') from None
+            raise ValueError(f'Could not find variable `{name}`') from None
 
     def get_value(self, name: str) -> object:
         return self.get_source_value(self._get_source(name))

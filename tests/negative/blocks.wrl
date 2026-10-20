@@ -232,7 +232,7 @@ node type Probe {
   parameter Enabled: boolean = true;
   default output: value boolean;
   procedure run produces default output as output {
-    { true } // E: Expected value of type unit
+    { true } // E: Expected value of type `unit`
     output = true;
   }
 }

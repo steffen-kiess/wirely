@@ -53,7 +53,7 @@ node type Probe {
 
 // TEST: scalar value
 constant Flag: boolean = true;
-assert Flag.Length == 1; // E: has no property 'Length'
+assert Flag.Length == 1; // E: has no property `Length`
 
 // TEST: list property call
 constant Items: List[uint8] = [];
@@ -81,15 +81,15 @@ assert child.Items.Length == 0; // E: Cannot infer expression type
 
 // TEST: result type
 constant Items: List[boolean] = [];
-constant Count: int32 = Items.Length; // E: Expected value of type int32, got uint32
+constant Count: int32 = Items.Length; // E: Expected value of type `int32`, got `uint32`
 
 // TEST: generic receiver
 node type Probe {
   parameter Type: type;
   parameter Item: Type;
-  constant Count: uint32 = Item.Length; // E: Value of type boolean has no property 'Length'
+  constant Count: uint32 = Item.Length; // E: Value of type `boolean` has no property `Length`
 }
-node probe: Probe { Type: boolean, Item: true } // H: While instantiating 'probe'
+node probe: Probe { Type: boolean, Item: true } // H: While instantiating `probe`
 
 // TEST: early type selection
 node type Child {
@@ -121,7 +121,7 @@ node type Probe {
   input Items: multi value boolean;
   procedure run {
     let Items = true;
-    assert Items.Length == 0; // E: has no property 'Length'
+    assert Items.Length == 0; // E: has no property `Length`
   }
 }
 node probe: Probe {}
@@ -138,7 +138,7 @@ node type Probe {
 node type Recursive {
   default input: multi value boolean;
   assert (default input).Length == 0;
-  node child: Recursive {} // E: Recursive node type instantiation of 'Recursive'
+  node child: Recursive {} // E: Recursive node type instantiation of `Recursive`
   connect default input -> child;
 }
 
@@ -146,7 +146,7 @@ node type Recursive {
 node type Probe {
   default input: value boolean;
   procedure run depends on default input as value {
-    let Items: List[boolean] = [true]; // E: Type List[boolean] is not a runtime type
+    let Items: List[boolean] = [true]; // E: Type `List[boolean]` is not a runtime type
     assert Items.Length == 1;
     value;
   }

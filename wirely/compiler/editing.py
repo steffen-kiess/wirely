@@ -424,9 +424,9 @@ def rename(sources: Sources, target: _outline.DeclarationId, new_name: str, *,
             raise ValueError('Native node types cannot be renamed')
         if any(item.name == new_name for item in parent.node_types) or any(
                 namespace.path[-1] == new_name for namespace in parent.namespaces):
-            raise ValueError(f'Name {new_name!r} is already used')
+            raise ValueError(f'Name `{new_name}` is already used')
     elif new_name in _used_names(parent):
-        raise ValueError(f'Name {new_name!r} is already used')
+        raise ValueError(f'Name `{new_name}` is already used')
     texts = dict(sources)
     edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
     if isinstance(target, Procedure):
@@ -604,7 +604,7 @@ def _port_reference_edits(result: _outline.Outline, node_type: NodeType, old: st
 def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: str) -> list[TextEdit]:
     """Rename expression references to a parameter or constant within its scope."""
     if new in ('true', 'false', 'None') or new in _types.type_by_name:
-        raise ValueError(f'Name {new!r} is reserved')
+        raise ValueError(f'Name `{new}` is reserved')
     sites = []
     uses = []
     for filename, item in _scope_items(scope):
@@ -620,10 +620,10 @@ def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: st
     edits = []
     for filename, identifier, bound in sites:
         if identifier.id_str == new:
-            raise ValueError(f'Name {new!r} is already referenced in this scope')
+            raise ValueError(f'Name `{new}` is already referenced in this scope')
         if identifier.id_str == old and old not in bound:
             if new in bound:
-                raise ValueError(f'Name {new!r} is bound locally where {old!r} is used')
+                raise ValueError(f'Name `{new}` is bound locally where `{old}` is used')
             edits.append(TextEdit(filename, _start(identifier), _end(identifier), new_text))
     return edits + uses
 
@@ -1072,7 +1072,7 @@ def _metadata_name(metadata: str) -> str:
 
 def _matching(site: _Site, name: str) -> list[Attribute]:
     if any(attribute.name == name for attribute in site.shared_attributes):
-        raise ValueError(f'Attribute {name} applies to the whole connect statement')
+        raise ValueError(f'Attribute `{name}` applies to the whole connect statement')
     return [attribute for attribute in site.attributes if attribute.name == name]
 
 

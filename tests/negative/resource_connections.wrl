@@ -13,7 +13,7 @@ namespace Fixture {
 }
 node source: Fixture.Source {}
 node target: Fixture.Target {}
-connect source -> target.Service; // E: source has resource type Fixture.First but target has resource type Fixture.Second
+connect source -> target.Service; // E: source has resource type `Fixture.First` but target has resource type `Fixture.Second`
 
 // TEST: resource_same_name_mismatch
 namespace First {
@@ -33,7 +33,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: source has resource type First.Handle but target has resource type Second.Handle
+connect source -> target; // E: source has resource type `First.Handle` but target has resource type `Second.Handle`
 
 // TEST: resource_boundary_mismatch
 resource type First;
@@ -42,7 +42,7 @@ resource type Second;
 node type Invalid {
   input Service: resource First; // H: Source was declared here
   default output: resource Second; // H: Target was declared here
-  connect Service -> default output; // E: source has resource type First but target has resource type Second
+  connect Service -> default output; // E: source has resource type `First` but target has resource type `Second`
 }
 
 // TEST: resource_to_data_value

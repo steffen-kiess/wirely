@@ -45,7 +45,7 @@ def function_signatures(graph: model.Scope, *, constant: bool,
             continue
         if namespace is not None and not function.native_name.startswith(namespace + '.'):
             continue
-        where = f'Native function {function.native_name}'
+        where = f'Native function `{function.native_name}`'
         function.resolve_signature()
         functions[function.native_name] = signatures.Function(
             tuple(signature_type(value_type, {}, where) for value_type in function.parameter_types),
@@ -59,7 +59,7 @@ def signature_type(value_type: types.Type, variables: Mapping[model.NodeParamete
     if isinstance(value_type, TypeParameter):
         name = variables.get(value_type.parameter)
         if name is None:
-            raise ValueError(f'{where} does not pass type {value_type.parameter.name.id_str} in uses')
+            raise ValueError(f'{where} does not pass type `{value_type.parameter.name.id_str}` in uses')
         return signatures.TypeVar(name)
     if isinstance(value_type, types.TypeInt):
         return signatures.Int(value_type.bits, value_type.is_signed)
@@ -69,17 +69,17 @@ def signature_type(value_type: types.Type, variables: Mapping[model.NodeParamete
         return signatures.List(signature_type(value_type.inner_type, variables, where))
     if isinstance(value_type, types.TypeEnum):
         if value_type.native_name is None:
-            raise ValueError(f'{where} uses enum {value_type}, which is not native')
+            raise ValueError(f'{where} uses enum `{value_type}`, which is not native')
         return signatures.Enum(value_type.native_name)
     if isinstance(value_type, types.TypeStruct):
         if value_type.native_name is None:
-            raise ValueError(f'{where} uses struct {value_type}, which is not native')
+            raise ValueError(f'{where} uses struct `{value_type}`, which is not native')
         if value_type.is_opaque:
             return signatures.Opaque(value_type.native_name)
         return signatures.Struct(value_type.native_name)
     if str(value_type) in ('unit', 'boolean', 'String', 'type'):
         return signatures.Builtin(str(value_type))
-    raise ValueError(f'{where} uses unsupported type {value_type}')
+    raise ValueError(f'{where} uses unsupported type `{value_type}`')
 
 
 # Data and resource ports expose different interfaces.
@@ -113,9 +113,9 @@ def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None
                      if isinstance(expression, model.Reference) and expression.length == 1 else None)
         if parameter is not None and getattr(parameter, 'type_resolved', None) == types.ValueType:
             if variables.setdefault(parameter, binding.key) != binding.key:
-                raise ValueError(f'{where} passes type {expression} under two names')
+                raise ValueError(f'{where} passes type `{expression}` under two names')
         elif uses_type(node_type, binding, None, where) == types.ValueType:
-            raise ValueError(f'{where} passes a type that is not a parameter: {expression}')
+            raise ValueError(f'{where} passes a type that is not a parameter: `{expression}`')
     return variables
 
 
@@ -161,7 +161,7 @@ def native_signatures(graph: model.Scope,
         initializer = node_type.initializer if node_type.is_native else None
         if initializer is not None and included(node_type.native_name):
             assert node_type.native_name is not None
-            where = f'Native state type {node_type.native_name}'
+            where = f'Native state type `{node_type.native_name}`'
             variables = type_variables(node_type, initializer.uses, where)
             depends = {}
             for port, dependency in zip(initializer.depends.dependencies,
@@ -178,7 +178,7 @@ def native_signatures(graph: model.Scope,
         for procedure in node_type.procedures.values():
             if not procedure.is_native or not included(procedure.native_name):
                 continue
-            where = f'Native procedure {procedure.native_name}'
+            where = f'Native procedure `{procedure.native_name}`'
             variables = type_variables(node_type, procedure.uses, where)
             procedures[procedure.native_name] = signatures.Procedure(
                 stage=procedure.stage.stage.name.lower(),

@@ -92,9 +92,9 @@ class ValueParameter(Value):
                 if not isinstance(par, model.NodeParameter):
                     raise Exception("not isinstance(par, model.NodeParameter)")
                 hints += [
-                    model.CompilerHint(par.declaration, f'Available parameter: {par.node_type}.{par.name}'),
+                    model.CompilerHint(par.declaration, f'Available parameter: `{par.node_type}.{par.name}`'),
                 ]
-            raise model.ProgramError(self.ast_element, f'Unable to resolve value parameter {self.parameter.node_type}.{self.parameter.name}', hints=hints)
+            raise model.ProgramError(self.ast_element, f'Unable to resolve value parameter `{self.parameter.node_type}.{self.parameter.name}`', hints=hints)
 
     def evaluate(self) -> NoReturn:
         raise Exception('Attempt to call ValueParameter.evaluate()')
@@ -159,7 +159,7 @@ def check_value_type(actual_type: model.Type, expected_type: model.Type,
                      ast_element: model.ast.SourceElement | None) -> None:
     if (not actual_type.contains_parameters and not expected_type.contains_parameters
             and actual_type != expected_type):
-        raise model.ProgramError(ast_element, f'Expected value of type {expected_type}, got {actual_type}')
+        raise model.ProgramError(ast_element, f'Expected value of type `{expected_type}`, got `{actual_type}`')
 
 
 class ComputedValue(Value):

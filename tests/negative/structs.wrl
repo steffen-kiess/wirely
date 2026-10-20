@@ -1,14 +1,14 @@
 // TEST: duplicate_fields
 // SH: Previous field was here
-// SE: Duplicate struct field x
+// SE: Duplicate struct field `x`
 struct type Bad {
   x: uint8, // H: Previous field was here
-  x: uint16, // E: Duplicate struct field x
+  x: uint16, // E: Duplicate struct field `x`
 }
 
 // TEST: duplicate_declarations
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 struct type Bad {} // H: Previous declaration was here
 struct type Bad {} // E: conflicts with struct type
 
@@ -20,13 +20,13 @@ struct type Option {} // E: conflicts with built-in type
 
 // TEST: unknown_field_type
 struct type Bad {
-  x: Missing, // E: Cannot find type Missing
+  x: Missing, // E: Cannot find type `Missing`
 }
 
 // TEST: resource_field_type
 resource type Handle;
 struct type Bad {
-  x: Handle, // E: Cannot find type Handle
+  x: Handle, // E: Cannot find type `Handle`
 }
 
 // TEST: recursive
@@ -102,7 +102,7 @@ node n: Std.Constant { Type: Record, Value: Record { y: 1 } } // E: Unknown fiel
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant { Type: Record, Value: Record { x: 1, x: 2 } } // E: Duplicate struct field x // H: Previous field was here
+node n: Std.Constant { Type: Record, Value: Record { x: 1, x: 2 } } // E: Duplicate struct field `x` // H: Previous field was here
 
 // TEST: wrong_literal_type
 // LIBRARIES: std
@@ -112,21 +112,21 @@ struct type First {
 struct type Second {
   x: uint8,
 }
-node n: Std.Constant { Type: First, Value: Second { x: 1 } } // E: Expected struct type First
+node n: Std.Constant { Type: First, Value: Second { x: 1 } } // E: Expected struct type `First`
 
 // TEST: unknown_literal_type
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant { Type: Record, Value: Missing { x: 1 } } // E: Cannot find type Missing
+node n: Std.Constant { Type: Record, Value: Missing { x: 1 } } // E: Cannot find type `Missing`
 
 // TEST: nonstruct_literal_type
 // LIBRARIES: std
 struct type Record {
   x: uint8,
 }
-node n: Std.Constant { Type: Record, Value: uint8 { x: 1 } } // E: Expected struct type Record
+node n: Std.Constant { Type: Record, Value: uint8 { x: 1 } } // E: Expected struct type `Record`
 
 // TEST: literal_in_scalar
 // LIBRARIES: std
@@ -173,7 +173,7 @@ struct type Record {
 }
 node type Settings {
   parameter Value: boolean = true;
-  node n: Std.Constant { Type: Record, Value: Record { x: Value } } // E: Expected value of type uint8
+  node n: Std.Constant { Type: Record, Value: Record { x: Value } } // E: Expected value of type `uint8`
 }
 node n: Settings {}
 
@@ -185,41 +185,41 @@ namespace A { struct type Record {
 namespace B { struct type Record {
   x: uint8,
 } }
-node n: Std.Constant { Type: A.Record, Value: B.Record { x: 1 } } // E: Expected struct type A.Record
+node n: Std.Constant { Type: A.Record, Value: B.Record { x: 1 } } // E: Expected struct type `A.Record`
 
 // TEST: struct_after_enum
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 open enum type Bad: uint8 { One = 1, } // H: Previous declaration was here
 struct type Bad {} // E: conflicts with enum
 
 // TEST: enum_after_struct
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 struct type Bad {} // H: Previous declaration was here
 open enum type Bad: uint8 { One = 1, } // E: conflicts with struct type
 
 // TEST: struct_after_resource
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 resource type Bad; // H: Previous declaration was here
 struct type Bad {} // E: conflicts with resource
 
 // TEST: resource_after_struct
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 struct type Bad {} // H: Previous declaration was here
 resource type Bad; // E: conflicts with struct type
 
 // TEST: struct_after_node
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 node type Bad {} // H: Previous declaration was here
 struct type Bad {} // E: conflicts with node
 
 // TEST: node_after_struct
 // SH: Previous
-// SE: Bad conflicts with
+// SE: `Bad` conflicts with
 struct type Bad {} // H: Previous declaration was here
 node type Bad {} // E: conflicts with struct type
 
@@ -310,31 +310,31 @@ node n: Bad {}
 // TEST: unknown_field_access
 struct type Pair { flag: boolean, }
 constant Value: Pair = Pair { flag: true };
-assert Value.missing; // E: Value of type Pair has no property 'missing'
+assert Value.missing; // E: Value of type `Pair` has no property `missing`
 
 // TEST: field_access_on_scalar
 constant Value: uint8 = 1;
-assert Value.flag; // E: Value of type uint8 has no property 'flag'
+assert Value.flag; // E: Value of type `uint8` has no property `flag`
 
 // TEST: field_access_through_option
 struct type Pair { flag: boolean, }
 constant Value: Option[Pair] = None;
-assert Value.flag; // E: Value of type Option[Pair] has no property 'flag'
+assert Value.flag; // E: Value of type `Option[Pair]` has no property `flag`
 
 // TEST: option_property_on_struct
 struct type Pair { flag: boolean, }
 constant Value: Pair = Pair { flag: true };
-assert Value.IsSome; // E: Value of type Pair has no property 'IsSome'
+assert Value.IsSome; // E: Value of type `Pair` has no property `IsSome`
 
 // TEST: calling_a_field
 struct type Pair { flag: boolean, }
 constant Value: Pair = Pair { flag: true };
-assert Value.flag(); // E: Value of type Pair has no method 'flag'
+assert Value.flag(); // E: Value of type `Pair` has no method `flag`
 
 // TEST: field_type_mismatch
 struct type Pair { flag: boolean, }
 constant Value: Pair = Pair { flag: true };
-constant Number: uint8 = Value.flag; // E: Expected value of type uint8, got boolean
+constant Number: uint8 = Value.flag; // E: Expected value of type `uint8`, got `boolean`
 
 // TEST: field_access_on_type_parameter
 struct type Pair { flag: boolean, }
@@ -366,51 +366,51 @@ struct type Bad as "Example.Bad" { flag: boolean } // E: Unexpected token
 
 // TEST: duplicate native struct name
 // SH: Previous declaration was here
-// SE: Duplicate native name 'Example.Pair'
+// SE: Duplicate native name `Example.Pair`
 namespace Example {
   native struct type Pair { flag: boolean } // H: Previous declaration was here
 }
 namespace Other {
-  native struct type Couple as "Example.Pair" { flag: boolean } // E: Duplicate native name 'Example.Pair'
+  native struct type Couple as "Example.Pair" { flag: boolean } // E: Duplicate native name `Example.Pair`
 }
 
 // TEST: opaque struct literal without an implementation
 namespace Example {
   opaque struct type Span { Ticks: uint128 }
 }
-constant Value: Example.Span = "PT1S"; // E: Example.Span has no literals without a native implementation
+constant Value: Example.Span = "PT1S"; // E: `Example.Span` has no literals without a native implementation
 
 // TEST: opaque struct literal with an unknown native name
 opaque struct type Span as "Example.Span" { Ticks: uint128 }
-constant Value: Span = "PT1S"; // E: Span has no literals without a native implementation
+constant Value: Span = "PT1S"; // E: `Span` has no literals without a native implementation
 
 // TEST: opaque struct field type
-opaque struct type Span as "Std.Duration" { Ticks: uint64 } // E: Opaque struct type 'Std.Duration' field 0 has type uint64, expected uint128
+opaque struct type Span as "Std.Duration" { Ticks: uint64 } // E: Opaque struct type `Std.Duration` field 0 has type `uint64`, expected `uint128`
 
 // TEST: opaque struct field count
-opaque struct type Time as "Timer.MonotonicTime" { Ticks: uint128 } // E: Opaque struct type 'Timer.MonotonicTime' must have 2 fields, got 1
+opaque struct type Time as "Timer.MonotonicTime" { Ticks: uint128 } // E: Opaque struct type `Timer.MonotonicTime` must have 2 fields, got 1
 
 // TEST: opaque struct field names are not compared
 opaque struct type Span as "Std.Duration" { units: uint128 }
 constant Value: Span = "PT1S";
-constant Bad: uint8 = Value; // E: Expected value of type uint8, got Span
+constant Bad: uint8 = Value; // E: Expected value of type `uint8`, got `Span`
 
 // TEST: duplicate opaque struct native name
 // SH: Previous declaration was here
-// SE: Duplicate native name 'Std.Duration'
+// SE: Duplicate native name `Std.Duration`
 opaque struct type Span as "Std.Duration" { Ticks: uint128 } // H: Previous declaration was here
-opaque struct type Interval as "Std.Duration" { Ticks: uint128 } // E: Duplicate native name 'Std.Duration'
+opaque struct type Interval as "Std.Duration" { Ticks: uint128 } // E: Duplicate native name `Std.Duration`
 
 // TEST: opaque and native struct native names are separate
 opaque struct type Span as "Std.Duration" { Ticks: uint128 }
 native struct type Record as "Std.Duration" { Ticks: uint128 }
-constant Bad: Span = Record { Ticks: 1 }; // E: Expected Span, got struct literal
+constant Bad: Span = Record { Ticks: 1 }; // E: Expected `Span`, got struct literal
 
 // TEST: opaque struct field access
 // LIBRARIES: std
 constant Value: Std.Duration = "PT1S";
-constant Ticks: uint128 = Value.Ticks; // E: Value of type Std.Duration has no property 'Ticks'
+constant Ticks: uint128 = Value.Ticks; // E: Value of type `Std.Duration` has no property `Ticks`
 
 // TEST: opaque struct literal
 // LIBRARIES: std
-constant Value: Std.Duration = Std.Duration { Ticks: 1 }; // E: Expected Std.Duration, got struct literal
+constant Value: Std.Duration = Std.Duration { Ticks: 1 }; // E: Expected `Std.Duration`, got struct literal

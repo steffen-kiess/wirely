@@ -43,7 +43,7 @@ def _runtime_type(value_type: object) -> None:
 
 def _same_type(actual: object, expected: object) -> None:
     if actual != expected:
-        raise ValueError(f'Expected type {expected}, got {actual}')
+        raise ValueError(f'Expected type `{expected}`, got `{actual}`')
 
 
 def _call_signature(operands: Sequence[Operand | BranchTarget | int]) -> tuple[type, ...]:
@@ -142,25 +142,25 @@ def _validate_body(procedure: Procedure, constant_types: Sequence[Type], functio
                     raise ValueError(f'Function index out of range: {function_index}')
                 function = functions[function_index]
                 if count != len(function.parameter_types):
-                    raise ValueError(f'Function {function.name} expects {len(function.parameter_types)} '
+                    raise ValueError(f'Function `{function.name}` expects {len(function.parameter_types)} '
                                      f'arguments, got {count}')
                 _same_type(operand_types[0], function.return_type)
                 for argument_type, parameter_type in zip(operand_types[1:], function.parameter_types):
                     _same_type(argument_type, parameter_type)
             elif opcode in CONVERSION_OPCODES:
                 if not isinstance(operand_types[1], (TypeInt, TypeEnum, TypeBoolean)):
-                    raise ValueError(f'Conversion source must be an integer, enum, or boolean, got {operand_types[1]}')
+                    raise ValueError(f'Conversion source must be an integer, enum, or boolean, got `{operand_types[1]}`')
                 target_type = operand_types[0]
                 if CONVERSION_OPCODES[opcode] == 'checked':
                     if not isinstance(target_type, TypeOption):
-                        raise ValueError(f'Checked conversion requires an Option destination, got {target_type}')
+                        raise ValueError(f'Checked conversion requires an Option destination, got `{target_type}`')
                     target_type = target_type.inner_type
                 if not isinstance(target_type, (TypeInt, TypeBoolean)):
-                    raise ValueError(f'Conversion destination must be an integer or boolean, got {target_type}')
+                    raise ValueError(f'Conversion destination must be an integer or boolean, got `{target_type}`')
             elif opcode in ARITHMETIC_OPCODES:
                 integer_type = operand_types[1]
                 if not isinstance(integer_type, TypeInt):
-                    raise ValueError(f'Arithmetic requires an integer type, got {integer_type}')
+                    raise ValueError(f'Arithmetic requires an integer type, got `{integer_type}`')
                 _same_type(operand_types[2], integer_type)
                 _same_type(operand_types[0], TypeOption(integer_type)
                            if ARITHMETIC_OPCODES[opcode][1] == 'checked' else integer_type)
@@ -201,28 +201,28 @@ def validate_program(program: Program) -> None:
         check_names('Static bindings', values, declared)
         for name, constant in values.items():
             if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
-                raise ValueError(f'Static binding {name!r} is not a typed Constant')
+                raise ValueError(f'Static binding `{name}` is not a typed Constant')
 
     def check_resources(bindings: Mapping[str, ResourceBinding], declared: Mapping[str, str]) -> None:
         check_names('Resource inputs', bindings, declared)
         for name, binding in bindings.items():
             if not isinstance(binding, ResourceBinding):
-                raise ValueError(f'Resource input {name!r} is not a ResourceBinding')
+                raise ValueError(f'Resource input `{name}` is not a ResourceBinding')
             provider = program.instances.get(binding.provider)
             provider_type = (program.native_types.get(provider.type_name)
                              if provider is not None and provider.type_name is not None else None)
             output_type = None if provider_type is None else provider_type.resource_outputs.get(binding.output)
             if output_type is None:
-                raise ValueError(f'Resource input {name!r} is bound to unknown output {binding}')
+                raise ValueError(f'Resource input `{name}` is bound to unknown output `{binding}`')
             if output_type != declared[name]:
-                raise ValueError(f'Resource input {name!r} of type {declared[name]} is bound to '
-                                 f'{binding} of type {output_type}')
+                raise ValueError(f'Resource input `{name}` of type `{declared[name]}` is bound to '
+                                 f'`{binding}` of type `{output_type}`')
 
     for node_id, instance in program.instances.items():
         try:
             native_type = None if instance.type_name is None else program.native_types.get(instance.type_name)
             if instance.has_native_state and native_type is None:
-                raise ValueError(f'Unknown native type {instance.type_name!r}')
+                raise ValueError(f'Unknown native type `{instance.type_name}`')
             if instance.has_native_state:
                 assert native_type is not None
                 check_bindings(instance.initializer_values, native_type.initializer_uses)
@@ -231,12 +231,12 @@ def validate_program(program: Program) -> None:
                 check_bindings(instance.initializer_values, ())
                 check_resources(instance.initializer_bindings, {})
         except ValueError as error:
-            raise ValueError(f'Instance {node_id!r}: {error}') from error
+            raise ValueError(f'Instance `{node_id}`: {error}') from error
 
     def check_native_procedure(procedure: Procedure) -> None:
         prefix, _, method = procedure.reference.rpartition(':')
         if not prefix or not method:
-            raise ValueError("Expected a native procedure name of the form 'Type:procedure'")
+            raise ValueError('Expected a native procedure name of the form `Type:procedure`')
         interface = program.native_procedures.get(procedure.reference)
         if interface is None:
             raise ValueError('Unknown native procedure')
@@ -261,9 +261,9 @@ def validate_program(program: Program) -> None:
                 if procedure.body is not None:
                     _validate_body(procedure, constant_types, program.functions)
             except ValueError as error:
-                raise ValueError(f'Procedure {procedure.reference!r}: {error}') from error
+                raise ValueError(f'Procedure `{procedure.reference}`: {error}') from error
     for name, input_source in program.variables.items():
         try:
             check_source(input_source)
         except ValueError as error:
-            raise ValueError(f'Variable {name!r}: {error}') from error
+            raise ValueError(f'Variable `{name}`: {error}') from error

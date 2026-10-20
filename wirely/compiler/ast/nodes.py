@@ -56,7 +56,7 @@ class DeclarationInstance(Declaration):
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name.id_str
         if name in graph.node_declarations:
-            raise ProgramError(self.name, f'Duplicate node name {name!r}', hints=[
+            raise ProgramError(self.name, f'Duplicate node name `{name}`', hints=[
                 CompilerHint(graph.node_declarations[name].declaration, 'Previous node was here'),
             ])
         register_name(graph, self.name, self)
@@ -98,11 +98,11 @@ class ChildNode:
             par = self.node_type.parsed_parameters.get(key.id_str)
             with coordinator.contain(parameter):
                 if key.id_str in self.node_type.parsed_constants:
-                    raise ProgramError(key, f'Cannot override constant {key.id_str!r}')
+                    raise ProgramError(key, f'Cannot override constant `{key.id_str}`')
                 if par is None:
-                    raise ProgramError(key, f'Unknown parameter for {self.node_type.name}: {key}')
+                    raise ProgramError(key, f'Unknown parameter for `{self.node_type.name}`: `{key}`')
                 if par in seen:
-                    raise ProgramError(parameter, f'Duplicate parameter binding {key.id_str!r}')
+                    raise ProgramError(parameter, f'Duplicate parameter binding `{key.id_str}`')
                 seen.add(par)
                 if coordinator.has_failed(par.declaration):
                     # The parameter's own error was already reported.
@@ -188,7 +188,7 @@ class DeclarationState(Declaration):
             hints = [
                 CompilerHint(graph.value_nodes[name], 'Previous declaration was here'),
             ]
-            raise ProgramError(self, f'Duplicate name {name!r}', hints=hints)
+            raise ProgramError(self, f'Duplicate name `{name}`', hints=hints)
         register_name(graph, self.name, self)
         graph.value_nodes[name] = self
 
@@ -208,18 +208,18 @@ def validate_nodes(graph: 'model.NodeType') -> None:
         is_state = isinstance(variable, DeclarationState)
         storage = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
         if storage.connected_source is None:
-            raise ProgramError(variable, f'{"State" if is_state else "Binding"} {name!r} has no source')
+            raise ProgramError(variable, f'{"State" if is_state else "Binding"} `{name}` has no source')
     initializer = getattr(graph, 'initializer', None)
     produced = initializer.output_keys if initializer is not None else {}
     for resource in graph.local_resources.values():
         if resource.connected_source is None and resource not in produced:
-            raise ProgramError(resource.declaration, f'Binding {resource.name!r} has no source')
+            raise ProgramError(resource.declaration, f'Binding `{resource.name}` has no source')
         if resource.connected_source is not None and resource in produced:
             connection = next(connection.source_element for connection in graph.connections
                               if connection.target is resource)
             assert initializer is not None
             port = next(port for port in initializer.produces.outputs if port.key == produced[resource])
-            raise ProgramError(connection, f'Binding {resource.name!r} is both produced and connected', hints=[
+            raise ProgramError(connection, f'Binding `{resource.name}` is both produced and connected', hints=[
                 CompilerHint(port, 'Produced by the native initializer here'),
             ])
     for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values(), *graph.local_resources.values()):
@@ -239,11 +239,11 @@ def check_unused(graph: 'model.NodeType') -> None:
     assert warnings is not None
     for name, node in graph.temporary_nodes.items():
         if id(node) not in read:
-            warnings.warn('Unused', graph.value_nodes[name].name, f'Binding {name!r} is never read',
+            warnings.warn('Unused', graph.value_nodes[name].name, f'Binding `{name}` is never read',
                           instance_trace=False)
     for name, resource in graph.local_resources.items():
         if id(resource) not in read:
-            warnings.warn('Unused', resource.declaration.name, f'Binding {name!r} is never read',
+            warnings.warn('Unused', resource.declaration.name, f'Binding `{name}` is never read',
                           instance_trace=False)
 
 
@@ -255,7 +255,7 @@ def validate_resource_outputs(graph: 'model.NodeType') -> None:
     for output in graph.output_ports.values():
         if output.resource_type is None:
             continue
-        name = 'Default output' if output.output_name == '' else f'Output {output.output_name!r}'
+        name = 'Default output' if output.output_name == '' else f'Output `{output.output_name}`'
         if output.connected_source is None and output not in produced:
             raise ProgramError(output.port_spec, f'{name} has no source')
         if output.connected_source is not None and output in produced:
@@ -300,7 +300,7 @@ def register_name(graph: 'model.NodeType', name: Identifier, declaration: Declar
     """Give nodes and named ports one namespace."""
     previous = graph.name_declarations.get(name.id_str)
     if previous is not None:
-        raise ProgramError(name, f'Duplicate name {name.id_str!r}', hints=[
+        raise ProgramError(name, f'Duplicate name `{name.id_str}`', hints=[
             CompilerHint(previous, 'Previous declaration was here'),
         ])
     graph.name_declarations[name.id_str] = declaration
@@ -332,7 +332,7 @@ class DeclarationBinding(Declaration):
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name_str
         if not self.is_resource and name in graph.value_nodes:
-            raise ProgramError(self, f'Duplicate name {name!r}', hints=[
+            raise ProgramError(self, f'Duplicate name `{name}`', hints=[
                 CompilerHint(graph.value_nodes[name], 'Previous declaration was here'),
             ])
         register_name(graph, self.name, self)

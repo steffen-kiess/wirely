@@ -82,7 +82,7 @@ class CompiledFunction:
                 for ty in self.parameter_types + [self.return_type]:
                     if not ty.is_runtime_type:
                         raise ProgramError(self.declaration,
-                                           f'Function {self.function_name!r} uses parameter-only type {ty}; '
+                                           f'Function `{self.function_name}` uses parameter-only type `{ty}`; '
                                            'declare it native constant function')
         return self
 

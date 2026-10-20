@@ -32,7 +32,7 @@ state saved: boolean = false;
 procedure run produces saved {
   saved = true;
   on changed saved {
-    let old = saved.old; // E: has no property 'old'
+    let old = saved.old; // E: has no property `old`
   }
 }
 
@@ -43,7 +43,7 @@ state saved: boolean = false;
 procedure run depends on source produces saved {
   saved = true;
   on source, changed saved {
-    let payload = source; // E: can only be read inside 'on source'
+    let payload = source; // E: can only be read inside `on source`
   }
 }
 
@@ -91,5 +91,5 @@ procedure read {
 }
 
 // TEST: old_warning_name
-#[Allow(SimultaneousEvents)] // E: Unknown warning SimultaneousEvents
+#[Allow(SimultaneousEvents)] // E: Unknown warning `SimultaneousEvents`
 procedure run {}

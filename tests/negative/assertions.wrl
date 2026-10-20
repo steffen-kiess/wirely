@@ -12,14 +12,14 @@ node type Checked {
   assert Enabled; // E: Compile-time assertion failed
   parameter Enabled: boolean = false;
 }
-node checked: Checked {} // H: While instantiating 'checked'
+node checked: Checked {} // H: While instantiating `checked`
 
 // TEST: nested failure
 node type Checked {
   assert false; // E: Compile-time assertion failed
 }
 node type Parent {
-  node child: Checked {} // H: While instantiating 'parent.child'
+  node child: Checked {} // H: While instantiating `parent.child`
 }
 node parent: Parent {}
 
@@ -27,7 +27,7 @@ node parent: Parent {}
 singleton node type Shared {
   assert false; // E: Compile-time assertion failed
 }
-node shared: Shared {} // H: While instantiating 'Shared'
+node shared: Shared {} // H: While instantiating `Shared`
 
 // TEST: unused unknown name
 node type Unused {
@@ -37,7 +37,7 @@ node type Unused {
 // TEST: unused non boolean
 node type Unused {
   constant Number: int16 = 1;
-  assert Number; // E: Expected value of type boolean, got int16
+  assert Number; // E: Expected value of type `boolean`, got `int16`
 }
 
 // TEST: literal non boolean
@@ -145,11 +145,11 @@ node type Checked {
   parameter Type: type;
   parameter Value: Type;
   constant Checked: boolean = {
-    assert Value; // E: Expected value of type boolean, got int16
+    assert Value; // E: Expected value of type `boolean`, got `int16`
     true
   };
 }
-node checked: Checked { Type: int16, Value: 1 } // H: While instantiating 'checked'
+node checked: Checked { Type: int16, Value: 1 } // H: While instantiating `checked`
 
 // TEST: block assertion without semicolon
 procedure run {
@@ -190,7 +190,7 @@ constant assert: boolean = true; // E: Syntax error
 #[unknown] assert true; // E: Unknown attribute
 
 // TEST: inappropriate metadata
-#[Diagram.Position(X = 1, Y = 2)] assert true; // E: Attribute Diagram.Position is not permitted on assertion
+#[Diagram.Position(X = 1, Y = 2)] assert true; // E: Attribute `Diagram.Position` is not permitted on assertion
 
 // TEST: evaluation error
 // LIBRARIES: std, knx
@@ -204,9 +204,9 @@ assert {
 node type Checked {
   parameter Type: type;
   parameter Value: Type;
-  assert Value; // E: Expected value of type boolean, got int16
+  assert Value; // E: Expected value of type `boolean`, got `int16`
 }
-node checked: Checked { Type: int16, Value: 1 } // H: While instantiating 'checked'
+node checked: Checked { Type: int16, Value: 1 } // H: While instantiating `checked`
 
 // TEST: numeric message
 assert true, 1; // E: Syntax error

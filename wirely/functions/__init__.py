@@ -29,7 +29,7 @@ def bind_native_function(function_name: str, parameter_types: Sequence[Type],
     Implementations must be total; exceptions propagate to the caller."""
     entry = extension.functions.get(function_name)
     if entry is None:
-        raise ValueError(f'Cannot find native function {function_name!r}')
+        raise ValueError(f'Cannot find native function `{function_name}`')
     from ..runtime.signatures import validate_function
     validate_function(function_name, entry.signature, parameter_types, return_type)
     implementation = entry.load()

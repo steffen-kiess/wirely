@@ -76,7 +76,7 @@ class Type(abc.ABC):
     def _runtime_representation_error(self) -> str | None:
         if self.contains_parameters:
             return 'type parameters require resolution'
-        return f'{self} is parameter-only'
+        return f'`{self}` is parameter-only'
 
     def runtime_type_error(self) -> str | None:
         """Return the reason for runtime ineligibility, or None."""
@@ -145,7 +145,7 @@ class Type(abc.ABC):
 
     def to_text(self, value: Any) -> str:
         """Format value as text, using Wirely literal syntax where it exists."""
-        raise ValueError(f'{self} values cannot be formatted as text')
+        raise ValueError(f'`{self}` values cannot be formatted as text')
 
 
 # A parameterless primitive type, without fields or inner types
@@ -187,7 +187,7 @@ class TypePrimitive(Type):
 
     def less(self, value1: Any, value2: Any) -> bool:
         if not self.is_ordered:
-            raise ValueError(f'{self} values are not ordered')
+            raise ValueError(f'`{self}` values are not ordered')
         return self.verify_value(value1) < self.verify_value(value2)
 
 
@@ -306,7 +306,7 @@ class TypeStruct(Type):
 
     def less(self, value1: Any, value2: Any) -> bool:
         if not self.is_ordered:
-            raise ValueError(f'{self} values are not ordered')
+            raise ValueError(f'`{self}` values are not ordered')
         return self.verify_value(value1) < self.verify_value(value2)
 
     def opaque_class(self) -> type | None:
@@ -346,7 +346,7 @@ class TypeStruct(Type):
     def _runtime_representation_error(self) -> str | None:
         for name, field in self.fields.items():
             if not field.has_runtime_representation:
-                return f'field {name}: {field._runtime_representation_error()}'
+                return f'field `{name}`: {field._runtime_representation_error()}'
         return None
 
     def __str__(self) -> str:
@@ -358,7 +358,7 @@ class TypeStruct(Type):
     def make_value(self, fields: Mapping[str, Any]) -> tuple:
         """Return the value with these field values by name."""
         if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
-            raise ValueError(f'Expected exactly the fields of {self.name}: {", ".join(self.fields)}')
+            raise ValueError(f'Expected exactly the fields of `{self.name}`: {", ".join(f"`{field}`" for field in self.fields)}')
         return self.verify_value(tuple(fields[name] for name in self.fields))
 
     def index(self, name: str) -> int:
@@ -367,7 +367,7 @@ class TypeStruct(Type):
 
     def verify_value(self, value: Any) -> Any:
         if type(value) is not tuple or len(value) != len(self.fields):
-            raise ValueError(f'Expected a value of struct type {self.name}, got {value!r}')
+            raise ValueError(f'Expected a value of struct type `{self.name}`, got {value!r}')
         return tuple(field_type.verify_value(field) for field_type, field in zip(self.fields.values(), value))
 
     def equals(self, value1: Any, value2: Any) -> bool:
@@ -382,7 +382,7 @@ class TypeStruct(Type):
     def _parse_impl(self, text: str) -> Any:
         python_type = self.opaque_class()
         if python_type is None or not hasattr(python_type, 'parse'):
-            raise ValueError(f'{self.name} does not support text parsing')
+            raise ValueError(f'`{self.name}` does not support text parsing')
         from ..runtime.native_values import from_native
         assert self.native_types is not None
         return from_native(None, self, python_type.parse(text), native_types=self.native_types)
@@ -555,9 +555,9 @@ class TypeInt(TypePrimitive):
 
     def verify_value(self, value: Any) -> Any:
         if type(value) is not int:
-            raise ValueError(f'Expected an integer for {self}, got {value!r}')
+            raise ValueError(f'Expected an integer for `{self}`, got {value!r}')
         if not self.min_value <= value <= self.max_value:
-            raise ValueError(f'{value} is out of range for {self}')
+            raise ValueError(f'{value} is out of range for `{self}`')
         return value
 
     def bitwise(self, operation: str, left: Any, right: Any = None) -> Any:
@@ -710,11 +710,11 @@ class TypeEnum(TypePrimitive):
         names: dict[int, str] = {}
         for index, (member, number) in enumerate(members.items()):
             if type(number) is not int or not underlying_type.min_value <= number <= underlying_type.max_value:
-                raise ValueError(f'Enum member {member} does not fit {underlying_type}')
+                raise ValueError(f'Enum member `{member}` does not fit `{underlying_type}`')
             if not is_open and number != index:
                 raise ValueError('Closed enum numbers must be consecutive from zero in declaration order')
             if number in names:
-                raise ValueError(f'Enum members {names[number]} and {member} have the same number {number}')
+                raise ValueError(f'Enum members `{names[number]}` and `{member}` have the same number {number}')
             names[number] = member
         super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
         self.is_open = is_open
@@ -727,7 +727,7 @@ class TypeEnum(TypePrimitive):
         if self.is_open:
             return self.underlying_type.verify_value(value)
         if type(value) is not int or not 0 <= value < len(self.members):
-            raise ValueError(f'Expected a member number of {self}, got {value!r}')
+            raise ValueError(f'Expected a member number of `{self}`, got {value!r}')
         return value
 
     def member_name(self, number: int) -> str | None:
@@ -735,7 +735,7 @@ class TypeEnum(TypePrimitive):
         try:
             return self._names[number]
         except KeyError:
-            raise ValueError(f'Unnamed value {number} of {self}') from None
+            raise ValueError(f'Unnamed value {number} of `{self}`') from None
 
     def default_value(self) -> Any:
         return 0
@@ -755,7 +755,7 @@ class TypeEnum(TypePrimitive):
                 pass
             else:
                 return self.verify_value(number)
-        raise ValueError(f'Unknown member {text!r} of {self.name}')
+        raise ValueError(f'Unknown member `{text}` of `{self.name}`')
 
     def json_encode(self, value: Any, format: str | None) -> Any:
         if format not in (None, 'SnakeCase'):
@@ -813,7 +813,7 @@ def integer_range(value_type: Type) -> tuple[int, int]:
         return integer_range(value_type.underlying_type)
     if isinstance(value_type, TypeBoolean):
         return 0, 1
-    raise ValueError(f'{value_type} is not an integer, enum, or boolean type')
+    raise ValueError(f'`{value_type}` is not an integer, enum, or boolean type')
 
 
 def convert(source_type: Type, target_type: Type, overflow: str, value: Any) -> Any:
@@ -826,7 +826,7 @@ def convert(source_type: Type, target_type: Type, overflow: str, value: Any) -> 
         integer_range(source_type)
         number = int(source_type.verify_value(value))
     if not isinstance(target_type, (TypeInt, TypeBoolean)):
-        raise ValueError(f'Cannot convert to {target_type}')
+        raise ValueError(f'Cannot convert to `{target_type}`')
     result = _fit_integer(number, *integer_range(target_type), overflow)
     if isinstance(target_type, TypeBoolean):
         if overflow == 'checked':

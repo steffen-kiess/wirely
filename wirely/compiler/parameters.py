@@ -111,7 +111,7 @@ class ParameterValues(dict['NodeParameter', 'StaticValue']):
             names = [item.name.id_str for item in self._resolving] + [parameter.name.id_str]
             kind = ('static value' if any(item.is_constant for item in self._resolving + [parameter])
                     else 'parameter')
-            raise model.ProgramError(parameter.declaration, f'Cyclic {kind} resolution: {" -> ".join(names)}')
+            raise model.ProgramError(parameter.declaration, f'Cyclic {kind} resolution: {" -> ".join(f"`{name}`" for name in names)}')
 
     def __getitem__(self, parameter: NodeParameter) -> StaticValue:
         if parameter in self._resolved:
@@ -144,7 +144,7 @@ class ParameterValues(dict['NodeParameter', 'StaticValue']):
                     parameter.default_value, value_type, par_values=self,
                 )
             if value is None:
-                raise model.ProgramError(parameter.declaration, f'Unable to resolve parameter {parameter.name.id_str}')
+                raise model.ProgramError(parameter.declaration, f'Unable to resolve parameter `{parameter.name.id_str}`')
             value = (resolve_type(value, self) if isinstance(value, model.Type)
                      else value.resolve_self(par_values=self))
             if isinstance(value, model.Value):

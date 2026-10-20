@@ -76,7 +76,7 @@ def merge_entries(category: str, normal: Iterable[Mapping[str, T]],
         result: dict[str, T] = {}
         for table in tables:
             for name in table.keys() & result.keys():
-                raise ValueError(f'Duplicate native {category} {name!r}')
+                raise ValueError(f'Duplicate native {category} `{name}`')
             result.update(table)
         return result
 
