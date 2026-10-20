@@ -46,9 +46,11 @@ def _native_enum(value_type: types.TypeEnum, path: tuple[str, ...], native_types
 
 
 def _native_struct(value_type: types.TypeStruct, path: tuple[str, ...], native_types: NativeTypes) -> type:
-    native = None if value_type.native_name is None else native_types.structs.get(value_type.native_name)
+    table = native_types.opaque_types if value_type.is_opaque else native_types.structs
+    native = None if value_type.native_name is None else table.get(value_type.native_name)
     if native is None:
-        raise _error(path, f'Struct {value_type} has no native representation')
+        raise _error(path, f'{"Opaque struct" if value_type.is_opaque else "Struct"} {value_type} '
+                     'has no native representation')
     return native.python_type
 
 
@@ -71,8 +73,14 @@ def _to_native(signature: signatures.SignatureType | None, value_type: types.Typ
         python_type = _native_struct(value_type, path, native_types)
         if type(value) is not tuple or len(value) != len(value_type.fields):
             raise _error(path, f'Expected a tuple of {len(value_type.fields)} fields for {value_type}, got {value!r}')
-        return python_type(*(_to_native(None, field_type, field, path + (f'in field {name!r}',), native_types)
-                             for (name, field_type), field in zip(value_type.fields.items(), value)))
+        fields = (_to_native(None, field_type, field, path + (f'in field {name!r}',), native_types)
+                  for (name, field_type), field in zip(value_type.fields.items(), value))
+        if not value_type.is_opaque:
+            return python_type(*fields)
+        try:
+            return python_type.from_fields(*fields)  # type: ignore[attr-defined]
+        except ValueError as error:
+            raise _error(path, f'Invalid {value_type} value {value!r}: {error}') from error
     if isinstance(value_type, types.TypeEnum):
         return _native_enum(value_type, path, native_types)(value_type.verify_value(value))
     if isinstance(value_type, types.TypeInt):
@@ -105,9 +113,12 @@ def _from_native(signature: signatures.SignatureType | None, value_type: types.T
         python_type = _native_struct(value_type, path, native_types)
         if type(value) is not python_type:
             raise _error(path, f'Expected a {python_type.__name__} for {value_type}, got {value!r}')
-        assert isinstance(value, tuple)
+        fields = value.to_fields() if value_type.is_opaque else value  # type: ignore[attr-defined]
+        assert isinstance(fields, tuple)
+        if len(fields) != len(value_type.fields):
+            raise _error(path, f'Expected {len(value_type.fields)} fields from {python_type.__name__}, got {fields!r}')
         return tuple(_from_native(None, field_type, field, path + (f'in field {name!r}',), native_types)
-                     for (name, field_type), field in zip(value_type.fields.items(), value))
+                     for (name, field_type), field in zip(value_type.fields.items(), fields))
     if isinstance(value_type, types.TypeEnum):
         python_type = _native_enum(value_type, path, native_types)
         if type(value) is not python_type:

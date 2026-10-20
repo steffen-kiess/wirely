@@ -8,7 +8,7 @@ from . import _bindings, _signatures
 
 __all__ = ["extension"]
 from .enums import _native_enum_types
-from .structs import _native_struct_types
+from .structs import _native_opaque_types, _native_struct_types
 
 extension = RuntimeNativeExtension(
     states={name: NativeInitializer(signature, _bindings.states[name])
@@ -18,4 +18,5 @@ extension = RuntimeNativeExtension(
     functions={name: NativeFunction(signature, _bindings.functions[name])
                for name, signature in _signatures.native_functions.items()},
     resources=_bindings.resources, enums=_native_enum_types, structs=_native_struct_types,
+    opaque_types=_native_opaque_types,
 )

@@ -75,11 +75,10 @@ class StructDefinition:
     def __init__(self, declaration: DeclarationStructType, scope: 'model.Scope') -> None:
         self.declaration = declaration
         self.scope = scope
-        self.value_type: model.types.Type | None = None
+        self.value_type: model.types.TypeStruct | None = None
         self.resolving = False
 
-    def resolve_fields(self) -> 'model.types.Type':
-        """Return the struct type, or the built-in type of an opaque struct."""
+    def resolve_fields(self) -> 'model.types.TypeStruct':
         if self.value_type is not None:
             return self.value_type
         if self.resolving:
@@ -103,24 +102,24 @@ class StructDefinition:
             if self.declaration.is_native or self.declaration.is_opaque:
                 alias = self.declaration.alias
                 native_name = alias.value if alias is not None else fullname
-            if native_name is not None and self.declaration.is_opaque:
-                self.value_type = self._opaque_type(native_name, tuple(fields.values()))
-            else:
-                self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name)
+            native_types = None
+            if self.declaration.is_opaque:
+                native_types = self.scope.coordinator.global_node_type.native_extension.native_types
+                assert native_name is not None
+                if native_name not in native_types.opaque_types:
+                    # Without an implementation, values have no literals or text, and linking fails.
+                    native_types = None
+            self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name,
+                                                     is_opaque=self.declaration.is_opaque, native_types=native_types)
+            if native_types is not None:
+                from wirely.runtime.linking import check_native_struct
+                try:
+                    check_native_struct(self.value_type, native_types)
+                except ValueError as error:
+                    raise ProgramError(self.declaration.alias or self.declaration.name, str(error)) from None
             return self.value_type
         finally:
             self.resolving = False
-
-    def _opaque_type(self, native_name: str, field_types: tuple['model.types.Type', ...]) -> 'model.types.Type':
-        entry = model.types.opaque_struct_types.get(native_name)
-        position = self.declaration.alias or self.declaration.name
-        if entry is None:
-            raise ProgramError(position, f'Unknown opaque struct native name {native_name!r}')
-        value_type, expected = entry
-        if field_types != expected:
-            raise ProgramError(position, f'Opaque struct {native_name} requires field types '
-                               f'({", ".join(str(field_type) for field_type in expected)})')
-        return value_type
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)

@@ -383,10 +383,7 @@ complement.
 | `boolean` | 1 | 1 | `00` or `01` |
 | Integer of width N bytes | N | N | Declared integer width |
 | Enum | Underlying integer size | Underlying integer alignment | Member number |
-| Struct | Through the last field's data bytes | Maximum field alignment | Fields in declaration order |
-| `Std.Duration` | 16 | 16 | `u128` units of 2^-64 s |
-| `Timer.MonotonicTime` | 24 | 16 | `u128` units of 2^-64 s, then `u64` generation |
-| `Schedule.TimeOfDay` | 16 | 16 | `u128` units of 2^-64 s since midnight |
+| Struct, including opaque structs such as `Std.Duration` | Through the last field's data bytes | Maximum field alignment | Fields in declaration order |
 | `Option[T]` | Data size of T + 1 | Alignment of T | Payload, then presence byte |
 
 Open enums use their declared underlying integer type. Closed enums use

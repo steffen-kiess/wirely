@@ -8,6 +8,7 @@ from wirely.native import check_state_type
 from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
 from wirely.generated.structs import StdFormatParts
 from wirely.types import InternalValue
+from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
 
 
 class DebugValuePrinter:

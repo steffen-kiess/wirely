@@ -107,11 +107,12 @@ engine = Engine(compile_nocatch(graph), extensions=[extension])
 ```
 
 `RuntimeNativeExtension` in `wirely.runtime.extensions` contains `states`,
-`procedures`, `functions`, `resources`, `enums`, and `structs`, keyed by
-native name. `NativeInitializer`, `NativeProcedure`, and `NativeFunction`
-entries bundle a signature with a lazy implementation loader. Resource
-entries load Python classes; enum and struct entries use `NativeEnum` and
-`NativeStruct` from `wirely.types.value_types`.
+`procedures`, `functions`, `resources`, `enums`, `structs`, and
+`opaque_types`, keyed by native name. `NativeInitializer`,
+`NativeProcedure`, and `NativeFunction` entries bundle a signature with a
+lazy implementation loader. Resource entries load Python classes; enum,
+struct, and opaque struct entries use `NativeEnum`, `NativeStruct`, and
+`NativeOpaque` from `wirely.types.value_types`.
 `CompilerNativeExtension` in `wirely.compiler.extensions` contains only
 `functions`: `NativeConstantFunction` entries with signatures and loaders.
 All enum and struct classes belong to the runtime extension, including
@@ -120,6 +121,10 @@ parameter-only types. Extension mappings are copied and read-only.
 Built-in extensions are included automatically. Set
 `include_builtin_extensions=False` to supply all bindings yourself;
 this is independent of `add_std`, which includes Wirely source declarations.
+Standard library literals such as `"PT1S"` then need the built-in
+`opaque_types`: pass
+`RuntimeNativeExtension(opaque_types=extension.opaque_types)` with the
+`extension` of `wirely.generated`.
 Duplicate native names within a category are rejected. For replacements,
 pass `override_extensions` and, when compiling,
 `compiler_override_extensions`. Each override replaces a whole entry,
@@ -227,6 +232,7 @@ resolved defaults are ordinary values.
 | `Timer.MonotonicTime` | `wirely.MonotonicTime`, with `generation` and `ticks` |
 | Native enums | Generated Python enum |
 | Native structs | Generated `NamedTuple` |
+| Opaque structs | The class implementing it |
 | `ValueType` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
@@ -257,11 +263,27 @@ and named after the native name, such as `KNXProtocol` for
 for example from a newer library; they are unnamed members whose `name` is
 `None`, so report such values as unsupported.
 
+An opaque struct is implemented by a class named after the last part of
+its native name, in the module of `wirely.native` for its namespace, such
+as `wirely.native.std.Duration` for `Std.Duration`. The generated
+extension loads it from there; external packages use their own `native`
+package. Its values have the struct's fields in the representation above:
+
+- `from_fields(*fields)` returns the value with these fields, or raises
+  `ValueError` if the fields are not a valid value. The value with all
+  fields zero must be valid; it is the default.
+- `to_fields()` returns the fields of a value.
+- The optional class method `parse(text)` returns the value of a string
+  literal or of the text format, and the optional `to_text()` formats a
+  value.
+
 Before running a program, the runtime checks the native interfaces it uses:
 
 - Each native enum must have the same kind, underlying type, and, for a
   closed enum, member count.
 - Each native struct must have the same field types in the same order.
+- Each opaque struct must have the same field types in the same order, and
+  its implementation must accept the program's static values.
 - Each native initializer, procedure, and runtime function must have the
   stage, keys of inputs, outputs, and `uses`, resource types, and value
   types its selected extension entry declares. Each type variable is replaced

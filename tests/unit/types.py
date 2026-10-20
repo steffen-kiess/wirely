@@ -5,6 +5,7 @@ from unittest.mock import patch
 from wirely.runtime.extensions import NativeTypes
 from wirely.generated import extension as builtin_extension
 import wirely
+from tests.infra.support import internal, library_type
 
 
 checks = TestCase()
@@ -53,7 +54,7 @@ def check_parsing_and_conversions():
     string = wirely.value_types.string
     assert string.json_decode('hello').extract(string, native_types=builtin_extension.native_types) == 'hello'
     assert string.from_native('hello', native_types=builtin_extension.native_types).json_encode() == 'hello'
-    time_of_day = wirely.value_types.time_of_day
+    time_of_day = wirely.ValueType(library_type('Schedule.TimeOfDay'))
     assert time_of_day.parse('11:17').extract(time_of_day, native_types=builtin_extension.native_types) == wirely.TimeOfDay.from_parts(11, 17)
     # Fractions round to the nearest 2**-64 s; times before 24:00 stay before it.
     last = wirely.TimeOfDay(ticks=wirely.TimeOfDay.END_TICKS - 1)
@@ -62,7 +63,7 @@ def check_parsing_and_conversions():
     assert wirely.TimeOfDay.parse('00:00:01.1') == wirely.TimeOfDay.from_parts(0, 0, 1, 1_844_674_407_370_955_162)
     assert wirely.value_types.unit.parse('()').extract(wirely.value_types.unit, native_types=builtin_extension.native_types) == wirely.Unit()
     for descriptor, text in [(wirely.value_types.unit, '0'),
-                             (wirely.value_types.time_of_day, '123')]:
+                             (time_of_day, '123')]:
         with checks.assertRaises(ValueError):
             descriptor.parse(text)
 
@@ -311,7 +312,7 @@ def check_dynamic_values():
     # Formatting and conversions depend on the type.
     text = wirely.value_types.string.from_native('a"b', native_types=builtin_extension.native_types)
     assert (text.to_text(), text.json_encode()) == ('"a\\"b"', 'a"b')
-    time = wirely.value_types.time_of_day.from_native(wirely.TimeOfDay.from_parts(11, 17), native_types=builtin_extension.native_types)
+    time = wirely.ValueType(library_type('Schedule.TimeOfDay')).from_native(wirely.TimeOfDay.from_parts(11, 17), native_types=builtin_extension.native_types)
     for operation in (time.json_encode, time.to_csv_value):
         with checks.assertRaises(ValueError):
             operation()
@@ -356,8 +357,8 @@ def check_times():
         with checks.assertRaises(ValueError):
             wirely.MonotonicTime(generation=generation, ticks=ticks)
     # The default value's generation 0 is never current.
-    default = wirely.types.MonotonicTime.default_value()
-    assert default == wirely.MonotonicTime(generation=0, ticks=0)
+    default = wirely.MonotonicTime(generation=0, ticks=0)
+    assert library_type('Timer.MonotonicTime').default_value() == internal(default)
     assert not wirely.MonotonicTime.is_comparable(instant, default)
     with checks.assertRaises(Exception):
         wirely.MonotonicTime.compare(instant, default)
@@ -376,7 +377,7 @@ def check_times():
     assert wirely.Duration.parse('PT2S') == span
     for text in ('P', 'PT', '-PT1S', 'P1M', 'invalid'):
         with checks.assertRaises(ValueError):
-            wirely.value_types.duration.parse(text)
+            wirely.ValueType(library_type('Std.Duration')).parse(text)
     with checks.assertRaises(Exception):
         wirely.Duration(ticks=-1)
     longer = wirely.Duration.from_seconds(5)
@@ -412,17 +413,19 @@ def check_to_text():
     types = wirely.types
     mode = types.TypeEnum('Example.Mode', {'Off': 0, 'Heat': 1}, is_open=True, underlying_type=types.int8)
     reading = types.TypeStruct('Example.Reading', {'mode': mode, 'level': types.int16})
+    time_of_day, monotonic_time = library_type('Schedule.TimeOfDay'), library_type('Timer.MonotonicTime')
     cases = [
         (types.unit, wirely.Unit(), '()'),
         (types.boolean, False, 'false'),
         (types.int8, -42, '-42'),
         (types.uint64, 2**64 - 1, '18446744073709551615'),
         (mode, 1, 'Example.Mode.Heat'),
-        (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('08:00:30.5'), '08:00:30.5'),
-        (types.TimeOfDay, wirely.types.time.TimeOfDay.parse('24:00'), '24:00'),
-        (types.MonotonicTime, wirely.MonotonicTime(generation=1, ticks=12345 * 2**64 + 3 * 2**62), 'MonotonicTime(1, 12345.75s)'),
-        (types.MonotonicTime, wirely.MonotonicTime(generation=2, ticks=3 * 2**64), 'MonotonicTime(2, 3s)'),
-        (types.MonotonicTime, wirely.MonotonicTime(generation=0, ticks=5), 'MonotonicTime(invalid)'),
+        (time_of_day, internal(wirely.TimeOfDay.parse('08:00:30.5')), '08:00:30.5'),
+        (time_of_day, internal(wirely.TimeOfDay.parse('24:00')), '24:00'),
+        (monotonic_time, internal(wirely.MonotonicTime(generation=1, ticks=12345 * 2**64 + 3 * 2**62)),
+         'MonotonicTime(1, 12345.75s)'),
+        (monotonic_time, internal(wirely.MonotonicTime(generation=2, ticks=3 * 2**64)), 'MonotonicTime(2, 3s)'),
+        (monotonic_time, internal(wirely.MonotonicTime(generation=0, ticks=5)), 'MonotonicTime(invalid)'),
         (types.TypeOption(reading), wirely.Some((1, -5)), 'Some(Example.Reading { mode: Example.Mode.Heat, level: -5 })'),
         (types.TypeOption(types.uint8), None, 'None'),
         (types.TypeStruct('Empty', {}), (), 'Empty {}'),
@@ -442,7 +445,7 @@ def check_to_text():
                         (60 * second - 1, 'PT59.99999999999999999995S'),
                         (2**128 - 1, 'P213503982334601DT7H15.99999999999999999995S')]:
         duration = wirely.Duration(ticks=ticks)
-        assert types.Duration.to_text(duration) == text, duration.to_iso()
+        assert library_type('Std.Duration').to_text(internal(duration)) == text, duration.to_iso()
         assert wirely.Duration.parse(text) == duration
     # DynamicValues format the same way.
     optional = wirely.value_types.option(wirely.value_types.uint8)
@@ -515,9 +518,9 @@ def check_default_values():
              for prefix in ('int', 'uint') for bits in (8, 16, 32, 64, 128)]
     cases += [
         (types.boolean, False), (types.String, ''), (types.unit, wirely.Unit()),
-        (types.Duration, wirely.Duration(ticks=0)),
-        (types.MonotonicTime, wirely.MonotonicTime(generation=0, ticks=0)),
-        (types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0)), (types.ValueType, types.unit),
+        (library_type('Std.Duration'), internal(wirely.Duration(ticks=0))),
+        (library_type('Timer.MonotonicTime'), internal(wirely.MonotonicTime(generation=0, ticks=0))),
+        (library_type('Schedule.TimeOfDay'), internal(wirely.TimeOfDay.from_parts(0, 0))), (types.ValueType, types.unit),
         (enum_type, 0), (types.TypeList(types.String), ()),
         (types.TypeList(types.TypeList(types.uint8)), ()),
         (types.TypeOption(enum_type), None),

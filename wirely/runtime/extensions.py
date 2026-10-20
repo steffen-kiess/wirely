@@ -7,7 +7,7 @@ from dataclasses import dataclass, field, fields
 from types import MappingProxyType
 from typing import TYPE_CHECKING, TypeVar
 
-from ..types.value_types import NativeEnum, NativeStruct
+from ..types.value_types import NativeEnum, NativeOpaque, NativeStruct
 from . import signatures
 
 if TYPE_CHECKING:
@@ -21,6 +21,7 @@ class NativeTypes:
 
     enums: Mapping[str, NativeEnum] = field(default_factory=dict)
     structs: Mapping[str, NativeStruct] = field(default_factory=dict)
+    opaque_types: Mapping[str, NativeOpaque] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for item in fields(self):
@@ -55,6 +56,7 @@ class RuntimeNativeExtension:
     resources: Mapping[str, Callable[[], type]] = field(default_factory=dict)
     enums: Mapping[str, NativeEnum] = field(default_factory=dict)
     structs: Mapping[str, NativeStruct] = field(default_factory=dict)
+    opaque_types: Mapping[str, NativeOpaque] = field(default_factory=dict)
 
     native_types: NativeTypes = field(init=False)
 
@@ -62,7 +64,7 @@ class RuntimeNativeExtension:
         for item in fields(self):
             if item.init:
                 object.__setattr__(self, item.name, MappingProxyType(dict(getattr(self, item.name))))
-        object.__setattr__(self, 'native_types', NativeTypes(self.enums, self.structs))
+        object.__setattr__(self, 'native_types', NativeTypes(self.enums, self.structs, self.opaque_types))
 
 
 T = TypeVar('T')

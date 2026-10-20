@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import enum
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar, cast
 
 from .. import types as _types
 from .integers import Int8, Int16, Int32, Int64, Int128, UInt8, UInt16, UInt32, UInt64, UInt128
 from .option import Some
-from .time import Duration, MonotonicTime, TimeOfDay
 from .unit import Unit
 
 if TYPE_CHECKING:
@@ -63,6 +63,31 @@ class NativeStruct:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'fields', tuple(self.fields))
+
+
+@dataclass(frozen=True, slots=True)
+class NativeOpaque:
+    """What the runtime expects of an opaque struct; field types in order are its contract, not names.
+
+    The class builds a value with from_fields(*fields), raising ValueError
+    for invalid fields, and returns them with to_fields(). Both use the
+    native representation of the fields. Optionally, the class method
+    parse(text) and the method to_text() convert values from and to text.
+    The value with all fields zero must be valid.
+    """
+
+    fields: tuple  # Signature type of each field (wirely.runtime.signatures), in order.
+    load: Callable[[], type]  # Returns the class implementing the values.
+    _loaded: list = field(default_factory=list, init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'fields', tuple(self.fields))
+
+    @property
+    def python_type(self) -> type:
+        if not self._loaded:
+            self._loaded.append(self.load())
+        return self._loaded[0]
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -237,7 +262,4 @@ uint32: ValueType[UInt32] = ValueType(_types.uint32)
 uint64: ValueType[UInt64] = ValueType(_types.uint64)
 uint128: ValueType[UInt128] = ValueType(_types.uint128)
 string: ValueType[str] = ValueType(_types.String)
-duration: ValueType[Duration] = ValueType(_types.Duration)
-time_of_day: ValueType[TimeOfDay] = ValueType(_types.TimeOfDay)
-monotonic_time: ValueType[MonotonicTime] = ValueType(_types.MonotonicTime)
 value_type: ValueType[ValueType[Any]] = ValueType(_types.ValueType)

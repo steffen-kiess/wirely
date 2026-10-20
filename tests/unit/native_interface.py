@@ -17,8 +17,8 @@ from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import NativeProcedure
 from tests.infra.support import test_extension, test_contracts
-from wirely.runtime.signatures import Builtin, Enum, Int
-from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
+from wirely.runtime.signatures import Builtin, Enum, Int, Opaque
+from wirely.types.value_types import NativeEnum, NativeOpaque, NativeStruct, OpenIntEnum
 import wirely.generated.structs
 import wirely.generated.enums
 
@@ -33,19 +33,21 @@ class Raw(NamedTuple):
     result: object
 
 
-def compile_program(sources):
-    graph = wirely.compiler.compile_strs(sources)
+def compile_program(sources, extensions=()):
+    graph = wirely.compiler.compile_strs(sources, extensions=extensions)
     assert graph is not None
     program = program_compiler.compile(graph)
     assert program is not None
     return program
 
 
-def make_engine(declaration, callback, *, extra='', parameters='', singleton=False, override_extensions=()):
+def make_engine(declaration, callback, *, extra='', parameters='', singleton=False, override_extensions=(),
+                compile_extensions=()):
     """Create an Engine with a TestLibrary.Probe whose native procedure run calls a callback.
 
     The callback receives the procedure's services, inputs, and prepared static values by
     Python name and returns its outputs by Python name, None for none, or a Raw result.
+    compile_extensions are the runtime extensions of the compilation.
     """
     qualifier = 'singleton ' if singleton else ''
     source = f'''
@@ -58,7 +60,8 @@ namespace TestLibrary {{
 node probe: TestLibrary.Probe {{ {parameters} }}
 {extra}
 '''
-    program = compile_program([('wirely/lib/std.wrl', std_source), ('<native-interface>', source)])
+    program = compile_program([('wirely/lib/std.wrl', std_source), ('<native-interface>', source)],
+                              compile_extensions)
     with test_contracts(program.graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
@@ -723,10 +726,10 @@ def check_native_interface_signatures():
     )
     assert native_interfaces.native_procedures['Timer.MonotonicTimestamp:run'] == Procedure(
         stage='default', depends={'input': Port('event', TypeVar('Type'))},
-        produces={'output': Port('event', Builtin('Timer.MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
+        produces={'output': Port('event', Opaque('Timer.MonotonicTime'))}, uses={'Type': Builtin('ValueType')},
     )
     assert native_interfaces.native_functions['Std.Duration.CheckedMul'] == Function(
-        (Builtin('Std.Duration'), Int(32, False)), Option(Builtin('Std.Duration')))
+        (Opaque('Std.Duration'), Int(32, False)), Option(Opaque('Std.Duration')))
     # Constant functions run in the compiler, not the runtime.
     assert 'Std.ParseFormat' not in native_interfaces.native_functions
 
@@ -927,6 +930,74 @@ namespace Example {
     ]:
         with checks.assertRaisesRegex(ValueError, message):
             make(registry)
+
+
+def check_native_opaque_types():
+    # An extension implements opaque structs: literals parse with its class, native code receives its
+    # instances, and linking checks field types and static values.
+    def percent_class(maximum):
+        class Percent:
+            def __init__(self, value):
+                if not 0 <= value <= maximum:
+                    raise ValueError(f'{value}% is out of range')
+                self.value = value
+
+            def __eq__(self, other):
+                return isinstance(other, Percent) and other.value == self.value
+
+            @staticmethod
+            def from_fields(value):
+                return Percent(value.value)
+
+            def to_fields(self):
+                return (wirely.UInt8(self.value),)
+
+            @staticmethod
+            def parse(text):
+                if not text.endswith('%'):
+                    raise ValueError(f'Invalid percentage {text!r}')
+                return Percent(int(text[:-1]))
+
+            def to_text(self):
+                return f'{self.value}%'
+
+        return Percent
+
+    Percent = percent_class(100)
+    received = []
+
+    def check_values(services, inputs, values):
+        received.append(values['level'])
+
+    def make(opaque_type, level='"42%"'):
+        # The compiler's implementation accepts every uint8 percentage.
+        compiled = RuntimeNativeExtension(opaque_types={
+            'Test.Percent': NativeOpaque((Int(8, False),), lambda: percent_class(255))})
+        linked = RuntimeNativeExtension(opaque_types={} if opaque_type is None else {'Test.Percent': opaque_type})
+        return make_engine(f'''
+    native procedure run uses Level as level;
+    constant Level: Example.Percent = {level};
+    ''', check_values, extra='''
+namespace Example {
+  opaque struct type Percent as "Test.Percent" { value: uint8 }
+}
+node constant: Std.Constant { Type: Example.Percent, Value: "7%" }
+''', compile_extensions=[compiled], override_extensions=[linked])
+
+    probe = make(NativeOpaque((Int(8, False),), lambda: Percent))
+    probe.step()
+    assert received == [Percent(42)]
+    probe.assert_value_is('constant', (7,))
+    percent = wirely.ValueType(probe.program.variables['constant'].constant.value_type)
+    assert percent.from_native(Percent(5), native_types=probe.native_types).to_text() == '5%'
+    for opaque_type, level, message in [
+        (None, '"42%"', "Cannot find opaque struct type 'Test.Percent'"),
+        (NativeOpaque((Int(16, False),), lambda: Percent), '"42%"',
+         "Opaque struct type 'Test.Percent' field 0 has type uint8, expected uint16"),
+        (NativeOpaque((Int(8, False),), lambda: Percent), '"150%"', 'Invalid Example.Percent value'),
+    ]:
+        with checks.assertRaisesRegex(ValueError, message):
+            make(opaque_type, level)
 
 
 def check_port_keys():
@@ -1301,6 +1372,7 @@ check_native_interface_signatures()
 check_native_signature_linking()
 check_struct_outputs()
 check_native_structs()
+check_native_opaque_types()
 check_port_keys()
 check_native_methods()
 check_procedure_construction()

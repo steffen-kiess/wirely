@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from wirely.types.value_types import NativeStruct
+from wirely.types.value_types import NativeOpaque, NativeStruct
 
 __all__ = [
 ]
@@ -13,4 +13,9 @@ __all__ = [
 
 # Expected native structs by native name.
 _native_struct_types: dict[str, NativeStruct] = {
+}
+
+
+# Expected opaque structs by native name.
+_native_opaque_types: dict[str, NativeOpaque] = {
 }

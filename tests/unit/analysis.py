@@ -11,6 +11,7 @@ from wirely.compiler.attributes import validate_files
 from wirely.compiler.coordinator import CompilerCoordinator
 from wirely.compiler.diagnostics import WarningSink, error_diagnostics
 from wirely.compiler.native_functions import validate_collisions
+from wirely.runtime.extensions import resolve_extensions
 from wirely.compiler.outline import (
     Connection, Constant, Node, NodeType, Parameter, Port, Procedure, ProcedurePort, State, Binding,
 )
@@ -186,6 +187,7 @@ def strict_interface_error(sources):
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
     global_node_type = model.NodeType(model.DeclarationNodeType((), None, tuple(declarations), source_position=position), None)
     global_node_type.services = MappingProxyType({})
+    global_node_type.native_extension = resolve_extensions()
     warnings = WarningSink(lambda diagnostic: None)
     coordinator = CompilerCoordinator(global_node_type, warnings=warnings)
     try:

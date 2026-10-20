@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import itertools
 import sys
 import types
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from wirely.compiler import model
 from wirely.runtime.engine import Engine
+from wirely.types import TypeStruct
 
 if TYPE_CHECKING:
     from wirely.program import Program
@@ -105,3 +107,28 @@ def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine
     """Create an engine using the test fixture extension."""
     from tests.infra.native_extension.generated import extension
     return Engine(program, extensions=[extension], **kwargs)
+
+
+def internal(value: Any) -> Any:
+    """Return the internal value of an opaque struct value, also inside options.
+
+    Engine values of opaque structs, such as wirely.Duration, are tuples of their fields.
+    """
+    if isinstance(value, model.Some):
+        return model.Some(internal(value.value))
+    if hasattr(value, 'to_fields'):
+        return tuple(field.value for field in value.to_fields())
+    return value
+
+
+@functools.cache
+def library_type(name: str) -> TypeStruct:
+    """Return a struct type declared by the standard libraries, such as Std.Duration."""
+    from wirely.compiler import compile_strs, standard_library_sources
+    graph = compile_strs(standard_library_sources(['std', 'schedule', 'timer']))
+    assert graph is not None
+    *namespaces, type_name = name.split('.')
+    scope: model.Scope = graph
+    for namespace in namespaces:
+        scope = scope.libraries[namespace]
+    return scope.struct_types[type_name].resolve_fields()

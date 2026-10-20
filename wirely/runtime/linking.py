@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
 from ..program import Constant, Program, used_declared_types
-from ..types import Type, TypeEnum, TypeStruct
-from .extensions import RuntimeNativeExtension
+from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
+from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
 from .resources import ResourceType
@@ -71,23 +71,52 @@ def link_native_enums(program: Program, extension: RuntimeNativeExtension) -> No
 
 
 def link_native_structs(program: Program, extension: RuntimeNativeExtension) -> None:
-    """Check each native struct against the runtime's expectations; field names are not compared."""
-    from .signatures import describe, matches
+    """Check each native and opaque struct against the runtime's expectations; field names are not compared."""
     for struct_type in used_declared_types(program):
         if not isinstance(struct_type, TypeStruct) or struct_type.native_name is None:
             continue
-        name = struct_type.native_name
-        expected = extension.structs.get(name)
-        if expected is None:
-            raise ValueError(f'Cannot find native struct type {name!r}')
-        field_types = tuple(struct_type.fields.values())
-        if len(field_types) != len(expected.fields):
-            raise ValueError(f'Native struct type {name!r} must have {len(expected.fields)} fields, '
-                             f'got {len(field_types)}')
-        for index, (field_type, signature_type) in enumerate(zip(field_types, expected.fields)):
-            if not matches(signature_type, field_type, {}):
-                raise ValueError(f'Native struct type {name!r} field {index} has type {field_type}, '
-                                 f'expected {describe(signature_type, {})}')
+        check_native_struct(struct_type, extension.native_types)
+
+
+def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> None:
+    """Check a native or opaque struct against an implementation; raise ValueError on a mismatch."""
+    from .signatures import describe, matches
+    name = struct_type.native_name
+    assert name is not None
+    kind = 'Opaque struct type' if struct_type.is_opaque else 'Native struct type'
+    expected = (native_types.opaque_types if struct_type.is_opaque else native_types.structs).get(name)
+    if expected is None:
+        raise ValueError(f'Cannot find {kind.lower()} {name!r}')
+    field_types = tuple(struct_type.fields.values())
+    if len(field_types) != len(expected.fields):
+        raise ValueError(f'{kind} {name!r} must have {len(expected.fields)} fields, got {len(field_types)}')
+    for index, (field_type, signature_type) in enumerate(zip(field_types, expected.fields)):
+        if not matches(signature_type, field_type, {}):
+            raise ValueError(f'{kind} {name!r} field {index} has type {field_type}, '
+                             f'expected {describe(signature_type, {})}')
+
+
+def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> None:
+    """Check static and initial values containing opaque structs with their implementations."""
+    from .native_values import to_native
+    values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
+    for instance in program.instances.values():
+        values += [(constant.value_type, constant.value) for constant in instance.initializer_values.values()]
+    for schedule in program.procs.values():
+        for procedure in schedule:
+            values += [(constant.value_type, constant.value) for constant in procedure.values.values()]
+    values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
+    for value_type, value in values:
+        if _contains_opaque(value_type):
+            to_native(None, value_type, value, native_types=extension.native_types)
+
+
+def _contains_opaque(value_type: Type) -> bool:
+    if isinstance(value_type, TypeStruct):
+        return value_type.is_opaque or any(_contains_opaque(field) for field in value_type.fields.values())
+    if isinstance(value_type, (TypeOption, TypeList)):
+        return _contains_opaque(value_type.inner_type)
+    return False
 
 
 def link_native_signatures(program: Program, extension: RuntimeNativeExtension) -> None:

@@ -1,4 +1,5 @@
 import wirely
+from tests.infra.support import internal
 
 
 def make(struct_type, **fields):
@@ -7,14 +8,14 @@ def make(struct_type, **fields):
 
 
 def check_equality():
-    at = wirely.TimeOfDay.from_parts(8, 0)
-    later = wirely.TimeOfDay.from_parts(8, 1)
-    span = wirely.Duration(ticks=1)
-    longer = wirely.Duration(ticks=2)
-    instant = wirely.MonotonicTime(generation=1, ticks=100)
-    next_instant = wirely.MonotonicTime(generation=1, ticks=101)
-    other_generation = wirely.MonotonicTime(generation=2, ticks=100)
-    default = wirely.MonotonicTime(generation=0, ticks=0)
+    at = internal(wirely.TimeOfDay.from_parts(8, 0))
+    later = internal(wirely.TimeOfDay.from_parts(8, 1))
+    span = internal(wirely.Duration(ticks=1))
+    longer = internal(wirely.Duration(ticks=2))
+    instant = internal(wirely.MonotonicTime(generation=1, ticks=100))
+    next_instant = internal(wirely.MonotonicTime(generation=1, ticks=101))
+    other_generation = internal(wirely.MonotonicTime(generation=2, ticks=100))
+    default = internal(wirely.MonotonicTime(generation=0, ticks=0))
     packet_type = engine.get_variable('packet_left').var_type
     nested_type = engine.get_variable('nested_left').var_type.inner_type
 
@@ -28,13 +29,13 @@ def check_equality():
     nested_value = nested(wirely.Some(value), wirely.Some(None))
     # Expected results are explicit, including presence, payload, and every field.
     cases = {
-        'time': [(at, wirely.TimeOfDay.from_parts(8, 0), True), (at, later, False)],
-        'duration': [(span, wirely.Duration(ticks=1), True),
+        'time': [(at, internal(wirely.TimeOfDay.from_parts(8, 0)), True), (at, later, False)],
+        'duration': [(span, internal(wirely.Duration(ticks=1)), True),
                      (span, longer, False)],
-        'monotonic': [(instant, wirely.MonotonicTime(generation=1, ticks=100), True),
+        'monotonic': [(instant, internal(wirely.MonotonicTime(generation=1, ticks=100)), True),
                       (instant, next_instant, False),
                       (instant, other_generation, False),
-                      (default, wirely.MonotonicTime(generation=0, ticks=0), True),
+                      (default, internal(wirely.MonotonicTime(generation=0, ticks=0)), True),
                       (default, instant, False)],
         'option': [(None, None, True), (None, wirely.Some(at), False),
                    (wirely.Some(at), wirely.Some(at), True),

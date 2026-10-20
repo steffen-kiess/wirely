@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 
 import wirely
-from tests.infra.support import test_engine
+from tests.infra.support import internal, test_engine
 
 
 async def run_engine_until(runtime, condition, *, timeout_s):
@@ -38,7 +38,7 @@ async def check_wakeup_passed_during_step():
     engine.step = step
     try:
         steps = engine.step_count
-        engine.get_native_state('reached_input').set_value(wirely.Some(now + wirely.Duration.from_seconds(1800)))
+        engine.get_native_state('reached_input').set_value(internal(wirely.Some(now + wirely.Duration.from_seconds(1800))))
         engine.triggered_procs_event.clear()
         await run_engine_until(engine, lambda: engine.step_count >= steps + 2, timeout_s=1)
         engine.assert_value_is('reached', wirely.Some(True))
@@ -53,7 +53,7 @@ async def check_wakeup_with_fake_time_offset():
     offset = wirely.Duration.from_seconds(3600)
     runtime.advance_fake_monotonic_time(offset)
     deadline = runtime.get_monotonic_time() + wirely.Duration.from_seconds(0.1)
-    runtime.get_native_state('reached_input').set_value(wirely.Some(deadline))
+    runtime.get_native_state('reached_input').set_value(internal(wirely.Some(deadline)))
     await run_engine_until(
         runtime, lambda: runtime.step_count > 0 and runtime.get_value('reached') == wirely.Some(True), timeout_s=5)
 
@@ -64,7 +64,7 @@ async def check_clock_change_wakes_waiting_engine(mode):
         runtime.enable_fixed_monotonic_time()
     span = wirely.Duration.from_seconds(3600)
     deadline = runtime.get_monotonic_time() + span
-    runtime.get_native_state('reached_input').set_value(wirely.Some(deadline))
+    runtime.get_native_state('reached_input').set_value(internal(wirely.Some(deadline)))
     run_task = asyncio.create_task(runtime.run())
     try:
         async with asyncio.timeout(1):

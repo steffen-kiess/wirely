@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import overload
 
 import wirely
+from .integers import UInt64, UInt128
 
 # Time values count units of 2**-64 seconds.
 TICKS_PER_SECOND = 2**64
@@ -81,6 +82,14 @@ class MonotonicTime:
     def __repr__(self) -> str:
         return f'MonotonicTime(generation={self.generation}, ticks={self.ticks})'
 
+    @staticmethod
+    def from_fields(ticks: UInt128, generation: UInt64) -> 'MonotonicTime':
+        """Return the time with the fields of the opaque struct Timer.MonotonicTime."""
+        return MonotonicTime(generation=generation.value, ticks=ticks.value)
+
+    def to_fields(self) -> tuple[UInt128, UInt64]:
+        return UInt128(self.ticks), UInt64(self.generation)
+
     def to_text(self) -> str:
         """Format as MonotonicTime(generation, seconds), or MonotonicTime(invalid) for generation 0."""
         if self.generation == 0:
@@ -117,6 +126,10 @@ class MonotonicTime:
         return hash(('MonotonicTime', self.generation, self.ticks))
 
 
+# TODO: Add type which represents offset to monotonic time and can be used e.g. for KNX messages which contain the current time?
+
+
+# TODO: Add to_csv_value and make json serializable?
 # Duration as defined in ISO 8601-1:2019 5.5.2, but cannot contain years or months. Ignores things like DST changes and leap seconds, only stores the number of 2**-64 s units internally. Cannot be negative.
 @functools.total_ordering
 @dataclass(frozen=True, slots=True, init=False, eq=False)
@@ -136,6 +149,17 @@ class Duration:
 
     def __repr__(self) -> str:
         return f'Duration(ticks={self.ticks})'
+
+    @staticmethod
+    def from_fields(ticks: UInt128) -> 'Duration':
+        """Return the duration with the field of the opaque struct Std.Duration."""
+        return Duration(ticks=ticks.value)
+
+    def to_fields(self) -> tuple[UInt128]:
+        return (UInt128(self.ticks),)
+
+    def to_text(self) -> str:
+        return self.to_iso()
 
     def to_iso(self) -> str:
         """Format in the canonical form accepted by parse(), such as PT2H30M or PT1.5S."""
@@ -213,6 +237,7 @@ class Duration:
         return Duration(ticks=_ticks_from_seconds(total_seconds))
 
 
+# TODO: Add to_csv_value?
 # A time within a day without date or timezone, in 2**-64 s units since midnight.
 # 24:00 is the end of the day: it is distinct from 00:00 and ordered after all
 # other times. Parsing creates it; wrapping arithmetic only keeps it when
@@ -229,6 +254,17 @@ class TimeOfDay:
         if not 0 <= ticks <= TimeOfDay.END_TICKS:
             raise ValueError(f'Time of day must be between 00:00 and 24:00, got {ticks} units')
         object.__setattr__(self, 'ticks', ticks)
+
+    @staticmethod
+    def from_fields(ticks: UInt128) -> 'TimeOfDay':
+        """Return the time with the field of the opaque struct Schedule.TimeOfDay."""
+        return TimeOfDay(ticks=ticks.value)
+
+    def to_fields(self) -> tuple[UInt128]:
+        return (UInt128(self.ticks),)
+
+    def to_text(self) -> str:
+        return str(self)
 
     @staticmethod
     def from_parts(hour: int, minute: int, second: int = 0, ticks: int = 0) -> 'TimeOfDay':

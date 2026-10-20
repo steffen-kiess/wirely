@@ -271,16 +271,16 @@ struct type OpenEnumType {
 ```
 
 ```wirely
-// Kind Struct: a named struct or a built-in type.
+// Kind Struct: a named struct.
 struct type StructType {
   // Struct kind.
   Kind: uint8,
-  // Whether the struct is a built-in type; field access instructions are
-  // invalid for it.
+  // Whether the runtime implements the struct; field access instructions
+  // are invalid for it.
   Opaque: boolean,
   // Qualified name in Names.
   Name: StringRef,
-  // Native name in Names; empty if the struct is not native.
+  // Native name in Names; empty if the struct is neither native nor opaque.
   NativeName: StringRef,
   // Range into StructFields, in declaration order.
   Fields: Range,
@@ -322,12 +322,17 @@ making size calculation possible in one forward pass. `String`,
 `ValueType`, and lists, including composites and structs containing them,
 are only used for static values in this format.
 
-### Built-in types
+### Opaque structs
 
-Opaque structs represent the built-in types `Std.Duration`,
-`Schedule.TimeOfDay`, and `Timer.MonotonicTime`. Each has its qualified name
-as `Name` and `NativeName` and the fields declared below, in order. Opaque
-and non-opaque structs have separate native-name namespaces.
+An opaque struct is implemented by the runtime, which accepts only some of
+its values and gives them meaning. Its values use the struct
+representation, and its default is the all-zero value. Opaque structs have
+a `NativeName`; opaque and non-opaque structs have separate native-name
+namespaces. They [link](#linking) by native name and field types.
+
+The standard libraries declare the time types as opaque structs with the
+fields below, in order. Each has its qualified name as `Name` and
+`NativeName`.
 
 ```wirely
 // Non-negative elapsed time. Opaque struct Std.Duration.
@@ -356,9 +361,7 @@ struct type MonotonicTime {
 ```
 
 The values of these types are described in [Value types](value-types.md);
-`Std.Duration` and `Schedule.TimeOfDay` are ordered. Each type's default is
-its all-zero struct default. Files contain only the default
-`Timer.MonotonicTime`.
+`Std.Duration` and `Schedule.TimeOfDay` are ordered.
 
 ### EnumMemberNames
 
@@ -800,10 +803,15 @@ name with the same kind, underlying type, and, for a closed enum, member
 count. Member names and numbers are not compared. Other enums need no
 linking.
 
-A non-opaque struct with a `NativeName` links only when the runtime knows
-that native name with the same field types in the same order; nested native
-enums and structs match by kind, opacity, and native name. Field names are
-not compared. Other structs, including opaque ones, need no linking.
+A struct with a `NativeName` links only when the runtime knows that native
+name, among native or opaque structs, with the same field types in the
+same order; nested native enums and structs match by kind, opacity, and
+native name. Field names are not compared. Other structs need no linking.
+
+The runtime's implementation of each opaque struct also checks its values
+in `StaticValues`, list elements, and `InitialState`. `Schedule.TimeOfDay`
+values are at most 24 hours. The only `Timer.MonotonicTime` value in a file
+is the default, because generations of a file are never current.
 
 The reserved linking name for a native procedure with multi value/event
 dependencies is `Namespace.BlockType:procedure.2.3.4`. The decimal suffixes
@@ -953,7 +961,7 @@ functions `Std.Duration.Less` and `Schedule.TimeOfDay.Less`, respectively.
 
 Each invocation initializes every local and output to its type's default.
 For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums zero, and for structs, including built-in types,
+options `None`, for enums zero, and for structs, including opaque ones,
 the defaults of their fields. The default `Timer.MonotonicTime` has
 generation 0, which is never current, so it compares to no current time.
 Values remain valid and canonical, including padding and unused option
@@ -1102,8 +1110,9 @@ A runtime may also reject a valid file that it cannot run:
 - The file exceeds the runtime's limits, such as the file size, a table
   size, the number of sections, or the number of verification steps.
   The runtime may reject it before verifying it completely.
-- Linking fails, because the runtime lacks a native implementation or
-  function the program names, or its interface does not match.
+- Linking fails, because the runtime lacks a native implementation,
+  function, or opaque struct the program names, its interface does not
+  match, or it rejects a value of an opaque struct.
 
 State transitions cannot fail. Native constructors should not fail
 either: returning to the previous program would require constructing
@@ -1133,19 +1142,17 @@ Inner, underlying, and field types precede the types using them, so one
 pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
 runtime types from static-only types. Integer types have a listed width,
-and open enum underlying types are integers. Opaque structs have the native
-name of a built-in type and its field types; field names are not
-compared. Open enum named numbers are in strictly ascending order. Closed
+open enum underlying types are integers, and opaque structs have a native
+name. Open enum named numbers are in strictly ascending order. Closed
 enums have at least one member and an underlying type of `uint8`, `uint16`,
 or `uint32` large enough to represent `Members.Count - 1`.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Closed enum values
 are below their member count; open enum values fit their underlying type.
-`Schedule.TimeOfDay` values are at most 24 hours, and `Timer.MonotonicTime`
-values are the default. List elements are checked with the list's inner
-type, which precedes the list type, so checks terminate even when lists
-share bytes.
+Values of opaque structs are checked during linking. List elements are
+checked with the list's inner type, which precedes the list type, so checks
+terminate even when lists share bytes.
 
 `StateVariables` and `Temporaries` are sorted by offset, and each slot
 starts at or after the end of the previous one. Comparing each entry with

@@ -308,11 +308,13 @@ in `native struct type Credentials as "TwoN.Credentials" { ... }`. A
 program using a native struct runs only on a runtime that knows its native
 name with the same field types in the same order; field names are not
 compared.
-`opaque struct type` declares a type with a built-in implementation, such as
-the library time types. Its native name, given with `as` or defaulting as for
-native structs, must name a built-in type, and its field types must match
-that type's in order; field names are not compared. Opaque structs have no
-literals or field access.
+Declare a struct `opaque` when native code implements its values, as for
+the library time types. Opaque structs have no struct literals or field
+access; their implementation may accept string literals, such as `"PT1S"`.
+A program using an opaque struct runs only on a runtime that implements its
+native name with the same field types in the same order, and accepts its
+static values. As for native structs, `as` gives the native name, and field
+names are not compared.
 Read a field with `value.field`, for example `reading.temperature`, also in
 procedure bodies. Field access needs a struct type known where the code is
 written, not a `ValueType` parameter.

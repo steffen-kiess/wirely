@@ -2,7 +2,7 @@
 """Native interface signatures."""
 
 from wirely.runtime.signatures import (
-    Builtin, Enum, Function, Initializer, Int, List, Option, Port, Procedure, ResourceType, Struct, TypeVar,
+    Builtin, Enum, Function, Initializer, Int, List, Opaque, Option, Port, Procedure, ResourceType, Struct, TypeVar,
 )
 
 

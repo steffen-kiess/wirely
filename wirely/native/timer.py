@@ -5,6 +5,7 @@ from wirely import DynamicValue, Some, ValueType
 from wirely.generated import timer as contracts
 from wirely.program import RunStage
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
+from wirely.types.time import MonotonicTime as MonotonicTime  # Implements the opaque struct Timer.MonotonicTime.
 
 
 class MonotonicTimestamp:

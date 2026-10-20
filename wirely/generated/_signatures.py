@@ -2,7 +2,7 @@
 """Native interface signatures."""
 
 from wirely.runtime.signatures import (
-    Builtin, Enum, Function, Initializer, Int, List, Option, Port, Procedure, ResourceType, Struct, TypeVar,
+    Builtin, Enum, Function, Initializer, Int, List, Opaque, Option, Port, Procedure, ResourceType, Struct, TypeVar,
 )
 
 
@@ -248,12 +248,12 @@ native_procedures: dict[str, Procedure] = {
         stage='output',
         depends={
             'state': Port('resource', ResourceType('CSV.ValueWriterState')),
-            'last_written_at_old': Port('value', Option(Builtin('Timer.MonotonicTime'))),
+            'last_written_at_old': Port('value', Option(Opaque('Timer.MonotonicTime'))),
             'input': Port('value', TypeVar('Type')),
             'repeat_elapsed': Port('value', Option(Builtin('boolean'))),
         },
         produces={
-            'last_written_at': Port('value', Option(Builtin('Timer.MonotonicTime'))),
+            'last_written_at': Port('value', Option(Opaque('Timer.MonotonicTime'))),
         },
         uses={
             'Type': Builtin('ValueType'),
@@ -366,15 +366,15 @@ native_procedures: dict[str, Procedure] = {
             'output': Port('value', Option(Builtin('boolean'))),
         },
         uses={
-            'Start': Builtin('Schedule.TimeOfDay'),
-            'End': Builtin('Schedule.TimeOfDay'),
+            'Start': Opaque('Schedule.TimeOfDay'),
+            'End': Opaque('Schedule.TimeOfDay'),
         },
     ),
     'Schedule.TimeOfDayMinute:get_value': Procedure(
         stage='default',
         depends={},
         produces={
-            'output': Port('value', Option(Builtin('Schedule.TimeOfDay'))),
+            'output': Port('value', Option(Opaque('Schedule.TimeOfDay'))),
         },
         uses={},
     ),
@@ -436,7 +436,7 @@ native_procedures: dict[str, Procedure] = {
     'Timer.MonotonicTimeReached:run': Procedure(
         stage='default',
         depends={
-            'input': Port('value', Option(Builtin('Timer.MonotonicTime'))),
+            'input': Port('value', Option(Opaque('Timer.MonotonicTime'))),
         },
         produces={
             'output': Port('value', Option(Builtin('boolean'))),
@@ -449,7 +449,7 @@ native_procedures: dict[str, Procedure] = {
             'input': Port('event', TypeVar('Type')),
         },
         produces={
-            'output': Port('event', Builtin('Timer.MonotonicTime')),
+            'output': Port('event', Opaque('Timer.MonotonicTime')),
         },
         uses={
             'Type': Builtin('ValueType'),
@@ -508,30 +508,30 @@ native_procedures: dict[str, Procedure] = {
 
 # Runtime native functions by native name.
 native_functions: dict[str, Function] = {
-    'Schedule.TimeOfDay.DurationUntil': Function((Builtin('Schedule.TimeOfDay'), Builtin('Schedule.TimeOfDay')), Builtin('Std.Duration')),
-    'Schedule.TimeOfDay.Less': Function((Builtin('Schedule.TimeOfDay'), Builtin('Schedule.TimeOfDay')), Builtin('boolean')),
-    'Schedule.TimeOfDay.WrappingAdd': Function((Builtin('Schedule.TimeOfDay'), Builtin('Std.Duration')), Builtin('Schedule.TimeOfDay')),
-    'Schedule.TimeOfDay.WrappingSub': Function((Builtin('Schedule.TimeOfDay'), Builtin('Std.Duration')), Builtin('Schedule.TimeOfDay')),
-    'Std.Duration.AsMicros': Function((Builtin('Std.Duration'),), Int(128, False)),
-    'Std.Duration.AsMillis': Function((Builtin('Std.Duration'),), Int(128, False)),
-    'Std.Duration.AsNanos': Function((Builtin('Std.Duration'),), Int(128, False)),
-    'Std.Duration.AsSecs': Function((Builtin('Std.Duration'),), Int(64, False)),
-    'Std.Duration.CheckedAdd': Function((Builtin('Std.Duration'), Builtin('Std.Duration')), Option(Builtin('Std.Duration'))),
-    'Std.Duration.CheckedDiv': Function((Builtin('Std.Duration'), Int(32, False)), Option(Builtin('Std.Duration'))),
-    'Std.Duration.CheckedMul': Function((Builtin('Std.Duration'), Int(32, False)), Option(Builtin('Std.Duration'))),
-    'Std.Duration.CheckedSub': Function((Builtin('Std.Duration'), Builtin('Std.Duration')), Option(Builtin('Std.Duration'))),
-    'Std.Duration.FromMicros': Function((Int(32, False),), Builtin('Std.Duration')),
-    'Std.Duration.FromMillis': Function((Int(32, False),), Builtin('Std.Duration')),
-    'Std.Duration.FromNanos': Function((Int(64, False),), Builtin('Std.Duration')),
-    'Std.Duration.FromSecs': Function((Int(32, False),), Builtin('Std.Duration')),
-    'Std.Duration.Less': Function((Builtin('Std.Duration'), Builtin('Std.Duration')), Builtin('boolean')),
-    'Std.Duration.SaturatingAdd': Function((Builtin('Std.Duration'), Builtin('Std.Duration')), Builtin('Std.Duration')),
-    'Std.Duration.SaturatingMul': Function((Builtin('Std.Duration'), Int(32, False)), Builtin('Std.Duration')),
-    'Std.Duration.SaturatingSub': Function((Builtin('Std.Duration'), Builtin('Std.Duration')), Builtin('Std.Duration')),
-    'Timer.MonotonicTime.CheckedAdd': Function((Builtin('Timer.MonotonicTime'), Builtin('Std.Duration')), Option(Builtin('Timer.MonotonicTime'))),
-    'Timer.MonotonicTime.CheckedDurationSince': Function((Builtin('Timer.MonotonicTime'), Builtin('Timer.MonotonicTime')), Option(Builtin('Std.Duration'))),
-    'Timer.MonotonicTime.CheckedLess': Function((Builtin('Timer.MonotonicTime'), Builtin('Timer.MonotonicTime')), Option(Builtin('boolean'))),
-    'Timer.MonotonicTime.CheckedSub': Function((Builtin('Timer.MonotonicTime'), Builtin('Std.Duration')), Option(Builtin('Timer.MonotonicTime'))),
-    'Timer.MonotonicTime.SaturatingAdd': Function((Builtin('Timer.MonotonicTime'), Builtin('Std.Duration')), Builtin('Timer.MonotonicTime')),
-    'Timer.MonotonicTime.SaturatingSub': Function((Builtin('Timer.MonotonicTime'), Builtin('Std.Duration')), Builtin('Timer.MonotonicTime')),
+    'Schedule.TimeOfDay.DurationUntil': Function((Opaque('Schedule.TimeOfDay'), Opaque('Schedule.TimeOfDay')), Opaque('Std.Duration')),
+    'Schedule.TimeOfDay.Less': Function((Opaque('Schedule.TimeOfDay'), Opaque('Schedule.TimeOfDay')), Builtin('boolean')),
+    'Schedule.TimeOfDay.WrappingAdd': Function((Opaque('Schedule.TimeOfDay'), Opaque('Std.Duration')), Opaque('Schedule.TimeOfDay')),
+    'Schedule.TimeOfDay.WrappingSub': Function((Opaque('Schedule.TimeOfDay'), Opaque('Std.Duration')), Opaque('Schedule.TimeOfDay')),
+    'Std.Duration.AsMicros': Function((Opaque('Std.Duration'),), Int(128, False)),
+    'Std.Duration.AsMillis': Function((Opaque('Std.Duration'),), Int(128, False)),
+    'Std.Duration.AsNanos': Function((Opaque('Std.Duration'),), Int(128, False)),
+    'Std.Duration.AsSecs': Function((Opaque('Std.Duration'),), Int(64, False)),
+    'Std.Duration.CheckedAdd': Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Option(Opaque('Std.Duration'))),
+    'Std.Duration.CheckedDiv': Function((Opaque('Std.Duration'), Int(32, False)), Option(Opaque('Std.Duration'))),
+    'Std.Duration.CheckedMul': Function((Opaque('Std.Duration'), Int(32, False)), Option(Opaque('Std.Duration'))),
+    'Std.Duration.CheckedSub': Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Option(Opaque('Std.Duration'))),
+    'Std.Duration.FromMicros': Function((Int(32, False),), Opaque('Std.Duration')),
+    'Std.Duration.FromMillis': Function((Int(32, False),), Opaque('Std.Duration')),
+    'Std.Duration.FromNanos': Function((Int(64, False),), Opaque('Std.Duration')),
+    'Std.Duration.FromSecs': Function((Int(32, False),), Opaque('Std.Duration')),
+    'Std.Duration.Less': Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Builtin('boolean')),
+    'Std.Duration.SaturatingAdd': Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Opaque('Std.Duration')),
+    'Std.Duration.SaturatingMul': Function((Opaque('Std.Duration'), Int(32, False)), Opaque('Std.Duration')),
+    'Std.Duration.SaturatingSub': Function((Opaque('Std.Duration'), Opaque('Std.Duration')), Opaque('Std.Duration')),
+    'Timer.MonotonicTime.CheckedAdd': Function((Opaque('Timer.MonotonicTime'), Opaque('Std.Duration')), Option(Opaque('Timer.MonotonicTime'))),
+    'Timer.MonotonicTime.CheckedDurationSince': Function((Opaque('Timer.MonotonicTime'), Opaque('Timer.MonotonicTime')), Option(Opaque('Std.Duration'))),
+    'Timer.MonotonicTime.CheckedLess': Function((Opaque('Timer.MonotonicTime'), Opaque('Timer.MonotonicTime')), Option(Builtin('boolean'))),
+    'Timer.MonotonicTime.CheckedSub': Function((Opaque('Timer.MonotonicTime'), Opaque('Std.Duration')), Option(Opaque('Timer.MonotonicTime'))),
+    'Timer.MonotonicTime.SaturatingAdd': Function((Opaque('Timer.MonotonicTime'), Opaque('Std.Duration')), Opaque('Timer.MonotonicTime')),
+    'Timer.MonotonicTime.SaturatingSub': Function((Opaque('Timer.MonotonicTime'), Opaque('Std.Duration')), Opaque('Timer.MonotonicTime')),
 }

@@ -3,6 +3,7 @@ from unittest import TestCase
 import wirely
 from wirely.program import Variable, VariableTable
 from wirely.runtime.contexts import VariableTableInstance
+from tests.infra.support import internal, library_type
 
 
 checks = TestCase()
@@ -25,9 +26,9 @@ def check_scalar_codecs():
         (wirely.types.boolean, True, b'\x01', 1),
         (wirely.types.uint32, 0x12345678, bytes.fromhex('78 56 34 12'), 4),
         (wirely.types.int16, -2, bytes.fromhex('fe ff'), 2),
-        (wirely.types.Duration, wirely.Duration.from_seconds(1.5),
+        (library_type('Std.Duration'), internal(wirely.Duration.from_seconds(1.5)),
          bytes(7) + b'\x80\x01' + bytes(7), 16),
-        (wirely.types.TimeOfDay, wirely.TimeOfDay.from_parts(0, 0, 1),
+        (library_type('Schedule.TimeOfDay'), internal(wirely.TimeOfDay.from_parts(0, 0, 1)),
          bytes(8) + b'\x01' + bytes(7), 16),
         (thermostat_type, 4, b'\x04', 1),
     ]:
@@ -39,12 +40,12 @@ def check_scalar_codecs():
         assert ty.deserialize(memoryview(encoded)) == value
 
     # Monotonic times store 2**-64 s units, then the generation, with tail padding.
-    monotonic = wirely.types.MonotonicTime
+    monotonic = library_type('Timer.MonotonicTime')
     assert (monotonic.data_size, monotonic.size, monotonic.alignment) == (24, 32, 16)
     for value, encoded in [(wirely.MonotonicTime(generation=7, ticks=123), b'\x7b' + bytes(15) + b'\x07' + bytes(7)),
                            (wirely.MonotonicTime(generation=0, ticks=0), bytes(24))]:
-        assert monotonic.serialize(value) == encoded
-        assert monotonic.deserialize(encoded) == value
+        assert monotonic.serialize(internal(value)) == encoded
+        assert monotonic.deserialize(encoded) == internal(value)
 
     for bits in (8, 16, 32, 64, 128):
         for signed in (False, True):
@@ -89,22 +90,23 @@ def check_scalar_codecs():
         (nested_uint64, bytes(8) + b'\x02\x01'),
         (wirely.types.TypeEnum('Closed', {'A': 0, 'B': 1},
                                is_open=False, underlying_type=wirely.types.uint8), b'\x02'),
-        (wirely.types.TimeOfDay, (wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little')),
+        (library_type('Schedule.TimeOfDay'), (wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little')),
     ]:
         with checks.assertRaises(ValueError):
             ty.deserialize(malformed)
 
     # Nanosecond values up to 24:00 round-trip.
     for text in ('00:00', '00:00:00.00000000000000000005', '23:59:59.99999999999999999995', '24:00'):
-        value = wirely.TimeOfDay.parse(text)
-        assert wirely.types.TimeOfDay.deserialize(wirely.types.TimeOfDay.serialize(value)) == value
+        value = internal(wirely.TimeOfDay.parse(text))
+        time_of_day = library_type('Schedule.TimeOfDay')
+        assert time_of_day.deserialize(time_of_day.serialize(value)) == value
 
     for ty, value in [
-        (wirely.types.Duration, wirely.Duration(ticks=wirely.Duration.MAX_TICKS)),
-        (wirely.types.MonotonicTime,
+        (library_type('Std.Duration'), wirely.Duration(ticks=wirely.Duration.MAX_TICKS)),
+        (library_type('Timer.MonotonicTime'),
          wirely.MonotonicTime(generation=wirely.MonotonicTime.MAX_GENERATION, ticks=wirely.MonotonicTime.MAX_TICKS)),
     ]:
-        assert ty.deserialize(ty.serialize(value)) == value
+        assert ty.deserialize(ty.serialize(internal(value))) == internal(value)
 
     for ty in (wirely.types.String, wirely.types.ValueType,
                wirely.types.TypeList(wirely.types.uint8), wirely.types.TypeOption(wirely.types.String)):
@@ -211,12 +213,12 @@ def check_variable_storage():
     first_unit = Variable('first_unit', wirely.types.unit)
     second_unit = Variable('second_unit', wirely.types.unit)
     nested = Variable('nested', wirely.types.TypeOption(wirely.types.TypeOption(wirely.types.uint64)))
-    clock = Variable('clock', wirely.types.MonotonicTime)
+    clock = Variable('clock', library_type('Timer.MonotonicTime'))
     table = VariableTable([flag, small, first_unit, nested, clock, second_unit], 'storage')
     values = VariableTableInstance(table)
     independent = VariableTableInstance(table)
     expected = {flag: True, small: 65535, first_unit: wirely.Unit(),
-                nested: wirely.Some(None), clock: wirely.MonotonicTime(generation=7, ticks=123),
+                nested: wirely.Some(None), clock: internal(wirely.MonotonicTime(generation=7, ticks=123)),
                 second_unit: wirely.Unit()}
     for variable, value in expected.items():
         with checks.assertRaisesRegex(Exception, 'not yet set'):

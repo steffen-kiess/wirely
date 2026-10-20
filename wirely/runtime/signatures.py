@@ -23,7 +23,7 @@ class SignatureType:
 
 @dataclass(frozen=True, slots=True)
 class Builtin(SignatureType):
-    name: str  # 'unit', 'boolean', 'String', 'Std.Duration', 'Schedule.TimeOfDay', 'Timer.MonotonicTime', or 'ValueType'.
+    name: str  # 'unit', 'boolean', 'String', or 'ValueType'.
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +49,11 @@ class Enum(SignatureType):
 
 @dataclass(frozen=True, slots=True)
 class Struct(SignatureType):
+    native_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class Opaque(SignatureType):
     native_name: str
 
 
@@ -114,8 +119,7 @@ class Function:
 def _builtin_types() -> dict[str, type]:
     from .. import types
     return {'unit': types.TypeUnit, 'boolean': types.TypeBoolean, 'String': types.TypeString,
-            'Std.Duration': types.TypeDuration, 'Schedule.TimeOfDay': types.TypeTimeOfDay,
-            'Timer.MonotonicTime': types.TypeMonotonicTime, 'ValueType': types.TypeValueType}
+            'ValueType': types.TypeValueType}
 
 
 def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[str, Type]) -> bool:
@@ -134,8 +138,9 @@ def matches(signature_type: SignatureType, value_type: Type, bindings: Mapping[s
         return isinstance(value_type, cls) and matches(signature_type.inner, value_type.inner_type, bindings)
     if isinstance(signature_type, Enum):
         return isinstance(value_type, types.TypeEnum) and value_type.native_name == signature_type.native_name
-    if isinstance(signature_type, Struct):
-        return isinstance(value_type, types.TypeStruct) and value_type.native_name == signature_type.native_name
+    if isinstance(signature_type, (Struct, Opaque)):
+        return (isinstance(value_type, types.TypeStruct) and value_type.native_name == signature_type.native_name
+                and value_type.is_opaque == isinstance(signature_type, Opaque))
     raise ValueError(f'Unknown signature type {signature_type!r}')
 
 
@@ -154,6 +159,8 @@ def describe(signature_type: SignatureType, bindings: Mapping[str, Type]) -> str
         return f'native enum {signature_type.native_name}'
     if isinstance(signature_type, Struct):
         return f'native struct {signature_type.native_name}'
+    if isinstance(signature_type, Opaque):
+        return f'opaque struct {signature_type.native_name}'
     raise ValueError(f'Unknown signature type {signature_type!r}')
 
 

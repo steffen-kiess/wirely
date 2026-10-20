@@ -188,6 +188,13 @@ def multi_length_port(scope: model.Scope, receiver: AstValue, names: Collection[
     return port if port is not None and port.is_list else None
 
 
+def is_duration(value_type: model.Type) -> bool:
+    """Whether a type is Std.Duration, whose + and - operators combine durations at compile time."""
+    # TODO: Let other opaque types provide compile-time operators.
+    return (isinstance(value_type, model.types.TypeStruct) and value_type.is_opaque
+            and value_type.native_name == 'Std.Duration')
+
+
 # Member functions of integer types, mapped to their operation and overflow mode.
 INTEGER_MEMBERS = {
     f'{mode.capitalize()}{name}': (operation, mode)
@@ -538,7 +545,7 @@ class TypedExpression:
             integer_type = self.arguments[0].value_type
             # The + and - operators also combine durations.
             duration_operator = (self.operation == 'arith' and self.payload in (('add', None), ('sub', None))
-                                 and isinstance(integer_type, model.types.TypeDuration))
+                                 and is_duration(integer_type))
             if (not integer_type.contains_parameters and not duration_operator
                     and not isinstance(integer_type, model.types.TypeInt)):
                 raise ProgramError(self.source, f'Integer arithmetic requires an integer value, got {integer_type}')
@@ -678,14 +685,14 @@ class TypedExpression:
             operation, overflow = self.payload
         if overflow is not None:
             return integer_type.arithmetic(operation, overflow, *operands)
-        if isinstance(integer_type, model.types.TypeDuration):
-            left, right = (operand.ticks for operand in operands)
+        if is_duration(integer_type):
+            left, right = (ticks for ticks, in operands)
             result = left + right if operation == 'add' else left - right
             if result < 0:
                 raise ProgramError(self.source, 'Negative duration')
-            if result > model.Duration.MAX_TICKS:
+            if result > model.types.uint128.max_value:
                 raise ProgramError(self.source, 'Duration overflow: result exceeds the maximum duration')
-            return model.Duration(ticks=result)
+            return (result,)
         # Operators fail compilation instead of overflowing.
         if operation in ('div', 'rem') and operands[1] == 0:
             raise ProgramError(self.source, 'Division by zero')
@@ -889,7 +896,7 @@ class InstructionCompiler:
             if isinstance(value_type, model.types.TypeInt):
                 self.emit(Opcode.LESS, destination, left, right)
             else:
-                assert value_type in (model.types.Duration, model.types.TimeOfDay)
+                assert value_type.is_ordered
                 function = Function(f'{value_type}.Less', (value_type, value_type),
                                     model.types.boolean)
                 self.emit(Opcode.CALL, destination, self.intern_function(function), 2, left, right)
@@ -1302,7 +1309,8 @@ class ExpressionCompiler:
                     return TypedExpression(model.types.uint32, 'constant', payload=length_value)
             receiver = self.compile(expression.receiver)
             receiver_type = receiver.value_type
-            if isinstance(receiver_type, model.types.TypeStruct) and name in receiver_type.fields:
+            if (isinstance(receiver_type, model.types.TypeStruct) and not receiver_type.is_opaque
+                    and name in receiver_type.fields):
                 return TypedExpression(receiver_type.fields[name], 'field', (receiver,), name)
             if name == 'Length' and (isinstance(receiver_type, model.types.TypeList)
                                      or receiver_type.contains_parameters):
@@ -1368,7 +1376,7 @@ class ExpressionCompiler:
             if self.is_runtime(expression):
                 name = expression.operator.capitalize()
                 operand_type = self.context_type(expression.left) or self.context_type(expression.right)
-                if isinstance(operand_type, model.types.TypeDuration) and name in ('Add', 'Sub'):
+                if operand_type is not None and is_duration(operand_type) and name in ('Add', 'Sub'):
                     alternatives = f'Std.Duration.Saturating{name} or Std.Duration.Checked{name}'
                 else:
                     alternatives = (f'T.CheckedDiv' if name == 'Div' else 'T.CheckedRem' if name == 'Rem'
@@ -1665,7 +1673,7 @@ class ExpressionCompiler:
         if isinstance(expression, PropertyAccess):
             receiver_type = self.known_type(expression.receiver)
             if isinstance(receiver_type, model.types.TypeStruct):
-                return receiver_type.fields.get(expression.name.id_str)
+                return None if receiver_type.is_opaque else receiver_type.fields.get(expression.name.id_str)
             if expression.name.id_str == 'Length':
                 return model.types.uint32
             return model.types.boolean if expression.name.id_str in ('IsSome', 'IsNone') else None

@@ -326,6 +326,9 @@ def analyze(sources: Iterable[tuple[str, str]], *, add_std: bool = False, cache:
     position = model.SourcePosition(filename='<global>', meta=None, input_data='')
     global_node_type = model.NodeType(model.DeclarationNodeType((), None, tuple(declarations), source_position=position), None)
     global_node_type.services = MappingProxyType({})
+    # The built-in implementations of opaque structs parse their literals.
+    from wirely.runtime.extensions import resolve_extensions
+    global_node_type.native_extension = resolve_extensions()
     warnings = WarningSink(diagnostics.append)
     coordinator = CompilerCoordinator(global_node_type, diagnostics=diagnostics, warnings=warnings)
     coordinator.metadata = validate_files(parsed_files, contain=coordinator.contain, warnings=warnings)

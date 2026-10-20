@@ -223,8 +223,10 @@ def seed(*, services: FunctionServices) -> UInt16:
             assert 'StdFormatParts' in str(DemoPayload.__annotations__['format'])
             program_source = root / 'program.wrl'
             program_source.write_text('node counter: Demo.Counter {}\n')
-            graph = compile_files([source, program_source], extensions=[runtime], compiler_extensions=[compiler],
-                                  include_builtin_extensions=False)
+            # Literals of the standard library's opaque structs need their implementations.
+            standard = RuntimeNativeExtension(opaque_types=builtin_extension.opaque_types)
+            graph = compile_files([source, program_source], extensions=[standard, runtime],
+                                  compiler_extensions=[compiler], include_builtin_extensions=False)
             assert graph is not None
             program = replace(program_compiler.compile_nocatch(graph), graph=None)
             engine = Engine(program, extensions=[runtime], include_builtin_extensions=False)

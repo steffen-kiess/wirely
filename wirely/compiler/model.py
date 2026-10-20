@@ -3,7 +3,7 @@
 import importlib
 from typing import TYPE_CHECKING, Any
 
-from wirely import Some, Unit, MonotonicTime, Duration, types, value_types, Type, ValueType
+from wirely import Some, Unit, types, value_types, Type, ValueType
 from wirely.program import Program, RunStage, Variable, VariableTable, InputSource
 
 

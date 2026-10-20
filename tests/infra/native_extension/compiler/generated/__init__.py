@@ -2,7 +2,7 @@
 """Constant native functions generated from Wirely declarations."""
 
 from wirely.compiler.extensions import CompilerNativeExtension, NativeConstantFunction
-from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Option, Struct, TypeVar
+from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Opaque, Option, Struct, TypeVar
 from . import _bindings
 
 __all__ = ["extension"]

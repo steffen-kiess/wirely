@@ -5,21 +5,25 @@ import re
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from .option import Some
 from .unit import Unit
-from .time import (
-    MonotonicTime as RuntimeMonotonicTime, Duration as RuntimeDuration, TimeOfDay as RuntimeTimeOfDay,
-)
+
+if TYPE_CHECKING:
+    from ..runtime.extensions import NativeTypes
 
 # How the compiler and runtime represent a value: integers and enums as int,
-# structs as tuples of their fields, lists as tuples, and ValueType values as
-# their Type. Native code receives other representations; see value_types.
+# structs, including opaque structs, as tuples of their fields, lists as
+# tuples, and ValueType values as their Type. Native code receives other
+# representations; see value_types.
 InternalValue: TypeAlias = (
-    'bool | int | str | Unit | RuntimeDuration | RuntimeTimeOfDay | RuntimeMonotonicTime | Type'
-    ' | Some[InternalValue] | tuple[InternalValue, ...] | None'
+    'bool | int | str | Unit | Type | Some[InternalValue] | tuple[InternalValue, ...] | None'
 )
+
+# Opaque structs whose values the compiler orders by their fields.
+# TODO: Let other opaque types declare an order.
+ORDERED_OPAQUE_TYPES = frozenset({'Std.Duration', 'Schedule.TimeOfDay'})
 
 
 # A value type supporting runtime validation, equality, and text parsing.
@@ -272,21 +276,56 @@ class TypeOption(Type):
 class TypeStruct(Type):
     """A nominal value type with fields kept in declaration order.
 
-    Values are tuples of field values in that order.
+    Values are tuples of field values in that order. An opaque struct is
+    implemented by native code, which also parses and formats its values
+    when native_types provides its implementation.
     """
 
     is_json_serializable = False
     has_to_csv_value = False
 
-    def __init__(self, name: str, fields: Mapping[str, Type], *, native_name: str | None = None) -> None:
+    def __init__(self, name: str, fields: Mapping[str, Type], *, native_name: str | None = None,
+                 is_opaque: bool = False, native_types: NativeTypes | None = None) -> None:
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Struct native_name must be a nonempty string or None')
+        if is_opaque and native_name is None:
+            raise ValueError('Opaque structs require a native_name')
         self.name = name
         self.native_name = native_name  # None for structs native code does not rely on.
+        self.is_opaque = is_opaque
+        # Native types providing the implementation of an opaque struct, or None.
+        self.native_types = native_types
         self.fields = MappingProxyType(dict(fields))
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.fields.values()):
             raise ValueError('Struct fields require resolved value types')
+
+    @property
+    def is_ordered(self) -> bool:  # type: ignore[override]
+        return self.is_opaque and self.native_name in ORDERED_OPAQUE_TYPES
+
+    def less(self, value1: Any, value2: Any) -> bool:
+        if not self.is_ordered:
+            raise ValueError(f'{self} values are not ordered')
+        return self.verify_value(value1) < self.verify_value(value2)
+
+    def opaque_class(self) -> type | None:
+        """Return the Python class implementing an opaque struct, or None if it is unavailable."""
+        if not self.is_opaque or self.native_types is None:
+            return None
+        assert self.native_name is not None
+        native = self.native_types.opaque_types.get(self.native_name)
+        return None if native is None else native.python_type
+
+    def check_opaque_value(self, value: Any) -> None:
+        """Raise ValueError if the implementation of an opaque struct rejects a value."""
+        if self.opaque_class() is not None:
+            self._to_native(value)
+
+    def _to_native(self, value: Any) -> Any:
+        from ..runtime.native_values import to_native
+        assert self.native_types is not None
+        return to_native(None, self, value, native_types=self.native_types)
 
     @property
     def contains_parameters(self) -> bool:
@@ -341,10 +380,18 @@ class TypeStruct(Type):
         return tuple(field_type.default_value() for field_type in self.fields.values())
 
     def _parse_impl(self, text: str) -> Any:
-        raise ValueError(f'{self.name} does not support text parsing')
+        python_type = self.opaque_class()
+        if python_type is None or not hasattr(python_type, 'parse'):
+            raise ValueError(f'{self.name} does not support text parsing')
+        from ..runtime.native_values import from_native
+        assert self.native_types is not None
+        return from_native(None, self, python_type.parse(text), native_types=self.native_types)
 
     def to_text(self, value: Any) -> str:
         value = self.verify_value(value)
+        python_type = self.opaque_class()
+        if python_type is not None and hasattr(python_type, 'to_text'):
+            return self._to_native(value).to_text()
         if not value:
             return f'{self.name} {{}}'
         fields = ', '.join(f'{name}: {field_type.to_text(field)}'
@@ -603,58 +650,6 @@ class TypeValueType(TypePrimitive):
         return str(self.verify_value(value))
 
 
-class TypeMonotonicTime(TypePrimitive):
-    def __init__(self) -> None:
-        super().__init__(name='Timer.MonotonicTime', python_type=RuntimeMonotonicTime, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
-
-    def default_value(self) -> Any:
-        # Generation 0 is never current, so the default compares to no current time.
-        return RuntimeMonotonicTime(generation=0, ticks=0)
-
-    def _parse_impl(self, s: str) -> Any:
-        raise Exception('TODO: Implement TypeMonotonicTime.parse')
-
-    def to_text(self, value: Any) -> str:
-        return self.verify_value(value).to_text()
-
-
-# TODO: Add type which represents offset to monotonic time and can be used e.g. for KNX messages which contain the current time?
-
-
-# TODO: Add to_csv_value and make json serializable?
-class TypeDuration(TypePrimitive):
-    is_ordered = True
-
-    def __init__(self) -> None:
-        super().__init__(name='Std.Duration', python_type=RuntimeDuration, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
-
-    def default_value(self) -> Any:
-        return RuntimeDuration(ticks=0)
-
-    def _parse_impl(self, s: str) -> Any:
-        return RuntimeDuration.parse(s)
-
-    def to_text(self, value: Any) -> str:
-        return self.verify_value(value).to_iso()
-
-
-# TODO: Add to_csv_value?
-class TypeTimeOfDay(TypePrimitive):
-    is_ordered = True
-
-    def __init__(self) -> None:
-        super().__init__(name='Schedule.TimeOfDay', python_type=RuntimeTimeOfDay, is_runtime_type=True, is_json_serializable=False, has_to_csv_value=False)
-
-    def default_value(self) -> Any:
-        return RuntimeTimeOfDay(ticks=0)
-
-    def _parse_impl(self, s: str) -> Any:
-        return RuntimeTimeOfDay.parse(s)
-
-    def to_text(self, value: Any) -> str:
-        return str(self.verify_value(value))
-
-
 # TODO: Remove json_encode because strings should not be used at runtime?
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
 class TypeString(TypePrimitive):
@@ -857,9 +852,6 @@ uint64: TypeInt = TypeInt(is_signed=False, bits=64)
 uint128: TypeInt = TypeInt(is_signed=False, bits=128)
 
 ValueType: TypeValueType = TypeValueType()
-TimeOfDay: TypeTimeOfDay = TypeTimeOfDay()
-Duration: TypeDuration = TypeDuration()
-MonotonicTime: TypeMonotonicTime = TypeMonotonicTime()
 String: TypeString = TypeString()
 
 # def option(inner_type):
@@ -876,10 +868,3 @@ for ty in [
         ValueType, String,
 ]:
     type_by_name[ty.name] = ty
-
-# Types declared by opaque structs, with their field types, by native name.
-opaque_struct_types: dict[str, tuple[Type, tuple[Type, ...]]] = {
-    Duration.name: (Duration, (uint128,)),
-    TimeOfDay.name: (TimeOfDay, (uint128,)),
-    MonotonicTime.name: (MonotonicTime, (uint128, uint64)),
-}

@@ -8,13 +8,14 @@ such as those that tests declare.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import importlib
 import io
 import keyword
 import os
 import re
 import textwrap
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -136,9 +137,15 @@ class _Imports:
 
 _builtins = {
     'unit': ('wirely.types.unit', 'Unit'), 'boolean': (None, 'bool'), 'String': (None, 'str'),
-    'Std.Duration': ('wirely.types.time', 'Duration'), 'Schedule.TimeOfDay': ('wirely.types.time', 'TimeOfDay'),
-    'Timer.MonotonicTime': ('wirely.types.time', 'MonotonicTime'),
 }
+
+
+def opaque_location(native_name: str, package: str = 'wirely') -> tuple[str, str]:
+    """Return the module and class name implementing an opaque struct, such as wirely.native.std, Duration."""
+    namespace, _, name = native_name.rpartition('.')
+    if not namespace:
+        raise ValueError(f'Native name {native_name!r} has no namespace')
+    return f'{package}.native.{module_name(namespace)}', name
 
 
 def class_name(native_name: str) -> str:
@@ -166,6 +173,11 @@ def annotation(signature: signatures.SignatureType | signatures.ResourceType, im
         return f'{imports.add("wirely.types.option", "Some")}[{inner}] | None'
     if isinstance(signature, signatures.List):
         return f'tuple[{annotation(signature.inner, imports, resource_classes, strict)}, ...]'
+    if isinstance(signature, signatures.Opaque):
+        module, name = opaque_location(signature.native_name)
+        module = imports.native_locations.get(signature.native_name, module)
+        # Implementation modules import their contracts.
+        return imports.add(module, name, type_checking=True)
     if isinstance(signature, (signatures.Enum, signatures.Struct)):
         module = imports.native_locations.get(signature.native_name,
                  'wirely.generated.enums' if isinstance(signature, signatures.Enum) else 'wirely.generated.structs')
@@ -544,15 +556,77 @@ def _namespace(item: tuple[str, str, Any]) -> str:
 
 
 def compile_library() -> Any:
-    import wirely.compiler
+    from wirely.compiler import standard_library_sources
 
-    output = io.StringIO()
-    with contextlib.redirect_stdout(output):
-        # Generated files follow declaration order, also in shuffle test runs.
-        graph = wirely.compiler.compile_strs([], add_std=True, shuffle_seed=None, include_builtin_extensions=False)
+    graph = compile_declarations(standard_library_sources())
     if graph is None:
-        raise ValueError(f'Compiling the standard library failed:\n{output.getvalue()}')
+        raise ValueError('Compiling the standard library failed')
     return graph
+
+
+def compile_declarations(sources: Sequence[Any]) -> Any:
+    """Compile parsed sources without loading native implementations.
+
+    Generation needs declarations, not values, so literals of opaque structs, which need their
+    implementations, parse to placeholder values.
+    """
+    import wirely.compiler
+    from wirely.compiler.attributes import ParsedFile
+    from wirely.runtime.extensions import RuntimeNativeExtension
+
+    def compile(sources: Sequence[Any], extensions: Sequence[Any] = ()) -> Any:
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            # Generated files follow declaration order, also in shuffle test runs.
+            graph = wirely.compiler.compile_strs(sources, shuffle_seed=None, include_builtin_extensions=False,
+                                                 extensions=extensions)
+        if graph is None:
+            raise ValueError(f'Compiling native declarations failed:\n{output.getvalue()}')
+        return graph
+
+    # Type declarations have no literals of opaque structs and give their native names and field types.
+    types = compile([dataclasses.replace(source, tree=ParsedFile(_type_declarations(source.tree),
+                                                                inner_attributes=source.tree.inner_attributes))
+                     for source in sources])
+    opaque_types = {value_type.native_name: _placeholder_opaque(value_type)
+                    for value_type, _ in native_opaque_types(types)}
+    return compile(sources, [RuntimeNativeExtension(opaque_types=opaque_types)])
+
+
+def _type_declarations(declarations: Iterable[Any]) -> list[Any]:
+    """Return the struct and enum declarations with their namespaces."""
+    from wirely.compiler import model
+
+    result: list[Any] = []
+    for declaration in declarations:
+        if isinstance(declaration, model.DeclarationLibrary):
+            result.append(dataclasses.replace(declaration, declarations=tuple(_type_declarations(declaration.declarations))))
+        elif isinstance(declaration, (model.DeclarationStructType, model.DeclarationEnumType)):
+            result.append(declaration)
+    return result
+
+
+def _placeholder_opaque(value_type: Any) -> Any:
+    """Return an implementation of an opaque struct whose literals parse to its default value."""
+    from wirely.compiler.native_signatures import signature_type
+    from wirely.runtime.extensions import NativeTypes
+    from wirely.runtime.native_values import to_native
+    from wirely.types.value_types import NativeOpaque
+
+    fields = tuple(to_native(None, field_type, field_type.default_value(), native_types=NativeTypes())
+                   for field_type in value_type.fields.values())
+
+    class Placeholder:
+        @staticmethod
+        def parse(text: str) -> Placeholder:
+            return Placeholder()
+
+        def to_fields(self) -> tuple:
+            return fields
+
+    signatures = tuple(signature_type(field_type, {}, f'Opaque struct {value_type.name}')
+                       for field_type in value_type.fields.values())
+    return NativeOpaque(signatures, lambda: Placeholder)
 
 
 def function_signatures(graph: Any, *, constant: bool) -> dict[str, signatures.Function]:
@@ -597,6 +671,15 @@ def native_structs(scope: Any) -> Iterator[tuple[Any, Any]]:
             yield value_type, definition.declaration
     for library in scope.libraries.values():
         yield from native_structs(library)
+
+
+def native_opaque_types(scope: Any) -> Iterator[tuple[Any, Any]]:
+    """Yield (TypeStruct, declaration) for each opaque struct declared in a scope and its namespaces."""
+    for definition in scope.struct_types.values():
+        if definition.declaration.is_opaque:
+            yield definition.resolve_fields(), definition.declaration
+    for library in scope.libraries.values():
+        yield from native_opaque_types(library)
 
 
 def native_resources(scope: Any) -> Iterator[tuple[str, Any]]:
@@ -660,10 +743,18 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
     fields = {name: [signature_type(field_type, {}, f'Native struct {value_type.name}')
                      for field_type in value_type.fields.values()]
               for _, name, value_type, _ in classes}
+    opaque = sorted((value_type.native_name, value_type, declaration)
+                    for value_type, declaration in native_opaque_types(graph)
+                    if source_paths is None or declaration.source_position.filename in source_paths)
+    opaque_fields = {name: [signature_type(field_type, {}, f'Opaque struct {value_type.name}')
+                            for field_type in value_type.fields.values()]
+                     for name, value_type, _ in opaque}
     imports = _Imports(package + '.generated.structs', native_locations)
     imports.add('typing', 'NamedTuple')
+    imports.add('wirely.types.value_types', 'NativeOpaque')
     imports.add('wirely.types.value_types', 'NativeStruct')
-    for name in sorted({name for types in fields.values() for field in types for name in signature_names(field)}):
+    for name in sorted({name for types in (*fields.values(), *opaque_fields.values())
+                        for field in types for name in signature_names(field)}):
         imports.add('wirely.runtime.signatures', name)
     bodies = []
     for python_name, name, value_type, declaration in classes:
@@ -678,10 +769,30 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
              '__all__ = [', *(f'    {name!r},' for name, *_ in classes), ']', '', *bodies]
     lines += ['', '# Expected native structs by native name.', '_native_struct_types: dict[str, NativeStruct] = {']
     for python_name, name, *_ in classes:
-        types = ', '.join(signature_code(field) for field in fields[name]) + (',' if len(fields[name]) == 1 else '')
-        lines.append(f'    {name!r}: NativeStruct({python_name}, ({types})),')
+        lines.append(f'    {name!r}: NativeStruct({python_name}, {_field_code(fields[name])}),')
     lines += ['}', '']
+    lines += _opaque_lines(opaque, opaque_fields, native_locations)
     return '\n'.join(lines)
+
+
+def _field_code(fields: Sequence[signatures.SignatureType]) -> str:
+    return '(' + ', '.join(signature_code(field) for field in fields) + (',' if len(fields) == 1 else '') + ')'
+
+
+def _opaque_lines(opaque: Sequence[tuple[str, Any, Any]], fields: Mapping[str, list[signatures.SignatureType]],
+                  native_locations: Mapping[str, str]) -> list[str]:
+    """Return the loaders and the table of the opaque structs."""
+    lines = []
+    for name, _, _ in opaque:
+        module, python_name = opaque_location(name)
+        module = native_locations.get(name, module)
+        lines += ['', f'def _load_opaque_{module_name(name)}() -> type:', f'    from {module} import {python_name}',
+                  f'    return {python_name}', '']
+    lines += ['', '# Expected opaque structs by native name.', '_native_opaque_types: dict[str, NativeOpaque] = {']
+    lines += [f'    {name!r}: NativeOpaque({_field_code(fields[name])}, _load_opaque_{module_name(name)}),'
+              for name, _, _ in opaque]
+    lines += ['}', '']
+    return lines
 
 
 def signature_code(value: Any) -> str:
@@ -718,7 +829,7 @@ def interface_lines(name: str, value: signatures.Initializer | signatures.Proced
 
 def generate_interfaces(interfaces: Interfaces) -> str:
     state_types, procedures, functions = interfaces
-    names = ['Builtin', 'Enum', 'Function', 'Initializer', 'Int', 'List', 'Option', 'Port',
+    names = ['Builtin', 'Enum', 'Function', 'Initializer', 'Int', 'List', 'Opaque', 'Option', 'Port',
              'Procedure', 'ResourceType', 'Struct', 'TypeVar']
     lines = [HEADER + '"""Native interface signatures."""', '',
              'from wirely.runtime.signatures import (', f'    {", ".join(names)},', ')', '', '',
@@ -748,18 +859,19 @@ def generated_files(inputs: Iterable[Path] | None = None, *, package: str = 'wir
     if inputs is None:
         graph = compile_library()
     else:
-        from wirely.compiler import compile_strs
+        from wirely.compiler import parse_sources, standard_library_sources
         sources = [(str(path), path.read_text(encoding='utf-8')) for path in inputs]
         source_paths = {name for name, _ in sources}
-        graph = compile_strs(sources, add_std=True, shuffle_seed=None, include_builtin_extensions=False)
-        if graph is None:
-            raise ValueError('Compiling native declarations failed')
+        graph = compile_declarations(standard_library_sources() + parse_sources(sources))
     from .native_signatures import native_signatures, function_signatures as signatures_of
     interfaces = native_signatures(graph, source_paths=source_paths)
     native_locations = {value_type.native_name: package + '.generated.' + kind
                         for kind, types in [('enums', native_enums(graph)), ('structs', native_structs(graph))]
                         for value_type, declaration in types
                         if source_paths is None or declaration.source_position.filename in source_paths}
+    native_locations.update({value_type.native_name: opaque_location(value_type.native_name, package)[0]
+                             for value_type, declaration in native_opaque_types(graph)
+                             if source_paths is None or declaration.source_position.filename in source_paths})
     exports = resource_classes(interfaces)
     exports.update({name: ('wirely.native.' + module_name(name.rpartition('.')[0]), name.rpartition('.')[2])
                     for name, declaration in native_resources(graph)
@@ -794,7 +906,7 @@ def generated_files(inputs: Iterable[Path] | None = None, *, package: str = 'wir
         'from . import _bindings, _signatures',
         '', '__all__ = ["extension"]',
         'from .enums import _native_enum_types',
-        'from .structs import _native_struct_types', '',
+        'from .structs import _native_opaque_types, _native_struct_types', '',
         'extension = RuntimeNativeExtension(',
         '    states={name: NativeInitializer(signature, _bindings.states[name])',
         '            for name, signature in _signatures.native_state_types.items()},',
@@ -803,12 +915,13 @@ def generated_files(inputs: Iterable[Path] | None = None, *, package: str = 'wir
         '    functions={name: NativeFunction(signature, _bindings.functions[name])',
         '               for name, signature in _signatures.native_functions.items()},',
         '    resources=_bindings.resources, enums=_native_enum_types, structs=_native_struct_types,',
+        '    opaque_types=_native_opaque_types,',
         ')', '',
     ])
     files[constant_directory / '__init__.py'] = HEADER + '\n'.join([
         '"""Constant native functions generated from Wirely declarations."""', '',
         'from wirely.compiler.extensions import CompilerNativeExtension, NativeConstantFunction',
-        'from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Option, Struct, TypeVar',
+        'from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Opaque, Option, Struct, TypeVar',
         'from . import _bindings', '', '__all__ = ["extension"]', '',
         'extension = CompilerNativeExtension(functions={',
         *(f'    {name!r}: NativeConstantFunction({signature_code(signature)}, _bindings.functions[{name!r}]),'

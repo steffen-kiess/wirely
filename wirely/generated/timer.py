@@ -6,15 +6,17 @@ from __future__ import annotations
 import abc
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, PreparationServices, ProcedureAdapter, ProcedureServices,
 )
 from wirely.types import InternalValue
 from wirely.types.option import Some
-from wirely.types.time import MonotonicTime
 from wirely.types.value_types import DynamicValue, ValueType
+
+if TYPE_CHECKING:
+    from wirely.native.timer import MonotonicTime
 
 __all__ = [
     'MonotonicTimeReachedRunResult',

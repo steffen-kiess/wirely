@@ -4,10 +4,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from wirely.compiler.native_functions import ConstantFunctionContract, FunctionServices
-from wirely.types.time import TimeOfDay
+
+if TYPE_CHECKING:
+    from wirely.native.schedule import TimeOfDay
 
 __all__ = [
 ]

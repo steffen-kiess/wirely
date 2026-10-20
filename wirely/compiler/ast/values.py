@@ -376,7 +376,7 @@ class StructLiteral(Value):
 
 def check_struct_literal(value_type: 'model.types.Type', literal: 'StructLiteral',
                          scope: 'model.Scope | None') -> dict[str, 'StructLiteralField']:
-    if not isinstance(value_type, model.types.TypeStruct):
+    if not isinstance(value_type, model.types.TypeStruct) or value_type.is_opaque:
         raise ProgramError(literal, f'Expected {value_type}, got struct literal')
     if scope is None or scope.resolve_type(literal.struct_type) is not value_type:
         raise ProgramError(literal.struct_type, f'Expected struct type {value_type}, got {literal.struct_type}')

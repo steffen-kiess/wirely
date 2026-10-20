@@ -12,7 +12,7 @@ from wirely.compiler import program as program_compiler
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_constant_function, test_contracts
 from wirely.runtime.signatures import Builtin
-from wirely.types.value_types import NativeEnum, NativeStruct, OpenIntEnum
+from wirely.types.value_types import NativeEnum, NativeOpaque, NativeStruct, OpenIntEnum
 
 
 checks = TestCase()
@@ -265,7 +265,10 @@ def check_native_conversions():
 
     enums = {'Test.Mode': NativeEnum(Mode, is_open=True, underlying_type='uint8')}
     structs = {'Test.Pair': NativeStruct(Pair, (Builtin('boolean'), signatures.Int(8, False)))}
-    native_types = NativeTypes(enums=enums, structs=structs)
+    # Opaque structs convert with the from_fields and to_fields of their class.
+    opaque_types = {'Test.Span': NativeOpaque((signatures.Int(128, False),), lambda: wirely.Duration)}
+    native_types = NativeTypes(enums=enums, structs=structs, opaque_types=opaque_types)
+    span = types.TypeStruct('Span', {'units': types.uint128}, native_name='Test.Span', is_opaque=True)
     mode = types.TypeEnum('Mode', {'On': 1}, is_open=True, underlying_type=types.uint8, native_name='Test.Mode')
     pair = types.TypeStruct('Pair', {'flag': types.boolean, 'count': types.uint8}, native_name='Test.Pair')
     concrete = [
@@ -273,7 +276,7 @@ def check_native_conversions():
         (types.boolean, True, True),
         (types.String, 'text', 'text'),
         (types.unit, wirely.Unit(), wirely.Unit()),
-        (types.Duration, wirely.Duration(ticks=5), wirely.Duration(ticks=5)),
+        (span, (5,), wirely.Duration(ticks=5)),
         (types.ValueType, types.uint8, wirely.value_types.uint8),
         (mode, 1, Mode.On),
         (pair, (True, 7), Pair(True, wirely.UInt8(7))),

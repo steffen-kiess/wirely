@@ -4,7 +4,7 @@ from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler import program as program_compiler
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
-from tests.infra.support import test_extension, test_contracts
+from tests.infra.support import internal, test_extension, test_contracts
 
 
 source = '''namespace TestLibrary {
@@ -56,16 +56,18 @@ held_source.set_value(wirely.Some(False))
 _, _, first_step = runtime.step()
 first = runtime.get_value('timestamp')
 assert isinstance(first, wirely.Some)
-assert first.value == first_step.stage_start_time_monotonic[RunStage.DEFAULT]
+first_time = first_step.stage_start_time_monotonic[RunStage.DEFAULT]
+assert first.value == internal(first_time)
 assert runtime.triggered_procs
 
 runtime.advance_fake_monotonic_time(wirely.Duration.from_seconds(1))
 run_count, _, second_step = runtime.step()
 second = runtime.get_value('timestamp')
 assert isinstance(second, wirely.Some)
-assert second.value == second_step.stage_start_time_monotonic[RunStage.DEFAULT]
-assert wirely.MonotonicTime.is_comparable(first.value, second.value)
-assert wirely.MonotonicTime.compare(first.value, second.value) < 0
+second_time = second_step.stage_start_time_monotonic[RunStage.DEFAULT]
+assert second.value == internal(second_time)
+assert wirely.MonotonicTime.is_comparable(first_time, second_time)
+assert wirely.MonotonicTime.compare(first_time, second_time) < 0
 assert run_count == 1
 assert runtime.triggered_procs
 

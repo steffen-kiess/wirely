@@ -374,24 +374,26 @@ namespace Other {
   native struct type Couple as "Example.Pair" { flag: boolean } // E: Duplicate native name 'Example.Pair'
 }
 
-// TEST: opaque struct with an unknown default native name
+// TEST: opaque struct literal without an implementation
 namespace Example {
-  opaque struct type Span { Ticks: uint128 } // E: Unknown opaque struct native name 'Example.Span'
+  opaque struct type Span { Ticks: uint128 }
 }
+constant Value: Example.Span = "PT1S"; // E: Example.Span has no literals without a native implementation
 
-// TEST: opaque struct with an unknown native name
-opaque struct type Span as "Example.Span" { Ticks: uint128 } // E: Unknown opaque struct native name 'Example.Span'
+// TEST: opaque struct literal with an unknown native name
+opaque struct type Span as "Example.Span" { Ticks: uint128 }
+constant Value: Span = "PT1S"; // E: Span has no literals without a native implementation
 
 // TEST: opaque struct field type
-opaque struct type Span as "Std.Duration" { Ticks: uint64 } // E: Opaque struct Std.Duration requires field types (uint128)
+opaque struct type Span as "Std.Duration" { Ticks: uint64 } // E: Opaque struct type 'Std.Duration' field 0 has type uint64, expected uint128
 
 // TEST: opaque struct field count
-opaque struct type Time as "Timer.MonotonicTime" { Ticks: uint128 } // E: requires field types (uint128, uint64)
+opaque struct type Time as "Timer.MonotonicTime" { Ticks: uint128 } // E: Opaque struct type 'Timer.MonotonicTime' must have 2 fields, got 1
 
 // TEST: opaque struct field names are not compared
 opaque struct type Span as "Std.Duration" { units: uint128 }
 constant Value: Span = "PT1S";
-constant Bad: uint8 = Value; // E: Expected value of type uint8, got Std.Duration
+constant Bad: uint8 = Value; // E: Expected value of type uint8, got Span
 
 // TEST: duplicate opaque struct native name
 // SH: Previous declaration was here
@@ -402,7 +404,7 @@ opaque struct type Interval as "Std.Duration" { Ticks: uint128 } // E: Duplicate
 // TEST: opaque and native struct native names are separate
 opaque struct type Span as "Std.Duration" { Ticks: uint128 }
 native struct type Record as "Std.Duration" { Ticks: uint128 }
-constant Bad: Span = Record { Ticks: 1 }; // E: Expected Std.Duration, got struct literal
+constant Bad: Span = Record { Ticks: 1 }; // E: Expected Span, got struct literal
 
 // TEST: opaque struct field access
 // LIBRARIES: std

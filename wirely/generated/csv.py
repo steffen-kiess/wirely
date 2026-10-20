@@ -15,11 +15,11 @@ from wirely.runtime.native_api import (
 from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.option import Some
-from wirely.types.time import MonotonicTime
 from wirely.types.value_types import DynamicValue, ValueType
 
 if TYPE_CHECKING:
     from wirely.native.csv import ValueWriterState
+    from wirely.native.timer import MonotonicTime
 
 __all__ = [
     'ValueWriterInitializerResult',

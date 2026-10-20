@@ -2,12 +2,8 @@
 
 from typing import Any
 
-from . import (
-    Type, TypeBoolean, TypeDuration, TypeEnum, TypeInt, TypeMonotonicTime,
-    TypeOption, TypeStruct, TypeTimeOfDay, TypeUnit,
-)
+from . import Type, TypeBoolean, TypeEnum, TypeInt, TypeOption, TypeStruct, TypeUnit
 from .option import Some
-from .time import Duration, MonotonicTime, TimeOfDay
 from .unit import Unit
 
 
@@ -42,10 +38,6 @@ def _layout(value_type: Type) -> tuple[int, int, int]:
         if value_type.bits not in (8, 16, 32, 64, 128):
             raise ValueError(f'Unsupported integer width {value_type.bits}')
         alignment = data_size = value_type.bits // 8
-    elif isinstance(value_type, TypeMonotonicTime):
-        alignment, data_size = 16, 24
-    elif isinstance(value_type, (TypeDuration, TypeTimeOfDay)):
-        alignment = data_size = 16
     else:
         raise ValueError(f'Unsupported runtime type {value_type}')
     size = (data_size + alignment - 1) & ~(alignment - 1)
@@ -107,12 +99,6 @@ def _serialize(value_type: Type, value: Any) -> bytes:
         return bytes([int(value)])
     if isinstance(value_type, TypeInt):
         return _integer_bytes(value, length, signed=value_type.is_signed)
-    if isinstance(value_type, TypeDuration):
-        return _integer_bytes(value.ticks, 16)
-    if isinstance(value_type, TypeMonotonicTime):
-        return _integer_bytes(value.ticks, 16) + _integer_bytes(value.generation, 8)
-    if isinstance(value_type, TypeTimeOfDay):
-        return _integer_bytes(value.ticks, 16)
     raise ValueError(f'Unsupported runtime type {value_type}')
 
 
@@ -130,7 +116,10 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
                 raise ValueError('Struct padding must be zero')
             end = offset + field_type.data_size
             fields.append(field_type.deserialize(data[offset:end]))
-        return value_type.verify_value(tuple(fields))
+        value = value_type.verify_value(tuple(fields))
+        if value_type.is_opaque:
+            value_type.check_opaque_value(value)
+        return value
     if isinstance(value_type, TypeOption):
         present = data[-1]
         if present > 1:
@@ -150,13 +139,4 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
         return bool(data[0])
     if isinstance(value_type, TypeInt):
         return int.from_bytes(data, 'little', signed=value_type.is_signed)
-    if isinstance(value_type, TypeDuration):
-        return Duration(ticks=int.from_bytes(data, 'little'))
-    if isinstance(value_type, TypeMonotonicTime):
-        return MonotonicTime(generation=int.from_bytes(data[16:], 'little'), ticks=int.from_bytes(data[:16], 'little'))
-    if isinstance(value_type, TypeTimeOfDay):
-        ticks = int.from_bytes(data, 'little')
-        if ticks > TimeOfDay.END_TICKS:
-            raise ValueError('TimeOfDay requires a time up to 24:00')
-        return TimeOfDay(ticks=ticks)
     raise ValueError(f'Unsupported runtime type {value_type}')

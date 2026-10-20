@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from .parameters import StaticValue
 
 from ..types import Type, TypeOption, TypeList
-from ..types.time import TimeOfDay
 from .. import types
 from . import model
 
@@ -172,35 +171,6 @@ def _parse_value_type(self: types.TypeValueType, value: model.ast.Value, *,
     raise Exception('TODO: TypeValueType.parse_value()')
 
 
-def _parse_monotonic_time(self: types.TypeMonotonicTime, value: model.ast.Value, *,
-                          scope: model.Scope | None = None) -> NoReturn:
-    raise model.ProgramError(value, f'Invalid {self} value {value!r}')
-
-
-def _parse_duration(self: types.TypeDuration, expr: model.ast.Value, *,
-                    scope: model.Scope | None = None) -> model.Duration:
-    # TODO
-    if isinstance(expr, model.StringConstant):
-        s = expr.value
-        try:
-            return self.parse(s)
-        except Exception:
-            raise model.ProgramError(expr, f'Invalid {self} value {s!r}')
-    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
-
-
-def _parse_time_of_day(self: types.TypeTimeOfDay, expr: model.ast.Value, *,
-                       scope: model.Scope | None = None) -> TimeOfDay:
-    # TODO
-    if isinstance(expr, model.StringConstant):
-        s = expr.value
-        try:
-            return self.parse(s)
-        except Exception:
-            raise model.ProgramError(expr, f'Invalid {self} value {s!r}')
-    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
-
-
 def _parse_string(self: types.TypeString, value: model.ast.Value, *, scope: model.Scope | None = None) -> str:
     if isinstance(value, model.StringConstant):
         return value.value
@@ -228,7 +198,24 @@ def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Sco
         raise model.ProgramError(expr, str(error)) from None
 
 
+def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value) -> Any:
+    """Parse a string literal with the implementation of an opaque struct."""
+    if isinstance(expr, model.StructLiteral):
+        raise model.ProgramError(expr, f'Expected {self}, got struct literal')
+    python_type = self.opaque_class()
+    if isinstance(expr, model.StringConstant) and python_type is not None and hasattr(python_type, 'parse'):
+        try:
+            return self.parse(expr.value)
+        except Exception:
+            raise model.ProgramError(expr, f'Invalid {self} value {expr.value!r}') from None
+    if isinstance(expr, model.StringConstant) and python_type is None:
+        raise model.ProgramError(expr, f'{self} has no literals without a native implementation')
+    raise model.ProgramError(expr, f'Invalid {self} value {expr!r}')
+
+
 def _parse_struct(self: types.TypeStruct, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
+    if self.is_opaque:
+        return _parse_opaque(self, value)
     if not isinstance(value, model.StructLiteral):
         raise model.ProgramError(value, f'Expected struct literal {self.name} {{ ... }}')
     fields = model.ast.check_struct_literal(self, value, scope)
@@ -243,9 +230,6 @@ _literal_parsers: dict[type, Callable[..., Any]] = {
     types.TypeBoolean: _parse_boolean,
     types.TypeInt: _parse_int,
     types.TypeValueType: _parse_value_type,
-    types.TypeMonotonicTime: _parse_monotonic_time,
-    types.TypeDuration: _parse_duration,
-    types.TypeTimeOfDay: _parse_time_of_day,
     types.TypeString: _parse_string,
     types.TypeEnum: _parse_enum,
     types.TypeStruct: _parse_struct,

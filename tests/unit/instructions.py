@@ -4,7 +4,7 @@ from unittest import TestCase
 import wirely
 from wirely import types
 from tests.infra.native_extension.generated import test_library as contracts
-from tests.infra.support import test_extension
+from tests.infra.support import library_type, test_extension
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
@@ -15,6 +15,7 @@ from wirely.runtime.procedures import execute_procedure
 
 
 checks = TestCase()
+duration = library_type('Std.Duration')
 
 
 def local(index):
@@ -317,7 +318,7 @@ def check_bitwise_and_shifts():
     for opcode in (Opcode.NOT, Opcode.AND, Opcode.OR, Opcode.XOR):
         operands = (output(0), local(0)) if opcode == Opcode.NOT else (output(0), local(0), local(0))
         expect_invalid([instruction(opcode, *operands), ret], 'integer or boolean',
-                       output_types=(types.Duration,), local_types=(types.Duration,))
+                       output_types=(duration,), local_types=(duration,))
         expect_invalid([instruction(opcode, *operands), ret], 'Expected type',
                        output_types=(types.uint8,), local_types=(types.boolean,))
     for opcode in (Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT):
@@ -386,8 +387,8 @@ def check_validation():
                    constants=(Constant(types.uint8, 0),))
     expect_invalid([instruction(Opcode.EQUAL, output(0), output(0), const(0)), ret], 'Expected type',
                    constants=(Constant(types.uint8, 0),))
-    for value_type in (types.boolean, types.Duration, types.TimeOfDay, types.MonotonicTime,
-                       types.TypeOption(types.uint8)):
+    for value_type in (types.boolean, duration, library_type('Schedule.TimeOfDay'),
+                       library_type('Timer.MonotonicTime'), types.TypeOption(types.uint8)):
         expect_invalid([instruction(Opcode.LESS, output(0), local(0), local(0)), ret], 'integer type',
                        local_types=(value_type,))
     expect_invalid([instruction(Opcode.LESS, output(0), local(0), const(0)), ret], 'Expected type',
@@ -400,7 +401,7 @@ def check_validation():
                    output_types=(types.uint8,), local_types=(types.uint8,))
     expect_invalid([instruction(Opcode.ADD_WRAPPING, output(0), local(0), local(0)), ret], 'Expected type',
                    output_types=(types.TypeOption(types.uint8),), local_types=(types.uint8,))
-    for value_type in (types.Duration, types.TypeOption(types.uint8)):
+    for value_type in (duration, types.TypeOption(types.uint8)):
         expect_invalid([instruction(Opcode.CONVERT_WRAPPING, output(0), local(0)), ret], 'Conversion source',
                        output_types=(types.uint8,), local_types=(value_type,))
     expect_invalid([instruction(Opcode.CONVERT_CHECKED, output(0), local(0)), ret], 'Option destination',
@@ -408,7 +409,7 @@ def check_validation():
     expect_invalid([instruction(Opcode.CONVERT_WRAPPING, output(0), local(0)), ret], 'Conversion destination',
                    output_types=(types.TypeOption(types.uint8),), local_types=(types.int8,))
     expect_invalid([instruction(Opcode.CONVERT_WRAPPING, output(0), local(0)), ret], 'Conversion destination',
-                   output_types=(types.Duration,), local_types=(types.int8,))
+                   output_types=(duration,), local_types=(types.int8,))
     expect_invalid([instruction(Opcode.JUMP, 1), ret], 'Invalid operands')
     for index in (-1, 0, 2, True):
         expect_invalid([instruction(Opcode.JUMP, BranchTarget(index)), ret], 'later instruction')
@@ -420,7 +421,12 @@ def check_validation():
     for field in (-1, 1):
         expect_invalid([instruction(Opcode.GET_FIELD, output(0), local(0), field), ret], 'Field index',
                        output_types=(types.uint8,), local_types=(pair,))
-    expect_invalid([instruction(Opcode.GET_FIELD, output(0), output(0), 0), ret], 'requires a struct')
+    expect_invalid([instruction(Opcode.GET_FIELD, output(0), output(0), 0), ret], 'requires a non-opaque struct')
+    # Opaque struct fields are only accessible to native code.
+    expect_invalid([instruction(Opcode.GET_FIELD, output(0), local(0), 0), ret], 'requires a non-opaque struct',
+                   output_types=(types.uint128,), local_types=(duration,))
+    expect_invalid([instruction(Opcode.SET_FIELD, local(0), output(0), 0), ret], 'requires a non-opaque struct',
+                   output_types=(types.uint128,), local_types=(duration,))
     expect_invalid([instruction(Opcode.GET_FIELD, output(0), local(0), BranchTarget(0)), ret], 'Invalid operands',
                    local_types=(pair,))
     expect_invalid([instruction(Opcode.GET_FIELD, output(0), local(0), 0), ret], 'Expected type',

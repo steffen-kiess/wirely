@@ -4,11 +4,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from wirely.runtime.native_api import FunctionBinding, FunctionContract
 from wirely.types import InternalValue
-from wirely.types.time import Duration, TimeOfDay
+
+if TYPE_CHECKING:
+    from wirely.native.schedule import TimeOfDay
+    from wirely.native.std import Duration
 
 __all__ = [
 ]

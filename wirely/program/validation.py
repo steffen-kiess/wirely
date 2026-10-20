@@ -100,8 +100,8 @@ def _validate_body(procedure: Procedure, constant_types: Sequence[Type], functio
                 _same_type(operand_types[0], operand_types[1])
             elif opcode in (Opcode.GET_FIELD, Opcode.SET_FIELD):
                 struct_type = operand_types[1] if opcode == Opcode.GET_FIELD else operand_types[0]
-                if not isinstance(struct_type, TypeStruct):
-                    raise ValueError('Field access requires a struct')
+                if not isinstance(struct_type, TypeStruct) or struct_type.is_opaque:
+                    raise ValueError('Field access requires a non-opaque struct')
                 field = operands[2]
                 assert isinstance(field, int)
                 if not 0 <= field < len(struct_type.fields):

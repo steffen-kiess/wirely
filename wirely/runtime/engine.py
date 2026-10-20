@@ -27,7 +27,7 @@ class Engine:
                  include_builtin_extensions: bool = True) -> None:
         from .linking import (
             link_native_contracts, link_native_enums, link_native_functions,
-            link_native_resource_types, link_native_signatures, link_native_structs,
+            link_native_resource_types, link_native_signatures, link_native_structs, link_opaque_values,
         )
 
         if not isinstance(program, Program):
@@ -78,6 +78,7 @@ class Engine:
 
         link_native_enums(program, extension)
         link_native_structs(program, extension)
+        link_opaque_values(program, extension)
         link_native_signatures(program, extension)
         self.resource_types = link_native_resource_types(program, extension)
         linked_states, linked_procedures = link_native_contracts(program, extension)

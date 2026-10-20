@@ -4,6 +4,7 @@ import contextlib
 
 import wirely
 from wirely.program import RunStage
+from tests.infra.support import internal
 
 
 def set_time(value):
@@ -322,9 +323,10 @@ async def run_test():
         timestamp = engine.get_value('timestamp')
         assert isinstance(timestamp, wirely.Some)
         now = wirely.MonotonicTime.current_time()
-        assert wirely.MonotonicTime.is_comparable(timestamp.value, now)
-        assert wirely.MonotonicTime.compare(timestamp.value, now) <= 0
-        assert timestamp.value == step_info.stage_start_time_monotonic[RunStage.DEFAULT]
+        stamp = step_info.stage_start_time_monotonic[RunStage.DEFAULT]
+        assert timestamp.value == internal(stamp)
+        assert wirely.MonotonicTime.is_comparable(stamp, now)
+        assert wirely.MonotonicTime.compare(stamp, now) <= 0
         engine.step()
         engine.assert_value_is('timestamp', None)
         engine.assert_is_idle()
@@ -373,14 +375,14 @@ async def run_test():
         for time, expected in [(None, None), (wirely.Some(now + wirely.Duration.parse('PT1H')), wirely.Some(False)),
                                (wirely.Some(wirely.MonotonicTime(generation=now.generation, ticks=0)), wirely.Some(True)),
                                (wirely.Some(wirely.MonotonicTime(generation=0, ticks=0)), None)]:
-            reached_input.set_value(time)
+            reached_input.set_value(internal(time))
             engine.step()
             engine.assert_value_is('reached', expected)
 
         # DurationElapsed preserves absence and rejects lost clock generations.
         elapsed_input = engine.get_native_state('elapsed_input')
         for start in (None, wirely.Some(wirely.MonotonicTime(generation=0, ticks=0))):
-            elapsed_input.set_value(start)
+            elapsed_input.set_value(internal(start))
             engine.step()
             engine.assert_value_is('elapsed', None)
             engine.assert_value_is('elapsed_zero', None)
@@ -388,7 +390,7 @@ async def run_test():
         # Advancing time expires the wait without changing its input.
         _, _, step_info = engine.step()
         start = step_info.stage_start_time_monotonic[RunStage.DEFAULT]
-        elapsed_input.set_value(wirely.Some(start))
+        elapsed_input.set_value(internal(wirely.Some(start)))
         engine.step()
         engine.assert_value_is('elapsed', wirely.Some(False))
         engine.assert_value_is('elapsed_zero', wirely.Some(True))
@@ -403,11 +405,11 @@ async def run_test():
 
         # Replacing the start time restarts a pending wait.
         _, _, step_info = engine.step()
-        elapsed_input.set_value(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT]))
+        elapsed_input.set_value(internal(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT])))
         engine.step()
         engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(9))
         _, _, step_info = engine.step()
-        elapsed_input.set_value(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT]))
+        elapsed_input.set_value(internal(wirely.Some(step_info.stage_start_time_monotonic[RunStage.DEFAULT])))
         engine.step()
         engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(2))
         engine.step()
@@ -419,7 +421,7 @@ async def run_test():
         # A future start with zero duration waits until that start is reached.
         _, _, step_info = engine.step()
         start = step_info.stage_start_time_monotonic[RunStage.DEFAULT]
-        elapsed_input.set_value(wirely.Some(start + wirely.Duration.from_seconds(10)))
+        elapsed_input.set_value(internal(wirely.Some(start + wirely.Duration.from_seconds(10))))
         engine.step()
         engine.assert_value_is('elapsed_zero', wirely.Some(False))
         engine.advance_fake_monotonic_time(wirely.Duration.from_seconds(11))
@@ -437,7 +439,7 @@ async def run_test():
         engine.assert_is_idle()
 
         # Adding the duration near the timestamp limit saturates, not overflows.
-        elapsed_input.set_value(wirely.Some(wirely.MonotonicTime(generation=start.generation, ticks=wirely.MonotonicTime.MAX_TICKS - 5)))
+        elapsed_input.set_value(internal(wirely.Some(wirely.MonotonicTime(generation=start.generation, ticks=wirely.MonotonicTime.MAX_TICKS - 5))))
         engine.step()
         engine.assert_value_is('elapsed', wirely.Some(False))
         elapsed_input.set_value(None)

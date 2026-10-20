@@ -6,14 +6,16 @@ from __future__ import annotations
 import abc
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, PreparationServices, ProcedureAdapter, ProcedureServices,
 )
 from wirely.types import InternalValue
 from wirely.types.option import Some
-from wirely.types.time import TimeOfDay
+
+if TYPE_CHECKING:
+    from wirely.native.schedule import TimeOfDay
 
 __all__ = [
     'IsInDailyIntervalRunResult',

@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
-from wirely.runtime.signatures import Builtin
-from wirely.types.value_types import NativeStruct
+from wirely.runtime.signatures import Builtin, Int
+from wirely.types.value_types import NativeOpaque, NativeStruct
 
 __all__ = [
     'MQTTTemplateParts',
@@ -39,4 +39,27 @@ _native_struct_types: dict[str, NativeStruct] = {
     'MQTT.TemplateParts': NativeStruct(MQTTTemplateParts, (Builtin('String'), Builtin('String'))),
     'Std.FormatParts': NativeStruct(StdFormatParts, (Builtin('String'), Builtin('String'), Builtin('boolean'))),
     'TwoN.Credentials': NativeStruct(TwoNCredentials, (Builtin('String'), Builtin('String'))),
+}
+
+
+def _load_opaque_schedule_time_of_day() -> type:
+    from wirely.native.schedule import TimeOfDay
+    return TimeOfDay
+
+
+def _load_opaque_std_duration() -> type:
+    from wirely.native.std import Duration
+    return Duration
+
+
+def _load_opaque_timer_monotonic_time() -> type:
+    from wirely.native.timer import MonotonicTime
+    return MonotonicTime
+
+
+# Expected opaque structs by native name.
+_native_opaque_types: dict[str, NativeOpaque] = {
+    'Schedule.TimeOfDay': NativeOpaque((Int(128, False),), _load_opaque_schedule_time_of_day),
+    'Std.Duration': NativeOpaque((Int(128, False),), _load_opaque_std_duration),
+    'Timer.MonotonicTime': NativeOpaque((Int(128, False), Int(64, False)), _load_opaque_timer_monotonic_time),
 }

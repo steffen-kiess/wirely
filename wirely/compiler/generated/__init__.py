@@ -2,7 +2,7 @@
 """Constant native functions generated from Wirely declarations."""
 
 from wirely.compiler.extensions import CompilerNativeExtension, NativeConstantFunction
-from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Option, Struct, TypeVar
+from wirely.runtime.signatures import Builtin, Enum, Function, Int, List, Opaque, Option, Struct, TypeVar
 from . import _bindings
 
 __all__ = ["extension"]
@@ -17,7 +17,7 @@ extension = CompilerNativeExtension(functions={
     'Path.Join': NativeConstantFunction(Function((Builtin('String'), Builtin('String')), Builtin('String')), _bindings.functions['Path.Join']),
     'Path.Parent': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Path.Parent']),
     'Path.SourceFile': NativeConstantFunction(Function((), Builtin('String')), _bindings.functions['Path.SourceFile']),
-    'Schedule.IsValidDailyInterval': NativeConstantFunction(Function((Builtin('Schedule.TimeOfDay'), Builtin('Schedule.TimeOfDay')), Builtin('boolean')), _bindings.functions['Schedule.IsValidDailyInterval']),
+    'Schedule.IsValidDailyInterval': NativeConstantFunction(Function((Opaque('Schedule.TimeOfDay'), Opaque('Schedule.TimeOfDay')), Builtin('boolean')), _bindings.functions['Schedule.IsValidDailyInterval']),
     'Std.ParseFormat': NativeConstantFunction(Function((Builtin('String'), Builtin('ValueType')), Struct('Std.FormatParts')), _bindings.functions['Std.ParseFormat']),
     'Test.ReplaceKNXPath': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Test.ReplaceKNXPath']),
     'Test.ReplaceMQTTURI': NativeConstantFunction(Function((Builtin('String'),), Builtin('String')), _bindings.functions['Test.ReplaceMQTTURI']),

@@ -17,7 +17,7 @@ from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
 from wirely.runtime.wall_clock import TimerFD, WallClockWaiter
-from tests.infra.support import test_contracts, test_extension
+from tests.infra.support import internal, test_contracts, test_extension
 
 
 checks = TestCase()
@@ -126,19 +126,19 @@ async def check_windows_and_availability():
     runtime.set_fake_wall_time(BASE)
     async with running(runtime) as task:
         await wait_for(task, lambda: probe.calls == 1)
-        runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(12, 34)))
+        runtime.assert_value_is('clock', internal(wirely.Some(wirely.TimeOfDay.from_parts(12, 34))))
         for value in (BASE - datetime.timedelta(seconds=2), BASE.replace(second=0), BASE.replace(second=59)):
             runtime.set_fake_wall_time(value)
             await unchanged(probe, 1)
         runtime.set_fake_wall_time(BASE - datetime.timedelta(minutes=2))
         await wait_for(task, lambda: probe.calls == 2)
-        runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(12, 32)))
+        runtime.assert_value_is('clock', internal(wirely.Some(wirely.TimeOfDay.from_parts(12, 32))))
         runtime.set_fake_wall_time(BASE.replace(minute=33, second=0))
         await wait_for(task, lambda: probe.calls == 3)
         shifted = BASE.replace(minute=33, second=0).astimezone(datetime.timezone(datetime.timedelta(hours=1)))
         runtime.set_fake_wall_time(shifted)
         await wait_for(task, lambda: probe.calls == 4)
-        runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(13, 33)))
+        runtime.assert_value_is('clock', internal(wirely.Some(wirely.TimeOfDay.from_parts(13, 33))))
         runtime.set_fake_wall_time(None)
         await wait_for(task, lambda: probe.calls == 5)
         runtime.assert_value_is('clock', None)
@@ -167,7 +167,7 @@ async def check_windows_and_availability():
     runtime.set_fake_wall_time(datetime.datetime(2026, 10, 25, 2, tzinfo=berlin, fold=1))
     runtime.step()
     assert probe.calls == 2
-    runtime.assert_value_is('clock', wirely.Some(wirely.TimeOfDay.from_parts(2, 0)))
+    runtime.assert_value_is('clock', internal(wirely.Some(wirely.TimeOfDay.from_parts(2, 0))))
 
 
 def check_daily_intervals():
