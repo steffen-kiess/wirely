@@ -189,7 +189,7 @@ struct type ByteRange {
 }
 ```
 
-### StringRef
+### StringRef and OptionalStringRef
 
 ```wirely
 // UTF-8 bytes in the buffer named by the referring field's comment.
@@ -199,6 +199,14 @@ struct type StringRef {
   // Number of UTF-8 bytes starting at Offset.
   LengthBytes: uint32,
 }
+
+// UTF-8 bytes in the buffer named at use, or no string.
+struct type OptionalStringRef {
+  // Byte offset into the buffer, or 0xffffffff for no string.
+  Offset: uint32,
+  // Number of UTF-8 bytes starting at Offset, or 0xffffffff for no string.
+  LengthBytes: uint32,
+}
 ```
 
 Strings are stored in four buffers: `NativeNames` holds names for linking,
@@ -206,7 +214,8 @@ Strings are stored in four buffers: `NativeNames` holds names for linking,
 `SymbolData` holds symbols and aliases. A string occupies exactly
 `[Offset, Offset + LengthBytes)` in its buffer and is valid UTF-8
 (RFC 3629). An empty string has both fields zero. Equal strings can share
-bytes.
+bytes. An absent `OptionalStringRef` has both fields `0xffffffff`; a
+present one is a string like a `StringRef`.
 
 A qualified name is one string whose components are joined by `.`, such as
 `ABB.JRA.Shutter`.
@@ -270,8 +279,8 @@ struct type ClosedEnumType {
   UnderlyingType: Ref,
   // Number of members; member N has number N.
   MemberCount: uint32,
-  // Native name in NativeNames; empty if the enum is not native.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the enum is not native.
+  NativeName: OptionalStringRef,
 }
 ```
 
@@ -281,8 +290,8 @@ struct type OpenEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
-  // Native name in NativeNames; empty if the enum is not native.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the enum is not native.
+  NativeName: OptionalStringRef,
 }
 ```
 
@@ -296,9 +305,9 @@ struct type StructType {
   Opaque: boolean,
   // Range into TypeLists; field types in declaration order.
   Fields: Range,
-  // Native name in NativeNames; empty if the struct is neither native nor
-  // opaque.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the struct is neither native
+  // nor opaque.
+  NativeName: OptionalStringRef,
 }
 ```
 
@@ -1057,7 +1066,7 @@ target table, in the same order:
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
 | `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b:run.output` |
 | `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
-| `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; empty for other types |
+| `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; none for other types |
 
 Symbols identify nodes, variables, procedures, and types in diagnostics
 and when building [state transitions](#state-transitions).
@@ -1067,8 +1076,8 @@ and when building [state transitions](#state-transitions).
 ```wirely
 // Symbols of one type. TypeSymbols table.
 struct type TypeSymbol {
-  // Qualified name in SymbolData; empty for unnamed types.
-  Name: StringRef,
+  // Qualified name in SymbolData, or none for unnamed types.
+  Name: OptionalStringRef,
   // Number of member symbols: one per member of a closed enum or field
   // of a struct, or one per named number of an open enum; zero for
   // other types.
@@ -1114,10 +1123,10 @@ UTF-8 name bytes. Multiple aliases can refer to one variable.
 referenced by symbol records.
 
 An embedded reader reads the header and directory and links native code
-and functions using `NativeNames`. Symbol records and their data can be read on
-demand. To print a node name, read its `NodeSymbols` entry, then stream the
-referenced `SymbolData` byte range over UART. Numeric node, procedure, and
-variable indices also serve as diagnostic identifiers.
+and functions using `NativeNames`. Symbol records and their data can be
+read on demand. To print a node name, read its `NodeSymbols` entry, then
+stream the referenced `SymbolData` byte range over UART. Numeric node,
+procedure, and variable indices also serve as diagnostic identifiers.
 
 Static value entries locate value slots in `ProgramData`. Strings and
 lists identify payload ranges for deferred reads. Schedules and bindings
@@ -1190,9 +1199,11 @@ Bytes not referenced by any record are not checked. This includes bytes of
 `ProcedureCode` outside every instruction stream.
 
 Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
-`ByteRange` byte ranges, `StringRef` byte ranges, whose bytes are valid
-UTF-8, and named-number arrays, which are aligned for their type. Small
-enumerated fields such as `Bank` have listed values, and padding is zero.
+`ByteRange` byte ranges, `StringRef` and present `OptionalStringRef` byte
+ranges, whose bytes are valid UTF-8, and named-number arrays, which are
+aligned for their type. An absent `OptionalStringRef` has both fields
+`0xffffffff`. Small enumerated fields such as `Bank` have listed values,
+and padding is zero.
 
 ### Types and values
 
@@ -1254,7 +1265,7 @@ Verifiers do not check these rules:
 - Sections do not overlap each other, the header, or the directory.
 - Buffers place variables in decreasing type alignment.
 - The JSON names and the member symbols of one type are distinct.
-- Node, variable, procedure, and nonempty type symbols are distinct within
+- Node, variable, procedure, and present type symbols are distinct within
   their table.
 - The build ID matches the unstripped file.
 

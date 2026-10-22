@@ -17,6 +17,7 @@ __all__ = [
     'Range',
     'ByteRange',
     'StringRef',
+    'OptionalStringRef',
     'TypeKind',
     'SimpleType',
     'IntegerType',
@@ -103,6 +104,12 @@ class StringRef(NamedTuple):
     length_bytes: int
 
 
+# OptionalStringRef in wirely/program/format.wrl
+class OptionalStringRef(NamedTuple):
+    offset: int
+    length_bytes: int
+
+
 # TypeKind in wirely/program/format.wrl
 class TypeKind(OpenIntEnum, minimum=0, maximum=255):
     Unit = 1
@@ -134,14 +141,14 @@ class ClosedEnumType(NamedTuple):
     kind: TypeKind
     underlying_type: Ref
     member_count: int
-    native_name: StringRef
+    native_name: OptionalStringRef
 
 
 # OpenEnumType in wirely/program/format.wrl
 class OpenEnumType(NamedTuple):
     kind: TypeKind
     underlying_type: Ref
-    native_name: StringRef
+    native_name: OptionalStringRef
 
 
 # StructType in wirely/program/format.wrl
@@ -149,7 +156,7 @@ class StructType(NamedTuple):
     kind: TypeKind
     opaque: bool
     fields: Range
-    native_name: StringRef
+    native_name: OptionalStringRef
 
 
 # CompositeType in wirely/program/format.wrl
@@ -317,7 +324,7 @@ class Symbol(NamedTuple):
 
 # TypeSymbol in wirely/program/format.wrl
 class TypeSymbol(NamedTuple):
-    name: StringRef
+    name: OptionalStringRef
     count_: int
     members: Ref
     numbers: int
@@ -388,6 +395,10 @@ _types['StringRef'] = TypeStruct('StringRef', {
     'Offset': uint32,
     'LengthBytes': uint32,
 })
+_types['OptionalStringRef'] = TypeStruct('OptionalStringRef', {
+    'Offset': uint32,
+    'LengthBytes': uint32,
+})
 _types['SimpleType'] = TypeStruct('SimpleType', {
     'Kind': _enums['TypeKind'],
 })
@@ -400,18 +411,18 @@ _types['ClosedEnumType'] = TypeStruct('ClosedEnumType', {
     'Kind': _enums['TypeKind'],
     'UnderlyingType': _types['Ref'],
     'MemberCount': uint32,
-    'NativeName': _types['StringRef'],
+    'NativeName': _types['OptionalStringRef'],
 })
 _types['OpenEnumType'] = TypeStruct('OpenEnumType', {
     'Kind': _enums['TypeKind'],
     'UnderlyingType': _types['Ref'],
-    'NativeName': _types['StringRef'],
+    'NativeName': _types['OptionalStringRef'],
 })
 _types['StructType'] = TypeStruct('StructType', {
     'Kind': _enums['TypeKind'],
     'Opaque': boolean,
     'Fields': _types['Range'],
-    'NativeName': _types['StringRef'],
+    'NativeName': _types['OptionalStringRef'],
 })
 _types['CompositeType'] = TypeStruct('CompositeType', {
     'Kind': _enums['TypeKind'],
@@ -525,7 +536,7 @@ _types['Symbol'] = TypeStruct('Symbol', {
     'Name': _types['StringRef'],
 })
 _types['TypeSymbol'] = TypeStruct('TypeSymbol', {
-    'Name': _types['StringRef'],
+    'Name': _types['OptionalStringRef'],
     'Count': uint32,
     'Members': _types['Ref'],
     'Numbers': uint32,
@@ -556,6 +567,7 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     Range: _types['Range'],
     ByteRange: _types['ByteRange'],
     StringRef: _types['StringRef'],
+    OptionalStringRef: _types['OptionalStringRef'],
     SimpleType: _types['SimpleType'],
     IntegerType: _types['IntegerType'],
     ClosedEnumType: _types['ClosedEnumType'],

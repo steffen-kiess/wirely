@@ -65,6 +65,14 @@ struct type StringRef {
   LengthBytes: uint32,
 }
 
+// UTF-8 bytes in the buffer named at use, or no string.
+struct type OptionalStringRef {
+  // Byte offset into the buffer, or 0xffffffff for no string.
+  Offset: uint32,
+  // Number of UTF-8 bytes starting at Offset, or 0xffffffff for no string.
+  LengthBytes: uint32,
+}
+
 // Selects the record of a ValueTypes entry and the type it represents.
 // 0 is not a valid kind.
 open enum type TypeKind: uint8 {
@@ -103,8 +111,8 @@ struct type ClosedEnumType {
   UnderlyingType: Ref,
   // Number of members; member N has number N.
   MemberCount: uint32,
-  // Native name in NativeNames; empty if the enum is not native.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the enum is not native.
+  NativeName: OptionalStringRef,
 }
 
 // Kind OpenEnum: an enumeration accepting every value of an integer type.
@@ -112,8 +120,8 @@ struct type OpenEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
-  // Native name in NativeNames; empty if the enum is not native.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the enum is not native.
+  NativeName: OptionalStringRef,
 }
 
 // Kind Struct: a named struct.
@@ -125,9 +133,9 @@ struct type StructType {
   Opaque: boolean,
   // Range into TypeLists; field types in declaration order.
   Fields: Range,
-  // Native name in NativeNames; empty if the struct is neither native nor
-  // opaque.
-  NativeName: StringRef,
+  // Native name in NativeNames, or none if the struct is neither native
+  // nor opaque.
+  NativeName: OptionalStringRef,
 }
 
 // Kinds Option and List: a type containing values of another type.
@@ -374,8 +382,8 @@ struct type Symbol {
 
 // Symbols of one type. TypeSymbols table.
 struct type TypeSymbol {
-  // Qualified name in SymbolData; empty for unnamed types.
-  Name: StringRef,
+  // Qualified name in SymbolData, or none for unnamed types.
+  Name: OptionalStringRef,
   // Number of member symbols: one per member of a closed enum or field
   // of a struct, or one per named number of an open enum; zero for
   // other types.
