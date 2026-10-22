@@ -880,8 +880,8 @@ entries for triggers.
 `ProcedureCode` contains the instruction streams of procedure bodies. Each
 instruction starts with one `uint8` opcode, followed by its operands in the
 order listed below. The opcode determines the operand count and instruction
-length. Opcode numbers remain to be assigned. Multi-byte integers are
-little endian; instructions and operands require no alignment.
+length. Multi-byte integers are little endian; instructions and operands
+require no alignment.
 
 ### Value operands
 
@@ -963,9 +963,10 @@ Field indices select struct fields in declaration order, starting at zero.
 
 ### Instructions
 
-Mnemonics are uppercase. Instructions with a destination place it first.
-Each name below denotes a value operand except `field`, `offset`,
-`function`, and `count`, which denote integer parameters.
+Mnemonics are uppercase and name the members of `Opcode`. Instructions
+with a destination place it first. Each name below denotes a value operand
+except `field`, `offset`, `function`, and `count`, which denote integer
+parameters.
 
 | Instruction | Behavior |
 | --- | --- |
@@ -973,28 +974,69 @@ Each name below denotes a value operand except `field`, `offset`,
 | `SET_DEFAULT destination` | Assign the destination type's default value. |
 | `GET_FIELD destination, source, field` | Copy a non-opaque struct field into a destination of the field's type. |
 | `SET_FIELD destination, source, field` | Copy the source into a non-opaque struct destination's field of the same type, preserving other fields. |
-| `MAKE_SOME destination, source` | Copy a value of type `T` into a destination of type `Option[T]` as `Some`. |
-| `GET_OPTION_VALUE destination, source` | Copy the value of `Some`, or assign the contained type's default for `None`. The destination has that contained type. |
 | `IS_SOME destination, source` | Assign a boolean indicating whether the option is `Some`. |
+| `GET_OPTION_VALUE destination, source` | Copy the value of `Some`, or assign the contained type's default for `None`. The destination has that contained type. |
+| `MAKE_SOME destination, source` | Copy a value of type `T` into a destination of type `Option[T]` as `Some`. |
 | `NOT destination, source` | Complement an integer within its width, or negate a boolean. |
 | `AND destination, left, right` | Compute bitwise or Boolean conjunction. |
 | `OR destination, left, right` | Compute bitwise or Boolean disjunction. |
 | `XOR destination, left, right` | Compute bitwise or Boolean exclusive disjunction. |
 | `SHIFT_LEFT destination, value, shift_count` | Shift left, discarding outgoing bits and filling with zeros. |
 | `SHIFT_RIGHT destination, value, shift_count` | Shift right, extending the sign for signed integers and filling with zeros for unsigned integers. |
-| `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
-| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type. |
 | `ADD_WRAPPING`, `SUB_WRAPPING`, `MUL_WRAPPING` `destination, left, right` | Compute the integer result modulo 2^bits within the operand type's range. |
 | `ADD_SATURATING`, `SUB_SATURATING`, `MUL_SATURATING` `destination, left, right` | Compute the integer result clamped to the operand type's range. |
 | `ADD_CHECKED`, `SUB_CHECKED`, `MUL_CHECKED`, `DIV_CHECKED`, `REM_CHECKED` `destination, left, right` | Assign `Some` with the integer result, or `None` when it is outside the operand type's range or the divisor is zero. |
 | `CONVERT_WRAPPING destination, source` | Convert the source number modulo the destination type's range. |
 | `CONVERT_SATURATING destination, source` | Convert the source number clamped to the destination type's range. |
 | `CONVERT_CHECKED destination, source` | Assign `Some` with the source number, or `None` when it is outside the destination type's range. |
+| `CALL destination, function, count, arguments…` | Call a native function with `count` argument operands and assign its result. |
+| `EQUAL destination, left, right` | Compare same-type values for equality, assigning a boolean. |
+| `LESS destination, left, right` | Assign whether `left` orders before `right`. Both have the same integer type. |
 | `JUMP offset` | Continue at the branch target. |
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
-| `CALL destination, function, count, arguments…` | Call a native function with `count` argument operands and assign its result. |
 | `RETURN` | End the procedure with its current output values. |
+
+```wirely
+// The first byte of an instruction. 0 is not a valid opcode, and 0xff is
+// reserved for extended opcodes.
+open enum type Opcode: uint8 {
+  COPY = 1,
+  SET_DEFAULT = 2,
+  GET_FIELD = 3,
+  SET_FIELD = 4,
+  IS_SOME = 5,
+  GET_OPTION_VALUE = 6,
+  MAKE_SOME = 7,
+  NOT = 8,
+  AND = 9,
+  OR = 10,
+  XOR = 11,
+  SHIFT_LEFT = 12,
+  SHIFT_RIGHT = 13,
+  ADD_WRAPPING = 14,
+  SUB_WRAPPING = 15,
+  MUL_WRAPPING = 16,
+  ADD_SATURATING = 17,
+  SUB_SATURATING = 18,
+  MUL_SATURATING = 19,
+  ADD_CHECKED = 20,
+  SUB_CHECKED = 21,
+  MUL_CHECKED = 22,
+  DIV_CHECKED = 23,
+  REM_CHECKED = 24,
+  CONVERT_WRAPPING = 25,
+  CONVERT_SATURATING = 26,
+  CONVERT_CHECKED = 27,
+  CALL = 28,
+  EQUAL = 29,
+  LESS = 30,
+  JUMP = 31,
+  JUMP_IF_TRUE = 32,
+  JUMP_IF_FALSE = 33,
+  RETURN = 34,
+}
+```
 
 `NOT`, `AND`, `OR`, and `XOR` require matching integer or boolean sources
 and destinations. Binary operations evaluate both sources.

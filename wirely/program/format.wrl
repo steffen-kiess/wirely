@@ -381,6 +381,45 @@ open enum type OperandKind: uint8 {
   Output = 4,
 }
 
+// The first byte of an instruction. 0 is not a valid opcode, and 0xff is
+// reserved for extended opcodes.
+open enum type Opcode: uint8 {
+  COPY = 1,
+  SET_DEFAULT = 2,
+  GET_FIELD = 3,
+  SET_FIELD = 4,
+  IS_SOME = 5,
+  GET_OPTION_VALUE = 6,
+  MAKE_SOME = 7,
+  NOT = 8,
+  AND = 9,
+  OR = 10,
+  XOR = 11,
+  SHIFT_LEFT = 12,
+  SHIFT_RIGHT = 13,
+  ADD_WRAPPING = 14,
+  SUB_WRAPPING = 15,
+  MUL_WRAPPING = 16,
+  ADD_SATURATING = 17,
+  SUB_SATURATING = 18,
+  MUL_SATURATING = 19,
+  ADD_CHECKED = 20,
+  SUB_CHECKED = 21,
+  MUL_CHECKED = 22,
+  DIV_CHECKED = 23,
+  REM_CHECKED = 24,
+  CONVERT_WRAPPING = 25,
+  CONVERT_SATURATING = 26,
+  CONVERT_CHECKED = 27,
+  CALL = 28,
+  EQUAL = 29,
+  LESS = 30,
+  JUMP = 31,
+  JUMP_IF_TRUE = 32,
+  JUMP_IF_FALSE = 33,
+  RETURN = 34,
+}
+
 // Symbols for the whole program. SymbolMetadata record.
 struct type SymbolMetadata {
   // Program name in SymbolData.
