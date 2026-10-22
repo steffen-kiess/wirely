@@ -6,9 +6,12 @@ import os
 import struct
 from dataclasses import dataclass, field
 
+from .generated.format import Header, SectionEntry
+from .records import pack_record, record_size, unpack_record
+
 _PREFIX = struct.Struct('<IHH')
-_HEADER = struct.Struct('<IHHII')
-_ENTRY = struct.Struct('<IIII')
+_HEADER_SIZE = record_size(Header)
+_ENTRY_SIZE = record_size(SectionEntry)
 _ALIGNMENT = 16
 _UINT16_MAX = 0xffff
 _UINT32_MAX = 0xffffffff
@@ -53,18 +56,19 @@ class SectionList:
             raise ContainerError(f'Bad magic 0x{magic:08x}')
         if major != cls.SUPPORTED_MAJOR:
             raise ContainerError(f'Unsupported major version {major}')
-        if len(data) < _HEADER.size:
-            raise ContainerError(f'File is shorter than the {_HEADER.size}-byte header')
-        _, _, _, file_length, section_count = _HEADER.unpack_from(data)
+        if len(data) < _HEADER_SIZE:
+            raise ContainerError(f'File is shorter than the {_HEADER_SIZE}-byte header')
+        header = unpack_record(Header, data)
+        file_length, section_count = header.file_length, header.section_count
         if file_length != len(data):
             raise ContainerError(f'File length is {len(data)}, but the header says {file_length}')
-        if _HEADER.size + section_count * _ENTRY.size > file_length:
+        if _HEADER_SIZE + section_count * _ENTRY_SIZE > file_length:
             raise ContainerError(f'Directory of {section_count} entries extends past the end of the file')
 
         sections: list[Section] = []
         for index in range(section_count):
-            offset, length, section_type, record_type = _ENTRY.unpack_from(
-                data, _HEADER.size + index * _ENTRY.size)
+            offset, length, section_type, record_type = unpack_record(
+                SectionEntry, data, _HEADER_SIZE + index * _ENTRY_SIZE)
             if offset % _ALIGNMENT != 0:
                 raise ContainerError(f'Section {index} offset {offset} is not {_ALIGNMENT}-byte aligned')
             if offset + length > file_length:
@@ -94,7 +98,7 @@ class SectionList:
                 raise ValueError(f'Section type 0x{section.section_type:08x} occurs more than once')
 
         directory = []
-        offset = _HEADER.size + len(sections) * _ENTRY.size
+        offset = _HEADER_SIZE + len(sections) * _ENTRY_SIZE
         for section in sections:
             offset += -offset % _ALIGNMENT
             directory.append(offset)
@@ -103,9 +107,9 @@ class SectionList:
         if file_length > _UINT32_MAX:
             raise ValueError(f'File length {file_length} does not fit uint32')
 
-        output = bytearray(_HEADER.pack(self.MAGIC, major, minor, file_length, len(sections)))
+        output = bytearray(pack_record(Header(self.MAGIC, major, minor, file_length, len(sections))))
         for section, section_offset in zip(sections, directory):
-            output += _ENTRY.pack(section_offset, section.length, section.section_type, section.record_type)
+            output += pack_record(SectionEntry(section_offset, section.length, section.section_type, section.record_type))
         for section, section_offset in zip(sections, directory):
             output += bytes(section_offset - len(output))
             output += section.data
