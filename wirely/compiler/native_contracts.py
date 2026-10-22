@@ -786,36 +786,63 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
 
 
 def generate_format_records(graph: Any, *, source_root: Path = repository_root) -> str:
-    """Return a module with a NamedTuple and the Wirely type of each struct of the binary program format."""
-    from wirely.types import TypeBoolean, TypeInt, TypeStruct
+    """Return a module with the Python class and the Wirely type of each enum and struct of the binary program format."""
+    from wirely.types import TypeBoolean, TypeEnum, TypeInt, TypeStruct
 
-    definitions = sorted(graph.struct_types.values(),
-                         key=lambda definition: definition.declaration.source_position.meta.start_pos)
+    def position(declaration: Any) -> int:
+        return declaration.source_position.meta.start_pos
+
+    enums = sorted(graph.enum_types.values(), key=lambda value_type: position(value_type.declaration))
+    definitions = sorted(graph.struct_types.values(), key=lambda definition: position(definition.declaration))
     value_types = [definition.resolve_fields() for definition in definitions]
     constants: set[str] = set()
+
+    def integer_code(value_type: Any) -> str:
+        name = f'{"" if value_type.is_signed else "u"}int{value_type.bits}'
+        constants.add(name)
+        return name
 
     def field_code(record: Any, field: str, field_type: Any) -> tuple[str, str]:
         """Return the Python annotation and the Wirely type expression of a field."""
         if isinstance(field_type, TypeInt):
-            constants.add(f'{"" if field_type.is_signed else "u"}int{field_type.bits}')
-            return 'int', f'{"" if field_type.is_signed else "u"}int{field_type.bits}'
+            return 'int', integer_code(field_type)
         if isinstance(field_type, TypeBoolean):
             constants.add('boolean')
             return 'bool', 'boolean'
+        if isinstance(field_type, TypeEnum):
+            return field_type.name, f'_enums[{field_type.name!r}]'
         if isinstance(field_type, TypeStruct):
             return field_type.name, f'_types[{field_type.name!r}]'
         raise ValueError(f'Field `{field}` of format record `{record.name}` has unsupported type `{field_type}`')
 
-    bodies = []
+    classes: list[tuple[int, str, list[str]]] = []
+    for value_type in enums:
+        if not value_type.members:
+            # Python cannot look up values of an enum without members.
+            raise ValueError(f'Format enum `{value_type.name}` must have members')
+        underlying = value_type.underlying_type
+        base = (f'OpenIntEnum, minimum={underlying.min_value}, maximum={underlying.max_value}'
+                if value_type.is_open else 'enum.IntEnum')
+        body = ['', source_comment(value_type.name, value_type.declaration, source_root),
+                f'class {value_type.name}({base}):']
+        body += [f'    {member} = {number}' for member, number in value_type.members.items()]
+        classes.append((position(value_type.declaration), value_type.name, body + ['']))
     for definition, value_type in zip(definitions, value_types):
         names = struct_field_names(value_type)
-        bodies += ['', source_comment(value_type.name, definition.declaration, source_root),
-                   f'class {value_type.name}(NamedTuple):']
-        bodies += [f'    {names[field]}: {field_code(value_type, field, field_type)[0]}'
-                   for field, field_type in value_type.fields.items()]
+        body = ['', source_comment(value_type.name, definition.declaration, source_root),
+                f'class {value_type.name}(NamedTuple):']
+        body += [f'    {names[field]}: {field_code(value_type, field, field_type)[0]}'
+                 for field, field_type in value_type.fields.items()]
         if not value_type.fields:
-            bodies.append('    pass')
-        bodies.append('')
+            body.append('    pass')
+        classes.append((position(definition.declaration), value_type.name, body + ['']))
+    classes.sort(key=lambda item: item[0])
+
+    types = ['', '# Wirely types of the enums.', '_enums: dict[str, TypeEnum] = {}']
+    for value_type in enums:
+        types.append(f'_enums[{value_type.name!r}] = TypeEnum({value_type.name!r}, {{')
+        types += [f'    {member!r}: {number},' for member, number in value_type.members.items()]
+        types.append(f'}}, is_open={value_type.is_open}, underlying_type={integer_code(value_type.underlying_type)})')
 
     # Wirely allows forward references, so the types are ordered with their field types first.
     ordered: list[Any] = []
@@ -830,21 +857,26 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
 
     for value_type in value_types:
         visit(value_type)
-    types = ['', '# Wirely types of the records, with field types first.', '_types: dict[str, TypeStruct] = {}']
+    types += ['', '# Wirely types of the records, with field types first.', '_types: dict[str, TypeStruct] = {}']
     for value_type in ordered:
         types.append(f'_types[{value_type.name!r}] = TypeStruct({value_type.name!r}, {{')
         types += [f'    {field!r}: {field_code(value_type, field, field_type)[1]},'
                   for field, field_type in value_type.fields.items()]
         types.append('})')
+    types += ['', '# Wirely type of each enum class.', 'enum_types: dict[type[enum.IntEnum], TypeEnum] = {',
+              *(f'    {value_type.name}: _enums[{value_type.name!r}],' for value_type in enums), '}']
     types += ['', '# Wirely type of each record class.', 'record_types: dict[type[tuple[Any, ...]], TypeStruct] = {',
               *(f'    {value_type.name}: _types[{value_type.name!r}],' for value_type in value_types), '}', '']
 
-    imports = ', '.join(['TypeStruct', *sorted(constants, key=lambda name: (name != 'boolean', len(name), name))])
-    lines = [HEADER + '"""Python classes and Wirely types of the records of the binary program format."""', '',
-             'from __future__ import annotations', '', 'from typing import Any, NamedTuple', '',
-             f'from wirely.types import {imports}', '',
-             '__all__ = [', *(f'    {value_type.name!r},' for value_type in value_types), "    'record_types',",
-             ']', '', *bodies, *types]
+    imports = ', '.join(['TypeEnum', 'TypeStruct',
+                         *sorted(constants, key=lambda name: (name != 'boolean', len(name), name))])
+    lines = [HEADER + '"""Python classes and Wirely types of the enums and records of the binary program format."""',
+             '', 'from __future__ import annotations', '', 'import enum', 'from typing import Any, NamedTuple', '',
+             f'from wirely.types import {imports}',
+             *(['from wirely.types.value_types import OpenIntEnum'] if any(value_type.is_open for value_type in enums)
+               else []),
+             '', '__all__ = [', *(f'    {name!r},' for _, name, _ in classes), "    'enum_types',", "    'record_types',",
+             ']', '', *(line for _, _, body in classes for line in body), *types]
     return '\n'.join(lines)
 
 

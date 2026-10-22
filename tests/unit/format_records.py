@@ -2,7 +2,8 @@ import struct
 
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
-    Header, IntegerType, MonotonicTime, OptionalRef, Procedure, Range, Ref, SectionEntry, ValueInput,
+    CompositeType, Header, IntegerType, MonotonicTime, OptionalRef, Procedure, Range, Ref, SectionEntry, TypeKind,
+    ValueInput,
 )
 
 
@@ -24,7 +25,7 @@ def check_layout():
     assert pack_record(SectionEntry(32, 3, 1, 2)) == struct.pack('<IIII', 32, 3, 1, 2)
 
     # Booleans and integers follow each other without padding before the next aligned field.
-    assert pack_record(IntegerType(5, 32, True)) == bytes([5, 32, 1])
+    assert pack_record(IntegerType(TypeKind.Integer, 32, True)) == bytes([3, 32, 1])
 
     # Nested records round-trip as nested NamedTuples.
     value = Range(Ref(3), 4)
@@ -43,13 +44,22 @@ def check_layout():
     assert len(data) == 32 and data[24:] == bytes(8)
     assert unpack_record(MonotonicTime, data) == time
 
+    # Enum fields unpack as enum members, including unnamed numbers of open enums.
+    composite = CompositeType(TypeKind.Option, Ref(2))
+    assert pack_record(composite) == bytes([9, 0, 0, 0, 2, 0, 0, 0])
+    kind = unpack_record(CompositeType, pack_record(composite)).kind
+    assert type(kind) is TypeKind and kind is TypeKind.Option
+    assert pack_record(CompositeType(9, Ref(2))) == pack_record(composite)
+    unknown = unpack_record(CompositeType, bytes([200]) + bytes(7)).kind
+    assert type(unknown) is TypeKind and unknown == 200 and unknown.name is None
+
     # Records are read at an offset into a larger buffer.
     table = pack_record(Ref(1)) + pack_record(Ref(2)) + pack_record(Ref(3))
     assert [unpack_record(Ref, table, offset) for offset in (0, 4, 8)] == [Ref(1), Ref(2), Ref(3)]
 
 
 def check_invalid_records():
-    check_rejected(IntegerType, bytes([5, 32, 2]), 'Invalid boolean byte 2')
+    check_rejected(IntegerType, bytes([3, 32, 2]), 'Invalid boolean byte 2')
     # ValueInput has padding between Bank (offset 4) and Variable (offset 8).
     data = bytearray(pack_record(ValueInput(OptionalRef(0), 1, Ref(2))))
     data[5] = 1

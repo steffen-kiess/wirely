@@ -224,10 +224,27 @@ bytes after the record's fields are zero. Runtime value sizes and
 alignments are determined from this table.
 
 ```wirely
-// Kinds Unit, Boolean, String, and ValueType.
+// Selects the record of a ValueTypes entry and the type it represents.
+// 0 is not a valid kind.
+open enum type TypeKind: uint8 {
+  Unit = 1,
+  Boolean = 2,
+  Integer = 3,
+  String = 4,
+  Type = 5,
+  ClosedEnum = 6,
+  OpenEnum = 7,
+  Struct = 8,
+  Option = 9,
+  List = 10,
+}
+```
+
+```wirely
+// Kinds Unit, Boolean, String, and Type.
 struct type SimpleType {
   // Type kind.
-  Kind: uint8,
+  Kind: TypeKind,
 }
 ```
 
@@ -235,7 +252,7 @@ struct type SimpleType {
 // Kind Integer.
 struct type IntegerType {
   // Integer kind.
-  Kind: uint8,
+  Kind: TypeKind,
   // Width: 8, 16, 32, 64, or 128.
   Bits: uint8,
   // Whether values are signed, in two's complement.
@@ -246,7 +263,7 @@ struct type IntegerType {
 ```wirely
 // Kind ClosedEnum: a nonempty, densely numbered enumeration.
 struct type ClosedEnumType {
-  Kind: uint8,
+  Kind: TypeKind,
   // Index into ValueTypes; uint8, uint16, or uint32, fitting all members.
   UnderlyingType: Ref,
   // Qualified name in Names.
@@ -261,7 +278,7 @@ struct type ClosedEnumType {
 ```wirely
 // Kind OpenEnum: named values of an integer type.
 struct type OpenEnumType {
-  Kind: uint8,
+  Kind: TypeKind,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
   // Qualified name in Names.
@@ -279,7 +296,7 @@ struct type OpenEnumType {
 // Kind Struct: a named struct.
 struct type StructType {
   // Struct kind.
-  Kind: uint8,
+  Kind: TypeKind,
   // Whether the runtime implements the struct; field access instructions
   // are invalid for it.
   Opaque: boolean,
@@ -296,18 +313,17 @@ struct type StructType {
 // Kinds Option and List: a type containing values of another type.
 struct type CompositeType {
   // Option kind, or List kind for static values.
-  Kind: uint8,
+  Kind: TypeKind,
   // Index into ValueTypes.
   InnerType: Ref,
 }
 ```
 
-`Kind` identifies the record layout and represented type. Kind numbers
-will be assigned when the format is finalized.
+`Kind` identifies the record layout and represented type:
 
 | Kind | Record |
 | --- | --- |
-| `Unit`, `Boolean`, `String`, `ValueType` | `SimpleType` |
+| `Unit`, `Boolean`, `String`, `Type` | `SimpleType` |
 | `Integer` | `IntegerType` |
 | `ClosedEnum` | `ClosedEnumType` |
 | `OpenEnum` | `OpenEnumType` |
