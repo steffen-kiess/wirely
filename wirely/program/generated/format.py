@@ -123,8 +123,8 @@ class SimpleType(NamedTuple):
 # IntegerType in wirely/program/format.wrl
 class IntegerType(NamedTuple):
     kind: TypeKind
-    bits: int
     signed: bool
+    bits: int
 
 
 # ClosedEnumType in wirely/program/format.wrl
@@ -381,8 +381,8 @@ _types['SimpleType'] = TypeStruct('SimpleType', {
 })
 _types['IntegerType'] = TypeStruct('IntegerType', {
     'Kind': _enums['TypeKind'],
-    'Bits': uint8,
     'Signed': boolean,
+    'Bits': uint16,
 })
 _types['ClosedEnumType'] = TypeStruct('ClosedEnumType', {
     'Kind': _enums['TypeKind'],

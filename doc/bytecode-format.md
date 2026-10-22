@@ -253,10 +253,10 @@ struct type SimpleType {
 struct type IntegerType {
   // Integer kind.
   Kind: TypeKind,
-  // Width: 8, 16, 32, 64, or 128.
-  Bits: uint8,
   // Whether values are signed, in two's complement.
   Signed: boolean,
+  // Width: 8, 16, 32, 64, or 128.
+  Bits: uint16,
 }
 ```
 

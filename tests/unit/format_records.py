@@ -24,8 +24,10 @@ def check_layout():
     assert record_size(SectionEntry) == 16
     assert pack_record(SectionEntry(32, 3, 1, 2)) == struct.pack('<IIII', 32, 3, 1, 2)
 
-    # Booleans and integers follow each other without padding before the next aligned field.
-    assert pack_record(IntegerType(TypeKind.Integer, 32, True)) == bytes([3, 32, 1])
+    # Two single-byte fields align the following uint16 without padding.
+    assert pack_record(IntegerType(TypeKind.Integer, True, 32)) == bytes([3, 1, 32, 0])
+    assert record_size(IntegerType) == 4
+    assert unpack_record(IntegerType, bytes([3, 0, 0, 1])) == IntegerType(TypeKind.Integer, False, 256)
 
     # Nested records round-trip as nested NamedTuples.
     value = Range(Ref(3), 4)
@@ -59,7 +61,7 @@ def check_layout():
 
 
 def check_invalid_records():
-    check_rejected(IntegerType, bytes([3, 32, 2]), 'Invalid boolean byte 2')
+    check_rejected(IntegerType, bytes([3, 2, 32, 0]), 'Invalid boolean byte 2')
     # ValueInput has padding between Bank (offset 4) and Variable (offset 8).
     data = bytearray(pack_record(ValueInput(OptionalRef(0), 1, Ref(2))))
     data[5] = 1
