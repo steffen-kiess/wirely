@@ -261,8 +261,6 @@ struct type ResourceInterface {
 // Binds a static value to one name of a `uses` clause.
 // StaticBindings table.
 struct type StaticBinding {
-  // Index into InterfaceNames; name bound by `uses`.
-  Name: Ref,
   // Index into StaticValues.
   Value: Ref,
 }
@@ -270,8 +268,6 @@ struct type StaticBinding {
 // Binds one native state provider to one resource interface.
 // ResourceInputs table.
 struct type ResourceInput {
-  // Index into ResourceInterfaces; the resource input being bound.
-  Interface: Ref,
   // Index into NativeStates.
   NativeState: Ref,
   // Index within the provider type's ResourceOutputInterfaces range.
@@ -341,9 +337,6 @@ open enum type VariableBank: uint8 {
 // Binds one variable or static value to a procedure input.
 // ValueInputs table.
 struct type ValueInput {
-  // Index into InputInterfaces; the input being bound. No entry for
-  // procedure bodies.
-  Interface: OptionalRef,
   // Static values, temporaries, old state, or new state.
   Bank: VariableBank,
   // Index into StaticValues, Temporaries, or StateVariables, selected by
@@ -353,9 +346,6 @@ struct type ValueInput {
 
 // Binds one procedure output to a destination variable. Outputs table.
 struct type Output {
-  // Index into InterfaceNames; output name. No entry for procedure
-  // bodies.
-  Name: OptionalRef,
   // Temporaries or new state.
   Bank: VariableBank,
   // Index into Temporaries or StateVariables, selected by Bank.

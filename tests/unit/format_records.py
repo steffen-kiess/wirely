@@ -59,8 +59,8 @@ def check_layout():
     assert pack_record(stage) == struct.pack('<BxxxII', 3, 2, 3)
     assert type(unpack_record(Stage, pack_record(stage)).stage) is RunStage
 
-    output = Output(OptionalRef(0xffffffff), VariableBank.NewState, Ref(1))
-    assert pack_record(output) == struct.pack('<IBxxxI', 0xffffffff, 4, 1)
+    output = Output(VariableBank.NewState, Ref(1))
+    assert pack_record(output) == struct.pack('<BxxxI', 4, 1)
     assert type(unpack_record(Output, pack_record(output)).bank) is VariableBank
 
     # Records are read at an offset into a larger buffer.
@@ -76,9 +76,9 @@ def check_type_record_sizes():
 
 def check_invalid_records():
     check_rejected(IntegerType, bytes([3, 2, 32, 0]), 'Invalid boolean byte 2')
-    # ValueInput has padding between Bank (offset 4) and Variable (offset 8).
-    data = bytearray(pack_record(ValueInput(OptionalRef(0), 1, Ref(2))))
-    data[5] = 1
+    # ValueInput has padding between Bank (offset 0) and Variable (offset 4).
+    data = bytearray(pack_record(ValueInput(VariableBank.StaticValues, Ref(2))))
+    data[1] = 1
     check_rejected(ValueInput, bytes(data), 'padding must be zero')
     data = bytearray(pack_record(MonotonicTime(0, 0)))
     data[30] = 1

@@ -246,13 +246,11 @@ class ResourceInterface(NamedTuple):
 
 # StaticBinding in wirely/program/format.wrl
 class StaticBinding(NamedTuple):
-    name: Ref
     value: Ref
 
 
 # ResourceInput in wirely/program/format.wrl
 class ResourceInput(NamedTuple):
-    interface: Ref
     native_state: Ref
     output: int
 
@@ -304,14 +302,12 @@ class VariableBank(OpenIntEnum, minimum=0, maximum=255):
 
 # ValueInput in wirely/program/format.wrl
 class ValueInput(NamedTuple):
-    interface: OptionalRef
     bank: VariableBank
     variable: Ref
 
 
 # Output in wirely/program/format.wrl
 class Output(NamedTuple):
-    name: OptionalRef
     bank: VariableBank
     variable: Ref
 
@@ -508,11 +504,9 @@ _types['ResourceInterface'] = TypeStruct('ResourceInterface', {
     'Type': _types['Ref'],
 })
 _types['StaticBinding'] = TypeStruct('StaticBinding', {
-    'Name': _types['Ref'],
     'Value': _types['Ref'],
 })
 _types['ResourceInput'] = TypeStruct('ResourceInput', {
-    'Interface': _types['Ref'],
     'NativeState': _types['Ref'],
     'Output': uint32,
 })
@@ -539,12 +533,10 @@ _types['InputInterface'] = TypeStruct('InputInterface', {
     'Name': _types['StringRef'],
 })
 _types['ValueInput'] = TypeStruct('ValueInput', {
-    'Interface': _types['OptionalRef'],
     'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
 _types['Output'] = TypeStruct('Output', {
-    'Name': _types['OptionalRef'],
     'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })

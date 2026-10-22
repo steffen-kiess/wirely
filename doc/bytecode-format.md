@@ -622,17 +622,15 @@ keys of the native initializer's `produces` clause.
 // Binds a static value to one name of a `uses` clause.
 // StaticBindings table.
 struct type StaticBinding {
-  // Index into InterfaceNames; name bound by `uses`.
-  Name: Ref,
   // Index into StaticValues.
   Value: Ref,
 }
 ```
 
-Names belong to the native procedure's `UsesNames` range for procedures
-or the native state type's `UsesNames` range for initializers. Optional
-parameter presence requested by `optional` is represented by the
-bound option value.
+A `Uses` range has one entry per name of the `UsesNames` range of its
+native procedure or native state type; entry N binds name N. Optional
+parameter presence requested by `optional` is represented by the bound
+option value.
 
 ### ResourceInputs
 
@@ -640,8 +638,6 @@ bound option value.
 // Binds one native state provider to one resource interface.
 // ResourceInputs table.
 struct type ResourceInput {
-  // Index into ResourceInterfaces; the resource input being bound.
-  Interface: Ref,
   // Index into NativeStates.
   NativeState: Ref,
   // Index within the provider type's ResourceOutputInterfaces range.
@@ -649,10 +645,11 @@ struct type ResourceInput {
 }
 ```
 
-The interface belongs to the native state type's
-`ResourceInputInterfaces` range for construction or the native
-procedure's `ResourceInputInterfaces` range for procedure calls.
-Each input binds one provider with the resource type of that interface.
+A `Resources` range has one entry per interface of the
+`ResourceInputInterfaces` range of its native state type, for
+construction, or of its native procedure, for calls; entry N binds
+interface N. Each input binds one provider with the resource type of that
+interface.
 
 ## Execution
 
@@ -769,9 +766,6 @@ open enum type VariableBank: uint8 {
 // Binds one variable or static value to a procedure input.
 // ValueInputs table.
 struct type ValueInput {
-  // Index into InputInterfaces; the input being bound. No entry for
-  // procedure bodies.
-  Interface: OptionalRef,
   // Static values, temporaries, old state, or new state.
   Bank: VariableBank,
   // Index into StaticValues, Temporaries, or StateVariables, selected by
@@ -780,8 +774,9 @@ struct type ValueInput {
 }
 ```
 
-For native calls, the interface belongs to the native procedure's
-`InputInterfaces` range. Each value input binds exactly one source.
+For native calls, the `Inputs` range has one entry per interface of the
+native procedure's `InputInterfaces` range; entry N binds interface N.
+Each value input binds exactly one source.
 Procedure body inputs follow dependency declaration order; multi value
 inputs expand into scalar inputs in connection order.
 
@@ -805,9 +800,6 @@ its state and temporary outputs.
 ```wirely
 // Binds one procedure output to a destination variable. Outputs table.
 struct type Output {
-  // Index into InterfaceNames; output name. No entry for procedure
-  // bodies.
-  Name: OptionalRef,
   // Temporaries or new state.
   Bank: VariableBank,
   // Index into Temporaries or StateVariables, selected by Bank.
@@ -815,7 +807,8 @@ struct type Output {
 }
 ```
 
-Native output names belong to the native procedure's `OutputNames` range.
+For native calls, the `Outputs` range has one entry per name of the native
+procedure's `OutputNames` range; entry N binds output N.
 A new-state output writes the state that becomes the next step's old
 state. A temporary output writes a temporary.
 
@@ -1257,13 +1250,14 @@ parameters and results, are runtime types.
 Sorting turns uniqueness into a comparison with the predecessor. This
 applies to ranges into `InterfaceNames`, `InputInterfaces`, and
 `ResourceInterfaces`, to `ResourceTypes`, `JsonTypes`, `NativeStateTypes`,
-`NativeProcedures`, and `NativeFunctions`, and to aliases. Bindings refer
-to entries in the matching range of their native procedure or native state
-type. Each value input binds one source, and each resource input binds one
+`NativeProcedures`, and `NativeFunctions`, and to aliases. The `Uses`,
+`Resources`, `Inputs`, and `Outputs` ranges of native state objects and
+native procedure calls have the length of the matching interface range.
+Each value input binds one source, and each resource input binds one
 provider. A resource provider's output lies within its type's
 `ResourceOutputInterfaces` and has the same `ResourceTypes` index as the
-interface it is bound to. Each symbol table has as many entries as its
-target table.
+interface at the input's position. Each symbol table has as many entries
+as its target table.
 
 ### Procedures and code
 
