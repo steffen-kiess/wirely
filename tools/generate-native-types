@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate native extension packages from Wirely declarations."""
+"""Generate native extension packages and binary format records from Wirely declarations."""
 
 import argparse
 import difflib

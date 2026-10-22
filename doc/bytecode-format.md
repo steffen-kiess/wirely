@@ -136,6 +136,8 @@ zeroed.
 
 Records are Wirely structs in the
 [runtime binary representation](value-types.md#runtime-binary-representation).
+`wirely/program/format.wrl` declares them, and `tools/generate-native-types`
+generates their Python classes.
 Tables use each record's storage size as their stride, except
 `ValueTypes`, whose entries are 32 bytes.
 

@@ -1,0 +1,378 @@
+// Records of the binary program format described in
+// doc/bytecode-format.md. tools/generate-native-types generates
+// wirely/program/generated/format.py from these declarations.
+
+// Identifies the image and locates its section directory.
+// File offset 0.
+struct type Header {
+  // 0x4c5257ff; bytes ff 57 52 4c (0xff, then "WRL").
+  Magic: uint32,
+  // Breaking format version; currently 0.
+  VersionMajor: uint16,
+  // Format revision within the major version; currently 0.
+  VersionMinor: uint16,
+  // Total file length in bytes.
+  FileLength: uint32,
+  // Number of immediately following directory entries.
+  SectionCount: uint32,
+}
+
+// Locates one section and describes its contents.
+// Directory immediately follows Header.
+struct type SectionEntry {
+  // Absolute byte offset of the section from file start.
+  Offset: uint32,
+  // Section byte length, including internal padding.
+  Length: uint32,
+  // Section's purpose, identified by name below.
+  SectionType: uint32,
+  // Layout of the section's records or bytes.
+  RecordType: uint32,
+}
+
+// An entry in the table named by the referring field's comment.
+struct type Ref {
+  Value: uint32,
+}
+
+// An entry in the table named at use, or 0xffffffff for no entry.
+struct type OptionalRef {
+  Value: uint32,
+}
+
+// A consecutive slice of the table named by the referring field's comment.
+struct type Range {
+  // First target-table entry; zero when Count is zero.
+  First: Ref,
+  // Number of consecutive target entries.
+  Count: uint32,
+}
+
+// Bytes in the buffer named by the referring field's comment.
+struct type ByteRange {
+  // Byte offset into the buffer; zero when Length is zero.
+  Offset: uint32,
+  // Number of bytes starting at Offset.
+  Length: uint32,
+}
+
+// UTF-8 bytes in the buffer named by the referring field's comment.
+struct type StringRef {
+  // Byte offset into the buffer.
+  Offset: uint32,
+  // Number of UTF-8 bytes starting at Offset.
+  LengthBytes: uint32,
+}
+
+// Kinds Unit, Boolean, String, and ValueType.
+struct type SimpleType {
+  // Type kind.
+  Kind: uint8,
+}
+
+// Kind Integer.
+struct type IntegerType {
+  // Integer kind.
+  Kind: uint8,
+  // Width: 8, 16, 32, 64, or 128.
+  Bits: uint8,
+  // Whether values are signed, in two's complement.
+  Signed: boolean,
+}
+
+// Kind ClosedEnum: a nonempty, densely numbered enumeration.
+struct type ClosedEnumType {
+  Kind: uint8,
+  // Index into ValueTypes; uint8, uint16, or uint32, fitting all members.
+  UnderlyingType: Ref,
+  // Qualified name in Names.
+  Name: StringRef,
+  // Native name in Names; empty if the enum is not native.
+  NativeName: StringRef,
+  // Range into EnumMemberNames; entry N has number N.
+  Members: Range,
+}
+
+// Kind OpenEnum: named values of an integer type.
+struct type OpenEnumType {
+  Kind: uint8,
+  // Index into ValueTypes; underlying integer type.
+  UnderlyingType: Ref,
+  // Qualified name in Names.
+  Name: StringRef,
+  // Native name in Names; empty if the enum is not native.
+  NativeName: StringRef,
+  // Range into EnumMemberNames, ordered by number; may be empty.
+  Members: Range,
+  // Byte offset into EnumNumbers of the named member numbers.
+  Numbers: uint32,
+}
+
+// Kind Struct: a named struct.
+struct type StructType {
+  // Struct kind.
+  Kind: uint8,
+  // Whether the runtime implements the struct; field access instructions
+  // are invalid for it.
+  Opaque: boolean,
+  // Qualified name in Names.
+  Name: StringRef,
+  // Native name in Names; empty if the struct is neither native nor opaque.
+  NativeName: StringRef,
+  // Range into StructFields, in declaration order.
+  Fields: Range,
+}
+
+// Kinds Option and List: a type containing values of another type.
+struct type CompositeType {
+  // Option kind, or List kind for static values.
+  Kind: uint8,
+  // Index into ValueTypes.
+  InnerType: Ref,
+}
+
+// Non-negative elapsed time. Opaque struct Std.Duration.
+struct type Duration {
+  // Ticks of 2^-64 s.
+  Ticks: uint128,
+}
+
+// Time within a day. Opaque struct Schedule.TimeOfDay.
+struct type TimeOfDay {
+  // Ticks of 2^-64 s since midnight; at most 24 hours (86400 * 2^64).
+  Ticks: uint128,
+}
+
+// A monotonic clock reading. Opaque struct Timer.MonotonicTime.
+struct type MonotonicTime {
+  // Ticks of 2^-64 s.
+  Ticks: uint128,
+  // Clock generation; generation 0 is never current.
+  Generation: uint64,
+}
+
+// One named struct field. StructFields table.
+struct type StructField {
+  // Field name in Names.
+  Name: StringRef,
+  // Index into ValueTypes.
+  ValueType: Ref,
+}
+
+// One type in a list of types. TypeLists table.
+struct type TypeEntry {
+  // Index into ValueTypes.
+  ValueType: Ref,
+}
+
+// A typed value with a byte offset into its associated storage.
+// StaticValues, StateVariables, and Temporaries tables.
+struct type Variable {
+  // Index into ValueTypes; resolved stored-value type.
+  ValueType: Ref,
+  // Byte offset into ProgramData for StaticValues, the state buffer for
+  // StateVariables, or the temporary buffer for Temporaries.
+  Offset: uint32,
+}
+
+// A static value identifying another value type.
+struct type ValueTypeValue {
+  // Index into ValueTypes.
+  ValueType: Ref,
+}
+
+// A static list identifying element slots in ProgramData.
+struct type ListValue {
+  // Byte offset into ProgramData; first element.
+  Offset: uint32,
+  // Number of consecutive elements, including units.
+  ElementCount: uint32,
+}
+
+// A native state object and its initializer bindings.
+// NativeStates table.
+struct type NativeState {
+  // Index into NativeStateTypes.
+  Type: Ref,
+  // Range into StaticBindings; values bound by the initializer's `uses`.
+  Uses: Range,
+  // Range into ResourceInputs; constructor dependencies.
+  Resources: Range,
+}
+
+// A native state implementation and its interfaces.
+// NativeStateTypes table.
+struct type NativeStateType {
+  // Native name in Names, such as ABB.JRA.Blind.
+  Name: StringRef,
+  // Range into InterfaceNames; names bound by the initializer's `uses`.
+  UsesNames: Range,
+  // Range into ResourceInterfaces; resources the initializer receives.
+  ResourceInputInterfaces: Range,
+  // Range into ResourceInterfaces; resources this state provides.
+  ResourceOutputInterfaces: Range,
+}
+
+// A name in Names. InterfaceNames, EnumMemberNames, and ResourceTypes
+// tables.
+struct type NameRef {
+  // UTF-8 name in Names.
+  Name: StringRef,
+}
+
+// One resource a native interface receives or provides.
+// ResourceInterfaces table.
+struct type ResourceInterface {
+  // Interface name in Names.
+  Name: StringRef,
+  // Index into ResourceTypes.
+  Type: Ref,
+}
+
+// Binds a static value to one name of a `uses` clause.
+// StaticBindings table.
+struct type StaticBinding {
+  // Index into InterfaceNames; name bound by `uses`.
+  Name: Ref,
+  // Index into StaticValues.
+  Value: Ref,
+}
+
+// Binds one native state provider to one resource interface.
+// ResourceInputs table.
+struct type ResourceInput {
+  // Index into ResourceInterfaces; the resource input being bound.
+  Interface: Ref,
+  // Index into NativeStates.
+  NativeState: Ref,
+  // Index within the provider type's ResourceOutputInterfaces range.
+  Output: uint32,
+}
+
+// An execution stage and its ordered procedure range. Stages table.
+struct type Stage {
+  // 0 = input, 1 = default, 2 = output.
+  Stage: uint8,
+  // Range into Procedures, in execution order.
+  Schedule: Range,
+}
+
+// A native procedure invocation or procedure body with its bindings.
+// Procedures table.
+struct type Procedure {
+  // Index into NativeProcedures, or no entry for a procedure body.
+  Native: OptionalRef,
+  // Index into ProcedureBodies, or no entry for a native procedure.
+  Body: OptionalRef,
+  // Range into StaticBindings; values bound by `uses`.
+  Uses: Range,
+  // Range into ResourceInputs.
+  Resources: Range,
+  // Range into ValueInputs.
+  Inputs: Range,
+  // Range into Outputs.
+  Outputs: Range,
+}
+
+// A named native procedure and its interfaces. NativeProcedures table.
+struct type NativeProcedure {
+  // Native procedure name in Names, such as Std.Constant:run.
+  Name: StringRef,
+  // Range into InterfaceNames; names bound by `uses`.
+  UsesNames: Range,
+  // Range into ResourceInterfaces.
+  ResourceInputInterfaces: Range,
+  // Range into InputInterfaces.
+  InputInterfaces: Range,
+  // Range into InterfaceNames.
+  OutputNames: Range,
+}
+
+// One value input of a native procedure. InputInterfaces table.
+struct type InputInterface {
+  // Input name in Names.
+  Name: StringRef,
+}
+
+// Binds one variable or static value to a procedure input.
+// ValueInputs table.
+struct type ValueInput {
+  // Index into InputInterfaces; the input being bound. No entry for
+  // procedure bodies.
+  Interface: OptionalRef,
+  // Old state, new state, temporaries, or static values.
+  Bank: uint8,
+  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Bank.
+  Variable: Ref,
+}
+
+// Binds one procedure output to a destination variable. Outputs table.
+struct type Output {
+  // Index into InterfaceNames; output name. No entry for procedure
+  // bodies.
+  Name: OptionalRef,
+  // New state or temporaries.
+  Bank: uint8,
+  // Index into StateVariables or Temporaries, selected by Bank.
+  Variable: Ref,
+}
+
+// An instruction stream and its locals. ProcedureBodies table.
+struct type ProcedureBody {
+  // Byte range in ProcedureCode; the instruction stream.
+  Code: ByteRange,
+  // Range into TypeLists; local.N has the type of entry N.
+  Locals: Range,
+}
+
+// A native function called by procedure bodies.
+// NativeFunctions table.
+struct type NativeFunction {
+  // Native name in Names.
+  Name: StringRef,
+  // Range into TypeLists; parameter types in argument order.
+  Parameters: Range,
+  // Index into ValueTypes; runtime result type.
+  ReturnType: Ref,
+}
+
+// Symbols for the whole program. SymbolMetadata record.
+struct type SymbolMetadata {
+  // Program name in SymbolData.
+  ProgramName: StringRef,
+}
+
+// The name of a node, variable, or procedure.
+// NodeSymbols, StateVariableSymbols, TemporarySymbols, and
+// ProcedureSymbols tables.
+struct type Symbol {
+  // Name in SymbolData.
+  Name: StringRef,
+}
+
+// An alias referring to a state or temporary variable or a static value.
+// VariableAliases table.
+struct type VariableAlias {
+  // Alias name in SymbolData.
+  Name: StringRef,
+  // Old state, new state, temporaries, or static values.
+  Bank: uint8,
+  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Bank.
+  Variable: Ref,
+}
+
+// The transition's equivalent of an old or new program type.
+// OldTypeMap and NewTypeMap tables.
+struct type TypeMapEntry {
+  // Index into the transition's ValueTypes, or no entry.
+  Type: OptionalRef,
+}
+
+// Origin of one new native state object. NativeStateSources table.
+struct type NativeStateSource {
+  // Index into the old program's NativeStates to keep, or no entry to
+  // construct a new object.
+  Old: OptionalRef,
+}
