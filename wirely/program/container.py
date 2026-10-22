@@ -36,7 +36,7 @@ class Section:
 class SectionList:
     """The version and sections of a program file, written sorted by section type."""
 
-    MAGIC = 0x594c5257
+    MAGIC = 0x4c5257ff
     SUPPORTED_MAJOR = 0
 
     sections: list[Section] = field(default_factory=list)  # Sections in any order.

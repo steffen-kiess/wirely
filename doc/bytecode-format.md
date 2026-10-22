@@ -8,7 +8,9 @@ unstable development format.
 
 The first eight bytes of a file are `Magic` (`uint32`), `VersionMajor`
 (`uint16`), and `VersionMinor` (`uint16`), in that order and always
-little-endian. `Magic` is `0x594c5257`, the bytes `57 52 4c 59` ("WRLY").
+little-endian. `Magic` is `0x4c5257ff`, the bytes `ff 57 52 4c` (`0xff`,
+then "WRL"). The byte `0xff` never occurs in UTF-8, so a program file
+cannot be mistaken for a `.wrl` source file.
 For an unknown major version, only these fields can be interpreted; the
 rest of the file may have a different layout or endianness.
 
@@ -25,7 +27,7 @@ The rest of this proposal describes version 0.0.
 // Identifies the image and locates its section directory.
 // File offset 0.
 struct type Header {
-  // 0x594c5257; bytes 57 52 4c 59 ("WRLY").
+  // 0x4c5257ff; bytes ff 57 52 4c (0xff, then "WRL").
   Magic: uint32,
   // Breaking format version; currently 0.
   VersionMajor: uint16,
