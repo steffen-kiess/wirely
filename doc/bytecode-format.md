@@ -81,12 +81,12 @@ their contents.
 | Section | Record type | Layout |
 | --- | --- | --- |
 | [`BuildIDSHA512`](#buildidsha512) | — | Buffer |
-| [`Names`](#names) | — | Buffer |
+| [`NativeNames`](#nativenames) | — | Buffer |
 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
-| [`EnumMemberNames`](#enummembernames) | `NameRef` | Table |
-| [`EnumNumbers`](#enumnumbers) | — | Buffer |
-| [`StructFields`](#structfields) | `StructField` | Table |
 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
+| [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
+| [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
+| [`JsonData`](#jsondata) | — | Buffer |
 | [`StaticValues`](#staticvalues) | `Variable` | Table |
 | [`ProgramData`](#programdata) | — | Buffer |
 | [`StateVariables`](#statevariables-and-temporaries) | `Variable` | Table |
@@ -113,6 +113,8 @@ their contents.
 | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
 | [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
 | [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
+| [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
+| [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
 | [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
 | [`SymbolData`](#symboldata) | — | Buffer |
 
@@ -199,9 +201,9 @@ struct type StringRef {
 }
 ```
 
-Strings are stored in three buffers: `Names` holds names for linking and
-type metadata, `ProgramData` holds static string values, and `SymbolData`
-holds symbols and aliases. A string occupies exactly
+Strings are stored in four buffers: `NativeNames` holds names for linking,
+`JsonData` holds JSON names, `ProgramData` holds static string values, and
+`SymbolData` holds symbols and aliases. A string occupies exactly
 `[Offset, Offset + LengthBytes)` in its buffer and is valid UTF-8
 (RFC 3629). An empty string has both fields zero. Equal strings can share
 bytes.
@@ -211,10 +213,10 @@ A qualified name is one string whose components are joined by `.`, such as
 
 ## Types
 
-### Names
+### NativeNames
 
-`Names` contains UTF-8 qualified names and the names of interfaces, enum
-members, and struct fields.
+`NativeNames` contains the UTF-8 native names and interface names used for
+linking.
 
 ### ValueTypes
 
@@ -266,29 +268,21 @@ struct type ClosedEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; uint8, uint16, or uint32, fitting all members.
   UnderlyingType: Ref,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the enum is not native.
+  // Number of members; member N has number N.
+  MemberCount: uint32,
+  // Native name in NativeNames; empty if the enum is not native.
   NativeName: StringRef,
-  // Range into EnumMemberNames; entry N has number N.
-  Members: Range,
 }
 ```
 
 ```wirely
-// Kind OpenEnum: named values of an integer type.
+// Kind OpenEnum: an enumeration accepting every value of an integer type.
 struct type OpenEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the enum is not native.
+  // Native name in NativeNames; empty if the enum is not native.
   NativeName: StringRef,
-  // Range into EnumMemberNames, ordered by number; may be empty.
-  Members: Range,
-  // Byte offset into EnumNumbers of the named member numbers.
-  Numbers: uint32,
 }
 ```
 
@@ -300,12 +294,11 @@ struct type StructType {
   // Whether the runtime implements the struct; field access instructions
   // are invalid for it.
   Opaque: boolean,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the struct is neither native nor opaque.
-  NativeName: StringRef,
-  // Range into StructFields, in declaration order.
+  // Range into TypeLists; field types in declaration order.
   Fields: Range,
+  // Native name in NativeNames; empty if the struct is neither native nor
+  // opaque.
+  NativeName: StringRef,
 }
 ```
 
@@ -330,11 +323,11 @@ struct type CompositeType {
 | `Struct` | `StructType` |
 | `Option`, `List` | `CompositeType` |
 
-Enum and struct names support native type reconstruction, display, and
-conversions such as JSON. Both enum kinds explicitly store their underlying
-integer type and default to zero. Closed enums accept numbers from zero
-through `Members.Count - 1`; open enums accept every underlying value.
-Member counts use the `uint32` count in `Range`.
+Both enum kinds explicitly store their underlying integer type and default
+to zero. Closed enums accept numbers from zero through `MemberCount - 1`;
+open enums accept every underlying value. Field index N selects entry N of
+a struct's `Fields` range. Field offsets follow the
+[runtime binary representation](value-types.md#runtime-binary-representation).
 
 Types are equal exactly when their indices are equal. Producers intern
 structurally equal types; enums and structs have one entry per declaration.
@@ -352,8 +345,7 @@ a `NativeName`; opaque and non-opaque structs have separate native-name
 namespaces. They [link](#linking) by native name and field types.
 
 The standard libraries declare the time types as opaque structs with the
-fields below, in order. Each has its qualified name as `Name` and
-`NativeName`.
+fields below, in order. Each has its qualified name as `NativeName`.
 
 ```wirely
 // Non-negative elapsed time. Opaque struct Std.Duration.
@@ -384,37 +376,6 @@ struct type MonotonicTime {
 The values of these types are described in [Value types](value-types.md);
 `Std.Duration` and `Schedule.TimeOfDay` are ordered.
 
-### EnumMemberNames
-
-`EnumMemberNames` contains `NameRef` records. Entry N of a closed enum's
-`Members` range names member N. For an open enum, it names the member whose
-number is element N of its `Numbers` array.
-
-### EnumNumbers
-
-`EnumNumbers` contains open enum member number arrays. The numbers occupy
-`[Numbers, Numbers + Members.Count * storage_size(UnderlyingType))`, in
-`Members` order and the underlying type's runtime binary representation.
-`Numbers` is aligned for the underlying type and is zero when `Members` is
-empty. Equal arrays can share bytes.
-
-### StructFields
-
-```wirely
-// One named struct field. StructFields table.
-struct type StructField {
-  // Field name in Names.
-  Name: StringRef,
-  // Index into ValueTypes.
-  ValueType: Ref,
-}
-```
-
-Field offsets follow the
-[runtime binary representation](value-types.md#runtime-binary-representation).
-Field index N selects entry N of the struct's `Fields` range. Field names
-support native struct reconstruction, display, and JSON conversion.
-
 ### TypeLists
 
 ```wirely
@@ -425,9 +386,52 @@ struct type TypeEntry {
 }
 ```
 
-`TypeLists` stores lists of types, such as the parameter types of a native
-function or the locals of a procedure body, as ranges of entries. Equal
-lists can share entries.
+`TypeLists` stores lists of types, such as the field types of a struct, the
+parameter types of a native function, or the locals of a procedure body, as
+ranges of entries. Equal lists can share entries.
+
+### JsonTypes and JsonNames
+
+```wirely
+// Serialization names of the members of one enum or the fields of one
+// struct. JsonTypes table.
+struct type JsonType {
+  // Index into ValueTypes; an enum or struct type.
+  Type: Ref,
+  // Number of names: one per member of a closed enum or field of a
+  // struct, or one per named number of an open enum.
+  Count: uint32,
+  // Index into JsonNames of the first of Count consecutive names; zero
+  // when Count is zero.
+  Names: Ref,
+  // Byte offset into JsonData of the Count named numbers of an open enum,
+  // in ascending order; zero when Count is zero. 0xffffffff for other
+  // types.
+  Numbers: uint32,
+}
+```
+
+```wirely
+// One JSON name of a member or field. JsonNames table.
+struct type JsonName {
+  // UTF-8 name in JsonData.
+  Name: StringRef,
+}
+```
+
+`JsonTypes` is sorted by `Type`, without duplicates. Only enum and struct
+types with an entry convert to and from JSON. Name N of a closed enum names
+member N, and name N of a struct names field N. Name N of an open enum
+names element N of its `Numbers` array. JSON names can differ from declared
+names.
+
+### JsonData
+
+`JsonData` contains the UTF-8 bytes of JSON names and the named-number
+arrays of `JsonTypes`. The numbers occupy
+`[Numbers, Numbers + Count * storage_size(UnderlyingType))` in the
+underlying type's runtime binary representation. `Numbers` is aligned for
+the underlying type. Equal strings and arrays can share bytes.
 
 ## Static data
 
@@ -552,7 +556,7 @@ constructor of the state's type and supplies the initializer's resolved
 // A native state implementation and its interfaces.
 // NativeStateTypes table.
 struct type NativeStateType {
-  // Native name in Names, such as ABB.JRA.Blind.
+  // Native name in NativeNames, such as ABB.JRA.Blind.
   Name: StringRef,
   // Range into InterfaceNames; names bound by the initializer's `uses`.
   UsesNames: Range,
@@ -569,10 +573,9 @@ state. Entries are sorted by UTF-8 name bytes, without duplicates.
 ### InterfaceNames
 
 ```wirely
-// A name in Names. InterfaceNames, EnumMemberNames, and ResourceTypes
-// tables.
+// A name in NativeNames. InterfaceNames and ResourceTypes tables.
 struct type NameRef {
-  // UTF-8 name in Names.
+  // UTF-8 name in NativeNames.
   Name: StringRef,
 }
 ```
@@ -593,7 +596,7 @@ Resource types are equal exactly when their indices are equal.
 // One resource a native interface receives or provides.
 // ResourceInterfaces table.
 struct type ResourceInterface {
-  // Interface name in Names.
+  // Interface name in NativeNames.
   Name: StringRef,
   // Index into ResourceTypes.
   Type: Ref,
@@ -705,7 +708,7 @@ Operands `input.N` and `output.N` select entry N of its `Inputs` and
 ```wirely
 // A named native procedure and its interfaces. NativeProcedures table.
 struct type NativeProcedure {
-  // Native procedure name in Names, such as Std.Constant:run.
+  // Native procedure name in NativeNames, such as Std.Constant:run.
   Name: StringRef,
   // Range into InterfaceNames; names bound by `uses`.
   UsesNames: Range,
@@ -725,7 +728,7 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 ```wirely
 // One value input of a native procedure. InputInterfaces table.
 struct type InputInterface {
-  // Input name in Names.
+  // Input name in NativeNames.
   Name: StringRef,
 }
 ```
@@ -806,7 +809,7 @@ struct type ProcedureBody {
 // A native function called by procedure bodies.
 // NativeFunctions table.
 struct type NativeFunction {
-  // Native name in Names.
+  // Native name in NativeNames.
   Name: StringRef,
   // Range into TypeLists; parameter types in argument order.
   Parameters: Range,
@@ -828,13 +831,12 @@ the program's stage, interface names, resource types, and value types.
 
 An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member
-count. Member names and numbers are not compared. Other enums need no
-linking.
+count. Other enums need no linking.
 
 A struct with a `NativeName` links only when the runtime knows that native
 name, among native or opaque structs, with the same field types in the
 same order; nested native enums and structs match by kind, opacity, and
-native name. Field names are not compared. Other structs need no linking.
+native name. Other structs need no linking.
 
 The runtime's implementation of each opaque struct also checks its values
 in `StaticValues`, list elements, and `InitialState`. `Schedule.TimeOfDay`
@@ -905,7 +907,7 @@ an integer, boolean, or enum type, and N is interpreted as follows:
   3, 4, … gives 0, −1, 1, −2, 2, …, so small values of either sign have
   short encodings.
 - A boolean is N, which is 0 or 1.
-- A closed enum is member N, with N below `Members.Count`.
+- A closed enum is member N, with N below `MemberCount`.
 - An open enum uses its underlying integer's interpretation of N.
 
 Integer and open enum values fit their underlying widths.
@@ -1037,17 +1039,17 @@ struct type SymbolMetadata {
 ### Symbol tables
 
 ```wirely
-// The name of a node, variable, or procedure.
-// NodeSymbols, StateVariableSymbols, TemporarySymbols, and
-// ProcedureSymbols tables.
+// The name of a node, variable, procedure, or member.
+// NodeSymbols, StateVariableSymbols, TemporarySymbols, ProcedureSymbols,
+// and MemberSymbols tables.
 struct type Symbol {
   // Name in SymbolData.
   Name: StringRef,
 }
 ```
 
-Each symbol table has one entry per entry of its target table, in the
-same order:
+Each symbol table except `MemberSymbols` has one entry per entry of its
+target table, in the same order:
 
 | Table | Target table | Name |
 | --- | --- | --- |
@@ -1055,9 +1057,36 @@ same order:
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
 | `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b:run.output` |
 | `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
+| `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; empty for other types |
 
-Symbols identify nodes, variables, and procedures in diagnostics and when
-building [state transitions](#state-transitions).
+Symbols identify nodes, variables, procedures, and types in diagnostics
+and when building [state transitions](#state-transitions).
+
+### TypeSymbols and MemberSymbols
+
+```wirely
+// Symbols of one type. TypeSymbols table.
+struct type TypeSymbol {
+  // Qualified name in SymbolData; empty for unnamed types.
+  Name: StringRef,
+  // Number of member symbols: one per member of a closed enum or field
+  // of a struct, or one per named number of an open enum; zero for
+  // other types.
+  Count: uint32,
+  // Index into MemberSymbols of the first of Count consecutive symbols;
+  // zero when Count is zero.
+  Members: Ref,
+  // Byte offset into SymbolData of the Count named numbers of an open
+  // enum, in ascending order; zero when Count is zero. 0xffffffff for
+  // other types.
+  Numbers: uint32,
+}
+```
+
+Member symbols are the declared member and field names. They correspond to
+members, fields, and numbers like [JSON names](#jsontypes-and-jsonnames),
+and their numbers use the layout of the numbers in `JsonData`. Debug output
+shows these names and falls back to numbers when the symbols are stripped.
 
 ### VariableAliases
 
@@ -1081,10 +1110,11 @@ UTF-8 name bytes. Multiple aliases can refer to one variable.
 
 ### SymbolData
 
-`SymbolData` contains UTF-8 bytes referenced by symbol records.
+`SymbolData` contains the UTF-8 bytes and open enum number arrays
+referenced by symbol records.
 
 An embedded reader reads the header and directory and links native code
-and functions using `Names`. Symbol records and their data can be read on
+and functions using `NativeNames`. Symbol records and their data can be read on
 demand. To print a node name, read its `NodeSymbols` entry, then stream the
 referenced `SymbolData` byte range over UART. Numeric node, procedure, and
 variable indices also serve as diagnostic identifiers.
@@ -1161,7 +1191,7 @@ Bytes not referenced by any record are not checked. This includes bytes of
 
 Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
 `ByteRange` byte ranges, `StringRef` byte ranges, whose bytes are valid
-UTF-8, and `EnumNumbers` arrays, which are aligned for their type. Small
+UTF-8, and named-number arrays, which are aligned for their type. Small
 enumerated fields such as `Bank` have listed values, and padding is zero.
 
 ### Types and values
@@ -1171,9 +1201,12 @@ pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
 runtime types from static-only types. Integer types have a listed width,
 open enum underlying types are integers, and opaque structs have a native
-name. Open enum named numbers are in strictly ascending order. Closed
-enums have at least one member and an underlying type of `uint8`, `uint16`,
-or `uint32` large enough to represent `Members.Count - 1`.
+name. Closed enums have at least one member and an underlying type of
+`uint8`, `uint16`, or `uint32` large enough to represent `MemberCount - 1`.
+Each `JsonTypes` entry and each `TypeSymbols` entry of an enum or struct
+has one name per closed enum member or struct field, or strictly ascending
+numbers for an open enum. `Numbers` is `0xffffffff` exactly for types
+other than open enums.
 
 `StaticValues`, list elements, and `InitialState` contain valid values in
 the runtime binary representation, with zero padding. Closed enum values
@@ -1193,7 +1226,7 @@ parameters and results, are runtime types.
 
 Sorting turns uniqueness into a comparison with the predecessor. This
 applies to ranges into `InterfaceNames`, `InputInterfaces`, and
-`ResourceInterfaces`, to `ResourceTypes`, `NativeStateTypes`,
+`ResourceInterfaces`, to `ResourceTypes`, `JsonTypes`, `NativeStateTypes`,
 `NativeProcedures`, and `NativeFunctions`, and to aliases. Bindings refer
 to entries in the matching range of their native procedure or native state
 type. Each value input binds one source, and each resource input binds one
@@ -1220,19 +1253,19 @@ Verifiers do not check these rules:
 
 - Sections do not overlap each other, the header, or the directory.
 - Buffers place variables in decreasing type alignment.
-- Struct field and enum member names are distinct.
-- Symbols within a symbol table are distinct.
+- The JSON names and the member symbols of one type are distinct.
+- Node, variable, procedure, and nonempty type symbols are distinct within
+  their table.
 - The build ID matches the unstripped file.
 
 ## State transitions
 
 A transition file carries the state of a running program over to a new
 program. It uses the same header and section directory as a program and
-contains the transition's own `ValueTypes`, `EnumMemberNames`, `EnumNumbers`,
-`StructFields`, `TypeLists`, `Names`, `StaticValues`, `ProgramData`,
-`NativeFunctions`, and `ProcedureCode`, and a `ProcedureBodies` table with
-one entry: the transition procedure. It has no stages, procedure records,
-bindings, or variable tables.
+contains the transition's own `ValueTypes`, `TypeLists`, `NativeNames`,
+`StaticValues`, `ProgramData`, `NativeFunctions`, and `ProcedureCode`, and a
+`ProcedureBodies` table with one entry: the transition procedure. It has no
+stages, procedure records, bindings, or variable tables.
 
 The transition procedure reads the old program's state and writes the new
 program's state. Operand `input.N` reads entry N of the old program's
@@ -1257,10 +1290,10 @@ struct type TypeMapEntry {
 ```
 
 Each type map has one entry per `ValueTypes` entry of its program. A mapped
-type and its transition type have the same kind, and integers the same
-width and signedness. Their inner, underlying, and field types are mapped
-to each other's. Enums and structs have equal qualified names, enums equal
-member names and numbers, and structs equal opacity and field names.
+type and its transition type have the same kind, integers the same width
+and signedness, closed enums the same member count, and structs the same
+opacity and field count. Their inner, underlying, and field types are
+mapped to each other's.
 Dependencies precede their users, so one forward pass verifies a map.
 Operand types of inputs and outputs are looked up through the maps; the
 types of used inputs and of all outputs are mapped.

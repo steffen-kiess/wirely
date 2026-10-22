@@ -101,27 +101,19 @@ struct type ClosedEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; uint8, uint16, or uint32, fitting all members.
   UnderlyingType: Ref,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the enum is not native.
+  // Number of members; member N has number N.
+  MemberCount: uint32,
+  // Native name in NativeNames; empty if the enum is not native.
   NativeName: StringRef,
-  // Range into EnumMemberNames; entry N has number N.
-  Members: Range,
 }
 
-// Kind OpenEnum: named values of an integer type.
+// Kind OpenEnum: an enumeration accepting every value of an integer type.
 struct type OpenEnumType {
   Kind: TypeKind,
   // Index into ValueTypes; underlying integer type.
   UnderlyingType: Ref,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the enum is not native.
+  // Native name in NativeNames; empty if the enum is not native.
   NativeName: StringRef,
-  // Range into EnumMemberNames, ordered by number; may be empty.
-  Members: Range,
-  // Byte offset into EnumNumbers of the named member numbers.
-  Numbers: uint32,
 }
 
 // Kind Struct: a named struct.
@@ -131,12 +123,11 @@ struct type StructType {
   // Whether the runtime implements the struct; field access instructions
   // are invalid for it.
   Opaque: boolean,
-  // Qualified name in Names.
-  Name: StringRef,
-  // Native name in Names; empty if the struct is neither native nor opaque.
-  NativeName: StringRef,
-  // Range into StructFields, in declaration order.
+  // Range into TypeLists; field types in declaration order.
   Fields: Range,
+  // Native name in NativeNames; empty if the struct is neither native nor
+  // opaque.
+  NativeName: StringRef,
 }
 
 // Kinds Option and List: a type containing values of another type.
@@ -167,18 +158,33 @@ struct type MonotonicTime {
   Generation: uint64,
 }
 
-// One named struct field. StructFields table.
-struct type StructField {
-  // Field name in Names.
-  Name: StringRef,
-  // Index into ValueTypes.
-  ValueType: Ref,
-}
-
 // One type in a list of types. TypeLists table.
 struct type TypeEntry {
   // Index into ValueTypes.
   ValueType: Ref,
+}
+
+// Serialization names of the members of one enum or the fields of one
+// struct. JsonTypes table.
+struct type JsonType {
+  // Index into ValueTypes; an enum or struct type.
+  Type: Ref,
+  // Number of names: one per member of a closed enum or field of a
+  // struct, or one per named number of an open enum.
+  Count: uint32,
+  // Index into JsonNames of the first of Count consecutive names; zero
+  // when Count is zero.
+  Names: Ref,
+  // Byte offset into JsonData of the Count named numbers of an open enum,
+  // in ascending order; zero when Count is zero. 0xffffffff for other
+  // types.
+  Numbers: uint32,
+}
+
+// One JSON name of a member or field. JsonNames table.
+struct type JsonName {
+  // UTF-8 name in JsonData.
+  Name: StringRef,
 }
 
 // A typed value with a byte offset into its associated storage.
@@ -219,7 +225,7 @@ struct type NativeState {
 // A native state implementation and its interfaces.
 // NativeStateTypes table.
 struct type NativeStateType {
-  // Native name in Names, such as ABB.JRA.Blind.
+  // Native name in NativeNames, such as ABB.JRA.Blind.
   Name: StringRef,
   // Range into InterfaceNames; names bound by the initializer's `uses`.
   UsesNames: Range,
@@ -229,17 +235,16 @@ struct type NativeStateType {
   ResourceOutputInterfaces: Range,
 }
 
-// A name in Names. InterfaceNames, EnumMemberNames, and ResourceTypes
-// tables.
+// A name in NativeNames. InterfaceNames and ResourceTypes tables.
 struct type NameRef {
-  // UTF-8 name in Names.
+  // UTF-8 name in NativeNames.
   Name: StringRef,
 }
 
 // One resource a native interface receives or provides.
 // ResourceInterfaces table.
 struct type ResourceInterface {
-  // Interface name in Names.
+  // Interface name in NativeNames.
   Name: StringRef,
   // Index into ResourceTypes.
   Type: Ref,
@@ -292,7 +297,7 @@ struct type Procedure {
 
 // A named native procedure and its interfaces. NativeProcedures table.
 struct type NativeProcedure {
-  // Native procedure name in Names, such as Std.Constant:run.
+  // Native procedure name in NativeNames, such as Std.Constant:run.
   Name: StringRef,
   // Range into InterfaceNames; names bound by `uses`.
   UsesNames: Range,
@@ -306,7 +311,7 @@ struct type NativeProcedure {
 
 // One value input of a native procedure. InputInterfaces table.
 struct type InputInterface {
-  // Input name in Names.
+  // Input name in NativeNames.
   Name: StringRef,
 }
 
@@ -345,7 +350,7 @@ struct type ProcedureBody {
 // A native function called by procedure bodies.
 // NativeFunctions table.
 struct type NativeFunction {
-  // Native name in Names.
+  // Native name in NativeNames.
   Name: StringRef,
   // Range into TypeLists; parameter types in argument order.
   Parameters: Range,
@@ -359,12 +364,29 @@ struct type SymbolMetadata {
   ProgramName: StringRef,
 }
 
-// The name of a node, variable, or procedure.
-// NodeSymbols, StateVariableSymbols, TemporarySymbols, and
-// ProcedureSymbols tables.
+// The name of a node, variable, procedure, or member.
+// NodeSymbols, StateVariableSymbols, TemporarySymbols, ProcedureSymbols,
+// and MemberSymbols tables.
 struct type Symbol {
   // Name in SymbolData.
   Name: StringRef,
+}
+
+// Symbols of one type. TypeSymbols table.
+struct type TypeSymbol {
+  // Qualified name in SymbolData; empty for unnamed types.
+  Name: StringRef,
+  // Number of member symbols: one per member of a closed enum or field
+  // of a struct, or one per named number of an open enum; zero for
+  // other types.
+  Count: uint32,
+  // Index into MemberSymbols of the first of Count consecutive symbols;
+  // zero when Count is zero.
+  Members: Ref,
+  // Byte offset into SymbolData of the Count named numbers of an open
+  // enum, in ascending order; zero when Count is zero. 0xffffffff for
+  // other types.
+  Numbers: uint32,
 }
 
 // An alias referring to a state or temporary variable or a static value.

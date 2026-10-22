@@ -27,8 +27,9 @@ __all__ = [
     'Duration',
     'TimeOfDay',
     'MonotonicTime',
-    'StructField',
     'TypeEntry',
+    'JsonType',
+    'JsonName',
     'Variable',
     'ValueTypeValue',
     'ListValue',
@@ -48,6 +49,7 @@ __all__ = [
     'NativeFunction',
     'SymbolMetadata',
     'Symbol',
+    'TypeSymbol',
     'VariableAlias',
     'TypeMapEntry',
     'NativeStateSource',
@@ -131,28 +133,23 @@ class IntegerType(NamedTuple):
 class ClosedEnumType(NamedTuple):
     kind: TypeKind
     underlying_type: Ref
-    name: StringRef
+    member_count: int
     native_name: StringRef
-    members: Range
 
 
 # OpenEnumType in wirely/program/format.wrl
 class OpenEnumType(NamedTuple):
     kind: TypeKind
     underlying_type: Ref
-    name: StringRef
     native_name: StringRef
-    members: Range
-    numbers: int
 
 
 # StructType in wirely/program/format.wrl
 class StructType(NamedTuple):
     kind: TypeKind
     opaque: bool
-    name: StringRef
-    native_name: StringRef
     fields: Range
+    native_name: StringRef
 
 
 # CompositeType in wirely/program/format.wrl
@@ -177,15 +174,22 @@ class MonotonicTime(NamedTuple):
     generation: int
 
 
-# StructField in wirely/program/format.wrl
-class StructField(NamedTuple):
-    name: StringRef
-    value_type: Ref
-
-
 # TypeEntry in wirely/program/format.wrl
 class TypeEntry(NamedTuple):
     value_type: Ref
+
+
+# JsonType in wirely/program/format.wrl
+class JsonType(NamedTuple):
+    type: Ref
+    count_: int
+    names: Ref
+    numbers: int
+
+
+# JsonName in wirely/program/format.wrl
+class JsonName(NamedTuple):
+    name: StringRef
 
 
 # Variable in wirely/program/format.wrl
@@ -311,6 +315,14 @@ class Symbol(NamedTuple):
     name: StringRef
 
 
+# TypeSymbol in wirely/program/format.wrl
+class TypeSymbol(NamedTuple):
+    name: StringRef
+    count_: int
+    members: Ref
+    numbers: int
+
+
 # VariableAlias in wirely/program/format.wrl
 class VariableAlias(NamedTuple):
     name: StringRef
@@ -387,24 +399,19 @@ _types['IntegerType'] = TypeStruct('IntegerType', {
 _types['ClosedEnumType'] = TypeStruct('ClosedEnumType', {
     'Kind': _enums['TypeKind'],
     'UnderlyingType': _types['Ref'],
-    'Name': _types['StringRef'],
+    'MemberCount': uint32,
     'NativeName': _types['StringRef'],
-    'Members': _types['Range'],
 })
 _types['OpenEnumType'] = TypeStruct('OpenEnumType', {
     'Kind': _enums['TypeKind'],
     'UnderlyingType': _types['Ref'],
-    'Name': _types['StringRef'],
     'NativeName': _types['StringRef'],
-    'Members': _types['Range'],
-    'Numbers': uint32,
 })
 _types['StructType'] = TypeStruct('StructType', {
     'Kind': _enums['TypeKind'],
     'Opaque': boolean,
-    'Name': _types['StringRef'],
-    'NativeName': _types['StringRef'],
     'Fields': _types['Range'],
+    'NativeName': _types['StringRef'],
 })
 _types['CompositeType'] = TypeStruct('CompositeType', {
     'Kind': _enums['TypeKind'],
@@ -420,12 +427,17 @@ _types['MonotonicTime'] = TypeStruct('MonotonicTime', {
     'Ticks': uint128,
     'Generation': uint64,
 })
-_types['StructField'] = TypeStruct('StructField', {
-    'Name': _types['StringRef'],
-    'ValueType': _types['Ref'],
-})
 _types['TypeEntry'] = TypeStruct('TypeEntry', {
     'ValueType': _types['Ref'],
+})
+_types['JsonType'] = TypeStruct('JsonType', {
+    'Type': _types['Ref'],
+    'Count': uint32,
+    'Names': _types['Ref'],
+    'Numbers': uint32,
+})
+_types['JsonName'] = TypeStruct('JsonName', {
+    'Name': _types['StringRef'],
 })
 _types['Variable'] = TypeStruct('Variable', {
     'ValueType': _types['Ref'],
@@ -512,6 +524,12 @@ _types['SymbolMetadata'] = TypeStruct('SymbolMetadata', {
 _types['Symbol'] = TypeStruct('Symbol', {
     'Name': _types['StringRef'],
 })
+_types['TypeSymbol'] = TypeStruct('TypeSymbol', {
+    'Name': _types['StringRef'],
+    'Count': uint32,
+    'Members': _types['Ref'],
+    'Numbers': uint32,
+})
 _types['VariableAlias'] = TypeStruct('VariableAlias', {
     'Name': _types['StringRef'],
     'Bank': uint8,
@@ -547,8 +565,9 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     Duration: _types['Duration'],
     TimeOfDay: _types['TimeOfDay'],
     MonotonicTime: _types['MonotonicTime'],
-    StructField: _types['StructField'],
     TypeEntry: _types['TypeEntry'],
+    JsonType: _types['JsonType'],
+    JsonName: _types['JsonName'],
     Variable: _types['Variable'],
     ValueTypeValue: _types['ValueTypeValue'],
     ListValue: _types['ListValue'],
@@ -568,6 +587,7 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     NativeFunction: _types['NativeFunction'],
     SymbolMetadata: _types['SymbolMetadata'],
     Symbol: _types['Symbol'],
+    TypeSymbol: _types['TypeSymbol'],
     VariableAlias: _types['VariableAlias'],
     TypeMapEntry: _types['TypeMapEntry'],
     NativeStateSource: _types['NativeStateSource'],

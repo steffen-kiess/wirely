@@ -2,8 +2,8 @@ import struct
 
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
-    CompositeType, Header, IntegerType, MonotonicTime, OptionalRef, Procedure, Range, Ref, SectionEntry, TypeKind,
-    ValueInput,
+    ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Procedure, Range,
+    Ref, SectionEntry, SimpleType, StructType, TypeKind, ValueInput,
 )
 
 
@@ -60,6 +60,12 @@ def check_layout():
     assert [unpack_record(Ref, table, offset) for offset in (0, 4, 8)] == [Ref(1), Ref(2), Ref(3)]
 
 
+def check_type_record_sizes():
+    # Each record selected by TypeKind fits a 32-byte ValueTypes entry.
+    for record_class in (SimpleType, IntegerType, ClosedEnumType, OpenEnumType, StructType, CompositeType):
+        assert record_size(record_class) <= 32, record_class.__name__
+
+
 def check_invalid_records():
     check_rejected(IntegerType, bytes([3, 2, 32, 0]), 'Invalid boolean byte 2')
     # ValueInput has padding between Bank (offset 4) and Variable (offset 8).
@@ -80,6 +86,7 @@ def check_invalid_records():
 
 
 check_layout()
+check_type_record_sizes()
 check_invalid_records()
 
 
