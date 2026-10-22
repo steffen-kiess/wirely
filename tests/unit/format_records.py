@@ -3,7 +3,7 @@ import struct
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
     ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Procedure, Range,
-    Ref, SectionEntry, SimpleType, StructType, TypeKind, ValueInput,
+    Ref, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, ValueInput,
 )
 
 
@@ -54,6 +54,10 @@ def check_layout():
     assert pack_record(CompositeType(9, Ref(2))) == pack_record(composite)
     unknown = unpack_record(CompositeType, bytes([200]) + bytes(7)).kind
     assert type(unknown) is TypeKind and unknown == 200 and unknown.name is None
+
+    stage = Stage(RunStage.Output, Range(Ref(2), 3))
+    assert pack_record(stage) == struct.pack('<BxxxII', 3, 2, 3)
+    assert type(unpack_record(Stage, pack_record(stage)).stage) is RunStage
 
     # Records are read at an offset into a larger buffer.
     table = pack_record(Ref(1)) + pack_record(Ref(2)) + pack_record(Ref(3))

@@ -40,6 +40,7 @@ __all__ = [
     'ResourceInterface',
     'StaticBinding',
     'ResourceInput',
+    'RunStage',
     'Stage',
     'Procedure',
     'NativeProcedure',
@@ -255,9 +256,16 @@ class ResourceInput(NamedTuple):
     output: int
 
 
+# RunStage in wirely/program/format.wrl
+class RunStage(OpenIntEnum, minimum=0, maximum=255):
+    Input = 1
+    Default = 2
+    Output = 3
+
+
 # Stage in wirely/program/format.wrl
 class Stage(NamedTuple):
-    stage: int
+    stage: RunStage
     schedule: Range
 
 
@@ -360,6 +368,11 @@ _enums['TypeKind'] = TypeEnum('TypeKind', {
     'Struct': 8,
     'Option': 9,
     'List': 10,
+}, is_open=True, underlying_type=uint8)
+_enums['RunStage'] = TypeEnum('RunStage', {
+    'Input': 1,
+    'Default': 2,
+    'Output': 3,
 }, is_open=True, underlying_type=uint8)
 
 # Wirely types of the records, with field types first.
@@ -489,7 +502,7 @@ _types['ResourceInput'] = TypeStruct('ResourceInput', {
     'Output': uint32,
 })
 _types['Stage'] = TypeStruct('Stage', {
-    'Stage': uint8,
+    'Stage': _enums['RunStage'],
     'Schedule': _types['Range'],
 })
 _types['Procedure'] = TypeStruct('Procedure', {
@@ -556,6 +569,7 @@ _types['NativeStateSource'] = TypeStruct('NativeStateSource', {
 # Wirely type of each enum class.
 enum_types: dict[type[enum.IntEnum], TypeEnum] = {
     TypeKind: _enums['TypeKind'],
+    RunStage: _enums['RunStage'],
 }
 
 # Wirely type of each record class.

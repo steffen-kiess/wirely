@@ -659,10 +659,19 @@ Each input binds one provider with the resource type of that interface.
 ### Stages
 
 ```wirely
+// An execution stage. 0 is not a valid stage.
+open enum type RunStage: uint8 {
+  Input = 1,
+  Default = 2,
+  Output = 3,
+}
+```
+
+```wirely
 // An execution stage and its ordered procedure range. Stages table.
 struct type Stage {
-  // 0 = input, 1 = default, 2 = output.
-  Stage: uint8,
+  // Stage these procedures run in.
+  Stage: RunStage,
   // Range into Procedures, in execution order.
   Schedule: Range,
 }
