@@ -95,6 +95,7 @@ their contents.
 | [`NativeStates`](#nativestates) | `NativeState` | Table |
 | [`NativeStateTypes`](#nativestatetypes) | `NativeStateType` | Table |
 | [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
+| [`ResourceTypes`](#resourcetypes) | `NameRef` | Table |
 | [`ResourceInterfaces`](#resourceinterfaces) | `ResourceInterface` | Table |
 | [`StaticBindings`](#staticbindings) | `StaticBinding` | Table |
 | [`ResourceInputs`](#resourceinputs) | `ResourceInput` | Table |
@@ -550,7 +551,8 @@ state. Entries are sorted by UTF-8 name bytes, without duplicates.
 ### InterfaceNames
 
 ```wirely
-// A name in Names. InterfaceNames and EnumMemberNames tables.
+// A name in Names. InterfaceNames, EnumMemberNames, and ResourceTypes
+// tables.
 struct type NameRef {
   // UTF-8 name in Names.
   Name: StringRef,
@@ -561,6 +563,12 @@ struct type NameRef {
 `uses` and the output names of native procedures. Each range contains
 unique names in UTF-8 bytewise lexical order.
 
+### ResourceTypes
+
+Each `ResourceTypes` entry names a native resource type, such as
+`KNX.Bus`. Entries are sorted by UTF-8 name bytes, without duplicates.
+Resource types are equal exactly when their indices are equal.
+
 ### ResourceInterfaces
 
 ```wirely
@@ -569,8 +577,8 @@ unique names in UTF-8 bytewise lexical order.
 struct type ResourceInterface {
   // Interface name in Names.
   Name: StringRef,
-  // Native resource type name in Names, such as KNX.Bus.
-  Type: StringRef,
+  // Index into ResourceTypes.
+  Type: Ref,
 }
 ```
 
@@ -794,11 +802,11 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 ### Linking
 
 The runtime matches the qualified names of native state types, native
-procedures, native functions, and resource types to native code, and binds
-interface names to static values, inputs, outputs, and resources. Each
-native state type, native procedure, and native function also links only
-when the runtime's description of its interface matches the program's
-stage, interface names, resource types, and value types.
+procedures, native functions, and `ResourceTypes` entries to native code,
+and binds interface names to static values, inputs, outputs, and
+resources. Each native state type, native procedure, and native function
+also links only when the runtime's description of its interface matches
+the program's stage, interface names, resource types, and value types.
 
 An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member
@@ -1079,8 +1087,8 @@ ranges support independent reads.
 | Native-state `instances` | `NativeStates` and `NodeSymbols` |
 | `instances[*].initializer_values` | Initializer `StaticBindings` and their values |
 | `instances[*].initializer_bindings`, `procs[*].resources` | `ResourceInputs` |
-| `native_types` | `NativeStateTypes`, `InterfaceNames`, and `ResourceInterfaces` |
-| `native_procedures` | `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, and `InputInterfaces` |
+| `native_types` | `NativeStateTypes`, `InterfaceNames`, `ResourceInterfaces`, and `ResourceTypes` |
+| `native_procedures` | `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, `ResourceTypes`, and `InputInterfaces` |
 | `native_construction_order` | Order of `NativeStates` |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
 | `procs[*].values` | Procedure `StaticBindings` and their values |
@@ -1167,13 +1175,14 @@ parameters and results, are runtime types.
 
 Sorting turns uniqueness into a comparison with the predecessor. This
 applies to ranges into `InterfaceNames`, `InputInterfaces`, and
-`ResourceInterfaces`, to `NativeStateTypes`, `NativeProcedures`, and
-`NativeFunctions`, and to aliases. Bindings refer to entries in the
-matching range of their native procedure or native state type.
-Each value input binds one source, and each resource input binds one
+`ResourceInterfaces`, to `ResourceTypes`, `NativeStateTypes`,
+`NativeProcedures`, and `NativeFunctions`, and to aliases. Bindings refer
+to entries in the matching range of their native procedure or native state
+type. Each value input binds one source, and each resource input binds one
 provider. A resource provider's output lies within its type's
-`ResourceOutputInterfaces` and has the resource type of the interface it
-is bound to. Each symbol table has as many entries as its target table.
+`ResourceOutputInterfaces` and has the same `ResourceTypes` index as the
+interface it is bound to. Each symbol table has as many entries as its
+target table.
 
 ### Procedures and code
 
