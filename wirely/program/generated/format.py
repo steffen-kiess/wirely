@@ -50,6 +50,7 @@ __all__ = [
     'Output',
     'ProcedureBody',
     'NativeFunction',
+    'OperandKind',
     'SymbolMetadata',
     'Symbol',
     'TypeSymbol',
@@ -325,6 +326,15 @@ class NativeFunction(NamedTuple):
     return_type: Ref
 
 
+# OperandKind in wirely/program/format.wrl
+class OperandKind(OpenIntEnum, minimum=0, maximum=255):
+    Immediate = 0
+    Const = 1
+    Local = 2
+    Input = 3
+    Output = 4
+
+
 # SymbolMetadata in wirely/program/format.wrl
 class SymbolMetadata(NamedTuple):
     program_name: StringRef
@@ -384,6 +394,13 @@ _enums['VariableBank'] = TypeEnum('VariableBank', {
     'Temporaries': 2,
     'OldState': 3,
     'NewState': 4,
+}, is_open=True, underlying_type=uint8)
+_enums['OperandKind'] = TypeEnum('OperandKind', {
+    'Immediate': 0,
+    'Const': 1,
+    'Local': 2,
+    'Input': 3,
+    'Output': 4,
 }, is_open=True, underlying_type=uint8)
 
 # Wirely types of the records, with field types first.
@@ -578,6 +595,7 @@ enum_types: dict[type[enum.IntEnum], TypeEnum] = {
     TypeKind: _enums['TypeKind'],
     RunStage: _enums['RunStage'],
     VariableBank: _enums['VariableBank'],
+    OperandKind: _enums['OperandKind'],
 }
 
 # Wirely type of each record class.

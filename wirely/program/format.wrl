@@ -371,6 +371,16 @@ struct type NativeFunction {
   ReturnType: Ref,
 }
 
+// The kind of a value operand, in bits 7–5 of its descriptor byte.
+// Values 5–7 are not valid.
+open enum type OperandKind: uint8 {
+  Immediate = 0,
+  Const = 1,
+  Local = 2,
+  Input = 3,
+  Output = 4,
+}
+
 // Symbols for the whole program. SymbolMetadata record.
 struct type SymbolMetadata {
   // Program name in SymbolData.

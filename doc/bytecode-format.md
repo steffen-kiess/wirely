@@ -880,28 +880,40 @@ entries for triggers.
 `ProcedureCode` contains the instruction streams of procedure bodies. Each
 instruction starts with one `uint8` opcode, followed by its operands in the
 order listed below. The opcode determines the operand count and instruction
-length. Opcode and operand-kind numbers remain to be assigned. Multi-byte
-integers are little endian; instructions and operands require no alignment.
+length. Opcode numbers remain to be assigned. Multi-byte integers are
+little endian; instructions and operands require no alignment.
 
 ### Value operands
 
 The written form uses lowercase operand kinds and zero-based indices, for
 example `COPY local.0, input.1`.
 
+```wirely
+// The kind of a value operand, in bits 7–5 of its descriptor byte.
+// Values 5–7 are not valid.
+open enum type OperandKind: uint8 {
+  Immediate = 0,
+  Const = 1,
+  Local = 2,
+  Input = 3,
+  Output = 4,
+}
+```
+
 | Operand kind | Index selects | Access |
 | --- | --- | --- |
+| `immediate` | The number itself, used as the value | Read |
+| `const` | Entry in `StaticValues` | Read |
+| `local` | Entry in the body's `Locals` range | Read/write |
 | `input` | Entry in the procedure's `Inputs` range | Read |
 | `output` | Entry in the procedure's `Outputs` range | Read/write |
-| `local` | Entry in the body's `Locals` range | Read/write |
-| `const` | Entry in `StaticValues` | Read |
-| `immediate` | The number itself, used as the value | Read |
 
 Operands identify whole typed values. There are no references. Field
 indices and branch displacements are integer parameters, encoded
 separately from value operands.
 
-A value operand starts with a descriptor byte. Bits 7–5 identify the operand
-kind; bits 4–0 select the index encoding:
+A value operand starts with a descriptor byte. Bits 7–5 hold its
+`OperandKind`; bits 4–0 select the index encoding:
 
 | Selector | Index encoding | Total bytes |
 | --- | --- | --- |
