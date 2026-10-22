@@ -88,6 +88,13 @@ def _python_names(where: str, items: Iterable[tuple[str, str]]) -> dict[str, str
     return names
 
 
+def struct_field_names(value_type: Any) -> dict[str, str]:
+    """Map each field of a struct to its NamedTuple field name, such as length_bytes for LengthBytes."""
+    names = _python_names(f'Struct `{value_type.name}`', (('field', field) for field in value_type.fields))
+    # Fields must not shadow tuple methods such as count().
+    return {field: name + '_' if hasattr(tuple, name) else name for field, name in names.items()}
+
+
 class _Imports:
     """The names a generated module imports, at runtime or for type checking only."""
 
@@ -761,7 +768,8 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
     bodies = []
     for python_name, name, value_type, declaration in classes:
         body = ['', source_comment(value_type.name, declaration, source_root), f'class {python_name}(NamedTuple):']
-        body += [f'    {field}: {annotation(field_type, imports, {})}'
+        names = struct_field_names(value_type)
+        body += [f'    {names[field]}: {annotation(field_type, imports, {})}'
                  for field, field_type in zip(value_type.fields, fields[name])]
         if not value_type.fields:
             body.append('    pass')
@@ -786,9 +794,7 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
     bodies = []
     for definition in definitions:
         value_type = definition.resolve_fields()
-        names = _python_names(f'Struct `{value_type.name}`', (('field', field) for field in value_type.fields))
-        # Fields must not shadow tuple methods such as count().
-        names = {field: name + '_' if hasattr(tuple, name) else name for field, name in names.items()}
+        names = struct_field_names(value_type)
         body = ['', source_comment(value_type.name, definition.declaration, source_root),
                 f'class {value_type.name}(NamedTuple):']
         for field, field_type in value_type.fields.items():
