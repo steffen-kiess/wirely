@@ -4,6 +4,7 @@ Wirely is a declarative language for connecting typed nodes. A `.wrl` file
 instantiates node types and connects their outputs to inputs. A node can
 compute a value, emit an event, keep state, or interact with an external
 service. Several `.wrl` files passed to the compiler form one program.
+`.wrl` files are UTF-8 encoded.
 
 ## A first program
 
