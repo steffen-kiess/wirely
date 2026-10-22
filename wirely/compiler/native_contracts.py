@@ -786,35 +786,65 @@ def generate_structs(graph: Any, source_paths: set[str] | None = None, *,
 
 
 def generate_format_records(graph: Any, *, source_root: Path = repository_root) -> str:
-    """Return a module with a NamedTuple for each struct of the binary program format."""
+    """Return a module with a NamedTuple and the Wirely type of each struct of the binary program format."""
     from wirely.types import TypeBoolean, TypeInt, TypeStruct
 
     definitions = sorted(graph.struct_types.values(),
                          key=lambda definition: definition.declaration.source_position.meta.start_pos)
+    value_types = [definition.resolve_fields() for definition in definitions]
+    constants: set[str] = set()
+
+    def field_code(record: Any, field: str, field_type: Any) -> tuple[str, str]:
+        """Return the Python annotation and the Wirely type expression of a field."""
+        if isinstance(field_type, TypeInt):
+            constants.add(f'{"" if field_type.is_signed else "u"}int{field_type.bits}')
+            return 'int', f'{"" if field_type.is_signed else "u"}int{field_type.bits}'
+        if isinstance(field_type, TypeBoolean):
+            constants.add('boolean')
+            return 'bool', 'boolean'
+        if isinstance(field_type, TypeStruct):
+            return field_type.name, f'_types[{field_type.name!r}]'
+        raise ValueError(f'Field `{field}` of format record `{record.name}` has unsupported type `{field_type}`')
+
     bodies = []
-    for definition in definitions:
-        value_type = definition.resolve_fields()
+    for definition, value_type in zip(definitions, value_types):
         names = struct_field_names(value_type)
-        body = ['', source_comment(value_type.name, definition.declaration, source_root),
-                f'class {value_type.name}(NamedTuple):']
-        for field, field_type in value_type.fields.items():
-            if isinstance(field_type, TypeInt):
-                python_type = 'int'
-            elif isinstance(field_type, TypeBoolean):
-                python_type = 'bool'
-            elif isinstance(field_type, TypeStruct):
-                python_type = field_type.name
-            else:
-                raise ValueError(f'Field `{field}` of format record `{value_type.name}` has unsupported type '
-                                 f'`{field_type}`')
-            body.append(f'    {names[field]}: {python_type}')
+        bodies += ['', source_comment(value_type.name, definition.declaration, source_root),
+                   f'class {value_type.name}(NamedTuple):']
+        bodies += [f'    {names[field]}: {field_code(value_type, field, field_type)[0]}'
+                   for field, field_type in value_type.fields.items()]
         if not value_type.fields:
-            body.append('    pass')
-        bodies += body + ['']
-    lines = [HEADER + '"""Python classes for the records of the binary program format."""', '',
-             'from __future__ import annotations', '', 'from typing import NamedTuple', '',
-             '__all__ = [', *(f'    {definition.resolve_fields().name!r},' for definition in definitions), ']', '',
-             *bodies]
+            bodies.append('    pass')
+        bodies.append('')
+
+    # Wirely allows forward references, so the types are ordered with their field types first.
+    ordered: list[Any] = []
+
+    def visit(value_type: Any) -> None:
+        if value_type.name in {item.name for item in ordered}:
+            return
+        for field_type in value_type.fields.values():
+            if isinstance(field_type, TypeStruct):
+                visit(field_type)
+        ordered.append(value_type)
+
+    for value_type in value_types:
+        visit(value_type)
+    types = ['', '# Wirely types of the records, with field types first.', '_types: dict[str, TypeStruct] = {}']
+    for value_type in ordered:
+        types.append(f'_types[{value_type.name!r}] = TypeStruct({value_type.name!r}, {{')
+        types += [f'    {field!r}: {field_code(value_type, field, field_type)[1]},'
+                  for field, field_type in value_type.fields.items()]
+        types.append('})')
+    types += ['', '# Wirely type of each record class.', 'record_types: dict[type[tuple[Any, ...]], TypeStruct] = {',
+              *(f'    {value_type.name}: _types[{value_type.name!r}],' for value_type in value_types), '}', '']
+
+    imports = ', '.join(['TypeStruct', *sorted(constants, key=lambda name: (name != 'boolean', len(name), name))])
+    lines = [HEADER + '"""Python classes and Wirely types of the records of the binary program format."""', '',
+             'from __future__ import annotations', '', 'from typing import Any, NamedTuple', '',
+             f'from wirely.types import {imports}', '',
+             '__all__ = [', *(f'    {value_type.name!r},' for value_type in value_types), "    'record_types',",
+             ']', '', *bodies, *types]
     return '\n'.join(lines)
 
 

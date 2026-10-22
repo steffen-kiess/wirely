@@ -31,6 +31,7 @@ python_only_tests = [
     'unit/editor_workspace',
     'unit/editor_export',
     'unit/container',
+    'unit/format_records',
     'unit/monotonic_timestamp',
 ]
 
