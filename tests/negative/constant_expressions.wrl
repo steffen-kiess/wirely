@@ -9,7 +9,7 @@ procedure run produces result {
 #[Allow(Unused)] binding result: value boolean;
 procedure run produces result {
   {
-    let text: String = "hello"; // E: `String` is parameter-only
+    let text: string = "hello"; // E: `string` is parameter-only
     result = text == "hello";
   }
 }
@@ -19,7 +19,7 @@ procedure run produces result {
 procedure run produces result {
   let mut value = false;
   {
-    let text: String = "hello"; // E: `String` is parameter-only
+    let text: string = "hello"; // E: `string` is parameter-only
     value = true;
   }
   result = value;
@@ -30,14 +30,14 @@ procedure run produces result {
 procedure run produces result {
   let value = true;
   result = {
-    let text: String = "hello"; // E: `String` is parameter-only
+    let text: string = "hello"; // E: `string` is parameter-only
     text == "hello" && value
   };
 }
 
 // TEST: unreachable runtime dependency still makes the body runtime
 procedure run depends on input: value boolean {
-  let text: String = "hello"; // E: `String` is parameter-only
+  let text: string = "hello"; // E: `string` is parameter-only
   if false { input; }
 }
 constant InputValue: boolean = true;
@@ -47,7 +47,7 @@ connect InputValue -> run.input;
 #[Allow(Unused)] binding result: value boolean;
 procedure run depends on input: value boolean produces result {
   result = (if input { "a" } else { "b" }) == "a";
-  // ^E: `String` is parameter-only
+  // ^E: `string` is parameter-only
 }
 constant InputValue: boolean = true;
 connect InputValue -> run.input;

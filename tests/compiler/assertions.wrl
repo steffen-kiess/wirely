@@ -17,7 +17,7 @@ assert {
 
 procedure compile_only {
   assert true;
-  let mut text: String = "before";
+  let mut text: string = "before";
   assert text == "before";
   { text = "after"; assert text == "after"; }
   assert text == "after";
@@ -48,7 +48,7 @@ node type BlockChecked {
   }
 }
 node integer: BlockChecked { Type: uint8, Value: 3, Expected: 3 }
-node text: BlockChecked { Type: String, Value: "hello", Expected: "hello" }
+node text: BlockChecked { Type: string, Value: "hello", Expected: "hello" }
 
 node type Checked {
   assert Default == Selected;

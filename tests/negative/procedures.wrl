@@ -111,10 +111,10 @@ node probe: Probe {  }
 
 // TEST: parameter-only value
 node type Probe {
-  parameter Text: String = "text";
+  parameter Text: string = "text";
   default output: value boolean;
   procedure run produces default output as output {
-    let value = Text; // E: `String` is parameter-only
+    let value = Text; // E: `string` is parameter-only
     output = true;
   }
 }
@@ -126,7 +126,7 @@ node type Probe {
 
   default output: value boolean;
   procedure run produces default output as output {
-    let path: String = Path.Parent("file"); // E: `String` is parameter-only
+    let path: string = Path.Parent("file"); // E: `string` is parameter-only
     output = true;
   }
 }

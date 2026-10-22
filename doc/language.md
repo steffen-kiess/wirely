@@ -182,7 +182,7 @@ and native functions accept `as "Qualified.Name"` after their name. Native code
 and `Program` use this native name instead of the qualified Wirely name, so
 the declaration can be renamed or moved without changing its
 implementation, as in
-`native function Parse as "KNX.ParseGroupAddress"(value: String): uint16;`.
+`native function Parse as "KNX.ParseGroupAddress"(value: string): uint16;`.
 Each native name identifies one declaration of its kind.
 
 Identifiers are case-sensitive. Weak keywords `binding`, `changed`, `closed`,
@@ -224,7 +224,7 @@ optional or defaulted parameter of type `T`. `Some(value)` supplies the value;
 
 ```wirely
 node type Forward {
-  optional parameter Label: String;
+  optional parameter Label: string;
   node child: Child { Label?: optional(Label) }
 }
 ```
@@ -275,7 +275,7 @@ code. Messages may also use raw string literals.
 
 Built-in types are `unit`, `boolean`, signed
 `int8`/`int16`/`int32`/`int64`/`int128`, unsigned
-`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, and `String`. `type` is
+`uint8`/`uint16`/`uint32`/`uint64`/`uint128`, and `string`. `type` is
 used for type parameters. `Option[T]` and `List[T]` construct types from `T`.
 The libraries declare the time types `Std.Duration`, `Schedule.TimeOfDay`,
 and `Timer.MonotonicTime`.
@@ -350,7 +350,7 @@ the same kind, underlying type, and, for a closed enum, member count. Use
 closed native enums only for member lists that cannot change.
 
 Use `()` for unit, `true` and `false` for booleans, decimal or `0x`/`0o`
-integers for integer parameters, quoted strings for `String`, and `[a, b]`
+integers for integer parameters, quoted strings for `string`, and `[a, b]`
 for list values. Negative integers use a leading minus sign, such as `-42`,
 and require a signed integer type. Raw strings (`r"..."` and `r#"..."#`)
 are also accepted.
@@ -371,11 +371,11 @@ supplies a fixed signature; a registered Python implementation supplies
 its result. A `native function` can be called in procedure bodies and in
 compile-time expressions. A `native constant function` is compile-time
 only; use it when the function can fail or uses parameter-only types such
-as `String`:
+as `string`:
 
 ```wirely
 namespace Example {
-  native constant function Parse(value: String): uint16;
+  native constant function Parse(value: string): uint16;
   native function Clamp(value: int16, low: int16, high: int16): int16;
 }
 
@@ -644,7 +644,7 @@ current = !current;
 An expression is runtime when it reads a procedure input, output, state
 dependency, or runtime local, or assigns a runtime binding. Other
 expressions evaluate during compilation and can use parameter-only types
-such as `String`.
+such as `string`.
 
 A block's locals are runtime if any statement or branch in that block has
 a runtime dependency. Runtime locals must have runtime types, even when
@@ -653,7 +653,7 @@ compile-time locals, including inside runtime-controlled branches:
 
 ```wirely
 output = {
-  let text: String = "hello";
+  let text: string = "hello";
   text == "hello"
 };
 ```

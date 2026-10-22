@@ -1,6 +1,6 @@
 // TEST: runtime_string_input
 node type Invalid {
-  default input: value String; // E: parameter-only
+  default input: value string; // E: parameter-only
 }
 
 // TEST: runtime_list_output
@@ -15,7 +15,7 @@ node type Invalid {
 
 // TEST: runtime_string_temporary
 node type Invalid {
-  binding text: value String; // E: parameter-only
+  binding text: value string; // E: parameter-only
 }
 
 // TEST: runtime_list_temporary
@@ -25,7 +25,7 @@ node type Invalid {
 
 // TEST: runtime_optional_string
 node type Invalid {
-  default output: value Option[String]; // E: parameter-only
+  default output: value Option[string]; // E: parameter-only
 }
 
 // TEST: runtime_list_event
@@ -45,7 +45,7 @@ node type Invalid {
 
 // TEST: runtime_generic_string
 // LIBRARIES: std
-node source: Std.Constant { Type: String, Value: "text" } // E: parameter-only
+node source: Std.Constant { Type: string, Value: "text" } // E: parameter-only
 
 // TEST: runtime_generic_list
 // LIBRARIES: std
@@ -66,4 +66,4 @@ node type Invalid {
   #[Allow(Unused)] binding saved: value Type;
   native procedure write produces saved;
 }
-node invalid: Invalid { Type: Option[String] } // E: parameter-only
+node invalid: Invalid { Type: Option[string] } // E: parameter-only

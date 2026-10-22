@@ -115,7 +115,7 @@ assert {
 };
 
 // Compile-time blocks also support parameter-only types.
-constant Text: String = {
+constant Text: string = {
   let mut text = "before";
   { text = "after"; }
   text

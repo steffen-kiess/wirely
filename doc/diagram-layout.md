@@ -127,9 +127,9 @@ apart, such as addresses and topics.
 node type Dimmer {
   #![Diagram.DefaultWidth = 10]
   #[Diagram.ShowValue]
-  parameter GroupAddress: String;
+  parameter GroupAddress: string;
   #[Diagram.ShowValue]
-  optional parameter Label: String;
+  optional parameter Label: string;
   default input: value uint8;
   input Enable: value boolean;
   #[Diagram.Row = 2]

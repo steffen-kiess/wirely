@@ -318,7 +318,7 @@ Member counts use the `uint32` count in `Range`.
 Types are equal exactly when their indices are equal. Producers intern
 structurally equal types; enums and structs have one entry per declaration.
 Inner, underlying, and field types occur before the types using them,
-making size calculation possible in one forward pass. `String`,
+making size calculation possible in one forward pass. `string`,
 `type`, and lists, including composites and structs containing them,
 are only used for static values in this format.
 
@@ -438,7 +438,7 @@ stored; node parameters, constants, and expressions supply those values.
 Payloads use their type's storage layout. Equal values or payloads can
 share storage.
 
-Runtime types use their runtime binary representation. Static `String`
+Runtime types use their runtime binary representation. Static `string`
 values use `StringRef` into `ProgramData`. Options apply the runtime option
 layout to the representations below, including strings and lists.
 

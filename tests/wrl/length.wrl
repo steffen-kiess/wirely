@@ -2,7 +2,7 @@ struct type Measurement { Length: uint32 }
 
 node type Lengths {
   parameter Expected: uint32;
-  parameter Items: List[String] = ["a", "b", "c"];
+  parameter Items: List[string] = ["a", "b", "c"];
   default input: multi value boolean;
   default output: value uint32;
   output Alias: value uint32;

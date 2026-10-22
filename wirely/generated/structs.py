@@ -36,9 +36,9 @@ class TwoNCredentials(NamedTuple):
 
 # Expected native structs by native name.
 _native_struct_types: dict[str, NativeStruct] = {
-    'MQTT.TemplateParts': NativeStruct(MQTTTemplateParts, (Builtin('String'), Builtin('String'))),
-    'Std.FormatParts': NativeStruct(StdFormatParts, (Builtin('String'), Builtin('String'), Builtin('boolean'))),
-    'TwoN.Credentials': NativeStruct(TwoNCredentials, (Builtin('String'), Builtin('String'))),
+    'MQTT.TemplateParts': NativeStruct(MQTTTemplateParts, (Builtin('string'), Builtin('string'))),
+    'Std.FormatParts': NativeStruct(StdFormatParts, (Builtin('string'), Builtin('string'), Builtin('boolean'))),
+    'TwoN.Credentials': NativeStruct(TwoNCredentials, (Builtin('string'), Builtin('string'))),
 }
 
 

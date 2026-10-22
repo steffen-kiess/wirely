@@ -1,22 +1,22 @@
 namespace TwoN {
   #[Internal]
-  native constant function IsValidCode(code: String): boolean;
+  native constant function IsValidCode(code: string): boolean;
 
   #[Internal]
   native struct type Credentials {
-    username: String,
-    password: String,
+    username: string,
+    password: string,
   }
   #[Internal]
-  native constant function ReadCredentials(filename: String): Credentials;
+  native constant function ReadCredentials(filename: string): Credentials;
 
   resource type Device;
 
   native node type Connection {
-    parameter Host: String;
+    parameter Host: string;
     parameter Port: uint16 = 443;
-    parameter TLSA: List[String];
-    parameter UsernamePasswordFile: String;
+    parameter TLSA: List[string];
+    parameter UsernamePasswordFile: string;
 
     constant credentials: Credentials = ReadCredentials(UsernamePasswordFile);
 
@@ -33,7 +33,7 @@ namespace TwoN {
   // Get an event whenever a key is pressed or released
   native node type KeyEvent {
     #[Diagram.ShowValue]
-    parameter Key: String;
+    parameter Key: string;
 
     input Device: resource Device;
     // True if the key is pressed, false if it released.
@@ -54,7 +54,7 @@ namespace TwoN {
   // "False"
   node type KeyState {
     #[Diagram.ShowValue]
-    parameter Key: String;
+    parameter Key: string;
     // Timeout after which the key will be assumed to be released (because "2N
     // -> Calling -> Dialing -> Quick dial button functionality test" will
     // trigger a KeyPressed event but no KeyReleased event).
@@ -109,7 +109,7 @@ namespace TwoN {
   // TODO: Regularly get the current value?
   native node type IOState {
     #[Diagram.ShowValue]
-    parameter Port: String;
+    parameter Port: string;
 
     input Device: resource Device;
 
@@ -155,7 +155,7 @@ namespace TwoN {
   resource type CodeEnteredEventState;
 
   native node type CodeEnteredEvent {
-    parameter Code: String;
+    parameter Code: string;
 
     assert IsValidCode(Code), "Code must contain at most 15 ASCII digits";
 
@@ -175,7 +175,7 @@ namespace TwoN {
 
   native node type OutputControl {
     #[Diagram.ShowValue]
-    parameter Port: String;
+    parameter Port: string;
 
     input Device: resource Device;
 

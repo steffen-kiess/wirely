@@ -9,16 +9,16 @@ namespace MQTT {
 
   #[Internal]
   native struct type TemplateParts {
-    prefix: String,
-    suffix: String,
+    prefix: string,
+    suffix: string,
   }
   #[Internal]
-  native constant function ParseTemplate(template: Option[String]): TemplateParts;
+  native constant function ParseTemplate(template: Option[string]): TemplateParts;
 
   resource type Broker;
 
   native node type Connection {
-    parameter URI: String;
+    parameter URI: string;
 
     default output: resource Broker;
 
@@ -31,9 +31,9 @@ namespace MQTT {
   native node type ValueOptionProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter Topic: String;
+    parameter Topic: string;
     optional parameter Format: MQTT.Format;
-    optional parameter Template: String;
+    optional parameter Template: string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
 
@@ -56,9 +56,9 @@ namespace MQTT {
   node type ValueProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter Topic: String;
+    parameter Topic: string;
     optional parameter Format: MQTT.Format;
-    optional parameter Template: String;
+    optional parameter Template: string;
 
     input Broker: resource Broker;
     default input: value Type;
@@ -82,9 +82,9 @@ namespace MQTT {
   native node type EventSender {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter Topic: String;
+    parameter Topic: string;
     optional parameter Format: MQTT.Format;
-    optional parameter Template: String;
+    optional parameter Template: string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
 
@@ -110,9 +110,9 @@ namespace MQTT {
   native node type EventReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter Topic: String;
+    parameter Topic: string;
     optional parameter Format: MQTT.Format;
-    // TODO optional parameter Template : String;
+    // TODO optional parameter Template : string;
 
     assert SupportsType(Type), "Unsupported type for MQTT";
 

@@ -14,7 +14,7 @@ namespace ProcedureTests {
   }
 
   node type ConstantBlocks {
-    parameter Text: String = "hello";
+    parameter Text: string = "hello";
     default input: value boolean;
     default output: value boolean;
     output Number: value uint8;
@@ -31,9 +31,9 @@ namespace ProcedureTests {
     {
       assert Text == "hello", "constant parameter";
       "discarded";
-      { let items: List[String] = ["discarded"]; }
+      { let items: List[string] = ["discarded"]; }
       output = if input {
-        let mut text: String = "before";
+        let mut text: string = "before";
         assert text == "before";
         { text = Text; }
         let text = text;

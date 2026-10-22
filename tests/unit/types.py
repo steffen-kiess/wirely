@@ -587,7 +587,7 @@ def check_runtime_limits():
     assert 'parameter-only' in items.runtime_type_error()
     settings = types.TypeStruct('Settings', {'payload': types.TypeOption(types.String)})
     assert not settings.has_runtime_representation
-    assert settings.runtime_type_error() == 'field `payload`: inner type: `String` is parameter-only'
+    assert settings.runtime_type_error() == 'field `payload`: inner type: `string` is parameter-only'
 
     depth = types.unit
     for _ in range(MAX_NESTING_DEPTH):
@@ -631,7 +631,7 @@ def check_runtime_limits():
 
     # Representation support takes precedence; then depth, count, and storage.
     unsupported = types.TypeStruct('Unsupported', {'large': too_large, 'text': types.String})
-    assert unsupported.runtime_type_error() == 'field `text`: `String` is parameter-only'
+    assert unsupported.runtime_type_error() == 'field `text`: `string` is parameter-only'
     multiple_limits = types.TypeStruct('MultipleLimits', {str(i): types.uint64 for i in range(128)})
     assert multiple_limits.runtime_type_error() == 'total member count 129 exceeds 128'
     deep_and_wide = types.TypeStruct('DeepAndWide', {'deep': too_deep, 'wide': multiple_limits})

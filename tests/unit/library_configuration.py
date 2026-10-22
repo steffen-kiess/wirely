@@ -423,7 +423,7 @@ def code_program(node_type, parameter, value, *, parameters=None):
   }}
 }}
 node type Wrapper {{
-  parameter Value: String;
+  parameter Value: string;
   input Device: resource TwoN.Device;
   node child: TwoN.{node_type} {{ {settings} }}
   connect Device -> child.Device;

@@ -26,7 +26,7 @@ runtime types. Runtime types can also be used for parameters.
 | `uint32` | 0 to 4,294,967,295 | Runtime |
 | `uint64` | 0 to 18,446,744,073,709,551,615 | Runtime |
 | `uint128` | 0 to 2^128-1 | Runtime |
-| `String` | Text | Parameter-only |
+| `string` | Text | Parameter-only |
 | `Std.Duration` | Non-negative elapsed time, in units of 2^-64 s | Runtime |
 | `Schedule.TimeOfDay` | Time within a day, without a timezone | Runtime |
 | `Timer.MonotonicTime` | A monotonic clock reading or the invalid value | Runtime |
@@ -101,15 +101,15 @@ range includes that value.
 String literal syntax is based on
 [Rust's string literal syntax](https://doc.rust-lang.org/reference/tokens.html#string-literals).
 
-`String` holds text used for configuration, such as filenames, addresses,
+`string` holds text used for configuration, such as filenames, addresses,
 and MQTT topics. Use double-quoted strings, with escapes such as `\n` and
 `\"`, or raw strings to preserve their contents:
 
 ```wirely
 node type TextSettings {
-  parameter Label: String = "Kitchen";
-  parameter Path: String = r"C:\logs\wirely";
-  parameter Message: String = r#"Say "hello""#;
+  parameter Label: string = "Kitchen";
+  parameter Path: string = r"C:\logs\wirely";
+  parameter Message: string = r#"Say "hello""#;
 }
 ```
 
@@ -306,7 +306,7 @@ connect source -> present;
 
 ```wirely
 node type ListSettings {
-  parameter Names: List[String] = ["Kitchen", "Hall"];
+  parameter Names: List[string] = ["Kitchen", "Hall"];
   parameter Values: List[uint8] = [1, 2, 3];
 }
 ```
@@ -332,7 +332,7 @@ Wirely literal syntax where it exists:
 | `Timer.MonotonicTime` | `MonotonicTime(1, 12.5s)`; `MonotonicTime(invalid)` for generation 0 |
 | `Option[T]` | `None` or `Some(value)` |
 | Structs | Fields in declaration order: `Example.Reading { mode: Example.Mode.Heat, level: 3 }` |
-| `String`, `List[T]` | `"text"` with escapes, `[1, 2]` |
+| `string`, `List[T]` | `"text"` with escapes, `[1, 2]` |
 
 Canonical durations use the largest units first and omit zero components
 and trailing zeros. `type` values are displayed on a best-effort
@@ -347,7 +347,7 @@ Serialization support is used by library nodes such as MQTT providers and
 | --- | --- | --- |
 | `boolean` | Boolean | `false` or `true` |
 | All integer types | Number | Decimal integer |
-| `String` | String | No |
+| `string` | string | No |
 | Declared enums | Member name; number for an unnamed open value | No |
 | `unit`, `Std.Duration`, `Schedule.TimeOfDay`, `Timer.MonotonicTime`, `type`, structs | No | No |
 | `Option[T]` | No direct type-level conversion | Supported when `T` supports CSV |

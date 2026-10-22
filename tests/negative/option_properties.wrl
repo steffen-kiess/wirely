@@ -128,7 +128,7 @@ node probe: Probe {}
 node type Probe {
   default output: value boolean;
   procedure run produces default output as output {
-    output = Path.Parent("file").IsSome; // E: Value of type `String` has no property `IsSome`
+    output = Path.Parent("file").IsSome; // E: Value of type `string` has no property `IsSome`
   }
 }
 node probe: Probe {}
@@ -140,7 +140,7 @@ node type Probe {
   default output: value Settings;
   procedure run produces default output as output {
     output = Settings {
-      flag: Path.Parent("file").IsSome, // E: Value of type `String` has no property `IsSome`
+      flag: Path.Parent("file").IsSome, // E: Value of type `string` has no property `IsSome`
     };
   }
 }

@@ -7,12 +7,12 @@ node type Destination {
   assert Type == ExpectedType;
   parameter Flag: boolean = false;
   parameter ExpectedFlag: boolean = false;
-  parameter Text: String = "default";
-  parameter ExpectedText: String = "default";
+  parameter Text: string = "default";
+  parameter ExpectedText: string = "default";
   optional parameter Nested: Option[boolean];
   parameter ExpectedNested: Option[Option[boolean]] = None;
-  optional parameter Items: List[String];
-  parameter ExpectedItems: Option[List[String]] = None;
+  optional parameter Items: List[string];
+  parameter ExpectedItems: Option[List[string]] = None;
   optional parameter PairValue: Pair;
   parameter ExpectedPair: Option[Pair] = None;
   assert Number == Expected && Flag == ExpectedFlag;
@@ -24,13 +24,13 @@ node type Destination {
 node type Forward {
   optional parameter Number: int16;
   optional parameter Flag: boolean;
-  optional parameter Text: String;
+  optional parameter Text: string;
   optional parameter Nested: Option[boolean];
-  optional parameter Items: List[String];
+  optional parameter Items: List[string];
   optional parameter PairValue: Pair;
   parameter Expected: int16;
   parameter ExpectedFlag: boolean = false;
-  parameter ExpectedText: String = "default";
+  parameter ExpectedText: string = "default";
   node child: Destination {
     Number?: optional(Number),
     Flag?: { let value = optional(Flag); value },
@@ -78,7 +78,7 @@ node type Generic {
   constant Maybe: Option[Type] = optional(Value);
   assert Maybe.IsSome == Expected.IsSome;
 }
-node generic_omitted: Generic { Type: String, Expected: None }
+node generic_omitted: Generic { Type: string, Expected: None }
 node generic_supplied: Generic {
   Type: List[boolean], Value: [true, false], Expected: Some([true, false]),
 }

@@ -32,12 +32,12 @@ namespace Std {
 
   #[Internal]
   native struct type FormatParts {
-    prefix: String,
-    suffix: String,
+    prefix: string,
+    suffix: string,
     has_value: boolean,
   }
   #[Internal]
-  native constant function ParseFormat(format: String, type: type): FormatParts;
+  native constant function ParseFormat(format: string, type: type): FormatParts;
 
   node type Constant {
     parameter Type: type;
@@ -100,7 +100,7 @@ namespace Std {
 
   node type WarnOnEvent {
     #[Diagram.ShowValue]
-    parameter Format: String;
+    parameter Format: string;
     parameter Type: type = unit;
 
     constant format_parts: FormatParts = ParseFormat(Format, Type);

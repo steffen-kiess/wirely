@@ -14,7 +14,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('CSV.ValueWriterState')),
         },
         uses={
-            'Filename': Builtin('String'),
+            'Filename': Builtin('string'),
         },
     ),
     'GPIO.Output': Initializer(
@@ -23,8 +23,8 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('GPIO.OutputState')),
         },
         uses={
-            'ChipDeviceFile': Builtin('String'),
-            'Name': Builtin('String'),
+            'ChipDeviceFile': Builtin('string'),
+            'Name': Builtin('string'),
             'ActiveState': Enum('GPIO.ActiveState'),
             'Drive': Enum('GPIO.Drive'),
             'Bias': Enum('GPIO.Bias'),
@@ -36,12 +36,12 @@ native_state_types: dict[str, Initializer] = {
             'bus': Port('resource', ResourceType('KNX.Bus')),
         },
         uses={
-            'Host': Option(Builtin('String')),
+            'Host': Option(Builtin('string')),
             'Protocol': Option(Enum('KNX.Protocol')),
             'Port': Option(Int(16, False)),
-            'UnixPath': Option(Builtin('String')),
-            'SSHTarget': Option(Builtin('String')),
-            'IndividualAddress': Option(Builtin('String')),
+            'UnixPath': Option(Builtin('string')),
+            'SSHTarget': Option(Builtin('string')),
+            'IndividualAddress': Option(Builtin('string')),
         },
     ),
     'KNX.EventReceiver': Initializer(
@@ -54,7 +54,7 @@ native_state_types: dict[str, Initializer] = {
         uses={
             'Type': Builtin('type'),
             'group_address': Int(16, False),
-            'value_type_name': Builtin('String'),
+            'value_type_name': Builtin('string'),
         },
     ),
     'KNX.EventSender': Initializer(
@@ -67,7 +67,7 @@ native_state_types: dict[str, Initializer] = {
         uses={
             'Type': Builtin('type'),
             'group_address': Int(16, False),
-            'value_type_name': Builtin('String'),
+            'value_type_name': Builtin('string'),
         },
     ),
     'KNX.ValueOptionProvider': Initializer(
@@ -80,7 +80,7 @@ native_state_types: dict[str, Initializer] = {
         uses={
             'Type': Builtin('type'),
             'group_address': Int(16, False),
-            'value_type_name': Builtin('String'),
+            'value_type_name': Builtin('string'),
         },
     ),
     'KNX.ValueReceiver': Initializer(
@@ -93,7 +93,7 @@ native_state_types: dict[str, Initializer] = {
         uses={
             'Type': Builtin('type'),
             'group_address': Int(16, False),
-            'value_type_name': Builtin('String'),
+            'value_type_name': Builtin('string'),
         },
     ),
     'MQTT.Connection': Initializer(
@@ -102,7 +102,7 @@ native_state_types: dict[str, Initializer] = {
             'broker': Port('resource', ResourceType('MQTT.Broker')),
         },
         uses={
-            'URI': Builtin('String'),
+            'URI': Builtin('string'),
         },
     ),
     'MQTT.EventReceiver': Initializer(
@@ -114,7 +114,7 @@ native_state_types: dict[str, Initializer] = {
         },
         uses={
             'Type': Builtin('type'),
-            'Topic': Builtin('String'),
+            'Topic': Builtin('string'),
             'Format': Option(Enum('MQTT.Format')),
         },
     ),
@@ -127,7 +127,7 @@ native_state_types: dict[str, Initializer] = {
         },
         uses={
             'Type': Builtin('type'),
-            'Topic': Builtin('String'),
+            'Topic': Builtin('string'),
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
         },
@@ -141,7 +141,7 @@ native_state_types: dict[str, Initializer] = {
         },
         uses={
             'Type': Builtin('type'),
-            'Topic': Builtin('String'),
+            'Topic': Builtin('string'),
             'Format': Option(Enum('MQTT.Format')),
             'template_parts': Struct('MQTT.TemplateParts'),
         },
@@ -152,7 +152,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('Process.LaunchOnEventState')),
         },
         uses={
-            'ShellCommand': Builtin('String'),
+            'ShellCommand': Builtin('string'),
         },
     ),
     'Std.DebugEventSource': Initializer(
@@ -181,7 +181,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('TwoN.CodeEnteredEventState')),
         },
         uses={
-            'Code': Builtin('String'),
+            'Code': Builtin('string'),
         },
     ),
     'TwoN.Connection': Initializer(
@@ -190,9 +190,9 @@ native_state_types: dict[str, Initializer] = {
             'device': Port('resource', ResourceType('TwoN.Device')),
         },
         uses={
-            'Host': Builtin('String'),
+            'Host': Builtin('string'),
             'Port': Int(16, False),
-            'TLSA': List(Builtin('String')),
+            'TLSA': List(Builtin('string')),
             'credentials': Struct('TwoN.Credentials'),
         },
     ),
@@ -204,7 +204,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('TwoN.IOStateState')),
         },
         uses={
-            'Port': Builtin('String'),
+            'Port': Builtin('string'),
         },
     ),
     'TwoN.KeyEvent': Initializer(
@@ -215,7 +215,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('TwoN.KeyEventState')),
         },
         uses={
-            'Key': Builtin('String'),
+            'Key': Builtin('string'),
         },
     ),
     'TwoN.OutputControl': Initializer(
@@ -226,7 +226,7 @@ native_state_types: dict[str, Initializer] = {
             'state': Port('resource', ResourceType('TwoN.OutputControlState')),
         },
         uses={
-            'Port': Builtin('String'),
+            'Port': Builtin('string'),
         },
     ),
     'TwoN.SwitchState': Initializer(

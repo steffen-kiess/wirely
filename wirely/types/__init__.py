@@ -654,7 +654,7 @@ class TypeValueType(TypePrimitive):
 # TODO: Add to_csv_value? Probably not because it should not be used at runtime
 class TypeString(TypePrimitive):
     def __init__(self) -> None:
-        super().__init__(name='String', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
+        super().__init__(name='string', python_type=str, is_runtime_type=False, is_json_serializable=True, has_to_csv_value=False)
 
     def default_value(self) -> Any:
         return ''

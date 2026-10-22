@@ -15,12 +15,12 @@ signatures; behavior comes from [`wirely/native/`](../wirely/native/).
 
 ## Path
 
-The `path` library provides compile-time functions returning `String` values
+The `path` library provides compile-time functions returning `string` values
 using the compiler host's path conventions:
 
-- `Path.Join(base: String, path: String)` joins paths. An absolute second
+- `Path.Join(base: string, path: string)` joins paths. An absolute second
   path replaces the base; relative results stay relative and retain `..`.
-- `Path.Parent(path: String)` returns the lexical parent. A bare filename
+- `Path.Parent(path: string)` returns the lexical parent. A bare filename
   returns `"."`; roots remain roots and trailing separators are ignored.
 - `Path.SourceFile()` returns the absolute path of the file containing the
   call. Calls in library expressions and parameter defaults refer to those
@@ -37,12 +37,12 @@ compilation. With a `"wirely.test_resources"` provider in the compiler's
 
 | Function | Provider method | Test resource |
 | --- | --- | --- |
-| `ReplaceKNXPath(default: String): String` | `get_knx_path() -> str` | Shared KNX socket path. |
-| `ReplaceMQTTURI(default: String): String` | `get_mqtt_uri() -> str` | Shared MQTT broker URI. |
-| `ReplaceOutputPath(default: String): String` | `get_output_path(default: str) -> str` | The default's basename in the shared test output directory. |
-| `ReplaceTwoNHost(default: String): String` | `get_twon_info() -> ServerInfo` | Shared TwoN server host. |
+| `ReplaceKNXPath(default: string): string` | `get_knx_path() -> str` | Shared KNX socket path. |
+| `ReplaceMQTTURI(default: string): string` | `get_mqtt_uri() -> str` | Shared MQTT broker URI. |
+| `ReplaceOutputPath(default: string): string` | `get_output_path(default: str) -> str` | The default's basename in the shared test output directory. |
+| `ReplaceTwoNHost(default: string): string` | `get_twon_info() -> ServerInfo` | Shared TwoN server host. |
 | `ReplaceTwoNPort(default: uint16): uint16` | `get_twon_info() -> ServerInfo` | Shared TwoN server port. |
-| `ReplaceTwoNTLSA(default: List[String]): List[String]` | `get_twon_info() -> ServerInfo` | Shared TwoN server TLSA record. |
+| `ReplaceTwoNTLSA(default: List[string]): List[string]` | `get_twon_info() -> ServerInfo` | Shared TwoN server TLSA record. |
 
 The runner starts requested services before creating the engine. TwoN
 reserves its port during compilation. Equal output basenames select the
@@ -63,7 +63,7 @@ its functions.
 | `TwoStageValueForward` | `Type: type` | In/out: `value Type`. Passes the input to the output. |
 | `DebugValuePrinter` | `Type: type` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: type` | In: `event Type`. Prints events in the output stage. |
-| `WarnOnEvent` | `Format: String`, `Type: type = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
+| `WarnOnEvent` | `Format: string`, `Type: type = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
 | `DebugValueSource` | `Type: type` | Out: `value Type`. Debug-controlled value source. |
 | `DebugEventSource` | `Type: type` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: type` | Out: `value Option[InnerType]`. Produces `None`. |
@@ -112,12 +112,12 @@ KNX nodes use a `KNX.Connection` node and a named
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | Optional `Host: String`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: String`, `SSHTarget: String`, `IndividualAddress: String` | Out: `resource KNX.Bus`. Opens a KNX connection. |
-| `ValueReceiver` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
-| `ValueOptionProvider` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
-| `ValueProvider` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
-| `EventReceiver` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; out: `event Type`. Emits values written to the group address; read responses are not events. |
-| `EventSender` | `Type: type`, `GroupAddress: String` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
+| `Connection` | Optional `Host: string`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: string`, `SSHTarget: string`, `IndividualAddress: string` | Out: `resource KNX.Bus`. Opens a KNX connection. |
+| `ValueReceiver` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
+| `ValueOptionProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
+| `ValueProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
+| `EventReceiver` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; out: `event Type`. Emits values written to the group address; read responses are not events. |
+| `EventSender` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `event Type`. Sends KNX events. |
 
 Value and event nodes support `boolean`, `int8`, `uint8`, `int16`,
 `uint16`, `int32`, `uint32`, and `int64`. Running KNX nodes requires the
@@ -163,18 +163,18 @@ string controlling JSON output. A template embeds the encoded value at one
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `URI: String` | Out: `resource MQTT.Broker`. Connects to a broker. |
-| `ValueOptionProvider` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
+| `Connection` | `URI: string` | Out: `resource MQTT.Broker`. Connects to a broker. |
+| `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
-| `EventSender` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format`, `Template: String` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
-| `EventReceiver` | `Type: type`, `Topic: String`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
+| `EventSender` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
+| `EventReceiver` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format` | Named in: `Broker`; out: `event Type`. Emits decoded messages received on the topic. |
 
 Use types with [JSON support](value-types.md#json-and-csv-support). MQTT
 requires the `aiomqtt` package and a reachable broker.
 
 ## CSV
 
-`CSV.ValueWriter` takes `Type: type` and `Filename: String`. It appends
+`CSV.ValueWriter` takes `Type: type` and `Filename: string`. It appends
 rows from a default `value Type` input, recording the timestamp, old value,
 and new value. An empty field marks an unavailable value at startup or
 shutdown. It writes on changes and repeats a current value hourly. `Type`
@@ -190,13 +190,13 @@ connect its default `resource TwoN.Device` output to each client's named
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `Host: String`, `Port: uint16 = 443`, `TLSA: List[String]`, `UsernamePasswordFile: String` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
-| `KeyEvent` | `Key: String` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
-| `KeyState` | `Key: String`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
-| `IOState` | `Port: String` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
+| `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
+| `KeyEvent` | `Key: string` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
+| `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
+| `IOState` | `Port: string` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |
 | `SwitchState` | `SwitchNumber: int32` | Named in: `Device`; out: `value boolean`. Tracks whether a switch is active. |
-| `CodeEnteredEvent` | `Code: String` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
-| `OutputControl` | `Port: String` | Named in: `Device`; in: `event boolean`. Sets an output on or off. |
+| `CodeEnteredEvent` | `Code: string` | Named in: `Device`; out: `event unit`. Emits when the specified code is entered. |
+| `OutputControl` | `Port: string` | Named in: `Device`; in: `event boolean`. Sets an output on or off. |
 
 `TLSA` provides certificate association records. TwoN use needs the bundled
 TwoN dependencies, device credentials, and network access to the device.
@@ -214,7 +214,7 @@ username and password.
 ## GPIO
 
 `GPIO.Output` sets a GPIO line from a default `value boolean` input.
-Parameters are `ChipDeviceFile: String`, `Name: String`,
+Parameters are `ChipDeviceFile: string`, `Name: string`,
 `ActiveState: GPIO.ActiveState = GPIO.ActiveState.High`,
 `Drive: GPIO.Drive = GPIO.Drive.PushPull`, and
 `Bias: GPIO.Bias = GPIO.Bias.AsIs`. Active states are `High` and `Low`;
@@ -244,7 +244,7 @@ the pending command; a fresh command can emit immediately.
 
 `Process.LaunchOnEvent` launches a shell command when an input event arrives.
 Events received while a launch is pending may be combined into one launch.
-It takes `ShellCommand: String` and `Type: type = unit`, with a default
+It takes `ShellCommand: string` and `Type: type = unit`, with a default
 `event Type` input. The event payload is ignored. The command is passed to
 `sh -c` in the output stage and runs with the service process's permissions.
 

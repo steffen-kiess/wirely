@@ -189,11 +189,11 @@ checks.assertEqual([(item.title, item.order) for item in ordered.items],
 layout_source = '''node type Device {
   #![Diagram.DefaultWidth = 10]
   #[Diagram.ShowValue]
-  parameter Address: String;
+  parameter Address: string;
   #[Diagram.ShowValue]
   parameter Port: uint16 = 3671;
   #[Diagram.ShowValue]
-  optional parameter Label: String;
+  optional parameter Label: string;
   parameter Hidden: boolean = false;
   default input: value boolean;
   input A: value boolean;

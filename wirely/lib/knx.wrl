@@ -7,21 +7,21 @@ namespace KNX {
   }
 
   #[Internal]
-  native constant function ParseGroupAddress(address: String): uint16;
+  native constant function ParseGroupAddress(address: string): uint16;
   #[Internal]
-  native constant function ValueTypeName(type: type): String;
+  native constant function ValueTypeName(type: type): string;
   #[Internal]
   native constant function SupportsValueType(type: type): boolean;
 
   resource type Bus;
 
   native node type Connection {
-    optional parameter Host: String;
+    optional parameter Host: string;
     optional parameter Protocol: KNX.Protocol;
     optional parameter Port: uint16;
-    optional parameter UnixPath: String;
-    optional parameter SSHTarget: String;
-    optional parameter IndividualAddress: String;
+    optional parameter UnixPath: string;
+    optional parameter SSHTarget: string;
+    optional parameter IndividualAddress: string;
 
     default output: resource Bus;
 
@@ -41,7 +41,7 @@ namespace KNX {
   native node type ValueReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter GroupAddress: String;
+    parameter GroupAddress: string;
     // TODO: Mores parameter with information about read-on-init etc.?
     // TODO: event input which can trigger read?
     // TODO: event output which is triggered when a value is received, even if
@@ -50,7 +50,7 @@ namespace KNX {
     assert SupportsValueType(Type), "Unsupported value type for KNX";
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
-    constant value_type_name: String = ValueTypeName(Type);
+    constant value_type_name: string = ValueTypeName(Type);
 
     input Bus: resource Bus;
     default output: value Option[Type];
@@ -72,7 +72,7 @@ namespace KNX {
   native node type ValueOptionProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter GroupAddress: String;
+    parameter GroupAddress: string;
     // TODO: More parameter with information about transmitting behavior etc.?
     // TODO: event input which can trigger transmission?
     // TODO: event output for reads? Probably not really useful.
@@ -80,7 +80,7 @@ namespace KNX {
     assert SupportsValueType(Type), "Unsupported value type for KNX";
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
-    constant value_type_name: String = ValueTypeName(Type);
+    constant value_type_name: string = ValueTypeName(Type);
 
     input Bus: resource Bus;
     default input: value Option[Type];
@@ -98,7 +98,7 @@ namespace KNX {
   node type ValueProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter GroupAddress: String;
+    parameter GroupAddress: string;
 
     input Bus: resource Bus;
     default input: value Type;
@@ -117,10 +117,10 @@ namespace KNX {
   native node type EventReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter GroupAddress: String;
+    parameter GroupAddress: string;
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
-    constant value_type_name: String = ValueTypeName(Type);
+    constant value_type_name: string = ValueTypeName(Type);
 
     input Bus: resource Bus;
     default output: event Type;
@@ -142,10 +142,10 @@ namespace KNX {
   native node type EventSender {
     parameter Type: type;
     #[Diagram.ShowValue]
-    parameter GroupAddress: String;
+    parameter GroupAddress: string;
 
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
-    constant value_type_name: String = ValueTypeName(Type);
+    constant value_type_name: string = ValueTypeName(Type);
 
     input Bus: resource Bus;
     default input: event Type;

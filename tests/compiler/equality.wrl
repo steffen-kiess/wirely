@@ -18,7 +18,7 @@ constant Span: Std.Duration = "PT60S";
 assert Span == "PT1M" && "PT1M" == Span && Span != "PT61S";
 
 struct type Settings {
-  text: String,
+  text: string,
   items: List[Option[int16]],
   type: type,
 }

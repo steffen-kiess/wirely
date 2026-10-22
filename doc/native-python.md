@@ -226,7 +226,7 @@ resolved defaults are ordinary values.
 | `unit` | `wirely.Unit` |
 | `boolean` | `bool` |
 | Integer types | `wirely.Int8` through `wirely.Int128`, `wirely.UInt8` through `wirely.UInt128` |
-| `String` | `str` |
+| `string` | `str` |
 | `Std.Duration` | `wirely.Duration`, with `ticks` |
 | `Schedule.TimeOfDay` | `wirely.TimeOfDay`, with `ticks` since midnight (up to 24:00) |
 | `Timer.MonotonicTime` | `wirely.MonotonicTime`, with `generation` and `ticks` |
@@ -501,7 +501,7 @@ program calls when it is constructed.
 ### Constant functions
 
 A `native constant function` runs only in compile-time expressions. It can
-take and return types without a runtime representation, such as `String`
+take and return types without a runtime representation, such as `string`
 and `type`. Implementations live in the snake-case namespace module
 under [`wirely/compiler/function_implementations/`](../wirely/compiler/function_implementations/),
 with the snake-case function name:

@@ -1,8 +1,8 @@
 namespace Test {
-  native constant function ReplaceKNXPath(default: String): String;
-  native constant function ReplaceMQTTURI(default: String): String;
-  native constant function ReplaceOutputPath(default: String): String;
-  native constant function ReplaceTwoNHost(default: String): String;
+  native constant function ReplaceKNXPath(default: string): string;
+  native constant function ReplaceMQTTURI(default: string): string;
+  native constant function ReplaceOutputPath(default: string): string;
+  native constant function ReplaceTwoNHost(default: string): string;
   native constant function ReplaceTwoNPort(default: uint16): uint16;
-  native constant function ReplaceTwoNTLSA(default: List[String]): List[String];
+  native constant function ReplaceTwoNTLSA(default: List[string]): List[string];
 }

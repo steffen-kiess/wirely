@@ -77,7 +77,7 @@ def signature_type(value_type: types.Type, variables: Mapping[model.NodeParamete
         if value_type.is_opaque:
             return signatures.Opaque(value_type.native_name)
         return signatures.Struct(value_type.native_name)
-    if str(value_type) in ('unit', 'boolean', 'String', 'type'):
+    if str(value_type) in ('unit', 'boolean', 'string', 'type'):
         return signatures.Builtin(str(value_type))
     raise ValueError(f'{where} uses unsupported type `{value_type}`')
 

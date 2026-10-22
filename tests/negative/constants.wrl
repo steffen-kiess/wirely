@@ -188,18 +188,18 @@ node probe: Probe {}
 
 // TEST: constant type in runtime port
 node type Probe {
-  constant Type: type = String;
+  constant Type: type = string;
   default output: value Type;
   procedure run produces default output as output { output = "hello"; }
 }
 node probe: Probe {} // E: parameter-only
 
 // TEST: constant type in root temporary
-constant Type: type = String;
+constant Type: type = string;
 #[Allow(Unused)] binding text: value Type; // E: parameter-only
 procedure run produces text { text = "hello"; }
 
 // TEST: constant type in root state
-constant Type: type = String;
+constant Type: type = string;
 state text: Type = "hello"; // E: parameter-only
 procedure run produces text { text = "hello"; }

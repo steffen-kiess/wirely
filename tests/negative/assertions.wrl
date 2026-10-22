@@ -163,7 +163,7 @@ procedure run {
 
 // TEST: block nonliteral message
 procedure run {
-  let message: String = "message";
+  let message: string = "message";
   assert true, message; // E: Syntax error
 }
 
@@ -180,7 +180,7 @@ assert true,; // E: Syntax error
 assert true, "message",; // E: Syntax error
 
 // TEST: nonliteral message
-constant Message: String = "message";
+constant Message: string = "message";
 assert true, Message; // E: Syntax error
 
 // TEST: reserved name

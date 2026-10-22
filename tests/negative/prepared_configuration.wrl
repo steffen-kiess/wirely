@@ -5,11 +5,11 @@ constant Address: uint16 = KNX.ParseGroupAddress("invalid");
 // ^E: Invalid format for KNX group address
 
 // TEST: unsupported KNX mapping
-constant Name: String = KNX.ValueTypeName(String);
+constant Name: string = KNX.ValueTypeName(string);
 // ^E: Unsupported type for KNX
 
 // TEST: unsupported KNX value type
-assert KNX.SupportsValueType(String), "Unsupported value type for KNX";
+assert KNX.SupportsValueType(string), "Unsupported value type for KNX";
 // ^E: Compile-time assertion failed: Unsupported value type for KNX
 
 // TEST: unsupported MQTT JSON type

@@ -118,7 +118,7 @@ def check_values():
         optional(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
         Example.Same(40) as call,
-        { let text: String = "hello"; text } as block,
+        { let text: string = "hello"; text } as block,
         Items as items, Example.Pair { value: true } as pair,
         () as unit, { let value: Option[boolean] = Some(false); value } as option,
         At as at, Span as span, Instant as instant, Types as descriptors;
@@ -245,7 +245,7 @@ def check_state_types():
     from wirely.native import check_state_type
 
     check_state_type('node', wirely.value_types.uint8, wirely.value_types.uint8)
-    with checks.assertRaisesRegex(ValueError, 'node: procedure type `String` does not match state type `uint8`'):
+    with checks.assertRaisesRegex(ValueError, 'node: procedure type `string` does not match state type `uint8`'):
         check_state_type('node', wirely.value_types.string, wirely.value_types.uint8)
 
 

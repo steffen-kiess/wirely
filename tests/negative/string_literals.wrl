@@ -1,131 +1,131 @@
 // TEST: string_invalid_hex_escape
-node source: Std.Constant { Type: String, Value: "\xGG" } // E: Hex escape requires two hexadecimal digits
+node source: Std.Constant { Type: string, Value: "\xGG" } // E: Hex escape requires two hexadecimal digits
 
 // TEST: string_unicode_missing_braces
-node source: Std.Constant { Type: String, Value: "\u0041" } // E: Unicode escape requires braces
+node source: Std.Constant { Type: string, Value: "\u0041" } // E: Unicode escape requires braces
 
 // TEST: string_invalid_unicode_scalar
-node source: Std.Constant { Type: String, Value: "\u{D800}" } // E: Unicode escape is not a Unicode scalar value
+node source: Std.Constant { Type: string, Value: "\u{D800}" } // E: Unicode escape is not a Unicode scalar value
 
 // TEST: string_unknown_escape
-node source: Std.Constant { Type: String, Value: "\q" } // E: Unknown string escape
+node source: Std.Constant { Type: string, Value: "\q" } // E: Unknown string escape
 
 // TEST: empty_hex_escape
 node type Settings {
-  parameter Value: String = "\x"; // E: Hex escape requires two hexadecimal digits
+  parameter Value: string = "\x"; // E: Hex escape requires two hexadecimal digits
 }
 
 // TEST: short_hex_escape
 node type Settings {
-  parameter Value: String = "\xF"; // E: Hex escape requires two hexadecimal digits
+  parameter Value: string = "\xF"; // E: Hex escape requires two hexadecimal digits
 }
 
 // TEST: invalid_hex_digits
 node type Settings {
-  parameter Value: String = "\xGG"; // E: Hex escape requires two hexadecimal digits
+  parameter Value: string = "\xGG"; // E: Hex escape requires two hexadecimal digits
 }
 
 // TEST: unicode_missing_braces
 node type Settings {
-  parameter Value: String = "\u0041"; // E: Unicode escape requires braces
+  parameter Value: string = "\u0041"; // E: Unicode escape requires braces
 }
 
 // TEST: unterminated_unicode_escape
 node type Settings {
-  parameter Value: String = "\u{"; // E: Unterminated Unicode escape
+  parameter Value: string = "\u{"; // E: Unterminated Unicode escape
 }
 
 // TEST: empty_unicode_escape
 node type Settings {
-  parameter Value: String = "\u{}"; // E: Invalid Unicode escape digits
+  parameter Value: string = "\u{}"; // E: Invalid Unicode escape digits
 }
 
 // TEST: unicode_leading_underscore
 node type Settings {
-  parameter Value: String = "\u{_41}"; // E: Invalid Unicode escape digits
+  parameter Value: string = "\u{_41}"; // E: Invalid Unicode escape digits
 }
 
 // TEST: invalid_unicode_digits
 node type Settings {
-  parameter Value: String = "\u{GG}"; // E: Invalid Unicode escape digits
+  parameter Value: string = "\u{GG}"; // E: Invalid Unicode escape digits
 }
 
 // TEST: long_unicode_escape
 node type Settings {
-  parameter Value: String = "\u{0000041}"; // E: at most six hexadecimal digits
+  parameter Value: string = "\u{0000041}"; // E: at most six hexadecimal digits
 }
 
 // TEST: high_surrogate
 node type Settings {
-  parameter Value: String = "\u{D800}"; // E: not a Unicode scalar value
+  parameter Value: string = "\u{D800}"; // E: not a Unicode scalar value
 }
 
 // TEST: low_surrogate
 node type Settings {
-  parameter Value: String = "\u{DFFF}"; // E: not a Unicode scalar value
+  parameter Value: string = "\u{DFFF}"; // E: not a Unicode scalar value
 }
 
 // TEST: unicode_out_of_range
 node type Settings {
-  parameter Value: String = "\u{110000}"; // E: not a Unicode scalar value
+  parameter Value: string = "\u{110000}"; // E: not a Unicode scalar value
 }
 
 // TEST: uppercase_unicode_escape
 node type Settings {
-  parameter Value: String = "\U00000041"; // E: Unknown string escape
+  parameter Value: string = "\U00000041"; // E: Unknown string escape
 }
 
 // TEST: named_unicode_escape
 node type Settings {
-  parameter Value: String = "\N{LATIN CAPITAL LETTER A}"; // E: Unknown string escape
+  parameter Value: string = "\N{LATIN CAPITAL LETTER A}"; // E: Unknown string escape
 }
 
 // TEST: octal_escape
 node type Settings {
-  parameter Value: String = "\101"; // E: Unknown string escape
+  parameter Value: string = "\101"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_a
 node type Settings {
-  parameter Value: String = "\a"; // E: Unknown string escape
+  parameter Value: string = "\a"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_b
 node type Settings {
-  parameter Value: String = "\b"; // E: Unknown string escape
+  parameter Value: string = "\b"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_f
 node type Settings {
-  parameter Value: String = "\f"; // E: Unknown string escape
+  parameter Value: string = "\f"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_v
 node type Settings {
-  parameter Value: String = "\v"; // E: Unknown string escape
+  parameter Value: string = "\v"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_q
 node type Settings {
-  parameter Value: String = "\q"; // E: Unknown string escape
+  parameter Value: string = "\q"; // E: Unknown string escape
 }
 
 // TEST: unknown_escape_7
 node type Settings {
-  parameter Value: String = "\7"; // E: Unknown string escape
+  parameter Value: string = "\7"; // E: Unknown string escape
 }
 
 // TEST: unsupported_raw_delimiter
 node type Settings {
-  parameter Value: String = r##"text"##; // E: Syntax error
+  parameter Value: string = r##"text"##; // E: Syntax error
 }
 
 // TEST: unterminated_string
 node type Settings {
-  parameter Value: String = "unterminated; // E: Syntax error
+  parameter Value: string = "unterminated; // E: Syntax error
 }
 
 // TEST: trailing_backslash
 node type Settings {
-  parameter Value: String = "trailing\; // E: Syntax error
+  parameter Value: string = "trailing\; // E: Syntax error
 }

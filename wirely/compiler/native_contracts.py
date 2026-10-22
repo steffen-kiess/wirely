@@ -136,7 +136,7 @@ class _Imports:
 
 
 _builtins = {
-    'unit': ('wirely.types.unit', 'Unit'), 'boolean': (None, 'bool'), 'String': (None, 'str'),
+    'unit': ('wirely.types.unit', 'Unit'), 'boolean': (None, 'bool'), 'string': (None, 'str'),
 }
 
 

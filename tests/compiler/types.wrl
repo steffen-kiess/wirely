@@ -164,7 +164,7 @@ struct type Packet {
   flag: boolean,
 }
 struct type Settings {
-  text: String,
+  text: string,
   items: List[Option[Packet]],
   type: type,
 }

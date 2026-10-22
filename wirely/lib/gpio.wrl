@@ -22,9 +22,9 @@ namespace GPIO {
 
   // Set a GPIO based on a boolean value
   native node type Output {
-    parameter ChipDeviceFile: String;
+    parameter ChipDeviceFile: string;
     #[Diagram.ShowValue]
-    parameter Name: String;
+    parameter Name: string;
 
     parameter ActiveState: GPIO.ActiveState = GPIO.ActiveState.High;
     parameter Drive: GPIO.Drive = GPIO.Drive.PushPull;

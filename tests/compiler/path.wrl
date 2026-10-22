@@ -10,11 +10,11 @@ assert Path.Parent("") == ".";
 assert Path.Parent("base/child/") == "base";
 assert Path.Parent("nonexistent/directory/file") == "nonexistent/directory";
 assert Path.Parent("/") == "/";
-constant Source: String = Path.SourceFile();
+constant Source: string = Path.SourceFile();
 assert Source == Path.Join(Path.Parent(Source), "path.wrl");
 node type Defaults {
-  parameter Location: String = Path.SourceFile();
-  parameter Expected: String;
+  parameter Location: string = Path.SourceFile();
+  parameter Expected: string;
   assert Location == Expected;
 }
 node defaults: Defaults { Expected: Path.SourceFile() }

@@ -1,7 +1,7 @@
 struct type Settings {
-  text: String,
+  text: string,
 }
-constant Text: String = "hello";
+constant Text: string = "hello";
 constant Items: List[uint8] = [1, 2];
 constant InputValue: boolean = true;
 constant Type: type = unit;
@@ -9,7 +9,7 @@ assert Text == "hello" && Items == [1, 2];
 
 // Bodies without runtime dependencies support compile-time locals and mutation.
 procedure compile_only {
-  let mut text: String;
+  let mut text: string;
   text = "before";
   { text = "after"; }
   let saved = text;
@@ -25,7 +25,7 @@ procedure compile_only {
 
 // An unused dependency does not make the body runtime.
 procedure unused_input depends on ignored: value boolean {
-  let text: String = "hello";
+  let text: string = "hello";
   text == Text;
 }
 connect InputValue -> unused_input.ignored;
@@ -39,9 +39,9 @@ node type Generic {
     Type == Type;
   }
 }
-node text: Generic { Type: String, Value: "hello" }
+node text: Generic { Type: string, Value: "hello" }
 node list: Generic { Type: List[uint8], Value: [1, 2] }
-node option: Generic { Type: Option[String], Value: Some("hello") }
+node option: Generic { Type: Option[string], Value: Some("hello") }
 node settings: Generic { Type: Settings, Value: Settings { text: "hello" } }
 
 node type OptionalValue {
@@ -52,8 +52,8 @@ node type OptionalValue {
     option.IsSome;
   }
 }
-node absent: OptionalValue { Type: String }
-node present: OptionalValue { Type: String, Value: "hello" }
+node absent: OptionalValue { Type: string }
+node present: OptionalValue { Type: string, Value: "hello" }
 node type_value: OptionalValue { Type: type, Value: uint8 }
 
 #[Allow(Unused)] binding comparison: value boolean;
@@ -62,7 +62,7 @@ procedure constants produces comparison, selected {
   comparison = Text == Text && "text" == "text"
     && Settings { text: "a" } != Settings { text: "b" }
     && { let items: List[uint8] = [1, 2]; items == Items }
-    && { let value: Option[String] = Some("hello"); value.Unwrap() == Text }
+    && { let value: Option[string] = Some("hello"); value.Unwrap() == Text }
     && (if let Some(value) = Some("hello") { value == Text } else { false })
     && int16 == int16 && Option[int16] == Option[int16] && Type == unit
     && Path.SourceFile() != "" && Path.Join("base", "file") == "base/file"

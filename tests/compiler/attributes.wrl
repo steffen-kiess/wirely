@@ -52,7 +52,7 @@ node type Sized {
   #![Diagram.DefaultHeight = 6.5]
   #[Diagram.ShowValue]
   #[Diagram.Width = 4]
-  parameter Label: String = "sized";
+  parameter Label: string = "sized";
   #[Diagram.Row = 2]
   input Enable: value boolean;
   #[Diagram.Row = 0]

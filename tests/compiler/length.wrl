@@ -1,4 +1,4 @@
-constant Items: List[String] = ["one", "two"];
+constant Items: List[string] = ["one", "two"];
 constant Empty: List[uint8] = [];
 constant ItemCount: uint32 = Items.Length;
 assert ItemCount == 2;
@@ -25,7 +25,7 @@ node type GenericList {
   procedure run { assert Items.Length == Expected; }
 }
 node generic_list: GenericList {
-  Type: List[String], Items: ["a", "b"], Expected: 2,
+  Type: List[string], Items: ["a", "b"], Expected: 2,
 }
 
 node type Verify {

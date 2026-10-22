@@ -109,7 +109,7 @@ source = '''namespace TestLibrary {
   resource type Handle;
   native node type Owner {
     parameter Limit: uint8;
-    optional parameter Label: String;
+    optional parameter Label: string;
     binding state: resource Handle;
     native initializer produces state as "state" uses Limit, optional(Label) as label;
   }

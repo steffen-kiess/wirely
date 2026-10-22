@@ -1,19 +1,19 @@
 // LIBRARIES: path
 
 // TEST: join argument count
-constant Invalid: String = Path.Join("base"); // E: expected 2 parameters
+constant Invalid: string = Path.Join("base"); // E: expected 2 parameters
 
 // TEST: parent argument count
-constant Invalid: String = Path.Parent(); // E: expected 1 parameters
+constant Invalid: string = Path.Parent(); // E: expected 1 parameters
 
 // TEST: source argument count
-constant Invalid: String = Path.SourceFile("file"); // E: expected 0 parameters
+constant Invalid: string = Path.SourceFile("file"); // E: expected 0 parameters
 
 // TEST: join base type
-constant Invalid: String = Path.Join(true, "file"); // E: Invalid string value
+constant Invalid: string = Path.Join(true, "file"); // E: Invalid string value
 
 // TEST: join path type
-constant Invalid: String = Path.Join("base", 1); // E: Invalid string value
+constant Invalid: string = Path.Join("base", 1); // E: Invalid string value
 
 // TEST: parent type
-constant Invalid: String = Path.Parent(false); // E: Invalid string value
+constant Invalid: string = Path.Parent(false); // E: Invalid string value

@@ -57,7 +57,7 @@ node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 node bad: Std.Constant { Type: uint8, Value: 256 } // E: out of range
 ''')
 # Inline strings and comments containing TEST are not case boundaries.
-run_fixture_with_std('''node type Holder { parameter Text: String = "// TEST"; }
+run_fixture_with_std('''node type Holder { parameter Text: string = "// TEST"; }
 // TESTING is an ordinary comment.
 node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 ''')
@@ -70,7 +70,7 @@ open enum type Bad: int8 {
   One = 1; // E: Unexpected token
 }
 // TEST: unexpected character
-node bad: Std.Constant { Type: String, Value: "unterminated }
+node bad: Std.Constant { Type: string, Value: "unterminated }
 // ^E: No terminal matches
 // TEST: unexpected end of input
 open enum type Bad: int8 { One = 1 // E: Syntax error
@@ -187,7 +187,7 @@ node bad: Std.Constant { Type: uint8, Value: -1 } // E: out of range
 ''')
 run_fixture('// LIBRARIES:\nnode bad: Missing {} // E: Cannot find node type `Missing`\n')
 run_fixture('''// TEST: a directive in a string is ordinary content
-node type Holder { parameter Text: String = "// LIBRARIES: missing"; }
+node type Holder { parameter Text: string = "// LIBRARIES: missing"; }
 // LIBRARIES_EXTRA is an ordinary comment.
 node bad: Missing {} // E: Cannot find node type `Missing`
 ''')

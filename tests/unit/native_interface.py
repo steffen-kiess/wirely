@@ -711,7 +711,7 @@ def check_native_interface_signatures():
     assert native_interfaces.native_state_types['MQTT.EventSender'] == Initializer(
         depends={'Broker': Port('resource', ResourceType('MQTT.Broker'))},
         produces={'state': Port('resource', ResourceType('MQTT.EventSenderState'))},
-        uses={'Type': Builtin('type'), 'Topic': Builtin('String'), 'Format': Option(Enum('MQTT.Format')),
+        uses={'Type': Builtin('type'), 'Topic': Builtin('string'), 'Format': Option(Enum('MQTT.Format')),
               'template_parts': Struct('MQTT.TemplateParts')},
     )
     assert native_interfaces.native_procedures['MQTT.EventSender:send_value'] == Procedure(
@@ -813,8 +813,8 @@ connect number -> stateful.Number;
             (dict(functions={}), "Cannot find the signature of native function `TestLibrary.Clamp`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, stage='input')}},
              'runs in stage output, expected input'),
-            ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('String')})}},
-             "uses binding `Type` has type `type`, expected `String`"),
+            ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('string')})}},
+             "uses binding `Type` has type `type`, expected `string`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Int(8, False))})}},
              "`input` has type `uint16`, expected `uint8`"),
