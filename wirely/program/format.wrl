@@ -1,5 +1,6 @@
 // Records of the binary program format described in
-// doc/bytecode-format.md. tools/generate-native-types generates
+// doc/bytecode-format.md. The declarations below match the Wirely blocks of
+// that document, in order. tools/generate-native-types generates
 // wirely/program/generated/format.py from these declarations.
 
 // Identifies the image and locates its section directory.
