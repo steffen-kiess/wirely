@@ -330,15 +330,23 @@ struct type InputInterface {
   Name: StringRef,
 }
 
+// The storage a variable reference selects. 0 is not a valid bank.
+open enum type VariableBank: uint8 {
+  StaticValues = 1,
+  Temporaries = 2,
+  OldState = 3,
+  NewState = 4,
+}
+
 // Binds one variable or static value to a procedure input.
 // ValueInputs table.
 struct type ValueInput {
   // Index into InputInterfaces; the input being bound. No entry for
   // procedure bodies.
   Interface: OptionalRef,
-  // Old state, new state, temporaries, or static values.
-  Bank: uint8,
-  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Static values, temporaries, old state, or new state.
+  Bank: VariableBank,
+  // Index into StaticValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }
@@ -348,9 +356,9 @@ struct type Output {
   // Index into InterfaceNames; output name. No entry for procedure
   // bodies.
   Name: OptionalRef,
-  // New state or temporaries.
-  Bank: uint8,
-  // Index into StateVariables or Temporaries, selected by Bank.
+  // Temporaries or new state.
+  Bank: VariableBank,
+  // Index into Temporaries or StateVariables, selected by Bank.
   Variable: Ref,
 }
 
@@ -409,9 +417,9 @@ struct type TypeSymbol {
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // Old state, new state, temporaries, or static values.
-  Bank: uint8,
-  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Static values, temporaries, old state, or new state.
+  Bank: VariableBank,
+  // Index into StaticValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }

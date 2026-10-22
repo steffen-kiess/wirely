@@ -756,15 +756,25 @@ Each range contains unique names in UTF-8 bytewise lexical order.
 ### ValueInputs
 
 ```wirely
+// The storage a variable reference selects. 0 is not a valid bank.
+open enum type VariableBank: uint8 {
+  StaticValues = 1,
+  Temporaries = 2,
+  OldState = 3,
+  NewState = 4,
+}
+```
+
+```wirely
 // Binds one variable or static value to a procedure input.
 // ValueInputs table.
 struct type ValueInput {
   // Index into InputInterfaces; the input being bound. No entry for
   // procedure bodies.
   Interface: OptionalRef,
-  // Old state, new state, temporaries, or static values.
-  Bank: uint8,
-  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Static values, temporaries, old state, or new state.
+  Bank: VariableBank,
+  // Index into StaticValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }
@@ -798,9 +808,9 @@ struct type Output {
   // Index into InterfaceNames; output name. No entry for procedure
   // bodies.
   Name: OptionalRef,
-  // New state or temporaries.
-  Bank: uint8,
-  // Index into StateVariables or Temporaries, selected by Bank.
+  // Temporaries or new state.
+  Bank: VariableBank,
+  // Index into Temporaries or StateVariables, selected by Bank.
   Variable: Ref,
 }
 ```
@@ -1114,9 +1124,9 @@ shows these names and falls back to numbers when the symbols are stripped.
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // Old state, new state, temporaries, or static values.
-  Bank: uint8,
-  // Index into StateVariables, Temporaries, or StaticValues, selected by
+  // Static values, temporaries, old state, or new state.
+  Bank: VariableBank,
+  // Index into StaticValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }
@@ -1211,8 +1221,8 @@ Every reference fits its target: `Ref` and `OptionalRef` indices, ranges,
 `ByteRange` byte ranges, `StringRef` and present `OptionalStringRef` byte
 ranges, whose bytes are valid UTF-8, and named-number arrays, which are
 aligned for their type. An absent `OptionalStringRef` has both fields
-`0xffffffff`. Small enumerated fields such as `Bank` have listed values,
-and padding is zero.
+`0xffffffff`. Enum fields such as `Kind`, `Stage`, and `Bank` hold named
+values, and padding is zero.
 
 ### Types and values
 

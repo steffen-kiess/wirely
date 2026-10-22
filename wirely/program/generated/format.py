@@ -45,6 +45,7 @@ __all__ = [
     'Procedure',
     'NativeProcedure',
     'InputInterface',
+    'VariableBank',
     'ValueInput',
     'Output',
     'ProcedureBody',
@@ -293,17 +294,25 @@ class InputInterface(NamedTuple):
     name: StringRef
 
 
+# VariableBank in wirely/program/format.wrl
+class VariableBank(OpenIntEnum, minimum=0, maximum=255):
+    StaticValues = 1
+    Temporaries = 2
+    OldState = 3
+    NewState = 4
+
+
 # ValueInput in wirely/program/format.wrl
 class ValueInput(NamedTuple):
     interface: OptionalRef
-    bank: int
+    bank: VariableBank
     variable: Ref
 
 
 # Output in wirely/program/format.wrl
 class Output(NamedTuple):
     name: OptionalRef
-    bank: int
+    bank: VariableBank
     variable: Ref
 
 
@@ -341,7 +350,7 @@ class TypeSymbol(NamedTuple):
 # VariableAlias in wirely/program/format.wrl
 class VariableAlias(NamedTuple):
     name: StringRef
-    bank: int
+    bank: VariableBank
     variable: Ref
 
 
@@ -373,6 +382,12 @@ _enums['RunStage'] = TypeEnum('RunStage', {
     'Input': 1,
     'Default': 2,
     'Output': 3,
+}, is_open=True, underlying_type=uint8)
+_enums['VariableBank'] = TypeEnum('VariableBank', {
+    'StaticValues': 1,
+    'Temporaries': 2,
+    'OldState': 3,
+    'NewState': 4,
 }, is_open=True, underlying_type=uint8)
 
 # Wirely types of the records, with field types first.
@@ -525,12 +540,12 @@ _types['InputInterface'] = TypeStruct('InputInterface', {
 })
 _types['ValueInput'] = TypeStruct('ValueInput', {
     'Interface': _types['OptionalRef'],
-    'Bank': uint8,
+    'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
 _types['Output'] = TypeStruct('Output', {
     'Name': _types['OptionalRef'],
-    'Bank': uint8,
+    'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
 _types['ProcedureBody'] = TypeStruct('ProcedureBody', {
@@ -556,7 +571,7 @@ _types['TypeSymbol'] = TypeStruct('TypeSymbol', {
 })
 _types['VariableAlias'] = TypeStruct('VariableAlias', {
     'Name': _types['StringRef'],
-    'Bank': uint8,
+    'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
 _types['TypeMapEntry'] = TypeStruct('TypeMapEntry', {
@@ -570,6 +585,7 @@ _types['NativeStateSource'] = TypeStruct('NativeStateSource', {
 enum_types: dict[type[enum.IntEnum], TypeEnum] = {
     TypeKind: _enums['TypeKind'],
     RunStage: _enums['RunStage'],
+    VariableBank: _enums['VariableBank'],
 }
 
 # Wirely type of each record class.

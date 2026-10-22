@@ -2,8 +2,8 @@ import struct
 
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
-    ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Procedure, Range,
-    Ref, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, ValueInput,
+    ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Output, Procedure,
+    Range, Ref, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, ValueInput, VariableBank,
 )
 
 
@@ -58,6 +58,10 @@ def check_layout():
     stage = Stage(RunStage.Output, Range(Ref(2), 3))
     assert pack_record(stage) == struct.pack('<BxxxII', 3, 2, 3)
     assert type(unpack_record(Stage, pack_record(stage)).stage) is RunStage
+
+    output = Output(OptionalRef(0xffffffff), VariableBank.NewState, Ref(1))
+    assert pack_record(output) == struct.pack('<IBxxxI', 0xffffffff, 4, 1)
+    assert type(unpack_record(Output, pack_record(output)).bank) is VariableBank
 
     # Records are read at an offset into a larger buffer.
     table = pack_record(Ref(1)) + pack_record(Ref(2)) + pack_record(Ref(3))
