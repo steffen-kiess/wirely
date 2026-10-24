@@ -17,7 +17,9 @@ rest of the file may have a different layout or endianness.
 A major-version change is breaking. Older consumers can inspect understood
 resources in a newer minor version, but may miss new sections containing
 critical information or encounter unknown types and opcodes. Partial
-inspection does not establish full parsing or execution support.
+inspection does not establish full parsing or execution support. Execution
+requires support for the file's major and minor version; runtimes reject
+newer, unsupported minor versions.
 
 The rest of this proposal describes version 0.0.
 
@@ -68,6 +70,8 @@ length is an exact multiple of the record size. A record section contains
 one record with its storage size. A buffer contains `Length` bytes of
 values, strings, or instruction streams. Empty tables and buffers have
 length zero. Padding between sections is outside their lengths.
+Buffers use the record type `None`, whose numeric assignment is deferred
+with the other record types.
 
 Consumers ignore unknown section types. Structured records are always
 stored in tables or record sections, so a known `RecordType` lets
@@ -80,18 +84,18 @@ their contents.
 
 | Section | Record type | Layout |
 | --- | --- | --- |
-| [`BuildIDSHA512`](#buildidsha512) | — | Buffer |
+| [`BuildIDSHA512`](#buildidsha512) | `None` | Buffer |
 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
 | [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
-| [`JsonData`](#jsondata) | — | Buffer |
+| [`JsonData`](#jsondata) | `None` | Buffer |
 | [`ConstValues`](#constvalues) | `Variable` | Table |
-| [`ProgramData`](#programdata) | — | Buffer |
+| [`ProgramData`](#programdata) | `None` | Buffer |
 | [`FixedValues`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
 | [`StateVariables`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
 | [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| [`InitialState`](#initialstate) | — | Buffer |
+| [`InitialState`](#initialstate) | `None` | Buffer |
 | [`Stages`](#stages) | `Stage` | Table |
 | [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
@@ -99,8 +103,8 @@ their contents.
 | [`Bindings`](#bindings) | `VariableRef` | Table |
 | [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
-| [`NativeNames`](#nativenames) | — | Buffer |
-| [`ProcedureCode`](#procedurecode) | — | Buffer |
+| [`NativeNames`](#nativenames) | `None` | Buffer |
+| [`ProcedureCode`](#procedurecode) | `None` | Buffer |
 | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
 | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
 | [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
@@ -108,7 +112,7 @@ their contents.
 | [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
 | [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
 | [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
-| [`SymbolData`](#symboldata) | — | Buffer |
+| [`SymbolData`](#symboldata) | `None` | Buffer |
 
 The sections from `SymbolMetadata` on are
 [symbol sections](#symbol-sections); each of them is optional. All other
@@ -334,8 +338,10 @@ struct type CompositeType {
 Both enum kinds explicitly store their underlying integer type and default
 to zero. Closed enums accept numbers from zero through `MemberCount - 1`;
 open enums accept every underlying value. Field index N selects entry N of
-a struct's `Fields` range. Field offsets follow the
-[runtime binary representation](value-types.md#runtime-binary-representation).
+a struct's `Fields` range. Runtime field offsets follow the
+[runtime binary representation](value-types.md#runtime-binary-representation);
+const-only field offsets follow
+[ProgramData](#programdata).
 
 Types are equal exactly when their indices are equal. Producers intern
 structurally equal types; enums, structs, and resource types have one entry
@@ -346,8 +352,10 @@ A resource is a handle to a native object, such as a KNX connection. It
 has storage size zero and alignment 1; the runtime keeps the native object
 separately. No option, list, or struct contains a resource. `string`,
 `type`, and lists, including composites and structs containing them, are
-only used for const values. All other types are runtime types. Runtime
-types and resources are load-time types.
+only used for const values. Other types are runtime types within the size,
+depth, and member-count limits in [Value types](value-types.md#type-overview);
+composites exceeding those limits are const-only. Runtime types and
+resources are load-time types.
 
 ### Opaque structs
 
@@ -478,8 +486,8 @@ Payloads use their type's storage layout. Equal values or payloads can
 share storage.
 
 Runtime types use their runtime binary representation. Const `string`
-values use `StringRef` into `ProgramData`. Options apply the runtime option
-layout to the representations below, including strings and lists.
+values use `StringRef` into `ProgramData`; const `type` and list values use
+the records below.
 
 ```wirely
 // A const value identifying another value type.
@@ -499,10 +507,16 @@ struct type ListValue {
 }
 ```
 
+Const structs and options apply the runtime field and option layout rules
+recursively to these const representations. Data size, alignment, storage
+size, and zero padding follow the same rules, including for composites
+that exceed runtime-type limits. Const slots are aligned for their types.
+
 For `List[T]`, `CompositeType.InnerType` selects `T` from `ValueTypes`.
 The list occupies `[Offset, Offset + ElementCount * storage_size(T))`
-in `ProgramData`, using `T`'s storage layout. An empty list has both fields
-zero. Zero-sized units retain their element count.
+in `ProgramData`, using `T`'s const storage layout, with `Offset` aligned
+for `T`. An empty list has both fields zero. Zero-sized units retain their
+element count.
 Nested list elements contain `ListValue` offset/count pairs into the same
 buffer.
 
@@ -562,9 +576,10 @@ struct type Stage {
 }
 ```
 
-Stage records occur in execution order, including empty stages. Their
-schedule ranges partition `ProcedureInstances`. Empty stages have a
-zero-count range.
+`Stages` contains exactly four records, in order: `Load`, `Input`,
+`Default`, and `Output`, including empty stages. Their nonempty schedule
+ranges partition `ProcedureInstances` in execution order. Empty stages
+have a zero-count range with `First` zero.
 
 The `Load` stage runs once when a program is loaded, before its first
 step. Its procedures, the load procedures, always run. The other stages
@@ -598,6 +613,11 @@ struct type ProcedureInstance {
 Procedure instances are stored in execution order, consecutively within
 each stage. Each instance refers to either a native or a bytecode
 procedure.
+
+Each instance's bindings determine its input and output types, and its
+stage comes from the containing schedule. Native and bytecode procedures
+can each be shared by instances with different types or stages, provided
+each use is compatible with the implementation.
 
 The native procedure identifies the native implementation and its
 interfaces. Native load procedures can create native objects and output
@@ -759,9 +779,13 @@ outputs by name.
 
 The runtime matches the qualified names of native procedures, native
 functions, and resource types to native code, and binds interface names
-to inputs and outputs. Each native procedure and native function also
-links only when the runtime's description of its interface matches the
-program's stage, `Initializer`, interface names, and value types.
+to inputs and outputs. Native procedure names can be resolved
+independently, but interface compatibility is checked for each instance:
+the runtime's interface must accept its stage, the descriptor's
+`Initializer` flag and interface names, and its bound input and output
+types. Native inputs can accept const-only values from `ConstValues` when
+the native interface allows them. Native functions link against their
+declared parameter and return types.
 
 An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member
@@ -791,9 +815,9 @@ linking.
 
 `ProcedureCode` contains the instruction streams of bytecode procedures.
 Each instruction starts with one `uint8` opcode, followed by its operands
-in the order listed below. The opcode determines the operand count and instruction
-length. Multi-byte integers are little endian; instructions and operands
-require no alignment.
+in the order listed below. The opcode determines the operand count and
+instruction length. Multi-byte integers are little endian; instructions
+and operands require no alignment.
 
 ### Value operands
 
@@ -995,13 +1019,17 @@ unreachable instructions.
 Ordering comparisons of `Std.Duration` and `Schedule.TimeOfDay` use native
 functions `Std.Duration.Less` and `Schedule.TimeOfDay.Less`, respectively.
 
-Each invocation initializes every local and output to its type's default.
-For unit this is the unit value, for boolean false, for integers zero, for
-options `None`, for enums zero, and for structs, including opaque ones,
-the defaults of their fields. The default `Timer.MonotonicTime` has
+Each executed bytecode invocation initializes every local and output to
+its type's default. For unit this is the unit value, for boolean false,
+for integers zero, for options `None`, for enums zero, and for structs,
+including opaque ones, the defaults of their fields. The default
+`Timer.MonotonicTime` has
 generation 0, which is never current, so it compares to no current time.
 Values remain valid and canonical, including padding and unused option
 payloads, as specified by the runtime binary representation.
+
+Skipped instances retain their outputs. Writes to new state leave the
+old-state snapshot unchanged.
 
 Instructions read all source values before modifying their destination,
 allowing a destination also to be a source. `COPY` preserves its source
@@ -1019,7 +1047,7 @@ immediately after the stream is not a target: for a 120-byte stream, offset
 
 The stream is nonempty and its final instruction is `RETURN` or `FAIL`.
 Either instruction ends execution of the stream and can also appear
-earlier. There are no calls or backward branches.
+earlier. There are no bytecode procedure calls or backward branches.
 
 Target calculation must not overflow. Every byte of the stream belongs to
 a decoded instruction; unknown instructions cannot be skipped. Default
@@ -1168,7 +1196,8 @@ involved; matching names to native implementations is part of
 Each check concerns one record and records it refers to, or a record and
 its predecessor in a sorted table. Apart from a few bytes per value type
 and one bit per fixed value, temporary, and state variable, verification
-needs no memory beyond the file.
+can use the file directly. Branch checking can additionally use one bit
+per code byte or decode ahead without that allocation.
 
 A runtime may also reject a valid file that it cannot run:
 
@@ -1200,6 +1229,10 @@ aligned for their type. An absent `OptionalStringRef` has both fields
 `0xffffffff`. Enum fields such as `Kind`, `Stage`, and `Bank` hold named
 values, and padding is zero.
 
+Range ends, count products, layout sizes, alignment rounding, and branch
+targets are calculated without overflow or truncation. Computed ranges
+fit their target storage, and sizes and offsets fit their declared fields.
+
 ### Types and values
 
 Inner, underlying, and field types precede the types using them, so one
@@ -1215,21 +1248,22 @@ closed enum member or struct field, or strictly ascending numbers for an
 open enum. `Numbers` is `0xffffffff` exactly for types other than open
 enums.
 
-`ConstValues` have no resource types. They, list elements, and
-`InitialState` contain valid values in the runtime binary representation,
-with zero padding. Closed enum values are below their member count; open
-enum values fit their underlying type. Values of opaque structs are
-checked during linking. List elements are checked with the list's inner
-type, which precedes the list type, so checks terminate even when lists
-share bytes.
+`ConstValues` have no resource types. Const slots and list elements
+contain valid values in the [const-data representation](#programdata),
+aligned for their types and with zero padding. `InitialState` contains
+valid values in the runtime binary representation, with zero padding.
+Closed enum values are below their member count; open enum values fit
+their underlying type. Values of opaque structs are checked during
+linking. List elements are checked with the list's inner type, which
+precedes the list type, so checks terminate even when lists share bytes.
 
 `FixedValues`, `StateVariables`, and `Temporaries` are sorted by offset,
 and each slot starts at or after the end of the previous one. Comparing
 each entry with its predecessor therefore shows that slots do not overlap
 and gives the buffer size. `FixedValues` have load-time types. The types of
-`StateVariables`, `Temporaries`, locals, const and immediate operands,
-bytecode procedure inputs and outputs, aliases, and native function
-parameters and results are runtime types.
+`StateVariables`, `Temporaries`, locals, bytecode value operands of kind
+`const` or `immediate`, bytecode procedure inputs and outputs, aliases,
+and native function parameters and results are runtime types.
 
 ### Names and bindings
 
@@ -1243,11 +1277,12 @@ table.
 
 ### Procedure instances and code
 
-Stage schedules follow each other without gaps and cover
-`ProcedureInstances`. Each instance refers to either a native or a
-bytecode procedure. Load procedures read only const values and fixed
-values and write only fixed values;
-runtime procedures write only temporaries and new state. Native
+The four stage records occur in the order specified by [Stages](#stages).
+Their nonempty schedules follow each other without gaps and cover
+`ProcedureInstances`; empty schedules have both range fields zero. Each
+instance refers to exactly one native or bytecode procedure. Load
+procedures read only const values and fixed values and write only fixed
+values; runtime procedures write only temporaries and new state. Native
 procedures with `Initializer` are used only by load procedures.
 
 One pass over the procedures checks single assignment, using one bit per
@@ -1256,16 +1291,23 @@ destination's bit to be clear and then sets it. Each input from fixed
 values, temporaries, or new state requires its variable's bit to be set.
 After the pass, every bit is set.
 
-Each instruction stream is decoded once from its start. Opcodes, operand
-kinds and encodings, index bounds, immediate values, operand types, and
-writable destinations are checked as instructions are decoded. Branches
-only go forward, so a branch target is confirmed when decoding reaches it,
-using one bit per code byte or by decoding ahead.
-`FAIL` is checked at every use of a bytecode procedure: its instance is in
-the `Load` stage, its format index selects a constant `List[string]` of
-the required length, and each specification is supported for the
-corresponding value type. All decoded instructions are checked, including
-unreachable ones.
+Every bytecode procedure's instruction stream is structurally checked
+from its start, including unreferenced procedures. Opcodes, operand kinds,
+canonical encodings, instruction boundaries, and control flow are checked
+without an instance. Branches only go forward, so a branch target can be
+confirmed when decoding reaches it, using one bit per code byte or by
+decoding ahead.
+
+Full verification checks every bytecode procedure instance, using its
+binding ranges and types and its scheduled stage. Operand indices,
+immediate values, operand types, and writable destinations must be valid
+in that context. For `FAIL`, the instance is in the `Load` stage, its
+format index selects a constant `List[string]` of the required length,
+and each specification is supported for the corresponding value type.
+All instructions are checked, including unreachable ones. Structural
+decoding and compatible contextual checks can be shared across instances;
+an unreferenced bytecode procedure has no instance context for full
+verification.
 
 ### Producer requirements
 
