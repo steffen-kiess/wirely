@@ -24,6 +24,7 @@ __all__ = [
     'ClosedEnumType',
     'OpenEnumType',
     'StructType',
+    'ResourceType',
     'CompositeType',
     'Duration',
     'TimeOfDay',
@@ -34,19 +35,13 @@ __all__ = [
     'Variable',
     'ValueTypeValue',
     'ListValue',
-    'NativeState',
-    'NativeStateType',
-    'NameRef',
-    'ResourceInterface',
-    'StaticBinding',
-    'ResourceInput',
     'RunStage',
     'Stage',
     'Procedure',
     'NativeProcedure',
-    'InputInterface',
+    'NameRef',
     'VariableBank',
-    'ValueInput',
+    'Input',
     'Output',
     'ProcedureBody',
     'NativeFunction',
@@ -124,8 +119,9 @@ class TypeKind(OpenIntEnum, minimum=0, maximum=255):
     ClosedEnum = 6
     OpenEnum = 7
     Struct = 8
-    Option = 9
-    List = 10
+    Resource = 9
+    Option = 10
+    List = 11
 
 
 # SimpleType in wirely/program/format.wrl
@@ -161,6 +157,12 @@ class StructType(NamedTuple):
     opaque: bool
     fields: Range
     native_name: OptionalStringRef
+
+
+# ResourceType in wirely/program/format.wrl
+class ResourceType(NamedTuple):
+    kind: TypeKind
+    native_name: StringRef
 
 
 # CompositeType in wirely/program/format.wrl
@@ -220,48 +222,12 @@ class ListValue(NamedTuple):
     element_count: int
 
 
-# NativeState in wirely/program/format.wrl
-class NativeState(NamedTuple):
-    type: Ref
-    uses: Range
-    resources: Range
-
-
-# NativeStateType in wirely/program/format.wrl
-class NativeStateType(NamedTuple):
-    name: StringRef
-    uses_names: Range
-    resource_input_interfaces: Range
-    resource_output_interfaces: Range
-
-
-# NameRef in wirely/program/format.wrl
-class NameRef(NamedTuple):
-    name: StringRef
-
-
-# ResourceInterface in wirely/program/format.wrl
-class ResourceInterface(NamedTuple):
-    name: StringRef
-    type: Ref
-
-
-# StaticBinding in wirely/program/format.wrl
-class StaticBinding(NamedTuple):
-    value: Ref
-
-
-# ResourceInput in wirely/program/format.wrl
-class ResourceInput(NamedTuple):
-    native_state: Ref
-    output: int
-
-
 # RunStage in wirely/program/format.wrl
 class RunStage(OpenIntEnum, minimum=0, maximum=255):
-    Input = 1
-    Default = 2
-    Output = 3
+    Load = 1
+    Input = 2
+    Default = 3
+    Output = 4
 
 
 # Stage in wirely/program/format.wrl
@@ -274,8 +240,6 @@ class Stage(NamedTuple):
 class Procedure(NamedTuple):
     native: OptionalRef
     body: OptionalRef
-    uses: Range
-    resources: Range
     inputs: Range
     outputs: Range
 
@@ -283,27 +247,27 @@ class Procedure(NamedTuple):
 # NativeProcedure in wirely/program/format.wrl
 class NativeProcedure(NamedTuple):
     name: StringRef
-    uses_names: Range
-    resource_input_interfaces: Range
-    input_interfaces: Range
+    input_names: Range
     output_names: Range
+    has_state: bool
 
 
-# InputInterface in wirely/program/format.wrl
-class InputInterface(NamedTuple):
+# NameRef in wirely/program/format.wrl
+class NameRef(NamedTuple):
     name: StringRef
 
 
 # VariableBank in wirely/program/format.wrl
 class VariableBank(OpenIntEnum, minimum=0, maximum=255):
-    StaticValues = 1
-    Temporaries = 2
-    OldState = 3
-    NewState = 4
+    ConstValues = 1
+    LoadValues = 2
+    Temporaries = 3
+    OldState = 4
+    NewState = 5
 
 
-# ValueInput in wirely/program/format.wrl
-class ValueInput(NamedTuple):
+# Input in wirely/program/format.wrl
+class Input(NamedTuple):
     bank: VariableBank
     variable: Ref
 
@@ -420,19 +384,22 @@ _enums['TypeKind'] = TypeEnum('TypeKind', {
     'ClosedEnum': 6,
     'OpenEnum': 7,
     'Struct': 8,
-    'Option': 9,
-    'List': 10,
+    'Resource': 9,
+    'Option': 10,
+    'List': 11,
 }, is_open=True, underlying_type=uint8)
 _enums['RunStage'] = TypeEnum('RunStage', {
-    'Input': 1,
-    'Default': 2,
-    'Output': 3,
+    'Load': 1,
+    'Input': 2,
+    'Default': 3,
+    'Output': 4,
 }, is_open=True, underlying_type=uint8)
 _enums['VariableBank'] = TypeEnum('VariableBank', {
-    'StaticValues': 1,
-    'Temporaries': 2,
-    'OldState': 3,
-    'NewState': 4,
+    'ConstValues': 1,
+    'LoadValues': 2,
+    'Temporaries': 3,
+    'OldState': 4,
+    'NewState': 5,
 }, is_open=True, underlying_type=uint8)
 _enums['OperandKind'] = TypeEnum('OperandKind', {
     'Immediate': 0,
@@ -540,6 +507,10 @@ _types['StructType'] = TypeStruct('StructType', {
     'Fields': _types['Range'],
     'NativeName': _types['OptionalStringRef'],
 })
+_types['ResourceType'] = TypeStruct('ResourceType', {
+    'Kind': _enums['TypeKind'],
+    'NativeName': _types['StringRef'],
+})
 _types['CompositeType'] = TypeStruct('CompositeType', {
     'Kind': _enums['TypeKind'],
     'InnerType': _types['Ref'],
@@ -577,31 +548,6 @@ _types['ListValue'] = TypeStruct('ListValue', {
     'Offset': uint32,
     'ElementCount': uint32,
 })
-_types['NativeState'] = TypeStruct('NativeState', {
-    'Type': _types['Ref'],
-    'Uses': _types['Range'],
-    'Resources': _types['Range'],
-})
-_types['NativeStateType'] = TypeStruct('NativeStateType', {
-    'Name': _types['StringRef'],
-    'UsesNames': _types['Range'],
-    'ResourceInputInterfaces': _types['Range'],
-    'ResourceOutputInterfaces': _types['Range'],
-})
-_types['NameRef'] = TypeStruct('NameRef', {
-    'Name': _types['StringRef'],
-})
-_types['ResourceInterface'] = TypeStruct('ResourceInterface', {
-    'Name': _types['StringRef'],
-    'Type': _types['Ref'],
-})
-_types['StaticBinding'] = TypeStruct('StaticBinding', {
-    'Value': _types['Ref'],
-})
-_types['ResourceInput'] = TypeStruct('ResourceInput', {
-    'NativeState': _types['Ref'],
-    'Output': uint32,
-})
 _types['Stage'] = TypeStruct('Stage', {
     'Stage': _enums['RunStage'],
     'Schedule': _types['Range'],
@@ -609,22 +555,19 @@ _types['Stage'] = TypeStruct('Stage', {
 _types['Procedure'] = TypeStruct('Procedure', {
     'Native': _types['OptionalRef'],
     'Body': _types['OptionalRef'],
-    'Uses': _types['Range'],
-    'Resources': _types['Range'],
     'Inputs': _types['Range'],
     'Outputs': _types['Range'],
 })
 _types['NativeProcedure'] = TypeStruct('NativeProcedure', {
     'Name': _types['StringRef'],
-    'UsesNames': _types['Range'],
-    'ResourceInputInterfaces': _types['Range'],
-    'InputInterfaces': _types['Range'],
+    'InputNames': _types['Range'],
     'OutputNames': _types['Range'],
+    'HasState': boolean,
 })
-_types['InputInterface'] = TypeStruct('InputInterface', {
+_types['NameRef'] = TypeStruct('NameRef', {
     'Name': _types['StringRef'],
 })
-_types['ValueInput'] = TypeStruct('ValueInput', {
+_types['Input'] = TypeStruct('Input', {
     'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
@@ -689,6 +632,7 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     ClosedEnumType: _types['ClosedEnumType'],
     OpenEnumType: _types['OpenEnumType'],
     StructType: _types['StructType'],
+    ResourceType: _types['ResourceType'],
     CompositeType: _types['CompositeType'],
     Duration: _types['Duration'],
     TimeOfDay: _types['TimeOfDay'],
@@ -699,17 +643,11 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     Variable: _types['Variable'],
     ValueTypeValue: _types['ValueTypeValue'],
     ListValue: _types['ListValue'],
-    NativeState: _types['NativeState'],
-    NativeStateType: _types['NativeStateType'],
-    NameRef: _types['NameRef'],
-    ResourceInterface: _types['ResourceInterface'],
-    StaticBinding: _types['StaticBinding'],
-    ResourceInput: _types['ResourceInput'],
     Stage: _types['Stage'],
     Procedure: _types['Procedure'],
     NativeProcedure: _types['NativeProcedure'],
-    InputInterface: _types['InputInterface'],
-    ValueInput: _types['ValueInput'],
+    NameRef: _types['NameRef'],
+    Input: _types['Input'],
     Output: _types['Output'],
     ProcedureBody: _types['ProcedureBody'],
     NativeFunction: _types['NativeFunction'],

@@ -84,8 +84,9 @@ open enum type TypeKind: uint8 {
   ClosedEnum = 6,
   OpenEnum = 7,
   Struct = 8,
-  Option = 9,
-  List = 10,
+  Resource = 9,
+  Option = 10,
+  List = 11,
 }
 
 // Kinds Unit, Boolean, String, and Type.
@@ -138,9 +139,17 @@ struct type StructType {
   NativeName: OptionalStringRef,
 }
 
+// Kind Resource: a handle to a native object; a load-time type only.
+struct type ResourceType {
+  // Resource kind.
+  Kind: TypeKind,
+  // Native name in NativeNames, such as KNX.Bus.
+  NativeName: StringRef,
+}
+
 // Kinds Option and List: a type containing values of another type.
 struct type CompositeType {
-  // Option kind, or List kind for static values.
+  // Option kind, or List kind for const values.
   Kind: TypeKind,
   // Index into ValueTypes.
   InnerType: Ref,
@@ -196,22 +205,23 @@ struct type JsonName {
 }
 
 // A typed value with a byte offset into its associated storage.
-// StaticValues, StateVariables, and Temporaries tables.
+// ConstValues, LoadValues, StateVariables, and Temporaries tables.
 struct type Variable {
   // Index into ValueTypes; resolved stored-value type.
   ValueType: Ref,
-  // Byte offset into ProgramData for StaticValues, the state buffer for
-  // StateVariables, or the temporary buffer for Temporaries.
+  // Byte offset into ProgramData for ConstValues, the load buffer for
+  // LoadValues, the state buffer for StateVariables, or the temporary
+  // buffer for Temporaries.
   Offset: uint32,
 }
 
-// A static value identifying another value type.
+// A const value identifying another value type.
 struct type ValueTypeValue {
   // Index into ValueTypes.
   ValueType: Ref,
 }
 
-// A static list identifying element slots in ProgramData.
+// A const list identifying element slots in ProgramData.
 struct type ListValue {
   // Byte offset into ProgramData; first element.
   Offset: uint32,
@@ -219,66 +229,12 @@ struct type ListValue {
   ElementCount: uint32,
 }
 
-// A native state object and its initializer bindings.
-// NativeStates table.
-struct type NativeState {
-  // Index into NativeStateTypes.
-  Type: Ref,
-  // Range into StaticBindings; values bound by the initializer's `uses`.
-  Uses: Range,
-  // Range into ResourceInputs; constructor dependencies.
-  Resources: Range,
-}
-
-// A native state implementation and its interfaces.
-// NativeStateTypes table.
-struct type NativeStateType {
-  // Native name in NativeNames, such as ABB.JRA.Blind.
-  Name: StringRef,
-  // Range into InterfaceNames; names bound by the initializer's `uses`.
-  UsesNames: Range,
-  // Range into ResourceInterfaces; resources the initializer receives.
-  ResourceInputInterfaces: Range,
-  // Range into ResourceInterfaces; resources this state provides.
-  ResourceOutputInterfaces: Range,
-}
-
-// A name in NativeNames. InterfaceNames and ResourceTypes tables.
-struct type NameRef {
-  // UTF-8 name in NativeNames.
-  Name: StringRef,
-}
-
-// One resource a native interface receives or provides.
-// ResourceInterfaces table.
-struct type ResourceInterface {
-  // Interface name in NativeNames.
-  Name: StringRef,
-  // Index into ResourceTypes.
-  Type: Ref,
-}
-
-// Binds a static value to one name of a `uses` clause.
-// StaticBindings table.
-struct type StaticBinding {
-  // Index into StaticValues.
-  Value: Ref,
-}
-
-// Binds one native state provider to one resource interface.
-// ResourceInputs table.
-struct type ResourceInput {
-  // Index into NativeStates.
-  NativeState: Ref,
-  // Index within the provider type's ResourceOutputInterfaces range.
-  Output: uint32,
-}
-
 // An execution stage. 0 is not a valid stage.
 open enum type RunStage: uint8 {
-  Input = 1,
-  Default = 2,
-  Output = 3,
+  Load = 1,
+  Input = 2,
+  Default = 3,
+  Output = 4,
 }
 
 // An execution stage and its ordered procedure range. Stages table.
@@ -296,11 +252,7 @@ struct type Procedure {
   Native: OptionalRef,
   // Index into ProcedureBodies, or no entry for a native procedure.
   Body: OptionalRef,
-  // Range into StaticBindings; values bound by `uses`.
-  Uses: Range,
-  // Range into ResourceInputs.
-  Resources: Range,
-  // Range into ValueInputs.
+  // Range into Inputs.
   Inputs: Range,
   // Range into Outputs.
   Outputs: Range,
@@ -310,45 +262,45 @@ struct type Procedure {
 struct type NativeProcedure {
   // Native procedure name in NativeNames, such as Std.Constant:run.
   Name: StringRef,
-  // Range into InterfaceNames; names bound by `uses`.
-  UsesNames: Range,
-  // Range into ResourceInterfaces.
-  ResourceInputInterfaces: Range,
-  // Range into InputInterfaces.
-  InputInterfaces: Range,
-  // Range into InterfaceNames.
+  // Range into InterfaceNames; names of the inputs.
+  InputNames: Range,
+  // Range into InterfaceNames; names of the outputs.
   OutputNames: Range,
+  // Whether the procedure creates native state.
+  HasState: boolean,
 }
 
-// One value input of a native procedure. InputInterfaces table.
-struct type InputInterface {
-  // Input name in NativeNames.
+// A name in NativeNames. InterfaceNames table.
+struct type NameRef {
+  // UTF-8 name in NativeNames.
   Name: StringRef,
 }
 
 // The storage a variable reference selects. 0 is not a valid bank.
 open enum type VariableBank: uint8 {
-  StaticValues = 1,
-  Temporaries = 2,
-  OldState = 3,
-  NewState = 4,
+  ConstValues = 1,
+  LoadValues = 2,
+  Temporaries = 3,
+  OldState = 4,
+  NewState = 5,
 }
 
-// Binds one variable or static value to a procedure input.
-// ValueInputs table.
-struct type ValueInput {
-  // Static values, temporaries, old state, or new state.
+// Binds one variable or const value to a procedure input.
+// Inputs table.
+struct type Input {
+  // Const values, load values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into StaticValues, Temporaries, or StateVariables, selected by
-  // Bank.
+  // Index into ConstValues, LoadValues, Temporaries, or StateVariables,
+  // selected by Bank.
   Variable: Ref,
 }
 
 // Binds one procedure output to a destination variable. Outputs table.
 struct type Output {
-  // Temporaries or new state.
+  // Load values, temporaries, or new state.
   Bank: VariableBank,
-  // Index into Temporaries or StateVariables, selected by Bank.
+  // Index into LoadValues, Temporaries, or StateVariables, selected by
+  // Bank.
   Variable: Ref,
 }
 
@@ -426,9 +378,9 @@ struct type SymbolMetadata {
   ProgramName: StringRef,
 }
 
-// The name of a node, variable, procedure, or member.
-// NodeSymbols, StateVariableSymbols, TemporarySymbols, ProcedureSymbols,
-// and MemberSymbols tables.
+// The name of a variable, procedure, or member.
+// StateVariableSymbols, TemporarySymbols, ProcedureSymbols, and
+// MemberSymbols tables.
 struct type Symbol {
   // Name in SymbolData.
   Name: StringRef,
@@ -451,14 +403,14 @@ struct type TypeSymbol {
   Numbers: uint32,
 }
 
-// An alias referring to a state or temporary variable or a static value.
+// An alias referring to a state or temporary variable or a const value.
 // VariableAliases table.
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // Static values, temporaries, old state, or new state.
+  // Const values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into StaticValues, Temporaries, or StateVariables, selected by
+  // Index into ConstValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }
@@ -470,9 +422,10 @@ struct type TypeMapEntry {
   Type: OptionalRef,
 }
 
-// Origin of one new native state object. NativeStateSources table.
+// Origin of the native state of one new load procedure.
+// NativeStateSources table.
 struct type NativeStateSource {
-  // Index into the old program's NativeStates to keep, or no entry to
-  // construct a new object.
+  // Index into the old program's Procedures whose native state to keep,
+  // or no entry to create new native state.
   Old: OptionalRef,
 }

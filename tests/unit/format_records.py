@@ -2,8 +2,8 @@ import struct
 
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
-    ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Output, Procedure,
-    Range, Ref, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, ValueInput, VariableBank,
+    ClosedEnumType, CompositeType, Header, Input, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Output,
+    Procedure, Range, Ref, ResourceType, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, VariableBank,
 )
 
 
@@ -34,9 +34,8 @@ def check_layout():
     assert pack_record(value) == struct.pack('<II', 3, 4)
     assert unpack_record(Range, pack_record(value)) == value
     assert type(unpack_record(Range, pack_record(value)).first) is Ref
-    procedure = Procedure(OptionalRef(0xffffffff), OptionalRef(2), Range(Ref(0), 0), Range(Ref(1), 2),
-                          Range(Ref(3), 4), Range(Ref(5), 6))
-    assert record_size(Procedure) == 40
+    procedure = Procedure(OptionalRef(0xffffffff), OptionalRef(2), Range(Ref(3), 4), Range(Ref(5), 6))
+    assert record_size(Procedure) == 24
     assert unpack_record(Procedure, pack_record(procedure)) == procedure
 
     # The storage size includes zero tail padding.
@@ -48,19 +47,19 @@ def check_layout():
 
     # Enum fields unpack as enum members, including unnamed numbers of open enums.
     composite = CompositeType(TypeKind.Option, Ref(2))
-    assert pack_record(composite) == bytes([9, 0, 0, 0, 2, 0, 0, 0])
+    assert pack_record(composite) == bytes([10, 0, 0, 0, 2, 0, 0, 0])
     kind = unpack_record(CompositeType, pack_record(composite)).kind
     assert type(kind) is TypeKind and kind is TypeKind.Option
-    assert pack_record(CompositeType(9, Ref(2))) == pack_record(composite)
+    assert pack_record(CompositeType(10, Ref(2))) == pack_record(composite)
     unknown = unpack_record(CompositeType, bytes([200]) + bytes(7)).kind
     assert type(unknown) is TypeKind and unknown == 200 and unknown.name is None
 
     stage = Stage(RunStage.Output, Range(Ref(2), 3))
-    assert pack_record(stage) == struct.pack('<BxxxII', 3, 2, 3)
+    assert pack_record(stage) == struct.pack('<BxxxII', 4, 2, 3)
     assert type(unpack_record(Stage, pack_record(stage)).stage) is RunStage
 
     output = Output(VariableBank.NewState, Ref(1))
-    assert pack_record(output) == struct.pack('<BxxxI', 4, 1)
+    assert pack_record(output) == struct.pack('<BxxxI', 5, 1)
     assert type(unpack_record(Output, pack_record(output)).bank) is VariableBank
 
     # Records are read at an offset into a larger buffer.
@@ -70,16 +69,17 @@ def check_layout():
 
 def check_type_record_sizes():
     # Each record selected by TypeKind fits a 32-byte ValueTypes entry.
-    for record_class in (SimpleType, IntegerType, ClosedEnumType, OpenEnumType, StructType, CompositeType):
+    for record_class in (SimpleType, IntegerType, ClosedEnumType, OpenEnumType, StructType, ResourceType,
+                         CompositeType):
         assert record_size(record_class) <= 32, record_class.__name__
 
 
 def check_invalid_records():
     check_rejected(IntegerType, bytes([3, 2, 32, 0]), 'Invalid boolean byte 2')
-    # ValueInput has padding between Bank (offset 0) and Variable (offset 4).
-    data = bytearray(pack_record(ValueInput(VariableBank.StaticValues, Ref(2))))
+    # Input has padding between Bank (offset 0) and Variable (offset 4).
+    data = bytearray(pack_record(Input(VariableBank.ConstValues, Ref(2))))
     data[1] = 1
-    check_rejected(ValueInput, bytes(data), 'padding must be zero')
+    check_rejected(Input, bytes(data), 'padding must be zero')
     data = bytearray(pack_record(MonotonicTime(0, 0)))
     data[30] = 1
     check_rejected(MonotonicTime, bytes(data), 'tail padding must be zero')

@@ -87,29 +87,22 @@ their contents.
 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
 | [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
 | [`JsonData`](#jsondata) | — | Buffer |
-| [`StaticValues`](#staticvalues) | `Variable` | Table |
+| [`ConstValues`](#constvalues) | `Variable` | Table |
 | [`ProgramData`](#programdata) | — | Buffer |
-| [`StateVariables`](#statevariables-and-temporaries) | `Variable` | Table |
-| [`Temporaries`](#statevariables-and-temporaries) | `Variable` | Table |
+| [`LoadValues`](#loadvalues-statevariables-and-temporaries) | `Variable` | Table |
+| [`StateVariables`](#loadvalues-statevariables-and-temporaries) | `Variable` | Table |
+| [`Temporaries`](#loadvalues-statevariables-and-temporaries) | `Variable` | Table |
 | [`InitialState`](#initialstate) | — | Buffer |
-| [`NativeStates`](#nativestates) | `NativeState` | Table |
-| [`NativeStateTypes`](#nativestatetypes) | `NativeStateType` | Table |
-| [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
-| [`ResourceTypes`](#resourcetypes) | `NameRef` | Table |
-| [`ResourceInterfaces`](#resourceinterfaces) | `ResourceInterface` | Table |
-| [`StaticBindings`](#staticbindings) | `StaticBinding` | Table |
-| [`ResourceInputs`](#resourceinputs) | `ResourceInput` | Table |
 | [`Stages`](#stages) | `Stage` | Table |
 | [`Procedures`](#procedures) | `Procedure` | Table |
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
-| [`InputInterfaces`](#inputinterfaces) | `InputInterface` | Table |
-| [`ValueInputs`](#valueinputs) | `ValueInput` | Table |
+| [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
+| [`Inputs`](#inputs) | `Input` | Table |
 | [`Outputs`](#outputs) | `Output` | Table |
 | [`ProcedureBodies`](#procedurebodies) | `ProcedureBody` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
 | [`ProcedureCode`](#procedurecode) | — | Buffer |
 | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
-| [`NodeSymbols`](#symbol-tables) | `Symbol` | Table |
 | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
 | [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
 | [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
@@ -210,7 +203,7 @@ struct type OptionalStringRef {
 ```
 
 Strings are stored in four buffers: `NativeNames` holds names for linking,
-`JsonData` holds JSON names, `ProgramData` holds static string values, and
+`JsonData` holds JSON names, `ProgramData` holds const string values, and
 `SymbolData` holds symbols and aliases. A string occupies exactly
 `[Offset, Offset + LengthBytes)` in its buffer and is valid UTF-8
 (RFC 3629). An empty string has both fields zero. Equal strings can share
@@ -246,8 +239,9 @@ open enum type TypeKind: uint8 {
   ClosedEnum = 6,
   OpenEnum = 7,
   Struct = 8,
-  Option = 9,
-  List = 10,
+  Resource = 9,
+  Option = 10,
+  List = 11,
 }
 ```
 
@@ -312,9 +306,19 @@ struct type StructType {
 ```
 
 ```wirely
+// Kind Resource: a handle to a native object; a load-time type only.
+struct type ResourceType {
+  // Resource kind.
+  Kind: TypeKind,
+  // Native name in NativeNames, such as KNX.Bus.
+  NativeName: StringRef,
+}
+```
+
+```wirely
 // Kinds Option and List: a type containing values of another type.
 struct type CompositeType {
-  // Option kind, or List kind for static values.
+  // Option kind, or List kind for const values.
   Kind: TypeKind,
   // Index into ValueTypes.
   InnerType: Ref,
@@ -330,6 +334,7 @@ struct type CompositeType {
 | `ClosedEnum` | `ClosedEnumType` |
 | `OpenEnum` | `OpenEnumType` |
 | `Struct` | `StructType` |
+| `Resource` | `ResourceType` |
 | `Option`, `List` | `CompositeType` |
 
 Both enum kinds explicitly store their underlying integer type and default
@@ -339,11 +344,16 @@ a struct's `Fields` range. Field offsets follow the
 [runtime binary representation](value-types.md#runtime-binary-representation).
 
 Types are equal exactly when their indices are equal. Producers intern
-structurally equal types; enums and structs have one entry per declaration.
-Inner, underlying, and field types occur before the types using them,
-making size calculation possible in one forward pass. `string`,
-`type`, and lists, including composites and structs containing them,
-are only used for static values in this format.
+structurally equal types; enums, structs, and resource types have one entry
+per declaration. Inner, underlying, and field types occur before the types
+using them, making size calculation possible in one forward pass.
+
+A resource is a handle to a native object, such as a KNX connection. It
+has storage size zero and alignment 1; the runtime keeps the native object
+separately. No option, list, or struct contains a resource. `string`,
+`type`, and lists, including composites and structs containing them, are
+only used for const values. All other types are runtime types. Runtime
+types and resources are load-time types.
 
 ### Opaque structs
 
@@ -442,42 +452,43 @@ arrays of `JsonTypes`. The numbers occupy
 underlying type's runtime binary representation. `Numbers` is aligned for
 the underlying type. Equal strings and arrays can share bytes.
 
-## Static data
+## Const data
 
-### StaticValues
+### ConstValues
 
 ```wirely
 // A typed value with a byte offset into its associated storage.
-// StaticValues, StateVariables, and Temporaries tables.
+// ConstValues, LoadValues, StateVariables, and Temporaries tables.
 struct type Variable {
   // Index into ValueTypes; resolved stored-value type.
   ValueType: Ref,
-  // Byte offset into ProgramData for StaticValues, the state buffer for
-  // StateVariables, or the temporary buffer for Temporaries.
+  // Byte offset into ProgramData for ConstValues, the load buffer for
+  // LoadValues, the state buffer for StateVariables, or the temporary
+  // buffer for Temporaries.
   Offset: uint32,
 }
 ```
 
-Static values describe the resolved values bound by `uses` clauses of
-native procedures and initializers, constants read by procedure bodies,
-and parameters and constants connected to procedure inputs. Bindings,
-`const` operands, and static input sources reference these entries, which
-can be shared for equal typed values. Their data and referenced payloads
-are stored in `ProgramData`. Only values used in one of these ways are
-stored; node parameters, constants, and expressions supply those values.
+Const values describe constants read by procedure bodies and the values
+bound to procedure inputs, such as parameters, constants, and the resolved
+values of `uses` clauses. `const` operands and const inputs reference
+these entries, which can be shared for equal typed values. Their data and
+referenced payloads are stored in `ProgramData`. Only values used in one of
+these ways are stored; node parameters, constants, and expressions supply
+those values.
 
 ### ProgramData
 
-`ProgramData` stores static value slots, list arrays, and string payloads.
+`ProgramData` stores const value slots, list arrays, and string payloads.
 Payloads use their type's storage layout. Equal values or payloads can
 share storage.
 
-Runtime types use their runtime binary representation. Static `string`
+Runtime types use their runtime binary representation. Const `string`
 values use `StringRef` into `ProgramData`. Options apply the runtime option
 layout to the representations below, including strings and lists.
 
 ```wirely
-// A static value identifying another value type.
+// A const value identifying another value type.
 struct type ValueTypeValue {
   // Index into ValueTypes.
   ValueType: Ref,
@@ -485,7 +496,7 @@ struct type ValueTypeValue {
 ```
 
 ```wirely
-// A static list identifying element slots in ProgramData.
+// A const list identifying element slots in ProgramData.
 struct type ListValue {
   // Byte offset into ProgramData; first element.
   Offset: uint32,
@@ -501,25 +512,28 @@ zero. Zero-sized units retain their element count.
 Nested list elements contain `ListValue` offset/count pairs into the same
 buffer.
 
-## State
+## Variables
 
-### StateVariables and Temporaries
+### LoadValues, StateVariables, and Temporaries
 
-`StateVariables` and `Temporaries` use the `Variable` record. Their offsets
-locate values in the runtime's state buffer and temporary buffer.
+`LoadValues`, `StateVariables`, and `Temporaries` use the `Variable`
+record. Their offsets locate values in the runtime's load buffer, state
+buffer, and temporary buffer. The load stage writes the load buffer; the
+file contains no data for it.
 
 Entries are ordered by ascending byte offset, preserving runtime layout
 order for equal offsets. Each variable identity retains its own entry,
-including zero-sized units sharing an offset.
+including zero-sized units and resources sharing an offset.
 
-Both tables use runtime types. Each variable occupies its type's storage
-size at an offset aligned for its type, starting at or after the end of the
-previous slot. The buffer alignment is the maximum type alignment, and its
-size rounds the last slot's end up to that alignment. Empty buffers have
-size zero and alignment 1. Slot and final buffer padding are zero. The
-runtime allocates state and temporary buffers using this layout. Producers
-lay out variables in decreasing type alignment, preserving variable order
-within an alignment group.
+`LoadValues` uses load-time types; the other two tables use runtime types.
+Each variable occupies its type's storage size at an offset aligned for
+its type, starting at or after the end of the previous slot. The buffer
+alignment is the maximum type alignment, and its size rounds the last
+slot's end up to that alignment. Empty buffers have size zero and
+alignment 1. Slot and final buffer padding are zero. The runtime allocates
+load, state, and temporary buffers using this layout. Producers lay out
+variables in decreasing type alignment, preserving variable order within
+an alignment group.
 
 ### InitialState
 
@@ -530,127 +544,6 @@ buffer directly into its state buffer. A program started by a
 [state transition](#state-transitions) receives its state from the
 transition instead. An empty buffer has length zero.
 
-## Native states
-
-Native states are objects implemented by native code, such as the state of
-a KNX connection. They are constructed before execution and can provide
-named resources to the initializers of other native states and to
-procedures.
-
-### NativeStates
-
-```wirely
-// A native state object and its initializer bindings.
-// NativeStates table.
-struct type NativeState {
-  // Index into NativeStateTypes.
-  Type: Ref,
-  // Range into StaticBindings; values bound by the initializer's `uses`.
-  Uses: Range,
-  // Range into ResourceInputs; constructor dependencies.
-  Resources: Range,
-}
-```
-
-Each native state object has its own entry in `NativeStates`.
-Stateless calls, bytecode procedures, and composed nodes have no entries.
-States are numbered and constructed in `native_construction_order`, with
-resource providers before consumers. Construction calls the native
-constructor of the state's type and supplies the initializer's resolved
-`uses` values and resource inputs.
-
-### NativeStateTypes
-
-```wirely
-// A native state implementation and its interfaces.
-// NativeStateTypes table.
-struct type NativeStateType {
-  // Native name in NativeNames, such as ABB.JRA.Blind.
-  Name: StringRef,
-  // Range into InterfaceNames; names bound by the initializer's `uses`.
-  UsesNames: Range,
-  // Range into ResourceInterfaces; resources the initializer receives.
-  ResourceInputInterfaces: Range,
-  // Range into ResourceInterfaces; resources this state provides.
-  ResourceOutputInterfaces: Range,
-}
-```
-
-A native state type is the runtime's view of a node type with native
-state. Entries are sorted by UTF-8 name bytes, without duplicates.
-
-### InterfaceNames
-
-```wirely
-// A name in NativeNames. InterfaceNames and ResourceTypes tables.
-struct type NameRef {
-  // UTF-8 name in NativeNames.
-  Name: StringRef,
-}
-```
-
-`InterfaceNames` represents lists of names as ranges: the names bound by
-`uses` and the output names of native procedures. Each range contains
-unique names in UTF-8 bytewise lexical order.
-
-### ResourceTypes
-
-Each `ResourceTypes` entry names a native resource type, such as
-`KNX.Bus`. Entries are sorted by UTF-8 name bytes, without duplicates.
-Resource types are equal exactly when their indices are equal.
-
-### ResourceInterfaces
-
-```wirely
-// One resource a native interface receives or provides.
-// ResourceInterfaces table.
-struct type ResourceInterface {
-  // Interface name in NativeNames.
-  Name: StringRef,
-  // Index into ResourceTypes.
-  Type: Ref,
-}
-```
-
-Each range contains unique names in UTF-8 bytewise lexical order.
-Resource input names are dependency keys; resource output names are the
-keys of the native initializer's `produces` clause.
-
-### StaticBindings
-
-```wirely
-// Binds a static value to one name of a `uses` clause.
-// StaticBindings table.
-struct type StaticBinding {
-  // Index into StaticValues.
-  Value: Ref,
-}
-```
-
-A `Uses` range has one entry per name of the `UsesNames` range of its
-native procedure or native state type; entry N binds name N. Optional
-parameter presence requested by `optional` is represented by the bound
-option value.
-
-### ResourceInputs
-
-```wirely
-// Binds one native state provider to one resource interface.
-// ResourceInputs table.
-struct type ResourceInput {
-  // Index into NativeStates.
-  NativeState: Ref,
-  // Index within the provider type's ResourceOutputInterfaces range.
-  Output: uint32,
-}
-```
-
-A `Resources` range has one entry per interface of the
-`ResourceInputInterfaces` range of its native state type, for
-construction, or of its native procedure, for calls; entry N binds
-interface N. Each input binds one provider with the resource type of that
-interface.
-
 ## Execution
 
 ### Stages
@@ -658,9 +551,10 @@ interface.
 ```wirely
 // An execution stage. 0 is not a valid stage.
 open enum type RunStage: uint8 {
-  Input = 1,
-  Default = 2,
-  Output = 3,
+  Load = 1,
+  Input = 2,
+  Default = 3,
+  Output = 4,
 }
 ```
 
@@ -678,6 +572,15 @@ Stage records occur in execution order, including empty stages. Their
 schedule ranges partition the procedure table. Empty stages have a
 zero-count range.
 
+The `Load` stage runs once when a program is loaded, before its first
+step. Its procedures, the load procedures, always run. The other stages
+run in every step; their procedures are runtime procedures.
+
+Load procedures may fail, which makes loading fail. Loading a new program
+leaves the running program unchanged until its load stage succeeds.
+Native objects created during loading become fully functional only after
+that. Runtime procedures and state transitions cannot fail.
+
 ### Procedures
 
 ```wirely
@@ -688,11 +591,7 @@ struct type Procedure {
   Native: OptionalRef,
   // Index into ProcedureBodies, or no entry for a native procedure.
   Body: OptionalRef,
-  // Range into StaticBindings; values bound by `uses`.
-  Uses: Range,
-  // Range into ResourceInputs.
-  Resources: Range,
-  // Range into ValueInputs.
+  // Range into Inputs.
   Inputs: Range,
   // Range into Outputs.
   Outputs: Range,
@@ -703,20 +602,24 @@ Procedures are stored in execution order, consecutively within each
 stage. Each procedure has either a native procedure or a body.
 
 The native procedure identifies the native implementation and its
-interfaces. Native procedures reach native state objects only through
-their resource inputs. Each native procedure call receives its own
-resolved `uses` values; omitting `uses` gives an empty binding range.
-Procedures retain distinct entries even when they invoke the same native
-procedure.
+interfaces. Native load procedures can create native objects and output
+them as resources. Other procedures reach native objects only through
+their resource inputs. Procedures retain distinct entries even when they
+invoke the same native procedure.
 
-A self-trigger or wakeup refers to its own `Procedures` entry. A native
-state triggers procedures by naming one of its resource outputs. This
-schedules each entry whose `ResourceInputs` bind to that output.
+Native code can request that a runtime native procedure executes, for
+example through a wakeup; the mechanism is part of the runtime's native
+interface.
 
-A body procedure executes its instruction stream. Its `Uses` and
-`Resources` ranges are empty, and each value input has one source.
-Operands `input.N` and `output.N` select entry N of its `Inputs` and
-`Outputs` ranges.
+A body procedure executes its instruction stream. Its inputs, outputs, and
+locals have runtime types. Operands `input.N` and `output.N` select entry
+N of its `Inputs` and `Outputs` ranges.
+
+Load procedures read const values and load values and write load values.
+Runtime procedures write temporaries and new state. Each load value,
+temporary, and state variable is the destination of exactly one output.
+An input from load values, temporaries, or new state reads a variable
+written by an earlier procedure.
 
 ### NativeProcedures
 
@@ -725,65 +628,73 @@ Operands `input.N` and `output.N` select entry N of its `Inputs` and
 struct type NativeProcedure {
   // Native procedure name in NativeNames, such as Std.Constant:run.
   Name: StringRef,
-  // Range into InterfaceNames; names bound by `uses`.
-  UsesNames: Range,
-  // Range into ResourceInterfaces.
-  ResourceInputInterfaces: Range,
-  // Range into InputInterfaces.
-  InputInterfaces: Range,
-  // Range into InterfaceNames.
+  // Range into InterfaceNames; names of the inputs.
+  InputNames: Range,
+  // Range into InterfaceNames; names of the outputs.
   OutputNames: Range,
+  // Whether the procedure creates native state.
+  HasState: boolean,
 }
 ```
 
 Entries are sorted by UTF-8 name bytes, without duplicates.
 
-### InputInterfaces
+Native state consists of the native objects created by a load procedure
+whose native procedure has `HasState`, such as a KNX connection. A
+[state transition](#state-transitions) can keep it. Only load procedures
+use native procedures with `HasState`. Runtime native procedures keep no
+state between steps beyond what they can rebuild from their inputs.
+
+### InterfaceNames
 
 ```wirely
-// One value input of a native procedure. InputInterfaces table.
-struct type InputInterface {
-  // Input name in NativeNames.
+// A name in NativeNames. InterfaceNames table.
+struct type NameRef {
+  // UTF-8 name in NativeNames.
   Name: StringRef,
 }
 ```
 
-Each range contains unique names in UTF-8 bytewise lexical order.
+`InterfaceNames` represents the input and output names of native
+procedures as ranges. Each range contains unique names in UTF-8 bytewise
+lexical order.
 
-### ValueInputs
+### Inputs
 
 ```wirely
 // The storage a variable reference selects. 0 is not a valid bank.
 open enum type VariableBank: uint8 {
-  StaticValues = 1,
-  Temporaries = 2,
-  OldState = 3,
-  NewState = 4,
+  ConstValues = 1,
+  LoadValues = 2,
+  Temporaries = 3,
+  OldState = 4,
+  NewState = 5,
 }
 ```
 
 ```wirely
-// Binds one variable or static value to a procedure input.
-// ValueInputs table.
-struct type ValueInput {
-  // Static values, temporaries, old state, or new state.
+// Binds one variable or const value to a procedure input.
+// Inputs table.
+struct type Input {
+  // Const values, load values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into StaticValues, Temporaries, or StateVariables, selected by
-  // Bank.
+  // Index into ConstValues, LoadValues, Temporaries, or StateVariables,
+  // selected by Bank.
   Variable: Ref,
 }
 ```
 
-For native calls, the `Inputs` range has one entry per interface of the
-native procedure's `InputInterfaces` range; entry N binds interface N.
+For native calls, the `Inputs` range has one entry per name of the native
+procedure's `InputNames` range; entry N binds input N. Optional parameter
+presence requested by `optional` is represented by the bound option value.
 Each value input binds exactly one source.
 Procedure body inputs follow dependency declaration order; multi value
 inputs expand into scalar inputs in connection order.
 
 An old-state input reads the step's old-state snapshot. A new-state input
 reads the state value written earlier in the step. A temporary input reads
-a temporary computed during the step. A static input reads a value from
-`ProgramData`.
+a temporary computed during the step. A load input reads a value written
+by the load stage. A const input reads a value from `ProgramData`.
 
 Old-state inputs compare the step's old-state snapshot with the snapshot
 read by the previous step, using the variable's value-type equality.
@@ -791,26 +702,28 @@ New-state inputs compare this step's new state with the step's old state,
 which the previous step produced. Temporary inputs compare this step's
 values with the previous step's cached values. A difference requires
 procedure execution. On the first step, procedures execute without
-previous values. Static inputs never change and are not compared.
-Triggers and wakeups also require execution. A skipped procedure preserves
-its state and temporary outputs.
+previous values. Const and load inputs never change and are not compared.
+Requests from native code also require execution. A skipped procedure
+preserves its state and temporary outputs.
 
 ### Outputs
 
 ```wirely
 // Binds one procedure output to a destination variable. Outputs table.
 struct type Output {
-  // Temporaries or new state.
+  // Load values, temporaries, or new state.
   Bank: VariableBank,
-  // Index into Temporaries or StateVariables, selected by Bank.
+  // Index into LoadValues, Temporaries, or StateVariables, selected by
+  // Bank.
   Variable: Ref,
 }
 ```
 
 For native calls, the `Outputs` range has one entry per name of the native
 procedure's `OutputNames` range; entry N binds output N.
-A new-state output writes the state that becomes the next step's old
-state. A temporary output writes a temporary.
+A load output writes a load value. A new-state output writes the state
+that becomes the next step's old state. A temporary output writes a
+temporary.
 
 ### ProcedureBodies
 
@@ -843,12 +756,11 @@ Entries are sorted by UTF-8 name bytes, without duplicates.
 
 ### Linking
 
-The runtime matches the qualified names of native state types, native
-procedures, native functions, and `ResourceTypes` entries to native code,
-and binds interface names to static values, inputs, outputs, and
-resources. Each native state type, native procedure, and native function
-also links only when the runtime's description of its interface matches
-the program's stage, interface names, resource types, and value types.
+The runtime matches the qualified names of native procedures, native
+functions, and resource types to native code, and binds interface names
+to inputs and outputs. Each native procedure and native function also
+links only when the runtime's description of its interface matches the
+program's stage, `HasState`, interface names, and value types.
 
 An enum with a `NativeName` links only when the runtime knows that native
 name with the same kind, underlying type, and, for a closed enum, member
@@ -860,7 +772,7 @@ same order; nested native enums and structs match by kind, opacity, and
 native name. Other structs need no linking.
 
 The runtime's implementation of each opaque struct also checks its values
-in `StaticValues`, list elements, and `InitialState`. `Schedule.TimeOfDay`
+in `ConstValues`, list elements, and `InitialState`. `Schedule.TimeOfDay`
 values are at most 24 hours. The only `Timer.MonotonicTime` value in a file
 is the default, because generations of a file are never current.
 
@@ -872,8 +784,7 @@ value/event specialization is not currently supported. Procedure debug
 symbols remain instance names such as `someblock:procedure`.
 
 Embedded adapters can retain numeric bindings and function pointers after
-linking. Each native state output resolves to a fixed list of `Procedures`
-entries for triggers.
+linking.
 
 ## ProcedureCode
 
@@ -903,7 +814,7 @@ open enum type OperandKind: uint8 {
 | Operand kind | Index selects | Access |
 | --- | --- | --- |
 | `immediate` | The number itself, used as the value | Read |
-| `const` | Entry in `StaticValues` | Read |
+| `const` | Entry in `ConstValues` | Read |
 | `local` | Entry in the body's `Locals` range | Read/write |
 | `input` | Entry in the procedure's `Inputs` range | Read |
 | `output` | Entry in the procedure's `Outputs` range | Read/write |
@@ -1114,9 +1025,9 @@ struct type SymbolMetadata {
 ### Symbol tables
 
 ```wirely
-// The name of a node, variable, procedure, or member.
-// NodeSymbols, StateVariableSymbols, TemporarySymbols, ProcedureSymbols,
-// and MemberSymbols tables.
+// The name of a variable, procedure, or member.
+// StateVariableSymbols, TemporarySymbols, ProcedureSymbols, and
+// MemberSymbols tables.
 struct type Symbol {
   // Name in SymbolData.
   Name: StringRef,
@@ -1128,14 +1039,14 @@ target table, in the same order:
 
 | Table | Target table | Name |
 | --- | --- | --- |
-| `NodeSymbols` | `NativeStates` | Node path, such as `a.b` |
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
 | `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b:run.output` |
 | `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
 | `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; none for other types |
 
-Symbols identify nodes, variables, procedures, and types in diagnostics
-and when building [state transitions](#state-transitions).
+Symbols identify variables, procedures, and types in diagnostics and when
+building [state transitions](#state-transitions). Symbols and aliases for
+load values are not specified yet.
 
 ### TypeSymbols and MemberSymbols
 
@@ -1166,21 +1077,21 @@ shows these names and falls back to numbers when the symbols are stripped.
 ### VariableAliases
 
 ```wirely
-// An alias referring to a state or temporary variable or a static value.
+// An alias referring to a state or temporary variable or a const value.
 // VariableAliases table.
 struct type VariableAlias {
   // Alias name in SymbolData.
   Name: StringRef,
-  // Static values, temporaries, old state, or new state.
+  // Const values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into StaticValues, Temporaries, or StateVariables, selected by
+  // Index into ConstValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }
 ```
 
 Aliases map source names, including the inputs and outputs of nodes, to
-the variable or static value that supplies their value. They are sorted by
+the variable or const value that supplies their value. They are sorted by
 UTF-8 name bytes. Multiple aliases can refer to one variable.
 
 ### SymbolData
@@ -1190,11 +1101,12 @@ referenced by symbol records.
 
 An embedded reader reads the header and directory and links native code
 and functions using `NativeNames`. Symbol records and their data can be
-read on demand. To print a node name, read its `NodeSymbols` entry, then
-stream the referenced `SymbolData` byte range over UART. Numeric node,
-procedure, and variable indices also serve as diagnostic identifiers.
+read on demand. To print a procedure name, read its `ProcedureSymbols`
+entry, then stream the referenced `SymbolData` byte range over UART.
+Numeric procedure and variable indices also serve as diagnostic
+identifiers.
 
-Static value entries locate value slots in `ProgramData`. Strings and
+Const value entries locate value slots in `ProgramData`. Strings and
 lists identify payload ranges for deferred reads. Schedules and bindings
 can be retained in RAM or accessed directly from aligned flash. Lazy reads
 use seekable storage, a retained image, or a reopened source. Section byte
@@ -1207,16 +1119,16 @@ ranges support independent reads.
 | `name` | `SymbolMetadata` |
 | `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
 | `initial_state` | `InitialState` |
-| Native-state `instances` | `NativeStates` and `NodeSymbols` |
-| `instances[*].initializer_values` | Initializer `StaticBindings` and their values |
-| `instances[*].initializer_bindings`, `procs[*].resources` | `ResourceInputs` |
-| `native_types` | `NativeStateTypes`, `InterfaceNames`, `ResourceInterfaces`, and `ResourceTypes` |
-| `native_procedures` | `NativeProcedures`, `InterfaceNames`, `ResourceInterfaces`, `ResourceTypes`, and `InputInterfaces` |
-| `native_construction_order` | Order of `NativeStates` |
+| Native-state `instances` | `Load` procedures with `HasState` native procedures, and their `ProcedureSymbols` |
+| `instances[*].initializer_values`, `procs[*].values` | `Inputs` from `ConstValues`, and their values |
+| `instances[*].initializer_bindings`, `procs[*].resources` | `Inputs` from `LoadValues` |
+| Resources provided by `instances` | `Outputs` to `LoadValues` |
+| `native_types` | `NativeProcedures` with `HasState`, `InterfaceNames`, and `ResourceType` entries of `ValueTypes` |
+| `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ResourceType` entries of `ValueTypes` |
+| `native_construction_order` | Order of the `Load` stage |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
-| `procs[*].values` | Procedure `StaticBindings` and their values |
 | `procs[*].body` | `ProcedureBodies`, `TypeLists`, and `ProcedureCode` |
-| `constants` | `StaticValues` and `ProgramData` |
+| `constants` | `ConstValues` and `ProgramData` |
 | `functions` | `NativeFunctions` and `TypeLists` |
 | `variables` | `VariableAliases` |
 
@@ -1234,8 +1146,9 @@ involved; matching names to native implementations is part of
 [State transitions](#state-transitions).
 
 Each check concerns one record and records it refers to, or a record and
-its predecessor in a sorted table. Apart from a few bytes per value type,
-verification needs no memory beyond the file.
+its predecessor in a sorted table. Apart from a few bytes per value type
+and one bit per load value, temporary, and state variable, verification
+needs no memory beyond the file.
 
 A runtime may also reject a valid file that it cannot run:
 
@@ -1246,10 +1159,6 @@ A runtime may also reject a valid file that it cannot run:
 - Linking fails, because the runtime lacks a native implementation,
   function, or opaque struct the program names, its interface does not
   match, or it rejects a value of an opaque struct.
-
-State transitions cannot fail. Native constructors should not fail
-either: returning to the previous program would require constructing
-its native state again.
 
 ### Structure and references
 
@@ -1276,48 +1185,54 @@ values, and padding is zero.
 Inner, underlying, and field types precede the types using them, so one
 pass over `ValueTypes` finds the storage size, alignment, nesting depth,
 and member count of each type. The verifier keeps these per type to tell
-runtime types from static-only types. Integer types have a listed width,
-open enum underlying types are integers, and opaque structs have a native
-name. Closed enums have at least one member and an underlying type of
-`uint8`, `uint16`, or `uint32` large enough to represent `MemberCount - 1`.
-Each `JsonTypes` entry and each `TypeSymbols` entry of an enum or struct
+runtime, load-time, and const-only types apart. Integer types have a
+listed width, open enum underlying types are integers, opaque structs have
+a native name, and inner and field types are not resources. Closed enums
+have at least one member and an underlying type of `uint8`, `uint16`, or
+`uint32` large enough to represent `MemberCount - 1`. Each `JsonTypes` entry and each `TypeSymbols` entry of an enum or struct
 has one name per closed enum member or struct field, or strictly ascending
 numbers for an open enum. `Numbers` is `0xffffffff` exactly for types
 other than open enums.
 
-`StaticValues`, list elements, and `InitialState` contain valid values in
-the runtime binary representation, with zero padding. Closed enum values
-are below their member count; open enum values fit their underlying type.
-Values of opaque structs are checked during linking. List elements are
-checked with the list's inner type, which precedes the list type, so checks
-terminate even when lists share bytes.
+`ConstValues` have no resource types. They, list elements, and
+`InitialState` contain valid values in the runtime binary representation,
+with zero padding. Closed enum values are below their member count; open
+enum values fit their underlying type. Values of opaque structs are
+checked during linking. List elements are checked with the list's inner
+type, which precedes the list type, so checks terminate even when lists
+share bytes.
 
-`StateVariables` and `Temporaries` are sorted by offset, and each slot
-starts at or after the end of the previous one. Comparing each entry with
-its predecessor therefore shows that slots do not overlap and gives the
-buffer size. Their types, and those of locals, constant and immediate
-operands, static input sources and aliases, and native function
-parameters and results, are runtime types.
+`LoadValues`, `StateVariables`, and `Temporaries` are sorted by offset,
+and each slot starts at or after the end of the previous one. Comparing
+each entry with its predecessor therefore shows that slots do not overlap
+and gives the buffer size. `LoadValues` have load-time types. The types of
+`StateVariables`, `Temporaries`, locals, const and immediate operands,
+procedure body inputs and outputs, aliases, and native function parameters
+and results are runtime types.
 
 ### Names and bindings
 
 Sorting turns uniqueness into a comparison with the predecessor. This
-applies to ranges into `InterfaceNames`, `InputInterfaces`, and
-`ResourceInterfaces`, to `ResourceTypes`, `JsonTypes`, `NativeStateTypes`,
-`NativeProcedures`, and `NativeFunctions`, and to aliases. The `Uses`,
-`Resources`, `Inputs`, and `Outputs` ranges of native state objects and
-native procedure calls have the length of the matching interface range.
-Each value input binds one source, and each resource input binds one
-provider. A resource provider's output lies within its type's
-`ResourceOutputInterfaces` and has the same `ResourceTypes` index as the
-interface at the input's position. Each symbol table has as many entries
-as its target table.
+applies to ranges into `InterfaceNames`, to `JsonTypes`,
+`NativeProcedures`, and `NativeFunctions`, and to aliases. The `Inputs`
+and `Outputs` ranges of native procedure calls have the length of the
+native procedure's `InputNames` and `OutputNames` ranges. Each value input
+binds one source. Each symbol table has as many entries as its target
+table.
 
 ### Procedures and code
 
 Stage schedules follow each other without gaps and cover the procedure
-table. Each procedure has a native procedure or a body. Initializer
-resource providers have lower native state indices than their consumers.
+table. Each procedure has a native procedure or a body. Load procedures
+read only const values and load values and write only load values;
+runtime procedures write only temporaries and new state. Native
+procedures with `HasState` are used only by load procedures.
+
+One pass over the procedures checks single assignment, using one bit per
+load value, temporary, and state variable. Each output requires its
+destination's bit to be clear and then sets it. Each input from load
+values, temporaries, or new state requires its variable's bit to be set.
+After the pass, every bit is set.
 
 Each instruction stream is decoded once from its start. Opcodes, operand
 kinds and encodings, index bounds, immediate values, operand types, and
@@ -1332,8 +1247,8 @@ Verifiers do not check these rules:
 - Sections do not overlap each other, the header, or the directory.
 - Buffers place variables in decreasing type alignment.
 - The JSON names and the member symbols of one type are distinct.
-- Node, variable, procedure, and present type symbols are distinct within
-  their table.
+- Variable, procedure, and present type symbols are distinct within their
+  table.
 - The build ID matches the unstripped file.
 
 ## State transitions
@@ -1341,7 +1256,7 @@ Verifiers do not check these rules:
 A transition file carries the state of a running program over to a new
 program. It uses the same header and section directory as a program and
 contains the transition's own `ValueTypes`, `TypeLists`, `NativeNames`,
-`StaticValues`, `ProgramData`, `NativeFunctions`, and `ProcedureCode`, and a
+`ConstValues`, `ProgramData`, `NativeFunctions`, and `ProcedureCode`, and a
 `ProcedureBodies` table with one entry: the transition procedure. It has no
 stages, procedure records, bindings, or variable tables.
 
@@ -1377,13 +1292,16 @@ Operand types of inputs and outputs are looked up through the maps; the
 types of used inputs and of all outputs are mapped.
 
 ```wirely
-// Origin of one new native state object. NativeStateSources table.
+// Origin of the native state of one new load procedure.
+// NativeStateSources table.
 struct type NativeStateSource {
-  // Index into the old program's NativeStates to keep, or no entry to
-  // construct a new object.
+  // Index into the old program's Procedures whose native state to keep,
+  // or no entry to create new native state.
   Old: OptionalRef,
 }
 ```
 
-`NativeStateSources` has one entry per entry of the new program's
-`NativeStates`.
+`NativeStateSources` has one entry per load procedure of the new program
+whose native procedure has `HasState`, in procedure order. `Old` refers to
+such a procedure of the old program. Transition rules for native state are
+not specified yet.
