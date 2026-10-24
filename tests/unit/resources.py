@@ -404,6 +404,10 @@ assert [(name, source.resource.name) for name, source in read.named_inputs()] ==
 ]
 alias_resource_engine.step()
 assert alias_reads == [source_state]
+resource_alias = next(name for name, source in alias_program.symbols.variable_aliases.items()
+                      if source.resource is not None)
+with checks.assertRaisesRegex(ValueError, 'refers to a resource'):
+    alias_resource_engine.get_variable(resource_alias)
 
 
 async def run_test():

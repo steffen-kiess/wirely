@@ -463,7 +463,7 @@ class Engine:
         variable = self._get_source(name).variable
         if variable is None:
             raise ValueError(f'Variable alias `{name}` refers to a constant')
-        if not isinstance(variable, Variable):
+        if variable.is_resource:
             raise ValueError(f'Variable alias `{name}` refers to a resource')
         return variable
 
