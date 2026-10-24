@@ -37,13 +37,12 @@ __all__ = [
     'ListValue',
     'RunStage',
     'Stage',
-    'Procedure',
+    'ProcedureInstance',
     'NativeProcedure',
     'NameRef',
     'VariableBank',
-    'Input',
-    'Output',
-    'ProcedureBody',
+    'VariableRef',
+    'BytecodeProcedure',
     'NativeFunction',
     'OperandKind',
     'Opcode',
@@ -236,10 +235,10 @@ class Stage(NamedTuple):
     schedule: Range
 
 
-# Procedure in wirely/program/format.wrl
-class Procedure(NamedTuple):
+# ProcedureInstance in wirely/program/format.wrl
+class ProcedureInstance(NamedTuple):
+    bytecode: OptionalRef
     native: OptionalRef
-    body: OptionalRef
     inputs: Range
     outputs: Range
 
@@ -266,20 +265,14 @@ class VariableBank(OpenIntEnum, minimum=0, maximum=255):
     NewState = 5
 
 
-# Input in wirely/program/format.wrl
-class Input(NamedTuple):
+# VariableRef in wirely/program/format.wrl
+class VariableRef(NamedTuple):
     bank: VariableBank
     variable: Ref
 
 
-# Output in wirely/program/format.wrl
-class Output(NamedTuple):
-    bank: VariableBank
-    variable: Ref
-
-
-# ProcedureBody in wirely/program/format.wrl
-class ProcedureBody(NamedTuple):
+# BytecodeProcedure in wirely/program/format.wrl
+class BytecodeProcedure(NamedTuple):
     code: ByteRange
     locals: Range
 
@@ -554,9 +547,9 @@ _types['Stage'] = TypeStruct('Stage', {
     'Stage': _enums['RunStage'],
     'Schedule': _types['Range'],
 })
-_types['Procedure'] = TypeStruct('Procedure', {
+_types['ProcedureInstance'] = TypeStruct('ProcedureInstance', {
+    'Bytecode': _types['OptionalRef'],
     'Native': _types['OptionalRef'],
-    'Body': _types['OptionalRef'],
     'Inputs': _types['Range'],
     'Outputs': _types['Range'],
 })
@@ -569,15 +562,11 @@ _types['NativeProcedure'] = TypeStruct('NativeProcedure', {
 _types['NameRef'] = TypeStruct('NameRef', {
     'Name': _types['StringRef'],
 })
-_types['Input'] = TypeStruct('Input', {
+_types['VariableRef'] = TypeStruct('VariableRef', {
     'Bank': _enums['VariableBank'],
     'Variable': _types['Ref'],
 })
-_types['Output'] = TypeStruct('Output', {
-    'Bank': _enums['VariableBank'],
-    'Variable': _types['Ref'],
-})
-_types['ProcedureBody'] = TypeStruct('ProcedureBody', {
+_types['BytecodeProcedure'] = TypeStruct('BytecodeProcedure', {
     'Code': _types['ByteRange'],
     'Locals': _types['Range'],
 })
@@ -646,12 +635,11 @@ record_types: dict[type[tuple[Any, ...]], TypeStruct] = {
     ValueTypeValue: _types['ValueTypeValue'],
     ListValue: _types['ListValue'],
     Stage: _types['Stage'],
-    Procedure: _types['Procedure'],
+    ProcedureInstance: _types['ProcedureInstance'],
     NativeProcedure: _types['NativeProcedure'],
     NameRef: _types['NameRef'],
-    Input: _types['Input'],
-    Output: _types['Output'],
-    ProcedureBody: _types['ProcedureBody'],
+    VariableRef: _types['VariableRef'],
+    BytecodeProcedure: _types['BytecodeProcedure'],
     NativeFunction: _types['NativeFunction'],
     SymbolMetadata: _types['SymbolMetadata'],
     Symbol: _types['Symbol'],

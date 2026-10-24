@@ -241,20 +241,20 @@ open enum type RunStage: uint8 {
 struct type Stage {
   // Stage these procedures run in.
   Stage: RunStage,
-  // Range into Procedures, in execution order.
+  // Range into ProcedureInstances, in execution order.
   Schedule: Range,
 }
 
-// A native procedure invocation or procedure body with its bindings.
-// Procedures table.
-struct type Procedure {
-  // Index into NativeProcedures, or no entry for a procedure body.
+// A scheduled instance of a native or bytecode procedure with its bindings.
+// ProcedureInstances table.
+struct type ProcedureInstance {
+  // Index into BytecodeProcedures, or no entry for a native procedure.
+  Bytecode: OptionalRef,
+  // Index into NativeProcedures, or no entry for a bytecode procedure.
   Native: OptionalRef,
-  // Index into ProcedureBodies, or no entry for a native procedure.
-  Body: OptionalRef,
-  // Range into Inputs.
+  // Range into Bindings; sources of the procedure's inputs.
   Inputs: Range,
-  // Range into Outputs.
+  // Range into Bindings; destinations of the procedure's outputs.
   Outputs: Range,
 }
 
@@ -285,9 +285,9 @@ open enum type VariableBank: uint8 {
   NewState = 5,
 }
 
-// Binds one variable or const value to a procedure input.
-// Inputs table.
-struct type Input {
+// A variable or const value bound to a procedure input or output.
+// Bindings table.
+struct type VariableRef {
   // Const values, fixed values, temporaries, old state, or new state.
   Bank: VariableBank,
   // Index into ConstValues, FixedValues, Temporaries, or StateVariables,
@@ -295,24 +295,15 @@ struct type Input {
   Variable: Ref,
 }
 
-// Binds one procedure output to a destination variable. Outputs table.
-struct type Output {
-  // Fixed values, temporaries, or new state.
-  Bank: VariableBank,
-  // Index into FixedValues, Temporaries, or StateVariables, selected by
-  // Bank.
-  Variable: Ref,
-}
-
-// An instruction stream and its locals. ProcedureBodies table.
-struct type ProcedureBody {
+// An instruction stream and its locals. BytecodeProcedures table.
+struct type BytecodeProcedure {
   // Byte range in ProcedureCode; the instruction stream.
   Code: ByteRange,
   // Range into TypeLists; local.N has the type of entry N.
   Locals: Range,
 }
 
-// A native function called by procedure bodies.
+// A native function called by bytecode procedures.
 // NativeFunctions table.
 struct type NativeFunction {
   // Native name in NativeNames.
@@ -426,7 +417,7 @@ struct type TypeMapEntry {
 // Origin of the native state of one new load procedure.
 // NativeStateSources table.
 struct type NativeStateSource {
-  // Index into the old program's Procedures whose native state to keep,
-  // or no entry to create new native state.
+  // Index into the old program's ProcedureInstances whose native state
+  // to keep, or no entry to create new native state.
   Old: OptionalRef,
 }

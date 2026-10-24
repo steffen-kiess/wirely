@@ -2,8 +2,9 @@ import struct
 
 from wirely.program import pack_record, record_size, unpack_record
 from wirely.program.generated.format import (
-    ClosedEnumType, CompositeType, Header, Input, IntegerType, MonotonicTime, OpenEnumType, OptionalRef, Output,
-    Procedure, Range, Ref, ResourceType, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind, VariableBank,
+    ClosedEnumType, CompositeType, Header, IntegerType, MonotonicTime, OpenEnumType, OptionalRef,
+    ProcedureInstance, Range, Ref, ResourceType, RunStage, SectionEntry, SimpleType, Stage, StructType, TypeKind,
+    VariableBank, VariableRef,
 )
 
 
@@ -34,9 +35,12 @@ def check_layout():
     assert pack_record(value) == struct.pack('<II', 3, 4)
     assert unpack_record(Range, pack_record(value)) == value
     assert type(unpack_record(Range, pack_record(value)).first) is Ref
-    procedure = Procedure(OptionalRef(0xffffffff), OptionalRef(2), Range(Ref(3), 4), Range(Ref(5), 6))
-    assert record_size(Procedure) == 24
-    assert unpack_record(Procedure, pack_record(procedure)) == procedure
+    # The bytecode reference precedes the native reference.
+    procedure = ProcedureInstance(bytecode=OptionalRef(2), native=OptionalRef(0xffffffff),
+                                  inputs=Range(Ref(3), 4), outputs=Range(Ref(5), 6))
+    assert record_size(ProcedureInstance) == 24
+    assert pack_record(procedure) == struct.pack('<IIIIII', 2, 0xffffffff, 3, 4, 5, 6)
+    assert unpack_record(ProcedureInstance, pack_record(procedure)) == procedure
 
     # The storage size includes zero tail padding.
     time = MonotonicTime(1 << 100, 7)
@@ -58,9 +62,9 @@ def check_layout():
     assert pack_record(stage) == struct.pack('<BxxxII', 4, 2, 3)
     assert type(unpack_record(Stage, pack_record(stage)).stage) is RunStage
 
-    output = Output(VariableBank.NewState, Ref(1))
+    output = VariableRef(VariableBank.NewState, Ref(1))
     assert pack_record(output) == struct.pack('<BxxxI', 5, 1)
-    assert type(unpack_record(Output, pack_record(output)).bank) is VariableBank
+    assert type(unpack_record(VariableRef, pack_record(output)).bank) is VariableBank
 
     # Records are read at an offset into a larger buffer.
     table = pack_record(Ref(1)) + pack_record(Ref(2)) + pack_record(Ref(3))
@@ -76,10 +80,10 @@ def check_type_record_sizes():
 
 def check_invalid_records():
     check_rejected(IntegerType, bytes([3, 2, 32, 0]), 'Invalid boolean byte 2')
-    # Input has padding between Bank (offset 0) and Variable (offset 4).
-    data = bytearray(pack_record(Input(VariableBank.ConstValues, Ref(2))))
+    # VariableRef has padding between Bank (offset 0) and Variable (offset 4).
+    data = bytearray(pack_record(VariableRef(VariableBank.ConstValues, Ref(2))))
     data[1] = 1
-    check_rejected(Input, bytes(data), 'padding must be zero')
+    check_rejected(VariableRef, bytes(data), 'padding must be zero')
     data = bytearray(pack_record(MonotonicTime(0, 0)))
     data[30] = 1
     check_rejected(MonotonicTime, bytes(data), 'tail padding must be zero')
