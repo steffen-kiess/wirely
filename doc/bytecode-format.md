@@ -1251,8 +1251,11 @@ procedures and aliases. A writer derives the remaining tables:
 - `ValueTypes` interns the types reachable from variables, constants,
   locals, and functions: declared enums, structs, and resources by
   identity, other types structurally.
-- `ConstValues` has one entry per `Constant` object, in the order of
-  `constants`, which includes the targets of variable aliases.
+- `ConstValues` has one entry per retained `Constant` object, ordered by
+  its first use as an input binding, `const` operand, or `FAIL` format.
+  Procedures are visited in stage and schedule order, with input bindings
+  before instructions. Immediate uses do not establish table order.
+  Alias-only constants are omitted without symbol sections.
   `BytecodeProcedures` has one entry per `ProcedureBody` object.
 - Branch targets are instruction indices. Because branches only go
   forward, encoding the instructions from last to first gives each

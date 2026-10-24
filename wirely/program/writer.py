@@ -157,27 +157,31 @@ class _Writer:
         self.types = _Types(self.names)
         self.procedures = [proc for stage in RunStage for proc in program.procs.get(stage, ())]
         self.bodies: dict[int, ProcedureBody] = {}
-        used: set[int] = set()
-        retained: set[int] = set()
+        used: dict[int, Constant] = {}
+        retained: dict[int, Constant] = {}
+        self.immediates = {}
+        # Bindings precede instructions within each scheduled procedure. Only
+        # uses that remain table references establish the constant-table order;
+        # decoded immediates need not share their original Constant identity.
         for procedure in self.procedures:
             for source in procedure.inputs:
                 if source.constant is not None:
-                    used.add(id(source.constant))
-                    retained.add(id(source.constant))
-            if procedure.body is not None:
-                self.bodies.setdefault(id(procedure.body), procedure.body)
-        self.immediates = {}
-        for body in self.bodies.values():
+                    used.setdefault(id(source.constant), source.constant)
+                    retained.setdefault(id(source.constant), source.constant)
+            body = procedure.body
+            if body is None or id(body) in self.bodies:
+                continue
+            self.bodies[id(body)] = body
             for instruction in body.instructions:
                 immediates = _instruction_immediates(instruction)
                 self.immediates[id(instruction)] = immediates
                 for position, operand in enumerate(instruction.operands):
                     constant = operand.constant if isinstance(operand, ConstOperand) else operand
                     if isinstance(constant, Constant):
-                        used.add(id(constant))
+                        used.setdefault(id(constant), constant)
                         if position not in immediates:
-                            retained.add(id(constant))
-        self.constants = [constant for constant in program.constants if id(constant) in retained]
+                            retained.setdefault(id(constant), constant)
+        self.constants = list(retained.values())
         self.constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
         self.function_indices = {function.name: index for index, function in enumerate(program.functions)}
         self.native_indices = {native.name: index for index, native in enumerate(program.native_procedures)}
@@ -191,10 +195,9 @@ class _Writer:
                 self.variable_indices[bank] = indices
             for var in table.offsets:
                 self.types.add(var.var_type)
-        for constant in program.constants:
-            if id(constant) in used:
-                self.types.add(constant.value_type)
-                self.types.value(constant.value_type, constant.value)
+        for constant in used.values():
+            self.types.add(constant.value_type)
+            self.types.value(constant.value_type, constant.value)
         for function in program.functions:
             self.types.type_list(function.parameter_types)
             self.types.add(function.return_type)

@@ -359,6 +359,72 @@ def check_aliases():
     assert data[fmt.SectionType.ProcedureCode] == bytes([1, 0x40, 14, 34])
 
 
+def check_constant_order():
+    def make(separate_immediate):
+        small = Constant(types.uint64, 1)
+        large = Constant(types.uint64, 1 << 40)
+        distinct = Constant(types.uint64, 1)
+        immediate = Constant(types.uint64, 1) if separate_immediate else small
+        return body_program((
+            instruction(Opcode.COPY, local(0), ConstOperand(immediate)),
+            instruction(Opcode.COPY, local(0), ConstOperand(large)),
+            instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(small)),
+            instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(distinct)),
+            instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(small)),
+            instruction(Opcode.RETURN),
+        ), (types.uint64,))
+
+    original, reconstructed = make(False), make(True)
+    original_constants = original.constants
+    assert [constant.value for constant in original_constants] == [1, 1 << 40, 1]
+    assert write_program(original) == write_program(reconstructed)
+    assert original.constants is original_constants
+    data = sections(original)
+    slots = records(data[fmt.SectionType.ConstValues], fmt.Variable)
+    assert [read_const(data[fmt.SectionType.ProgramData], slot.offset, types.uint64,
+                       lambda index: types.uint64) for slot in slots] == [1 << 40, 1, 1]
+    assert slots[1] == slots[2]  # Distinct identities keep entries while sharing their payload.
+    assert data[fmt.SectionType.ProcedureCode] == bytes([
+        1, 0x40, 1, 1, 0x40, 0x20, 25, 0x40, 0x21, 25, 0x40, 0x22, 25, 0x40, 0x21, 34])
+
+
+def check_stage_order():
+    format_constant = Constant(types.TypeList(types.String), ('value: ', '', ''))
+    fail_value = Constant(types.uint16, 3)
+    load = Procedure('load:run', (), (), body=ProcedureBody((
+        instruction(Opcode.FAIL, format_constant, 1, ConstOperand(fail_value)),)))
+    bound = Constant(types.uint64, 4)
+    converted = Constant(types.uint64, 5)
+    body = ProcedureBody((instruction(Opcode.CONVERT_WRAPPING, local(0), ConstOperand(converted)),
+                          instruction(Opcode.RETURN)), (types.uint64,))
+    first = Procedure('first:run', (InputSource(VariableBank.CONST_VALUES, constant=bound),), (), body=body)
+    following = Constant(types.uint64, 6)
+    second = Procedure('second:run', (InputSource(VariableBank.CONST_VALUES, constant=following),), (),
+                       native=NativeProcedureEntry('Test:run', ('input',), ()))
+    nested = types.TypeOption(types.int8)
+    type_constant = Constant(types.ValueType, nested)
+    output = Procedure('output:run', (InputSource(VariableBank.CONST_VALUES, constant=type_constant),), (),
+                       native=second.native)
+    stages = ((RunStage.LOAD, (load,)), (RunStage.INPUT, (first,)),
+              (RunStage.DEFAULT, (second,)), (RunStage.OUTPUT, (output,)))
+    forward, reverse = program(procs=stages), program(procs=reversed(stages))
+    assert forward.constants[0] is format_constant and reverse.constants[0] is type_constant
+    assert write_program(forward) == write_program(reverse)
+    data = sections(reverse)
+    slots = records(data[fmt.SectionType.ConstValues], fmt.Variable)
+    expected = (format_constant, fail_value, bound, converted, following, type_constant)
+    assert len(slots) == len(expected)
+    for slot, constant in zip(slots, expected):
+        assert read_const(data[fmt.SectionType.ProgramData], slot.offset, constant.value_type,
+                          lambda index: nested) == constant.value
+    # Type-valued constants also discover their dependencies in stage order.
+    reference = unpack_record(fmt.ValueTypeValue, data[fmt.SectionType.ProgramData], slots[-1].offset)
+    option = unpack_record(fmt.CompositeType, data[fmt.SectionType.ValueTypes], reference.value_type.value * 32)
+    assert option.kind == fmt.TypeKind.Option and option.inner_type.value < reference.value_type.value
+    inner = unpack_record(fmt.IntegerType, data[fmt.SectionType.ValueTypes], option.inner_type.value * 32)
+    assert inner.signed and inner.bits == 8
+
+
 def check_compiled_programs():
     source = ('node x: Std.DebugValueSource { Type: boolean }\n'
               'node y: Std.TwoStageValueForward { Type: boolean }\nconnect x -> y;')
@@ -421,5 +487,7 @@ async def run_test():
     check_code()
     check_scalar_immediates()
     check_aliases()
+    check_constant_order()
+    check_stage_order()
     check_compiled_programs()
     check_cli()
