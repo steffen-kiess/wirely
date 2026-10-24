@@ -4,15 +4,22 @@ import argparse
 import sys
 
 from ..program.container import ContainerError, SectionList
+from ..program.generated.format import RecordType, SectionType
+
+
+def _name(enum_class: type[SectionType] | type[RecordType], value: int) -> str:
+    """Return the name of a known section or record type, or '?'."""
+    return enum_class(value).name or '?'
 
 
 def _print_headers(section_list: SectionList) -> None:
     major, minor = section_list.version
     print(f'Format version {major}.{minor}, {len(section_list.sections)} sections')
     print()
-    print('Idx  Section type  Record type  Length')
+    print('Idx  Section type  Record type  Length    Section, record type')
     for index, section in enumerate(section_list.sections):
-        print(f'{index:3}  0x{section.section_type:08x}    0x{section.record_type:08x}   {section.length}')
+        names = f'{_name(SectionType, section.section_type)}, {_name(RecordType, section.record_type)}'
+        print(f'{index:3}  0x{section.section_type:08x}    0x{section.record_type:08x}   {section.length:<8}  {names}')
 
 
 def _print_contents(section_list: SectionList) -> None:

@@ -95,7 +95,9 @@ def check_objdump():
         status, headers = run_objdump(path, section_headers=True)
         assert status == 0
         assert 'Format version 0.1, 3 sections' in headers
-        assert '  0  0x00000001    0x0000000a   3' in headers
+        assert '  0  0x00000001    0x0000000a   3         BuildIDSHA512, Stage' in headers
+        assert '  1  0x00000002    0x00000014   0         NativeNames, ?' in headers
+        assert '  2  0xffffffff    0x00000000   20        ?, Buffer' in headers
         assert run_objdump(path, all_headers=True) == (0, headers)
 
         status, contents = run_objdump(path, full_contents=True)

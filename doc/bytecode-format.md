@@ -70,7 +70,7 @@ length is an exact multiple of the record size. A record section contains
 one record with its storage size. A buffer contains `Length` bytes of
 values, strings, or instruction streams. Empty tables and buffers have
 length zero. Padding between sections is outside their lengths.
-Buffers use record type `None` (0).
+Buffers use record type `Buffer` (0).
 
 Consumers ignore unknown section types. Structured records are always
 stored in tables or record sections, so a known `RecordType` lets
@@ -81,37 +81,65 @@ section's semantics.
 `wirely objdump -h FILE` lists the sections of a file, and `-s` dumps
 their contents.
 
-| ID | Section | Record type | Layout |
-| --- | --- | --- | --- |
-| 1 | [`BuildIDSHA512`](#buildidsha512) | `None` | Buffer |
-| 2 | [`NativeNames`](#nativenames) | `None` | Buffer |
-| 3 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
-| 4 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
-| 5 | [`ProgramData`](#programdata) | `None` | Buffer |
-| 6 | [`ConstValues`](#constvalues) | `Variable` | Table |
-| 7 | [`FixedValues`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| 8 | [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| 9 | [`StateVariables`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| 10 | [`InitialState`](#initialstate) | `None` | Buffer |
-| 11 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
-| 12 | [`ProcedureCode`](#procedurecode) | `None` | Buffer |
-| 13 | [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
-| 14 | [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
-| 15 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
-| 16 | [`Bindings`](#bindings) | `VariableRef` | Table |
-| 17 | [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
-| 18 | [`Stages`](#stages) | `Stage` | Table |
-| 19 | [`JsonData`](#jsondata) | `None` | Buffer |
-| 20 | [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
-| 21 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
-| — | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
-| — | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
-| — | [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
-| — | [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
-| — | [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
-| — | [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
-| — | [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
-| — | [`SymbolData`](#symboldata) | `None` | Buffer |
+| Section | Record type | Layout |
+| --- | --- | --- |
+| [`BuildIDSHA512`](#buildidsha512) | `Buffer` | Buffer |
+| [`NativeNames`](#nativenames) | `Buffer` | Buffer |
+| [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
+| [`TypeLists`](#typelists) | `TypeEntry` | Table |
+| [`ProgramData`](#programdata) | `Buffer` | Buffer |
+| [`ConstValues`](#constvalues) | `Variable` | Table |
+| [`FixedValues`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| [`StateVariables`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| [`InitialState`](#initialstate) | `Buffer` | Buffer |
+| [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
+| [`ProcedureCode`](#procedurecode) | `Buffer` | Buffer |
+| [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
+| [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
+| [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
+| [`Bindings`](#bindings) | `VariableRef` | Table |
+| [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
+| [`Stages`](#stages) | `Stage` | Table |
+| [`JsonData`](#jsondata) | `Buffer` | Buffer |
+| [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
+| [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
+| [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
+| [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
+| [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
+| [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
+| [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
+| [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
+| [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
+| [`SymbolData`](#symboldata) | `Buffer` | Buffer |
+
+```wirely
+// The purpose of a section, in SectionEntry.SectionType. 0 is not a valid
+// section type.
+open enum type SectionType: uint32 {
+  BuildIDSHA512 = 1,
+  NativeNames = 2,
+  ValueTypes = 3,
+  TypeLists = 4,
+  ProgramData = 5,
+  ConstValues = 6,
+  FixedValues = 7,
+  Temporaries = 8,
+  StateVariables = 9,
+  InitialState = 10,
+  NativeFunctions = 11,
+  ProcedureCode = 12,
+  BytecodeProcedures = 13,
+  InterfaceNames = 14,
+  NativeProcedures = 15,
+  Bindings = 16,
+  ProcedureInstances = 17,
+  Stages = 18,
+  JsonData = 19,
+  JsonNames = 20,
+  JsonTypes = 21,
+}
+```
 
 The sections from `SymbolMetadata` on are
 [symbol sections](#symbol-sections); each of them is optional. All other
@@ -120,21 +148,24 @@ sections are present.
 Record type IDs identify section layouts. IDs for records used only by
 symbols or transitions are not assigned yet.
 
-| ID | Record type |
-| --- | --- |
-| 0 | `None` |
-| 1 | `TypeRecord` |
-| 2 | `TypeEntry` |
-| 3 | `Variable` |
-| 4 | `NativeFunction` |
-| 5 | `BytecodeProcedure` |
-| 6 | `NameRef` |
-| 7 | `NativeProcedure` |
-| 8 | `VariableRef` |
-| 9 | `ProcedureInstance` |
-| 10 | `Stage` |
-| 11 | `JsonName` |
-| 12 | `JsonType` |
+```wirely
+// The layout of a section's contents, in SectionEntry.RecordType.
+open enum type RecordType: uint32 {
+  Buffer = 0,
+  TypeRecord = 1,
+  TypeEntry = 2,
+  Variable = 3,
+  NativeFunction = 4,
+  BytecodeProcedure = 5,
+  NameRef = 6,
+  NativeProcedure = 7,
+  VariableRef = 8,
+  ProcedureInstance = 9,
+  Stage = 10,
+  JsonName = 11,
+  JsonType = 12,
+}
+```
 
 A known section with a record type other than its listed one fails
 verification. This lets a later format allow a second record type for a

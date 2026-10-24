@@ -31,6 +31,49 @@ struct type SectionEntry {
   RecordType: uint32,
 }
 
+// The purpose of a section, in SectionEntry.SectionType. 0 is not a valid
+// section type.
+open enum type SectionType: uint32 {
+  BuildIDSHA512 = 1,
+  NativeNames = 2,
+  ValueTypes = 3,
+  TypeLists = 4,
+  ProgramData = 5,
+  ConstValues = 6,
+  FixedValues = 7,
+  Temporaries = 8,
+  StateVariables = 9,
+  InitialState = 10,
+  NativeFunctions = 11,
+  ProcedureCode = 12,
+  BytecodeProcedures = 13,
+  InterfaceNames = 14,
+  NativeProcedures = 15,
+  Bindings = 16,
+  ProcedureInstances = 17,
+  Stages = 18,
+  JsonData = 19,
+  JsonNames = 20,
+  JsonTypes = 21,
+}
+
+// The layout of a section's contents, in SectionEntry.RecordType.
+open enum type RecordType: uint32 {
+  Buffer = 0,
+  TypeRecord = 1,
+  TypeEntry = 2,
+  Variable = 3,
+  NativeFunction = 4,
+  BytecodeProcedure = 5,
+  NameRef = 6,
+  NativeProcedure = 7,
+  VariableRef = 8,
+  ProcedureInstance = 9,
+  Stage = 10,
+  JsonName = 11,
+  JsonType = 12,
+}
+
 // An entry in the table named by the referring field's comment.
 struct type Ref {
   Value: uint32,

@@ -12,6 +12,8 @@ from wirely.types.value_types import OpenIntEnum
 __all__ = [
     'Header',
     'SectionEntry',
+    'SectionType',
+    'RecordType',
     'Ref',
     'OptionalRef',
     'Range',
@@ -72,6 +74,48 @@ class SectionEntry(NamedTuple):
     length: int
     section_type: int
     record_type: int
+
+
+# SectionType in wirely/program/format.wrl
+class SectionType(OpenIntEnum, minimum=0, maximum=4294967295):
+    BuildIDSHA512 = 1
+    NativeNames = 2
+    ValueTypes = 3
+    TypeLists = 4
+    ProgramData = 5
+    ConstValues = 6
+    FixedValues = 7
+    Temporaries = 8
+    StateVariables = 9
+    InitialState = 10
+    NativeFunctions = 11
+    ProcedureCode = 12
+    BytecodeProcedures = 13
+    InterfaceNames = 14
+    NativeProcedures = 15
+    Bindings = 16
+    ProcedureInstances = 17
+    Stages = 18
+    JsonData = 19
+    JsonNames = 20
+    JsonTypes = 21
+
+
+# RecordType in wirely/program/format.wrl
+class RecordType(OpenIntEnum, minimum=0, maximum=4294967295):
+    Buffer = 0
+    TypeRecord = 1
+    TypeEntry = 2
+    Variable = 3
+    NativeFunction = 4
+    BytecodeProcedure = 5
+    NameRef = 6
+    NativeProcedure = 7
+    VariableRef = 8
+    ProcedureInstance = 9
+    Stage = 10
+    JsonName = 11
+    JsonType = 12
 
 
 # Ref in wirely/program/format.wrl
@@ -369,6 +413,44 @@ class NativeStateSource(NamedTuple):
 
 # Wirely types of the enums.
 _enums: dict[str, TypeEnum] = {}
+_enums['SectionType'] = TypeEnum('SectionType', {
+    'BuildIDSHA512': 1,
+    'NativeNames': 2,
+    'ValueTypes': 3,
+    'TypeLists': 4,
+    'ProgramData': 5,
+    'ConstValues': 6,
+    'FixedValues': 7,
+    'Temporaries': 8,
+    'StateVariables': 9,
+    'InitialState': 10,
+    'NativeFunctions': 11,
+    'ProcedureCode': 12,
+    'BytecodeProcedures': 13,
+    'InterfaceNames': 14,
+    'NativeProcedures': 15,
+    'Bindings': 16,
+    'ProcedureInstances': 17,
+    'Stages': 18,
+    'JsonData': 19,
+    'JsonNames': 20,
+    'JsonTypes': 21,
+}, is_open=True, underlying_type=uint32)
+_enums['RecordType'] = TypeEnum('RecordType', {
+    'Buffer': 0,
+    'TypeRecord': 1,
+    'TypeEntry': 2,
+    'Variable': 3,
+    'NativeFunction': 4,
+    'BytecodeProcedure': 5,
+    'NameRef': 6,
+    'NativeProcedure': 7,
+    'VariableRef': 8,
+    'ProcedureInstance': 9,
+    'Stage': 10,
+    'JsonName': 11,
+    'JsonType': 12,
+}, is_open=True, underlying_type=uint32)
 _enums['TypeKind'] = TypeEnum('TypeKind', {
     'Unit': 1,
     'Boolean': 2,
@@ -601,6 +683,8 @@ _types['NativeStateSource'] = TypeStruct('NativeStateSource', {
 
 # Wirely type of each enum class.
 enum_types: dict[type[enum.IntEnum], TypeEnum] = {
+    SectionType: _enums['SectionType'],
+    RecordType: _enums['RecordType'],
     TypeKind: _enums['TypeKind'],
     RunStage: _enums['RunStage'],
     VariableBank: _enums['VariableBank'],
