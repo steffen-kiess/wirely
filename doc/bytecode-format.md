@@ -136,6 +136,11 @@ symbols or transitions are not assigned yet.
 | 11 | `JsonName` |
 | 12 | `JsonType` |
 
+A known section with a record type other than its listed one fails
+verification. This lets a later format allow a second record type for a
+section, such as an extended record: files that use the extension become
+unreadable for older runtimes, while files that don't remain compatible.
+
 ### BuildIDSHA512
 
 `BuildIDSHA512` contains the 64-byte SHA-512 digest of the entire
@@ -610,6 +615,12 @@ program leaves the running program unchanged until loading succeeds.
 Native objects created during loading become fully functional only after
 that. Running the steps of runtime procedures and state transitions
 cannot fail.
+
+Whether loading succeeds is deterministic. Verification, linking, load
+procedures, and preparation depend only on the program and the runtime,
+not on the environment, and in a transition not on the transition, the
+old program, or its state. A program that loaded once therefore also
+loads after a restart.
 
 ### ProcedureInstances
 
