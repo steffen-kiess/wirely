@@ -927,9 +927,12 @@ within the selected range or table.
 An `immediate` operand stores its value N in the index field, so
 instructions can be decoded without type information. The operand has the
 type the instruction requires at its position, as determined by another
-operand or by the called function. Immediates cannot be used where no
-other operand determines the type, such as conversion sources. The type is
-an integer, boolean, or enum type, and N is interpreted as follows:
+operand, the called function, or the instruction itself. Shift counts have
+type `uint32`, and branch conditions have type boolean; both allow
+immediates. Conversion sources and `FAIL` values cannot be immediates.
+For `EQUAL` and `LESS`, at most one source is an immediate; the other
+source determines its type. The type is an integer, boolean, or enum type,
+and N is interpreted as follows:
 
 - An unsigned integer is N.
 - A signed integer is N zigzag-decoded, `(N >> 1) ^ -(N & 1)`: N = 0, 1, 2,
