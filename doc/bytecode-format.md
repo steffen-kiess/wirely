@@ -96,8 +96,7 @@ their contents.
 | [`Procedures`](#procedures) | `Procedure` | Table |
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
 | [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
-| [`Inputs`](#inputs) | `Input` | Table |
-| [`Outputs`](#outputs) | `Output` | Table |
+| [`Bindings`](#bindings) | `VariableRef` | Table |
 | [`ProcedureBodies`](#procedurebodies) | `ProcedureBody` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
 | [`NativeNames`](#nativenames) | — | Buffer |
@@ -589,9 +588,9 @@ struct type Procedure {
   Native: OptionalRef,
   // Index into ProcedureBodies, or no entry for a native procedure.
   Body: OptionalRef,
-  // Range into Inputs.
+  // Range into Bindings; sources of the procedure's inputs.
   Inputs: Range,
-  // Range into Outputs.
+  // Range into Bindings; destinations of the procedure's outputs.
   Outputs: Range,
 }
 ```
@@ -658,7 +657,7 @@ struct type NameRef {
 procedures as ranges. Each range contains unique names in UTF-8 bytewise
 lexical order.
 
-### Inputs
+### Bindings
 
 ```wirely
 // The storage a variable reference selects. 0 is not a valid bank.
@@ -672,9 +671,9 @@ open enum type VariableBank: uint8 {
 ```
 
 ```wirely
-// Binds one variable or const value to a procedure input.
-// Inputs table.
-struct type Input {
+// A variable or const value bound to a procedure input or output.
+// Bindings table.
+struct type VariableRef {
   // Const values, fixed values, temporaries, old state, or new state.
   Bank: VariableBank,
   // Index into ConstValues, FixedValues, Temporaries, or StateVariables,
@@ -682,6 +681,12 @@ struct type Input {
   Variable: Ref,
 }
 ```
+
+`Procedure.Inputs` and `Procedure.Outputs` select ranges in `Bindings`.
+Inputs can refer to any bank; outputs refer only to fixed values,
+temporaries, or new state.
+
+#### Inputs
 
 For native calls, the `Inputs` range has one entry per name of the native
 procedure's `InputNames` range; entry N binds input N. Optional parameter
@@ -705,18 +710,7 @@ previous values. Const and fixed inputs never change and are not compared.
 Requests from native code also require execution. A skipped procedure
 preserves its state and temporary outputs.
 
-### Outputs
-
-```wirely
-// Binds one procedure output to a destination variable. Outputs table.
-struct type Output {
-  // Fixed values, temporaries, or new state.
-  Bank: VariableBank,
-  // Index into FixedValues, Temporaries, or StateVariables, selected by
-  // Bank.
-  Variable: Ref,
-}
-```
+#### Outputs
 
 For native calls, the `Outputs` range has one entry per name of the native
 procedure's `OutputNames` range; entry N binds output N.
@@ -1145,9 +1139,9 @@ ranges support independent reads.
 | `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
 | `fixed_values`, `resource_slots` | `FixedValues`, with resource entries using `ResourceType` |
 | `initial_state` | `InitialState` |
-| `procs[*].values` | `Inputs` from `ConstValues`, and their values |
-| `procs[*].dependencies` | `Inputs` from the sources' banks |
-| `procs[*].outputs` | `Outputs` to fixed values, temporaries, or new state |
+| `procs[*].values` | Input `Bindings` from `ConstValues`, and their values |
+| `procs[*].dependencies` | Input `Bindings` from the sources' banks |
+| `procs[*].outputs` | Output `Bindings` to fixed values, temporaries, or new state |
 | `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ValueTypes` |
 | `procs[LOAD]`, `procs[*].initializer` | Ordered `Load` procedures and native `Initializer` flags |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
