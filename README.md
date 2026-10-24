@@ -33,7 +33,7 @@ python3 -m wirely compile program.wrl
 
 Use `wirely compile --dump-program program.wrl` to print the compiled
 runtime program, including its variables, configuration, and procedures.
-Use `wirely compile --output program.wbc program.wrl` to write a binary
+Use `wirely compile -o program.wbc program.wrl` to write a binary
 program file.
 Run it with `wirely run-service program.wbc`.
 Add `--timings` to print the duration of each compiler stage.

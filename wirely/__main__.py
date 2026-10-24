@@ -30,7 +30,7 @@ def main() -> None:
     engine_group.add_argument('--no-create-engine', dest='create_engine', action='store_false')
     compile_parser.add_argument('--dump-program', action='store_true',
                                 help='dump the compiled runtime program to stdout')
-    compile_parser.add_argument('--output', metavar='FILE',
+    compile_parser.add_argument('-o', '--output', metavar='FILE',
                                 help='write the compiled binary program to FILE')
     compile_parser.add_argument('--timings', action='store_true',
                                 help='print the duration of each compiler stage to stderr')

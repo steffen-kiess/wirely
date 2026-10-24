@@ -459,6 +459,10 @@ def check_cli():
         assert result.returncode == 0, result.stderr
         assert len(SectionList.load(output).sections) == 21
         original = output.read_bytes()
+        short_output = directory / 'short.wbc'
+        result = run('-o', short_output, source)
+        assert result.returncode == 0, result.stderr
+        assert short_output.read_bytes() == original
         result = run('--no-create-program', '--output', output, source)
         assert result.returncode == 2 and '--no-create-program' in result.stderr
         assert output.read_bytes() == original
