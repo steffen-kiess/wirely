@@ -81,7 +81,6 @@ their contents.
 | Section | Record type | Layout |
 | --- | --- | --- |
 | [`BuildIDSHA512`](#buildidsha512) | — | Buffer |
-| [`NativeNames`](#nativenames) | — | Buffer |
 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
@@ -101,6 +100,7 @@ their contents.
 | [`Outputs`](#outputs) | `Output` | Table |
 | [`ProcedureBodies`](#procedurebodies) | `ProcedureBody` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
+| [`NativeNames`](#nativenames) | — | Buffer |
 | [`ProcedureCode`](#procedurecode) | — | Buffer |
 | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
 | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
@@ -214,11 +214,6 @@ A qualified name is one string whose components are joined by `.`, such as
 `ABB.JRA.Shutter`.
 
 ## Types
-
-### NativeNames
-
-`NativeNames` contains the UTF-8 native names and interface names used for
-linking.
 
 ### ValueTypes
 
@@ -757,6 +752,12 @@ struct type NativeFunction {
 ```
 
 Entries are sorted by UTF-8 name bytes, without duplicates.
+
+### NativeNames
+
+`NativeNames` contains the UTF-8 names used to link native types,
+procedures, and functions, and to bind native procedure inputs and
+outputs by name.
 
 ### Linking
 
