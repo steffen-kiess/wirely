@@ -7,11 +7,10 @@ from typing import Any, Literal, TypeVar, overload
 from .. import types
 from ..runtime.extensions import NativeTypes, resolve_extensions
 from .const_data import ConstDataReader
-from .container import SectionList
-from .encoding import decode_integer_parameter, decode_value_operand, immediate_positions
+from ._binary import BinaryFile, ValueRef, at as _at, slice_range as _slice
 from .generated import format as fmt
 from .procedures import (
-    ARITHMETIC_OPCODES, CONVERSION_OPCODES, BranchTarget, Constant, ConstOperand, Function,
+    ARITHMETIC_OPCODES, BranchTarget, Constant, ConstOperand, Function,
     Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import (
@@ -20,31 +19,15 @@ from .program import (
 )
 from .records import record_size, unpack_record
 from .validation import validate_program
+from .verifier import _verified_file
 
 T = TypeVar('T')
 R = TypeVar('R', bound=tuple[Any, ...])
 
 
-def _at(items: Sequence[T], index: int, what: str) -> T:
-    if not 0 <= index < len(items):
-        raise ValueError(f'{what} index {index} is out of range')
-    return items[index]
-
-
-def _slice(items: Sequence[T], first: int, count: int, what: str) -> Sequence[T]:
-    if first < 0 or count < 0 or first + count > len(items):
-        raise ValueError(f'{what} range {first}+{count} is out of bounds')
-    return items[first:first + count]
-
-
 @dataclass(frozen=True)
 class _Immediate:
     number: int
-
-
-@dataclass(frozen=True)
-class _BranchOffset:
-    displacement: int
 
 
 @dataclass
@@ -54,36 +37,9 @@ class _RawInstruction:
 
 
 class _Loader:
-    def __init__(self, data: bytes | bytearray | memoryview, native_types: NativeTypes,
-                 max_decoded_values: int) -> None:
+    def __init__(self, file: BinaryFile, native_types: NativeTypes, max_decoded_values: int) -> None:
+        self.file = file
         self.native_types = native_types
-        self.sections = {section.section_type: section for section in SectionList.from_bytes(data).sections}
-        # Buffers have record type zero; structured sections name their layouts.
-        record_types = {
-            fmt.SectionType.ValueTypes: fmt.RecordType.TypeRecord,
-            fmt.SectionType.TypeLists: fmt.RecordType.TypeEntry,
-            fmt.SectionType.ConstValues: fmt.RecordType.Variable,
-            fmt.SectionType.FixedValues: fmt.RecordType.Variable,
-            fmt.SectionType.Temporaries: fmt.RecordType.Variable,
-            fmt.SectionType.StateVariables: fmt.RecordType.Variable,
-            fmt.SectionType.NativeFunctions: fmt.RecordType.NativeFunction,
-            fmt.SectionType.BytecodeProcedures: fmt.RecordType.BytecodeProcedure,
-            fmt.SectionType.InterfaceNames: fmt.RecordType.NameRef,
-            fmt.SectionType.NativeProcedures: fmt.RecordType.NativeProcedure,
-            fmt.SectionType.Bindings: fmt.RecordType.VariableRef,
-            fmt.SectionType.ProcedureInstances: fmt.RecordType.ProcedureInstance,
-            fmt.SectionType.Stages: fmt.RecordType.Stage,
-            fmt.SectionType.JsonNames: fmt.RecordType.JsonName,
-            fmt.SectionType.JsonTypes: fmt.RecordType.JsonType,
-        }
-        for section in fmt.SectionType:
-            if section not in self.sections:
-                raise ValueError(f'Missing section {section.name}')
-            expected = record_types.get(section, fmt.RecordType.Buffer)
-            if self.sections[section].record_type != expected:
-                raise ValueError(f'Section {section.name} has the wrong record type; expected {expected.name}')
-        if len(self.buffer(fmt.SectionType.BuildIDSHA512)) != 64:
-            raise ValueError('BuildIDSHA512 must contain 64 bytes')
         self.type_lists = self.table(fmt.SectionType.TypeLists, fmt.TypeEntry)
         self.json_names = self.table(fmt.SectionType.JsonNames, fmt.JsonName)
         self.json_types: dict[int, fmt.JsonType] = {}
@@ -137,21 +93,14 @@ class _Loader:
                         for record in self.table(fmt.SectionType.NativeProcedures, fmt.NativeProcedure)]
         self.bindings = self.table(fmt.SectionType.Bindings, fmt.VariableRef)
         self.bytecode = self.table(fmt.SectionType.BytecodeProcedures, fmt.BytecodeProcedure)
-        self.raw_bodies = [self.raw_body(record.code) for record in self.bytecode]
+        self.raw_bodies = [self.raw_body(index) for index in range(len(self.bytecode))]
         self.resolved_bodies: dict[tuple[int, tuple[int, ...]], ProcedureBody] = {}
 
-    def buffer(self, section: fmt.SectionType) -> bytes:
-        return self.sections[section].data
+    def buffer(self, section: fmt.SectionType) -> memoryview:
+        return self.file.buffer(section)
 
     def table(self, section: fmt.SectionType, record_class: type[R]) -> list[R]:
-        data = self.buffer(section)
-        size = record_size(record_class)
-        if len(data) % size:
-            raise ValueError(f'Section {section.name} contains a truncated record')
-        try:
-            return [unpack_record(record_class, data, offset) for offset in range(0, len(data), size)]
-        except ValueError as error:
-            raise ValueError(f'Section {section.name}: {error}') from error
+        return self.file.table(section, record_class)
 
     @staticmethod
     def range(items: Sequence[T], interval: fmt.Range, what: str) -> Sequence[T]:
@@ -159,16 +108,10 @@ class _Loader:
 
     def string(self, ref: fmt.StringRef | fmt.OptionalStringRef,
                section: fmt.SectionType = fmt.SectionType.NativeNames) -> str:
-        data = self.buffer(section)
-        if ref.length_bytes == 0 and ref.offset != 0:
-            raise ValueError('Empty strings must have offset zero')
-        try:
-            return bytes(_slice(data, ref.offset, ref.length_bytes, section.name or 'String')).decode('utf-8')
-        except UnicodeDecodeError as error:
-            raise ValueError(f'Section {section.name} contains invalid UTF-8') from error
+        return self.file.string(ref, section)
 
     def optional_name(self, ref: fmt.OptionalStringRef) -> str | None:
-        return None if ref == fmt.OptionalStringRef(0xffffffff, 0xffffffff) else self.string(ref)
+        return self.file.optional_name(ref)
 
     def type_at(self, index: int) -> types.Type:
         return _at(self.types, index, 'ValueTypes')
@@ -251,87 +194,28 @@ class _Loader:
         inner = self.type_at(record.inner_type.value)
         return types.TypeOption(inner) if kind == fmt.TypeKind.Option else types.TypeList(inner)
 
-    def raw_body(self, interval: fmt.ByteRange) -> list[_RawInstruction]:
-        data = bytes(_slice(self.buffer(fmt.SectionType.ProcedureCode), interval.offset, interval.length, 'ProcedureCode'))
-        instructions: list[_RawInstruction] = []
-        offsets: dict[int, int] = {}
-        offset = 0
-        while offset < len(data):
-            start = offset
-            offsets[start] = len(instructions)
-            try:
-                encoded_opcode = fmt.Opcode(data[offset])
-                if encoded_opcode not in tuple(fmt.Opcode):
-                    raise ValueError(f'Unknown opcode {encoded_opcode}')
-                opcode = Opcode[encoded_opcode.name or '']
-                offset += 1
-                operands: list[Any] = []
-
-                def value() -> None:
-                    nonlocal offset
-                    kind, index, offset = decode_value_operand(data, offset)
-                    if kind == fmt.OperandKind.Immediate:
-                        operands.append(_Immediate(index))
-                    elif kind == fmt.OperandKind.Const:
-                        operands.append(ConstOperand(_at(self.constants, index, 'ConstValues')))
+    def raw_body(self, index: int) -> list[_RawInstruction]:
+        instructions = []
+        for raw in self.file.instructions(index):
+            opcode = Opcode[raw.opcode.name or '']
+            operands: list[Any] = []
+            for position, operand in enumerate(raw.operands):
+                if isinstance(operand, ValueRef):
+                    if operand.kind == fmt.OperandKind.Immediate:
+                        operands.append(_Immediate(operand.index))
+                    elif operand.kind == fmt.OperandKind.Const:
+                        operands.append(ConstOperand(_at(self.constants, operand.index, 'ConstValues')))
                     else:
-                        operands.append(Operand(OperandKind[(kind.name or '').upper()], index))
-
-                def parameter() -> int:
-                    nonlocal offset
-                    number, offset = decode_integer_parameter(data, offset)
-                    return number
-
-                if opcode in (Opcode.CALL, Opcode.FAIL):
-                    if opcode == Opcode.CALL:
-                        value()
-                        operands.append(_at(self.functions, parameter(), 'NativeFunctions'))
-                    else:
-                        operands.append(_at(self.constants, parameter(), 'ConstValues'))
-                    count = parameter()
-                    operands.append(count)
-                    if count > len(data) - offset:
-                        raise ValueError('Argument count exceeds instruction stream')
-                    for _ in range(count):
-                        value()
+                        operands.append(Operand(OperandKind[(operand.kind.name or '').upper()], operand.index))
+                elif opcode == Opcode.CALL and position == 1:
+                    operands.append(_at(self.functions, operand, 'NativeFunctions'))
+                elif opcode == Opcode.FAIL and position == 0:
+                    operands.append(_at(self.constants, operand, 'ConstValues'))
+                elif opcode == Opcode.JUMP or (opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE) and position == 1):
+                    operands.append(BranchTarget(operand))
                 else:
-                    if opcode == Opcode.RETURN:
-                        signature = ''
-                    elif opcode == Opcode.JUMP:
-                        signature = 'b'
-                    elif opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
-                        signature = 'vb'
-                    elif opcode in (Opcode.GET_FIELD, Opcode.SET_FIELD):
-                        signature = 'vvp'
-                    elif opcode == Opcode.SET_DEFAULT:
-                        signature = 'v'
-                    elif opcode in (Opcode.COPY, Opcode.MAKE_SOME, Opcode.GET_OPTION_VALUE, Opcode.IS_SOME,
-                                    Opcode.NOT, *CONVERSION_OPCODES):
-                        signature = 'vv'
-                    else:
-                        signature = 'vvv'
-                    for item in signature:
-                        if item == 'v':
-                            value()
-                        else:
-                            number = parameter()
-                            operands.append(_BranchOffset(number) if item == 'b' else number)
-                allowed = immediate_positions(encoded_opcode, len(operands))
-                for position, operand in enumerate(operands):
-                    if isinstance(operand, _Immediate) and position not in allowed:
-                        raise ValueError('Immediate is not allowed at this position')
-                instructions.append(_RawInstruction(opcode, operands))
-                for position, operand in enumerate(operands):
-                    if isinstance(operand, _BranchOffset):
-                        operands[position] = _BranchOffset(offset + operand.displacement)
-            except ValueError as error:
-                raise ValueError(f'ProcedureCode at byte {interval.offset + start}: {error}') from error
-        for instruction in instructions:
-            for position, operand in enumerate(instruction.operands):
-                if isinstance(operand, _BranchOffset):
-                    if operand.displacement not in offsets:
-                        raise ValueError('Branch target is not an instruction start inside the stream')
-                    instruction.operands[position] = BranchTarget(offsets[operand.displacement])
+                    operands.append(operand)
+            instructions.append(_RawInstruction(opcode, operands))
         return instructions
 
     def body(self, index: int, inputs: tuple[InputSource, ...], outputs: tuple[OutputTarget, ...]) -> ProcedureBody:
@@ -474,17 +358,19 @@ class _Loader:
 
 
 def load_program(data: bytes | bytearray | memoryview, *, native_types: NativeTypes | None = None,
-                 max_decoded_values: int = 1_000_000) -> Program:
+                 max_decoded_values: int = 1_000_000, max_verification_steps: int = 10_000_000) -> Program:
     """Decode a binary program without linking or executing its load stage.
 
     native_types defaults to the built-in registry. max_decoded_values bounds
     the total number of const values, including nested fields and list elements.
+    max_verification_steps bounds the preceding native-independent verification.
     """
     if max_decoded_values < 0:
         raise ValueError('max_decoded_values must be nonnegative')
+    file = _verified_file(data, max_verification_steps)
     if native_types is None:
         native_types = resolve_extensions().native_types
     try:
-        return _Loader(data, native_types, max_decoded_values).program()
+        return _Loader(file, native_types, max_decoded_values).program()
     except RecursionError as error:
         raise ValueError('Program types or values are nested too deeply') from error

@@ -61,6 +61,13 @@ def roundtrip(prog):
     return loaded
 
 
+def state_program(variables, initial):
+    outputs = tuple(OutputTarget(VariableBank.NEW_STATE, variable) for variable in variables)
+    names = tuple(f'value{index:08}' for index in range(len(outputs)))
+    proc = Procedure('test:state', (), outputs, native=NativeProcedureEntry('Test:state', (), names))
+    return program(state=variables, initial=initial, procs=((RunStage.DEFAULT, (proc,)),))
+
+
 def check_helpers():
     for kind in fmt.OperandKind:
         for index in (0, 28, 29, 255, 256, 65535, 65536, 0xffffffff):
@@ -106,7 +113,7 @@ def check_stripped_types_and_state():
     other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
     variables = (Variable('pair', pair), Variable('other', other), Variable('signed', signed),
                  Variable('empty', types.TypeStruct('Empty', {})))
-    original = program(state=variables, initial=dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
+    original = state_program(variables, dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
     loaded = roundtrip(original)
     state = list(loaded.state_variables.offsets)
     assert list(loaded.initial_state.values()) == [original.initial_state[var] for var in original.state_variables.offsets]
@@ -126,7 +133,7 @@ def check_stripped_types_and_state():
 def check_json_presence():
     opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8)
     variable = Variable('value', opened)
-    image = write_program(program(state=(variable,), initial={variable: 7}))
+    image = write_program(state_program((variable,), {variable: 7}))
     present = load_program(image)
     assert next(iter(present.state_variables.offsets)).var_type.is_json_serializable
     # A zero-name entry still enables numeric JSON conversion for an open enum.
@@ -247,7 +254,7 @@ def check_malformed():
 def check_native_registry():
     opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
     variable = Variable('value', opaque)
-    image = write_program(program(state=(variable,), initial={variable: (7,)}))
+    image = write_program(state_program((variable,), {variable: (7,)}))
     factory = Mock(side_effect=AssertionError('Decoding must not load native implementations'))
     registry = NativeTypes(opaque_types={'Custom.Native': NativeOpaque((Int(8, False),), factory)})
     loaded = load_program(image, native_types=registry)

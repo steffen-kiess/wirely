@@ -49,13 +49,20 @@ def decode_value_operand(data: bytes | memoryview, offset: int = 0) -> tuple[Ope
     if selector <= 28:
         return kind, selector, offset
     index, offset = _read_integer(data, offset, {29: 1, 30: 2, 31: 4}[selector])
+    if (selector == 29 and index <= 28) or (selector == 30 and index <= 255) or (selector == 31 and index <= 65535):
+        raise ValueError('Noncanonical value operand encoding')
     return kind, index, offset
 
 
 def decode_integer_parameter(data: bytes | memoryview, offset: int = 0) -> tuple[int, int]:
     """Return an unsigned integer parameter and the next byte offset."""
     first, offset = _read_integer(data, offset, 1)
-    return (first, offset) if first <= 253 else _read_integer(data, offset, 2 if first == 254 else 4)
+    if first <= 253:
+        return first, offset
+    value, offset = _read_integer(data, offset, 2 if first == 254 else 4)
+    if (first == 254 and value <= 253) or (first == 255 and value <= 65535):
+        raise ValueError('Noncanonical integer parameter encoding')
+    return value, offset
 
 
 def immediate_positions(opcode: Opcode, operand_count: int) -> tuple[int, ...]:
