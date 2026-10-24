@@ -1181,26 +1181,39 @@ ranges support independent reads.
 
 ## Mapping from Program
 
+The in-memory `Program` (`wirely/program/program.py`) has the entities,
+identities, orders, and banks of the ordinary tables, but no encoding:
+
 | Program data | File representation |
 | --- | --- |
-| `name` | `SymbolMetadata` |
-| `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
-| `fixed_values`, `resource_slots` | `FixedValues`, with resource entries using `ResourceType` |
+| `state_variables`, `temporaries`, `fixed_values` | `StateVariables`, `Temporaries`, and `FixedValues` |
 | `initial_state` | `InitialState` |
-| `procs[*].values` | Input `Bindings` from `ConstValues`, and their values |
-| `procs[*].dependencies` | Input `Bindings` from the sources' banks |
-| `procs[*].outputs` | Output `Bindings` to fixed values, temporaries, or new state |
-| `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ValueTypes` |
-| `procs[LOAD]`, `procs[*].initializer` | Ordered `Load` procedures and native `Initializer` flags |
-| `procs` | `Stages`, `ProcedureInstances`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
-| `procs[*].body` | `BytecodeProcedures`, `TypeLists`, and `ProcedureCode` |
+| `procs` | `Stages` and `ProcedureInstances`, in order |
+| `Procedure.inputs`, `Procedure.outputs` | Input and output `Bindings`, in order |
+| `Procedure.native` | `NativeProcedures` and `InterfaceNames` |
+| `Procedure.body` | `BytecodeProcedures`, `TypeLists`, and `ProcedureCode` |
 | `constants` | `ConstValues` and `ProgramData` |
 | `functions` | `NativeFunctions` and `TypeLists` |
-| `variables` | `VariableAliases` |
+| `native_procedures` | `NativeProcedures` |
+| `Variable.name`, `Procedure.name` | `StateVariableSymbols`, `TemporarySymbols`, and `ProcedureSymbols` |
+| `symbols` | `SymbolMetadata` and `VariableAliases` |
 
-Program tables preserve native-object, procedure, and variable identities
-and the names needed to resolve native implementations and functions.
-Symbol sections preserve symbols and variable aliases.
+`constants`, `functions`, and `native_procedures` are derived from the
+procedures and aliases. A writer derives the remaining tables:
+
+- `ValueTypes` interns the types reachable from variables, constants,
+  locals, and functions: declared enums, structs, and resources by
+  identity, other types structurally.
+- `ConstValues` has one entry per `Constant` object, in the order of
+  `constants`, which includes the targets of variable aliases.
+  `BytecodeProcedures` has one entry per `ProcedureBody` object.
+- Branch targets are instruction indices. Because branches only go
+  forward, encoding the instructions from last to first gives each
+  displacement its shortest form.
+- `immediate` operands are an encoding choice: a writer chooses them by a
+  fixed rule for constants that fit and whose type another operand
+  determines. A reader turns them back into `Constant` objects using the
+  type the position requires.
 
 ## Verification
 
