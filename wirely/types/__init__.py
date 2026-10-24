@@ -288,8 +288,11 @@ class TypeStruct(Type):
 
     def __init__(self, name: str | None, fields: Mapping[str, Type] | Sequence[Type], *,
                  native_name: str | None = None, is_opaque: bool = False,
-                 native_types: NativeTypes | None = None) -> None:
-        """Create a struct from named fields, or from field types alone."""
+                 native_types: NativeTypes | None = None, json_names: Sequence[str] | None = None) -> None:
+        """Create a struct from named fields, or from field types alone.
+
+        json_names are the JSON names of the fields; by default, the field names.
+        """
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Struct native_name must be a nonempty string or None')
         if is_opaque and native_name is None:
@@ -312,6 +315,10 @@ class TypeStruct(Type):
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
                for field_type in self.field_types):
             raise ValueError('Struct fields require resolved value types')
+        # JSON names of the fields, the JsonTypes entry of the struct, or None without one.
+        self.json_names = self.field_names if json_names is None else tuple(json_names)
+        if self.json_names is not None and len(self.json_names) != len(self.field_types):
+            raise ValueError(f'Struct `{self}` needs one JSON name per field')
 
     @property
     def fields(self) -> Mapping[str, Type]:
@@ -770,8 +777,12 @@ class TypeEnum(TypePrimitive):
     """
 
     def __init__(self, name: str | None, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
-                 native_name: str | None = None, member_count: int | None = None) -> None:
-        """Create an enum; an unnamed closed enum has no members and gives member_count."""
+                 native_name: str | None = None, member_count: int | None = None,
+                 json_names: Mapping[int, str] | None = None) -> None:
+        """Create an enum; an unnamed closed enum has no members and gives member_count.
+
+        json_names maps numbers to their JSON names; by default, the member names.
+        """
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
         if native_name is not None and (type(native_name) is not str or not native_name):
@@ -808,6 +819,11 @@ class TypeEnum(TypePrimitive):
         self.native_name = native_name  # None for enums native code does not rely on.
         self.members = MappingProxyType(dict(members))
         self._names = names
+        # JSON names by number, the JsonTypes entry of the enum.
+        self.json_names = MappingProxyType(dict(names if json_names is None else json_names))
+        self._json_numbers = {json_name: number for number, json_name in self.json_names.items()}
+        if len(self._json_numbers) != len(self.json_names):
+            raise ValueError(f'Enum `{self}` has duplicate JSON names')
 
     def verify_value(self, value: Any) -> Any:
         if self.is_open:
@@ -850,7 +866,7 @@ class TypeEnum(TypePrimitive):
         if format not in (None, 'SnakeCase'):
             raise ValueError(f'Invalid JSON format: {format!r}')
         value = self.verify_value(value)
-        name = self._names.get(value)
+        name = self.json_names.get(value)
         if name is None:
             return value
         if format == 'SnakeCase':
@@ -866,7 +882,16 @@ class TypeEnum(TypePrimitive):
             raise ValueError('Decoding SnakeCase not implemented')
         if not isinstance(value, str):
             raise ValueError(f'Expected string for enum, got {value!r}')
-        return self._parse_impl(value)
+        if value in self._json_numbers:
+            return self._json_numbers[value]
+        if self.is_open:
+            try:
+                number = int(value, 10)
+            except ValueError:
+                pass
+            else:
+                return self.verify_value(number)
+        raise ValueError(f'Unknown member `{value}` of `{self}`')
 
 
 _STRING_ESCAPES = {'\0': '\\0', '\t': '\\t', '\n': '\\n', '\r': '\\r', '"': '\\"', '\\': '\\\\'}

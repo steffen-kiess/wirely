@@ -1206,7 +1206,9 @@ identities, orders, and banks of the ordinary tables, but no encoding:
 | `constants` | `ConstValues` and `ProgramData` |
 | `functions` | `NativeFunctions` and `TypeLists` |
 | `native_procedures` | `NativeProcedures` |
+| `json_names` of enums and structs | `JsonTypes`, `JsonNames`, and `JsonData` |
 | `Variable.name`, `Procedure.name` | `StateVariableSymbols`, `TemporarySymbols`, and `ProcedureSymbols` |
+| `type_name`, `field_names`, and `members` of types | `TypeSymbols` and `MemberSymbols` |
 | `symbols` | `SymbolMetadata` and `VariableAliases` |
 
 `constants`, `functions`, and `native_procedures` are derived from the

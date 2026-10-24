@@ -523,6 +523,19 @@ def check_unnamed_types():
     named = types.TypeEnum(None, {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
     assert (str(named), named.to_text(1)) == ('enum', 'On')
 
+    # JSON names are separate from member and field names and default to them.
+    assert named.json_names == {0: 'Off', 1: 'On'} and named.json_encode(1, None) == 'On'
+    level = types.TypeEnum('Level', {'Low': 0}, is_open=True, underlying_type=types.uint8,
+                           json_names={0: 'low', 5: 'high'})
+    assert (level.json_encode(5, None), level.json_encode(0, None), level.json_encode(7, None)) == ('high', 'low', 7)
+    assert (level.json_decode('high', None), level.json_decode('7', None), level.to_text(5)) == (5, 7, '5')
+    with checks.assertRaisesRegex(ValueError, 'Unknown member'):
+        level.json_decode('Low', None)
+    assert closed.json_names == {} and point.json_names is None
+    renamed = types.TypeStruct('Pair', {'flag': types.boolean}, json_names=('Flag',))
+    assert renamed.json_names == ('Flag',)
+    assert types.TypeStruct('Pair', {'flag': types.boolean}).json_names == ('flag',)
+
 
 def check_default_values():
     from unittest.mock import Mock
