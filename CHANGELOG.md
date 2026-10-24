@@ -4,6 +4,21 @@
 
 ### Breaking changes and migration
 
+#### Optional parameters
+
+Replace `parameter_option(x)` with `optional(x)`.
+
+#### Type names
+
+Replace `String` with `string` and `ValueType` with `type`.
+Replace `Duration`, `TimeOfDay`, and `MonotonicTime` with `Std.Duration`,
+`Schedule.TimeOfDay`, and `Timer.MonotonicTime`, respectively, including
+in qualified function calls.
+
+#### Schedule.IsInDailyInterval
+
+The output is `Option[boolean]`. Handle `None` when wall time is unknown.
+
 #### Bindings
 
 Replace `temporary name: T;` with `binding name: value T;`, and
