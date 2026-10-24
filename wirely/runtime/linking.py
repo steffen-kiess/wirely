@@ -233,7 +233,8 @@ def link_native_contracts(program: Program, extension: RuntimeNativeExtension
     return states, procedures
 
 
-def link_native_functions(program: Program, extension: RuntimeNativeExtension) -> tuple[NativeFunction, ...]:
-    """Bind the implementation of every function after checking the program's signatures."""
-    return tuple(bind_native_function(function.name, function.parameter_types, function.return_type, extension=extension)
-                 for function in program.functions)
+def link_native_functions(program: Program, extension: RuntimeNativeExtension) -> dict[str, NativeFunction]:
+    """Bind the implementation of every function by name after checking the program's signatures."""
+    return {function.name: bind_native_function(function.name, function.parameter_types, function.return_type,
+                                                extension=extension)
+            for function in program.functions}

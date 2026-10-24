@@ -7,7 +7,7 @@ import wirely.compiler
 from wirely import types
 from wirely.compiler import program as program_compiler
 from wirely.program import (
-    BranchTarget, Constant, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    BranchTarget, Constant, ConstOperand, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
     Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime import LoadFailure
@@ -156,7 +156,7 @@ def check_loading_stops():
     assert calls == ['load']
 
 
-def make_program(instructions, *, constants=(), local_types=()):
+def make_program(instructions, *, local_types=()):
     instance = NativeInstance('test', {})
     procedure = Procedure(
         node_id='test', reference='Test:check', node_context=instance,
@@ -166,43 +166,40 @@ def make_program(instructions, *, constants=(), local_types=()):
         name='load_checks', state_variables=VariableTable((), 'state'),
         temporaries=VariableTable((), 'temporaries'), initial_state={}, instances={'test': instance},
         procs={RunStage.LOAD: (procedure,)}, node_aliases={}, singleton_aliases={}, variables={},
-        constants=constants,
     )
 
 
 def check_validation():
     format_constant = Constant(types.TypeList(types.String), ('Value ', '', ''))
     number = Constant(types.uint8, 7)
-    value = Operand(OperandKind.CONST, 1)
-    fail = Instruction(Opcode.FAIL, (0, 1, value))
-    program = make_program((fail,), constants=(format_constant, number))
+    value = ConstOperand(number)
+    fail = Instruction(Opcode.FAIL, (format_constant, 1, value))
+    program = make_program((fail,))
     validate_program(program)
     with checks.assertRaises(LoadFailure) as caught:
         Engine(program)
     assert caught.exception.message == 'Value 7'
 
+    def fail_with(parts):
+        return Instruction(Opcode.FAIL, (Constant(types.TypeList(types.String), parts), 1, value))
+
     invalid = [
         (make_program((Instruction(Opcode.FAIL),)), 'Invalid operands'),
-        (make_program((Instruction(Opcode.FAIL, (0, -1)),)), 'Invalid operands'),
-        (make_program((Instruction(Opcode.FAIL, (0, 0xffffffff)),)), 'Invalid operands'),
-        (make_program((Instruction(Opcode.FAIL, (0, True)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (format_constant, -1)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (format_constant, 0xffffffff)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (format_constant, True)),)), 'Invalid operands'),
         (make_program((Instruction(Opcode.FAIL, (False, 0)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (0, 0)),)), 'Invalid operands'),
         (make_program((Instruction(Opcode.FAIL, (value, 1, value)),)), 'Invalid operands'),
-        (make_program((fail,), constants=(format_constant,)), 'Operand index out of range'),
-        (make_program((fail,), constants=(number, number)), 'List[string]'),
-        (make_program((Instruction(Opcode.FAIL, (2, 0)),)), 'Format constant index out of range'),
-        (make_program((Instruction(Opcode.FAIL, (-1, 0)),)), 'Format constant index out of range'),
-        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('only one',)), number)),
-         'must contain 3 strings'),
-        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('', 'x', '')), number)),
-         'Unsupported diagnostic format'),
-        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('', 7, '')), number)),
-         'Constant const.0'),
-        (make_program((Instruction(Opcode.COPY, (Operand(OperandKind.LOCAL, 0), Operand(OperandKind.CONST, 0))),
-                       Instruction(Opcode.RETURN)), constants=(format_constant,), local_types=(types.uint8,)),
+        (make_program((Instruction(Opcode.FAIL, (number, 1, value)),)), 'List[string]'),
+        (make_program((fail_with(('only one',)),)), 'must contain 3 strings'),
+        (make_program((fail_with(('', 'x', '')),)), 'Unsupported diagnostic format'),
+        (make_program((fail_with(('', 7, '')),)), 'Constant const.0'),
+        (make_program((Instruction(Opcode.COPY, (Operand(OperandKind.LOCAL, 0), ConstOperand(format_constant))),
+                       Instruction(Opcode.RETURN)), local_types=(types.uint8,)),
          'resolved runtime type'),
-        (make_program((Instruction(Opcode.FAIL, (0, 1, Operand(OperandKind.CONST, 0))),),
-                      constants=(format_constant,)), 'resolved runtime type'),
+        (make_program((Instruction(Opcode.FAIL, (format_constant, 1, ConstOperand(format_constant))),)),
+         'resolved runtime type'),
     ]
     for malformed, message in invalid:
         with checks.assertRaisesRegex(ValueError, message.replace('[', r'\[').replace(']', r'\]')):
@@ -216,10 +213,8 @@ def check_validation():
     with checks.assertRaisesRegex(ValueError, 'only allowed in load procedures'):
         validate_program(replace(program, procs={RunStage.LOAD: (procedure,), RunStage.DEFAULT: (procedure,)}))
     with checks.assertRaisesRegex(ValueError, 'Unsupported diagnostic format'):
-        validate_program(make_program((Instruction(Opcode.RETURN), fail), constants=(
-            Constant(types.TypeList(types.String), ('', 'x', '')), number)))
-    validate_program(make_program((Instruction(Opcode.JUMP, (BranchTarget(1),)), fail),
-                                  constants=(format_constant, number)))
+        validate_program(make_program((Instruction(Opcode.RETURN), fail_with(('', 'x', '')))))
+    validate_program(make_program((Instruction(Opcode.JUMP, (BranchTarget(1),)), fail)))
     with checks.assertRaisesRegex(ValueError, 'end in RETURN or FAIL'):
         validate_program(make_program(()))
     with checks.assertRaisesRegex(ValueError, 'resolved runtime type'):

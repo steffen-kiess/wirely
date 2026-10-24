@@ -16,7 +16,8 @@ from .types import resolve_type, check_runtime_type
 from .value import Value, ConstantValue, InputLengthValue, check_value_type
 from ..program import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES,
-    BranchTarget, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody, Variable,
+    BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode, Operand, OperandKind, ProcedureBody as ProgramBody,
+    ValueOperand, Variable,
 )
 
 
@@ -850,8 +851,8 @@ class InstructionCompiler:
     """Lower resolved procedure expressions to forward-only instructions."""
 
     def __init__(self, source_types: Mapping[InputKey, model.Type], output_types: Mapping[str, model.Type],
-                 intern_constant: Callable[[model.Type, object], int],
-                 intern_function: Callable[[Function], int]) -> None:
+                 intern_constant: Callable[[model.Type, object], Constant],
+                 intern_function: Callable[[Function], Function]) -> None:
         self.inputs = {name: Operand(OperandKind.INPUT, index)
                        for index, name in enumerate(source_types)}
         self.outputs = {name: Operand(OperandKind.OUTPUT, index)
@@ -872,7 +873,7 @@ class InstructionCompiler:
             self.locals[slot] = self.allocate(value_type)
         return self.locals[slot]
 
-    def emit(self, opcode: Opcode, *operands: Operand | BranchTarget | int) -> int:
+    def emit(self, opcode: Opcode, *operands: ValueOperand | BranchTarget | int | Constant | Function) -> int:
         index = len(self.instructions)
         self.instructions.append(Instruction(opcode, operands))
         return index
@@ -883,7 +884,7 @@ class InstructionCompiler:
             instruction.opcode, (*instruction.operands[:-1], BranchTarget(len(self.instructions))),
         )
 
-    def compile(self, expression: TypedExpression, destination: Operand | None = None) -> Operand:
+    def compile(self, expression: TypedExpression, destination: Operand | None = None) -> ValueOperand:
         operation = expression.operation
         if operation in ('load_assert', 'load_fail'):
             skip = None
@@ -892,15 +893,15 @@ class InstructionCompiler:
                 skip = self.emit(Opcode.JUMP_IF_TRUE, self.compile(diagnostic_arguments[0]), BranchTarget(0))
                 diagnostic_arguments = diagnostic_arguments[1:]
             values = [self.snapshot(argument) for argument in diagnostic_arguments]
-            format_index = self.intern_constant(model.types.TypeList(model.types.String), expression.payload)
-            self.emit(Opcode.FAIL, format_index, len(values), *values)
+            parts = self.intern_constant(model.types.TypeList(model.types.String), expression.payload)
+            self.emit(Opcode.FAIL, parts, len(values), *values)
             if skip is not None:
                 self.patch(skip)
             # A failed path never reaches this unit value; assertion success does.
             return self.compile(TypedExpression(model.types.unit, 'unit'), destination)
         if operation in ('constant', 'input', 'local', 'output'):
             if operation == 'constant':
-                source = Operand(OperandKind.CONST, self.intern_constant(
+                source: ValueOperand = ConstOperand(self.intern_constant(
                     expression.value_type, expression.payload.evaluate(),
                 ))
             elif operation == 'input':
@@ -1013,7 +1014,7 @@ class InstructionCompiler:
         elif operation in SHIFT_OPERATORS:
             count = expression.arguments[1].evaluate({}, {})
             expression.check_shift_count(count)
-            right = Operand(OperandKind.CONST, self.intern_constant(model.types.uint32, count))
+            right = ConstOperand(self.intern_constant(model.types.uint32, count))
             self.emit(Opcode.SHIFT_LEFT if operation == 'shift_left' else Opcode.SHIFT_RIGHT,
                       destination, left, right)
         elif operation == 'arith':
@@ -1038,9 +1039,9 @@ class InstructionCompiler:
             raise AssertionError(f'Unknown procedure operation {operation!r}')
         return destination
 
-    def snapshot(self, expression: TypedExpression) -> Operand:
+    def snapshot(self, expression: TypedExpression) -> ValueOperand:
         source = self.compile(expression)
-        if source.kind in (OperandKind.LOCAL, OperandKind.OUTPUT):
+        if isinstance(source, Operand) and source.kind in (OperandKind.LOCAL, OperandKind.OUTPUT):
             destination = self.allocate(expression.value_type)
             self.emit(Opcode.COPY, destination, source)
             return destination
@@ -2008,7 +2009,8 @@ def fold_constants(expression: TypedExpression) -> TypedExpression:
 
 def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTypeInstance,
                       source_types: dict[InputKey, model.Type], output_types: Mapping[str, model.Type],
-                      intern_constant: Callable[[model.Type, object], int], intern_function: Callable[[Function], int],
+                      intern_constant: Callable[[model.Type, object], Constant],
+                      intern_function: Callable[[Function], Function],
                       multi_sources: Mapping[str, tuple[model.Type, tuple[InputKey, ...]]] | None = None,
                       event_sources: Iterable[str] = (), event_outputs: Iterable[str] = (),
                       changed_states: Mapping[str, Variable] | None = None,

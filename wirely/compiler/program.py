@@ -162,17 +162,15 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
-    constants: list[Constant] = []
-    constant_indices: dict[tuple[model.Type, object], int] = {}
+    constants: dict[tuple[model.Type, object], Constant] = {}
 
-    def intern_constant(value_type: model.Type, value: object) -> int:
+    def intern_constant(value_type: model.Type, value: object) -> Constant:
         value = value_type.verify_value(value)
         key = value_type, (value if value_type == model.types.TypeList(model.types.String)
                            else value_type.serialize(value))
-        if key not in constant_indices:
-            constant_indices[key] = len(constants)
-            constants.append(Constant(value_type, value))
-        return constant_indices[key]
+        if key not in constants:
+            constants[key] = Constant(value_type, value)
+        return constants[key]
 
     def static_source(path: NodePath, source: model.StaticSource) -> InputSource:
         """Return the constant supplying a parameter or constant connected as a source."""
@@ -194,7 +192,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 if hint is not None:
                     error.hints = (*error.hints, hint)
                 raise
-        return InputSource(VariableBank.CONST_VALUES, constant=constants[intern_constant(value_type, concrete)])
+        return InputSource(VariableBank.CONST_VALUES, constant=intern_constant(value_type, concrete))
 
     def resolve_source(path: NodePath, source: Any) -> InputSource:
         source_path, variable = model.resolve_variable(path, source)
@@ -320,14 +318,10 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     bodies: dict[tuple[NodePath, model.InstanceProcedure], ProcedureBody] = {}
     old_state_dependencies: dict[tuple[NodePath, model.InstanceProcedure], tuple[Variable, ...]] = {}
 
-    functions: list[Function] = []
-    function_indices: dict[str, int] = {}
+    functions: dict[str, Function] = {}
 
-    def intern_function(function: Function) -> int:
-        if function.name not in function_indices:
-            function_indices[function.name] = len(functions)
-            functions.append(function)
-        return function_indices[function.name]
+    def intern_function(function: Function) -> Function:
+        return functions.setdefault(function.name, function)
 
     for stage_procs in procs.values():
         for path, proc in stage_procs:
@@ -520,8 +514,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         resource_slots=tuple(resource_slots),
         instances=native_instances, initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
-        constants=tuple(constants),
-        functions=tuple(functions),
         native_procedures=native_procedures,
     )
 

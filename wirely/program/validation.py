@@ -5,11 +5,12 @@ from collections.abc import Iterable, Mapping, Sequence
 from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeStruct, boolean, String, uint32
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
-    BranchTarget, Constant, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
+    BranchTarget, Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
 from .program import InputSource, Procedure, Program, ResourceSlot, RunStage, VariableBank
 
 
+# Operand stands for a value operand: an Operand or a ConstOperand.
 _SIGNATURES = {
     Opcode.COPY: (Operand, Operand),
     Opcode.SET_DEFAULT: (Operand,),
@@ -46,14 +47,17 @@ def _same_type(actual: object, expected: object) -> None:
         raise ValueError(f'Expected type `{expected}`, got `{actual}`')
 
 
-def _call_signature(operands: Sequence[Operand | BranchTarget | int]) -> tuple[type, ...]:
+def _call_signature(operands: Sequence[object]) -> tuple[type, ...]:
     """Return the CALL signature, whose length depends on its count operand."""
     count = operands[2] if len(operands) >= 3 and type(operands[2]) is int and operands[2] >= 0 else 0
-    return (Operand, int, int) + (Operand,) * count
+    return (Operand, Function, int) + (Operand,) * count
 
 
-def _validate_body(procedure: Procedure, constants: Sequence[Constant], functions: Sequence[Function],
-                   stage: RunStage) -> None:
+def _matches(value: object, cls: type) -> bool:
+    return type(value) in (Operand, ConstOperand) if cls is Operand else type(value) is cls
+
+
+def _validate_body(procedure: Procedure, stage: RunStage) -> None:
     body = procedure.body
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
@@ -66,7 +70,6 @@ def _validate_body(procedure: Procedure, constants: Sequence[Constant], function
         OperandKind.INPUT: tuple(input_types),
         OperandKind.OUTPUT: output_types,
         OperandKind.LOCAL: body.local_types,
-        OperandKind.CONST: tuple(constant.value_type for constant in constants),
     }
     for value_type in (*input_types, *output_types, *body.local_types):
         _runtime_type(value_type)
@@ -85,10 +88,10 @@ def _validate_body(procedure: Procedure, constants: Sequence[Constant], function
                 if (len(operands) < 2 or type(operands[1]) is not int
                         or not 0 <= operands[1] <= 0xffffffff or operands[1] != len(operands) - 2):
                     raise ValueError('Invalid operands for FAIL')
-                signature = (int, int) + (Operand,) * operands[1]
+                signature = (Constant, int) + (Operand,) * operands[1]
             else:
                 signature = _call_signature(operands) if opcode == Opcode.CALL else _SIGNATURES[opcode]
-            if len(operands) != len(signature) or any(type(value) is not cls for value, cls in zip(operands, signature)):
+            if len(operands) != len(signature) or not all(_matches(value, cls) for value, cls in zip(operands, signature)):
                 raise ValueError(f'Invalid operands for {opcode.name}')
             operand_types = []
             for operand in operands:
@@ -100,21 +103,20 @@ def _validate_body(procedure: Procedure, constants: Sequence[Constant], function
                         raise ValueError(f'Operand index out of range: {operand}')
                     _runtime_type(table[operand.index])
                     operand_types.append(table[operand.index])
+                elif isinstance(operand, ConstOperand):
+                    _runtime_type(operand.constant.value_type)
+                    operand_types.append(operand.constant.value_type)
                 elif isinstance(operand, BranchTarget):
                     if type(operand.index) is not int or not index < operand.index < len(instructions):
                         raise ValueError(f'Branch target must identify a later instruction: {operand}')
             if opcode not in (*_BRANCHES, Opcode.RETURN, Opcode.FAIL):
-                assert isinstance(operands[0], Operand)
-                if operands[0].kind not in (OperandKind.LOCAL, OperandKind.OUTPUT):
+                if not isinstance(operands[0], Operand) or operands[0].kind not in (OperandKind.LOCAL, OperandKind.OUTPUT):
                     raise ValueError('Destination must be local or output')
             if opcode == Opcode.FAIL:
                 if stage != RunStage.LOAD:
                     raise ValueError('FAIL is only allowed in load procedures')
-                format_index, count = operands[:2]
-                assert isinstance(format_index, int) and isinstance(count, int)
-                if not 0 <= format_index < len(constants):
-                    raise ValueError(f'Format constant index out of range: {format_index}')
-                format_constant = constants[format_index]
+                format_constant, count = operands[:2]
+                assert isinstance(format_constant, Constant) and isinstance(count, int)
                 _same_type(format_constant.value_type, TypeList(String))
                 parts = format_constant.value_type.verify_value(format_constant.value)
                 if len(parts) != 2 * count + 1:
@@ -161,11 +163,8 @@ def _validate_body(procedure: Procedure, constants: Sequence[Constant], function
                 if opcode == Opcode.LESS and not isinstance(operand_types[1], TypeInt):
                     raise ValueError('Ordering requires an integer type')
             elif opcode == Opcode.CALL:
-                function_index, count = operands[1], operands[2]
-                assert isinstance(function_index, int)
-                if not 0 <= function_index < len(functions):
-                    raise ValueError(f'Function index out of range: {function_index}')
-                function = functions[function_index]
+                function, count = operands[1], operands[2]
+                assert isinstance(function, Function)
                 if count != len(function.parameter_types):
                     raise ValueError(f'Function `{function.name}` expects {len(function.parameter_types)} '
                                      f'arguments, got {count}')
@@ -218,7 +217,6 @@ def validate_program(program: Program) -> None:
                 _runtime_type(value_type)
         except ValueError as error:
             raise ValueError(f'Function func.{index}: {error}') from error
-    constant_ids = {id(constant) for constant in program.constants}
 
     def check_names(kind: str, names: Iterable[str], declared: Iterable[str]) -> None:
         if set(names) != set(declared):
@@ -266,8 +264,6 @@ def validate_program(program: Program) -> None:
                 raise ValueError(f'Output `{key}` expected resource `{expected}`')
 
     def check_source(source: InputSource) -> None:
-        if source.constant is not None and id(source.constant) not in constant_ids:
-            raise ValueError('Constant source is not an entry of the program constants')
         if source.constant is not None:
             _runtime_type(source.constant.value_type)
         if source.resource is not None:
@@ -306,7 +302,7 @@ def validate_program(program: Program) -> None:
                     elif target not in bank_tables[output.bank]:
                         raise ValueError('Unknown output variable')
                 if procedure.body is not None:
-                    _validate_body(procedure, program.constants, program.functions, stage)
+                    _validate_body(procedure, stage)
             except ValueError as error:
                 raise ValueError(f'Procedure `{procedure.reference}`: {error}') from error
     if assigned != fixed | slots:

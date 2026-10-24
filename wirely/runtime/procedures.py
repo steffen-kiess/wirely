@@ -1,9 +1,9 @@
 """Execution of validated, forward-only procedure instructions."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind, Procedure, Program
+from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, ConstOperand, Opcode, OperandKind, Procedure
 from ..types import InternalValue, Some, convert
 from ..types.value_types import DynamicValue
 
@@ -23,11 +23,11 @@ class LoadFailure(Exception):
         super().__init__(f'[{self.node_context.name}] {self.procedure} at idx{instruction_index}: {message}')
 
 
-def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[InternalValue],
-                      functions: Sequence[NativeFunction] = ()) -> dict[str, InternalValue]:
+def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
+                      functions: Mapping[str, NativeFunction] = {}) -> dict[str, InternalValue]:
     """Run a bytecode procedure on internal values.
 
-    functions call the linked implementations of program.functions."""
+    functions maps the names of called functions to their linked implementations."""
     body = procedure.body
     assert body is not None
     input_types = tuple(source.value_type for _, source in procedure.dependencies)
@@ -44,13 +44,13 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[I
     }
 
     def read(operand: Any) -> Any:
-        if operand.kind == OperandKind.CONST:
-            return program.constants[operand.index].value
+        if isinstance(operand, ConstOperand):
+            return operand.constant.value
         return values[operand.kind][operand.index]
 
     def value_type(operand: Any) -> Any:
-        if operand.kind == OperandKind.CONST:
-            return program.constants[operand.index].value_type
+        if isinstance(operand, ConstOperand):
+            return operand.constant.value_type
         return types[operand.kind][operand.index]
 
     index = 0
@@ -61,7 +61,7 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[I
         if opcode == Opcode.RETURN:
             break
         if opcode == Opcode.FAIL:
-            parts = program.constants[operands[0]].value
+            parts = operands[0].value
             diagnostic_values = tuple(DynamicValue._make(value_type(operand), read(operand))
                                       for operand in operands[2:])
             message = parts[0] + ''.join(value.to_text() + parts[2 * index + 2]
@@ -108,7 +108,7 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[I
                 result = value_type(operands[1]).equals(left, right)
             elif opcode == Opcode.CALL:
                 # Implementations must not fail; an exception is a library error.
-                result = functions[operands[1]]([read(argument) for argument in operands[3:]])
+                result = functions[operands[1].name]([read(argument) for argument in operands[3:]])
             elif opcode in CONVERSION_OPCODES:
                 target_type = value_type(destination)
                 if CONVERSION_OPCODES[opcode] == 'checked':

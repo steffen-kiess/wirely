@@ -2,8 +2,8 @@
 
 from .container import ContainerError, Section, SectionList
 from .procedures import (
-    ARITHMETIC_OPCODES, CONVERSION_OPCODES, BranchTarget, Constant, Function, Instruction, Opcode,
-    Operand, OperandKind, ProcedureBody,
+    ARITHMETIC_OPCODES, CONVERSION_OPCODES, BranchTarget, Constant, ConstOperand, Function, Instruction, Opcode,
+    Operand, OperandKind, ProcedureBody, ValueOperand,
 )
 from .program import (
     InputSource, NativeInstance, NativeProcedureInterface, Procedure, Program,

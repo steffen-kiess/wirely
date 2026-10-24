@@ -10,7 +10,7 @@ from typing import TextIO
 
 from ..util import immutable_enum
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
-from .procedures import Constant, Function, ProcedureBody
+from .procedures import Constant, ConstOperand, Function, Instruction, Opcode, ProcedureBody
 
 
 @immutable_enum
@@ -84,7 +84,7 @@ class VariableTable:
 class VariableBank(enum.Enum):
     """The storage a procedure input or output refers to."""
 
-    CONST_VALUES = enum.auto()  # Entries of Program.constants.
+    CONST_VALUES = enum.auto()  # Constants, collected in Program.constants.
     FIXED_VALUES = enum.auto()  # Fixed values and resource slots, written by load procedures.
     TEMPORARIES = enum.auto()  # Values computed during a step.
     OLD_STATE = enum.auto()  # The state at the start of a step.
@@ -97,7 +97,7 @@ class InputSource:
 
     bank: VariableBank
     variable: Variable | ResourceSlot | None = None  # Source in the bank; None for constants.
-    constant: Constant | None = None  # Entry of Program.constants, for CONST_VALUES.
+    constant: Constant | None = None  # Source for CONST_VALUES.
 
     def __post_init__(self) -> None:
         if (self.bank == VariableBank.CONST_VALUES) != (self.constant is not None):
@@ -230,10 +230,11 @@ class Program:
     variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
     fixed_values: VariableTable = field(default_factory=lambda: VariableTable((), 'fixed'))
     resource_slots: tuple[ResourceSlot, ...] = ()
-    constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
-    functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
     native_procedures: Mapping[str, NativeProcedureInterface] = field(default_factory=dict)  # By name.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
+    # Constants of input bindings, instructions, and variable aliases, by identity in first-use order.
+    constants: tuple[Constant, ...] = field(init=False)
+    functions: tuple[Function, ...] = field(init=False)  # Functions called by instructions, sorted by name.
 
     def __post_init__(self) -> None:
         for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables',
@@ -243,8 +244,8 @@ class Program:
             stage: tuple(schedule) for stage, schedule in self.procs.items()
         }))
         object.__setattr__(self, 'resource_slots', tuple(self.resource_slots))
-        object.__setattr__(self, 'constants', tuple(self.constants))
-        object.__setattr__(self, 'functions', tuple(self.functions))
+        object.__setattr__(self, 'constants', _collect_constants(self))
+        object.__setattr__(self, 'functions', _collect_functions(self))
 
     def dump(self, file: TextIO | None = None) -> None:
         """Write the runtime program to a text stream (stdout by default)."""
@@ -267,6 +268,20 @@ class Program:
                 value('value', constant.value, indent + 4)
 
         constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
+        function_indices = {function.name: index for index, function in enumerate(self.functions)}
+
+        def operand_text(operand: object) -> str:
+            if isinstance(operand, ConstOperand):
+                operand = operand.constant
+            if isinstance(operand, Constant):
+                return f'const.{constant_indices[id(operand)]}'
+            if isinstance(operand, Function):
+                return f'func.{function_indices[operand.name]}'
+            return str(operand)
+
+        def instruction_text(instruction: Instruction) -> str:
+            operands = ', '.join(operand_text(operand) for operand in instruction.operands)
+            return instruction.opcode.name + (' ' + operands if operands else '')
 
         def source(input_source: InputSource) -> str:
             if input_source.constant is not None:
@@ -355,7 +370,7 @@ class Program:
                         line(f'local.{index}: {value_type}', 8)
                     line('instructions:', 6)
                     for index, instruction in enumerate(proc.body.instructions):
-                        line(f'idx{index}: {instruction}', 8)
+                        line(f'idx{index}: {instruction_text(instruction)}', 8)
 
         variable_aliases = {name: source(input_source) for name, input_source in self.variables.items()}
         for label, aliases in [('Node aliases', self.node_aliases),
@@ -365,6 +380,47 @@ class Program:
             line(label + ':')
             for name, target in sorted(aliases.items()):
                 line(f'{name!r}: {target}', 2)
+
+
+def _collect_constants(program: Program) -> tuple[Constant, ...]:
+    constants: dict[int, Constant] = {}
+
+    def add(constant: Constant | None) -> None:
+        if constant is not None:
+            constants.setdefault(id(constant), constant)
+
+    for schedule in program.procs.values():
+        for procedure in schedule:
+            for _, source in procedure.dependencies:
+                add(source.constant)
+            if procedure.body is not None:
+                for instruction in procedure.body.instructions:
+                    for operand in instruction.operands:
+                        if isinstance(operand, ConstOperand):
+                            add(operand.constant)
+                        elif isinstance(operand, Constant):
+                            add(operand)
+    for source in program.variables.values():
+        add(source.constant)
+    return tuple(constants.values())
+
+
+def _collect_functions(program: Program) -> tuple[Function, ...]:
+    functions: dict[str, Function] = {}
+    for schedule in program.procs.values():
+        for procedure in schedule:
+            if procedure.body is None:
+                continue
+            for instruction in procedure.body.instructions:
+                if instruction.opcode != Opcode.CALL or len(instruction.operands) < 2:
+                    continue
+                function = instruction.operands[1]
+                if not isinstance(function, Function):
+                    continue
+                previous = functions.setdefault(function.name, function)
+                if previous != function:
+                    raise ValueError(f'Function `{function.name}` is called with different signatures')
+    return tuple(functions[name] for name in sorted(functions, key=lambda name: name.encode()))
 
 
 def _declared_types(value_type: Type, seen: set[int]) -> Iterator[TypeEnum | TypeStruct]:

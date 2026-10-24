@@ -93,7 +93,7 @@ class Engine:
         for proc in program.procs.get(RunStage.LOAD, ()):
             if proc.body is not None:
                 values = [self._fixed_input(source) for _, source in proc.dependencies]
-                outputs = execute_procedure(program, proc, values, self.native_functions)
+                outputs = execute_procedure(proc, values, self.native_functions)
             elif proc.initializer:
                 linked = linked_states[proc.reference]
                 interface = self._procedure_binding(proc, linked.signature)
@@ -335,7 +335,7 @@ class Engine:
                     wakeup_time = services.wakeup_time
                     wall_wakeup = services.wall_wakeup
                 else:
-                    outputs = execute_procedure(self.program, proc, values, self.native_functions)
+                    outputs = execute_procedure(proc, values, self.native_functions)
                     wakeup_time = None
                     wall_wakeup = None
                 if wall_wakeup is None:

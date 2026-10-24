@@ -1,7 +1,4 @@
-import dataclasses
 import unittest
-
-from wirely.program import validate_program
 
 
 checks = unittest.TestCase()
@@ -29,9 +26,6 @@ def check_static_sources():
     assert source.constant is limit
     with checks.assertRaises(ValueError):
         engine.get_variable('forward')
-
-    with checks.assertRaisesRegex(ValueError, 'not an entry of the program constants'):
-        validate_program(dataclasses.replace(program, constants=()))
 
 
 check_static_sources()

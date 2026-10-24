@@ -33,14 +33,15 @@ class Opcode(enum.Enum):
     CONVERT_WRAPPING = enum.auto()
     CONVERT_SATURATING = enum.auto()
     CONVERT_CHECKED = enum.auto()
-    # CALL destination, function, count, arguments...: count repeats the
-    # function's parameter count so instructions decode without tables.
+    # CALL destination, function, count, arguments...: function is a
+    # Function; count repeats its parameter count so instructions decode
+    # without tables.
     CALL = enum.auto()
     JUMP = enum.auto()
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
     RETURN = enum.auto()
-    # FAIL format, count, values...: format indexes a constant List[string].
+    # FAIL format, count, values...: format is a List[string] Constant.
     FAIL = enum.auto()
     XOR = enum.auto()
     SHIFT_LEFT = enum.auto()
@@ -59,53 +60,6 @@ CONVERSION_OPCODES = {
 }
 
 
-class OperandKind(enum.Enum):
-    INPUT = enum.auto()
-    OUTPUT = enum.auto()
-    LOCAL = enum.auto()
-    CONST = enum.auto()
-
-
-@dataclass(frozen=True, slots=True)
-class Operand:
-    kind: OperandKind
-    index: int
-
-    def __str__(self) -> str:
-        return f'{self.kind.name.lower()}.{self.index}'
-
-
-@dataclass(frozen=True, slots=True)
-class BranchTarget:
-    index: int
-
-    def __str__(self) -> str:
-        return f'idx{self.index}'
-
-
-@dataclass(frozen=True, slots=True)
-class Instruction:
-    opcode: Opcode
-    operands: tuple[Operand | BranchTarget | int, ...] = ()
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'operands', tuple(self.operands))
-
-    def __str__(self) -> str:
-        operands = ', '.join(str(operand) for operand in self.operands)
-        return self.opcode.name + (' ' + operands if operands else '')
-
-
-@dataclass(frozen=True, slots=True)
-class ProcedureBody:
-    instructions: tuple[Instruction, ...]
-    local_types: tuple[Type, ...] = ()
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'instructions', tuple(self.instructions))
-        object.__setattr__(self, 'local_types', tuple(self.local_types))
-
-
 @dataclass(frozen=True, slots=True)
 class Constant:
     value_type: Type
@@ -122,3 +76,72 @@ class Function:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'parameter_types', tuple(self.parameter_types))
+
+
+class OperandKind(enum.Enum):
+    INPUT = enum.auto()
+    OUTPUT = enum.auto()
+    LOCAL = enum.auto()
+
+
+@dataclass(frozen=True, slots=True)
+class Operand:
+    kind: OperandKind
+    index: int
+
+    def __str__(self) -> str:
+        return f'{self.kind.name.lower()}.{self.index}'
+
+
+@dataclass(frozen=True, slots=True)
+class ConstOperand:
+    """A value operand reading a constant."""
+
+    constant: Constant
+
+    def __str__(self) -> str:
+        return f'const({self.constant.value_type} {self.constant.value!r})'
+
+
+ValueOperand = Operand | ConstOperand
+
+
+@dataclass(frozen=True, slots=True)
+class BranchTarget:
+    index: int
+
+    def __str__(self) -> str:
+        return f'idx{self.index}'
+
+
+@dataclass(frozen=True, slots=True)
+class Instruction:
+    opcode: Opcode
+    # Value operands, branch targets, integer parameters, and the FAIL format
+    # Constant or CALL Function.
+    operands: tuple[ValueOperand | BranchTarget | int | Constant | Function, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'operands', tuple(self.operands))
+
+    def __str__(self) -> str:
+        operands = ', '.join(_operand_text(operand) for operand in self.operands)
+        return self.opcode.name + (' ' + operands if operands else '')
+
+
+def _operand_text(operand: object) -> str:
+    if isinstance(operand, Constant):
+        return str(ConstOperand(operand))
+    if isinstance(operand, Function):
+        return operand.name
+    return str(operand)
+
+
+@dataclass(frozen=True, slots=True)
+class ProcedureBody:
+    instructions: tuple[Instruction, ...]
+    local_types: tuple[Type, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'instructions', tuple(self.instructions))
+        object.__setattr__(self, 'local_types', tuple(self.local_types))

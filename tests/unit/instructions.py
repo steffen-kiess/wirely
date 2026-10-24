@@ -6,7 +6,7 @@ from wirely import types
 from tests.infra.native_extension.generated import test_library as contracts
 from tests.infra.support import library_type, test_extension
 from wirely.program import (
-    BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
+    BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
     RunStage, Variable, VariableBank, VariableTable, validate_program,
 )
@@ -26,16 +26,15 @@ def output(index):
     return Operand(OperandKind.OUTPUT, index)
 
 
-def const(index):
-    return Operand(OperandKind.CONST, index)
+def const(value_type, value):
+    return ConstOperand(Constant(value_type, value))
 
 
 def instruction(opcode, *operands):
     return Instruction(opcode, operands)
 
 
-def make_program(instructions, *, local_types=(), output_types=(types.boolean,), constants=(), inputs=(),
-                 functions=()):
+def make_program(instructions, *, local_types=(), output_types=(types.boolean,), inputs=()):
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'output{index}', value_type) for index, value_type in enumerate(output_types))
     instance = NativeInstance('test', {})
@@ -52,8 +51,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
         instances={'test': instance},
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
-        variables={variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs}, constants=constants,
-        functions=functions,
+        variables={variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs},
     )
 
 
@@ -67,24 +65,24 @@ def execute(instructions, *, override_extensions=(), **kwargs):
 
 def check_boolean_operations():
     # Unassigned locals/outputs are defaulted; aliased operands use old values.
+    true = const(types.boolean, True)
     outcome = execute([
         instruction(Opcode.COPY, local(0), Operand(OperandKind.INPUT, 0)),
-        instruction(Opcode.AND, local(0), const(0), local(0)),
+        instruction(Opcode.AND, local(0), true, local(0)),
         instruction(Opcode.NOT, local(1), local(0)),
         instruction(Opcode.OR, output(0), local(1), local(2)),
-        instruction(Opcode.EQUAL, local(0), local(0), const(0)),
+        instruction(Opcode.EQUAL, local(0), local(0), true),
         instruction(Opcode.COPY, output(1), local(0)),
         instruction(Opcode.SET_DEFAULT, output(1)),
         instruction(Opcode.RETURN),
-    ], local_types=(types.boolean,) * 3, output_types=(types.boolean,) * 3,
-       constants=(Constant(types.boolean, True),), inputs=((types.boolean, False),))
+    ], local_types=(types.boolean,) * 3, output_types=(types.boolean,) * 3, inputs=((types.boolean, False),))
     assert outcome == (True, False, False)
     assert execute([
         instruction(Opcode.NOT, local(0), local(0)),
-        instruction(Opcode.EQUAL, local(0), local(0), const(0)),
+        instruction(Opcode.EQUAL, local(0), local(0), true),
         instruction(Opcode.COPY, output(0), local(0)),
         instruction(Opcode.RETURN),
-    ], local_types=(types.boolean,), constants=(Constant(types.boolean, True),)) == (True,)
+    ], local_types=(types.boolean,)) == (True,)
 
 
 def check_structs_and_options():
@@ -94,17 +92,17 @@ def check_structs_and_options():
     initial = pair.make_value({'flag': False, 'number': 7})
     updated = pair.make_value({'flag': True, 'number': 7})
     outcome = execute([
-        instruction(Opcode.COPY, local(0), const(0)),
+        instruction(Opcode.COPY, local(0), const(pair, initial)),
         instruction(Opcode.COPY, local(0), local(0)),
         instruction(Opcode.COPY, output(0), local(0)),
-        instruction(Opcode.SET_FIELD, local(0), const(1), 0),
+        instruction(Opcode.SET_FIELD, local(0), const(types.boolean, True), 0),
         instruction(Opcode.COPY, output(1), local(0)),
         instruction(Opcode.GET_FIELD, output(2), local(0), 1),
         instruction(Opcode.MAKE_SOME, local(1), local(0)),
         instruction(Opcode.COPY, output(3), local(1)),
         instruction(Opcode.GET_OPTION_VALUE, local(2), local(1)),
         instruction(Opcode.EQUAL, output(4), local(0), local(2)),
-        instruction(Opcode.SET_FIELD, local(0), const(2), 1),
+        instruction(Opcode.SET_FIELD, local(0), const(types.uint8, 9), 1),
         instruction(Opcode.MAKE_SOME, local(3), local(1)),
         instruction(Opcode.GET_OPTION_VALUE, output(5), local(3)),
         instruction(Opcode.IS_SOME, output(6), local(3)),
@@ -114,13 +112,11 @@ def check_structs_and_options():
         instruction(Opcode.MAKE_SOME, local(3), local(1)),
         instruction(Opcode.COPY, output(9), local(3)),
         instruction(Opcode.SET_DEFAULT, local(3)),
-        instruction(Opcode.EQUAL, output(10), local(1), const(3)),
+        instruction(Opcode.EQUAL, output(10), local(1), const(option, None)),
         instruction(Opcode.RETURN),
     ], local_types=(pair, option, pair, nested),
        output_types=(pair, pair, types.uint8, option, types.boolean, option,
-                     types.boolean, pair, types.boolean, nested, types.boolean),
-       constants=(Constant(pair, initial), Constant(types.boolean, True),
-                  Constant(types.uint8, 9), Constant(option, None)))
+                     types.boolean, pair, types.boolean, nested, types.boolean))
     assert outcome == (initial, updated, 7, types.Some(updated), True, types.Some(updated),
                       True, pair.default_value(), False, types.Some(None), True)
 
@@ -146,11 +142,10 @@ def check_conversions():
         cases += [(Opcode.CONVERT_WRAPPING, types.int8, value, types.boolean, wrapped),
                   (Opcode.CONVERT_SATURATING, types.int8, value, types.boolean, saturated),
                   (Opcode.CONVERT_CHECKED, types.int8, value, boolean_option, checked)]
-    instructions = [instruction(opcode, output(index), const(index))
-                    for index, (opcode, _, _, _, _) in enumerate(cases)]
+    instructions = [instruction(opcode, output(index), const(source, value))
+                    for index, (opcode, source, value, _, _) in enumerate(cases)]
     outcome = execute([*instructions, instruction(Opcode.RETURN)],
-                     output_types=tuple(target for _, _, _, target, _ in cases),
-                     constants=tuple(Constant(source, value) for _, source, value, _, _ in cases))
+                     output_types=tuple(target for _, _, _, target, _ in cases))
     assert outcome == tuple(expected for *_, expected in cases)
 
 
@@ -168,35 +163,47 @@ def check_calls():
     bindings = test_extension(functions={'TestLibrary.Clamp': contracts._Clamp.implementation(clamp_values),
                                             'TestLibrary.Nothing': contracts._Nothing.implementation(no_values)})
     outcome = execute([
-        instruction(Opcode.CALL, output(0), 0, 3, const(0), const(1), const(2)),
-        instruction(Opcode.CALL, output(1), 1, 0),
+        instruction(Opcode.CALL, output(0), clamp, 3,
+                    const(types.int16, 500), const(types.int16, 0), const(types.int16, 100)),
+        instruction(Opcode.CALL, output(1), nothing, 0),
         instruction(Opcode.RETURN),
-    ], output_types=(types.int16, types.unit), functions=(clamp, nothing),
-       constants=(Constant(types.int16, 500), Constant(types.int16, 0), Constant(types.int16, 100)), override_extensions=[bindings])
+    ], output_types=(types.int16, types.unit), override_extensions=[bindings])
     assert outcome == (100, types.Unit())
 
-    # Linking requires an implementation for every table entry.
+    # Linking requires an implementation for every called function, even if unreachable.
     missing = Function('TestLibrary.Missing', (), types.boolean)
     with checks.assertRaisesRegex(ValueError, "Cannot find the signature of native function `TestLibrary.Missing`"):
-        execute([instruction(Opcode.RETURN)], functions=(missing,))
+        execute([instruction(Opcode.RETURN), instruction(Opcode.CALL, output(0), missing, 0),
+                 instruction(Opcode.RETURN)])
 
     # Implementations must not fail; an exception propagates.
     fail = Function('TestLibrary.Fail', (), types.boolean)
     with checks.assertRaisesRegex(RuntimeError, 'Fail always fails'):
-        execute([instruction(Opcode.CALL, output(0), 0, 0), instruction(Opcode.RETURN)], functions=(fail,))
+        execute([instruction(Opcode.CALL, output(0), fail, 0), instruction(Opcode.RETURN)])
 
     ret = instruction(Opcode.RETURN)
-    options = dict(output_types=(types.int16,), functions=(clamp,), local_types=(types.int16, types.uint8))
-    expect_invalid([instruction(Opcode.CALL, output(0), 1, 0), ret], 'Function index out of range', **options)
-    expect_invalid([instruction(Opcode.CALL, output(0), 0, 2, local(0), local(0)), ret], 'expects 3 arguments',
+    options = dict(output_types=(types.int16,), local_types=(types.int16, types.uint8))
+    expect_invalid([instruction(Opcode.CALL, output(0), 0, 0), ret], 'Invalid operands', **options)
+    expect_invalid([instruction(Opcode.CALL, output(0), clamp, 2, local(0), local(0)), ret], 'expects 3 arguments',
                    **options)
-    expect_invalid([instruction(Opcode.CALL, output(0), 0, 3, local(0), local(0)), ret], 'Invalid operands',
+    expect_invalid([instruction(Opcode.CALL, output(0), clamp, 3, local(0), local(0)), ret], 'Invalid operands',
                    **options)
-    expect_invalid([instruction(Opcode.CALL, output(0), 0, 3, local(0), local(1), local(0)), ret],
+    expect_invalid([instruction(Opcode.CALL, output(0), clamp, 3, local(0), local(1), local(0)), ret],
                    'Expected type `int16`, got `uint8`', **options)
-    expect_invalid([instruction(Opcode.CALL, local(1), 0, 3, local(0), local(0), local(0)), ret],
+    expect_invalid([instruction(Opcode.CALL, local(1), clamp, 3, local(0), local(0), local(0)), ret],
                    'Expected type `int16`, got `uint8`', **options)
-    expect_invalid([ret], 'Function func.0', functions=(Function('Test', (types.String,), types.unit),))
+    invalid = Function('Test', (types.String,), types.unit)
+    expect_invalid([ret, instruction(Opcode.CALL, local(0), invalid, 1, local(1)), ret], 'Function func.0',
+                   local_types=(types.unit, types.String))
+    other_clamp = Function('TestLibrary.Clamp', (types.int8,) * 3, types.int8)
+    try:
+        make_program([instruction(Opcode.CALL, output(0), clamp, 3, local(0), local(0), local(0)),
+                      instruction(Opcode.CALL, local(1), other_clamp, 3, local(1), local(1), local(1)), ret],
+                     **options)
+    except ValueError as error:
+        assert 'different signatures' in str(error)
+    else:
+        raise AssertionError('Conflicting functions were accepted')
 
 
 def check_defaults_and_equality():
@@ -213,13 +220,13 @@ def check_defaults_and_equality():
 
 
 def check_ordering():
+    minus_one, zero = const(types.int16, -1), const(types.int16, 0)
     outcome = execute([
-        instruction(Opcode.LESS, output(0), const(0), const(1)),
-        instruction(Opcode.LESS, output(1), const(1), const(0)),
-        instruction(Opcode.LESS, output(2), const(0), const(0)),
+        instruction(Opcode.LESS, output(0), minus_one, zero),
+        instruction(Opcode.LESS, output(1), zero, minus_one),
+        instruction(Opcode.LESS, output(2), minus_one, minus_one),
         instruction(Opcode.RETURN),
-    ], output_types=(types.boolean,) * 3,
-       constants=(Constant(types.int16, -1), Constant(types.int16, 0)))
+    ], output_types=(types.boolean,) * 3)
     assert outcome == (True, False, False)
 
 
@@ -242,23 +249,21 @@ def check_arithmetic():
         (Opcode.REM_CHECKED, -7, 2, types.Some(-1)),
         (Opcode.REM_CHECKED, 1, 0, None),
     ]
-    constants = []
     instructions = []
     output_types = []
     for index, (opcode, left, right, expected) in enumerate(cases):
-        constants += [Constant(types.int8, left), Constant(types.int8, right)]
-        instructions.append(instruction(opcode, output(index), const(2 * index), const(2 * index + 1)))
+        instructions.append(instruction(opcode, output(index), const(types.int8, left), const(types.int8, right)))
         output_types.append(int8_option if opcode.name.endswith('_CHECKED') else types.int8)
     instructions.append(instruction(Opcode.RETURN))
-    outcome = execute(instructions, output_types=tuple(output_types), constants=tuple(constants))
+    outcome = execute(instructions, output_types=tuple(output_types))
     assert outcome == tuple(expected for _, _, _, expected in cases)
     # Unsigned results wrap modulo 2**bits and saturate at zero.
+    zero, one = const(types.uint8, 0), const(types.uint8, 1)
     outcome = execute([
-        instruction(Opcode.SUB_WRAPPING, output(0), const(0), const(1)),
-        instruction(Opcode.SUB_SATURATING, output(1), const(0), const(1)),
+        instruction(Opcode.SUB_WRAPPING, output(0), zero, one),
+        instruction(Opcode.SUB_SATURATING, output(1), zero, one),
         instruction(Opcode.RETURN),
-    ], output_types=(types.uint8, types.uint8),
-       constants=(Constant(types.uint8, 0), Constant(types.uint8, 1)))
+    ], output_types=(types.uint8, types.uint8))
     assert outcome == (255, 0)
 
     program = make_program([
@@ -269,7 +274,7 @@ def check_arithmetic():
     validate_program(program)
     procedure = program.procs[RunStage.DEFAULT][0]
     for _ in range(3):
-        assert execute_procedure(program, procedure, ()) == {'output0': True}
+        assert execute_procedure(procedure, ()) == {'output0': True}
 
 
 def check_bitwise_and_shifts():
@@ -285,15 +290,15 @@ def check_bitwise_and_shifts():
                 value &= mask
                 return value - (1 << bits) if signed and value >= (1 << (bits - 1)) else value
 
+            five = const(value_type, 5)
             for value in (0, value_type.min_value, value_type.max_value):
                 outcome = execute([
                     instruction(Opcode.NOT, output(0), source),
-                    instruction(Opcode.AND, output(1), source, const(0)),
-                    instruction(Opcode.OR, output(2), source, const(0)),
-                    instruction(Opcode.XOR, output(3), source, const(0)),
+                    instruction(Opcode.AND, output(1), source, five),
+                    instruction(Opcode.OR, output(2), source, five),
+                    instruction(Opcode.XOR, output(3), source, five),
                     ret,
-                ], output_types=(value_type,) * 4, inputs=((value_type, value),),
-                   constants=(Constant(value_type, 5),))
+                ], output_types=(value_type,) * 4, inputs=((value_type, value),))
                 assert outcome == (normalized(~value), value & 5, value | 5, value ^ 5)
 
                 for count in (0, 1, bits - 1, bits, bits + 1, 0xffffffff):
@@ -333,24 +338,23 @@ def check_bitwise_and_shifts():
                        output_types=(types.uint8,), local_types=(types.uint8,))
 
 def check_branches():
+    true, false = const(types.boolean, True), const(types.boolean, False)
     assert execute([
-        instruction(Opcode.COPY, output(0), const(0)),
-        instruction(Opcode.COPY, output(0), const(1)),
+        instruction(Opcode.COPY, output(0), true),
+        instruction(Opcode.COPY, output(0), false),
         instruction(Opcode.RETURN),
-    ], constants=(Constant(types.boolean, True), Constant(types.boolean, False))) == (False,)
+    ]) == (False,)
     for condition in (False, True):
         outcome = execute([
             instruction(Opcode.JUMP_IF_FALSE, Operand(OperandKind.INPUT, 0), BranchTarget(3)),
-            instruction(Opcode.COPY, output(0), const(0)),
+            instruction(Opcode.COPY, output(0), true),
             instruction(Opcode.JUMP, BranchTarget(4)),
-            instruction(Opcode.COPY, output(0), const(1)),
+            instruction(Opcode.COPY, output(0), false),
             instruction(Opcode.JUMP_IF_TRUE, output(0), BranchTarget(6)),
             instruction(Opcode.RETURN),
-            instruction(Opcode.COPY, output(1), const(0)),
+            instruction(Opcode.COPY, output(1), true),
             instruction(Opcode.RETURN),
-        ], output_types=(types.boolean, types.boolean),
-           constants=(Constant(types.boolean, True), Constant(types.boolean, False)),
-           inputs=((types.boolean, condition),))
+        ], output_types=(types.boolean, types.boolean), inputs=((types.boolean, condition),))
         assert outcome == (condition, condition)
     assert execute([instruction(Opcode.RETURN), instruction(Opcode.NOT, output(0), output(0)),
                     instruction(Opcode.RETURN)]) == (False,)
@@ -379,20 +383,17 @@ def check_validation():
     expect_invalid([instruction(Opcode.COPY, output(0), Operand('local', 0)), ret], 'Unknown operand kind')
     for index in (-1, 1, True):
         expect_invalid([instruction(Opcode.NOT, output(index), output(0)), ret], 'out of range')
-    expect_invalid([instruction(Opcode.COPY, const(0), output(0)), ret], 'Destination',
-                   constants=(Constant(types.boolean, True),))
+    expect_invalid([instruction(Opcode.COPY, const(types.boolean, True), output(0)), ret], 'Destination')
     expect_invalid([instruction(Opcode.COPY, Operand(OperandKind.INPUT, 0), output(0)), ret], 'Destination',
                    inputs=((types.boolean, False),))
-    expect_invalid([instruction(Opcode.COPY, output(0), const(0)), ret], 'Expected type',
-                   constants=(Constant(types.uint8, 0),))
-    expect_invalid([instruction(Opcode.EQUAL, output(0), output(0), const(0)), ret], 'Expected type',
-                   constants=(Constant(types.uint8, 0),))
+    expect_invalid([instruction(Opcode.COPY, output(0), const(types.uint8, 0)), ret], 'Expected type')
+    expect_invalid([instruction(Opcode.EQUAL, output(0), output(0), const(types.uint8, 0)), ret], 'Expected type')
     for value_type in (types.boolean, duration, library_type('Schedule.TimeOfDay'),
                        library_type('Timer.MonotonicTime'), types.TypeOption(types.uint8)):
         expect_invalid([instruction(Opcode.LESS, output(0), local(0), local(0)), ret], 'integer type',
                        local_types=(value_type,))
-    expect_invalid([instruction(Opcode.LESS, output(0), local(0), const(0)), ret], 'Expected type',
-                   local_types=(types.uint8,), constants=(Constant(types.int8, 0),))
+    expect_invalid([instruction(Opcode.LESS, output(0), local(0), const(types.int8, 0)), ret], 'Expected type',
+                   local_types=(types.uint8,))
     expect_invalid([instruction(Opcode.ADD_WRAPPING, output(0), local(0), local(0)), ret], 'integer type',
                    local_types=(types.boolean,))
     expect_invalid([instruction(Opcode.ADD_WRAPPING, output(0), local(0), local(1)), ret], 'Expected type',
@@ -415,8 +416,7 @@ def check_validation():
         expect_invalid([instruction(Opcode.JUMP, BranchTarget(index)), ret], 'later instruction')
     expect_invalid([instruction(Opcode.JUMP, BranchTarget(1)),
                     instruction(Opcode.JUMP, BranchTarget(0)), ret], 'later instruction')
-    expect_invalid([instruction(Opcode.JUMP_IF_TRUE, const(0), BranchTarget(1)), ret], 'Expected type',
-                   constants=(Constant(types.uint8, 0),))
+    expect_invalid([instruction(Opcode.JUMP_IF_TRUE, const(types.uint8, 0), BranchTarget(1)), ret], 'Expected type')
     pair = types.TypeStruct('Pair', {'value': types.uint8})
     for field in (-1, 1):
         expect_invalid([instruction(Opcode.GET_FIELD, output(0), local(0), field), ret], 'Field index',
@@ -441,19 +441,21 @@ def check_validation():
     expect_invalid([instruction(Opcode.MAKE_SOME, local(0), output(0)), ret], 'Expected type',
                    local_types=(types.TypeOption(types.uint8),))
     expect_invalid([ret], 'runtime type', local_types=(types.String,))
-    expect_invalid([ret], 'runtime type', constants=(Constant(types.String, ''),))
-    expect_invalid([ret], 'Constant const.0', constants=(Constant(types.uint8, 256),))
-    expect_invalid([ret, instruction(Opcode.COPY, output(0), const(0)), ret], 'out of range')
+    # Unreachable instructions are checked too.
+    expect_invalid([ret, instruction(Opcode.COPY, local(0), const(types.String, '')), ret], 'runtime type',
+                   local_types=(types.String,))
+    expect_invalid([ret, instruction(Opcode.COPY, local(0), const(types.uint8, 256)), ret], 'Constant const.0',
+                   local_types=(types.uint8,))
 
 
 def check_dump():
     pair = types.TypeStruct('Pair', {'value': types.boolean})
     program = make_program([
-        instruction(Opcode.GET_FIELD, local(0), const(0), 0),
+        instruction(Opcode.GET_FIELD, local(0), const(pair, pair.default_value()), 0),
         instruction(Opcode.JUMP_IF_TRUE, local(0), BranchTarget(3)),
         instruction(Opcode.COPY, output(0), local(0)),
         instruction(Opcode.RETURN),
-    ], local_types=(types.boolean,), constants=(Constant(pair, pair.default_value()),))
+    ], local_types=(types.boolean,))
     stream = io.StringIO()
     program.dump(stream)
     text = stream.getvalue()
