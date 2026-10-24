@@ -2,7 +2,7 @@ namespace Process {
   #[Internal]
   resource type LaunchOnEventState;
 
-  native node type LaunchOnEvent {
+  node type LaunchOnEvent {
     // Will be passed to "sh -c"
     #[Diagram.ShowValue]
     parameter ShellCommand: string;
@@ -10,11 +10,10 @@ namespace Process {
     // Note: The value of the event will be ignored
     default input: event Type;
 
-    binding state: resource LaunchOnEventState;
-    native initializer produces state as "state" uses ShellCommand;
+    binding state: fixed LaunchOnEventState;
+    native initializer create reads ShellCommand writes state as "state";
 
     native procedure run stage output
-      depends on state as "state", default input as "input"
-      uses Type;
+      reads state as "state", default input as "input", Type;
   }
 }

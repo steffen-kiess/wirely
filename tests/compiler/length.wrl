@@ -56,7 +56,7 @@ node type Lengths {
     let Named: List[boolean] = [true];
     assert Named.Length == 1;
   }
-  procedure aliases depends on default input as values, Named as empty {
+  procedure aliases reads default input as values, Named as empty {
     assert values.Length == Expected;
     assert empty.Length == NamedExpected;
     assert values.Length + 1 == Expected + 1;
@@ -97,7 +97,7 @@ connect source, source -> nested;
 
 node type Explicit {
   default input: multi value boolean;
-  procedure run depends on values: multi value boolean, empty: multi value boolean {
+  procedure run reads values: multi value boolean, empty: multi value boolean {
     assert values.Length == (default input).Length;
     assert empty.Length == 0;
   }

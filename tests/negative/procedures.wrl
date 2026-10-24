@@ -4,7 +4,7 @@
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = true;
     output = false; // E: assigned more than once
   }
@@ -15,7 +15,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = output; // E: not definitely initialized
   }
 }
@@ -25,7 +25,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let value = true;
     value = false; // E: assigned more than once
     output = value;
@@ -37,7 +37,7 @@ node probe: Probe {  }
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = input; // E: Unknown procedure value
   }
 }
@@ -49,7 +49,7 @@ connect source -> probe;
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let time = "08:00"; // E: parameter-only
     output = true;
   }
@@ -60,7 +60,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let number: uint8 = 256; // E: out of range
     output = true;
   }
@@ -71,7 +71,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = !7; // E: Invalid boolean
   }
 }
@@ -81,7 +81,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = if true { true } else { 7 }; // E: Invalid boolean
   }
 }
@@ -91,7 +91,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let output = true; // E: Cannot shadow
     output = true;
   }
@@ -102,7 +102,7 @@ node probe: Probe {  }
 node type Probe {
   parameter Enabled: boolean = true;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let Enabled = true; // E: Cannot shadow
     output = true;
   }
@@ -113,7 +113,7 @@ node probe: Probe {  }
 node type Probe {
   parameter Text: string = "text";
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let value = Text; // E: `string` is parameter-only
     output = true;
   }
@@ -125,7 +125,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let path: string = Path.Parent("file"); // E: `string` is parameter-only
     output = true;
   }
@@ -136,7 +136,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let value = if true { let inside = true; inside } else { false };
     output = inside; // E: Unknown procedure value
   }
@@ -147,7 +147,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let number: uint8 = 7;
     let other: int32 = 7;
     output = number == other; // E: Expected value of type `uint8`
@@ -159,7 +159,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     while true {} // E: Syntax error
     output = true;
   }
@@ -170,7 +170,7 @@ node probe: Probe {  }
 node type Probe {
 
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let mut value = true;
     value = 1; // E: Invalid boolean
     output = value;
@@ -181,14 +181,14 @@ node probe: Probe {  }
 // TEST: missing result
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {} // E: did not assign outputs
+  procedure run writes default output as output {} // E: did not assign outputs
 }
 node probe: Probe {}
 
 // TEST: string port alias
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as "output" { // E: aliases must be identifiers
+  procedure run writes default output as "output" { // E: aliases must be identifiers
     output = true;
   }
 }
@@ -196,7 +196,7 @@ node probe: Probe {}
 
 // TEST: typed port key
 node type Probe {
-  procedure run produces result as "output": value boolean { // E: Typed port keys require a native procedure
+  procedure run writes result as "output": value boolean { // E: Typed port keys require a native procedure
     result = true;
   }
 }
@@ -206,7 +206,7 @@ node probe: Probe {}
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure run depends on default input as same produces default output as same { // E: names must be distinct
+  procedure run reads default input as same writes default output as same { // E: names must be distinct
     same = true;
   }
 }
@@ -218,7 +218,7 @@ connect source -> probe;
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure run depends on default input as input produces default output as output {
+  procedure run reads default input as input writes default output as output {
     input = false; // E: expected a local variable or output
     output = input;
   }
@@ -230,20 +230,20 @@ connect source -> probe;
 // TEST: event output
 node type Probe {
   default output: event boolean;
-  procedure run produces default output as output { output = true; } // E: Cannot assign event output
+  procedure run writes default output as output { output = true; } // E: Cannot assign event output
 }
 node probe: Probe {}
 
 // TEST: resource input
 resource type Service;
 node type Provider {
-  default output: resource Service;
+  default output: fixed Service;
 }
 node type Probe {
-  input ServiceInput: resource Service;
+  input ServiceInput: fixed Service;
   default output: value boolean;
-  procedure run depends on ServiceInput // E: cannot access resources
-    produces default output as output { output = true; }
+  procedure run reads ServiceInput // E: Procedure bodies cannot read resources
+    writes default output as output { output = true; }
 }
 node provider: Provider {}
 node probe: Probe {}
@@ -252,9 +252,9 @@ connect provider -> probe.ServiceInput;
 // TEST: old state must be declared
 node type Probe {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = saved.old; // E: Unknown procedure value
   }
 }
@@ -264,9 +264,9 @@ node probe: Probe {}
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure run stage input depends on default input as input // E: declared as input stage
-  // ^H: Dependencies declared here
-    produces default output as output { output = input; }
+  procedure run stage input reads default input as input // E: declared as input stage
+  // ^H: Reads declared here
+    writes default output as output { output = input; }
 }
 node probe: Probe {}
 
@@ -278,23 +278,23 @@ node probe: Probe {}
 node type Probe {
   binding first: value boolean;
   binding second: value boolean;
-  procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
-  procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
+  procedure one reads second writes first { first = second; } // H: Cycle continues here // H: Cycle continues here
+  procedure two reads first writes second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 }
 node probe: Probe {}
 
 // TEST: resource output
 resource type Service;
 node type Probe {
-  output ServiceOutput: resource Service;
-  procedure run produces ServiceOutput {} // E: cannot produce resources
+  output ServiceOutput: fixed Service;
+  procedure run writes ServiceOutput {} // E: Only initializers can write fixed values
 }
 node probe: Probe {}
 
 // TEST: result assignment with mismatched branch types
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let value = if true { output = true; } else { false }; // E: Invalid unit
     output = value;
   }
@@ -307,7 +307,7 @@ node type Probe {
   parameter Value: Type;
   parameter Enabled: boolean = !Value; // E: Expected value of type `boolean`
   default output: value boolean;
-  procedure run produces default output as output { output = Enabled; }
+  procedure run writes default output as output { output = Enabled; }
 }
 node probe: Probe { Type: int32, Value: 7 }
 
@@ -320,7 +320,7 @@ node type Probe {
     value
   };
   default output: value boolean;
-  procedure run produces default output as output { output = Enabled; }
+  procedure run writes default output as output { output = Enabled; }
 }
 node probe: Probe { Type: int32, Value: 7 }
 
@@ -328,19 +328,19 @@ node probe: Probe { Type: int32, Value: 7 }
 node type Probe {
   parameter Enabled: boolean = if true { 1() } else { false }; // E: Function is not a reference
   default output: value boolean;
-  procedure run produces default output as output { output = Enabled; }
+  procedure run writes default output as output { output = Enabled; }
 }
 node probe: Probe {}
 
 // TEST: top-level result type
 #[Allow(Unused)] binding t: value int8;
-procedure p1 produces t {
+procedure p1 writes t {
   t = 128; // E: out of range
 }
 
 // TEST: top-level missing assignment
 #[Allow(Unused)] binding t: value int8;
-procedure p1 produces t {} // E: did not assign outputs
+procedure p1 writes t {} // E: did not assign outputs
 
 // TEST: top-level dependency cycle
 // SH: Cycle continues here
@@ -349,8 +349,8 @@ procedure p1 produces t {} // E: did not assign outputs
 // SH: Cycle continues here
 binding first: value boolean;
 binding second: value boolean;
-procedure one depends on second produces first { first = second; } // H: Cycle continues here // H: Cycle continues here
-procedure two depends on first produces second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
+procedure one reads second writes first { first = second; } // H: Cycle continues here // H: Cycle continues here
+procedure two reads first writes second { second = first; } // E: Circular procedure dependency // H: Cycle continues here
 
 // TEST: dependency cycle through a child node
 // SH: Cycle continues here
@@ -368,15 +368,15 @@ binding first: value boolean;
 binding second: value boolean;
 node relay: Relay {}
 procedure one
-  depends on second // H: Cycle continues here
-  produces first // H: Cycle continues here
+  reads second // H: Cycle continues here
+  writes first // H: Cycle continues here
 {
   first = second;
 }
 connect first -> relay; // H: Cycle continues here
 procedure two
-  depends on relay as value // E: Circular procedure dependency
-  produces second // H: Cycle continues here
+  reads relay as value // E: Circular procedure dependency
+  writes second // H: Cycle continues here
 {
   second = value;
 }
@@ -386,21 +386,21 @@ native procedure p1; // E: Native procedures must belong to a node type
 
 // TEST: Some argument count in a procedure
 #[Allow(Unused)] binding result: value Option[boolean];
-procedure run produces result {
+procedure run writes result {
   result = Some(true, false); // E: Some expects exactly one argument
 }
 
 // TEST: struct literal missing field in a procedure
 struct type Pair { enabled: boolean, number: uint8, }
 #[Allow(Unused)] binding result: value Pair;
-procedure run produces result {
+procedure run writes result {
   result = Pair { enabled: true }; // E: Missing fields of `Pair`: `number`
 }
 
 // TEST: struct literal unknown field in a procedure
 struct type Pair { enabled: boolean, }
 #[Allow(Unused)] binding result: value Pair;
-procedure run produces result {
+procedure run writes result {
   result = Pair { enabled: true, number: 1 }; // E: Unknown field `number` of `Pair`
 }
 
@@ -409,13 +409,13 @@ node type References {
   default input: value boolean;
   binding copy: value boolean;
   procedure first
-    depends on default input as input
-    produces copy as result
+    reads default input as input
+    writes copy as result
   {
     result = input;
   }
   procedure second
-    depends on first.result as value // E: Port `result` of procedure `first` is not a typed port
+    reads first.result as value // E: Port `result` of procedure `first` is not a typed port
   {
   }
 }

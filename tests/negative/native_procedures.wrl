@@ -40,11 +40,11 @@ node type Invalid {
 // SE: is declared with different interfaces
 node type First {
   default output: value boolean;
-  native procedure run produces default output as "output"; // H: Previous declaration was here
+  native procedure run writes default output as "output"; // H: Previous declaration was here
 }
 node type Second {
   default output: value boolean;
-  native procedure run as "First:run" produces default output as "value"; // E: is declared with different interfaces
+  native procedure run as "First:run" writes default output as "value"; // E: is declared with different interfaces
 }
 node first: First {}
 node second: Second {}

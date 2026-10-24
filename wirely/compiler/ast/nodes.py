@@ -218,25 +218,34 @@ def validate_nodes(graph: 'model.NodeType') -> None:
             connection = next(connection.source_element for connection in graph.connections
                               if connection.target is resource)
             assert initializer is not None
-            port = next(port for port in initializer.produces.outputs if port.key == produced[resource])
-            raise ProgramError(connection, f'Binding `{resource.name}` is both produced and connected', hints=[
-                CompilerHint(port, 'Produced by the native initializer here'),
+            port = next(port for port in initializer.writes.outputs if port.key == produced[resource])
+            raise ProgramError(connection, f'Binding `{resource.name}` is both written and connected', hints=[
+                CompilerHint(port, 'Written by the native initializer here'),
             ])
     for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values(), *graph.local_resources.values()):
         check_alias_cycle(graph, node)
-    if getattr(graph, 'is_native', False):
+    if getattr(graph, 'initializer', None) is not None:
         validate_resource_outputs(graph)
     check_unused(graph)
 
 
 def check_unused(graph: 'model.NodeType') -> None:
-    """Warn about bindings of the node type that nothing reads."""
+    """Warn about bindings of the node type that nothing reads, and about an unused native name."""
     read = {id(connection.source) for connection in graph.connections}
     initializer = getattr(graph, 'initializer', None)
     if initializer is not None:
         read.update(id(dependency) for dependency in initializer.resolved_dependencies())
     warnings = graph.coordinator.warnings
     assert warnings is not None
+    alias = getattr(graph, 'alias', None)
+    if alias is not None:
+        # The alias is the prefix of the native names of members without their own.
+        used = any(procedure.is_native and procedure.alias is None for procedure in graph.procedures.values())
+        if initializer is not None and initializer.declaration.alias is None:
+            used = True
+        if not used:
+            warnings.warn('Unused', alias, f'Native name `{alias.value}` is not used by an initializer or native procedure',
+                          instance_trace=False)
     for name, node in graph.temporary_nodes.items():
         if id(node) not in read:
             warnings.warn('Unused', graph.value_nodes[name].name, f'Binding `{name}` is never read',
@@ -248,9 +257,8 @@ def check_unused(graph: 'model.NodeType') -> None:
 
 
 def validate_resource_outputs(graph: 'model.NodeType') -> None:
-    """Require one source for each resource output of a native node type."""
-    if graph.initializer is None:
-        raise ProgramError(graph.name, 'Native node types require a native initializer')
+    """Require one source for each fixed output of a node type with an initializer."""
+    assert graph.initializer is not None
     produced = graph.initializer.output_keys
     for output in graph.output_ports.values():
         if output.resource_type is None:
@@ -261,9 +269,9 @@ def validate_resource_outputs(graph: 'model.NodeType') -> None:
         if output.connected_source is not None and output in produced:
             connection = next(connection.source_element for connection in graph.connections
                               if connection.target is output)
-            port = next(port for port in graph.initializer.produces.outputs if port.key == produced[output])
-            raise ProgramError(connection, f'{name} is both produced and connected', hints=[
-                CompilerHint(port, 'Produced by the native initializer here'),
+            port = next(port for port in graph.initializer.writes.outputs if port.key == produced[output])
+            raise ProgramError(connection, f'{name} is both written and connected', hints=[
+                CompilerHint(port, 'Written by the native initializer here'),
             ])
 
 

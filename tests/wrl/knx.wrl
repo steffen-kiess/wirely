@@ -113,7 +113,7 @@ node type KNXConversionCase {
   parameter ValueSendAddress: string;
   parameter EventReceiveAddress: string;
   parameter EventSendAddress: string;
-  input Bus: resource KNX.Bus;
+  input Bus: fixed KNX.Bus;
 
   node value_receiver: KNX.ValueReceiver {
     Type: Type,

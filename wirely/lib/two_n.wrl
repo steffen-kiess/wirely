@@ -12,7 +12,7 @@ namespace TwoN {
 
   resource type Device;
 
-  native node type Connection {
+  node type Connection {
     parameter Host: string;
     parameter Port: uint16 = 443;
     parameter TLSA: List[string];
@@ -20,31 +20,31 @@ namespace TwoN {
 
     constant credentials: Credentials = ReadCredentials(UsernamePasswordFile);
 
-    default output: resource Device;
+    default output: fixed Device;
 
-    native initializer
-      produces default output as "device"
-      uses Host, Port, TLSA, credentials;
+    native initializer create
+      reads Host, Port, TLSA, credentials
+      writes default output as "device";
   }
 
   #[Internal]
   resource type KeyEventState;
 
   // Get an event whenever a key is pressed or released
-  native node type KeyEvent {
+  node type KeyEvent {
     #[Diagram.ShowValue]
     parameter Key: string;
 
-    input Device: resource Device;
+    input Device: fixed Device;
     // True if the key is pressed, false if it released.
     default output: event boolean;
 
-    binding state: resource KeyEventState;
-    native initializer depends on Device produces state as "state" uses Key;
+    binding state: fixed KeyEventState;
+    native initializer create reads Device, Key writes state as "state";
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output";
+      reads state as "state"
+      writes default output as "output";
   }
 
   // Get the current state of a key
@@ -60,7 +60,7 @@ namespace TwoN {
     // trigger a KeyPressed event but no KeyReleased event).
     parameter Timeout: Std.Duration = "PT30S";
 
-    input Device: resource Device;
+    input Device: fixed Device;
 
     // True if the key is pressed, false otherwise.
     default output: value boolean;
@@ -80,8 +80,8 @@ namespace TwoN {
     }
 
     procedure get_value
-      depends on key_event, event_time, pressed_at.old as previous, timeout
-      produces default output as output, pressed_at, timed_out: event unit
+      reads key_event, event_time, pressed_at.old as previous, timeout
+      writes default output as output, pressed_at, timed_out: event unit
     {
       // A new press or release takes precedence over an expired timeout.
       pressed_at = if let Some(pressed) = optional(key_event) {
@@ -107,21 +107,21 @@ namespace TwoN {
 
   // Get the current state of an input or output
   // TODO: Regularly get the current value?
-  native node type IOState {
+  node type IOState {
     #[Diagram.ShowValue]
     parameter Port: string;
 
-    input Device: resource Device;
+    input Device: fixed Device;
 
-    binding state: resource IOStateState;
-    native initializer depends on Device produces state as "state" uses Port;
+    binding state: fixed IOStateState;
+    native initializer create reads Device, Port writes state as "state";
 
     // True if the input/output is on, false otherwise.
     default output: value boolean;
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output";
+      reads state as "state"
+      writes default output as "output";
   }
 
   #[Internal]
@@ -129,17 +129,16 @@ namespace TwoN {
 
   // Get the current state of a switch
   // TODO: Regularly get the current value?
-  native node type SwitchState {
+  node type SwitchState {
     #[Diagram.ShowValue]
     parameter SwitchNumber: int32;
 
-    input Device: resource Device;
+    input Device: fixed Device;
 
-    binding state: resource SwitchStateState;
-    native initializer
-      depends on Device
-      produces state as "state"
-      uses SwitchNumber;
+    binding state: fixed SwitchStateState;
+    native initializer create
+      reads Device, SwitchNumber
+      writes state as "state";
 
     // True if the switch is active, false otherwise.
     default output: value boolean;
@@ -147,46 +146,46 @@ namespace TwoN {
     // TODO: Outputs for "locked" and "held"?
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output";
+      reads state as "state"
+      writes default output as "output";
   }
 
   #[Internal]
   resource type CodeEnteredEventState;
 
-  native node type CodeEnteredEvent {
+  node type CodeEnteredEvent {
     parameter Code: string;
 
     assert IsValidCode(Code), "Code must contain at most 15 ASCII digits";
 
-    input Device: resource Device;
+    input Device: fixed Device;
     default output: event unit;
 
-    binding state: resource CodeEnteredEventState;
-    native initializer depends on Device produces state as "state" uses Code;
+    binding state: fixed CodeEnteredEventState;
+    native initializer create reads Device, Code writes state as "state";
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output";
+      reads state as "state"
+      writes default output as "output";
   }
 
   #[Internal]
   resource type OutputControlState;
 
-  native node type OutputControl {
+  node type OutputControl {
     #[Diagram.ShowValue]
     parameter Port: string;
 
-    input Device: resource Device;
+    input Device: fixed Device;
 
-    binding state: resource OutputControlState;
-    native initializer depends on Device produces state as "state" uses Port;
+    binding state: fixed OutputControlState;
+    native initializer create reads Device, Port writes state as "state";
 
     // True to turn the output is on, false to turn it off.
     default input: event boolean;
 
     native procedure send_value stage output
-      depends on state as "state", default input as "input";
+      reads state as "state", default input as "input";
   }
 
   // TODO: Block for setting output from value?

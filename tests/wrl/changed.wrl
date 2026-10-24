@@ -16,17 +16,17 @@ node type Watch {
   connect Value -> copied;
 
   procedure write
-    depends on Value as value
-    produces saved as next, option, Written as output
+    reads Value as value
+    writes saved as next, option, Written as output
   {
     next = value;
     option = if value == 0 { None } else { Some(value) };
     on changed next { emit output(next); }
   }
   procedure read
-    depends on saved.new as first, saved.new as second,
+    reads saved.new as first, saved.new as second,
       saved.old as previous, Event as event
-    produces Read as output, Previous as old, Mixed as mixed
+    writes Read as output, Previous as old, Mixed as mixed
   {
     on changed first {
       emit output(first);
@@ -35,14 +35,14 @@ node type Watch {
     on event, changed second { emit mixed; }
   }
   procedure copy
-    depends on copied.new as current
-    produces Copied as output
+    reads copied.new as current
+    writes Copied as output
   {
     on changed current { emit output(current); }
   }
   procedure read_option
-    depends on option.new as current
-    produces Option as output
+    reads option.new as current
+    writes Option as output
   {
     on changed current { emit output(current); }
   }

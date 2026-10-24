@@ -9,15 +9,15 @@ node type Lengths {
   output ListCount: value uint32;
   output Explicit: value uint32;
 
-  procedure metadata produces default output as count, ListCount {
+  procedure metadata writes default output as count, ListCount {
     count = (default input).Length;
     ListCount = Items.Length;
   }
-  procedure aliases depends on default input as values produces Alias {
+  procedure aliases reads default input as values writes Alias {
     assert values.Length == Expected;
     Alias = values.Length + 1;
   }
-  procedure explicit depends on values: multi value boolean produces Explicit {
+  procedure explicit reads values: multi value boolean writes Explicit {
     Explicit = values.Length;
   }
   connect default input -> explicit.values;
@@ -32,7 +32,7 @@ node type Forward {
 node type Fields {
   default input: value Measurement;
   default output: value uint32;
-  procedure run depends on default input as value produces default output as output {
+  procedure run reads default input as value writes default output as output {
     output = value.Length;
   }
 }

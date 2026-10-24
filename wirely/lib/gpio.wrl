@@ -21,7 +21,7 @@ namespace GPIO {
   resource type OutputState;
 
   // Set a GPIO based on a boolean value
-  native node type Output {
+  node type Output {
     parameter ChipDeviceFile: string;
     #[Diagram.ShowValue]
     parameter Name: string;
@@ -30,15 +30,15 @@ namespace GPIO {
     parameter Drive: GPIO.Drive = GPIO.Drive.PushPull;
     parameter Bias: GPIO.Bias = GPIO.Bias.AsIs;
 
-    binding state: resource OutputState;
-    native initializer
-      produces state as "state"
-      uses ChipDeviceFile, Name, ActiveState, Drive, Bias;
+    binding state: fixed OutputState;
+    native initializer create
+      reads ChipDeviceFile, Name, ActiveState, Drive, Bias
+      writes state as "state";
 
     default input: value boolean;
 
     native procedure set_value stage output
-      depends on state as "state", default input as "input";
+      reads state as "state", default input as "input";
   }
 
   // TODO: Add tri-state output where the value can be None which will cause the

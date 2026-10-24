@@ -1,15 +1,15 @@
 // TEST: procedure_input_stage_value
 node type Invalid {
   input Value: value boolean;
-  native procedure run stage input // E: declared as input stage but depends on something else
-    depends on Value; // H: Dependencies declared here
+  native procedure run stage input // E: Procedure `run` is declared as input stage but reads values that are not fixed
+    reads Value; // H: Reads declared here
 }
 
 // TEST: procedure_implicit_input_alias
 node type Invalid {
   default input: value boolean;
 
-  native procedure run depends on default input;
+  native procedure run reads default input;
   // ^E: Default ports and complex references require an explicit alias
 }
 
@@ -17,15 +17,15 @@ node type Invalid {
 node type Invalid {
   default output: value boolean;
 
-  native procedure run produces default output;
+  native procedure run writes default output;
   // ^E: Default ports and complex references require an explicit alias
 }
 
 // TEST: procedure_state_alias
 node type Invalid {
   state value: boolean = false;
-  native procedure write produces value;
-  native procedure run depends on value.old;
+  native procedure write writes value;
+  native procedure run reads value.old;
   // ^E: Default ports and complex references require an explicit alias
 }
 
@@ -40,7 +40,7 @@ node type Child {
 node type Invalid {
   node child: Child {}
 
-  native procedure run depends on child.Value;
+  native procedure run reads child.Value;
   // ^E: Default ports and complex references require an explicit alias
 }
 
@@ -52,7 +52,7 @@ node type Invalid {
   input Other: value boolean;
 
   native procedure run
-    depends on Value, // H: Previous port was here
+    reads Value, // H: Previous port was here
       Other as "Value"; // E: Duplicate port name `Value`
 }
 
@@ -64,7 +64,7 @@ node type Invalid {
   output Other: value boolean;
 
   native procedure run
-    produces Value, // H: Previous port was here
+    writes Value, // H: Previous port was here
       Other as "Value"; // E: Duplicate port name `Value`
 }
 
@@ -76,7 +76,7 @@ node type Invalid {
   input Second: value boolean;
 
   native procedure run
-    depends on First as "\x61", // H: Previous port was here
+    reads First as "\x61", // H: Previous port was here
       Second as r"a"; // E: Duplicate port name `a`
 }
 
@@ -91,21 +91,21 @@ node type Child {
 node type Invalid {
   node child: Child {}
 
-  native procedure run depends on child.Missing as "value";
+  native procedure run reads child.Missing as "value";
   // ^E: Unable to find dependency output port `child.Missing`
 }
 
 // TEST: procedure_deep_dependency
 node type Invalid {
-  native procedure run depends on child.inner.Value as "value";
-  // ^E: Got unexpected number of identifiers in dependency
+  native procedure run reads child.inner.Value as "value";
+  // ^E: Cannot infer expression type; add a type annotation
 }
 
 // TEST: procedure_state_dependency
 node type Invalid {
   state value: boolean = false;
-  native procedure write produces value;
-  native procedure run depends on value;
+  native procedure write writes value;
+  native procedure run reads value;
   // ^E: State connection sources must explicitly reference .old or .new
 }
 
@@ -113,14 +113,14 @@ node type Invalid {
 node type Invalid {
   state value: boolean = false;
 
-  native procedure run produces value.old as "value";
+  native procedure run writes value.old as "value";
   // ^E: State `value` has no input port `old`
 }
 
 // TEST: procedure_port_without_source
 node type Invalid {
   native procedure run
-    depends on value: value boolean; // E: Input port `value` of procedure `run` has no source
+    reads value: value boolean; // E: Input port `value` of procedure `run` has no source
 }
 
 // TEST: procedure_port_second_source
@@ -128,7 +128,7 @@ node type Invalid {
   default input: value boolean;
   input Other: value boolean;
   native procedure run
-    depends on value: value boolean;
+    reads value: value boolean;
   connect default input -> run.value; // H: Previous connection was here
   connect Other -> run.value; // E: Port `value` of procedure `run` already has a source
 }
@@ -139,8 +139,8 @@ node type Invalid {
   default input: value boolean;
   default output: value boolean;
   native procedure run
-    depends on default input as value
-    produces default output as "output";
+    reads default input as value
+    writes default output as "output";
   connect run.output -> default output; // E: Port `output` of procedure `run` is not a typed port
 }
 
@@ -149,7 +149,7 @@ node type Invalid {
   input Values: multi value boolean;
   input Other: value boolean;
   native procedure run
-    depends on values: multi value boolean;
+    reads values: multi value boolean;
   connect Values -> run.values; // H: Previous connection was here
   connect Other -> run.values; // E: Port `values` of procedure `run` cannot combine a multi input with other sources
 }
@@ -159,7 +159,7 @@ node type Invalid {
 node type Invalid {
   input Flag: value boolean;
   native procedure run
-    depends on value as "missing": value boolean;
+    reads value as "missing": value boolean;
   connect Flag -> run.missing; // E: Unable to find port `missing` of procedure `run`
 }
 
@@ -169,7 +169,7 @@ node type Invalid {
 node type Invalid {
   input Flag: value boolean;
   native procedure run
-    depends on Flag as "value", // H: Previous port was here
+    reads Flag as "value", // H: Previous port was here
       other as "value": value boolean; // E: Duplicate port key `value`
 }
 
@@ -177,7 +177,7 @@ node type Invalid {
 node type Invalid {
   default input: value boolean;
   native procedure run
-    depends on default input as "value": value boolean;
+    reads default input as "value": value boolean;
   // ^E: Typed port names must be identifiers
 }
 
@@ -185,7 +185,7 @@ node type Invalid {
 node type Invalid {
   default output: value boolean;
   native procedure run
-    depends on value: value boolean;
+    reads value: value boolean;
   connect run.value -> default output; // E: Port `value` of procedure `run` is an input
 }
 
@@ -193,7 +193,7 @@ node type Invalid {
 node type Invalid {
   default output: value boolean;
   native procedure run
-    produces value: value boolean;
+    writes value: value boolean;
   connect run -> default output; // E: Procedure references require a port, as in `run.port`
 }
 
@@ -201,7 +201,7 @@ node type Invalid {
 node type Invalid {
   input Flag: value boolean; // H: Source was declared here
   native procedure run
-    depends on value: value uint8; // H: Target was declared here
+    reads value: value uint8; // H: Target was declared here
   connect Flag -> run.value; // E: source has type `boolean` but target has type `uint8`
 }
 
@@ -209,34 +209,34 @@ node type Invalid {
 node type Invalid {
   input Flag: event boolean; // H: Source was declared here
   native procedure run
-    depends on value: value boolean; // H: Target was declared here
+    reads value: value boolean; // H: Target was declared here
   connect Flag -> run.value; // E: source has kind
 }
 
 // TEST: procedure_port_multi_output
 node type Invalid {
   native procedure run
-    produces values: multi value boolean; // E: Got multi specifier for non-input
+    writes values: multi value boolean; // E: Got multi specifier for non-input
 }
 
 // TEST: procedure_port_resource_output
 resource type Handle;
 node type Invalid {
   native procedure run
-    produces handle: resource Handle; // E: Procedures cannot produce resources
+    writes handle: fixed Handle; // E: Only initializers can write fixed values
 }
 
 // TEST: procedure_port_input_stage
 node type Invalid {
-  native procedure run stage input // E: declared as input stage but depends on something else
-    depends on value: value boolean; // H: Dependencies declared here
+  native procedure run stage input // E: Procedure `run` is declared as input stage but reads values that are not fixed
+    reads value: value boolean; // H: Reads declared here
 }
 
 // TEST: event_read_outside_on
 // LIBRARIES: std
 node a: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on a produces result {
+procedure run reads a writes result {
   result = a; // E: Event `a` can only be read inside `on a`
 }
 
@@ -245,7 +245,7 @@ procedure run depends on a produces result {
 node a: Std.DebugEventSource { Type: boolean }
 node b: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on a, b produces result {
+procedure run reads a, b writes result {
   let mut value = false;
   on a, b { value = a; } // E: Event `a` can only be read inside `on a`
   result = value;
@@ -255,7 +255,7 @@ procedure run depends on a, b produces result {
 // LIBRARIES: std
 node a: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on values: multi event boolean produces result {
+procedure run reads values: multi event boolean writes result {
   let mut value = false;
   on values {
     for item in values {
@@ -270,7 +270,7 @@ connect a -> run.values;
 // LIBRARIES: std
 node a: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on values: multi event boolean produces result {
+procedure run reads values: multi event boolean writes result {
   result = optional(values).IsSome; // E: optional requires an optional parameter without a default or a single event dependency
 }
 connect a -> run.values;
@@ -279,7 +279,7 @@ connect a -> run.values;
 // LIBRARIES: std
 node a: Std.DebugValueSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on a produces result {
+procedure run reads a writes result {
   result = optional(a).IsSome; // E: optional requires an optional parameter without a default or a single event dependency
 }
 
@@ -287,7 +287,7 @@ procedure run depends on a produces result {
 // LIBRARIES: std
 node a: Std.DebugEventSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on a produces result {
+procedure run reads a writes result {
   result = optional(a, a).IsSome; // E: optional expects exactly one argument
 }
 
@@ -295,7 +295,7 @@ procedure run depends on a produces result {
 // LIBRARIES: std
 node a: Std.DebugValueSource { Type: boolean }
 state result: boolean = false;
-procedure run depends on a produces result {
+procedure run reads a writes result {
   on a {} // E: `a` is not an event dependency
   result = a;
 }
@@ -305,8 +305,8 @@ constant Value: boolean = { on a {} true }; // E: on blocks are only allowed in 
 
 // TEST: initializer_typed_port
 resource type Handle;
-native node type Invalid {
-  native initializer depends on handle: resource Handle; // E: Initializer dependencies must reference resources
+node type Invalid {
+  native initializer create reads handle: fixed Handle; // E: Initializer reads must reference fixed values or compile-time values
 }
 
 // TEST: emit_value_output
@@ -317,8 +317,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: value boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     emit output(true); // E: is not an event output
   }
@@ -334,8 +334,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     emit output(1); // E: Invalid boolean value
   }
@@ -351,8 +351,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     emit output; // E: Expected value of type `boolean`, got `unit`
   }
@@ -368,8 +368,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     emit? output(true); // E: Invalid Option value
   }
@@ -385,8 +385,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event unit;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     emit? output; // E: Syntax error
   }
@@ -402,8 +402,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     let value = output; // E: Cannot read event output
   }
@@ -419,8 +419,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { emit output(true); let value = output; } // E: Cannot read event output
   }
@@ -436,8 +436,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { emit output(true); emit output(false); } // E: may be assigned more than once
   }
@@ -453,8 +453,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { emit? output(None); emit output(false); } // E: may be assigned more than once
   }
@@ -470,8 +470,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { emit output(true); } on input { emit output(false); } // E: may be assigned more than once
   }
@@ -487,8 +487,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { if input { emit output(true); } emit output(false); } // E: may be assigned more than once
   }
@@ -504,8 +504,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     for item in values { on item { emit output(true); } } // E: Cannot assign outer immutable binding
   }
@@ -521,8 +521,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     on input { emit input(true); } // E: is not an event output
   }
@@ -538,8 +538,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     let result = false; on input { emit result(true); } // E: is not an event output
   }
@@ -552,7 +552,7 @@ constant Value: unit = { emit output; }; // E: emit is only allowed in procedure
 
 // TEST: emit_state
 state value: boolean = false;
-procedure run produces value {
+procedure run writes value {
   emit value(true); // E: is not an event output
 }
 
@@ -564,8 +564,8 @@ node type Invalid {
   input Values: multi event boolean;
   default output: event boolean;
   procedure run
-    depends on Input as input, Values as values
-    produces default output as output
+    reads Input as input, Values as values
+    writes default output as output
   {
     for item in values { on item { emit output(true); } } // E: Cannot assign outer immutable binding
   }

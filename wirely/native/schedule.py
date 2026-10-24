@@ -20,7 +20,8 @@ class IsInDailyInterval:
             self._day_us = 86_400 * 1_000_000
             self._boundaries = {self._start_us % self._day_us, self._end_us % self._day_us}
 
-        def run(self, *, services: ProcedureServices) -> contracts.IsInDailyIntervalRunResult:
+        def run(self, *, services: ProcedureServices, start: TimeOfDay,
+                end: TimeOfDay) -> contracts.IsInDailyIntervalRunResult:
             if self._constant is not None:
                 return contracts.IsInDailyIntervalRunResult(output=wirely.Some(self._constant))
             snapshot = services.start_time_for_stage(RunStage.DEFAULT)

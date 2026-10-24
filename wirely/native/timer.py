@@ -15,7 +15,7 @@ class MonotonicTimestamp:
             pass
 
         def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None) -> contracts.MonotonicTimestampRunResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.MonotonicTimestampRunResult:
             if input is None:
                 return contracts.MonotonicTimestampRunResult(output=None)
             services.trigger_self()

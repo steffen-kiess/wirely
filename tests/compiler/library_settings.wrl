@@ -68,7 +68,7 @@ node knx_inferred: KNXSettings { UnixPath: "/unused" }
 node type MQTTSettings {
   optional parameter Format: MQTT.Format;
   optional parameter Template: string;
-  input Broker: resource MQTT.Broker;
+  input Broker: fixed MQTT.Broker;
   default input: value Std.EdgeType;
   node output: MQTT.ValueProvider {
     Topic: "unused", Type: Std.EdgeType,

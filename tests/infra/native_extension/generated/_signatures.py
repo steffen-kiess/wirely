@@ -6,7 +6,7 @@ from wirely.runtime.signatures import (
 )
 
 
-# Native initializers by native state type name.
+# Native initializers by native name.
 native_state_types: dict[str, Initializer] = {
 }
 

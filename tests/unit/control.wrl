@@ -3,7 +3,7 @@ node type CachedConstant {
   parameter Value: uint32;
   default output: value uint32;
 
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Value;
   }
 }

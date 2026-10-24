@@ -52,11 +52,11 @@ def check_names():
     assert native_contracts.module_name('TwoN') == 'two_n'
     assert native_contracts.module_name('ABB.JRA') == 'abb_jra'
     for kind, name, location in [('procedure', 'MQTT.EventSender:send_value', ('mqtt', 'EventSenderSendValue')),
-                                 ('initializer', 'KNX.Connection', ('knx', 'ConnectionInitializer')),
+                                 ('initializer', 'KNX.Connection:create', ('knx', 'ConnectionCreate')),
                                  ('function', 'MonotonicTime.CheckedAdd', ('monotonic_time', '_CheckedAdd'))]:
         assert native_contracts.contract_location(kind, name) == location
-    with checks.assertRaisesRegex(ValueError, "Native name `Probe` has no namespace"):
-        native_contracts.contract_location('initializer', 'Probe')
+    with checks.assertRaisesRegex(ValueError, "Native name `Probe:create` has no namespace"):
+        native_contracts.contract_location('initializer', 'Probe:create')
 
     # Generated loaders carry direct adapters, without contract-location strings.
     from wirely.generated import _bindings as native_bindings
@@ -71,12 +71,12 @@ def check_collisions():
         ('''node type Probe {
               input Value: value boolean;
               input value: value boolean;
-              native procedure run depends on Value, value;
+              native procedure run reads Value, value;
             }''', "input `Value` and input `value` have the same Python name `value`"),
         ('''node type Probe {
               parameter Value: boolean;
-              native procedure run uses Value, Value as "value";
-            }''', "uses binding `Value` and uses binding `value` have the same Python name"),
+              native procedure run reads Value, Value as "value";
+            }''', "compile-time read `Value` and compile-time read `value` have the same Python name"),
         ('''node type Probe {
               native procedure run as "TestLibrary.Probe:a_b";
               native procedure other as "TestLibrary.Probe:aB";
@@ -92,9 +92,9 @@ def check_collisions():
     # Resource types need a known class, unless generation is not strict.
     interfaces = compile_interfaces('''namespace TestLibrary {
       resource type Handle;
-      native node type Owner {
-        binding state: resource Handle;
-        native initializer produces state as "state";
+      node type Owner {
+        binding state: fixed Handle;
+        native initializer create writes state as "state";
       }
     }''')
     with checks.assertRaisesRegex(ValueError, 'Cannot find the Python class of resource type `TestLibrary.Handle`'):
@@ -107,23 +107,22 @@ def check_collisions():
 
 source = '''namespace TestLibrary {
   resource type Handle;
-  native node type Owner {
+  node type Owner {
     parameter Limit: uint8;
     optional parameter Label: string;
-    binding state: resource Handle;
-    native initializer produces state as "state" uses Limit, optional(Label) as label;
+    binding state: fixed Handle;
+    native initializer create reads Limit, optional(Label) as label writes state as "state";
   }
   node type Probe {
     parameter Type: type;
-    input Owner: resource Handle;
+    input Owner: fixed Handle;
     input Value: value Option[Type];
     input Trigger: event uint8;
     output Out: event Type;
     output Count: value uint8;
     native procedure run
-      depends on Owner, Value as "implicit input", Trigger
-      produces Out, Count
-      uses Type;
+      reads Owner, Value as "implicit input", Trigger, Type
+      writes Out, Count;
   }
   native function Twice(value: uint8): Option[uint8];
 }
@@ -136,22 +135,22 @@ def check_adapters():
 
     # Contract methods must be implemented.
     with checks.assertRaises(TypeError):
-        contracts.OwnerInitializer()
+        contracts.OwnerCreate()
     with checks.assertRaises(TypeError):
         contracts.ProbeRun()
 
-    class Owner(contracts.OwnerInitializer):
+    class Owner(contracts.OwnerCreate):
         def initialize(self, *, services, limit, label):
             self.limit = limit
             self.label = label
-            return contracts.OwnerInitializerResult(state=self)
+            return contracts.OwnerCreateResult(state=self)
 
     class Probe(contracts.ProbeRun):
         def prepare(self, *, services, owner, type):
             self.prepared = (services.name, owner, type)
 
-        def run(self, *, services, owner, implicit_input, trigger):
-            self.inputs = (owner, implicit_input, trigger)
+        def run(self, *, services, owner, implicit_input, trigger, type):
+            self.inputs = (owner, implicit_input, trigger, type)
             return self.result
 
     handle_type = ResourceType('TestLibrary.Handle', Owner)
@@ -161,7 +160,7 @@ def check_adapters():
                              shutdown_time=lambda: None, is_shutting_down=lambda: False,
                              native_types=builtin_extension.native_types)
     owner, outputs = Owner._adapter.construct(Owner, services, InterfaceBinding(
-        where='Owner', signature=state_types['TestLibrary.Owner'],
+        where='Owner', signature=state_types['TestLibrary.Owner:create'],
         use_types={'Limit': wirely_types.uint8, 'label': wirely_types.TypeOption(wirely_types.String)},
         use_values={'Limit': 9, 'label': wirely.Some('text')}, resources={}, port_types={},
         output_resource_types={'state': handle_type}, native_types=builtin_extension.native_types))
@@ -192,7 +191,7 @@ def check_adapters():
     outputs = Probe._adapter.run(probe, procedure_services, binding,
                                  {'implicit input': wirely.Some((True, False)), 'Trigger': wirely.Some(3)})
     assert outputs == {'Out': wirely.Some((True, False)), 'Count': 2}
-    assert probe.inputs == (owner, wirely.Some(payload), wirely.Some(wirely.UInt8(3)))
+    assert probe.inputs == (owner, wirely.Some(payload), wirely.Some(wirely.UInt8(3)), descriptor)
     probe.result = contracts.ProbeRunResult(out=None, count=wirely.UInt8(0))
     assert Probe._adapter.run(probe, procedure_services, binding, {'implicit input': None, 'Trigger': None}) == {
         'Out': None, 'Count': 0}

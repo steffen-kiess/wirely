@@ -112,7 +112,7 @@ def format_state(name: str, type_text: str, initial_text: str) -> str:
 
 
 def format_binding(name: str, kind: str, type_text: str) -> str:
-    if kind not in ('value', 'event', 'resource'):
+    if kind not in ('value', 'event', 'fixed'):
         raise ValueError(f'Invalid binding kind {kind!r}')
     return _checked(f'binding {format_identifier(name)}: {kind} {type_text};')
 
@@ -132,11 +132,11 @@ def format_parameter(name: str, type_text: str, default_text: str | None = None,
 def format_port(direction: str, name: str | None, kind: str, type_text: str, is_list: bool = False) -> str:
     """Return a port declaration; name is None for the default port.
 
-    direction is 'input' or 'output', kind 'value', 'event', or 'resource'.
+    direction is 'input' or 'output', kind 'value', 'event', or 'fixed'.
     """
     if direction not in ('input', 'output'):
         raise ValueError(f'Invalid port direction {direction!r}')
-    if kind not in ('value', 'event', 'resource'):
+    if kind not in ('value', 'event', 'fixed'):
         raise ValueError(f'Invalid port kind {kind!r}')
     head = f'default {direction}' if name is None else f'{direction} {format_identifier(name)}'
     multi = 'multi ' if is_list else ''
@@ -420,8 +420,6 @@ def rename(sources: Sources, target: _outline.DeclarationId, new_name: str, *,
     parent = _scope(before, target.path[:-1])
     if isinstance(target, NodeType):
         assert isinstance(record, _outline.NodeTypeInfo)
-        if record.is_native:
-            raise ValueError('Native node types cannot be renamed')
         if any(item.name == new_name for item in parent.node_types) or any(
                 namespace.path[-1] == new_name for namespace in parent.namespaces):
             raise ValueError(f'Name `{new_name}` is already used')
@@ -429,14 +427,23 @@ def rename(sources: Sources, target: _outline.DeclarationId, new_name: str, *,
         raise ValueError(f'Name `{new_name}` is already used')
     texts = dict(sources)
     edits = [TextEdit(record.filename, _start(declaration.name), _end(declaration.name), new_text)]
+    if isinstance(target, NodeType):
+        assert isinstance(declaration, ast.DeclarationNodeType)
+        has_native_members = any(
+            isinstance(member, ast.DeclarationInitializer)
+            or (isinstance(member, ast.DeclarationProcedure) and member.is_native)
+            for member in declaration.declarations)
+        if has_native_members and declaration.alias is None:
+            # Keep the prefix of the native names of its members.
+            edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
+                                  f' as {_format_string(".".join(target.path))}'))
     if isinstance(target, Procedure):
         assert isinstance(declaration, ast.DeclarationProcedure)
         if declaration.is_native and declaration.alias is None:
             # Keep the native procedure name.
             owner = _single(before.find(NodeType(target.path[:-1])), NodeType(target.path[:-1]))._declaration
             assert owner is not None
-            prefix = (owner.alias.value if owner.is_native and owner.alias is not None
-                      else '.'.join(target.path[:-1]))
+            prefix = owner.alias.value if owner.alias is not None else '.'.join(target.path[:-1])
             edits.append(TextEdit(record.filename, _end(declaration.name), _end(declaration.name),
                                   f' as {_format_string(f"{prefix}:{old}")}'))
     if isinstance(target, NodeType):
@@ -580,7 +587,7 @@ def _endpoint_references(item: ast.Declaration) -> Iterator[tuple[ast.Reference,
             yield source, None
         yield item.target, None
     elif isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
-        ports = [*item.depends.dependencies, *item.produces.outputs]
+        ports = [*item.reads.entries, *item.writes.outputs]
         for port in ports:
             if isinstance(port, ast.ReferencePort):
                 yield port.reference, port
@@ -606,17 +613,14 @@ def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: st
     if new in ('true', 'false', 'None') or new in _types.type_by_name:
         raise ValueError(f'Name `{new}` is reserved')
     sites = []
-    uses = []
     for filename, item in _scope_items(scope):
         for expression in _expression_fields(item):
             sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(expression)]
-        if isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)) and item.uses is not None:
-            for binding in item.uses.bindings:
-                sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(binding.expression)]
-                expression = binding.expression
-                if (binding.alias is None and isinstance(expression, ast.Reference) and expression.length == 1
-                        and expression.identifiers[0].id_str == old):
-                    uses.append(TextEdit(filename, _end(expression), _end(expression), f' as {format_identifier(old)}'))
+        # Plain references in reads clauses are renamed like other procedure ports.
+        if isinstance(item, (ast.DeclarationProcedure, ast.DeclarationInitializer)):
+            for entry in item.reads.entries:
+                if isinstance(entry, ast.StaticBinding):
+                    sites += [(filename, identifier, bound) for identifier, bound in _reference_roots(entry.expression)]
     edits = []
     for filename, identifier, bound in sites:
         if identifier.id_str == new:
@@ -625,7 +629,7 @@ def _static_rename_edits(scope: _outline.Scope, old: str, new: str, new_text: st
             if new in bound:
                 raise ValueError(f'Name `{new}` is bound locally where `{old}` is used')
             edits.append(TextEdit(filename, _start(identifier), _end(identifier), new_text))
-    return edits + uses
+    return edits
 
 
 def _expression_fields(item: ast.Declaration) -> Iterator[ast.Value | None]:
@@ -651,7 +655,7 @@ def _expression_fields(item: ast.Declaration) -> Iterator[ast.Value | None]:
         for binding in item.instantiation.parameters:
             yield binding.value
     elif isinstance(item, ast.DeclarationProcedure):
-        for port in (*item.depends.dependencies, *item.produces.outputs):
+        for port in (*item.reads.entries, *item.writes.outputs):
             if isinstance(port, ast.TypedPort) and isinstance(port.port_spec, ast.PortTypeSpecificationData):
                 yield port.port_spec.ty
         if item.body is not None:

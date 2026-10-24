@@ -56,11 +56,11 @@ _KIND_COLORS = {
     'parameter': '#7b68a6', 'input': '#2e8b8b', 'output': '#2e8b8b', 'procedure': '#b07a2a',
     'unresolved': '#999999',
 }
-_PORT_COLORS = {'value': '#3c8dd8', 'event': '#e0a020', 'resource': '#9a5cc6', None: '#999999'}
+_PORT_COLORS = {'value': '#3c8dd8', 'event': '#e0a020', 'fixed': '#9a5cc6', None: '#999999'}
 
 
 def _item_color(item: graph_model.Item) -> str:
-    if item.kind == 'binding' and item.inputs[0].kind in ('event', 'resource'):
+    if item.kind == 'binding' and item.inputs[0].kind in ('event', 'fixed'):
         return _PORT_COLORS[item.inputs[0].kind]
     return _KIND_COLORS.get(item.kind, '#888888')
 

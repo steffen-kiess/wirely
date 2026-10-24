@@ -30,8 +30,8 @@ node type ProcedureForward {
   default output: value boolean;
 
   procedure copy
-    depends on source as input
-    produces destination as output
+    reads source as input
+    writes destination as output
   {
     output = input;
   }
@@ -52,13 +52,13 @@ namespace InitializerOrder {
   resource type Handle;
 
   node type Source {
-    default output: resource Handle;
-    output Named: resource Handle;
+    default output: fixed Handle;
+    output Named: fixed Handle;
   }
 
-  native node type Consumer {
-    native initializer
-      depends on source as "default_source", source.Named as "named_source";
+  node type Consumer {
+    native initializer create
+      reads source as "default_source", source.Named as "named_source";
 
     node source: Source {}
   }

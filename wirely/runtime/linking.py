@@ -134,7 +134,7 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
 
     def check_uses(where: str, signature: Initializer | SignatureProcedure,
                    values: Mapping[str, Constant]) -> dict[str, Type]:
-        check_keys(where, 'uses bindings', values, signature.uses)
+        check_keys(where, 'compile-time reads', values, signature.uses)
         # Each `type` binding gives the type of the type variable with its key.
         bindings: dict[str, Type] = {}
         for key, signature_type in signature.uses.items():
@@ -143,7 +143,7 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
                 assert isinstance(value, Type)
                 bindings[key] = value
         for key, signature_type in signature.uses.items():
-            check_type(where, f'uses binding `{key}`', signature_type, values[key].value_type, bindings)
+            check_type(where, f'compile-time read `{key}`', signature_type, values[key].value_type, bindings)
         return bindings
 
     def check_ports(where: str, kind: str, ports: Mapping[str, Port], value_types: Mapping[str, Type],
@@ -170,9 +170,9 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
             continue
         signature_entry = extension.states.get(instance.type_name)
         if signature_entry is None:
-            raise ValueError(f'Cannot find the signature of native state type `{instance.type_name}`')
+            raise ValueError(f'Cannot find the signature of native initializer `{instance.type_name}`')
         signature = signature_entry.signature
-        where = f'Native state type `{instance.type_name}` of `{node_id}`'
+        where = f'Native initializer `{instance.type_name}` of `{node_id}`'
         native_type = program.native_types[instance.type_name]
         bindings = check_uses(where, signature, instance.initializer_values)
         check_ports(where, 'inputs', signature.depends, {}, native_type.initializer_resources, bindings)

@@ -82,21 +82,21 @@ procedure run {
 
 // TEST: runtime input
 constant InputValue: boolean = true;
-procedure run depends on input: value boolean {
+procedure run reads input: value boolean {
   assert input; // E: Assertion condition must be a compile-time expression
 }
 connect InputValue -> run.input;
 
 // TEST: runtime output read
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   result = true;
   assert result; // E: Assertion condition must be a compile-time expression
 }
 
 // TEST: literal-initialized runtime local
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let value = true;
   assert value; // E: Assertion condition must be a compile-time expression
   result = value;
@@ -104,21 +104,21 @@ procedure run produces result {
 
 // TEST: runtime assignment in condition
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   assert { result = true; true };
   // ^E: Assertion condition must be a compile-time expression
 }
 
 // TEST: failing assertion in runtime-controlled branch
 constant InputValue: boolean = false;
-procedure run depends on input: value boolean {
+procedure run reads input: value boolean {
   if input { assert false; } // E: Compile-time assertion failed
 }
 connect InputValue -> run.input;
 
 // TEST: failing assertion in runtime short-circuit operand
 constant InputValue: boolean = true;
-procedure run depends on input: value boolean {
+procedure run reads input: value boolean {
   input || { assert false; true }; // E: Compile-time assertion failed
 }
 connect InputValue -> run.input;
@@ -129,14 +129,14 @@ procedure run {
 }
 
 // TEST: runtime loop element
-procedure run depends on values: multi value boolean {
+procedure run reads values: multi value boolean {
   for value in values {
     assert value; // E: Assertion condition must be a compile-time expression
   }
 }
 
 // TEST: failing constant assertion in an empty loop
-procedure run depends on values: multi value boolean {
+procedure run reads values: multi value boolean {
   for value in values { assert false; } // E: Compile-time assertion failed
 }
 

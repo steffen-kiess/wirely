@@ -127,7 +127,7 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
     target_resource = isinstance(getattr(target, 'port_spec', None), model.PortTypeSpecificationResource)
     if source_resource or target_resource:
         if not (source_resource and target_resource):
-            incompatible('Cannot connect resource and data ports')
+            incompatible('Cannot connect fixed and value or event ports')
         if source.resource_type is not target.resource_type:
             incompatible(f'source has resource type `{source.resource_type}` but target has resource type `{target.resource_type}`')
         return True

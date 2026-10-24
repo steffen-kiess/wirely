@@ -249,7 +249,7 @@ class NativeProcedure(NamedTuple):
     name: StringRef
     input_names: Range
     output_names: Range
-    has_state: bool
+    initializer: bool
 
 
 # NameRef in wirely/program/format.wrl
@@ -260,7 +260,7 @@ class NameRef(NamedTuple):
 # VariableBank in wirely/program/format.wrl
 class VariableBank(OpenIntEnum, minimum=0, maximum=255):
     ConstValues = 1
-    LoadValues = 2
+    FixedValues = 2
     Temporaries = 3
     OldState = 4
     NewState = 5
@@ -396,7 +396,7 @@ _enums['RunStage'] = TypeEnum('RunStage', {
 }, is_open=True, underlying_type=uint8)
 _enums['VariableBank'] = TypeEnum('VariableBank', {
     'ConstValues': 1,
-    'LoadValues': 2,
+    'FixedValues': 2,
     'Temporaries': 3,
     'OldState': 4,
     'NewState': 5,
@@ -562,7 +562,7 @@ _types['NativeProcedure'] = TypeStruct('NativeProcedure', {
     'Name': _types['StringRef'],
     'InputNames': _types['Range'],
     'OutputNames': _types['Range'],
-    'HasState': boolean,
+    'Initializer': boolean,
 })
 _types['NameRef'] = TypeStruct('NameRef', {
     'Name': _types['StringRef'],

@@ -88,7 +88,7 @@ class DeclarationDialog(QDialog):
         self.is_list = None
         if kind in ('input', 'output', 'binding'):
             self.port_kind = QComboBox(self)
-            self.port_kind.addItems(['value', 'event', 'resource'])
+            self.port_kind.addItems(['value', 'event', 'fixed'])
             form.addRow('Kind', self.port_kind)
             self.is_list = QCheckBox('multi', self)
             if kind == 'input':

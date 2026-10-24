@@ -1,4 +1,4 @@
-"""Procedures, initializers, and their ports and static bindings."""
+"""Procedures, initializers, and their ports and compile-time reads."""
 
 import dataclasses
 import typing
@@ -32,7 +32,7 @@ class StageDeclaration(SyntaxElement):
 
 
 class Port(SyntaxElement):
-    """A port in a depends or produces clause."""
+    """A port in a reads or writes clause."""
 
     reference: Reference | None
     alias: 'StringConstant | Identifier | None'
@@ -108,31 +108,92 @@ def check_port_keys(ports: typing.Iterable[Port], *, python: bool = False) -> No
         keys[key] = port
 
 
+class ReadPort:
+    """Creates the entry of a native reads clause: a port or a compile-time expression."""
+
+    @staticmethod
+    def create(expression: Value, alias: 'Identifier | StringConstant | None',
+               port_spec: PortTypeSpecification | None, *,
+               source_position: SourcePosition) -> 'Port | StaticBinding':
+        if port_spec is not None:
+            if not isinstance(expression, Reference):
+                raise ProgramError(expression, 'Typed port names must be identifiers')
+            if isinstance(alias, Identifier):
+                raise ProgramError(alias, 'Typed port keys must be strings')
+            return TypedPort.from_reference(expression, alias, port_spec, source_position=source_position)
+        if isinstance(expression, Reference):
+            return ReferencePort(expression, alias, source_position=source_position)
+        if alias is None:
+            raise ProgramError(expression, 'Compile-time expressions in reads clauses require an alias')
+        return StaticBinding(expression, alias, source_position=source_position)
+
+
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
-class DependsDeclaration(SyntaxElement):
-    dependencies: tuple[Port, ...]
+class ReadsDeclaration(SyntaxElement):
+    """A reads clause: ports and, for native procedures, compile-time expressions."""
+
+    entries: tuple['Port | StaticBinding', ...]
 
     def __post_init__(self) -> None:
-        for port in self.dependencies:
+        for port in self.entries:
             if isinstance(port, TypedPort) and isinstance(port.port_spec, PortTypeSpecificationResource):
                 port.port_spec.check_supported_input()
 
     @staticmethod
-    def of(*dependencies: Port, source_position: SourcePosition) -> 'DependsDeclaration':
-        return DependsDeclaration(dependencies, source_position=source_position)
+    def of(*entries: 'Port | StaticBinding', source_position: SourcePosition) -> 'ReadsDeclaration':
+        return ReadsDeclaration(entries, source_position=source_position)
+
+    @staticmethod
+    def depends_on(*entries: 'Port | StaticBinding', source_position: SourcePosition) -> 'ReadsDeclaration':
+        raise ProgramError(SourceElement(source_position=source_position), '`depends on` was replaced by `reads`')
+
+    def split(self, graph: 'model.NodeType | None') -> 'tuple[ReadPorts, StaticReads | None]':
+        """Separate the ports from the compile-time reads.
+
+        A reference is a port when its first name is a node, port, state, binding, or procedure of the graph.
+        Other references, such as parameters, constants, and types, are compile-time reads. Without a graph,
+        every reference is a port.
+        """
+        ports: list[Port] = []
+        bindings: list[StaticBinding] = []
+        for entry in self.entries:
+            if isinstance(entry, StaticBinding):
+                bindings.append(entry)
+            elif graph is not None and isinstance(entry, ReferencePort) and not is_graph_reference(graph, entry.reference):
+                bindings.append(StaticBinding(entry.reference, entry.alias, source_position=entry.source_position))
+            else:
+                ports.append(entry)
+        static = StaticReads(tuple(bindings), source_position=self.source_position) if bindings else None
+        return ReadPorts(tuple(ports), source_position=self.source_position), static
+
+
+def is_graph_reference(graph: 'model.NodeType', reference: Reference) -> bool:
+    """Return whether a reference names an element of the graph rather than a compile-time value."""
+    names = [identifier.id_str for identifier in reference.identifiers]
+    if names[0] in ('default input', 'default output'):
+        return True
+    declaration = graph.name_declarations.get(names[0])
+    return declaration is not None and not isinstance(declaration, model.DeclarationParameter)
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
-class ProducesDeclaration(SyntaxElement):
+class ReadPorts(SyntaxElement):
+    """The ports of a reads clause, which the procedure depends on."""
+
+    dependencies: tuple[Port, ...]
+
+
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
+class WritesDeclaration(SyntaxElement):
     outputs: tuple[Port, ...]
 
     @staticmethod
-    def of(*outputs: Port, source_position: SourcePosition) -> 'ProducesDeclaration':
-        return ProducesDeclaration(outputs, source_position=source_position)
+    def of(*outputs: Port, source_position: SourcePosition) -> 'WritesDeclaration':
+        return WritesDeclaration(outputs, source_position=source_position)
 
 
-def resolve_dependencies(graph: 'model.NodeType', depends: DependsDeclaration) -> list:
-    """Return the graph element each dependency of a depends clause references."""
+def resolve_dependencies(graph: 'model.NodeType', depends: ReadPorts) -> list:
+    """Return the graph element each port of a reads clause references."""
     resolved: list[Any] = []
     check_port_keys(depends.dependencies)
     for port in depends.dependencies:
@@ -193,48 +254,73 @@ class StaticBinding(SyntaxElement):
             return self.alias.value
         if isinstance(self.expression, Reference) and self.expression.length == 1:
             return self.expression.identifiers[0].id_str
-        raise ProgramError(self, 'Static binding requires an alias')
+        raise ProgramError(self, 'Compile-time expressions in reads clauses require an alias')
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
-class UsesDeclaration(SyntaxElement):
+class StaticReads(SyntaxElement):
+    """The compile-time reads of a native procedure or initializer."""
+
     bindings: tuple[StaticBinding, ...]
 
-    @staticmethod
-    def of(*bindings: StaticBinding, source_position: SourcePosition) -> 'UsesDeclaration':
-        return UsesDeclaration(bindings, source_position=source_position)
-
-    def check(self, scope: 'model.NodeType') -> None:
+    def check(self, scope: 'model.NodeType', ports: typing.Iterable[Port] = ()) -> None:
+        """Check the keys and values; ports are the other reads, whose keys must differ."""
         from ..expressions import compile_constant
 
-        keys = set()
+        keys = {port.key for port in ports}
         for binding in self.bindings:
             with binding.context:
                 key = binding.key
                 if key in keys:
-                    raise ProgramError(binding, f'Duplicate static binding key `{key}`')
+                    raise ProgramError(binding, f'Duplicate read key `{key}`')
                 keys.add(key)
                 expression = binding.expression
-                if binding.alias is None:
-                    if key not in scope.static_declarations:
-                        raise ProgramError(expression, f'Unknown static declaration `{key}`')
+                if binding.alias is None and key not in scope.static_declarations:
+                    raise ProgramError(expression, f'`{expression}` is not a port, parameter, or constant; compile-time expressions in reads clauses require an alias')
                 compile_constant(scope, expression, None, {})
+
+
+def check_native_name(alias: StringConstant | None) -> None:
+    if alias is not None:
+        prefix, _, method = alias.value.rpartition(':')
+        if not prefix or not method:
+            raise ProgramError(alias, 'Native procedure names have the form `Type:procedure`')
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class DeclarationInitializer(Declaration):
-    depends: DependsDeclaration
-    produces: ProducesDeclaration
-    uses: UsesDeclaration | None = None
+    name: Identifier
+    alias: StringConstant | None
+    reads: ReadsDeclaration
+    writes: WritesDeclaration
+    read_ports: ReadPorts = dataclasses.field(init=False)
+    static_reads: StaticReads | None = dataclasses.field(init=False)
+
+    def __post_init__(self) -> None:
+        check_native_name(self.alias)
+        self.split_reads(None)
+
+    def split_reads(self, graph: 'model.NodeType | None') -> None:
+        read_ports, static_reads = self.reads.split(graph)
+        object.__setattr__(self, 'read_ports', read_ports)
+        object.__setattr__(self, 'static_reads', static_reads)
+
+    @property
+    def python_name(self) -> str:
+        return self.alias.value.rpartition(':')[2] if self.alias is not None else self.name.id_str
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
-        if not isinstance(graph, model.NodeType) or not graph.is_native:
-            raise ProgramError(self, 'Native initializer requires a native node type')
+        if not isinstance(graph, model.NodeType) or graph.parent_graph is None:
+            raise ProgramError(self, 'Native initializers must belong to a node type')
         if graph.initializer is not None:
-            raise ProgramError(self, 'Duplicate native initializer', hints=[
+            raise ProgramError(self, 'Only one initializer per node type is supported', hints=[
                 CompilerHint(graph.initializer.declaration, 'Previous initializer was here'),
             ])
+        register_name(graph, self.name, self)
         graph.initializer = TypeInitializer(graph, self)
+
+    def prepare_interface(self, graph: 'model.NodeType') -> None:
+        self.split_reads(graph)
 
     def bind_body(self, graph: 'model.NodeType') -> None:
         assert graph.initializer is not None and graph.initializer.declaration is self
@@ -252,48 +338,59 @@ class TypeInitializer:
         self._resolving = False
 
     @property
-    def depends(self) -> DependsDeclaration:
-        return self.declaration.depends
+    def name(self) -> Identifier:
+        return self.declaration.name
 
     @property
-    def produces(self) -> ProducesDeclaration:
-        return self.declaration.produces
+    def read_ports(self) -> ReadPorts:
+        return self.declaration.read_ports
 
     @property
-    def uses(self) -> 'UsesDeclaration | None':
-        return self.declaration.uses
+    def writes(self) -> WritesDeclaration:
+        return self.declaration.writes
+
+    @property
+    def static_reads(self) -> 'StaticReads | None':
+        return self.declaration.static_reads
+
+    @property
+    def native_name(self) -> str:
+        """The native initializer name, such as 'KNX.Connection:create'."""
+        if self.declaration.alias is not None:
+            return self.declaration.alias.value
+        return f'{self.graph.native_prefix}:{self.name.id_str}'
 
     def resolved_dependencies(self) -> list:
-        """Return the graph elements of the dependencies, resolving them first if needed."""
+        """Return the graph elements of the read ports, resolving them first if needed."""
         if self._dependencies is not None:
             return self._dependencies
         if self._resolving:
             raise Exception('Recursive initializer dependency resolution')
         self._resolving = True
         try:
-            self._dependencies = resolve_dependencies(self.graph, self.depends)
+            self._dependencies = resolve_dependencies(self.graph, self.read_ports)
         finally:
             self._resolving = False
         return self._dependencies
 
     def bind_body(self) -> None:
         graph = self.graph
-        for port in self.depends.dependencies:
+        for port in self.read_ports.dependencies:
             if isinstance(port, TypedPort):
-                raise ProgramError(port, 'Initializer dependencies must reference resources')
-        for port in self.produces.outputs:
+                raise ProgramError(port, 'Initializer reads must reference fixed values or compile-time values')
+        for port in self.writes.outputs:
             if isinstance(port, TypedPort):
-                raise ProgramError(port, 'Initializer outputs must reference resource outputs')
-        check_port_keys(self.produces.outputs)
+                raise ProgramError(port, 'Initializer writes must reference fixed outputs')
+        check_port_keys(self.writes.outputs)
         declarations: dict[typing.Any, typing.Any] = {}
-        for port in self.produces.outputs:
+        for port in self.writes.outputs:
             assert port.reference is not None
             with port.context:
                 output = port.reference.resolve(graph, PortDirection.Input, 'destination').port
             if not isinstance(output, model.LocalResource) and (
                     not isinstance(output, model.TypeOutputPort) or output.graph is not graph
                     or output.resource_type is None):
-                raise ProgramError(port, 'Initializer outputs must be resource outputs or local resources of the node type')
+                raise ProgramError(port, 'Initializer writes must be fixed outputs or fixed bindings of the node type')
             if output in declarations:
                 raise ProgramError(port, 'Duplicate initializer output', hints=[
                     CompilerHint(declarations[output], 'Previous output was here'),
@@ -301,11 +398,11 @@ class TypeInitializer:
             declarations[output] = port
             self.output_keys[output] = port.key
         self.resolved_dependencies()
-        if self.uses is not None:
-            self.uses.check(graph)
-        for port, dep in zip(self.depends.dependencies, self.resolved_dependencies()):
+        if self.static_reads is not None:
+            self.static_reads.check(graph, self.read_ports.dependencies)
+        for port, dep in zip(self.read_ports.dependencies, self.resolved_dependencies()):
             if not dependency_is_resource(dep):
-                raise ProgramError(port, 'Initializer dependencies must be resources')
+                raise ProgramError(port, 'Initializer reads must be fixed values or compile-time values')
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -314,35 +411,39 @@ class DeclarationProcedure(Declaration):
     name: Identifier
     alias: StringConstant | None
     stage: StageDeclaration
-    depends: DependsDeclaration
-    produces: ProducesDeclaration
-    uses: UsesDeclaration | None = None
+    reads: ReadsDeclaration
+    writes: WritesDeclaration
     _: dataclasses.KW_ONLY
     body: Value | None = None
     is_native: bool = dataclasses.field(init=False)
+    read_ports: ReadPorts = dataclasses.field(init=False)
+    static_reads: StaticReads | None = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'is_native', self.native_spec is not None)
-        if self.alias is not None:
-            prefix, _, method = self.alias.value.rpartition(':')
-            if not prefix or not method:
-                raise ProgramError(self.alias, 'Native procedure names have the form `Type:procedure`')
+        check_native_name(self.alias)
+        self.split_reads(None)
+
+    def split_reads(self, graph: 'model.NodeType | None') -> None:
+        read_ports, static_reads = self.reads.split(graph)
+        object.__setattr__(self, 'read_ports', read_ports)
+        object.__setattr__(self, 'static_reads', static_reads)
 
         # TODO: Allow this? In which cases? Does this need checks that the outputs are not used in earlier stages?
         # Currently this is used to update a state node after writing to a CSV file. The new value for the state node might depend on the result (success or not) of writing to the file. Probably at least updates to state variables should be allowed in the output stage.
         # Disallowing this would make it possible to save the state before the output stage (and therefore before any results of the current step become externally visible). Or state variables could be saved twice, once before and once after the output stage.
-        # if self.stage.stage == RunStage.OUTPUT and len(self.produces.outputs) > 0:
+        # if self.stage.stage == RunStage.OUTPUT and len(self.writes.outputs) > 0:
         #     hints = [
-        #         CompilerHint(self.depends, 'Output declared here'),
+        #         CompilerHint(self.reads, 'Output declared here'),
         #     ]
         #     raise ProgramError(self.stage, f'Procedure name {self.name} is declared as output stage but produces an output', hints=hints)
 
     @staticmethod
-    def create_body(name: Identifier, stage: StageDeclaration, depends: DependsDeclaration, produces: ProducesDeclaration,
+    def create_body(name: Identifier, stage: StageDeclaration, reads: ReadsDeclaration, writes: WritesDeclaration,
                     body: Value, *, source_position: SourcePosition) -> 'DeclarationProcedure':
-        procedure = DeclarationProcedure(None, name, None, stage, depends, produces,
+        procedure = DeclarationProcedure(None, name, None, stage, reads, writes,
                                          source_position=source_position, body=body)
-        for port in (*depends.dependencies, *produces.outputs):
+        for port in (*procedure.read_ports.dependencies, *writes.outputs):
             if isinstance(port, TypedPort) and port.alias is not None:
                 raise ProgramError(port.alias, 'Typed port keys require a native procedure')
             if isinstance(port.alias, StringConstant):
@@ -370,6 +471,8 @@ class DeclarationProcedure(Declaration):
         return self.alias.value.rpartition(':')[2] if self.alias is not None else self.name.id_str
 
     def prepare_interface(self, graph: 'model.NodeType') -> None:
+        if self.is_native:
+            self.split_reads(graph)
         graph.procedures[self.name.id_str].prepare_interface()
 
     def bind_body(self, graph: 'model.NodeType') -> None:
@@ -402,16 +505,16 @@ class TypeProcedure:
         return self.declaration.stage
 
     @property
-    def depends(self) -> DependsDeclaration:
-        return self.declaration.depends
+    def read_ports(self) -> ReadPorts:
+        return self.declaration.read_ports
 
     @property
-    def produces(self) -> ProducesDeclaration:
-        return self.declaration.produces
+    def writes(self) -> WritesDeclaration:
+        return self.declaration.writes
 
     @property
-    def uses(self) -> 'UsesDeclaration | None':
-        return self.declaration.uses
+    def static_reads(self) -> 'StaticReads | None':
+        return self.declaration.static_reads
 
     @property
     def python_name(self) -> str:
@@ -422,8 +525,7 @@ class TypeProcedure:
         """The native procedure name, such as 'Std.WarnOnEvent:run'."""
         if self.alias is not None:
             return self.alias.value
-        prefix = self.graph.native_name if self.graph.is_native else self.graph.qualified_name
-        return f'{prefix}:{self.name.id_str}'
+        return f'{self.graph.native_prefix}:{self.name.id_str}'
 
     def bind_body(self) -> None:
         if self.graph.parent_graph is None and self.is_native:
@@ -432,25 +534,25 @@ class TypeProcedure:
 
     def bind_connections(self, graph: 'model.NodeType') -> None:
         # Reference ports connect to the ports they reference.
-        for declaration in self.depends.dependencies:
+        for declaration in self.read_ports.dependencies:
             if isinstance(declaration, ReferencePort):
                 port = self.input_ports[declaration.key]
                 with declaration.context:
                     model.connect(port.counterpart, port, declaration)
-        for declaration in self.produces.outputs:
+        for declaration in self.writes.outputs:
             if isinstance(declaration, ReferencePort):
                 output_port = self.output_ports[declaration.key]
                 if isinstance(output_port.port_spec, PortTypeSpecificationResource):
-                    raise ProgramError(declaration, 'Procedures cannot produce resources')
+                    raise ProgramError(declaration, 'Only initializers can write fixed values')
                 with declaration.context:
                     model.connect(output_port, output_port.counterpart, declaration)
-        if self.uses is not None:
-            self.uses.check(graph)
+        if self.static_reads is not None:
+            self.static_reads.check(graph, self.read_ports.dependencies)
         if self.stage.stage == RunStage.INPUT:
             for port in self.input_ports.values():
                 if not isinstance(port.port_spec, PortTypeSpecificationResource):
-                    raise ProgramError(self.stage, f'Procedure name `{self.name}` is declared as input stage but depends on something else', hints=[
-                        CompilerHint(self.depends, 'Dependencies declared here'),
+                    raise ProgramError(self.stage, f'Procedure `{self.name}` is declared as input stage but reads values that are not fixed', hints=[
+                        CompilerHint(self.declaration.reads, 'Reads declared here'),
                     ])
 
     def resolve_port(self, name: Identifier, port_name: Identifier | None,
@@ -479,18 +581,18 @@ class TypeProcedure:
 
     def prepare_interface(self) -> None:
         new_graph = self.graph
-        check_port_keys(self.depends.dependencies)
-        check_port_keys(self.produces.outputs)
+        check_port_keys(self.read_ports.dependencies)
+        check_port_keys(self.writes.outputs)
         if self.is_native:
-            check_port_keys(self.depends.dependencies, python=True)
-            check_port_keys(self.produces.outputs, python=True)
+            check_port_keys(self.read_ports.dependencies, python=True)
+            check_port_keys(self.writes.outputs, python=True)
         self.input_ports = {
             declaration.key: self.create_port(new_graph, declaration, is_input=True)
-            for declaration in self.depends.dependencies
+            for declaration in self.read_ports.dependencies
         }
         self.output_ports = {
             declaration.key: self.create_port(new_graph, declaration, is_input=False)
-            for declaration in self.produces.outputs
+            for declaration in self.writes.outputs
         }
 
     @typing.overload
@@ -524,7 +626,7 @@ class TypeProcedure:
             resource_type = None
         else:
             if not is_input:
-                raise ProgramError(declaration, 'Procedures cannot produce resources')
+                raise ProgramError(declaration, 'Only initializers can write fixed values')
             var_type = None
             resource_type = graph.resolve_resource_type(spec.ty)
         specification = model.PortSpecification(var_type, spec, resource_type, spec.list_spec.is_list)

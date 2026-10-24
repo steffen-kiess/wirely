@@ -22,11 +22,13 @@ class DeclarationNodeType(Declaration):
     declarations: tuple[Declaration, ...]
     _: dataclasses.KW_ONLY
     alias: StringConstant | None = None
-    is_native: bool = dataclasses.field(init=False)
+    has_initializer: bool = dataclasses.field(init=False)
     is_singleton: bool = dataclasses.field(init=False)
 
     def __post_init__(self) -> None:
-        status = {'native': False, 'singleton': False}
+        from .procedures import DeclarationInitializer
+
+        status = {'singleton': False}
         for specifier in self.specifiers:
             name = specifier.specifier_str
             if name not in status:
@@ -34,7 +36,8 @@ class DeclarationNodeType(Declaration):
             if status[name]:
                 raise ProgramError(specifier, f'Got duplicate {name} specifier')
             status[name] = True
-        object.__setattr__(self, 'is_native', status['native'])
+        object.__setattr__(self, 'has_initializer',
+                           any(isinstance(declaration, DeclarationInitializer) for declaration in self.declarations))
         object.__setattr__(self, 'is_singleton', status['singleton'])
 
     @staticmethod

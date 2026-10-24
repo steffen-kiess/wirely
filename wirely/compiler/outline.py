@@ -275,7 +275,7 @@ class NodeTypeInfo:
     span: tuple[int, int]
     attributes: tuple
     name: str
-    is_native: bool
+    has_initializer: bool
     is_singleton: bool
     scope: Scope
     _declaration: ast.DeclarationNodeType | None = field(default=None, compare=False, repr=False)
@@ -506,7 +506,7 @@ def _direction(direction: ast.PortDirection) -> str:
 
 def _port_kind(spec: ast.PortTypeSpecification) -> str:
     if isinstance(spec, ast.PortTypeSpecificationResource):
-        return 'resource'
+        return 'fixed'
     assert isinstance(spec, ast.PortTypeSpecificationData)
     return 'value' if spec.kind_spec.kind == ast.ConnectionKind.Value else 'event'
 
@@ -646,10 +646,15 @@ def _record(builder: _Builder, item: ast.Declaration) -> Record | None:
         return ProcedureInfo(
             procedure_id, *common, attributes, _position(attributes), item.name.id_str,
             item.is_native, item.stage.stage.name.lower(),
-            tuple(_procedure_port(procedure_id, port, 'input') for port in item.depends.dependencies),
-            tuple(_procedure_port(procedure_id, port, 'output') for port in item.produces.outputs),
+            tuple(_procedure_port(procedure_id, port, 'input') for port in _read_ports(item)),
+            tuple(_procedure_port(procedure_id, port, 'output') for port in item.writes.outputs),
             item)
     return None
+
+
+def _read_ports(item: ast.DeclarationProcedure) -> list[AstPort]:
+    """Return the ports of a reads clause, without compile-time expressions."""
+    return [entry for entry in item.reads.entries if isinstance(entry, AstPort)]
 
 
 def _procedure_endpoint(procedure_id: Procedure, port: AstPort) -> Endpoint:
@@ -668,12 +673,12 @@ def _edges(builder: _Builder, item: ast.Declaration) -> Iterator[Edge]:
                        item.outer_attributes + source.outer_attributes, item, source)
     elif isinstance(item, ast.DeclarationProcedure):
         procedure_id = Procedure(builder.path + (item.name.id_str,))
-        for port in item.depends.dependencies:
+        for port in _read_ports(item):
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, _resolve_endpoint(builder, port.reference, False),
                            endpoint, _filename(port), _span(port), _span(port.reference), None, (), port)
-        for port in item.produces.outputs:
+        for port in item.writes.outputs:
             if isinstance(port, ast.ReferencePort):
                 endpoint = _procedure_endpoint(procedure_id, port)
                 yield Edge('reference', None, endpoint,
@@ -709,7 +714,7 @@ def _build_scope(builder: _Builder) -> Scope:
         node_types.append(NodeTypeInfo(
             NodeType(child.path), _filename(item), _span(item),
             item.outer_attributes + item.inner_attributes, item.name.id_str,
-            item.is_native, item.is_singleton, _build_scope(child), item,
+            item.has_initializer, item.is_singleton, _build_scope(child), item,
         ))
     return Scope(
         builder.kind, builder.path, of_type(NodeInfo), tuple(node_types),

@@ -177,7 +177,7 @@ A snapshot is a consistent view of the runtime buffers between two steps.
 Bank 0 is the state written by the last step. Bank 1 holds the
 temporaries of the last step, including values of skipped procedures. Both
 use the
-[buffer layout](bytecode-format.md#loadvalues-statevariables-and-temporaries)
+[buffer layout](bytecode-format.md#fixedvalues-statevariables-and-temporaries)
 of the active program. Snapshots do not include native state, whose
 representation depends on the runtime.
 

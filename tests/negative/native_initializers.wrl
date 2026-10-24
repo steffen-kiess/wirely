@@ -1,64 +1,62 @@
-// TEST: initializer_non_native
-node type Invalid {
-  native initializer; // E: Native initializer requires a native node type
-}
+// TEST: initializer_outside_node_type
+native initializer create; // E: Native initializers must belong to a node type
 
 // TEST: initializer_namespace
 namespace Invalid { // H: In this namespace
-  native initializer; // E: Declaration not allowed in namespace
+  native initializer create; // E: Declaration not allowed in namespace
 }
 
 // TEST: initializer_duplicate
 // SH: Previous initializer was here
-// SE: Duplicate native initializer
-native node type Invalid {
-  native initializer; // H: Previous initializer was here
-  native initializer; // E: Duplicate native initializer
+// SE: Only one initializer per node type is supported
+node type Invalid {
+  native initializer create; // H: Previous initializer was here
+  native initializer create; // E: Only one initializer per node type is supported
 }
 
 // TEST: initializer_value_dependency
-native node type Invalid {
+node type Invalid {
   input Value: value boolean;
-  native initializer depends on Value; // E: Initializer dependencies must be resources
+  native initializer create reads Value; // E: Initializer reads must be fixed values or compile-time values
 }
 
 // TEST: initializer_state_dependency
-native node type Invalid {
+node type Invalid {
   state count: uint8 = 0;
-  native procedure write produces count;
-  native initializer depends on count.old as "old"; // E: Initializer dependencies must be resources
+  native procedure write writes count;
+  native initializer create reads count.old as "old"; // E: Initializer reads must be fixed values or compile-time values
 }
 
 // TEST: initializer_unknown_dependency
-native node type Invalid {
-  native initializer depends on Missing; // E: Could not find dependency
+node type Invalid {
+  native initializer create reads Missing; // E: `Missing` is not a port, parameter, or constant; compile-time expressions in reads clauses require an alias
 }
 
 // TEST: initializer_implicit_alias
 resource type Handle;
-native node type Invalid {
-  default input: resource Handle;
-  native initializer depends on default input; // E: Default ports and complex references require an explicit alias
+node type Invalid {
+  default input: fixed Handle;
+  native initializer create reads default input; // E: Default ports and complex references require an explicit alias
 }
 
 // TEST: initializer_complex_alias
 resource type Handle;
 node type Source {
-  output Handle: resource Handle;
+  output Handle: fixed Handle;
 }
-native node type Invalid {
+node type Invalid {
   node source: Source {}
-  native initializer depends on source.Handle; // E: Default ports and complex references require an explicit alias
+  native initializer create reads source.Handle; // E: Default ports and complex references require an explicit alias
 }
 
 // TEST: initializer_duplicate_key
 // SH: Previous port was here
 // SE: Duplicate port name
 resource type Handle;
-native node type Invalid {
-  input Service: resource Handle;
-  native initializer
-    depends on Service, // H: Previous port was here
+node type Invalid {
+  input Service: fixed Handle;
+  native initializer create
+    reads Service, // H: Previous port was here
       Service; // E: Duplicate port name
 }
 
@@ -66,42 +64,42 @@ native node type Invalid {
 // SH: Previous port was here
 // SE: Duplicate port name
 resource type Handle;
-native node type Invalid {
-  input First: resource Handle;
-  input Second: resource Handle;
-  native initializer
-    depends on First as "Service", // H: Previous port was here
+node type Invalid {
+  input First: fixed Handle;
+  input Second: fixed Handle;
+  native initializer create
+    reads First as "Service", // H: Previous port was here
       Second as "\x53ervice"; // E: Duplicate port name
 }
 
 // TEST: initializer_value_output
-native node type Invalid {
+node type Invalid {
   default output: value boolean;
-  native initializer produces default output as "value"; // E: Initializer outputs must be resource outputs or local resources
+  native initializer create writes default output as "value"; // E: Initializer writes must be fixed outputs or fixed bindings of the node type
 }
 
 // TEST: initializer_typed_output
 resource type Handle;
-native node type Invalid {
-  native initializer produces Service: resource Handle; // E: Initializer outputs must reference resource outputs
+node type Invalid {
+  native initializer create writes Service: fixed Handle; // E: Initializer writes must reference fixed outputs
 }
 
 // TEST: initializer_implicit_output_alias
 resource type Handle;
-native node type Invalid {
-  default output: resource Handle;
-  native initializer produces default output; // E: Default ports and complex references require an explicit alias
+node type Invalid {
+  default output: fixed Handle;
+  native initializer create writes default output; // E: Default ports and complex references require an explicit alias
 }
 
 // TEST: initializer_duplicate_output_key
 // SH: Previous port was here
 // SE: Duplicate port name
 resource type Handle;
-native node type Invalid {
-  output First: resource Handle;
-  output Second: resource Handle;
-  native initializer
-    produces First as "service", // H: Previous port was here
+node type Invalid {
+  output First: fixed Handle;
+  output Second: fixed Handle;
+  native initializer create
+    writes First as "service", // H: Previous port was here
       Second as "service"; // E: Duplicate port name
 }
 
@@ -109,41 +107,37 @@ native node type Invalid {
 // SH: Previous output was here
 // SE: Duplicate initializer output
 resource type Handle;
-native node type Invalid {
-  default output: resource Handle;
-  native initializer
-    produces default output as "first", // H: Previous output was here
+node type Invalid {
+  default output: fixed Handle;
+  native initializer create
+    writes default output as "first", // H: Previous output was here
       default output as "second"; // E: Duplicate initializer output
 }
 
 // TEST: initializer_missing_output
 resource type Handle;
-native node type Invalid {
-  default output: resource Handle;
-  output Named: resource Handle; // E: Output `Named` has no source
-  native initializer produces default output as "service";
+node type Invalid {
+  default output: fixed Handle;
+  output Named: fixed Handle; // E: Output `Named` has no source
+  native initializer create writes default output as "service";
 }
 
 // TEST: initializer_missing_default_output
 resource type Handle;
-native node type Invalid {
-  default output: resource Handle; // E: Default output has no source
-  native initializer;
-}
-
-// TEST: initializer_missing
-native node type Invalid { // E: Native node types require a native initializer
+node type Invalid {
+  default output: fixed Handle; // E: Default output has no source
+  native initializer create;
 }
 
 // TEST: initializer_produced_and_connected_output
 resource type Handle;
-native node type Source {
-  default output: resource Handle;
-  native initializer produces default output as "service";
+node type Source {
+  default output: fixed Handle;
+  native initializer create writes default output as "service";
 }
-native node type Invalid {
-  default output: resource Handle;
+node type Invalid {
+  default output: fixed Handle;
   node source: Source {}
-  connect source -> default output; // E: Default output is both produced and connected
-  native initializer produces default output as "service"; // H: Produced by the native initializer here
+  connect source -> default output; // E: Default output is both written and connected
+  native initializer create writes default output as "service"; // H: Written by the native initializer here
 }

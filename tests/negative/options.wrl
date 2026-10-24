@@ -63,7 +63,7 @@ constant Result: uint8 = if let Some(value) = Value { value } else { true }; // 
 node type Shadow {
   default input: value Option[uint8];
   default output: value uint8;
-  procedure run depends on default input as input produces default output as output {
+  procedure run reads default input as input writes default output as output {
     output = if let Some(input) = input { input } else { 0 }; // E: Cannot shadow procedure port or parameter `input`
   }
 }
@@ -77,7 +77,7 @@ node type Shadow {
   parameter Limit: uint8;
   default input: value Option[uint8];
   default output: value uint8;
-  procedure run depends on default input as input produces default output as output {
+  procedure run reads default input as input writes default output as output {
     output = if let Some(Limit) = input { Limit } else { 0 }; // E: Cannot shadow procedure port or parameter `Limit`
   }
 }
@@ -102,8 +102,8 @@ node type Probe {
   default input: value Option[uint8];
   default output: value uint8;
   procedure run
-    depends on default input as input
-    produces default output as output
+    reads default input as input
+    writes default output as output
   {
     output = input.Unwrap(); // E: Unwrap is compile-time only; use UnwrapOr or if let
   }

@@ -23,14 +23,14 @@ if TYPE_CHECKING:
     from wirely.native.mqtt import Broker, EventReceiverState, EventSenderState, ValueOptionProviderState
 
 __all__ = [
-    'ConnectionInitializerResult',
-    'ConnectionInitializer',
-    'EventReceiverInitializerResult',
-    'EventReceiverInitializer',
-    'EventSenderInitializerResult',
-    'EventSenderInitializer',
-    'ValueOptionProviderInitializerResult',
-    'ValueOptionProviderInitializer',
+    'ConnectionCreateResult',
+    'ConnectionCreate',
+    'EventReceiverCreateResult',
+    'EventReceiverCreate',
+    'EventSenderCreateResult',
+    'EventSenderCreate',
+    'ValueOptionProviderCreateResult',
+    'ValueOptionProviderCreate',
     'EventReceiverGetValueResult',
     'EventReceiverGetValue',
     'EventSenderSendValueResult',
@@ -41,52 +41,52 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ConnectionInitializerResult:
-    """Resource outputs of native state type MQTT.Connection."""
+class ConnectionCreateResult:
+    """Fixed outputs of native initializer MQTT.Connection:create."""
 
     broker: Broker
 
 
-class ConnectionInitializer(NativeState[Literal['broker']], abc.ABC):
-    """Native state type MQTT.Connection; initialize() returns its resource outputs."""
+class ConnectionCreate(NativeState[Literal['broker']], abc.ABC):
+    """Native initializer MQTT.Connection:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
         self, *,
         services: StateServices[Literal['broker']],
         uri: str,
-    ) -> ConnectionInitializerResult:
+    ) -> ConnectionCreateResult:
         ...
 
 
-class _ConnectionInitializerAdapter(InitializerAdapter):
+class _ConnectionCreateAdapter(InitializerAdapter):
     output_keys = {'broker': 'broker'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ConnectionInitializer)
+        assert isinstance(state, ConnectionCreate)
         result = state.initialize(
             services=services,
             uri=cast('str', binding.use('URI')),
         )
-        binding.check_result(result, ConnectionInitializerResult)
+        binding.check_result(result, ConnectionCreateResult)
         return {
             'broker': binding.resource_output('broker', result.broker),
         }
 
 
-ConnectionInitializer._adapter = _ConnectionInitializerAdapter()
+ConnectionCreate._adapter = _ConnectionCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class EventReceiverInitializerResult:
-    """Resource outputs of native state type MQTT.EventReceiver."""
+class EventReceiverCreateResult:
+    """Fixed outputs of native initializer MQTT.EventReceiver:create."""
 
     state: EventReceiverState
 
 
-class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type MQTT.EventReceiver; initialize() returns its resource outputs."""
+class EventReceiverCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer MQTT.EventReceiver:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -96,16 +96,16 @@ class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         topic: str,
         format: Some[MQTTFormat] | None,
-    ) -> EventReceiverInitializerResult:
+    ) -> EventReceiverCreateResult:
         ...
 
 
-class _EventReceiverInitializerAdapter(InitializerAdapter):
+class _EventReceiverCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, EventReceiverInitializer)
+        assert isinstance(state, EventReceiverCreate)
         result = state.initialize(
             services=services,
             broker=cast('Broker', binding.resource('Broker')),
@@ -113,24 +113,24 @@ class _EventReceiverInitializerAdapter(InitializerAdapter):
             topic=cast('str', binding.use('Topic')),
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
         )
-        binding.check_result(result, EventReceiverInitializerResult)
+        binding.check_result(result, EventReceiverCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-EventReceiverInitializer._adapter = _EventReceiverInitializerAdapter()
+EventReceiverCreate._adapter = _EventReceiverCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class EventSenderInitializerResult:
-    """Resource outputs of native state type MQTT.EventSender."""
+class EventSenderCreateResult:
+    """Fixed outputs of native initializer MQTT.EventSender:create."""
 
     state: EventSenderState
 
 
-class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type MQTT.EventSender; initialize() returns its resource outputs."""
+class EventSenderCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer MQTT.EventSender:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -141,16 +141,16 @@ class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
         topic: str,
         format: Some[MQTTFormat] | None,
         template_parts: MQTTTemplateParts,
-    ) -> EventSenderInitializerResult:
+    ) -> EventSenderCreateResult:
         ...
 
 
-class _EventSenderInitializerAdapter(InitializerAdapter):
+class _EventSenderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, EventSenderInitializer)
+        assert isinstance(state, EventSenderCreate)
         result = state.initialize(
             services=services,
             broker=cast('Broker', binding.resource('Broker')),
@@ -159,24 +159,24 @@ class _EventSenderInitializerAdapter(InitializerAdapter):
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
             template_parts=cast('MQTTTemplateParts', binding.use('template_parts')),
         )
-        binding.check_result(result, EventSenderInitializerResult)
+        binding.check_result(result, EventSenderCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-EventSenderInitializer._adapter = _EventSenderInitializerAdapter()
+EventSenderCreate._adapter = _EventSenderCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ValueOptionProviderInitializerResult:
-    """Resource outputs of native state type MQTT.ValueOptionProvider."""
+class ValueOptionProviderCreateResult:
+    """Fixed outputs of native initializer MQTT.ValueOptionProvider:create."""
 
     state: ValueOptionProviderState
 
 
-class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type MQTT.ValueOptionProvider; initialize() returns its resource outputs."""
+class ValueOptionProviderCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer MQTT.ValueOptionProvider:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -187,16 +187,16 @@ class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
         topic: str,
         format: Some[MQTTFormat] | None,
         template_parts: MQTTTemplateParts,
-    ) -> ValueOptionProviderInitializerResult:
+    ) -> ValueOptionProviderCreateResult:
         ...
 
 
-class _ValueOptionProviderInitializerAdapter(InitializerAdapter):
+class _ValueOptionProviderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ValueOptionProviderInitializer)
+        assert isinstance(state, ValueOptionProviderCreate)
         result = state.initialize(
             services=services,
             broker=cast('Broker', binding.resource('Broker')),
@@ -205,13 +205,13 @@ class _ValueOptionProviderInitializerAdapter(InitializerAdapter):
             format=cast('Some[MQTTFormat] | None', binding.use('Format')),
             template_parts=cast('MQTTTemplateParts', binding.use('template_parts')),
         )
-        binding.check_result(result, ValueOptionProviderInitializerResult)
+        binding.check_result(result, ValueOptionProviderCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-ValueOptionProviderInitializer._adapter = _ValueOptionProviderInitializerAdapter()
+ValueOptionProviderCreate._adapter = _ValueOptionProviderCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -238,6 +238,7 @@ class EventReceiverGetValue(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         state: EventReceiverState,
+        type: ValueType[Any],
     ) -> EventReceiverGetValueResult:
         ...
 
@@ -258,6 +259,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             state=cast('EventReceiverState', binding.resource('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, EventReceiverGetValueResult)
         return {
@@ -291,6 +293,7 @@ class EventSenderSendValue(NativeProcedure, abc.ABC):
         services: ProcedureServices,
         state: EventSenderState,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> EventSenderSendValueResult:
         ...
 
@@ -312,6 +315,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
             services=services,
             state=cast('EventSenderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, EventSenderSendValueResult)
         return {}
@@ -343,6 +347,7 @@ class ValueOptionProviderSetValue(NativeProcedure, abc.ABC):
         services: ProcedureServices,
         state: ValueOptionProviderState,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> ValueOptionProviderSetValueResult:
         ...
 
@@ -364,6 +369,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
             services=services,
             state=cast('ValueOptionProviderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, ValueOptionProviderSetValueResult)
         return {}

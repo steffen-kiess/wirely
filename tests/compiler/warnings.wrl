@@ -9,7 +9,7 @@ node d: Std.DebugEventSource { Type: boolean }
 // guarantees one of its triggers, or when none of its triggers relates to
 // the nearest enclosing block.
 state nested: boolean = false;
-procedure nest depends on a, b, c, inputs: multi event boolean produces nested {
+procedure nest reads a, b, c, inputs: multi event boolean writes nested {
   let mut value = false;
   on a {
     on b { value = b; } // W: Block runs only if `b` occurs in the same step as `a`
@@ -50,7 +50,7 @@ connect c, d -> nest.inputs;
 
 // Allow covers the attributed item and everything inside it.
 state allowed: boolean = false;
-procedure allow_statements depends on a, b, c produces allowed {
+procedure allow_statements reads a, b, c writes allowed {
   on a {
     #[Allow(CoincidentTriggers)]
     on b {}
@@ -69,7 +69,7 @@ procedure allow_statements depends on a, b, c produces allowed {
 }
 
 #[Allow(CoincidentTriggers)]
-procedure allow_procedure depends on a, b {
+procedure allow_procedure reads a, b {
   on a { on b {} }
 }
 
@@ -77,7 +77,7 @@ procedure allow_procedure depends on a, b {
 node type AllowedType {
   default input: event boolean;
   input Other: event boolean;
-  procedure run depends on default input as input, Other {
+  procedure run reads default input as input, Other {
     on input { on Other {} }
   }
 }
@@ -88,21 +88,21 @@ connect b -> allowed_type.Other;
 // Temporaries and resources need a reader in their node type; an output of
 // the node type counts even if no instance uses it. States are not checked.
 binding unread: value boolean; // W: Binding `unread` is never read
-procedure write_unread produces unread { unread = true; }
+procedure write_unread writes unread { unread = true; }
 
 state unread_state: boolean = false;
-procedure write_state produces unread_state { unread_state = true; }
+procedure write_state writes unread_state { unread_state = true; }
 
 namespace TestLibrary {
-  native node type Resources {
-    input Service: resource Std.DebugEventSourceState;
-    binding read_by_initializer: resource Std.DebugEventSourceState;
+  node type Resources {
+    input Service: fixed Std.DebugEventSourceState;
+    binding read_by_initializer: fixed Std.DebugEventSourceState;
     connect Service -> read_by_initializer;
-    binding read_by_procedure: resource Std.DebugEventSourceState;
-    binding unread_resource: resource Std.DebugEventSourceState; // W: Binding `unread_resource` is never read
-    native initializer depends on read_by_initializer
-      produces read_by_procedure, unread_resource;
-    native procedure run depends on read_by_procedure;
+    binding read_by_procedure: fixed Std.DebugEventSourceState;
+    binding unread_resource: fixed Std.DebugEventSourceState; // W: Binding `unread_resource` is never read
+    native initializer create reads read_by_initializer
+      writes read_by_procedure, unread_resource;
+    native procedure run reads read_by_procedure;
   }
 }
 
@@ -115,7 +115,7 @@ node type Readers {
   binding checked: value boolean;
   connect Value -> connected;
   connect connected -> referenced;
-  procedure check depends on referenced produces checked { checked = referenced; }
+  procedure check reads referenced writes checked { checked = referenced; }
   connect checked -> forwarded;
   connect forwarded -> default output;
   binding unread: value boolean; // W: Binding `unread` is never read
@@ -133,8 +133,8 @@ node type EmitWarnings {
   output D: event boolean;
   output E: event boolean;
   procedure run
-    depends on Input as input
-    produces A as a, B as b, C as c, D as d, E as e
+    reads Input as input
+    writes A as a, B as b, C as c, D as d, E as e
   {
     emit a(true); // W: [UnguardedEvent]
     emit? b(None); // W: [UnguardedEvent]
@@ -147,7 +147,7 @@ node type EmitWarnings {
     if true { emit? e(Some(false)); }
   }
   #[Allow(UnguardedEvent)]
-  procedure allowed produces result: event unit { emit result; }
+  procedure allowed writes result: event unit { emit result; }
 }
 node emit_warnings: EmitWarnings {}
 connect a -> emit_warnings.Input;
@@ -155,12 +155,12 @@ connect a -> emit_warnings.Input;
 // State-change aliases share trigger identity; events and changes are distinct.
 state trigger_a: boolean = false;
 state trigger_b: boolean = false;
-procedure write_triggers produces trigger_a, trigger_b {
+procedure write_triggers writes trigger_a, trigger_b {
   trigger_a = true;
   trigger_b = false;
 }
 procedure state_nesting
-  depends on trigger_a.new as first, trigger_a.new as alias,
+  reads trigger_a.new as first, trigger_a.new as alias,
     trigger_b.new as second, a as event
 {
   on changed first {
@@ -181,8 +181,8 @@ procedure state_nesting
 // Suggestions include state inputs and only definitely assigned state outputs.
 state suggested: boolean = false;
 procedure suggest
-  depends on trigger_a.new as current
-  produces suggested as next, before: event unit, after: event unit
+  reads trigger_a.new as current
+  writes suggested as next, before: event unit, after: event unit
 {
   emit before; // W: available state triggers: `on changed current`
   next = true;
@@ -191,10 +191,15 @@ procedure suggest
 
 // Event bindings share unused and guard warnings with the other event outputs.
 binding unread_event: event unit; // W: Binding `unread_event` is never read
-procedure emit_unread produces unread_event {
+procedure emit_unread writes unread_event {
   emit unread_event; // W: [UnguardedEvent]
 }
 #[Allow(Unused)]
 binding allowed_event: event unit;
 #[Allow(UnguardedEvent)]
-procedure emit_allowed produces allowed_event { emit allowed_event; }
+procedure emit_allowed writes allowed_event { emit allowed_event; }
+
+// A native name that no initializer or native procedure uses as its prefix.
+node type Plain as "Fixture.Plain" { // W: Native name `Fixture.Plain` is not used by an initializer or native procedure
+  native procedure run as "Fixture.Other:run";
+}

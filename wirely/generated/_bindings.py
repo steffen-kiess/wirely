@@ -7,227 +7,227 @@ from wirely.functions import FunctionImplementation
 from wirely.runtime.native_api import ProcedureImplementation, StateImplementation
 
 
-def _load_states_csv_value_writer_initializer() -> StateImplementation:
-    from wirely.generated.csv import ValueWriterInitializer
+def _load_states_csv_value_writer_create() -> StateImplementation:
+    from wirely.generated.csv import ValueWriterCreate
     from wirely.native.csv import ValueWriter
 
-    def create() -> ValueWriterInitializer:
+    def create() -> ValueWriterCreate:
         return ValueWriter()
 
-    return StateImplementation(create, ValueWriterInitializer._adapter)
+    return StateImplementation(create, ValueWriterCreate._adapter)
 
 
-def _load_states_gpio_output_initializer() -> StateImplementation:
-    from wirely.generated.gpio import OutputInitializer
+def _load_states_gpio_output_create() -> StateImplementation:
+    from wirely.generated.gpio import OutputCreate
     from wirely.native.gpio import Output
 
-    def create() -> OutputInitializer:
+    def create() -> OutputCreate:
         return Output()
 
-    return StateImplementation(create, OutputInitializer._adapter)
+    return StateImplementation(create, OutputCreate._adapter)
 
 
-def _load_states_knx_connection_initializer() -> StateImplementation:
-    from wirely.generated.knx import ConnectionInitializer
+def _load_states_knx_connection_create() -> StateImplementation:
+    from wirely.generated.knx import ConnectionCreate
     from wirely.native.knx import Connection
 
-    def create() -> ConnectionInitializer:
+    def create() -> ConnectionCreate:
         return Connection()
 
-    return StateImplementation(create, ConnectionInitializer._adapter)
+    return StateImplementation(create, ConnectionCreate._adapter)
 
 
-def _load_states_knx_event_receiver_initializer() -> StateImplementation:
-    from wirely.generated.knx import EventReceiverInitializer
+def _load_states_knx_event_receiver_create() -> StateImplementation:
+    from wirely.generated.knx import EventReceiverCreate
     from wirely.native.knx import EventReceiver
 
-    def create() -> EventReceiverInitializer:
+    def create() -> EventReceiverCreate:
         return EventReceiver()
 
-    return StateImplementation(create, EventReceiverInitializer._adapter)
+    return StateImplementation(create, EventReceiverCreate._adapter)
 
 
-def _load_states_knx_event_sender_initializer() -> StateImplementation:
-    from wirely.generated.knx import EventSenderInitializer
+def _load_states_knx_event_sender_create() -> StateImplementation:
+    from wirely.generated.knx import EventSenderCreate
     from wirely.native.knx import EventSender
 
-    def create() -> EventSenderInitializer:
+    def create() -> EventSenderCreate:
         return EventSender()
 
-    return StateImplementation(create, EventSenderInitializer._adapter)
+    return StateImplementation(create, EventSenderCreate._adapter)
 
 
-def _load_states_knx_value_option_provider_initializer() -> StateImplementation:
-    from wirely.generated.knx import ValueOptionProviderInitializer
+def _load_states_knx_value_option_provider_create() -> StateImplementation:
+    from wirely.generated.knx import ValueOptionProviderCreate
     from wirely.native.knx import ValueOptionProvider
 
-    def create() -> ValueOptionProviderInitializer:
+    def create() -> ValueOptionProviderCreate:
         return ValueOptionProvider()
 
-    return StateImplementation(create, ValueOptionProviderInitializer._adapter)
+    return StateImplementation(create, ValueOptionProviderCreate._adapter)
 
 
-def _load_states_knx_value_receiver_initializer() -> StateImplementation:
-    from wirely.generated.knx import ValueReceiverInitializer
+def _load_states_knx_value_receiver_create() -> StateImplementation:
+    from wirely.generated.knx import ValueReceiverCreate
     from wirely.native.knx import ValueReceiver
 
-    def create() -> ValueReceiverInitializer:
+    def create() -> ValueReceiverCreate:
         return ValueReceiver()
 
-    return StateImplementation(create, ValueReceiverInitializer._adapter)
+    return StateImplementation(create, ValueReceiverCreate._adapter)
 
 
-def _load_states_mqtt_connection_initializer() -> StateImplementation:
-    from wirely.generated.mqtt import ConnectionInitializer
+def _load_states_mqtt_connection_create() -> StateImplementation:
+    from wirely.generated.mqtt import ConnectionCreate
     from wirely.native.mqtt import Connection
 
-    def create() -> ConnectionInitializer:
+    def create() -> ConnectionCreate:
         return Connection()
 
-    return StateImplementation(create, ConnectionInitializer._adapter)
+    return StateImplementation(create, ConnectionCreate._adapter)
 
 
-def _load_states_mqtt_event_receiver_initializer() -> StateImplementation:
-    from wirely.generated.mqtt import EventReceiverInitializer
+def _load_states_mqtt_event_receiver_create() -> StateImplementation:
+    from wirely.generated.mqtt import EventReceiverCreate
     from wirely.native.mqtt import EventReceiver
 
-    def create() -> EventReceiverInitializer:
+    def create() -> EventReceiverCreate:
         return EventReceiver()
 
-    return StateImplementation(create, EventReceiverInitializer._adapter)
+    return StateImplementation(create, EventReceiverCreate._adapter)
 
 
-def _load_states_mqtt_event_sender_initializer() -> StateImplementation:
-    from wirely.generated.mqtt import EventSenderInitializer
+def _load_states_mqtt_event_sender_create() -> StateImplementation:
+    from wirely.generated.mqtt import EventSenderCreate
     from wirely.native.mqtt import EventSender
 
-    def create() -> EventSenderInitializer:
+    def create() -> EventSenderCreate:
         return EventSender()
 
-    return StateImplementation(create, EventSenderInitializer._adapter)
+    return StateImplementation(create, EventSenderCreate._adapter)
 
 
-def _load_states_mqtt_value_option_provider_initializer() -> StateImplementation:
-    from wirely.generated.mqtt import ValueOptionProviderInitializer
+def _load_states_mqtt_value_option_provider_create() -> StateImplementation:
+    from wirely.generated.mqtt import ValueOptionProviderCreate
     from wirely.native.mqtt import ValueOptionProvider
 
-    def create() -> ValueOptionProviderInitializer:
+    def create() -> ValueOptionProviderCreate:
         return ValueOptionProvider()
 
-    return StateImplementation(create, ValueOptionProviderInitializer._adapter)
+    return StateImplementation(create, ValueOptionProviderCreate._adapter)
 
 
-def _load_states_process_launch_on_event_initializer() -> StateImplementation:
-    from wirely.generated.process import LaunchOnEventInitializer
+def _load_states_process_launch_on_event_create() -> StateImplementation:
+    from wirely.generated.process import LaunchOnEventCreate
     from wirely.native.process import LaunchOnEvent
 
-    def create() -> LaunchOnEventInitializer:
+    def create() -> LaunchOnEventCreate:
         return LaunchOnEvent()
 
-    return StateImplementation(create, LaunchOnEventInitializer._adapter)
+    return StateImplementation(create, LaunchOnEventCreate._adapter)
 
 
-def _load_states_std_debug_event_source_initializer() -> StateImplementation:
-    from wirely.generated.std import DebugEventSourceInitializer
+def _load_states_std_debug_event_source_create() -> StateImplementation:
+    from wirely.generated.std import DebugEventSourceCreate
     from wirely.native.std import DebugEventSource
 
-    def create() -> DebugEventSourceInitializer:
+    def create() -> DebugEventSourceCreate:
         return DebugEventSource()
 
-    return StateImplementation(create, DebugEventSourceInitializer._adapter)
+    return StateImplementation(create, DebugEventSourceCreate._adapter)
 
 
-def _load_states_std_debug_value_source_initializer() -> StateImplementation:
-    from wirely.generated.std import DebugValueSourceInitializer
+def _load_states_std_debug_value_source_create() -> StateImplementation:
+    from wirely.generated.std import DebugValueSourceCreate
     from wirely.native.std import DebugValueSource
 
-    def create() -> DebugValueSourceInitializer:
+    def create() -> DebugValueSourceCreate:
         return DebugValueSource()
 
-    return StateImplementation(create, DebugValueSourceInitializer._adapter)
+    return StateImplementation(create, DebugValueSourceCreate._adapter)
 
 
-def _load_states_two_n_code_entered_event_initializer() -> StateImplementation:
-    from wirely.generated.two_n import CodeEnteredEventInitializer
+def _load_states_two_n_code_entered_event_create() -> StateImplementation:
+    from wirely.generated.two_n import CodeEnteredEventCreate
     from wirely.native.two_n import CodeEnteredEvent
 
-    def create() -> CodeEnteredEventInitializer:
+    def create() -> CodeEnteredEventCreate:
         return CodeEnteredEvent()
 
-    return StateImplementation(create, CodeEnteredEventInitializer._adapter)
+    return StateImplementation(create, CodeEnteredEventCreate._adapter)
 
 
-def _load_states_two_n_connection_initializer() -> StateImplementation:
-    from wirely.generated.two_n import ConnectionInitializer
+def _load_states_two_n_connection_create() -> StateImplementation:
+    from wirely.generated.two_n import ConnectionCreate
     from wirely.native.two_n import Connection
 
-    def create() -> ConnectionInitializer:
+    def create() -> ConnectionCreate:
         return Connection()
 
-    return StateImplementation(create, ConnectionInitializer._adapter)
+    return StateImplementation(create, ConnectionCreate._adapter)
 
 
-def _load_states_two_n_io_state_initializer() -> StateImplementation:
-    from wirely.generated.two_n import IOStateInitializer
+def _load_states_two_n_io_state_create() -> StateImplementation:
+    from wirely.generated.two_n import IOStateCreate
     from wirely.native.two_n import IOState
 
-    def create() -> IOStateInitializer:
+    def create() -> IOStateCreate:
         return IOState()
 
-    return StateImplementation(create, IOStateInitializer._adapter)
+    return StateImplementation(create, IOStateCreate._adapter)
 
 
-def _load_states_two_n_key_event_initializer() -> StateImplementation:
-    from wirely.generated.two_n import KeyEventInitializer
+def _load_states_two_n_key_event_create() -> StateImplementation:
+    from wirely.generated.two_n import KeyEventCreate
     from wirely.native.two_n import KeyEvent
 
-    def create() -> KeyEventInitializer:
+    def create() -> KeyEventCreate:
         return KeyEvent()
 
-    return StateImplementation(create, KeyEventInitializer._adapter)
+    return StateImplementation(create, KeyEventCreate._adapter)
 
 
-def _load_states_two_n_output_control_initializer() -> StateImplementation:
-    from wirely.generated.two_n import OutputControlInitializer
+def _load_states_two_n_output_control_create() -> StateImplementation:
+    from wirely.generated.two_n import OutputControlCreate
     from wirely.native.two_n import OutputControl
 
-    def create() -> OutputControlInitializer:
+    def create() -> OutputControlCreate:
         return OutputControl()
 
-    return StateImplementation(create, OutputControlInitializer._adapter)
+    return StateImplementation(create, OutputControlCreate._adapter)
 
 
-def _load_states_two_n_switch_state_initializer() -> StateImplementation:
-    from wirely.generated.two_n import SwitchStateInitializer
+def _load_states_two_n_switch_state_create() -> StateImplementation:
+    from wirely.generated.two_n import SwitchStateCreate
     from wirely.native.two_n import SwitchState
 
-    def create() -> SwitchStateInitializer:
+    def create() -> SwitchStateCreate:
         return SwitchState()
 
-    return StateImplementation(create, SwitchStateInitializer._adapter)
+    return StateImplementation(create, SwitchStateCreate._adapter)
 
 
 states: dict[str, Callable[[], StateImplementation]] = {
-    'CSV.ValueWriter': _load_states_csv_value_writer_initializer,
-    'GPIO.Output': _load_states_gpio_output_initializer,
-    'KNX.Connection': _load_states_knx_connection_initializer,
-    'KNX.EventReceiver': _load_states_knx_event_receiver_initializer,
-    'KNX.EventSender': _load_states_knx_event_sender_initializer,
-    'KNX.ValueOptionProvider': _load_states_knx_value_option_provider_initializer,
-    'KNX.ValueReceiver': _load_states_knx_value_receiver_initializer,
-    'MQTT.Connection': _load_states_mqtt_connection_initializer,
-    'MQTT.EventReceiver': _load_states_mqtt_event_receiver_initializer,
-    'MQTT.EventSender': _load_states_mqtt_event_sender_initializer,
-    'MQTT.ValueOptionProvider': _load_states_mqtt_value_option_provider_initializer,
-    'Process.LaunchOnEvent': _load_states_process_launch_on_event_initializer,
-    'Std.DebugEventSource': _load_states_std_debug_event_source_initializer,
-    'Std.DebugValueSource': _load_states_std_debug_value_source_initializer,
-    'TwoN.CodeEnteredEvent': _load_states_two_n_code_entered_event_initializer,
-    'TwoN.Connection': _load_states_two_n_connection_initializer,
-    'TwoN.IOState': _load_states_two_n_io_state_initializer,
-    'TwoN.KeyEvent': _load_states_two_n_key_event_initializer,
-    'TwoN.OutputControl': _load_states_two_n_output_control_initializer,
-    'TwoN.SwitchState': _load_states_two_n_switch_state_initializer,
+    'CSV.ValueWriter:create': _load_states_csv_value_writer_create,
+    'GPIO.Output:create': _load_states_gpio_output_create,
+    'KNX.Connection:create': _load_states_knx_connection_create,
+    'KNX.EventReceiver:create': _load_states_knx_event_receiver_create,
+    'KNX.EventSender:create': _load_states_knx_event_sender_create,
+    'KNX.ValueOptionProvider:create': _load_states_knx_value_option_provider_create,
+    'KNX.ValueReceiver:create': _load_states_knx_value_receiver_create,
+    'MQTT.Connection:create': _load_states_mqtt_connection_create,
+    'MQTT.EventReceiver:create': _load_states_mqtt_event_receiver_create,
+    'MQTT.EventSender:create': _load_states_mqtt_event_sender_create,
+    'MQTT.ValueOptionProvider:create': _load_states_mqtt_value_option_provider_create,
+    'Process.LaunchOnEvent:create': _load_states_process_launch_on_event_create,
+    'Std.DebugEventSource:create': _load_states_std_debug_event_source_create,
+    'Std.DebugValueSource:create': _load_states_std_debug_value_source_create,
+    'TwoN.CodeEnteredEvent:create': _load_states_two_n_code_entered_event_create,
+    'TwoN.Connection:create': _load_states_two_n_connection_create,
+    'TwoN.IOState:create': _load_states_two_n_io_state_create,
+    'TwoN.KeyEvent:create': _load_states_two_n_key_event_create,
+    'TwoN.OutputControl:create': _load_states_two_n_output_control_create,
+    'TwoN.SwitchState:create': _load_states_two_n_switch_state_create,
 }
 
 

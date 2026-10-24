@@ -56,7 +56,7 @@ node type Invalid {
   parameter Type: type;
   parameter Initial: Type;
   state saved: Type = Initial;
-  native procedure write produces saved;
+  native procedure write writes saved;
 }
 node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 
@@ -64,6 +64,6 @@ node invalid: Invalid { Type: List[uint8], Initial: [] } // E: parameter-only
 node type Invalid {
   parameter Type: type;
   #[Allow(Unused)] binding saved: value Type;
-  native procedure write produces saved;
+  native procedure write writes saved;
 }
 node invalid: Invalid { Type: Option[string] } // E: parameter-only

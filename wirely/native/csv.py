@@ -51,16 +51,16 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
-class ValueWriter(contracts.ValueWriterInitializer):
+class ValueWriter(contracts.ValueWriterCreate):
     # TODO: Should writing to the file be done on a background thread?
 
     def initialize(self, *, services: StateServices[typing.Literal['state']],
-                   filename: str) -> contracts.ValueWriterInitializerResult:
+                   filename: str) -> contracts.ValueWriterCreateResult:
         self.filename = filename
         self.file: typing.BinaryIO | None = None
 
         self.last_value_csv = ('', False)
-        return contracts.ValueWriterInitializerResult(state=self)
+        return contracts.ValueWriterCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -132,7 +132,7 @@ class ValueWriter(contracts.ValueWriterInitializer):
 
         def run(self, *, services: ProcedureServices, state: 'ValueWriter',
                 last_written_at_old: Some[MonotonicTime] | None, input: DynamicValue,
-                repeat_elapsed: Some[bool] | None) -> contracts.ValueWriterRunResult:
+                repeat_elapsed: Some[bool] | None, type: ValueType[Any]) -> contracts.ValueWriterRunResult:
             elapsed = repeat_elapsed
             last_written_at = last_written_at_old
 

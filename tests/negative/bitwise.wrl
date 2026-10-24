@@ -52,35 +52,35 @@ node generic: Generic { Type: Std.Duration, Value: "PT1S" } // H: While instanti
 node source: Std.Constant { Type: uint32, Value: 1 }
 connect source -> run.count;
 #[Allow(Unused)] binding result: value uint8;
-procedure run depends on count: value uint32 produces result {
+procedure run reads count: value uint32 writes result {
   result = 1 << count; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure local count
 #[Allow(Unused)] binding result: value uint8;
-procedure run produces result {
+procedure run writes result {
   let count = 1;
   result = 1 >> count; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure output count
 #[Allow(Unused)] binding result: value uint8;
-procedure run produces result {
+procedure run writes result {
   result = 1;
   let shifted = 1 << result; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure state count
 state count: uint32 = 1;
-procedure write produces count { count = 1; }
+procedure write writes count { count = 1; }
 #[Allow(Unused)] binding result: value uint8;
-procedure run depends on count.old as previous produces result {
+procedure run reads count.old as previous writes result {
   result = 1 >> previous; // E: Shift count must be a compile-time value
 }
 
 // TEST: procedure invalid constant count
 #[Allow(Unused)] binding result: value int8;
-procedure run produces result {
+procedure run writes result {
   result = 1 << 8; // E: Shift count must be between 0 and 7
 }
 
@@ -90,8 +90,8 @@ node other_source: Std.Constant { Type: uint16, Value: 1 }
 connect source -> run.input;
 connect other_source -> run.other;
 #[Allow(Unused)] binding result: value uint8;
-procedure run depends on input: value uint8, other: value uint16
-  produces result
+procedure run reads input: value uint8, other: value uint16
+  writes result
 {
   result = input ^ other; // E: Expected value of type `uint8`, got `uint16`
 }
@@ -100,8 +100,8 @@ procedure run depends on input: value uint8, other: value uint16
 node type Empty {
   default input: multi value uint8;
   default output: value uint8;
-  procedure run depends on default input as input
-    produces default output as output
+  procedure run reads default input as input
+    writes default output as output
   {
     let mut total: uint8 = 0;
     for value in input {
@@ -117,7 +117,7 @@ node type Generic {
   parameter Type: type;
   parameter Count: int64;
   default output: value Type;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = 1 >> Count; // E: Shift count must be between 0 and 7
   }
 }
@@ -130,6 +130,6 @@ struct type Counts {
 node source: Std.Constant { Type: Counts, Value: Counts { amount: 1 } }
 connect source -> run.input;
 #[Allow(Unused)] binding result: value uint8;
-procedure run depends on input: value Counts produces result {
+procedure run reads input: value Counts writes result {
   result = 1 << input.amount; // E: Shift count must be a compile-time value
 }

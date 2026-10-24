@@ -103,9 +103,9 @@ def procedure_ports(ports: Mapping[str, model.ProcedureInputPort | model.Procedu
     return result
 
 
-def type_variables(node_type: model.NodeType, uses: model.UsesDeclaration | None,
+def type_variables(node_type: model.NodeType, uses: model.StaticReads | None,
                    where: str) -> dict[model.NodeParameter, str]:
-    """Map each `type` parameter in a `uses` clause to the key passing it."""
+    """Map each `type` parameter read at compile time to the key passing it."""
     variables: dict[model.NodeParameter, str] = {}
     for binding in () if uses is None else uses.bindings:
         expression = binding.expression
@@ -134,7 +134,7 @@ def uses_type(node_type: model.NodeType, binding: model.StaticBinding,
     return value_type if variables is None else signature_type(value_type, variables, where)
 
 
-def signature_uses(node_type: model.NodeType, uses: model.UsesDeclaration | None,
+def signature_uses(node_type: model.NodeType, uses: model.StaticReads | None,
                    variables: Mapping[model.NodeParameter, str],
                    where: str) -> dict[str, signatures.SignatureType]:
     if uses is None:
@@ -144,7 +144,7 @@ def signature_uses(node_type: model.NodeType, uses: model.UsesDeclaration | None
 
 def native_signatures(graph: model.Scope,
                       namespace: str | None = None, *, source_paths: set[str] | None = None) -> tuple[dict[str, signatures.Initializer], dict[str, signatures.Procedure], dict[str, signatures.Function]]:
-    """Return the signatures of native state types, procedures, and runtime functions in a graph.
+    """Return the signatures of native initializers, procedures, and runtime functions in a graph.
 
     With a namespace, only declarations whose native names are in it are described.
     Raises ValueError for interfaces that cannot be described.
@@ -158,13 +158,13 @@ def native_signatures(graph: model.Scope,
     for node_type in node_types(graph):
         if source_paths is not None and node_type.declaration.source_position.filename not in source_paths:
             continue
-        initializer = node_type.initializer if node_type.is_native else None
+        initializer = node_type.initializer
         if initializer is not None and included(node_type.native_name):
             assert node_type.native_name is not None
-            where = f'Native state type `{node_type.native_name}`'
-            variables = type_variables(node_type, initializer.uses, where)
+            where = f'Native initializer `{node_type.native_name}`'
+            variables = type_variables(node_type, initializer.static_reads, where)
             depends = {}
-            for port, dependency in zip(initializer.depends.dependencies,
+            for port, dependency in zip(initializer.read_ports.dependencies,
                                         initializer.resolved_dependencies()):
                 if isinstance(dependency, model.InstanceNode):
                     dependency = dependency.output_ports_byname['']
@@ -173,17 +173,17 @@ def native_signatures(graph: model.Scope,
                 depends=depends,
                 produces={key: signature_port(output, variables, where)
                           for output, key in initializer.output_keys.items()},
-                uses=signature_uses(node_type, initializer.uses, variables, where),
+                uses=signature_uses(node_type, initializer.static_reads, variables, where),
             )
         for procedure in node_type.procedures.values():
             if not procedure.is_native or not included(procedure.native_name):
                 continue
             where = f'Native procedure `{procedure.native_name}`'
-            variables = type_variables(node_type, procedure.uses, where)
+            variables = type_variables(node_type, procedure.static_reads, where)
             procedures[procedure.native_name] = signatures.Procedure(
                 stage=procedure.stage.stage.name.lower(),
                 depends=procedure_ports(procedure.input_ports, variables, where),
                 produces=procedure_ports(procedure.output_ports, variables, where),
-                uses=signature_uses(node_type, procedure.uses, variables, where),
+                uses=signature_uses(node_type, procedure.static_reads, variables, where),
             )
     return state_types, procedures, function_signatures(graph, constant=False, namespace=namespace, source_paths=source_paths)

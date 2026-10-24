@@ -1,21 +1,21 @@
 // TEST: depends_name
 node depends: T {} // E: Syntax error
 
-// TEST: produces_name
-node produces: T {} // E: Syntax error
+// TEST: writes_name
+node writes: T {} // E: Syntax error
 
 // TEST: depends_parameter
 node type T {
   parameter depends: boolean; // E: Syntax error
 }
 
-// TEST: produces_field
+// TEST: writes_field
 struct type S {
-  produces: boolean, // E: Syntax error
+  writes: boolean, // E: Syntax error
 }
 
-// TEST: produces_reference
-native procedure run depends on produces.Value; // E: Syntax error
+// TEST: writes_reference
+native procedure run reads writes.Value; // E: Syntax error
 
 // TEST: depends_attribute
 #[depends] node n: T {} // E: Syntax error

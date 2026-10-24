@@ -22,9 +22,8 @@ _SHUFFLED_ATTRIBUTES: dict[type, tuple[str, ...]] = {
     model.DeclarationNodeType: ('declarations',),
     model.DeclarationLibrary: ('declarations',),
     model.Instantiation: ('parameters',),
-    model.DependsDeclaration: ('dependencies',),
-    model.ProducesDeclaration: ('outputs',),
-    model.UsesDeclaration: ('bindings',),
+    model.ReadsDeclaration: ('entries',),
+    model.WritesDeclaration: ('outputs',),
     model.DeclarationEnumType: ('members',),
 }
 
@@ -112,7 +111,12 @@ def _visit(rng: random.Random, value: T, attributes: dict[type, tuple[str, ...]]
             for name in names:
                 items = getattr(value, name)
                 changes[name] = type(items)(_shuffled(rng, items))
+    # Fields derived in __post_init__ are recomputed by dataclasses.replace.
+    derived = {field.name for field in dataclasses.fields(value) if not field.init} \
+        if dataclasses.is_dataclass(value) else set()
     for name, child in vars(value).items():
+        if name in derived:
+            continue
         child = changes.get(name, child)
         visited_child = _visit(rng, child, attributes, visited, layout)
         if visited_child is not child or name in changes:

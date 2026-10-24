@@ -15,8 +15,8 @@ node type Compare {
   input Right: value Type;
   output Equal: value boolean;
   output Unequal: value boolean;
-  procedure run depends on Left as left, Right as right
-    produces Equal, Unequal
+  procedure run reads Left as left, Right as right
+    writes Equal, Unequal
   {
     Equal = left == right;
     Unequal = left != right;
@@ -74,7 +74,7 @@ connect empty_right -> empty.Right;
 // Read by equality.py.
 #[Allow(Unused)] binding LiteralEqual: value boolean;
 #[Allow(Unused)] binding LiteralUnequal: value boolean;
-procedure literals produces LiteralEqual, LiteralUnequal {
+procedure literals writes LiteralEqual, LiteralUnequal {
   let at: Schedule.TimeOfDay = "08:00";
   let span: Std.Duration = "PT60S";
   LiteralEqual = at == "08:00" && "PT1M" == span;

@@ -25,16 +25,16 @@ if TYPE_CHECKING:
 )
 
 __all__ = [
-    'ConnectionInitializerResult',
-    'ConnectionInitializer',
-    'EventReceiverInitializerResult',
-    'EventReceiverInitializer',
-    'EventSenderInitializerResult',
-    'EventSenderInitializer',
-    'ValueOptionProviderInitializerResult',
-    'ValueOptionProviderInitializer',
-    'ValueReceiverInitializerResult',
-    'ValueReceiverInitializer',
+    'ConnectionCreateResult',
+    'ConnectionCreate',
+    'EventReceiverCreateResult',
+    'EventReceiverCreate',
+    'EventSenderCreateResult',
+    'EventSenderCreate',
+    'ValueOptionProviderCreateResult',
+    'ValueOptionProviderCreate',
+    'ValueReceiverCreateResult',
+    'ValueReceiverCreate',
     'EventReceiverGetValueResult',
     'EventReceiverGetValue',
     'EventSenderSendValueResult',
@@ -47,14 +47,14 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ConnectionInitializerResult:
-    """Resource outputs of native state type KNX.Connection."""
+class ConnectionCreateResult:
+    """Fixed outputs of native initializer KNX.Connection:create."""
 
     bus: Bus
 
 
-class ConnectionInitializer(NativeState[Literal['bus']], abc.ABC):
-    """Native state type KNX.Connection; initialize() returns its resource outputs."""
+class ConnectionCreate(NativeState[Literal['bus']], abc.ABC):
+    """Native initializer KNX.Connection:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -66,16 +66,16 @@ class ConnectionInitializer(NativeState[Literal['bus']], abc.ABC):
         unix_path: Some[str] | None,
         ssh_target: Some[str] | None,
         individual_address: Some[str] | None,
-    ) -> ConnectionInitializerResult:
+    ) -> ConnectionCreateResult:
         ...
 
 
-class _ConnectionInitializerAdapter(InitializerAdapter):
+class _ConnectionCreateAdapter(InitializerAdapter):
     output_keys = {'bus': 'bus'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ConnectionInitializer)
+        assert isinstance(state, ConnectionCreate)
         result = state.initialize(
             services=services,
             host=cast('Some[str] | None', binding.use('Host')),
@@ -85,24 +85,24 @@ class _ConnectionInitializerAdapter(InitializerAdapter):
             ssh_target=cast('Some[str] | None', binding.use('SSHTarget')),
             individual_address=cast('Some[str] | None', binding.use('IndividualAddress')),
         )
-        binding.check_result(result, ConnectionInitializerResult)
+        binding.check_result(result, ConnectionCreateResult)
         return {
             'bus': binding.resource_output('bus', result.bus),
         }
 
 
-ConnectionInitializer._adapter = _ConnectionInitializerAdapter()
+ConnectionCreate._adapter = _ConnectionCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class EventReceiverInitializerResult:
-    """Resource outputs of native state type KNX.EventReceiver."""
+class EventReceiverCreateResult:
+    """Fixed outputs of native initializer KNX.EventReceiver:create."""
 
     state: EventReceiverState
 
 
-class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type KNX.EventReceiver; initialize() returns its resource outputs."""
+class EventReceiverCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer KNX.EventReceiver:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -112,16 +112,16 @@ class EventReceiverInitializer(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         group_address: UInt16,
         value_type_name: str,
-    ) -> EventReceiverInitializerResult:
+    ) -> EventReceiverCreateResult:
         ...
 
 
-class _EventReceiverInitializerAdapter(InitializerAdapter):
+class _EventReceiverCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, EventReceiverInitializer)
+        assert isinstance(state, EventReceiverCreate)
         result = state.initialize(
             services=services,
             bus=cast('Bus', binding.resource('Bus')),
@@ -129,24 +129,24 @@ class _EventReceiverInitializerAdapter(InitializerAdapter):
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
-        binding.check_result(result, EventReceiverInitializerResult)
+        binding.check_result(result, EventReceiverCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-EventReceiverInitializer._adapter = _EventReceiverInitializerAdapter()
+EventReceiverCreate._adapter = _EventReceiverCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class EventSenderInitializerResult:
-    """Resource outputs of native state type KNX.EventSender."""
+class EventSenderCreateResult:
+    """Fixed outputs of native initializer KNX.EventSender:create."""
 
     state: EventSenderState
 
 
-class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type KNX.EventSender; initialize() returns its resource outputs."""
+class EventSenderCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer KNX.EventSender:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -156,16 +156,16 @@ class EventSenderInitializer(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         group_address: UInt16,
         value_type_name: str,
-    ) -> EventSenderInitializerResult:
+    ) -> EventSenderCreateResult:
         ...
 
 
-class _EventSenderInitializerAdapter(InitializerAdapter):
+class _EventSenderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, EventSenderInitializer)
+        assert isinstance(state, EventSenderCreate)
         result = state.initialize(
             services=services,
             bus=cast('Bus', binding.resource('Bus')),
@@ -173,24 +173,24 @@ class _EventSenderInitializerAdapter(InitializerAdapter):
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
-        binding.check_result(result, EventSenderInitializerResult)
+        binding.check_result(result, EventSenderCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-EventSenderInitializer._adapter = _EventSenderInitializerAdapter()
+EventSenderCreate._adapter = _EventSenderCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ValueOptionProviderInitializerResult:
-    """Resource outputs of native state type KNX.ValueOptionProvider."""
+class ValueOptionProviderCreateResult:
+    """Fixed outputs of native initializer KNX.ValueOptionProvider:create."""
 
     state: ValueOptionProviderState
 
 
-class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type KNX.ValueOptionProvider; initialize() returns its resource outputs."""
+class ValueOptionProviderCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer KNX.ValueOptionProvider:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -200,16 +200,16 @@ class ValueOptionProviderInitializer(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         group_address: UInt16,
         value_type_name: str,
-    ) -> ValueOptionProviderInitializerResult:
+    ) -> ValueOptionProviderCreateResult:
         ...
 
 
-class _ValueOptionProviderInitializerAdapter(InitializerAdapter):
+class _ValueOptionProviderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ValueOptionProviderInitializer)
+        assert isinstance(state, ValueOptionProviderCreate)
         result = state.initialize(
             services=services,
             bus=cast('Bus', binding.resource('Bus')),
@@ -217,24 +217,24 @@ class _ValueOptionProviderInitializerAdapter(InitializerAdapter):
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
-        binding.check_result(result, ValueOptionProviderInitializerResult)
+        binding.check_result(result, ValueOptionProviderCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-ValueOptionProviderInitializer._adapter = _ValueOptionProviderInitializerAdapter()
+ValueOptionProviderCreate._adapter = _ValueOptionProviderCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ValueReceiverInitializerResult:
-    """Resource outputs of native state type KNX.ValueReceiver."""
+class ValueReceiverCreateResult:
+    """Fixed outputs of native initializer KNX.ValueReceiver:create."""
 
     state: ValueReceiverState
 
 
-class ValueReceiverInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type KNX.ValueReceiver; initialize() returns its resource outputs."""
+class ValueReceiverCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer KNX.ValueReceiver:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -244,16 +244,16 @@ class ValueReceiverInitializer(NativeState[Literal['state']], abc.ABC):
         type: ValueType[Any],
         group_address: UInt16,
         value_type_name: str,
-    ) -> ValueReceiverInitializerResult:
+    ) -> ValueReceiverCreateResult:
         ...
 
 
-class _ValueReceiverInitializerAdapter(InitializerAdapter):
+class _ValueReceiverCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ValueReceiverInitializer)
+        assert isinstance(state, ValueReceiverCreate)
         result = state.initialize(
             services=services,
             bus=cast('Bus', binding.resource('Bus')),
@@ -261,13 +261,13 @@ class _ValueReceiverInitializerAdapter(InitializerAdapter):
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
-        binding.check_result(result, ValueReceiverInitializerResult)
+        binding.check_result(result, ValueReceiverCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-ValueReceiverInitializer._adapter = _ValueReceiverInitializerAdapter()
+ValueReceiverCreate._adapter = _ValueReceiverCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -294,6 +294,7 @@ class EventReceiverGetValue(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         state: EventReceiverState,
+        type: ValueType[Any],
     ) -> EventReceiverGetValueResult:
         ...
 
@@ -314,6 +315,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             state=cast('EventReceiverState', binding.resource('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, EventReceiverGetValueResult)
         return {
@@ -347,6 +349,7 @@ class EventSenderSendValue(NativeProcedure, abc.ABC):
         services: ProcedureServices,
         state: EventSenderState,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> EventSenderSendValueResult:
         ...
 
@@ -368,6 +371,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
             services=services,
             state=cast('EventSenderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, EventSenderSendValueResult)
         return {}
@@ -399,6 +403,7 @@ class ValueOptionProviderSetValue(NativeProcedure, abc.ABC):
         services: ProcedureServices,
         state: ValueOptionProviderState,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> ValueOptionProviderSetValueResult:
         ...
 
@@ -420,6 +425,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
             services=services,
             state=cast('ValueOptionProviderState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, ValueOptionProviderSetValueResult)
         return {}
@@ -452,6 +458,7 @@ class ValueReceiverGetValue(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         state: ValueReceiverState,
+        type: ValueType[Any],
     ) -> ValueReceiverGetValueResult:
         ...
 
@@ -472,6 +479,7 @@ class _ValueReceiverGetValueAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             state=cast('ValueReceiverState', binding.resource('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, ValueReceiverGetValueResult)
         return {

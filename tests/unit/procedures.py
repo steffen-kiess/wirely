@@ -104,17 +104,17 @@ def check_pure_stages():
       output OutputStage: value boolean;
       binding early: value boolean;
       binding calculated: value boolean;
-      procedure read stage input produces InputStage, early {
+      procedure read stage input writes InputStage, early {
         InputStage = true;
         early = true;
       }
-      procedure compute depends on early
-        produces default output as output, calculated
+      procedure compute reads early
+        writes default output as output, calculated
       {
         output = early;
         calculated = early;
       }
-      procedure write stage output depends on calculated produces OutputStage {
+      procedure write stage output reads calculated writes OutputStage {
         OutputStage = calculated;
       }
     }
@@ -134,7 +134,7 @@ def check_output_storage():
     program = compile_program('''node type Split {
       output Value: value boolean;
       #[Allow(Unused)] binding Value_val: value boolean;
-      procedure run produces Value as value, Value_val {
+      procedure run writes Value as value, Value_val {
         value = true;
         Value_val = false;
       }
@@ -153,7 +153,7 @@ def check_temporary_connections():
     program = compile_program('''node type Copy {
       default input: value boolean;
       default output: value boolean;
-      procedure run depends on default input as input produces default output as output {
+      procedure run reads default input as input writes default output as output {
         output = input;
       }
     }
@@ -161,8 +161,8 @@ def check_temporary_connections():
       output Level: value boolean;
       output Inverted: value boolean;
       binding level: value boolean;
-      procedure normalize produces level { level = true; }
-      procedure invert depends on level produces Inverted as inverted {
+      procedure normalize writes level { level = true; }
+      procedure invert reads level writes Inverted as inverted {
         inverted = if level { false } else { true };
       }
       node child: Copy {}
@@ -186,7 +186,7 @@ def check_procedure_ports():
     program = compile_program('''node type Copy {
       default input: value boolean;
       default output: value boolean;
-      procedure run depends on default input as input produces default output as output {
+      procedure run reads default input as input writes default output as output {
         output = input;
       }
     }
@@ -203,16 +203,16 @@ def check_procedure_ports():
       node copy: Copy {}
       node fed: Copy {}
 
-      procedure invert depends on value: value boolean produces inverted: value boolean {
+      procedure invert reads value: value boolean writes inverted: value boolean {
         inverted = !value;
       }
-      procedure again depends on invert.inverted as value produces result: value boolean {
+      procedure again reads invert.inverted as value writes result: value boolean {
         result = !value;
       }
-      procedure remember depends on value: value boolean produces next: value boolean {
+      procedure remember reads value: value boolean writes next: value boolean {
         next = value;
       }
-      procedure feed depends on default input as value produces fed as copied {
+      procedure feed reads default input as value writes fed as copied {
         copied = value;
       }
 
@@ -253,14 +253,14 @@ def check_generic_copies():
       parameter Type: type;
       parameter Value: Type;
       default output: value Type;
-      procedure run produces default output as output { output = Value; }
+      procedure run writes default output as output { output = Value; }
     }
     node type Copy {
       parameter Type: type;
       default input: value Type;
       default output: value Type;
-      procedure run depends on default input as input
-        produces default output as output
+      procedure run reads default input as input
+        writes default output as output
       {
         let value = input;
         output = value;
@@ -284,8 +284,9 @@ def check_mixed_procedures():
         default output: value Type;
         binding temp: value Type;
         native procedure produce as "TestLibrary.TestNode:test_procedure"
-          produces temp as temp uses Value, Type;
-        procedure run depends on temp produces default output as output {
+          reads Value, Type
+          writes temp as temp;
+        procedure run reads temp writes default output as output {
           output = temp;
         }
       }
@@ -298,7 +299,7 @@ def check_mixed_procedures():
             def prepare(self, *, services, value, type):
                 self.value = value
 
-            def run(self, *, services):
+            def run(self, *, services, value, type):
                 return contracts.TestNodeTestProcedureResult(temp=self.value)
 
         bindings = test_extension(procedures={'TestLibrary.TestNode:test_procedure': Produce}, contracts=contracts)
@@ -312,8 +313,8 @@ def check_root_only():
     # The root exists without child nodes and does not require native lookup.
     root_only = compile_program('''binding t: value int8;
     #[Allow(Unused)] binding sum: value Option[int8];
-    procedure p1 produces t { t = 50; }
-    procedure p2 depends on t produces sum { sum = int8.CheckedAdd(t, 100); }
+    procedure p1 writes t { t = 50; }
+    procedure p2 reads t writes sum { sum = int8.CheckedAdd(t, 100); }
     ''')
     root_engine = test_engine(root_only)
     root_engine.step()
@@ -326,22 +327,22 @@ def check_root_dependencies():
     # Root dependencies can order child producers, root procedures, and consumers.
     chained = compile_program('''binding first: value boolean;
     binding second: value boolean;
-    procedure one depends on source as input produces first { first = input; }
-    procedure two depends on first, shared as enabled produces second {
+    procedure one reads source as input writes first { first = input; }
+    procedure two reads first, shared as enabled writes second {
       second = first && enabled;
     }
     node type Copy {
       default input: value boolean;
       default output: value boolean;
-      procedure run depends on default input as input
-        produces default output as output
+      procedure run reads default input as input
+        writes default output as output
       {
         output = input;
       }
     }
     singleton node type Shared {
       default output: value boolean;
-      procedure run produces default output as output { output = true; }
+      procedure run writes default output as output { output = true; }
     }
     node source: Std.DebugValueSource { Type: boolean }
     node copied: Copy {}
@@ -368,18 +369,18 @@ def check_root_state():
     root_state = compile_program('''state saved: boolean = false;
     #[Allow(Unused)] binding previous: value boolean;
     #[Allow(Unused)] binding current: value boolean;
-    procedure write depends on source as input produces saved { saved = input; }
-    procedure read_old depends on saved.old as old produces previous {
+    procedure write reads source as input writes saved { saved = input; }
+    procedure read_old reads saved.old as old writes previous {
       previous = old;
     }
-    procedure read_new depends on saved.new as new produces current {
+    procedure read_new reads saved.new as new writes current {
       current = new;
     }
     node type Copy {
       default input: value boolean;
       default output: value boolean;
-      procedure run depends on default input as input
-        produces default output as output
+      procedure run reads default input as input
+        writes default output as output
       {
         output = input;
       }
@@ -473,8 +474,8 @@ def check_builtin_ordering():
               output LessEqual: value boolean;
               output Greater: value boolean;
               output GreaterEqual: value boolean;
-              procedure run depends on left.old as a, right.old as b
-                produces left, right, Less, LessEqual, Greater, GreaterEqual
+              procedure run reads left.old as a, right.old as b
+                writes left, right, Less, LessEqual, Greater, GreaterEqual
               {
                 left = a;
                 right = b;
@@ -566,7 +567,7 @@ def check_native_functions():
       default input: value int16;
       default output: value int16;
       output Done: value unit;
-      procedure run depends on default input as input produces default output as output, Done {
+      procedure run reads default input as input writes default output as output, Done {
         let mut low: int16 = -10;
         TestLibrary.Nothing();
         output = TestLibrary.Limit(input, low, { low = 100; High });

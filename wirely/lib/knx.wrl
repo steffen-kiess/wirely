@@ -15,7 +15,7 @@ namespace KNX {
 
   resource type Bus;
 
-  native node type Connection {
+  node type Connection {
     optional parameter Host: string;
     optional parameter Protocol: KNX.Protocol;
     optional parameter Port: uint16;
@@ -23,22 +23,22 @@ namespace KNX {
     optional parameter SSHTarget: string;
     optional parameter IndividualAddress: string;
 
-    default output: resource Bus;
+    default output: fixed Bus;
 
-    native initializer
-      produces default output as "bus"
-      uses optional(Host) as Host,
+    native initializer create
+      reads optional(Host) as Host,
         optional(Protocol) as Protocol,
         optional(Port) as Port,
         optional(UnixPath) as UnixPath,
         optional(SSHTarget) as SSHTarget,
-        optional(IndividualAddress) as IndividualAddress;
+        optional(IndividualAddress) as IndividualAddress
+      writes default output as "bus";
   }
 
   #[Internal]
   resource type ValueReceiverState;
 
-  native node type ValueReceiver {
+  node type ValueReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: string;
@@ -52,24 +52,22 @@ namespace KNX {
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
     constant value_type_name: string = ValueTypeName(Type);
 
-    input Bus: resource Bus;
+    input Bus: fixed Bus;
     default output: value Option[Type];
 
-    binding state: resource ValueReceiverState;
-    native initializer depends on Bus
-      produces state as "state"
-      uses Type, group_address, value_type_name;
+    binding state: fixed ValueReceiverState;
+    native initializer create reads Bus, Type, group_address, value_type_name
+      writes state as "state";
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output"
-      uses Type;
+      reads state as "state", Type
+      writes default output as "output";
   }
 
   #[Internal]
   resource type ValueOptionProviderState;
 
-  native node type ValueOptionProvider {
+  node type ValueOptionProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: string;
@@ -82,17 +80,15 @@ namespace KNX {
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
     constant value_type_name: string = ValueTypeName(Type);
 
-    input Bus: resource Bus;
+    input Bus: fixed Bus;
     default input: value Option[Type];
 
-    binding state: resource ValueOptionProviderState;
-    native initializer depends on Bus
-      produces state as "state"
-      uses Type, group_address, value_type_name;
+    binding state: fixed ValueOptionProviderState;
+    native initializer create reads Bus, Type, group_address, value_type_name
+      writes state as "state";
 
     native procedure set_value stage output
-      depends on state as "state", default input as "input"
-      uses Type;
+      reads state as "state", default input as "input", Type;
   }
 
   node type ValueProvider {
@@ -100,7 +96,7 @@ namespace KNX {
     #[Diagram.ShowValue]
     parameter GroupAddress: string;
 
-    input Bus: resource Bus;
+    input Bus: fixed Bus;
     default input: value Type;
 
     node create_option: Std.OptionSome { InnerType: Type }
@@ -114,7 +110,7 @@ namespace KNX {
   #[Internal]
   resource type EventReceiverState;
 
-  native node type EventReceiver {
+  node type EventReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: string;
@@ -122,24 +118,22 @@ namespace KNX {
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
     constant value_type_name: string = ValueTypeName(Type);
 
-    input Bus: resource Bus;
+    input Bus: fixed Bus;
     default output: event Type;
 
-    binding state: resource EventReceiverState;
-    native initializer depends on Bus
-      produces state as "state"
-      uses Type, group_address, value_type_name;
+    binding state: fixed EventReceiverState;
+    native initializer create reads Bus, Type, group_address, value_type_name
+      writes state as "state";
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output"
-      uses Type;
+      reads state as "state", Type
+      writes default output as "output";
   }
 
   #[Internal]
   resource type EventSenderState;
 
-  native node type EventSender {
+  node type EventSender {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter GroupAddress: string;
@@ -147,16 +141,14 @@ namespace KNX {
     constant group_address: uint16 = ParseGroupAddress(GroupAddress);
     constant value_type_name: string = ValueTypeName(Type);
 
-    input Bus: resource Bus;
+    input Bus: fixed Bus;
     default input: event Type;
 
-    binding state: resource EventSenderState;
-    native initializer depends on Bus
-      produces state as "state"
-      uses Type, group_address, value_type_name;
+    binding state: fixed EventSenderState;
+    native initializer create reads Bus, Type, group_address, value_type_name
+      writes state as "state";
 
     native procedure send_value stage output
-      depends on state as "state", default input as "input"
-      uses Type;
+      reads state as "state", default input as "input", Type;
   }
 }

@@ -48,6 +48,8 @@ class IsInDailyIntervalRun(NativeProcedure, abc.ABC):
     def run(
         self, *,
         services: ProcedureServices,
+        start: TimeOfDay,
+        end: TimeOfDay,
     ) -> IsInDailyIntervalRunResult:
         ...
 
@@ -67,6 +69,8 @@ class _IsInDailyIntervalRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, IsInDailyIntervalRun)
         result = procedure.run(
             services=services,
+            start=cast('TimeOfDay', binding.use('Start')),
+            end=cast('TimeOfDay', binding.use('End')),
         )
         binding.check_result(result, IsInDailyIntervalRunResult)
         return {

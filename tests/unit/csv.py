@@ -35,6 +35,7 @@ class Invocation:
             last_written_at_old=self.inputs['last_written_at_old'],
             input=self.value_type.from_native(self.inputs['input'], native_types=builtin_extension.native_types),
             repeat_elapsed=self.inputs['repeat_elapsed'],
+            type=self.value_type,
         )
         self.last_written_at = result.last_written_at
 

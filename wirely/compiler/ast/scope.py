@@ -146,7 +146,8 @@ class Scope(abc.ABC):
                 if resource_type is not None:
                     return resource_type
             scope = scope.parent_graph
-        raise model.ProgramError(name, f'Cannot find resource type `{name}`')
+        raise model.ProgramError(name, f'Cannot find resource type `{name}`; fixed values of other types are not '
+                                 'supported yet')
 
     # TODO: Should this be named get_const_value()? (Also returns e.g. ValueFunctionCall)
     def get_const_value(self, value: Value, value_type: 'model.types.Type',

@@ -22,15 +22,15 @@ def settings_engine(program):
     with test_contracts(program.graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
-        class SettingsDevice(contracts.SettingsDeviceInitializer):
+        class SettingsDevice(contracts.SettingsDeviceCreate):
             def initialize(self, *, services):
                 self.log_receiver = self
                 self.handlers = []
-                return contracts.SettingsDeviceInitializerResult(device=self)
+                return contracts.SettingsDeviceCreateResult(device=self)
 
             def add_handler(self, events, handler):
                 self.handlers.append((events, handler))
-        registry['initializers']['TestLibrary.SettingsDevice'] = SettingsDevice
+        registry['initializers']['TestLibrary.SettingsDevice:create'] = SettingsDevice
 
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TwoN.Device': SettingsDevice}, contracts=contracts)
@@ -417,14 +417,14 @@ def code_program(node_type, parameter, value, *, parameters=None):
     arguments = {parameter: 'Value', **(parameters or {})}
     settings = ', '.join(f'{name}: {expression}' for name, expression in arguments.items())
     return compile_program(f'''namespace TestLibrary {{
-  native node type SettingsDevice {{
-    default output: resource TwoN.Device;
-    native initializer produces default output as "device";
+  node type SettingsDevice {{
+    default output: fixed TwoN.Device;
+    native initializer create writes default output as "device";
   }}
 }}
 node type Wrapper {{
   parameter Value: string;
-  input Device: resource TwoN.Device;
+  input Device: fixed TwoN.Device;
   node child: TwoN.{node_type} {{ {settings} }}
   connect Device -> child.Device;
 }}

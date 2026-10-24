@@ -9,12 +9,12 @@ from tests.infra.support import internal, test_extension, test_contracts
 
 source = '''namespace TestLibrary {
   resource type HeldEventState;
-  native node type HeldEventSource {
+  node type HeldEventSource {
     default output: event boolean;
 
-    binding state: resource HeldEventState;
-    native initializer produces state as "state";
-    native procedure run depends on state as "state" produces default output as "output";
+    binding state: fixed HeldEventState;
+    native initializer create writes state as "state";
+    native procedure run reads state as "state" writes default output as "output";
   }
 }
 node input: TestLibrary.HeldEventSource {}
@@ -26,10 +26,10 @@ assert graph is not None
 with test_contracts(graph) as contracts:
     registry = {'initializers': {}, 'procedures': {}}
 
-    class HeldEventSource(contracts.HeldEventSourceInitializer):
+    class HeldEventSource(contracts.HeldEventSourceCreate):
         def initialize(self, *, services):
             self.value = None
-            return contracts.HeldEventSourceInitializerResult(state=self)
+            return contracts.HeldEventSourceCreateResult(state=self)
 
         def set_value(self, value):
             if self.value != value:
@@ -40,7 +40,7 @@ with test_contracts(graph) as contracts:
             def run(self, *, services, state):
                 # The timestamp node must keep stepping even when this output is cached.
                 return contracts.HeldEventSourceRunResult(output=state.value)
-    registry['initializers']['TestLibrary.HeldEventSource'] = HeldEventSource
+    registry['initializers']['TestLibrary.HeldEventSource:create'] = HeldEventSource
     registry['procedures']['TestLibrary.HeldEventSource:run'] = HeldEventSource.Run
 
     bindings = test_extension(**registry, contracts=contracts)

@@ -61,8 +61,8 @@ class NodeType(model.Scope):
         return self.declaration.declarations
 
     @property
-    def is_native(self) -> bool:
-        return self.declaration.is_native
+    def has_initializer(self) -> bool:
+        return self.declaration.has_initializer
 
     @property
     def is_singleton(self) -> bool:
@@ -348,9 +348,9 @@ class NodeType(model.Scope):
 
         node.initializer_sources = {}
         if self.initializer is not None:
-            depends = self.initializer.depends
+            read_ports = self.initializer.read_ports
             source_port: typing.Any  # Data and resource dependencies use different source classes.
-            for dependency_port, dep in zip(depends.dependencies, self.initializer.resolved_dependencies()):
+            for dependency_port, dep in zip(read_ports.dependencies, self.initializer.resolved_dependencies()):
                 if isinstance(dep, model.TypeInputPort):
                     source_port = node.custom_inputs[dep]
                 elif isinstance(dep, model.InstanceNode):
@@ -400,11 +400,14 @@ class NodeType(model.Scope):
         return '.'.join(self.fullname_tuple)
 
     @property
-    def native_name(self) -> str | None:
-        """The name that links native state, or None without native state."""
-        if not self.is_native:
-            return None
+    def native_prefix(self) -> str:
+        """The default prefix of the native names of initializers and native procedures."""
         return self.alias.value if self.alias is not None else self.qualified_name
+
+    @property
+    def native_name(self) -> str | None:
+        """The native name of the initializer, which links native state, or None without one."""
+        return self.initializer.native_name if self.initializer is not None else None
 
     @property
     def fullname_tuple(self) -> tuple[str, ...]:

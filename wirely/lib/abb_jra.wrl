@@ -17,8 +17,8 @@ namespace ABB.JRA {
 
     // See JRAS_xxx1_PH_EN_V1-4_2CDC506051D0204.pdf, page 106.
     procedure run
-      depends on default input as input
-      produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+      reads default input as input
+      writes ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
         DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive
     {
@@ -55,8 +55,8 @@ namespace ABB.JRA {
     output SendReceiveDelayActive: value Option[boolean];
 
     procedure run
-      depends on default input as input
-      produces ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
+      reads default input as input
+      writes ManualOperation, BlockActive, ForcedOperation, FrostAlarm,
         RainAlarm, WindAlarm, AutomaticSunProtection, AutomaticHeatingCooling,
         DriveError, DriveInMotion, DriveDown, DriveUp, SendReceiveDelayActive
     {

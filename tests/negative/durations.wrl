@@ -19,7 +19,7 @@ constant Value: Std.Duration = -Second; // E: Integer arithmetic requires an int
 
 // TEST: operator in a procedure
 #[Allow(Unused)] binding result: value Std.Duration;
-procedure run produces result {
+procedure run writes result {
   let span: Std.Duration = "PT1S";
   result = span + span; // E: Arithmetic operators are compile-time only; use `Std.Duration.SaturatingAdd` or `Std.Duration.CheckedAdd`
 }

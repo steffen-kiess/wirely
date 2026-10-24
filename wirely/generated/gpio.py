@@ -20,22 +20,22 @@ if TYPE_CHECKING:
     from wirely.native.gpio import OutputState
 
 __all__ = [
-    'OutputInitializerResult',
-    'OutputInitializer',
+    'OutputCreateResult',
+    'OutputCreate',
     'OutputSetValueResult',
     'OutputSetValue',
 ]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class OutputInitializerResult:
-    """Resource outputs of native state type GPIO.Output."""
+class OutputCreateResult:
+    """Fixed outputs of native initializer GPIO.Output:create."""
 
     state: OutputState
 
 
-class OutputInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type GPIO.Output; initialize() returns its resource outputs."""
+class OutputCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer GPIO.Output:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -46,16 +46,16 @@ class OutputInitializer(NativeState[Literal['state']], abc.ABC):
         active_state: GPIOActiveState,
         drive: GPIODrive,
         bias: GPIOBias,
-    ) -> OutputInitializerResult:
+    ) -> OutputCreateResult:
         ...
 
 
-class _OutputInitializerAdapter(InitializerAdapter):
+class _OutputCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, OutputInitializer)
+        assert isinstance(state, OutputCreate)
         result = state.initialize(
             services=services,
             chip_device_file=cast('str', binding.use('ChipDeviceFile')),
@@ -64,13 +64,13 @@ class _OutputInitializerAdapter(InitializerAdapter):
             drive=cast('GPIODrive', binding.use('Drive')),
             bias=cast('GPIOBias', binding.use('Bias')),
         )
-        binding.check_result(result, OutputInitializerResult)
+        binding.check_result(result, OutputCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-OutputInitializer._adapter = _OutputInitializerAdapter()
+OutputCreate._adapter = _OutputCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

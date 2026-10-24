@@ -618,7 +618,7 @@ class NodeTypeInstance(NodeInstance):
             from .static_bindings import evaluate_bindings
             initializer = self.node_type.initializer
             self.initializer_values = evaluate_bindings(
-                initializer.uses if initializer is not None else None, self,
+                initializer.static_reads if initializer is not None else None, self,
             )
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}

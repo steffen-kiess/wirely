@@ -15,10 +15,10 @@ def _setting(value: enum.IntEnum, mapping: Mapping[Any, Any], description: str) 
     return mapping[value]
 
 
-class Output(contracts.OutputInitializer):
+class Output(contracts.OutputCreate):
     def initialize(self, *, services: StateServices[Literal['state']], chip_device_file: str, name: str,
                    active_state: GPIOActiveState, drive: GPIODrive,
-                   bias: GPIOBias) -> contracts.OutputInitializerResult:
+                   bias: GPIOBias) -> contracts.OutputCreateResult:
         self.chip_device_file = chip_device_file
         self.name = name
         self.active_state = active_state
@@ -26,7 +26,7 @@ class Output(contracts.OutputInitializer):
         self.bias = bias
         self.gpio_request: Any = None  # A gpiod LineRequest once started.
         self.direction_set = False
-        return contracts.OutputInitializerResult(state=self)
+        return contracts.OutputCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)

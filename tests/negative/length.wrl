@@ -39,7 +39,7 @@ node type Probe {
 // TEST: default input loop
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in (default input) {} // E: For loops require a multi value or event input name or alias
   }
 }
@@ -68,7 +68,7 @@ node type Probe {
 // TEST: alias property call
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     assert values.Length() == 0; // E: Length is a property; omit parentheses
   }
 }
@@ -108,7 +108,7 @@ node type Probe {
 struct type Measurement { Length: uint32 }
 node type Probe {
   default input: value Measurement;
-  procedure run depends on default input as value {
+  procedure run reads default input as value {
     assert value.Length == 0; // E: Assertion condition must be a compile-time expression
   }
 }
@@ -145,7 +145,7 @@ node type Recursive {
 // TEST: length does not permit runtime list locals
 node type Probe {
   default input: value boolean;
-  procedure run depends on default input as value {
+  procedure run reads default input as value {
     let Items: List[boolean] = [true]; // E: Type `List[boolean]` is not a runtime type
     assert Items.Length == 1;
     value;

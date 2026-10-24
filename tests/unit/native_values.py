@@ -33,14 +33,14 @@ def value_classes(contracts):
     """Return the native classes of check_values() and their resource types."""
     registry = {'initializers': {}, 'procedures': {}}
 
-    class ValuesProbe(contracts.ValuesProbeInitializer):
+    class ValuesProbe(contracts.ValuesProbeCreate):
         def initialize(self, *, services, connection, number, seed, retained, missing, absent):
             assert missing is None
             assert absent == wirely.Some(None)
             assert number == seed
             assert retained == wirely.UInt16(20)
             self.seed = seed
-            return contracts.ValuesProbeInitializerResult(state=self)
+            return contracts.ValuesProbeCreateResult(state=self)
 
         class Run(contracts.ValuesProbeRun):
             def prepare(self, *, services, state, connection, seed, missing, alias, absent, default, type, mode,
@@ -64,7 +64,9 @@ def value_classes(contracts):
                 assert descriptors == (wirely.Some(wirely.value_types.uint16), None)
                 self.seed = seed
 
-            def run(self, *, services, state, connection):
+            def run(self, *, services, state, connection, seed, **values):
+                # Compile-time values are also passed in each step.
+                assert seed == self.seed and values['block'] == 'hello'
                 return contracts.ValuesProbeRunResult(number=self.seed)
 
         class Empty(contracts.ValuesProbeEmpty):
@@ -74,15 +76,15 @@ def value_classes(contracts):
         class Omitted(contracts.ValuesProbeOmitted):
             def run(self, *, services):
                 return contracts.ValuesProbeOmittedResult()
-    registry['initializers']['TestLibrary.ValuesProbe'] = ValuesProbe
+    registry['initializers']['TestLibrary.ValuesProbe:create'] = ValuesProbe
     registry['procedures']['TestLibrary.ValuesProbe:run'] = ValuesProbe.Run
     registry['procedures']['TestLibrary.ValuesProbe:empty'] = ValuesProbe.Empty
     registry['procedures']['TestLibrary.ValuesProbe:omitted'] = ValuesProbe.Omitted
 
-    class Provider(contracts.ProviderInitializer):
+    class Provider(contracts.ProviderCreate):
         def initialize(self, *, services):
-            return contracts.ProviderInitializerResult(service=self)
-    registry['initializers']['TestLibrary.Provider'] = Provider
+            return contracts.ProviderCreateResult(service=self)
+    registry['initializers']['TestLibrary.Provider:create'] = Provider
 
     return registry, {'TestLibrary.Service': Provider, 'TestLibrary.ValuesState': ValuesProbe}
 
@@ -91,11 +93,11 @@ def check_values():
     source = '''namespace TestLibrary {
   resource type Service;
   resource type ValuesState;
-  native node type Provider {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  node type Provider {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
-  native node type ValuesProbe {
+  node type ValuesProbe {
     parameter Number: uint16;
     optional parameter Missing: boolean;
     optional parameter Absent: Option[boolean];
@@ -107,22 +109,24 @@ def check_values():
     constant Span: Std.Duration = "PT1S";
     constant Instant: Option[Timer.MonotonicTime] = None;
     constant Types: List[Option[type]] = [Some(uint16), None];
-    input Connection: resource Service;
+    input Connection: fixed Service;
     output Result: value uint16;
-    binding state: resource ValuesState;
-    native initializer depends on Connection, produces state as "state",
-      uses Number, Seed as seed, Example.Same(20) as "retained",
-        optional(Missing) as missing, optional(Absent) as Absent,;
-    native procedure run depends on state as "state", Connection, produces Result as Number,
-      uses Seed as "seed", optional(Missing) as Missing, optional(Missing) as alias,
-        optional(Absent) as Absent, Default,
+    binding state: fixed ValuesState;
+    native initializer create
+      reads Connection, Number, Seed as seed, Example.Same(20) as "retained",
+        optional(Missing) as missing, optional(Absent) as Absent,
+      writes state as "state",;
+    native procedure run
+      reads state as "state", Connection, Seed as "seed", optional(Missing) as Missing,
+        optional(Missing) as alias, optional(Absent) as Absent, Default,
         Type as type, Example.Mode.On as mode, 12 as number,
         Example.Same(40) as call,
         { let text: string = "hello"; text } as block,
         Items as items, Example.Pair { value: true } as pair,
         () as unit, { let value: Option[boolean] = Some(false); value } as option,
-        At as at, Span as span, Instant as instant, Types as descriptors;
-    native procedure empty uses;
+        At as at, Span as span, Instant as instant, Types as descriptors,
+      writes Result as Number;
+    native procedure empty reads;
     native procedure omitted;
   }
 }
@@ -170,11 +174,11 @@ def check_optional_values():
         ('Maybe: Some(true), Type: uint16', wirely.Some(wirely.Some(True)), wirely.value_types.uint16),
     ]:
         graph = compile_strs([('<optional-values>', f'''namespace TestLibrary {{
-      native node type OptionalProbe {{
+      node type OptionalProbe {{
         optional parameter Maybe: Option[boolean];
         optional parameter Type: type;
         parameter Default: Option[boolean] = None;
-        native initializer uses optional(Maybe) as Maybe,
+        native initializer create reads optional(Maybe) as Maybe,
           optional(Maybe) as "", optional(Type) as Type, Default;
       }}
     }}
@@ -193,11 +197,11 @@ def check_optional_values():
             registry = {'initializers': {}, 'procedures': {}}
 
             # The empty key becomes the keyword argument _.
-            class OptionalProbe(contracts.OptionalProbeInitializer):
+            class OptionalProbe(contracts.OptionalProbeCreate):
                 def initialize(self, *, services, maybe, _, type, default):
                     self.values = {'Maybe': maybe, '': _, 'Type': type, 'Default': default}
-                    return contracts.OptionalProbeInitializerResult()
-            registry['initializers']['TestLibrary.OptionalProbe'] = OptionalProbe
+                    return contracts.OptionalProbeCreateResult()
+            registry['initializers']['TestLibrary.OptionalProbe:create'] = OptionalProbe
 
             bindings = test_extension(**registry, contracts=contracts)
             runtime = Engine(program, override_extensions=[bindings])

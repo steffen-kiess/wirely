@@ -25,18 +25,18 @@ if TYPE_CHECKING:
 )
 
 __all__ = [
-    'CodeEnteredEventInitializerResult',
-    'CodeEnteredEventInitializer',
-    'ConnectionInitializerResult',
-    'ConnectionInitializer',
-    'IOStateInitializerResult',
-    'IOStateInitializer',
-    'KeyEventInitializerResult',
-    'KeyEventInitializer',
-    'OutputControlInitializerResult',
-    'OutputControlInitializer',
-    'SwitchStateInitializerResult',
-    'SwitchStateInitializer',
+    'CodeEnteredEventCreateResult',
+    'CodeEnteredEventCreate',
+    'ConnectionCreateResult',
+    'ConnectionCreate',
+    'IOStateCreateResult',
+    'IOStateCreate',
+    'KeyEventCreateResult',
+    'KeyEventCreate',
+    'OutputControlCreateResult',
+    'OutputControlCreate',
+    'SwitchStateCreateResult',
+    'SwitchStateCreate',
     'CodeEnteredEventGetValueResult',
     'CodeEnteredEventGetValue',
     'IOStateGetValueResult',
@@ -51,14 +51,14 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class CodeEnteredEventInitializerResult:
-    """Resource outputs of native state type TwoN.CodeEnteredEvent."""
+class CodeEnteredEventCreateResult:
+    """Fixed outputs of native initializer TwoN.CodeEnteredEvent:create."""
 
     state: CodeEnteredEventState
 
 
-class CodeEnteredEventInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type TwoN.CodeEnteredEvent; initialize() returns its resource outputs."""
+class CodeEnteredEventCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.CodeEnteredEvent:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -66,39 +66,39 @@ class CodeEnteredEventInitializer(NativeState[Literal['state']], abc.ABC):
         services: StateServices[Literal['state']],
         device: Device,
         code: str,
-    ) -> CodeEnteredEventInitializerResult:
+    ) -> CodeEnteredEventCreateResult:
         ...
 
 
-class _CodeEnteredEventInitializerAdapter(InitializerAdapter):
+class _CodeEnteredEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, CodeEnteredEventInitializer)
+        assert isinstance(state, CodeEnteredEventCreate)
         result = state.initialize(
             services=services,
             device=cast('Device', binding.resource('Device')),
             code=cast('str', binding.use('Code')),
         )
-        binding.check_result(result, CodeEnteredEventInitializerResult)
+        binding.check_result(result, CodeEnteredEventCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-CodeEnteredEventInitializer._adapter = _CodeEnteredEventInitializerAdapter()
+CodeEnteredEventCreate._adapter = _CodeEnteredEventCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ConnectionInitializerResult:
-    """Resource outputs of native state type TwoN.Connection."""
+class ConnectionCreateResult:
+    """Fixed outputs of native initializer TwoN.Connection:create."""
 
     device: Device
 
 
-class ConnectionInitializer(NativeState[Literal['device']], abc.ABC):
-    """Native state type TwoN.Connection; initialize() returns its resource outputs."""
+class ConnectionCreate(NativeState[Literal['device']], abc.ABC):
+    """Native initializer TwoN.Connection:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -108,16 +108,16 @@ class ConnectionInitializer(NativeState[Literal['device']], abc.ABC):
         port: UInt16,
         tlsa: tuple[str, ...],
         credentials: TwoNCredentials,
-    ) -> ConnectionInitializerResult:
+    ) -> ConnectionCreateResult:
         ...
 
 
-class _ConnectionInitializerAdapter(InitializerAdapter):
+class _ConnectionCreateAdapter(InitializerAdapter):
     output_keys = {'device': 'device'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ConnectionInitializer)
+        assert isinstance(state, ConnectionCreate)
         result = state.initialize(
             services=services,
             host=cast('str', binding.use('Host')),
@@ -125,24 +125,24 @@ class _ConnectionInitializerAdapter(InitializerAdapter):
             tlsa=cast('tuple[str, ...]', binding.use('TLSA')),
             credentials=cast('TwoNCredentials', binding.use('credentials')),
         )
-        binding.check_result(result, ConnectionInitializerResult)
+        binding.check_result(result, ConnectionCreateResult)
         return {
             'device': binding.resource_output('device', result.device),
         }
 
 
-ConnectionInitializer._adapter = _ConnectionInitializerAdapter()
+ConnectionCreate._adapter = _ConnectionCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class IOStateInitializerResult:
-    """Resource outputs of native state type TwoN.IOState."""
+class IOStateCreateResult:
+    """Fixed outputs of native initializer TwoN.IOState:create."""
 
     state: IOStateState
 
 
-class IOStateInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type TwoN.IOState; initialize() returns its resource outputs."""
+class IOStateCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.IOState:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -150,39 +150,39 @@ class IOStateInitializer(NativeState[Literal['state']], abc.ABC):
         services: StateServices[Literal['state']],
         device: Device,
         port: str,
-    ) -> IOStateInitializerResult:
+    ) -> IOStateCreateResult:
         ...
 
 
-class _IOStateInitializerAdapter(InitializerAdapter):
+class _IOStateCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, IOStateInitializer)
+        assert isinstance(state, IOStateCreate)
         result = state.initialize(
             services=services,
             device=cast('Device', binding.resource('Device')),
             port=cast('str', binding.use('Port')),
         )
-        binding.check_result(result, IOStateInitializerResult)
+        binding.check_result(result, IOStateCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-IOStateInitializer._adapter = _IOStateInitializerAdapter()
+IOStateCreate._adapter = _IOStateCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class KeyEventInitializerResult:
-    """Resource outputs of native state type TwoN.KeyEvent."""
+class KeyEventCreateResult:
+    """Fixed outputs of native initializer TwoN.KeyEvent:create."""
 
     state: KeyEventState
 
 
-class KeyEventInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type TwoN.KeyEvent; initialize() returns its resource outputs."""
+class KeyEventCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.KeyEvent:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -190,39 +190,39 @@ class KeyEventInitializer(NativeState[Literal['state']], abc.ABC):
         services: StateServices[Literal['state']],
         device: Device,
         key: str,
-    ) -> KeyEventInitializerResult:
+    ) -> KeyEventCreateResult:
         ...
 
 
-class _KeyEventInitializerAdapter(InitializerAdapter):
+class _KeyEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, KeyEventInitializer)
+        assert isinstance(state, KeyEventCreate)
         result = state.initialize(
             services=services,
             device=cast('Device', binding.resource('Device')),
             key=cast('str', binding.use('Key')),
         )
-        binding.check_result(result, KeyEventInitializerResult)
+        binding.check_result(result, KeyEventCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-KeyEventInitializer._adapter = _KeyEventInitializerAdapter()
+KeyEventCreate._adapter = _KeyEventCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class OutputControlInitializerResult:
-    """Resource outputs of native state type TwoN.OutputControl."""
+class OutputControlCreateResult:
+    """Fixed outputs of native initializer TwoN.OutputControl:create."""
 
     state: OutputControlState
 
 
-class OutputControlInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type TwoN.OutputControl; initialize() returns its resource outputs."""
+class OutputControlCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.OutputControl:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -230,39 +230,39 @@ class OutputControlInitializer(NativeState[Literal['state']], abc.ABC):
         services: StateServices[Literal['state']],
         device: Device,
         port: str,
-    ) -> OutputControlInitializerResult:
+    ) -> OutputControlCreateResult:
         ...
 
 
-class _OutputControlInitializerAdapter(InitializerAdapter):
+class _OutputControlCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, OutputControlInitializer)
+        assert isinstance(state, OutputControlCreate)
         result = state.initialize(
             services=services,
             device=cast('Device', binding.resource('Device')),
             port=cast('str', binding.use('Port')),
         )
-        binding.check_result(result, OutputControlInitializerResult)
+        binding.check_result(result, OutputControlCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-OutputControlInitializer._adapter = _OutputControlInitializerAdapter()
+OutputControlCreate._adapter = _OutputControlCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class SwitchStateInitializerResult:
-    """Resource outputs of native state type TwoN.SwitchState."""
+class SwitchStateCreateResult:
+    """Fixed outputs of native initializer TwoN.SwitchState:create."""
 
     state: SwitchStateState
 
 
-class SwitchStateInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type TwoN.SwitchState; initialize() returns its resource outputs."""
+class SwitchStateCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer TwoN.SwitchState:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
@@ -270,28 +270,28 @@ class SwitchStateInitializer(NativeState[Literal['state']], abc.ABC):
         services: StateServices[Literal['state']],
         device: Device,
         switch_number: Int32,
-    ) -> SwitchStateInitializerResult:
+    ) -> SwitchStateCreateResult:
         ...
 
 
-class _SwitchStateInitializerAdapter(InitializerAdapter):
+class _SwitchStateCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, SwitchStateInitializer)
+        assert isinstance(state, SwitchStateCreate)
         result = state.initialize(
             services=services,
             device=cast('Device', binding.resource('Device')),
             switch_number=cast('Int32', binding.use('SwitchNumber')),
         )
-        binding.check_result(result, SwitchStateInitializerResult)
+        binding.check_result(result, SwitchStateCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-SwitchStateInitializer._adapter = _SwitchStateInitializerAdapter()
+SwitchStateCreate._adapter = _SwitchStateCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

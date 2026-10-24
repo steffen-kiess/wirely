@@ -13,8 +13,8 @@ node type Operations {
   output Preserved: value Type;
   output BitSet: value boolean;
 
-  procedure run depends on default input as input
-    produces Left, Right, Complement, And, Or, Xor, Preserved, BitSet
+  procedure run reads default input as input
+    writes Left, Right, Complement, And, Or, Xor, Preserved, BitSet
   {
     Left = input << (Count + 0);
     Right = input >> RightCount;
@@ -40,8 +40,8 @@ node type Booleans {
   output XorRan: value boolean;
   output Mask: value uint8;
 
-  procedure run depends on default input as input, Other
-    produces And, Or, Xor, Complement, AndRan, OrRan, XorRan, Mask
+  procedure run reads default input as input, Other
+    writes And, Or, Xor, Complement, AndRan, OrRan, XorRan, Mask
   {
     And = input & Other;
     Or = input | Other;

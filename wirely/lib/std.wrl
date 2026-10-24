@@ -55,8 +55,8 @@ namespace Std {
     default output: value boolean;
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       let mut result = true;
       for value in input {
@@ -74,10 +74,10 @@ namespace Std {
 
     binding temp: value Type;
 
-    procedure run1 depends on default input as input produces temp {
+    procedure run1 reads default input as input writes temp {
       temp = input;
     }
-    procedure run2 depends on temp produces default output as output {
+    procedure run2 reads temp writes default output as output {
       output = temp;
     }
   }
@@ -87,7 +87,7 @@ namespace Std {
 
     default input: value Type;
 
-    native procedure run stage output depends on default input as "input" uses Type;
+    native procedure run stage output reads default input as "input", Type;
   }
 
   node type DebugEventPrinter {
@@ -95,7 +95,7 @@ namespace Std {
 
     default input: event Type;
 
-    native procedure run stage output depends on default input as "input" uses Type;
+    native procedure run stage output reads default input as "input", Type;
   }
 
   node type WarnOnEvent {
@@ -108,42 +108,39 @@ namespace Std {
     default input: event Type;
 
     native procedure run stage output
-      depends on default input as "input"
-      uses Type, format_parts;
+      reads default input as "input", Type, format_parts;
   }
 
   #[Internal]
   resource type DebugValueSourceState;
 
-  native node type DebugValueSource {
+  node type DebugValueSource {
     parameter Type: type;
 
     default output: value Type;
 
-    binding state: resource DebugValueSourceState;
-    native initializer produces state as "state" uses Type;
+    binding state: fixed DebugValueSourceState;
+    native initializer create reads Type writes state as "state";
 
     native procedure run stage input
-      depends on state as "state"
-      produces default output as "output"
-      uses Type;
+      reads state as "state", Type
+      writes default output as "output";
   }
 
   #[Internal]
   resource type DebugEventSourceState;
 
-  native node type DebugEventSource {
+  node type DebugEventSource {
     parameter Type: type;
 
     default output: event Type;
 
-    binding state: resource DebugEventSourceState;
-    native initializer produces state as "state" uses Type;
+    binding state: fixed DebugEventSourceState;
+    native initializer create reads Type writes state as "state";
 
     native procedure run stage input
-      depends on state as "state"
-      produces default output as "output"
-      uses Type;
+      reads state as "state", Type
+      writes default output as "output";
   }
 
   node type OptionNone {
@@ -162,8 +159,8 @@ namespace Std {
     default output: value Option[InnerType];
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       output = Some(input);
     }
@@ -180,8 +177,8 @@ namespace Std {
     default output: value InnerType;
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       output = input.UnwrapOr(Default);
     }
@@ -194,8 +191,8 @@ namespace Std {
     default output: value boolean;
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       output = input.IsSome;
     }
@@ -209,8 +206,8 @@ namespace Std {
     default output: value Option[InnerType];
 
     procedure run
-      depends on HasValue, Value
-      produces default output as output
+      reads HasValue, Value
+      writes default output as output
     {
       output = if HasValue { Some(Value) } else { None };
     }
@@ -228,8 +225,8 @@ namespace Std {
     state last_value: Option[boolean] = None;
 
     procedure run
-      depends on last_value.old as last_value_old, default input as input
-      produces default output as output, last_value
+      reads last_value.old as last_value_old, default input as input
+      writes default output as output, last_value
     {
       let wanted = if input {
         EdgeType == Std.EdgeType.Rising || EdgeType == Std.EdgeType.Both

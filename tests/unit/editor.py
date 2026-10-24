@@ -16,8 +16,8 @@ library = '''node type Counter {
   state count: int32 = 0;
 
   procedure add
-    depends on Step as step, count.old as old
-    produces count as new
+    reads Step as step, count.old as old
+    writes count as new
   {
     new = old + step;
   }
@@ -63,10 +63,10 @@ checks.assertEqual(layout_edges(body), [(Port(('Counter', 'Step'), 'input'), add
 
 # A resource declaration is a connection target and a source for procedures.
 native = graph_model.build(Program([('main.wrl', '''resource type Handle;
-native node type Device {
-  binding state: resource Handle;
-  native initializer produces state as "state";
-  native procedure poll depends on state as "state";
+node type Device {
+  binding state: fixed Handle;
+  native initializer create writes state as "state";
+  native procedure poll reads state as "state";
 }
 ''')]), ('Device',))
 state = Binding(('Device', 'state'))
@@ -243,8 +243,8 @@ checks.assertIn('#[Diagram.Position(X = -2.5, Y = 3.5)]', texts['main.wrl'])
 
 # Event bindings expose event sockets with the payload type.
 event_graph = graph_model.build(Program([('events.wrl', """binding event: event uint8;
-procedure produce produces event {}
-procedure consume depends on event {}
+procedure produce writes event {}
+procedure consume reads event {}
 """)]), ())
 event_item = event_graph.item(Binding(('event',)))
 checks.assertEqual(event_item.kind, 'binding')

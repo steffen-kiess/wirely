@@ -3,7 +3,7 @@ node type ValueBinding {
   default input: value Type;
   default output: value Type;
   binding binding: value Type;
-  procedure copy depends on default input as input produces binding {
+  procedure copy reads default input as input writes binding {
     binding = input;
   }
   connect binding -> default output;
@@ -15,9 +15,9 @@ connect source -> forwarded;
 // Resource bindings share the one-source connection rules.
 resource type Handle;
 node type ResourceBinding {
-  default input: resource Handle;
-  default output: resource Handle;
-  binding service: resource Handle;
+  default input: fixed Handle;
+  default output: fixed Handle;
+  binding service: fixed Handle;
   connect default input -> service;
   connect service -> default output;
 }
@@ -32,7 +32,7 @@ node type EventBinding {
   binding produced: event Type;
   connect default input -> first;
   connect first -> second;
-  procedure forward depends on second as input produces produced as output {
+  procedure forward reads second as input writes produced as output {
     on input { emit output(input); }
   }
   connect produced -> default output;

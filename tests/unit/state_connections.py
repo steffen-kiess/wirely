@@ -28,7 +28,7 @@ def implementations(contracts):
             def prepare(self, *, services, type):
                 pass
 
-            def run(self, *, services, input):
+            def run(self, *, services, input, type):
                 calls[services.name] += 1
                 return getattr(contracts, contract.__name__ + 'Result')(output=input)
         return Run
@@ -39,7 +39,7 @@ def implementations(contracts):
                 def prepare(self, *, services, type):
                     pass
 
-                def run(self, *, services, input):
+                def run(self, *, services, input, type):
                     if counted:
                         calls[services.name + '.write'] += 1
                     return getattr(contracts, contract.__name__ + 'Result')(saved=input)
@@ -60,7 +60,7 @@ def implementations(contracts):
             def prepare(self, *, services, type):
                 pass
 
-            def run(self, *, services, previous, current):
+            def run(self, *, services, previous, current, type):
                 observations[services.name] = tuple(value.extract(wirely.value_types.uint8, native_types=builtin_extension.native_types).value
                                                     for value in (previous, current))
                 return getattr(contracts, contract.__name__ + 'Result')(output=True)
@@ -81,9 +81,8 @@ namespace TestLibrary {
     default input: value Type;
     default output: value Type;
     native procedure run
-      depends on default input as "input"
-      produces default output as "output"
-      uses Type;
+      reads default input as "input", Type
+      writes default output as "output";
   }
 
   node type Relay {
@@ -106,9 +105,8 @@ namespace TestLibrary {
     connect saved.old -> relay;
     connect relay -> reader;
     native procedure write stage output
-      depends on default input as "input"
-      produces saved
-      uses Type;
+      reads default input as "input", Type
+      writes saved;
   }
 
   node type Feedback {
@@ -118,8 +116,8 @@ namespace TestLibrary {
     connect saved.old -> reader;
     connect reader -> default output;
     native procedure advance
-      depends on reader as "input"
-      produces saved;
+      reads reader as "input"
+      writes saved;
   }
 
   singleton node type Shared {
@@ -131,16 +129,16 @@ namespace TestLibrary {
     connect relay -> reader;
     connect saved.old -> default output;
     native procedure advance
-      depends on saved.old as "old"
-      produces saved;
+      reads saved.old as "old"
+      writes saved;
   }
 
   node type Collect {
     default input: multi value boolean;
     default output: value uint8;
     procedure run
-      depends on default input as values
-      produces default output as output
+      reads default input as values
+      writes default output as output
     {
       let mut packed: uint8 = 0;
       for value in values {
@@ -274,8 +272,8 @@ namespace TestLibrary {
     default input: multi value Type;
     default output: value uint32;
     procedure run
-      depends on default input as values
-      produces default output as output
+      reads default input as values
+      writes default output as output
     {
       let mut packed: uint32 = 0;
       for value in values {
@@ -308,13 +306,11 @@ namespace TestLibrary {
 
     // Declare the reader first to exercise dependency ordering.
     native procedure observe
-      depends on saved.old as "previous", saved.new as "current"
-      produces default output as "output"
-      uses Type;
+      reads saved.old as "previous", saved.new as "current", Type
+      writes default output as "output";
     native procedure write
-      depends on default input as "input"
-      produces saved
-      uses Type;
+      reads default input as "input", Type
+      writes saved;
   }
 }
 '''
@@ -434,8 +430,8 @@ node type Copies {
   state published: uint8 = 0;
 
   procedure forward
-    depends on default input as input
-    produces result: value uint8
+    reads default input as input
+    writes result: value uint8
   {
     result = input;
   }
@@ -446,16 +442,16 @@ node type Copies {
   connect first.new -> mirror;
 
   procedure publish stage output
-    depends on default input as input
-    produces value: value uint8
+    reads default input as input
+    writes value: value uint8
   {
     value = input;
   }
   connect publish.value -> sent;
   connect publish.value -> published;
   procedure observe stage output
-    depends on published.new as value
-    produces Published as output
+    reads published.new as value
+    writes Published as output
   {
     output = value;
   }

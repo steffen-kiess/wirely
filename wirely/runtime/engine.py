@@ -100,7 +100,7 @@ class Engine:
                 linked = linked_states[instance.type_name]
                 interface = InterfaceBinding(
                     native_types=self.native_types,
-                    where=f'Native state type `{instance.type_name}` of `{instance.name}`',
+                    where=f'Native initializer `{instance.type_name}` of `{instance.name}`',
                     signature=linked.signature,
                     use_types={key: constant.value_type for key, constant in instance.initializer_values.items()},
                     use_values={key: cast(InternalValue, constant.value)
@@ -188,7 +188,7 @@ class Engine:
         self._trigger_key(key)
 
     def trigger_dependents(self, node_id: str, output: str) -> None:
-        """Schedule each procedure that depends on a native state's resource output."""
+        """Schedule each procedure that reads a fixed output of a native state."""
         for key in self._resource_triggers.get((node_id, output), ()):
             self._trigger_key(key)
 

@@ -14,14 +14,14 @@ node type T {
   constant C: int = 1;
   input a: multi value P;
   input e: event int;
-  input r: resource Std.R;
+  input r: fixed Std.R;
   default output: value P;
   state s: int = 0;
   binding t: value int;
 
   procedure run
-    depends on a as x, s.old as old, typed: value int
-    produces default output as out, s.new as new
+    reads a as x, s.old as old, typed: value int
+    writes default output as out, s.new as new
   {
     out = x;
     new = old;
@@ -43,7 +43,7 @@ result = outline([('main.wrl', source)], add_std=True)
 # Node type interfaces are copied to their instances.
 node_type, = result.find(NodeType(('T',)))
 checks.assertEqual([(port.name, port.kind, port.is_list, port.type_text) for port in node_type.ports], [
-    ('a', 'value', True, 'P'), ('e', 'event', False, 'int'), ('r', 'resource', False, 'Std.R'),
+    ('a', 'value', True, 'P'), ('e', 'event', False, 'int'), ('r', 'fixed', False, 'Std.R'),
     (None, 'value', False, 'P'),
 ])
 checks.assertEqual(result.find(Port(('T', 'default output'), 'output')), (node_type.ports[3],))
@@ -119,14 +119,14 @@ checks.assertEqual(result.find(NodeType(('U',))), ())
 
 # Bindings share one collection and ID type, retaining their connection kind.
 bindings = outline([('bindings.wrl', '''binding number: value uint8;
-binding service: resource Handle;
+binding service: fixed Handle;
 binding event: event Option[uint8];
 connect source -> number;
 connect provider -> service;
 ''')])
 checks.assertEqual([(record.id, record.kind, record.type_text) for record in bindings.scope.bindings], [
     (Binding(('number',)), 'value', 'uint8'),
-    (Binding(('service',)), 'resource', 'Handle'),
+    (Binding(('service',)), 'fixed', 'Handle'),
     (Binding(('event',)), 'event', 'Option[uint8]'),
 ])
 checks.assertEqual(bindings.scope.edges[1].target.element, Binding(('service',)))

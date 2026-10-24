@@ -20,7 +20,7 @@ namespace Schedule {
     default output: value Option[TimeOfDay];
 
     // TODO: Should this be "stage input"?
-    native procedure get_value produces default output as "output";
+    native procedure get_value writes default output as "output";
   }
 
   node type IsInDailyInterval {
@@ -34,8 +34,8 @@ namespace Schedule {
     default output: value Option[boolean];
 
     native procedure run
-      produces default output as output
-      uses Start, End;
+      reads Start, End
+      writes default output as output;
   }
 
   #[Internal]
@@ -81,8 +81,8 @@ namespace Schedule {
     }
 
     procedure run
-      depends on trigger_state.old as previous, before, after
-      produces default output as output, trigger_state
+      reads trigger_state.old as previous, before, after
+      writes default output as output, trigger_state
     {
       trigger_state = if let Some(is_before) = before {
         if let Some(is_after) = after {

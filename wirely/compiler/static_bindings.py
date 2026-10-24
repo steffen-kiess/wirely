@@ -8,8 +8,8 @@ from .expressions import compile_constant
 from .types import resolve_type
 
 
-def evaluate_bindings(uses: 'model.UsesDeclaration | None', instance: 'model.NodeTypeInstance') -> MappingProxyType[str, Constant]:
-    """Return the typed values bound by a `uses` clause, keyed by name."""
+def evaluate_bindings(uses: 'model.StaticReads | None', instance: 'model.NodeTypeInstance') -> MappingProxyType[str, Constant]:
+    """Return the typed compile-time values read by a native procedure or initializer, keyed by name."""
     values: dict[str, Constant] = {}
     if uses is None:
         return MappingProxyType(values)

@@ -5,9 +5,9 @@ node type Digits {
   input A: multi value uint16;
   default output: value uint16;
   procedure run
-    depends on z: multi value uint16, middle: value uint16,
+    reads z: multi value uint16, middle: value uint16,
       a: multi value uint16, empty: multi value uint16
-    produces default output as output
+    writes default output as output
   {
     let mut number: uint16 = 0;
     for digit in z {
@@ -49,8 +49,8 @@ node type Sum {
   default input: multi value Type;
   default output: value Type;
   procedure run
-    depends on default input as values
-    produces default output as output
+    reads default input as values
+    writes default output as output
   {
     let mut total: Type = 0;
     for value in values {
@@ -82,7 +82,7 @@ connect three -> single;
 // Unit-valued loops also work in expression positions and as block tails.
 node type UnitLoops {
   default input: multi value boolean;
-  procedure run depends on values: multi value boolean {
+  procedure run reads values: multi value boolean {
     let mut delayed: boolean;
     for value in values { delayed = value; }
     delayed = true;

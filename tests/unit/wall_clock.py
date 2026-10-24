@@ -179,9 +179,9 @@ def check_daily_intervals():
                 self.calls = 0
                 probes.append(self)
 
-            def run(self, *, services):
+            def run(self, *, services, start, end):
                 self.calls += 1
-                return super().run(services=services)
+                return super().run(services=services, start=start, end=end)
 
         graph = compile_strs([*standard_library_sources(['std', 'schedule']), ('<interval>', f'''
 node interval: Schedule.IsInDailyInterval {{ Start: "{start}", End: "{end}" }}
@@ -377,7 +377,7 @@ async def check_mixed_requests():
 namespace TestLibrary {
   node type Clock {
     default output: value Option[Schedule.TimeOfDay];
-    native procedure run produces default output as "output";
+    native procedure run writes default output as "output";
   }
 }
 node utc: TestLibrary.Clock {}

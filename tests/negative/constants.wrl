@@ -90,7 +90,7 @@ node probe: Probe {} // H: While instantiating `probe`
 // TEST: procedure port collision
 node type Probe {
   constant Flag: boolean = true;
-  procedure run produces Flag: value boolean { // E: Procedure names must be distinct
+  procedure run writes Flag: value boolean { // E: Procedure names must be distinct
     Flag = true;
   }
 }
@@ -100,7 +100,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let Flag = false; // E: Cannot shadow procedure port or parameter `Flag`
     output = Flag;
   }
@@ -111,7 +111,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     Flag = false; // E: Cannot assign to `Flag`
     output = Flag;
   }
@@ -122,7 +122,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   default output: value boolean;
-  procedure run depends on Flag produces default output as output { // E: Procedure names must be distinct
+  procedure run reads Flag writes default output as output { // E: Procedure names must be distinct
     output = Flag;
   }
 }
@@ -132,7 +132,7 @@ node probe: Probe {}
 node type Probe {
   constant Flag: boolean = true;
   binding flag: value boolean;
-  procedure run produces Flag as flag { // E: Cannot connect to constant `Flag`
+  procedure run writes Flag as flag { // E: Cannot connect to constant `Flag`
     flag = true;
   }
 }
@@ -180,7 +180,7 @@ node probe: Probe { Type: uint8 } // H: While instantiating `probe`
 constant Flag: boolean = true;
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Flag; // E: Unknown procedure value `Flag`
   }
 }
@@ -190,16 +190,16 @@ node probe: Probe {}
 node type Probe {
   constant Type: type = string;
   default output: value Type;
-  procedure run produces default output as output { output = "hello"; }
+  procedure run writes default output as output { output = "hello"; }
 }
 node probe: Probe {} // E: parameter-only
 
 // TEST: constant type in root temporary
 constant Type: type = string;
 #[Allow(Unused)] binding text: value Type; // E: parameter-only
-procedure run produces text { text = "hello"; }
+procedure run writes text { text = "hello"; }
 
 // TEST: constant type in root state
 constant Type: type = string;
 state text: Type = "hello"; // E: parameter-only
-procedure run produces text { text = "hello"; }
+procedure run writes text { text = "hello"; }

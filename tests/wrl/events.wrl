@@ -12,8 +12,8 @@ state total: uint8 = 0;
 state any_steps: uint8 = 0;
 
 procedure toggle
-  depends on press, toggled.old as previous
-  produces toggled
+  reads press, toggled.old as previous
+  writes toggled
 {
   let mut next = previous;
   on press { next = !previous; }
@@ -21,8 +21,8 @@ procedure toggle
 }
 
 procedure remember
-  depends on number, last.old as previous
-  produces last
+  reads number, last.old as previous
+  writes last
 {
   let mut next = previous;
   on number { next = Some(number); }
@@ -30,8 +30,8 @@ procedure remember
 }
 
 procedure count_either
-  depends on first, second, count.old as previous
-  produces count
+  reads first, second, count.old as previous
+  writes count
 {
   let mut next = previous;
   on first, second { next = uint8.WrappingAdd(previous, 1); }
@@ -39,8 +39,8 @@ procedure count_either
 }
 
 procedure add_both
-  depends on first, second, both.old as previous
-  produces both
+  reads first, second, both.old as previous
+  writes both
 {
   let mut sum = previous;
   on first {
@@ -51,9 +51,9 @@ procedure add_both
 }
 
 procedure add_all
-  depends on values: multi event uint8, total.old as previous_total,
+  reads values: multi event uint8, total.old as previous_total,
     any_steps.old as previous_steps
-  produces total, any_steps
+  writes total, any_steps
 {
   let mut next = previous_total;
   for value in values {
@@ -69,8 +69,8 @@ connect first, second -> add_all.values;
 // The payload of second, else of first, else the previous value.
 state latest: uint8 = 0;
 procedure keep_latest
-  depends on first, second, latest.old as previous
-  produces latest
+  reads first, second, latest.old as previous
+  writes latest
 {
   latest = optional(second).UnwrapOr(optional(first).UnwrapOr(previous));
 }
@@ -89,10 +89,10 @@ node type Emissions {
   output merged: event uint8;
   output persistent: event unit;
   #[Allow(UnguardedEvent)]
-  procedure always produces persistent { emit persistent; }
+  procedure always writes persistent { emit persistent; }
   procedure run
-    depends on Number as number, Press as press, Values as values
-    produces payload, unit, constant, filtered, nested, absent, merged
+    reads Number as number, Press as press, Values as values
+    writes payload, unit, constant, filtered, nested, absent, merged
   {
     on number {
       emit payload(number);

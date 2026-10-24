@@ -80,7 +80,7 @@ class PortTypeSpecificationResource(PortTypeSpecification):
 
     def check_supported_input(self) -> None:
         if self.list_spec.is_list:
-            raise ProgramError(self, 'Multi resource inputs are not supported')
+            raise ProgramError(self, 'Multi fixed inputs are not supported')
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)

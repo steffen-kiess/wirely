@@ -41,19 +41,19 @@ parameter P: Option[uint8] = Some(,); // E: Syntax error
 parameter P: Option[uint8] = Some(1,,); // E: Syntax error
 
 // TEST: comma_only_dependencies
-native procedure run depends on ,; // E: Syntax error
+native procedure run reads ,; // E: Syntax error
 
 // TEST: comma_only_results
-native procedure run produces ,; // E: Syntax error
+native procedure run writes ,; // E: Syntax error
 
 // TEST: doubled_port_comma
-native procedure run depends on First,, Second; // E: Syntax error
+native procedure run reads First,, Second; // E: Syntax error
 
 // TEST: repeated_result_trailing_comma
-native procedure run produces Result,,; // E: Syntax error
+native procedure run writes Result,,; // E: Syntax error
 
 // TEST: comma_only_initializer_dependencies
-native initializer depends on ,; // E: Syntax error
+native initializer create reads ,; // E: Syntax error
 
 // TEST: comma_only_metadata
 #[tag(,)] node n: T {} // E: Syntax error

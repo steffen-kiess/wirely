@@ -17,7 +17,8 @@ class DebugValuePrinter:
         def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
             pass
 
-        def run(self, *, services: ProcedureServices, input: DynamicValue) -> contracts.DebugValuePrinterRunResult:
+        def run(self, *, services: ProcedureServices, input: DynamicValue,
+                type: ValueType[Any]) -> contracts.DebugValuePrinterRunResult:
             print(f'[{services.name}]: Got value {input.to_text()}', flush=True)
             return contracts.DebugValuePrinterRunResult()
 
@@ -29,7 +30,7 @@ class DebugEventPrinter:
             pass
 
         def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None) -> contracts.DebugEventPrinterRunResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.DebugEventPrinterRunResult:
             if input is not None:
                 print(f'[{services.name}]: Got event {input.value.to_text()}', flush=True)
             return contracts.DebugEventPrinterRunResult()
@@ -43,7 +44,8 @@ class WarnOnEvent:
             self.parts = format_parts
 
         def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None) -> contracts.WarnOnEventRunResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any],
+                format_parts: StdFormatParts) -> contracts.WarnOnEventRunResult:
             if input is None:
                 return contracts.WarnOnEventRunResult()
 
@@ -59,19 +61,19 @@ class WarnOnEvent:
             return contracts.WarnOnEventRunResult()
 
 
-class DebugValueSource(contracts.DebugValueSourceInitializer):
+class DebugValueSource(contracts.DebugValueSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
-                   type: ValueType[Any]) -> contracts.DebugValueSourceInitializerResult:
+                   type: ValueType[Any]) -> contracts.DebugValueSourceCreateResult:
         self.value_type = type
         self.current_value: DynamicValue | None = None  # None until a value is set.
-        return contracts.DebugValueSourceInitializerResult(state=self)
+        return contracts.DebugValueSourceCreateResult(state=self)
 
     class Run(contracts.DebugValueSourceRun):
         def prepare(self, *, services: PreparationServices, state: 'DebugValueSource', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
 
         def run(self, *, services: ProcedureServices,
-                state: 'DebugValueSource') -> contracts.DebugValueSourceRunResult:
+                state: 'DebugValueSource', type: ValueType[Any]) -> contracts.DebugValueSourceRunResult:
             value = state.current_value
             if value is None:
                 # Option types start without a value; others need one to be set.
@@ -104,20 +106,20 @@ class DebugValueSource(contracts.DebugValueSourceInitializer):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-class DebugEventSource(contracts.DebugEventSourceInitializer):
+class DebugEventSource(contracts.DebugEventSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
-                   type: ValueType[Any]) -> contracts.DebugEventSourceInitializerResult:
+                   type: ValueType[Any]) -> contracts.DebugEventSourceCreateResult:
         self.value_type = type
         # TODO: Allow a queue of values?
         self.next_value: Some[DynamicValue] | None = None
-        return contracts.DebugEventSourceInitializerResult(state=self)
+        return contracts.DebugEventSourceCreateResult(state=self)
 
     class Run(contracts.DebugEventSourceRun):
         def prepare(self, *, services: PreparationServices, state: 'DebugEventSource', type: ValueType[Any]) -> None:
             check_state_type(services.name, type, state.value_type)
 
         def run(self, *, services: ProcedureServices,
-                state: 'DebugEventSource') -> contracts.DebugEventSourceRunResult:
+                state: 'DebugEventSource', type: ValueType[Any]) -> contracts.DebugEventSourceRunResult:
             value = state.next_value
             if value is not None:
                 state.next_value = None

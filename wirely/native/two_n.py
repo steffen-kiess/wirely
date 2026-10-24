@@ -12,9 +12,9 @@ from wirely.generated.structs import TwoNCredentials
 from wirely.util import verbose_print
 
 
-class Connection(contracts.ConnectionInitializer):
+class Connection(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['device']], host: str, port: UInt16,
-                   tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionInitializerResult:
+                   tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionCreateResult:
         import wirely.two_n.client
 
         verbose_print('Create TwoN Connection', flush=True)
@@ -25,7 +25,7 @@ class Connection(contracts.ConnectionInitializer):
 
         self.client = wirely.two_n.client.Client(hostname=hostname, port=port.value, tlsa=tlsa, http_api_username_password=(credentials.username, credentials.password))
         self.log_receiver = wirely.two_n.client.LogReceiver(self.client)
-        return contracts.ConnectionInitializerResult(device=self)
+        return contracts.ConnectionCreateResult(device=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -38,9 +38,9 @@ class Connection(contracts.ConnectionInitializer):
         verbose_print('Starting TwoN client done', flush=True)
 
 
-class KeyEvent(contracts.KeyEventInitializer):
+class KeyEvent(contracts.KeyEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
-                   key: str) -> contracts.KeyEventInitializerResult:
+                   key: str) -> contracts.KeyEventCreateResult:
         self.key = key
 
         self.received_value: bool | None = None
@@ -55,7 +55,7 @@ class KeyEvent(contracts.KeyEventInitializer):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['KeyPressed', 'KeyReleased'], self.handler)
-        return contracts.KeyEventInitializerResult(state=self)
+        return contracts.KeyEventCreateResult(state=self)
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -94,9 +94,9 @@ class KeyEvent(contracts.KeyEventInitializer):
             return contracts.KeyEventGetValueResult(output=wirely.Some(value))
 
 
-class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
+class CodeEnteredEvent(contracts.CodeEnteredEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
-                   code: str) -> contracts.CodeEnteredEventInitializerResult:
+                   code: str) -> contracts.CodeEnteredEventCreateResult:
         self.code = code
 
         self.pending = False
@@ -111,7 +111,7 @@ class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['CodeEntered'], self.handler)
-        return contracts.CodeEnteredEventInitializerResult(state=self)
+        return contracts.CodeEnteredEventCreateResult(state=self)
 
     def handler(self, event: dict[str, Any]) -> None:
         # print(f'Got event: {event}')
@@ -147,9 +147,9 @@ class CodeEnteredEvent(contracts.CodeEnteredEventInitializer):
             return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
-class IOState(contracts.IOStateInitializer):
+class IOState(contracts.IOStateCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
-                   port: str) -> contracts.IOStateInitializerResult:
+                   port: str) -> contracts.IOStateCreateResult:
         self.port = port
 
         # TODO: What value should this provide while there is no connection?
@@ -166,7 +166,7 @@ class IOState(contracts.IOStateInitializer):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['InputChanged', 'OutputChanged'], self.handler)
-        return contracts.IOStateInitializerResult(state=self)
+        return contracts.IOStateCreateResult(state=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -222,9 +222,9 @@ class IOState(contracts.IOStateInitializer):
             return contracts.IOStateGetValueResult(output=value)
 
 
-class SwitchState(contracts.SwitchStateInitializer):
+class SwitchState(contracts.SwitchStateCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
-                   switch_number: Int32) -> contracts.SwitchStateInitializerResult:
+                   switch_number: Int32) -> contracts.SwitchStateCreateResult:
         self.switch_number = switch_number.value
 
         # TODO: What value should this provide while there is no connection?
@@ -241,7 +241,7 @@ class SwitchState(contracts.SwitchStateInitializer):
 
         # TODO: Do this here? Or register / deregister later?
         self.native_device.log_receiver.add_handler(['SwitchStateChanged'], self.handler)
-        return contracts.SwitchStateInitializerResult(state=self)
+        return contracts.SwitchStateCreateResult(state=self)
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
@@ -295,9 +295,9 @@ class SwitchState(contracts.SwitchStateInitializer):
             return contracts.SwitchStateGetValueResult(output=value)
 
 
-class OutputControl(contracts.OutputControlInitializer):
+class OutputControl(contracts.OutputControlCreate):
     def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
-                   port: str) -> contracts.OutputControlInitializerResult:
+                   port: str) -> contracts.OutputControlCreateResult:
         self.port = port
 
         # Task is needed for sending out values
@@ -313,7 +313,7 @@ class OutputControl(contracts.OutputControlInitializer):
 
         self.native_device = device
         verbose_print(f'  Using native device object: {self.native_device}', flush=True)
-        return contracts.OutputControlInitializerResult(state=self)
+        return contracts.OutputControlCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)

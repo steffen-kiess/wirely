@@ -128,7 +128,7 @@ def _resource_types(resources: Mapping[str, str]) -> Mapping[str, str]:
 class NativeProcedureInterface:
     """Declared interface of a native procedure."""
 
-    uses: tuple[str, ...]  # Names bound by `uses`, sorted.
+    uses: tuple[str, ...]  # Keys of the compile-time reads, sorted.
     resources: Mapping[str, str]  # Resource input key -> native resource type name.
     inputs: tuple[str, ...]  # Value and event input keys, sorted.
     outputs: tuple[str, ...]  # Output keys, sorted.
@@ -143,10 +143,10 @@ class NativeProcedureInterface:
 class NativeNodeType:
     """Declared interface of a node type with native state, linked by name at runtime."""
 
-    name: str  # Native node type name, such as 'KNX.Switch'.
-    initializer_uses: tuple[str, ...]  # Names bound by the initializer's `uses`, sorted.
+    name: str  # Native initializer name, such as 'KNX.Switch:create'.
+    initializer_uses: tuple[str, ...]  # Keys of the initializer's compile-time reads, sorted.
     initializer_resources: Mapping[str, str]  # Resource input key -> resource type.
-    resource_outputs: Mapping[str, str]  # Initializer `produces` key -> resource type.
+    resource_outputs: Mapping[str, str]  # Initializer `writes` key -> resource type.
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'initializer_uses', tuple(sorted(self.initializer_uses)))
@@ -159,10 +159,10 @@ class NativeInstance:
     """Stored node context for procedures and optional native state creation."""
 
     name: str  # Instance name exposed to native code.
-    type_name: str | None  # Native node type name; None without native state.
+    type_name: str | None  # Native initializer name; None without native state.
     parameters: Mapping[str, object]  # Resolved parameters as ValueTypes or DynamicValues.
     initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
-    initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer `uses` values.
+    initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer compile-time reads.
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
@@ -188,7 +188,7 @@ class Procedure:
     resources: Mapping[str, ResourceBinding]  # Resource inputs by name.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
-    values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure `uses` values.
+    values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure compile-time reads.
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
@@ -304,10 +304,10 @@ class Program:
                 line(f'{key}: {resource_type}', indent + 2)
 
         line()
-        line('Native types:')
+        line('Native initializers:')
         for type_name, native_type in sorted(self.native_types.items()):
             line(f'{type_name}:', 2)
-            names('initializer uses', native_type.initializer_uses, 4)
+            names('compile-time reads', native_type.initializer_uses, 4)
             resource_types('initializer resources', native_type.initializer_resources, 4)
             resource_types('resource outputs', native_type.resource_outputs, 4)
 
@@ -315,7 +315,7 @@ class Program:
         line('Native procedures:')
         for name, interface in sorted(self.native_procedures.items()):
             line(f'{name}:', 2)
-            names('uses', interface.uses, 4)
+            names('compile-time reads', interface.uses, 4)
             resource_types('resources', interface.resources, 4)
             names('inputs', interface.inputs, 4)
             names('outputs', interface.outputs, 4)
@@ -330,7 +330,7 @@ class Program:
         for node_id, instance in sorted(self.instances.items()):
             line(f'{node_id}:', 2)
             line(f'name: {instance.name}', 4)
-            line(f'native state type: {instance.type_name}', 4)
+            line(f'native initializer: {instance.type_name}', 4)
             value('parameters', dict(instance.parameters), 4)
             static_bindings('initializer values', instance.initializer_values, 4)
             line('initializer resources:', 4)

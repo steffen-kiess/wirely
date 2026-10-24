@@ -110,16 +110,16 @@ def check_resource_isolation():
     source = '''namespace TestLibrary {
   resource type Service;
   resource type ConsumerState;
-  singleton native node type Provider {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  singleton node type Provider {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
-  native node type Consumer {
-    input Service: resource Service;
-    binding state: resource ConsumerState;
+  node type Consumer {
+    input Service: fixed Service;
+    binding state: fixed ConsumerState;
     default output: value uint8;
-    native initializer depends on Service as service produces state as "state";
-    native procedure run depends on state as "state" produces default output as output;
+    native initializer create reads Service as service writes state as "state";
+    native procedure run reads state as "state" writes default output as output;
   }
 }
 node provider: TestLibrary.Provider {}
@@ -133,22 +133,22 @@ connect alias -> consumer.Service;
     with test_contracts(graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
-        class Provider(contracts.ProviderInitializer):
+        class Provider(contracts.ProviderCreate):
             def initialize(self, *, services):
-                return contracts.ProviderInitializerResult(service=self)
-        registry['initializers']['TestLibrary.Provider'] = Provider
+                return contracts.ProviderCreateResult(service=self)
+        registry['initializers']['TestLibrary.Provider:create'] = Provider
 
-        class Consumer(contracts.ConsumerInitializer):
+        class Consumer(contracts.ConsumerCreate):
             def initialize(self, *, services, service):
                 self.service = service
                 self.count = 0
-                return contracts.ConsumerInitializerResult(state=self)
+                return contracts.ConsumerCreateResult(state=self)
 
             class Run(contracts.ConsumerRun):
                 def run(self, *, services, state):
                     state.count += 1
                     return contracts.ConsumerRunResult(output=wirely.UInt8(state.count))
-        registry['initializers']['TestLibrary.Consumer'] = Consumer
+        registry['initializers']['TestLibrary.Consumer:create'] = Consumer
         registry['procedures']['TestLibrary.Consumer:run'] = Consumer.Run
 
         resource_types = {'TestLibrary.Service': Provider, 'TestLibrary.ConsumerState': Consumer}
@@ -173,17 +173,17 @@ def check_resource_binding_validation():
     graph = wirely.compiler.compile_strs([('<resource-validation>', '''namespace TestLibrary {
   resource type Service;
   resource type Other;
-  native node type ServiceProvider {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  node type ServiceProvider {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
-  native node type OtherProvider {
-    default output: resource Other;
-    native initializer produces default output as "other";
+  node type OtherProvider {
+    default output: fixed Other;
+    native initializer create writes default output as "other";
   }
-  native node type Consumer {
-    input Service: resource Service;
-    native initializer depends on Service;
+  node type Consumer {
+    input Service: fixed Service;
+    native initializer create reads Service;
   }
 }
 node service: TestLibrary.ServiceProvider {}
@@ -205,14 +205,14 @@ def check_native_names():
     # Native names replace qualified names in native interfaces and linking.
     source = '''namespace Renamed {
   resource type Link as "TestLibrary.Service";
-  native node type Source as "TestLibrary.Provider" {
-    default output: resource Link;
-    native initializer produces default output as "service";
+  node type Source as "TestLibrary.Provider" {
+    default output: fixed Link;
+    native initializer create writes default output as "service";
   }
   node type Sink {
-    input Service: resource Link;
+    input Service: fixed Link;
     default output: value uint8;
-    native procedure run as "TestLibrary.Consumer:run" depends on Service produces default output as "output";
+    native procedure run as "TestLibrary.Consumer:run" reads Service writes default output as "output";
   }
 }
 node source: Renamed.Source {}
@@ -225,10 +225,10 @@ connect source -> sink.Service;
     with test_contracts(graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
-        class Provider(contracts.ProviderInitializer):
+        class Provider(contracts.ProviderCreate):
             def initialize(self, *, services):
-                return contracts.ProviderInitializerResult(service=self)
-        registry['initializers']['TestLibrary.Provider'] = Provider
+                return contracts.ProviderCreateResult(service=self)
+        registry['initializers']['TestLibrary.Provider:create'] = Provider
 
         class Consumer:
             class Run(contracts.ConsumerRun):
@@ -239,10 +239,10 @@ connect source -> sink.Service;
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TestLibrary.Service': Provider}, contracts=contracts)
         engine = Engine(program, override_extensions=[bindings, resource_bindings])
-    assert program.instances['source'].type_name == 'TestLibrary.Provider'
+    assert program.instances['source'].type_name == 'TestLibrary.Provider:create'
     assert program.instances['sink'].type_name is None
-    assert set(program.native_types) == {'TestLibrary.Provider'}
-    assert program.native_types['TestLibrary.Provider'].resource_outputs == {'service': 'TestLibrary.Service'}
+    assert set(program.native_types) == {'TestLibrary.Provider:create'}
+    assert program.native_types['TestLibrary.Provider:create'].resource_outputs == {'service': 'TestLibrary.Service'}
     assert set(program.native_procedures) == {'TestLibrary.Consumer:run'}
     assert program.native_procedures['TestLibrary.Consumer:run'].resources == {'Service': 'TestLibrary.Service'}
     engine.step()

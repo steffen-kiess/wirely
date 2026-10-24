@@ -275,7 +275,7 @@ struct type Wide16 {
 node type Invalid {
   parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
-  native procedure write produces value;
+  native procedure write writes value;
 }
 node invalid: Invalid { Type: Option[Wide16] } // E: storage size 136 bytes exceeds 128 bytes
 
@@ -320,7 +320,7 @@ struct type Member128 {
 node type Invalid {
   parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
-  native procedure write produces value;
+  native procedure write writes value;
 }
 node invalid: Invalid { Type: Option[Member128] } // E: total member count 129 exceeds 128
 
@@ -397,7 +397,7 @@ struct type Depth17 {
 node type Invalid {
   parameter Type: type;
   #[Allow(Unused)] binding value: value Type;
-  native procedure write produces value;
+  native procedure write writes value;
 }
 node invalid: Invalid { Type: Depth17 } // E: nesting depth 17 exceeds 16
 
@@ -425,7 +425,7 @@ struct type Wide16 {
 
 constant Large: Option[Wide16] = None;
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let value = Large; // E: storage size 136 bytes exceeds 128 bytes
   result = value == value;
 }

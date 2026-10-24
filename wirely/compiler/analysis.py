@@ -85,7 +85,7 @@ class NodeTypeEntry:
     id: NodeType
     # The type as written in a node declaration in the given scope.
     type_text: str
-    is_native: bool
+    has_initializer: bool
     is_singleton: bool
     parameters: tuple[ParameterEntry, ...]
     ports: tuple[ResolvedPort, ...]
@@ -197,7 +197,7 @@ class Analysis:
                                for parameter in record.parameters)
             ports = self.ports(record.id)
             assert ports is not None
-            entries.append(NodeTypeEntry(record.id, type_text, record.is_native, record.is_singleton, parameters, ports))
+            entries.append(NodeTypeEntry(record.id, type_text, record.has_initializer, record.is_singleton, parameters, ports))
 
         def visit(namespace: _outline.Scope, internal: bool) -> None:
             for record in namespace.node_types:
@@ -396,7 +396,7 @@ def _resolved_port(port: model.TypeInputPort | model.TypeOutputPort, direction: 
                    parameter_values: Mapping[model.NodeParameter, StaticValue] | None) -> ResolvedPort:
     spec = port.port_spec
     if isinstance(spec, model.PortTypeSpecificationResource):
-        kind = 'resource'
+        kind = 'fixed'
     else:
         assert isinstance(spec, model.PortTypeSpecificationData)
         kind = 'value' if spec.kind_spec.kind == model.ConnectionKind.Value else 'event'

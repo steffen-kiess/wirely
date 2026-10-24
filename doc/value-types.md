@@ -262,7 +262,7 @@ node type Deadline {
   parameter Timeout: Std.Duration;
   input Start: value Timer.MonotonicTime;
   default output: value Timer.MonotonicTime;
-  procedure run depends on Start as start produces default output as deadline {
+  procedure run reads Start as start writes default output as deadline {
     deadline = Timer.MonotonicTime.SaturatingAdd(start, Timeout);
   }
 }

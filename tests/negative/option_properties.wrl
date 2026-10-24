@@ -67,7 +67,7 @@ node probe: Probe { Type: boolean, Value: true } // H: While instantiating
 node type Probe {
   parameter Value: boolean = false;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Value.IsNone; // E: Value of type `boolean` has no property `IsNone`
   }
 }
@@ -76,7 +76,7 @@ node probe: Probe {}
 // TEST: runtime unresolved None
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = None.IsSome; // E: Cannot infer expression type
   }
 }
@@ -86,7 +86,7 @@ node probe: Probe {}
 node type Probe {
   parameter Value: Option[boolean] = None;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Value.Unknown; // E: Value of type `Option[boolean]` has no property `Unknown`
   }
 }
@@ -96,7 +96,7 @@ node probe: Probe {}
 node type Probe {
   parameter Value: Option[boolean] = None;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Value.IsSome(); // E: properties cannot be called
   }
 }
@@ -107,7 +107,7 @@ node type Probe {
   parameter Type: type;
   parameter Value: Type;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Value.IsSome; // E: Value of type `int8` has no property `IsSome`
   }
 }
@@ -117,7 +117,7 @@ node probe: Probe { Type: int8, Value: 7 }
 node type Probe {
   parameter Value: Option[boolean] = Some(true);
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = if Value.IsSome { Value } else { false }; // E: Expected value of type `boolean`
   }
 }
@@ -127,7 +127,7 @@ node probe: Probe {}
 // LIBRARIES: std, path
 node type Probe {
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Path.Parent("file").IsSome; // E: Value of type `string` has no property `IsSome`
   }
 }
@@ -138,7 +138,7 @@ node probe: Probe {}
 struct type Settings { flag: boolean }
 node type Probe {
   default output: value Settings;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     output = Settings {
       flag: Path.Parent("file").IsSome, // E: Value of type `string` has no property `IsSome`
     };

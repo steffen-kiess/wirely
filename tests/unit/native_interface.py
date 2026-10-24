@@ -106,8 +106,8 @@ def check_input_ports():
     default output: value uint8;
 
     native procedure run
-      depends on default input as "value", named
-      produces default output as "output";
+      reads default input as "value", named
+      writes default output as "output";
     ''', check_inputs, extra='''
     node source: Std.Constant { Type: uint8, Value: 7 }
     connect source -> probe;
@@ -291,7 +291,7 @@ def check_triggers():
         def contract(name):
             return getattr(contracts, prefix + name)
 
-        class TriggerProbe(contract('Initializer'), ProbeState):
+        class TriggerProbe(contract('Create'), ProbeState):
             def initialize(self, *, services):
                 with checks.assertRaises(AttributeError):
                     services.name = 'other'
@@ -299,7 +299,7 @@ def check_triggers():
                 self.reschedule_once = False
                 services.trigger('refresher')
                 assert not self.calls
-                return contract('InitializerResult')(refresher=self, runner=self)
+                return contract('CreateResult')(refresher=self, runner=self)
 
             class Refresh(contract('Refresh')):
                 def run(self, *, services, state):
@@ -326,26 +326,26 @@ def check_triggers():
     reader_calls = []
 
     probe_body = '''
-        binding refresher: resource ProbeState;
-        binding runner: resource ProbeState;
-        native initializer produces refresher as "refresher", runner as "runner";
-        native procedure refresh depends on refresher as "state";
-        native procedure run depends on runner as "state";
-        native procedure log depends on runner as "state";
+        binding refresher: fixed ProbeState;
+        binding runner: fixed ProbeState;
+        native initializer create writes refresher as "refresher", runner as "runner";
+        native procedure refresh reads refresher as "state";
+        native procedure run reads runner as "state";
+        native procedure log reads runner as "state";
     '''
     trigger_graph = wirely.compiler.compile_strs([('<native-triggers>', f'''
     namespace TestLibrary {{
       resource type ProbeState;
       resource type Service;
-      native node type TriggerProbe {{{probe_body}}}
-      singleton native node type SharedTriggerProbe {{{probe_body}}}
-      native node type Provider {{
-        default output: resource Service;
-        native initializer produces default output as "service";
+      node type TriggerProbe {{{probe_body}}}
+      singleton node type SharedTriggerProbe {{{probe_body}}}
+      node type Provider {{
+        default output: fixed Service;
+        native initializer create writes default output as "service";
       }}
       node type Reader {{
-        input Service: resource Service;
-        native procedure poll depends on Service as "service";
+        input Service: fixed Service;
+        native procedure poll reads Service as "service";
       }}
     }}
     node first: TestLibrary.TriggerProbe {{}}
@@ -368,17 +368,17 @@ def check_triggers():
         trigger_registry = {'initializers': {}, 'procedures': {}}
         for prefix in ('TriggerProbe', 'SharedTriggerProbe'):
             cls = trigger_probe(prefix, contracts)
-            trigger_registry['initializers']['TestLibrary.' + prefix] = cls
+            trigger_registry['initializers']['TestLibrary.' + prefix + ':create'] = cls
             trigger_registry['procedures'].update({
                 f'TestLibrary.{prefix}:refresh': cls.Refresh,
                 f'TestLibrary.{prefix}:run': cls.Run,
                 f'TestLibrary.{prefix}:log': cls.Log,
             })
 
-        class Provider(contracts.ProviderInitializer):
+        class Provider(contracts.ProviderCreate):
             def initialize(self, *, services):
-                return contracts.ProviderInitializerResult(service=self)
-        trigger_registry['initializers']['TestLibrary.Provider'] = Provider
+                return contracts.ProviderCreateResult(service=self)
+        trigger_registry['initializers']['TestLibrary.Provider:create'] = Provider
 
         class Reader:
             class Poll(contracts.ReaderPoll):
@@ -467,8 +467,8 @@ def check_typed_ports():
     node level: Std.Constant { Type: uint8, Value: 7 }
 
     native procedure run
-      depends on values: event uint8, other: event uint8, level: value uint8
-      produces total: value uint8;
+      reads values: event uint8, other: event uint8, level: value uint8
+      writes total: value uint8;
     connect first -> run.values;
     connect second -> run.other;
     connect level -> run.level;
@@ -489,7 +489,7 @@ def check_outputs():
     declaration = '''
     default output: value uint8;
 
-    native procedure run produces default output as "output";
+    native procedure run writes default output as "output";
     '''
     for invalid in ('invalid', 7, True, wirely.UInt16(7), wirely.Int8(7)):
         expect_output_error(declaration, invalid, "Native procedure `TestLibrary.Probe:run` of `probe`: "
@@ -509,7 +509,7 @@ def check_outputs():
     parameter Type: type;
     default output: value Type;
 
-    native procedure run produces default output as "output" uses Type;
+    native procedure run reads Type writes default output as "output";
     '''
     option = wirely.value_types.option(wirely.value_types.boolean)
     for invalid, message in [(wirely.Some(True), 'Expected a DynamicValue of `Option\\[boolean\\]`, got Some'),
@@ -544,8 +544,8 @@ def check_events():
     default output: event {payload_type};
 
     native procedure run
-      depends on default input as "event"
-      produces default output as "output";
+      reads default input as "event"
+      writes default output as "output";
     ''', forward_event, extra=f'''
     node source: Std.DebugEventSource {{ Type: {payload_type} }}
     connect source -> probe;
@@ -571,7 +571,7 @@ def check_unit_outputs():
     value_declaration = '''
     default output: value unit;
 
-    native procedure run produces default output as "output";
+    native procedure run writes default output as "output";
     '''
     expect_output_error(value_declaration, None, 'invalid value for output')
     probe = make_engine(value_declaration, lambda services, inputs, values: {'output': wirely.Unit()})
@@ -581,7 +581,7 @@ def check_unit_outputs():
     event_declaration = '''
     default output: event unit;
 
-    native procedure run produces default output as "output";
+    native procedure run writes default output as "output";
     '''
     for invalid in [wirely.Some(None), wirely.Unit()]:
         expect_output_error(event_declaration, invalid, 'invalid value for output')
@@ -613,8 +613,7 @@ def check_enum_outputs():
     declaration = '''
     default output: value Example.Mode;
 
-    native procedure run produces default output as "output"
-      uses Example.Mode.On as mode, Example.Other.On as other, Example.State.Running as state;
+    native procedure run reads Example.Mode.On as mode, Example.Other.On as other, Example.State.Running as state writes default output as "output";
     '''
     extra = '''
 namespace Example {
@@ -669,7 +668,7 @@ def check_native_enums():
     def make(registry):
         enum_bindings = RuntimeNativeExtension(enums=registry)
         probe = make_engine('''
-    native procedure run uses Example.Level.High as level, Example.Day.Tuesday as day;
+    native procedure run reads Example.Level.High as level, Example.Day.Tuesday as day;
     ''', check_values, extra='''
 namespace Example {
   native open enum type Level as "Test.Level": uint8 { Off = 0, High = 2, }
@@ -701,14 +700,14 @@ namespace Example {
 
 def check_native_interface_signatures():
     # Generated signatures describe the standard library's native interfaces;
-    # types passed to native code as ValueType through an entry's own uses
-    # become type variables.
+    # types passed to native code as ValueType through an entry's own
+    # compile-time reads become type variables.
     from wirely.generated import _signatures as native_interfaces
     from wirely.runtime.signatures import (
         Builtin, Enum, Function, Initializer, Int, Option, Port, Procedure, ResourceType, Struct, TypeVar,
     )
 
-    assert native_interfaces.native_state_types['MQTT.EventSender'] == Initializer(
+    assert native_interfaces.native_state_types['MQTT.EventSender:create'] == Initializer(
         depends={'Broker': Port('resource', ResourceType('MQTT.Broker'))},
         produces={'state': Port('resource', ResourceType('MQTT.EventSenderState'))},
         uses={'Type': Builtin('type'), 'Topic': Builtin('string'), 'Format': Option(Enum('MQTT.Format')),
@@ -736,7 +735,8 @@ def check_native_interface_signatures():
 
 def check_native_signature_linking():
     # Linking checks the native interfaces a program uses against the
-    # runtime's signatures, with type variables bound by each entry's uses.
+    # runtime's signatures, with type variables bound by each entry's
+    # compile-time reads.
     from dataclasses import replace
     from wirely.compiler.native_signatures import native_signatures
     from wirely.generated import _signatures as native_interfaces
@@ -752,15 +752,15 @@ namespace TestLibrary {
     input In: value Type;
     output Out: event uint8;
     native procedure run stage output
-      depends on In as "input" produces Out as "output" uses Type;
+      reads In as "input", Type writes Out as "output";
   }
 
-  native node type Stateful {
+  node type Stateful {
     input Number: value int16;
     output Clamped: value int16;
-    #[Allow(Unused)] binding state: resource ProbeState;
-    native initializer produces state as "state";
-    procedure clamp depends on Number produces Clamped { Clamped = TestLibrary.Clamp(Number, 0, 100); }
+    #[Allow(Unused)] binding state: fixed ProbeState;
+    native initializer create writes state as "state";
+    procedure clamp reads Number writes Clamped { Clamped = TestLibrary.Clamp(Number, 0, 100); }
   }
 }
 node value: Std.Constant { Type: uint16, Value: 1 }
@@ -779,18 +779,18 @@ connect number -> stateful.Number;
                 def prepare(self, *, services, type):
                     pass
 
-                def run(self, *, services, input):
+                def run(self, *, services, input, type):
                     return contracts.ProbeRunResult(output=None)
         registry['procedures']['TestLibrary.Probe:run'] = Probe.Run
 
-        class Stateful(contracts.StatefulInitializer):
+        class Stateful(contracts.StatefulCreate):
             def initialize(self, *, services):
-                return contracts.StatefulInitializerResult(state=self)
-        registry['initializers']['TestLibrary.Stateful'] = Stateful
+                return contracts.StatefulCreateResult(state=self)
+        registry['initializers']['TestLibrary.Stateful:create'] = Stateful
 
         state_types, procedures, functions = native_signatures(program.graph, 'TestLibrary')
         run = procedures['TestLibrary.Probe:run']
-        stateful = state_types['TestLibrary.Stateful']
+        stateful = state_types['TestLibrary.Stateful:create']
         clamp = functions['TestLibrary.Clamp']
 
         def link(state_types=state_types, procedures=procedures, functions=functions):
@@ -809,12 +809,12 @@ connect number -> stateful.Number;
         link()
         for changes, message in [
             (dict(procedures={}), "Cannot find the signature of native procedure `TestLibrary.Probe:run`"),
-            (dict(state_types={}), "Cannot find the signature of native state type `TestLibrary.Stateful`"),
+            (dict(state_types={}), "Cannot find the signature of native initializer `TestLibrary.Stateful:create`"),
             (dict(functions={}), "Cannot find the signature of native function `TestLibrary.Clamp`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, stage='input')}},
              'runs in stage output, expected input'),
             ({'procedures': {'TestLibrary.Probe:run': replace(run, uses={'Type': Builtin('string')})}},
-             "uses binding `Type` has type `type`, expected `string`"),
+             "compile-time read `Type` has type `type`, expected `string`"),
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={'input': Port('value', Int(8, False))})}},
              "`input` has type `uint16`, expected `uint8`"),
@@ -829,7 +829,7 @@ connect number -> stateful.Number;
             ({'procedures': {'TestLibrary.Probe:run': replace(
                 run, depends={**run.depends, 'extra': Port('value', Builtin('boolean'))})}},
              "inputs \\['input'\\] do not match the expected \\['extra', 'input'\\]"),
-            ({'state_types': {'TestLibrary.Stateful': replace(
+            ({'state_types': {'TestLibrary.Stateful:create': replace(
                 stateful, produces={'state': Port('resource', ResourceType('TestLibrary.Other'))})}},
              "`state` is `TestLibrary.ProbeState`, expected resource `TestLibrary.Other`"),
             ({'functions': {'TestLibrary.Clamp': Function(clamp.parameters[:2], clamp.result)}},
@@ -856,9 +856,7 @@ def check_struct_outputs():
     declaration = '''
     default output: value Example.Pair;
 
-    native procedure run produces default output as "output"
-      uses Example.Pair { enabled: true, number: 7 } as pair,
-        Example.Other { enabled: true, number: 7 } as other;
+    native procedure run reads Example.Pair { enabled: true, number: 7 } as pair, Example.Other { enabled: true, number: 7 } as other writes default output as "output";
     '''
     extra = '''
 namespace Example {
@@ -905,7 +903,7 @@ def check_native_structs():
         enum_bindings = RuntimeNativeExtension(enums=enums)
         struct_bindings = RuntimeNativeExtension(structs=registry)
         probe = make_engine('''
-    native procedure run uses Example.Reading { value: 5, level: Example.Level.High } as reading,
+    native procedure run reads Example.Reading { value: 5, level: Example.Level.High } as reading,
       Example.Empty {} as empty;
     ''', check_values, extra='''
 namespace Example {
@@ -975,7 +973,7 @@ def check_native_opaque_types():
             'Test.Percent': NativeOpaque((Int(8, False),), lambda: percent_class(255))})
         linked = RuntimeNativeExtension(opaque_types={} if opaque_type is None else {'Test.Percent': opaque_type})
         return make_engine(f'''
-    native procedure run uses Level as level;
+    native procedure run reads Level as level;
     constant Level: Example.Percent = {level};
     ''', check_values, extra='''
 namespace Example {
@@ -1011,8 +1009,8 @@ def check_port_keys():
     default output: value uint8;
 
     native procedure run
-      depends on source as "line\nkey", source as r"raw\key"
-      produces default output as "";
+      reads source as "line\nkey", source as r"raw\key"
+      writes default output as "";
     ''', check_keys)
     probe.step()
     probe.assert_value_is('probe', 7)
@@ -1023,8 +1021,8 @@ def check_port_keys():
     default output: value uint8;
 
     native procedure run
-      depends on source as "value"
-      produces default output as "value";
+      reads source as "value"
+      writes default output as "value";
     ''', lambda services, inputs, values: {'value': inputs['value']})
     probe.step()
     probe.assert_value_is('probe', 7)
@@ -1035,8 +1033,8 @@ def check_port_keys():
     default output: value uint8;
 
     native procedure run
-      depends on level as "value": value uint8
-      produces result as "output": value uint8;
+      reads level as "value": value uint8
+      writes result as "output": value uint8;
     connect source -> run.level;
     connect run.result -> default output;
     ''', lambda services, inputs, values: {'output': inputs['value']})
@@ -1052,9 +1050,9 @@ cleanup_clock_observations = []
 def make_lifecycle_engine(*, fail=False):
     program = compile_program([('<native-lifecycle>', f'''
 namespace TestLibrary {{
-  native node type LifecycleProbe {{
+  node type LifecycleProbe {{
     parameter Fail: boolean = false;
-    native initializer uses Fail;
+    native initializer create reads Fail;
   }}
 }}
 node first: TestLibrary.LifecycleProbe {{}}
@@ -1063,10 +1061,10 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
     with test_contracts(program.graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
-        class LifecycleProbe(contracts.LifecycleProbeInitializer):
+        class LifecycleProbe(contracts.LifecycleProbeCreate):
             def initialize(self, *, services, fail):
                 self.fail = fail
-                return contracts.LifecycleProbeInitializerResult()
+                return contracts.LifecycleProbeCreateResult()
 
             def start_tasks(self, task_group, async_exit_stack):
                 async_exit_stack.callback(self.observe_cleanup)
@@ -1079,7 +1077,7 @@ node second: TestLibrary.LifecycleProbe {{ Fail: {'true' if fail else 'false'} }
             def observe_cleanup(self):
                 cleanup_observations.append(self.services.name)
                 cleanup_clock_observations.append((self.services.is_shutting_down, self.services.shutdown_time))
-        registry['initializers']['TestLibrary.LifecycleProbe'] = LifecycleProbe
+        registry['initializers']['TestLibrary.LifecycleProbe:create'] = LifecycleProbe
 
         bindings = test_extension(**registry, contracts=contracts)
         return Engine(program, override_extensions=[bindings])
@@ -1142,10 +1140,10 @@ def check_native_methods():
     native procedure shared;
     native procedure inherited;
   }
-  native node type StateProbe {
-    binding state: resource ProbeState;
-    native initializer produces state as "state";
-    native procedure inherited depends on state as "state";
+  node type StateProbe {
+    binding state: fixed ProbeState;
+    native initializer create writes state as "state";
+    native procedure inherited reads state as "state";
   }
   // Procedures may use another type's implementation.
   node type KeyedProbe {
@@ -1191,10 +1189,10 @@ node keyed: TestLibrary.KeyedProbe {}
                     return contracts.OverrideProbeSharedResult()
         registry['procedures']['TestLibrary.OverrideProbe:shared'] = OverrideProbe.Shared
 
-        class StateProbe(Methods, contracts.StateProbeInitializer):
+        class StateProbe(Methods, contracts.StateProbeCreate):
             def initialize(self, *, services):
-                return contracts.StateProbeInitializerResult(state=self)
-        registry['initializers']['TestLibrary.StateProbe'] = StateProbe
+                return contracts.StateProbeCreateResult(state=self)
+        registry['initializers']['TestLibrary.StateProbe:create'] = StateProbe
         registry['procedures'].update({
             'TestLibrary.ClassProbe:shared': ClassProbe.Shared,
             'TestLibrary.ClassProbe:inherited': ClassProbe.Inherited,
@@ -1224,10 +1222,10 @@ def check_procedure_construction():
         with test_contracts(program.graph) as contracts:
             registry = {'initializers': {}, 'procedures': {}}
 
-            class LoadProbe(contracts.LoadProbeInitializer):
+            class LoadProbe(contracts.LoadProbeCreate):
                 def initialize(self, *, services):
                     events.append(('state', services.name))
-                    return contracts.LoadProbeInitializerResult(state=self)
+                    return contracts.LoadProbeCreateResult(state=self)
 
                 class Run(contracts.LoadProbeRun):
                     def prepare(self, *, services, state, fail):
@@ -1237,11 +1235,11 @@ def check_procedure_construction():
                             raise ValueError(f'{services.name}: unsupported configuration')
                         events.append(('procedure', services.name, fail))
 
-                    def run(self, *, services, state):
+                    def run(self, *, services, state, fail):
                         assert state is self.state
                         events.append(('call', services.name))
                         return contracts.LoadProbeRunResult()
-            registry['initializers']['TestLibrary.LoadProbe'] = LoadProbe
+            registry['initializers']['TestLibrary.LoadProbe:create'] = LoadProbe
             registry['procedures']['TestLibrary.LoadProbe:run'] = LoadProbe.Run
 
             bindings = test_extension(**registry, contracts=contracts)
@@ -1250,11 +1248,11 @@ def check_procedure_construction():
 
     source = '''namespace TestLibrary {
   resource type LoadState;
-  native node type LoadProbe {
+  node type LoadProbe {
     parameter Fail: boolean = false;
-    binding state: resource LoadState;
-    native initializer produces state as "state";
-    native procedure run depends on state as "state" uses Fail;
+    binding state: fixed LoadState;
+    native initializer create writes state as "state";
+    native procedure run reads state as "state", Fail;
   }
 }
 node first: TestLibrary.LoadProbe {}
@@ -1279,8 +1277,8 @@ def check_native_linking_errors():
     # Missing bindings must fail before any initializer runs.
     constructed = []
     source = """namespace TestLibrary {
-  native node type ValidProbe {
-    native initializer;
+  node type ValidProbe {
+    native initializer create;
     native procedure run;
   }
   node type InvalidProbe {
@@ -1292,16 +1290,16 @@ node invalid: TestLibrary.InvalidProbe {}
 """
     program = compile_program([('<invalid-native-implementation>', source)])
     with test_contracts(program.graph) as contracts:
-        class ValidProbe(contracts.ValidProbeInitializer):
+        class ValidProbe(contracts.ValidProbeCreate):
             def initialize(self, *, services):
                 constructed.append(services.name)
-                return contracts.ValidProbeInitializerResult()
+                return contracts.ValidProbeCreateResult()
 
             class Run(contracts.ValidProbeRun):
                 def run(self, *, services):
                     return contracts.ValidProbeRunResult()
 
-        bindings = test_extension(initializers={'TestLibrary.ValidProbe': ValidProbe},
+        bindings = test_extension(initializers={'TestLibrary.ValidProbe:create': ValidProbe},
                                           procedures={'TestLibrary.ValidProbe:run': ValidProbe.Run}, contracts=contracts)
         with checks.assertRaisesRegex(ValueError, 'Cannot find the signature of native procedure.*InvalidProbe:missing'):
             Engine(program, override_extensions=[bindings])
@@ -1312,13 +1310,12 @@ def check_input_length_values():
     source = '''
 namespace TestLibrary {
   resource type LengthState;
-  native node type LengthProbe {
+  node type LengthProbe {
     default input: multi value boolean;
     default output: value uint32;
-    binding state: resource LengthState;
-    native initializer produces state as "state" uses (default input).Length as Count;
-    native procedure run depends on state as "state" produces default output as output
-      uses (default input).Length as Count;
+    binding state: fixed LengthState;
+    native initializer create reads (default input).Length as Count writes state as "state";
+    native procedure run reads state as "state", (default input).Length as Count writes default output as output;
   }
 }
 node source: Std.DebugValueSource { Type: boolean }
@@ -1330,18 +1327,18 @@ connect source, source -> multiple;
     with test_contracts(program.graph) as contracts:
         registry = {'initializers': {}, 'procedures': {}}
 
-        class LengthProbe(contracts.LengthProbeInitializer):
+        class LengthProbe(contracts.LengthProbeCreate):
             def initialize(self, *, services, count):
                 self.count = count
-                return contracts.LengthProbeInitializerResult(state=self)
+                return contracts.LengthProbeCreateResult(state=self)
 
             class Run(contracts.LengthProbeRun):
                 def prepare(self, *, services, state, count):
                     assert count == state.count
 
-                def run(self, *, services, state):
+                def run(self, *, services, state, count):
                     return contracts.LengthProbeRunResult(output=state.count)
-        registry['initializers']['TestLibrary.LengthProbe'] = LengthProbe
+        registry['initializers']['TestLibrary.LengthProbe:create'] = LengthProbe
         registry['procedures']['TestLibrary.LengthProbe:run'] = LengthProbe.Run
 
         bindings = test_extension(**registry, contracts=contracts)

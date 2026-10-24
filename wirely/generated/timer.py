@@ -98,6 +98,7 @@ class MonotonicTimestampRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> MonotonicTimestampRunResult:
         ...
 
@@ -117,6 +118,7 @@ class _MonotonicTimestampRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, MonotonicTimestampRunResult)
         return {

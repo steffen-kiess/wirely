@@ -3,10 +3,10 @@
 ## Layout
 
 `wirely/` contains the Python CLI tools and services, `.wrl` parser,
-compiler, engine, standard libraries in `lib/`, Python native node types
-in `native/`, and the graphical editor in `editor/`, whose `program`,
-`graph_model`, and `layout` modules do not depend on Qt. From a checkout,
-use `tools/wirely` for the main CLI. `tests/` contains compiler fixtures
+compiler, engine, standard libraries in `lib/`, Python native
+implementations in `native/`, and the graphical editor in `editor/`, whose
+`program`, `graph_model`, and `layout` modules do not depend on Qt. From a
+checkout, use `tools/wirely` for the main CLI. `tests/` contains compiler fixtures
 and runtime/component tests; `tests/infra/` contains the test runner and
 helpers for tests.
 `examples/` contains sample programs and device configuration.

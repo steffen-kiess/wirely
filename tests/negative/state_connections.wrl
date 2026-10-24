@@ -9,11 +9,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -31,7 +31,7 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false; // E: State `saved` has no source
@@ -52,11 +52,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -74,11 +74,11 @@ node type EventSink {
   default input: event boolean; // H: Target was declared here
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -96,12 +96,12 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
   binding temporary_value: value boolean;
-  procedure write produces saved, temporary_value {
+  procedure write writes saved, temporary_value {
     saved = true;
     temporary_value = true;
   }
@@ -122,11 +122,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -144,17 +144,17 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle; // H: Target was declared here
+  default input: fixed Handle; // H: Target was declared here
 }
 node type Invalid {
   state saved: boolean = false; // H: Source was declared here
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect saved.old -> resource_sink; // E: Cannot connect resource and data
+  connect saved.old -> resource_sink; // E: Cannot connect fixed and value or event ports
 }
 
 // TEST: target_old_state
@@ -166,11 +166,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -188,11 +188,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -210,11 +210,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -232,11 +232,11 @@ node type EventSink {
   default input: event boolean;
 }
 node type ResourceSink {
-  default input: resource Handle;
+  default input: fixed Handle;
 }
 node type Invalid {
   state saved: boolean = false;
-  procedure write produces saved { saved = true; }
+  procedure write writes saved { saved = true; }
   default output: value boolean;
   node sink: Sink {}
   node event_sink: EventSink {}
@@ -247,16 +247,16 @@ node type Invalid {
 
 // TEST: same-step state cycle
 state saved: boolean = false;
-procedure advance depends on saved.new as current produces saved {
+procedure advance reads saved.new as current writes saved {
   saved = current;
 } // ^^E: Circular procedure dependency
 
 // TEST: later-stage state producer
 state saved: boolean = false;
 #[Allow(Unused)] binding current: value boolean;
-procedure write stage output produces saved { saved = true; }
+procedure write stage output writes saved { saved = true; }
 // ^H: Producer was declared here
-procedure read depends on saved.new as value produces current {
+procedure read reads saved.new as value writes current {
   current = value;
 } // ^^E: later execution stage
 

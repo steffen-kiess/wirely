@@ -4,7 +4,7 @@ constant Enabled: boolean = true;
 node type Twice {
   default input: value int16;
   default output: value int16;
-  procedure run depends on default input as value produces default output as output {
+  procedure run reads default input as value writes default output as output {
     output = int16.WrappingAdd(value, value);
   }
 }
@@ -19,7 +19,7 @@ node type Forward {
 node type Sum {
   parameter Value: int16;
   default output: value int16;
-  procedure run depends on Value as left, right: value int16 produces default output as output {
+  procedure run reads Value as left, right: value int16 writes default output as output {
     output = int16.WrappingAdd(left, right);
   }
   connect Value -> run.right;

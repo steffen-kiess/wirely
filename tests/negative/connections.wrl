@@ -2,7 +2,7 @@
 node type Probe {
   default input: value boolean; // H: Input was declared here
   default output: value boolean;
-  procedure run depends on default input as input produces default output as output {
+  procedure run reads default input as input writes default output as output {
     output = input;
   }
 }
@@ -11,7 +11,7 @@ node probe: Probe {} // E: Default input of node `probe` is not connected
 // TEST: unconnected resource input
 resource type Service;
 node type Probe {
-  input Service: resource Service; // H: Input was declared here
+  input Service: fixed Service; // H: Input was declared here
 }
 node probe: Probe {} // E: Input `Service` of node `probe` is not connected
 
@@ -90,8 +90,8 @@ node probe: Probe {}
 // SE: Default output already has a source
 node type Probe {
   default output: value boolean;
-  procedure first produces default output as output { output = true; } // H: Previous connection was here
-  procedure second produces default output as output { output = false; } // E: Default output already has a source
+  procedure first writes default output as output { output = true; } // H: Previous connection was here
+  procedure second writes default output as output { output = false; } // E: Default output already has a source
 }
 node probe: Probe {}
 
@@ -99,7 +99,7 @@ node probe: Probe {}
 node type Probe {
   default input: value boolean;
   default output: value boolean;
-  procedure first depends on default input as input produces default output as output { // H: Previous connection was here
+  procedure first reads default input as input writes default output as output { // H: Previous connection was here
     output = input;
   }
   connect default input -> default output; // E: Default output already has a source
@@ -110,8 +110,8 @@ node type Probe {
 // SE: Binding `flag` already has a source
 node type Probe {
   binding flag: value boolean;
-  procedure first produces flag { flag = true; } // H: Previous connection was here
-  procedure second produces flag { flag = false; } // E: Binding `flag` already has a source
+  procedure first writes flag { flag = true; } // H: Previous connection was here
+  procedure second writes flag { flag = false; } // E: Binding `flag` already has a source
 }
 node probe: Probe {}
 
@@ -173,11 +173,11 @@ connect Flag -> probe.Changed; // E: source has kind
 // TEST: constant source to a resource input
 resource type Service;
 node type Probe {
-  input Service: resource Service; // H: Target was declared here
+  input Service: fixed Service; // H: Target was declared here
 }
 constant Flag: boolean = true; // H: Source was declared here
 node probe: Probe {}
-connect Flag -> probe.Service; // E: Cannot connect resource and data ports
+connect Flag -> probe.Service; // E: Cannot connect fixed and value or event ports
 
 // TEST: type-valued constant source
 node type Probe {

@@ -72,14 +72,14 @@ node compare: Compare { Type: List[int8], Left: [], Right: [] }
 
 // TEST: procedure list operand
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let items: List[uint8] = []; // E: Type `List[uint8]` is not a runtime type: `List[uint8]` is parameter-only
   result = items == items;
 }
 
 // TEST: procedure parameter-only option operand
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let value: Option[string] = None; // E: Type `Option[string]` is not a runtime type: inner type: `string` is parameter-only
   result = value == value;
 }
@@ -116,6 +116,6 @@ assert 1 < 2 < 3; // E: Unexpected token
 
 // TEST: procedure ordering booleans
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   result = true > false; // E: got `boolean`
 }

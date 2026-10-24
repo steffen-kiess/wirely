@@ -107,12 +107,12 @@ parameters use strings such as `"PT1S"`.
 ## KNX
 
 KNX nodes use a `KNX.Connection` node and a named
-`Bus: resource KNX.Bus` input.
+`Bus: fixed KNX.Bus` input.
 `GroupAddress` is a KNX group address string such as `"0/4/5"`.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | Optional `Host: string`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: string`, `SSHTarget: string`, `IndividualAddress: string` | Out: `resource KNX.Bus`. Opens a KNX connection. |
+| `Connection` | Optional `Host: string`, `Protocol: KNX.Protocol`, `Port: uint16`, `UnixPath: string`, `SSHTarget: string`, `IndividualAddress: string` | Out: `fixed KNX.Bus`. Opens a KNX connection. |
 | `ValueReceiver` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; out: `value Option[Type]`. Reads the latest value, with `None` before one is available. |
 | `ValueOptionProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Option[Type]`. Exposes an optional value on the bus. |
 | `ValueProvider` | `Type: type`, `GroupAddress: string` | Named in: `Bus`; in: `value Type`. Exposes a value on the bus. |
@@ -154,7 +154,7 @@ Both expose the same named outputs: `ManualOperation`, `BlockActive`,
 ## MQTT
 
 MQTT nodes use a `MQTT.Connection` and a named
-`Broker: resource MQTT.Broker` input.
+`Broker: fixed MQTT.Broker` input.
 `Topic` is a topic string. Optional `Format: MQTT.Format` selects
 default JSON formatting or `MQTT.Format.SnakeCase` enum encoding. Omitting
 `Format` is equivalent to `MQTT.Format.Default`. `Template` is an optional
@@ -163,7 +163,7 @@ string controlling JSON output. A template embeds the encoded value at one
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `URI: string` | Out: `resource MQTT.Broker`. Connects to a broker. |
+| `Connection` | `URI: string` | Out: `fixed MQTT.Broker`. Connects to a broker. |
 | `ValueOptionProvider` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `value Option[Type]`. Publishes JSON; `None` publishes an empty payload. |
 | `ValueProvider` | Same as `ValueOptionProvider` | Named in: `Broker`; in: `value Type`. Publishes the value as JSON. |
 | `EventSender` | `Type: type`, `Topic: string`, optional `Format: MQTT.Format`, `Template: string` | Named in: `Broker`; in: `event Type`. Publishes each event as JSON. |
@@ -185,12 +185,12 @@ The timestamp field is empty while wall time is unknown.
 ## TwoN
 
 TwoN nodes communicate with a 2N device. Create `TwoN.Connection`, then
-connect its default `resource TwoN.Device` output to each client's named
+connect its default `fixed TwoN.Device` output to each client's named
 `Device` input.
 
 | Node type | Parameters | Ports and behavior |
 | --- | --- | --- |
-| `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `resource TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
+| `Connection` | `Host: string`, `Port: uint16 = 443`, `TLSA: List[string]`, `UsernamePasswordFile: string` | Out: `fixed TwoN.Device`. Connects to the device. The credential file must have an absolute path and contain a username and password on separate lines. |
 | `KeyEvent` | `Key: string` | Named in: `Device`; out: `event boolean`. True on press, false on release. |
 | `KeyState` | `Key: string`, `Timeout: Std.Duration = "30s"` | Named in: `Device`; out: `value boolean`. Tracks a key, assuming release after the timeout or when monotonic time is lost. Startup state can be wrong if the key was already pressed. |
 | `IOState` | `Port: string` | Named in: `Device`; out: `value boolean`. Tracks an input or output port. |

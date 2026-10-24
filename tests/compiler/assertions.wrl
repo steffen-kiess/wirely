@@ -26,7 +26,7 @@ procedure compile_only {
   false && { assert false; true };
 }
 
-procedure iterate depends on values: multi value boolean {
+procedure iterate reads values: multi value boolean {
   for value in values { assert true; }
 }
 

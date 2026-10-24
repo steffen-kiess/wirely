@@ -23,9 +23,8 @@ namespace Timer {
     default output: event MonotonicTime;
 
     native procedure run
-      depends on default input as "input"
-      produces default output as "output"
-      uses Type;
+      reads default input as "input", Type
+      writes default output as "output";
   }
 
   // Block which returns false if the current time is before input, true if the
@@ -36,8 +35,8 @@ namespace Timer {
     default output: value Option[boolean];
 
     native procedure run
-      depends on default input as "input"
-      produces default output as "output";
+      reads default input as "input"
+      writes default output as "output";
   }
 
   node type DurationElapsed {
@@ -49,8 +48,8 @@ namespace Timer {
     node reached: MonotonicTimeReached {}
 
     procedure deadline
-      depends on default input as start
-      produces time: value Option[MonotonicTime]
+      reads default input as start
+      writes time: value Option[MonotonicTime]
     {
       time = if let Some(start_time) = start {
         Some(MonotonicTime.SaturatingAdd(start_time, Duration))
@@ -84,9 +83,9 @@ namespace Timer {
     connect change_started_at.old -> elapsed;
 
     procedure run
-      depends on default input as input, current_value.old as current_value_old,
+      reads default input as input, current_value.old as current_value_old,
         pending_value.old as pending_value_old, elapsed
-      produces default output as output, current_value, pending_value,
+      writes default output as output, current_value, pending_value,
         restart: event unit
     {
       let lost = pending_value_old.IsSome && elapsed.IsNone;
@@ -120,9 +119,9 @@ namespace Timer {
     connect run.restart -> change_time;
 
     procedure record
-      depends on change_time, pending_value.new as pending_value_new,
+      reads change_time, pending_value.new as pending_value_new,
         change_started_at.old as change_started_at_old
-      produces change_started_at
+      writes change_started_at
     {
       change_started_at = if optional(change_time).IsSome {
         optional(change_time)

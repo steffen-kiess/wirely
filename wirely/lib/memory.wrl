@@ -34,10 +34,10 @@ namespace Memory {
     connect last_output_at.old -> delay;
 
     procedure update
-      depends on default input as input, Feedback,
+      reads default input as input, Feedback,
         pending_event.old as pending_event_old,
         last_output_at.old as last_output_at_old, delay
-      produces default output as output, emitted: event unit, pending_event
+      writes default output as output, emitted: event unit, pending_event
     {
       // Clock loss drops a stale pending change, but a fresh command wins.
       let lost = last_output_at_old.IsSome && delay.IsNone;
@@ -63,8 +63,8 @@ namespace Memory {
     connect update.emitted -> output_time;
 
     procedure record
-      depends on output_time, last_output_at.old as last_output_at_old, delay
-      produces last_output_at
+      reads output_time, last_output_at.old as last_output_at_old, delay
+      writes last_output_at
     {
       last_output_at = if optional(output_time).IsSome {
         optional(output_time)

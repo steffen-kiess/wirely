@@ -42,14 +42,13 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | "state" identifier ":" type "=" expression ";" -> declaration_state
     | "binding" identifier ":" port_type_specification ";" -> declaration_binding
     // Procedures and initializers
-    | native_specifier "procedure" identifier ["as" string_constant] _procedure_clauses [uses_declaration] ";" -> declaration_procedure
-    | "procedure" identifier _procedure_clauses expression_block -> declaration_procedure__create_body
-    | "native" "initializer" depends_declaration produces_declaration [uses_declaration] ";" -> declaration_initializer
+    | native_specifier "procedure" identifier ["as" string_constant] stage_declaration native_reads_declaration writes_declaration ";" -> declaration_procedure
+    | "procedure" identifier stage_declaration reads_declaration writes_declaration expression_block -> declaration_procedure__create_body
+    | "native" "initializer" identifier ["as" string_constant] native_reads_declaration writes_declaration ";" -> declaration_initializer
 
 native_specifier: "native"
 optional_specifier: "optional"
-node_type_specifier: native_specifier -> copy
-    | "singleton" -> node_type_specifier__create_singleton
+node_type_specifier: "singleton" -> node_type_specifier__create_singleton
 
 // ---------------------------------------------------------------------------
 // Types and native functions
@@ -73,7 +72,7 @@ function_argument: identifier ":" type
 // Ports, nodes and connections
 
 port_type_specification: list_specifier connection_kind type -> port_type_specification_data
-    | list_specifier "resource" reference -> port_type_specification_resource
+    | list_specifier "fixed" reference -> port_type_specification_resource
 list_specifier: "multi" -> list_specifier__create_list
     | () -> list_specifier__create_nolist
 connection_kind: "value" -> connection_kind_specifier__create_value
@@ -92,23 +91,30 @@ connection_source: outer_attribute* reference -> attributed
 // ---------------------------------------------------------------------------
 // Procedures
 
-// Clauses in fixed order; each may be omitted.
-_procedure_clauses: stage_declaration depends_declaration produces_declaration
+// Clauses in fixed order: stage, reads, and writes; each may be omitted.
 stage_declaration: () -> stage_declaration__create_default
     | "stage" "input" -> stage_declaration__create_input
     | "stage" "output" -> stage_declaration__create_output
-depends_declaration: () -> depends_declaration__of
-    | "depends" "on" _list{procedure_port} -> depends_declaration__of
-produces_declaration: () -> produces_declaration__of
-    | "produces" _list{procedure_port} -> produces_declaration__of
-uses_declaration: "uses" _list{static_binding} -> uses_declaration__of
+reads_declaration: () -> reads_declaration__of
+    | "reads" _list{procedure_port} -> reads_declaration__of
+    | "depends" "on" _list{procedure_port} -> reads_declaration__depends_on
+// Native procedures and initializers also read compile-time expressions.
+// Bodies use expressions directly, and an expression starting with "{"
+// would be ambiguous with the body.
+native_reads_declaration: () -> reads_declaration__of
+    | "reads" _list{native_read_port} -> reads_declaration__of
+    | "depends" "on" _list{native_read_port} -> reads_declaration__depends_on
+writes_declaration: () -> writes_declaration__of
+    | "writes" _list{procedure_port} -> writes_declaration__of
 
 // A reference port connected to what it references, or a typed port wired
 // with connect. A typed port's name is an identifier; it starts with
 // reference to avoid an LALR conflict.
 procedure_port: reference ["as" identifier | "as" string_constant] -> reference_port
     | reference ["as" string_constant] ":" port_type_specification -> typed_port__from_reference
-static_binding: expression ["as" identifier | "as" string_constant]
+// A reference port, a typed port, or a compile-time expression; the
+// transformer tells them apart.
+native_read_port: expression ["as" identifier | "as" string_constant] [":" port_type_specification] -> read_port__create
 
 local_binding: "let" identifier [":" type] ["=" expression] ";"
     | "let" "mut" identifier [":" type] ["=" expression] ";" -> local_binding__mutable
@@ -241,11 +247,14 @@ reference: identifier ("." identifier)* -> reference__from_list
     | "default"
     | "event"
     | "emit"
+    | "fixed"
+    | "initializer"
     | "input"
     | "in"
     | "multi"
     | "on"
     | "output"
+    | "reads"
     | "resource"
     | "stage"
     | "state"

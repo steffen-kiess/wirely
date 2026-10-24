@@ -7,7 +7,7 @@ namespace ProcedureTests {
     optional parameter Enabled: boolean;
     default output: value Option[boolean];
     output Wrapped: value Presence;
-    procedure run produces default output as output, Wrapped {
+    procedure run writes default output as output, Wrapped {
       output = optional(Enabled);
       Wrapped = Presence { value: optional(Enabled) };
     }
@@ -25,8 +25,8 @@ namespace ProcedureTests {
     output Selected: value uint8;
 
     procedure run
-      depends on default input as input
-      produces default output as output, Number, Shifted, Saved, ReadBack,
+      reads default input as input
+      writes default output as output, Number, Shifted, Saved, ReadBack,
         Matched, Selected
     {
       assert Text == "hello", "constant parameter";
@@ -76,8 +76,8 @@ namespace ProcedureTests {
     default output: value boolean;
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       let selected = input;
       let selected = if Enabled {
@@ -96,16 +96,16 @@ namespace ProcedureTests {
     output Current: value boolean;
     state saved: boolean = false;
 
-    procedure write depends on default input as input produces saved {
+    procedure write reads default input as input writes saved {
       saved = input;
     }
     procedure read
-      depends on saved.old as previous
-      produces default output as output
+      reads saved.old as previous
+      writes default output as output
     {
       output = previous;
     }
-    procedure read_new depends on saved.new as current produces Current {
+    procedure read_new reads saved.new as current writes Current {
       Current = current;
     }
   }
@@ -124,7 +124,7 @@ namespace ProcedureTests {
     output PairCopy: value Pair;
 
     procedure run
-      produces default output as output, TimeValue, ModeEqual,
+      writes default output as output, TimeValue, ModeEqual,
         UnitEqual, PairCopy
     {
       let number: uint8 = 7;
@@ -150,7 +150,7 @@ namespace ProcedureTests {
 
   singleton node type Shared {
     default output: value boolean;
-    procedure run produces default output as output { output = true; }
+    procedure run writes default output as output { output = true; }
   }
 }
 
@@ -183,8 +183,8 @@ node type Presence {
   output Matched: value Type;
   output Ignored: value boolean;
 
-  procedure run depends on default input as input
-    produces Present, Absent, Copy, Unwrapped, Matched, Ignored
+  procedure run reads default input as input
+    writes Present, Absent, Copy, Unwrapped, Matched, Ignored
   {
     let value = input;
     let absent: Option[Type] = None;
@@ -213,8 +213,8 @@ node type Ordering {
   output Greater: value boolean;
   output GreaterEqual: value boolean;
 
-  procedure run depends on default input as input
-    produces Less, LessEqual, Greater, GreaterEqual
+  procedure run reads default input as input
+    writes Less, LessEqual, Greater, GreaterEqual
   {
     Less = input < Limit;
     LessEqual = input <= Limit;
@@ -243,8 +243,8 @@ node type Arithmetic {
   output Quotient: value Option[Type];
   output Fallback: value Type;
 
-  procedure run depends on default input as input
-    produces Wrapped, Saturated, Checked, Quotient, Fallback
+  procedure run reads default input as input
+    writes Wrapped, Saturated, Checked, Quotient, Fallback
   {
     let step = Step;
     Wrapped = Type.WrappingAdd(input, step);
@@ -269,10 +269,10 @@ node type PendingOption {
   default output: value Type;
   binding pending: value Option[Type];
 
-  procedure store depends on default input as input produces pending {
+  procedure store reads default input as input writes pending {
     pending = input;
   }
-  procedure read depends on pending produces default output as output {
+  procedure read reads pending writes default output as output {
     output = pending.UnwrapOr(Default);
   }
 }
@@ -288,8 +288,8 @@ node type PairFields {
   output Wrapped: value Option[ProcedureTests.Pair];
   output Nested: value Option[Option[boolean]];
 
-  procedure run depends on default input as input
-    produces Enabled, Next, Built, Wrapped, Nested
+  procedure run reads default input as input
+    writes Enabled, Next, Built, Wrapped, Nested
   {
     Enabled = input.enabled;
     Next = uint8.SaturatingAdd(input.number, 1);
@@ -312,8 +312,8 @@ node type Conversions {
   output Wide: value int32;
   output Level: value uint8;
 
-  procedure run depends on default input as input
-    produces Wrapped, Saturated, Checked, Wide, Level
+  procedure run reads default input as input
+    writes Wrapped, Saturated, Checked, Wide, Level
   {
     Wrapped = int8.WrappingFrom(input);
     Saturated = int8.SaturatingFrom(input);
@@ -337,8 +337,8 @@ node type DurationMath {
   output FactorSecs: value Std.Duration;
   output Millis: value uint128;
 
-  procedure run depends on default input as span, Factor as factor
-    produces Sum, Difference, Scaled, Divided, FactorSecs, Millis
+  procedure run reads default input as span, Factor as factor
+    writes Sum, Difference, Scaled, Divided, FactorSecs, Millis
   {
     Sum = Std.Duration.SaturatingAdd(span, "PT1S");
     Difference = Std.Duration.SaturatingSub(span, "PT1S");
@@ -361,7 +361,7 @@ node type TimeMath {
   output Earlier: value Schedule.TimeOfDay;
   output UntilEnd: value Std.Duration;
 
-  procedure run depends on default input as time produces Later, Earlier, UntilEnd {
+  procedure run reads default input as time writes Later, Earlier, UntilEnd {
     Later = Schedule.TimeOfDay.WrappingAdd(time, "PT2H");
     Earlier = Schedule.TimeOfDay.WrappingSub(time, "PT2H");
     UntilEnd = Schedule.TimeOfDay.DurationUntil(time, "24:00");
@@ -382,8 +382,8 @@ node type MonotonicMath {
   output Elapsed: value Option[Std.Duration];
   output Less: value Option[boolean];
 
-  procedure run depends on default input as time, Other as other, Span as span
-    produces Later, Earlier, CheckedLater, CheckedEarlier, Elapsed, Less
+  procedure run reads default input as time, Other as other, Span as span
+    writes Later, Earlier, CheckedLater, CheckedEarlier, Elapsed, Less
   {
     Later = Timer.MonotonicTime.SaturatingAdd(time, span);
     Earlier = Timer.MonotonicTime.SaturatingSub(time, span);
@@ -421,8 +421,8 @@ namespace ProcedureTests {
     output Unit: value unit;
 
     procedure run
-      depends on default input as input
-      produces Saved, Changed, Shadowed, Chosen, ReadOutput, ShortCircuit,
+      reads default input as input
+      writes Saved, Changed, Shadowed, Chosen, ReadOutput, ShortCircuit,
         Pattern, Difference, SelfUpdate, Snapshot, Fields, Fallback,
         FallbackRan, Unit
     {

@@ -1,38 +1,38 @@
 // TEST: duplicate bare name
 node type Probe {
   parameter Flag: boolean;
-  native procedure run uses Flag, Flag; // E: Duplicate static binding key `Flag`
+  native procedure run reads Flag, Flag; // E: Duplicate read key `Flag`
 }
 
 // TEST: bare name and alias collision
 node type Probe {
   parameter Flag: boolean;
-  native procedure run uses Flag, false as Flag; // E: Duplicate static binding key `Flag`
+  native procedure run reads Flag, false as Flag; // E: Duplicate read key `Flag`
 }
 
 // TEST: identifier and string alias collision
 node type Probe {
-  native procedure run uses true as flag, false as "flag"; // E: Duplicate static binding key `flag`
+  native procedure run reads true as flag, false as "flag"; // E: Duplicate read key `flag`
 }
 
 // TEST: initializer duplicate key
-native node type Probe {
-  native initializer uses true as flag, false as flag; // E: Duplicate static binding key `flag`
+node type Probe {
+  native initializer create reads true as flag, false as flag; // E: Duplicate read key `flag`
 }
 
 // TEST: unknown bare declaration
 node type Probe {
-  native procedure run uses Missing; // E: Unknown static declaration `Missing`
+  native procedure run reads Missing; // E: `Missing` is not a port, parameter, or constant; compile-time expressions in reads clauses require an alias
 }
 
 // TEST: bare value must name a static declaration
 node type Probe {
-  native procedure run uses true; // E: Unknown static declaration `true`
+  native procedure run reads true; // E: `true` is not a port, parameter, or constant; compile-time expressions in reads clauses require an alias
 }
 
 // TEST: expression requires alias
 node type Probe {
-  native procedure run uses !true; // E: Static binding requires an alias
+  native procedure run reads !true; // E: Compile-time expressions in reads clauses require an alias
 }
 
 // TEST: qualified reference requires alias
@@ -40,57 +40,62 @@ namespace Example {
   open enum type Mode: uint8 { On = 1, }
 }
 node type Probe {
-  native procedure run uses Example.Mode.On; // E: Static binding requires an alias
+  native procedure run reads Example.Mode.On; // E: Compile-time expressions in reads clauses require an alias
 }
 
 // TEST: call requires alias
 // LIBRARIES: std, schedule
 node type Probe {
-  native procedure run uses Schedule.TimeOfDay.WrappingAdd("00:00", "PT1M"); // E: Static binding requires an alias
+  native procedure run reads Schedule.TimeOfDay.WrappingAdd("00:00", "PT1M"); // E: Compile-time expressions in reads clauses require an alias
 }
 
 // TEST: unknown aliased value
 node type Probe {
-  native procedure run uses Missing as missing; // E: Cannot infer expression type
+  native procedure run reads Missing as missing; // E: Cannot infer expression type
 }
 
 // TEST: inference needs context
 node type Probe {
-  native procedure run uses None as value; // E: Cannot infer expression type
+  native procedure run reads None as value; // E: Cannot infer expression type
 }
 
 // TEST: list inference needs context
 node type Probe {
-  native procedure run uses [true] as value; // E: List literals require a List type
+  native procedure run reads [true] as value; // E: List literals require a List type
 }
 
 // TEST: typed local mismatch
 node type Probe {
-  native procedure run uses { let value: uint8 = true; value } as value; // E: Invalid int value
+  native procedure run reads { let value: uint8 = true; value } as value; // E: Invalid int value
 }
 
 // TEST: bad function argument
 // LIBRARIES: std, schedule
 node type Probe {
-  native procedure run uses Schedule.TimeOfDay.WrappingAdd(7, "PT1M") as value; // E: Invalid `Schedule.TimeOfDay` value
+  native procedure run reads Schedule.TimeOfDay.WrappingAdd(7, "PT1M") as value; // E: Invalid `Schedule.TimeOfDay` value
 }
 
 // TEST: unknown call
 node type Probe {
-  native procedure run uses Missing() as value; // E: Cannot find function `Missing`
+  native procedure run reads Missing() as value; // E: Cannot find function `Missing`
 }
 
 // TEST: initializer unknown declaration
-native node type Probe {
-  native initializer uses Missing; // E: Unknown static declaration `Missing`
+node type Probe {
+  native initializer create reads Missing; // E: `Missing` is not a port, parameter, or constant; compile-time expressions in reads clauses require an alias
 }
 
-// TEST: Wirely body rejects uses
+// TEST: Wirely body rejects compile-time expressions
 node type Probe {
-  procedure run uses {} // E: Syntax error
+  procedure run reads !true as value {} // E: Syntax error
 }
 
-// TEST: uses is reserved
+// TEST: depends is reserved
 node type Probe {
-  parameter uses: boolean; // E: Syntax error
+  parameter depends: boolean; // E: Syntax error
+}
+
+// TEST: depends on is replaced
+node type Probe {
+  native procedure run depends on Probe.Missing as value; // E: `depends on` was replaced by `reads`
 }

@@ -59,7 +59,7 @@ class Opaque(SignatureType):
 
 @dataclass(frozen=True, slots=True)
 class TypeVar(SignatureType):
-    """The `ValueType` bound to this key of the same initializer's or procedure's `uses`."""
+    """The `ValueType` read at compile time under this key by the same initializer or procedure."""
 
     name: str
 

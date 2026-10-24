@@ -22,10 +22,10 @@ if TYPE_CHECKING:
     from wirely.native.std import DebugEventSourceState, DebugValueSourceState
 
 __all__ = [
-    'DebugEventSourceInitializerResult',
-    'DebugEventSourceInitializer',
-    'DebugValueSourceInitializerResult',
-    'DebugValueSourceInitializer',
+    'DebugEventSourceCreateResult',
+    'DebugEventSourceCreate',
+    'DebugValueSourceCreateResult',
+    'DebugValueSourceCreate',
     'DebugEventPrinterRunResult',
     'DebugEventPrinterRun',
     'DebugEventSourceRunResult',
@@ -40,79 +40,79 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class DebugEventSourceInitializerResult:
-    """Resource outputs of native state type Std.DebugEventSource."""
+class DebugEventSourceCreateResult:
+    """Fixed outputs of native initializer Std.DebugEventSource:create."""
 
     state: DebugEventSourceState
 
 
-class DebugEventSourceInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type Std.DebugEventSource; initialize() returns its resource outputs."""
+class DebugEventSourceCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer Std.DebugEventSource:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
         type: ValueType[Any],
-    ) -> DebugEventSourceInitializerResult:
+    ) -> DebugEventSourceCreateResult:
         ...
 
 
-class _DebugEventSourceInitializerAdapter(InitializerAdapter):
+class _DebugEventSourceCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, DebugEventSourceInitializer)
+        assert isinstance(state, DebugEventSourceCreate)
         result = state.initialize(
             services=services,
             type=cast('ValueType[Any]', binding.use('Type')),
         )
-        binding.check_result(result, DebugEventSourceInitializerResult)
+        binding.check_result(result, DebugEventSourceCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-DebugEventSourceInitializer._adapter = _DebugEventSourceInitializerAdapter()
+DebugEventSourceCreate._adapter = _DebugEventSourceCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class DebugValueSourceInitializerResult:
-    """Resource outputs of native state type Std.DebugValueSource."""
+class DebugValueSourceCreateResult:
+    """Fixed outputs of native initializer Std.DebugValueSource:create."""
 
     state: DebugValueSourceState
 
 
-class DebugValueSourceInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type Std.DebugValueSource; initialize() returns its resource outputs."""
+class DebugValueSourceCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer Std.DebugValueSource:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
         type: ValueType[Any],
-    ) -> DebugValueSourceInitializerResult:
+    ) -> DebugValueSourceCreateResult:
         ...
 
 
-class _DebugValueSourceInitializerAdapter(InitializerAdapter):
+class _DebugValueSourceCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, DebugValueSourceInitializer)
+        assert isinstance(state, DebugValueSourceCreate)
         result = state.initialize(
             services=services,
             type=cast('ValueType[Any]', binding.use('Type')),
         )
-        binding.check_result(result, DebugValueSourceInitializerResult)
+        binding.check_result(result, DebugValueSourceCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-DebugValueSourceInitializer._adapter = _DebugValueSourceInitializerAdapter()
+DebugValueSourceCreate._adapter = _DebugValueSourceCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -136,6 +136,7 @@ class DebugEventPrinterRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> DebugEventPrinterRunResult:
         ...
 
@@ -155,6 +156,7 @@ class _DebugEventPrinterRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugEventPrinterRunResult)
         return {}
@@ -187,6 +189,7 @@ class DebugEventSourceRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         state: DebugEventSourceState,
+        type: ValueType[Any],
     ) -> DebugEventSourceRunResult:
         ...
 
@@ -207,6 +210,7 @@ class _DebugEventSourceRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             state=cast('DebugEventSourceState', binding.resource('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugEventSourceRunResult)
         return {
@@ -238,6 +242,7 @@ class DebugValuePrinterRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         input: DynamicValue,
+        type: ValueType[Any],
     ) -> DebugValuePrinterRunResult:
         ...
 
@@ -257,6 +262,7 @@ class _DebugValuePrinterRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             input=cast('DynamicValue', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugValuePrinterRunResult)
         return {}
@@ -289,6 +295,7 @@ class DebugValueSourceRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         state: DebugValueSourceState,
+        type: ValueType[Any],
     ) -> DebugValueSourceRunResult:
         ...
 
@@ -309,6 +316,7 @@ class _DebugValueSourceRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             state=cast('DebugValueSourceState', binding.resource('state')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugValueSourceRunResult)
         return {
@@ -341,6 +349,8 @@ class WarnOnEventRun(NativeProcedure, abc.ABC):
         self, *,
         services: ProcedureServices,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
+        format_parts: StdFormatParts,
     ) -> WarnOnEventRunResult:
         ...
 
@@ -361,6 +371,8 @@ class _WarnOnEventRunAdapter(ProcedureAdapter):
         result = procedure.run(
             services=services,
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
+            format_parts=cast('StdFormatParts', binding.use('format_parts')),
         )
         binding.check_result(result, WarnOnEventRunResult)
         return {}

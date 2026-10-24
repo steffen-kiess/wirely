@@ -133,8 +133,8 @@ node type Boundaries {
 }
 state optional_member_boundary: Option[Member127] = None;
 procedure keep_boundary
-  depends on optional_member_boundary.old as old
-  produces optional_member_boundary
+  reads optional_member_boundary.old as old
+  writes optional_member_boundary
 {
   optional_member_boundary = old;
 }
@@ -146,7 +146,7 @@ constant AboveDepth: Option[Depth16] = None;
 assert AboveStorage.IsNone && AboveMembers.IsNone && AboveDepth.IsNone;
 
 #[Allow(Unused)] binding constant_comparisons: value boolean;
-procedure compare_constants produces constant_comparisons {
+procedure compare_constants writes constant_comparisons {
   constant_comparisons = AboveStorage == AboveStorage
     && AboveMembers == AboveMembers && AboveDepth == AboveDepth;
 }

@@ -6,9 +6,9 @@ from wirely.runtime.signatures import (
 )
 
 
-# Native initializers by native state type name.
+# Native initializers by native name.
 native_state_types: dict[str, Initializer] = {
-    'CSV.ValueWriter': Initializer(
+    'CSV.ValueWriter:create': Initializer(
         depends={},
         produces={
             'state': Port('resource', ResourceType('CSV.ValueWriterState')),
@@ -17,7 +17,7 @@ native_state_types: dict[str, Initializer] = {
             'Filename': Builtin('string'),
         },
     ),
-    'GPIO.Output': Initializer(
+    'GPIO.Output:create': Initializer(
         depends={},
         produces={
             'state': Port('resource', ResourceType('GPIO.OutputState')),
@@ -30,7 +30,7 @@ native_state_types: dict[str, Initializer] = {
             'Bias': Enum('GPIO.Bias'),
         },
     ),
-    'KNX.Connection': Initializer(
+    'KNX.Connection:create': Initializer(
         depends={},
         produces={
             'bus': Port('resource', ResourceType('KNX.Bus')),
@@ -44,7 +44,7 @@ native_state_types: dict[str, Initializer] = {
             'IndividualAddress': Option(Builtin('string')),
         },
     ),
-    'KNX.EventReceiver': Initializer(
+    'KNX.EventReceiver:create': Initializer(
         depends={
             'Bus': Port('resource', ResourceType('KNX.Bus')),
         },
@@ -57,7 +57,7 @@ native_state_types: dict[str, Initializer] = {
             'value_type_name': Builtin('string'),
         },
     ),
-    'KNX.EventSender': Initializer(
+    'KNX.EventSender:create': Initializer(
         depends={
             'Bus': Port('resource', ResourceType('KNX.Bus')),
         },
@@ -70,7 +70,7 @@ native_state_types: dict[str, Initializer] = {
             'value_type_name': Builtin('string'),
         },
     ),
-    'KNX.ValueOptionProvider': Initializer(
+    'KNX.ValueOptionProvider:create': Initializer(
         depends={
             'Bus': Port('resource', ResourceType('KNX.Bus')),
         },
@@ -83,7 +83,7 @@ native_state_types: dict[str, Initializer] = {
             'value_type_name': Builtin('string'),
         },
     ),
-    'KNX.ValueReceiver': Initializer(
+    'KNX.ValueReceiver:create': Initializer(
         depends={
             'Bus': Port('resource', ResourceType('KNX.Bus')),
         },
@@ -96,7 +96,7 @@ native_state_types: dict[str, Initializer] = {
             'value_type_name': Builtin('string'),
         },
     ),
-    'MQTT.Connection': Initializer(
+    'MQTT.Connection:create': Initializer(
         depends={},
         produces={
             'broker': Port('resource', ResourceType('MQTT.Broker')),
@@ -105,7 +105,7 @@ native_state_types: dict[str, Initializer] = {
             'URI': Builtin('string'),
         },
     ),
-    'MQTT.EventReceiver': Initializer(
+    'MQTT.EventReceiver:create': Initializer(
         depends={
             'Broker': Port('resource', ResourceType('MQTT.Broker')),
         },
@@ -118,7 +118,7 @@ native_state_types: dict[str, Initializer] = {
             'Format': Option(Enum('MQTT.Format')),
         },
     ),
-    'MQTT.EventSender': Initializer(
+    'MQTT.EventSender:create': Initializer(
         depends={
             'Broker': Port('resource', ResourceType('MQTT.Broker')),
         },
@@ -132,7 +132,7 @@ native_state_types: dict[str, Initializer] = {
             'template_parts': Struct('MQTT.TemplateParts'),
         },
     ),
-    'MQTT.ValueOptionProvider': Initializer(
+    'MQTT.ValueOptionProvider:create': Initializer(
         depends={
             'Broker': Port('resource', ResourceType('MQTT.Broker')),
         },
@@ -146,7 +146,7 @@ native_state_types: dict[str, Initializer] = {
             'template_parts': Struct('MQTT.TemplateParts'),
         },
     ),
-    'Process.LaunchOnEvent': Initializer(
+    'Process.LaunchOnEvent:create': Initializer(
         depends={},
         produces={
             'state': Port('resource', ResourceType('Process.LaunchOnEventState')),
@@ -155,7 +155,7 @@ native_state_types: dict[str, Initializer] = {
             'ShellCommand': Builtin('string'),
         },
     ),
-    'Std.DebugEventSource': Initializer(
+    'Std.DebugEventSource:create': Initializer(
         depends={},
         produces={
             'state': Port('resource', ResourceType('Std.DebugEventSourceState')),
@@ -164,7 +164,7 @@ native_state_types: dict[str, Initializer] = {
             'Type': Builtin('type'),
         },
     ),
-    'Std.DebugValueSource': Initializer(
+    'Std.DebugValueSource:create': Initializer(
         depends={},
         produces={
             'state': Port('resource', ResourceType('Std.DebugValueSourceState')),
@@ -173,7 +173,7 @@ native_state_types: dict[str, Initializer] = {
             'Type': Builtin('type'),
         },
     ),
-    'TwoN.CodeEnteredEvent': Initializer(
+    'TwoN.CodeEnteredEvent:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
         },
@@ -184,7 +184,7 @@ native_state_types: dict[str, Initializer] = {
             'Code': Builtin('string'),
         },
     ),
-    'TwoN.Connection': Initializer(
+    'TwoN.Connection:create': Initializer(
         depends={},
         produces={
             'device': Port('resource', ResourceType('TwoN.Device')),
@@ -196,7 +196,7 @@ native_state_types: dict[str, Initializer] = {
             'credentials': Struct('TwoN.Credentials'),
         },
     ),
-    'TwoN.IOState': Initializer(
+    'TwoN.IOState:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
         },
@@ -207,7 +207,7 @@ native_state_types: dict[str, Initializer] = {
             'Port': Builtin('string'),
         },
     ),
-    'TwoN.KeyEvent': Initializer(
+    'TwoN.KeyEvent:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
         },
@@ -218,7 +218,7 @@ native_state_types: dict[str, Initializer] = {
             'Key': Builtin('string'),
         },
     ),
-    'TwoN.OutputControl': Initializer(
+    'TwoN.OutputControl:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
         },
@@ -229,7 +229,7 @@ native_state_types: dict[str, Initializer] = {
             'Port': Builtin('string'),
         },
     ),
-    'TwoN.SwitchState': Initializer(
+    'TwoN.SwitchState:create': Initializer(
         depends={
             'Device': Port('resource', ResourceType('TwoN.Device')),
         },

@@ -112,7 +112,7 @@ node type Box {
   state last: Type = Zero;
   binding current: value Type;
   node type Inner {}
-  procedure run depends on value as input, typed: value int32 produces current { current = input; }
+  procedure run reads value as input, typed: value int32 writes current { current = input; }
   connect Zero -> run.typed;
   connect current -> default output;
 }

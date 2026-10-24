@@ -1,6 +1,6 @@
 // TEST: resource_unknown
 node type Client {
-  input Service: resource Missing; // E: Cannot find resource type `Missing`
+  input Service: fixed Missing; // E: Cannot find resource type `Missing`
 }
 
 // TEST: resource_unknown_qualified
@@ -9,12 +9,12 @@ namespace Fixture {
 }
 
 node type Invalid {
-  input Service: resource Fixture.Missing; // E: Cannot find resource type `Fixture.Missing`
+  input Service: fixed Fixture.Missing; // E: Cannot find resource type `Fixture.Missing`
 }
 
 // TEST: resource_data_type
 node type Invalid {
-  input Service: resource boolean; // E: Cannot find resource type `boolean`
+  input Service: fixed boolean; // E: Cannot find resource type `boolean`; fixed values of other types are not supported yet
 }
 
 // TEST: resource_duplicate
@@ -97,7 +97,7 @@ resource type Service; // E: Resource type `Service` conflicts with node type
 resource type Handle;
 
 node type Invalid {
-  default output: multi resource Handle; // E: Got multi specifier for non-input
+  default output: multi fixed Handle; // E: Got multi specifier for non-input
 }
 
 // TEST: legacy_knx_bus_syntax
@@ -118,42 +118,42 @@ node type Legacy {
 // TEST: named_multi_resource_input_unused
 resource type Handle;
 node type Invalid {
-  input Handles: multi resource Handle; // E: Multi resource inputs are not supported
+  input Handles: multi fixed Handle; // E: Multi fixed inputs are not supported
 }
 
 // TEST: default_multi_resource_input_unused
 resource type Handle;
 node type Invalid {
-  default input: multi resource Handle; // E: Multi resource inputs are not supported
+  default input: multi fixed Handle; // E: Multi fixed inputs are not supported
 }
 
 // TEST: typed_multi_resource_procedure_unused
 resource type Handle;
 node type Invalid {
   native procedure run
-    depends on handles: multi resource Handle; // E: Multi resource inputs are not supported
+    reads handles: multi fixed Handle; // E: Multi fixed inputs are not supported
 }
 
 // TEST: typed_multi_resource_body_unused
 resource type Handle;
 node type Invalid {
   procedure run
-    depends on handles: multi resource Handle // E: Multi resource inputs are not supported
+    reads handles: multi fixed Handle // E: Multi fixed inputs are not supported
   {}
 }
 
 // TEST: typed_multi_resource_initializer_unused
 resource type Handle;
-native node type Invalid {
-  native initializer
-    depends on handles: multi resource Handle; // E: Multi resource inputs are not supported
+node type Invalid {
+  native initializer create
+    reads handles: multi fixed Handle; // E: Multi fixed inputs are not supported
 }
 
 // TEST: typed_multi_resource_output
 resource type Handle;
 node type Invalid {
   native procedure run
-    produces handles: multi resource Handle; // E: Got multi specifier for non-input
+    writes handles: multi fixed Handle; // E: Got multi specifier for non-input
 }
 
 // TEST: resource_duplicate_native_name
@@ -167,52 +167,52 @@ namespace Fixture {
 // TEST: local_resource_without_source
 resource type Handle;
 node type Invalid {
-  binding state: resource Handle; // E: Binding `state` has no source
+  binding state: fixed Handle; // E: Binding `state` has no source
 }
 
 // TEST: local_resource_unknown_type
-native node type Invalid {
-  binding state: resource Missing; // E: Cannot find resource type `Missing`
-  native initializer produces state as "state";
+node type Invalid {
+  binding state: fixed Missing; // E: Cannot find resource type `Missing`
+  native initializer create writes state as "state";
 }
 
 // TEST: local_resource_duplicate_name
 // SH: Previous declaration was here
 // SE: Duplicate name `state`
 resource type Handle;
-native node type Invalid {
+node type Invalid {
   binding state: value boolean; // H: Previous declaration was here
-  binding state: resource Handle; // E: Duplicate name `state`
-  native initializer;
+  binding state: fixed Handle; // E: Duplicate name `state`
+  native initializer create;
 }
 
 // TEST: local_resource_produced_twice
 // SH: Previous output was here
 // SE: Duplicate initializer output
 resource type Handle;
-native node type Invalid {
-  binding state: resource Handle;
-  native initializer produces state as "first", // H: Previous output was here
+node type Invalid {
+  binding state: fixed Handle;
+  native initializer create writes state as "first", // H: Previous output was here
     state as "second"; // E: Duplicate initializer output
 }
 
 // TEST: local_resource_second_source
 resource type Handle;
 node type Invalid {
-  input First: resource Handle;
-  input Second: resource Handle;
-  binding service: resource Handle;
+  input First: fixed Handle;
+  input Second: fixed Handle;
+  binding service: fixed Handle;
   connect First -> service; // H: Previous connection was here
   connect Second -> service; // E: Binding `service` already has a source
 }
 
 // TEST: local_resource_produced_and_connected
 resource type Handle;
-native node type Invalid {
-  input Service: resource Handle;
-  binding state: resource Handle;
-  native initializer produces state as "state"; // H: Produced by the native initializer here
-  connect Service -> state; // E: Binding `state` is both produced and connected
+node type Invalid {
+  input Service: fixed Handle;
+  binding state: fixed Handle;
+  native initializer create writes state as "state"; // H: Written by the native initializer here
+  connect Service -> state; // E: Binding `state` is both written and connected
 }
 
 // TEST: local_resource_cycle
@@ -220,33 +220,33 @@ native node type Invalid {
 // SE: Circular connection
 resource type Handle;
 node type Invalid {
-  binding first: resource Handle;
-  binding second: resource Handle;
+  binding first: fixed Handle;
+  binding second: fixed Handle;
   connect first -> second; // H: Cycle continues here
   connect second -> first; // E: Circular connection
 }
 
 // TEST: local_resource_initializer_dependency
 resource type Handle;
-native node type Invalid {
-  binding state: resource Handle;
-  native initializer depends on state as "input" // E: Circular native initializer dependency
-    produces state as "state";
+node type Invalid {
+  binding state: fixed Handle;
+  native initializer create reads state as "input" // E: Circular native initializer dependency
+    writes state as "state";
 }
 node invalid: Invalid {}
 
 // TEST: local_resource_procedure_output
 resource type Handle;
-native node type Invalid {
-  binding state: resource Handle;
-  native initializer produces state as "state";
-  native procedure run produces state as "state"; // E: Procedures cannot produce resources
+node type Invalid {
+  binding state: fixed Handle;
+  native initializer create writes state as "state";
+  native procedure run writes state as "state"; // E: Only initializers can write fixed values
 }
 
 // TEST: local_resource_port
 resource type Handle;
-native node type Invalid {
-  binding state: resource Handle;
-  native initializer produces state as "state";
-  native procedure run depends on state.value as "state"; // E: Binding `state` has no port `value`
+node type Invalid {
+  binding state: fixed Handle;
+  native initializer create writes state as "state";
+  native procedure run reads state.value as "state"; // E: Binding `state` has no port `value`
 }

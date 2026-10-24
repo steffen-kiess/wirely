@@ -186,7 +186,7 @@ checks.assertEqual(format_node('n', 'Std.Constant', [('Type', 'int'), ('Value', 
 checks.assertEqual(format_node('node', 'T'), 'node r#node: T {}')
 checks.assertEqual(format_parameter('P', 'int', optional=True), 'optional parameter P: int;')
 checks.assertEqual(format_port('input', 'in', 'event', 'int', is_list=True), 'input in: multi event int;')
-checks.assertEqual(format_port('output', None, 'resource', 'R'), 'default output: resource R;')
+checks.assertEqual(format_port('output', None, 'fixed', 'R'), 'default output: fixed R;')
 for function, arguments in ((format_state, ('s', 'int', '')), (format_port, ('output', 'o', 'value', 'int', True)),
                             (format_parameter, ('P', 'int', '1', True)), (format_port, ('in', 'a', 'value', 'int'))):
     with checks.assertRaises(ValueError):
@@ -362,12 +362,12 @@ checks.assertEqual(edit(remove_declaration, '#[Diagram.Position(X = 0, Y = 0)]\n
                         State(('s',))), '')
 checks.assertEqual(edit(remove_declaration, '''node type T {
   binding t: value int;
-  procedure run produces t { t = 1; }
-  procedure other depends on x: value int produces y: value int { y = x; }
+  procedure run writes t { t = 1; }
+  procedure other reads x: value int writes y: value int { y = x; }
   connect t -> other.x;
   connect other.y -> u;
 }
-''', Procedure(('T', 'other'))), 'node type T {\n  binding t: value int;\n  procedure run produces t { t = 1; }\n}\n')
+''', Procedure(('T', 'other'))), 'node type T {\n  binding t: value int;\n  procedure run writes t { t = 1; }\n}\n')
 with checks.assertRaises(ValueError):
     edit(remove_declaration, body, Node(('missing',)))
 
@@ -395,7 +395,7 @@ declarations = '''node type T {
   #[Internal]
   state s: int = 0; // state
   input a: value int;
-  procedure p produces s { s = 1; }
+  procedure p writes s { s = 1; }
 }
 '''
 check(set_attribute, declarations, State(('T', 's')), position, declarations.replace(
@@ -451,7 +451,7 @@ for target, declaration in ((Port(('T', 'a'), 'input'), 'output a: value int;'),
                             (State(('T', 's')), 'binding s: value int;'),
                             (State(('T', 's')), '#[Internal] state s: int = 0;'),
                             (State(('T', 's')), 'state s: int ='),
-                            (Procedure(('T', 'p')), 'procedure p produces s { s = 2; }')):
+                            (Procedure(('T', 'p')), 'procedure p writes s { s = 2; }')):
     with checks.assertRaises((ValueError, TypeError)):
         edit(replace_declaration, declarations, target, declaration)
 with checks.assertRaises(ValueError):
@@ -466,8 +466,8 @@ program = '''node type T {
   state s: P = C;
   binding t: value P;
   node n: Std.Constant { Type: P, Value: C }
-  procedure run depends on a, s.old as old, n as value produces t, s { t = a; s = old; }
-  native procedure check depends on t uses C, P;
+  procedure run reads a, s.old as old, n as value writes t, s { t = a; s = old; }
+  native procedure check reads t, C, P;
   connect s.new -> default output;
   connect run.t -> t;
   assert optional(P) == P;
@@ -486,24 +486,25 @@ def check_rename(target, name, *replacements, source=program):
 
 
 check_rename(Node(('T', 'n')), 'm', ('node n:', 'node m:'), ('n as value', 'm as value'))
-check_rename(State(('T', 's')), 'r', ('state s:', 'state r:'), ('s.old', 'r.old'), ('produces t, s', 'produces t, r as s'),
+check_rename(State(('T', 's')), 'r', ('state s:', 'state r:'), ('s.old', 'r.old'), ('writes t, s', 'writes t, r as s'),
              ('connect s.new', 'connect r.new'))
-check_rename(Binding(('T', 't')), 'u', ('binding t: value', 'binding u: value'), ('produces t,', 'produces u as t,'),
-             ('depends on t uses', 'depends on u as t uses'), ('-> t;', '-> u;'))
-check_rename(Port(('T', 'a'), 'input'), 'b', ('input a:', 'input b:'), ('depends on a,', 'depends on b as a,'),
+check_rename(Binding(('T', 't')), 'u', ('binding t: value', 'binding u: value'), ('writes t,', 'writes u as t,'),
+             ('reads t, C', 'reads u as t, C'), ('-> t;', '-> u;'))
+check_rename(Port(('T', 'a'), 'input'), 'b', ('input a:', 'input b:'), ('reads a,', 'reads b as a,'),
              ('x.a -> x.a', 'x.b -> x.b'))
 check_rename(Port(('T', 'Named'), 'output'), 'Other', ('output Named:', 'output Other:'),
-             ('produces Named;', 'produces Other as Named;'),
-             source='resource type R;\nnative node type T {\n  output Named: resource R;\n'
-                    '  native initializer produces Named;\n}\n')
+             ('writes Named;', 'writes Other as Named;'),
+             source='resource type R;\nnode type T {\n  output Named: fixed R;\n'
+                    '  native initializer create writes Named;\n}\n')
 check_rename(Procedure(('T', 'run')), 'go', ('procedure run', 'procedure go'), ('run.t', 'go.t'))
 check_rename(Procedure(('T', 'check')), 'verify', ('procedure check', 'procedure verify as "T:check"'))
 check_rename(Constant(('T', 'C')), 'D', ('constant C', 'constant D'), ('= C;', '= D;'), ('Value: C', 'Value: D'),
-             ('uses C', 'uses D as C'))
+             ('t, C, P', 't, D as C, P'))
 check_rename(Parameter(('T', 'P')), 'Q', ('P: type', 'Q: type'), ('C: P', 'C: Q'), ('value P', 'value Q'),
              ('s: P', 's: Q'), ('Type: P', 'Type: Q'),
              (', P;', ', Q as P;'), ('optional(P) == P', 'optional(Q) == Q'), ('{ P:', '{ Q:'))
-check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), ('x: T', 'x: U'))
+check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U as "T"'), ('x: T', 'x: U'))
+check_rename(NodeType(('T',)), 'U', ('node type T', 'node type U'), source='node type T {}\n')
 checks.assertEqual(edit(rename, program, Node(('x',)), 'x'), program)
 
 # References in other files and namespaces follow.
@@ -525,7 +526,6 @@ for source, target, name in (
         (program, Node(('T', 'n')), 'node type'),
         (program, Parameter(('T', 'P')), 'boolean'),
         (program, Constant(('T', 'C')), 'old'),
-        ('native node type T {}\n', NodeType(('T',)), 'U'),
         ('node type T {}\nnode type V { node type U {} node v: T {} }\n', NodeType(('T',)), 'U'),
         ('node type T { parameter P: int; constant C: int = { let Q = 1; P + Q }; }\n', Parameter(('T', 'P')), 'Q')):
     with checks.assertRaises(ValueError):
@@ -536,7 +536,7 @@ files = [('a.wrl', '''node type Toggle {
   parameter Initial: boolean;
   default output: value boolean;
   state on: boolean = Initial;
-  procedure flip depends on on.old as old produces on { on = !old; }
+  procedure flip reads on.old as old writes on { on = !old; }
   connect on.new -> default output;
 }
 node toggle: Toggle { Initial: true }
@@ -562,7 +562,7 @@ node type Block {
   parameter Type: type;
   parameter Initial: Type;
   default output: value Type;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let mut next: Type;
     if true { next = Initial; } else { next = Initial; }
     output = next;
@@ -583,34 +583,34 @@ check_rename(Parameter(('Block', 'Type')), 'ElementType',
 
 # All binding kinds use the same formatting and editing API.
 checks.assertEqual(format_binding('binding', 'value', 'uint8'), 'binding binding: value uint8;')
-checks.assertEqual(format_binding('service', 'resource', 'Handle'), 'binding service: resource Handle;')
+checks.assertEqual(format_binding('service', 'fixed', 'Handle'), 'binding service: fixed Handle;')
 checks.assertEqual(format_binding('event', 'event', 'uint8'), 'binding event: event uint8;')
 with checks.assertRaises(ValueError):
     format_binding('event', 'multi event', 'uint8')
-resource_source = '''native node type Device {
+resource_source = '''node type Device {
   #[Internal]
-  binding service: resource Handle; // keep
-  native initializer produces service;
-  native procedure poll depends on service;
+  binding service: fixed Handle; // keep
+  native initializer create writes service;
+  native procedure poll reads service;
 }
 '''
 check_rename(Binding(('Device', 'service')), 'handle',
              ('binding service:', 'binding handle:'),
-             ('produces service;', 'produces handle as service;'),
-             ('depends on service;', 'depends on handle as service;'), source=resource_source)
+             ('writes service;', 'writes handle as service;'),
+             ('reads service;', 'reads handle as service;'), source=resource_source)
 check(replace_declaration, resource_source, Binding(('Device', 'service')),
-      format_binding('service', 'resource', 'Other'),
-      resource_source.replace('resource Handle;', 'resource Other;'))
+      format_binding('service', 'fixed', 'Other'),
+      resource_source.replace('fixed Handle;', 'fixed Other;'))
 
 
 event_source = """binding signal: event uint8; // keep
-procedure produce produces signal {}
-procedure consume depends on signal {}
+procedure produce writes signal {}
+procedure consume reads signal {}
 """
 check_rename(Binding(('signal',)), 'renamed',
              ('binding signal:', 'binding renamed:'),
-             ('produces signal {}', 'produces renamed as signal {}'),
-             ('depends on signal {}', 'depends on renamed as signal {}'), source=event_source)
+             ('writes signal {}', 'writes renamed as signal {}'),
+             ('reads signal {}', 'reads renamed as signal {}'), source=event_source)
 
 
 async def run_test():

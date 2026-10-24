@@ -30,7 +30,7 @@ node type Positioned {
   binding current: value boolean;
 
   #[Diagram.Position(X = 4, Y = 0)]
-  procedure run depends on previous.old as old produces current { current = !old; }
+  procedure run reads previous.old as old writes current { current = !old; }
   connect current -> previous;
   connect current -> default output;
 }
@@ -116,14 +116,14 @@ node type InternalForward {
   binding forwarded: value boolean;
 
   procedure forward
-    depends on default input as input
-    produces forwarded as output
+    reads default input as input
+    writes forwarded as output
   {
     output = input;
   }
   procedure remember
-    depends on forwarded as input
-    produces previous, default output as output
+    reads forwarded as input
+    writes previous, default output as output
   {
     previous = input;
     output = input;

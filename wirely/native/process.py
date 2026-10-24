@@ -8,14 +8,14 @@ from wirely.runtime.native_api import PreparationServices, ProcedureServices, St
 from wirely.util import verbose_print
 
 
-class LaunchOnEvent(contracts.LaunchOnEventInitializer):
+class LaunchOnEvent(contracts.LaunchOnEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
-                   shell_command: str) -> contracts.LaunchOnEventInitializerResult:
+                   shell_command: str) -> contracts.LaunchOnEventCreateResult:
         self.shell_command = shell_command
         self.task: asyncio.Task | None = None
         self.pending = False
         self.event = asyncio.Event()
-        return contracts.LaunchOnEventInitializerResult(state=self)
+        return contracts.LaunchOnEventCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -30,7 +30,7 @@ class LaunchOnEvent(contracts.LaunchOnEventInitializer):
             pass
 
         def run(self, *, services: ProcedureServices, state: 'LaunchOnEvent',
-                input: Some[DynamicValue] | None) -> contracts.LaunchOnEventRunResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.LaunchOnEventRunResult:
             if input is None:
                 return contracts.LaunchOnEventRunResult()
 

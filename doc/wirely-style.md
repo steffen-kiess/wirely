@@ -26,8 +26,8 @@ namespace Example {
     default output: value Type;
 
     procedure run
-      depends on default input as input
-      produces default output as output
+      reads default input as input
+      writes default output as output
     {
       output = input;
     }
@@ -48,7 +48,7 @@ closed enum type Mode {
 ## Breaking lines
 
 Keep short declarations on one line. For longer procedures, break before
-`depends on` and `produces`, indenting both clauses two spaces beyond the
+`reads` and `writes`, indenting both clauses two spaces beyond the
 declaration. Keep `stage input` or `stage output` with the procedure name
 when practical.
 
@@ -58,8 +58,8 @@ header may keep its opening brace on the declaration line.
 
 ```wirely
 procedure run
-  depends on default input as input
-  produces default output as output
+  reads default input as input
+  writes default output as output
 {
   let enabled = !input;
   output = enabled;
@@ -75,9 +75,9 @@ after the procedure.
 
 ```wirely
 native procedure run stage output
-  depends on current_value.old as "current_value_old",
+  reads current_value.old as "current_value_old",
     requested_value as "requested_value", Enabled
-  produces current_value, default output as "output";
+  writes current_value, default output as "output";
 ```
 
 For multiline node configurations, put parameters on separate lines with

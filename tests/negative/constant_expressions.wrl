@@ -1,13 +1,13 @@
 // TEST: literal-initialized procedure local is runtime
 #[Allow(Unused)] binding result: value uint8;
-procedure run produces result {
+procedure run writes result {
   let value: uint8 = 1;
   result = value + 1; // E: Arithmetic operators are compile-time only
 }
 
 // TEST: later output assignment makes the block runtime
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   {
     let text: string = "hello"; // E: `string` is parameter-only
     result = text == "hello";
@@ -16,7 +16,7 @@ procedure run produces result {
 
 // TEST: later outer local assignment makes the nested block runtime
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let mut value = false;
   {
     let text: string = "hello"; // E: `string` is parameter-only
@@ -27,7 +27,7 @@ procedure run produces result {
 
 // TEST: outer runtime local read makes the nested block runtime
 #[Allow(Unused)] binding result: value boolean;
-procedure run produces result {
+procedure run writes result {
   let value = true;
   result = {
     let text: string = "hello"; // E: `string` is parameter-only
@@ -36,7 +36,7 @@ procedure run produces result {
 }
 
 // TEST: unreachable runtime dependency still makes the body runtime
-procedure run depends on input: value boolean {
+procedure run reads input: value boolean {
   let text: string = "hello"; // E: `string` is parameter-only
   if false { input; }
 }
@@ -45,7 +45,7 @@ connect InputValue -> run.input;
 
 // TEST: runtime conditional cannot produce a string
 #[Allow(Unused)] binding result: value boolean;
-procedure run depends on input: value boolean produces result {
+procedure run reads input: value boolean writes result {
   result = (if input { "a" } else { "b" }) == "a";
   // ^E: `string` is parameter-only
 }
@@ -54,7 +54,7 @@ connect InputValue -> run.input;
 
 // TEST: failing constant in runtime-controlled branch
 #[Allow(Unused)] binding result: value uint8;
-procedure run depends on input: value boolean produces result {
+procedure run reads input: value boolean writes result {
   result = if input { 1 / 0 } else { 1 }; // E: Division by zero
 }
 constant InputValue: boolean = false;
@@ -62,7 +62,7 @@ connect InputValue -> run.input;
 
 // TEST: failing constant in runtime short-circuit operand
 #[Allow(Unused)] binding result: value boolean;
-procedure run depends on input: value boolean produces result {
+procedure run reads input: value boolean writes result {
   result = input && (1 / 0 == 1); // E: Division by zero
 }
 constant InputValue: boolean = false;
@@ -76,7 +76,7 @@ procedure run {
 // TEST: compile-time function with runtime arguments
 // LIBRARIES: std, schedule
 #[Allow(Unused)] binding result: value boolean;
-procedure run depends on input: value Schedule.TimeOfDay produces result {
+procedure run reads input: value Schedule.TimeOfDay writes result {
   result = Schedule.IsValidDailyInterval(input, "09:00");
   // ^E: is a compile-time function and requires constant arguments
 }

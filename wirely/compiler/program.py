@@ -258,7 +258,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                             do(producer_path, variable.state.producer, variable.reference, connections)
                         continue
                     if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
-                        do(producer_path, variable.producer, proc.declaration_procedure.depends, connections)
+                        do(producer_path, variable.producer, proc.declaration_procedure.reads, connections)
         if doing.pop()[0] != key:
             raise Exception('doing.pop()[0] != key')
         # print(f'Adding {path} {proc}')
@@ -292,9 +292,9 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         trace: dict = {}
         provider_path, output = model.resolve_variable(path, source, trace)
         node_type = instances[provider_path].node_type
-        if not node_type.is_native:
-            raise model.ProgramError(port, 'Resource input has no native provider', hints=[
-                model.CompilerHint(output.port_spec, 'Resource output was declared here'),
+        if node_type.initializer is None:
+            raise model.ProgramError(port, 'Fixed input is not written by an initializer', hints=[
+                model.CompilerHint(output.port_spec, 'Fixed output was declared here'),
             ])
         produced = output.resource if isinstance(output, model.InstanceLocalResource) else output.type_output_port
         assert node_type.initializer is not None
@@ -389,7 +389,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             old_states: dict = {}
             for name, source in proc.static_context._sources.items():
                 declaration = proc.declaration_procedure
-                port = next(port for port in declaration.depends.dependencies
+                port = next(port for port in declaration.read_ports.dependencies
                                if port.key == name)
                 if isinstance(source, model.StateRead):
                     state_path, state = model.resolve_variable(path, source.state)
@@ -402,7 +402,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                           and port.reference.identifiers[1].id_str == 'new'):
                         changed_states[name] = variable
                 if model.ast.dependency_is_resource(source):
-                    raise model.ProgramError(port, 'Procedures cannot access resources')
+                    raise model.ProgramError(port, 'Procedure bodies cannot read resources')
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_sources.add(name)
@@ -428,10 +428,10 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             event_outputs = set()
             for name, target in proc.static_context._targets.items():
                 spec = getattr(target, 'port_spec', None)
-                port = next(port for port in proc.declaration_procedure.produces.outputs
+                port = next(port for port in proc.declaration_procedure.writes.outputs
                                if port.key == name)
                 if isinstance(spec, model.PortTypeSpecificationResource):
-                    raise model.ProgramError(port, 'Procedures cannot produce resources')
+                    raise model.ProgramError(port, 'Only initializers can write fixed values')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_outputs.add(name)
                 output_variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
@@ -458,8 +458,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             resources = {}
             outputs = {}
             declaration = proc.declaration_procedure
-            input_ports = {port.key: port for port in declaration.depends.dependencies}
-            output_keys = {port.key: port.python_key for port in declaration.produces.outputs}
+            input_ports = {port.key: port for port in declaration.read_ports.dependencies}
+            output_keys = {port.key: port.python_key for port in declaration.writes.outputs}
             for name, source in proc.static_context._sources.items():
                 port = input_ports[name]
                 key = port.python_key
@@ -488,7 +488,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 node_context=native_instances[node_ids[path]],
                 dependencies=tuple(dependencies), resources=resources,
                 outputs=outputs, body=bodies.get((path, proc)),
-                values=evaluate_bindings(proc.declaration_procedure.uses, instances[path]),
+                values=evaluate_bindings(proc.declaration_procedure.static_reads, instances[path]),
             ))
         schedules[stage] = tuple(schedule)
 
@@ -549,7 +549,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     native_declarations: dict[str, model.TypeProcedure] = {}
     for instance in instances.values():
         node_type = instance.node_type
-        if node_type.is_native:
+        if node_type.initializer is not None:
             assert node_type.native_name is not None
             native_types[node_type.native_name] = native_node_type(node_type)
         for procedure in node_type.procedures.values():
@@ -576,14 +576,14 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     )
 
 
-def uses_names(uses: model.UsesDeclaration | None) -> tuple[str, ...]:
-    return () if uses is None else tuple(binding.key for binding in uses.bindings)
+def uses_names(static_reads: model.StaticReads | None) -> tuple[str, ...]:
+    return () if static_reads is None else tuple(binding.key for binding in static_reads.bindings)
 
 
 def native_procedure_interface(procedure: model.TypeProcedure) -> NativeProcedureInterface:
     """Return the declared interface of a native procedure."""
     return NativeProcedureInterface(
-        uses=uses_names(procedure.uses),
+        uses=uses_names(procedure.static_reads),
         resources={port.declaration.python_key: port.resource_type.native_name
                    for port in procedure.input_ports.values() if port.resource_type is not None},
         inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
@@ -598,7 +598,7 @@ def native_node_type(node_type: model.NodeType) -> NativeNodeType:
     initializer_resources = {}
     resource_outputs = {}
     if initializer is not None:
-        for port, dependency in zip(initializer.depends.dependencies,
+        for port, dependency in zip(initializer.read_ports.dependencies,
                                     initializer.resolved_dependencies()):
             if isinstance(dependency, model.InstanceNode):
                 dependency = dependency.output_ports_byname['']
@@ -610,6 +610,6 @@ def native_node_type(node_type: model.NodeType) -> NativeNodeType:
     assert node_type.native_name is not None
     return NativeNodeType(
         name=node_type.native_name,
-        initializer_uses=uses_names(initializer.uses) if initializer is not None else (),
+        initializer_uses=uses_names(initializer.static_reads) if initializer is not None else (),
         initializer_resources=initializer_resources, resource_outputs=resource_outputs,
     )

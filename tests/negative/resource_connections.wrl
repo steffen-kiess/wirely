@@ -4,11 +4,11 @@ namespace Fixture {
   resource type Second;
 
   node type Source {
-    default output: resource First; // H: Source was declared here
+    default output: fixed First; // H: Source was declared here
   }
 
   node type Target {
-    input Service: resource Second; // H: Target was declared here
+    input Service: fixed Second; // H: Target was declared here
   }
 }
 node source: Fixture.Source {}
@@ -25,11 +25,11 @@ namespace Second {
 }
 
 node type Source {
-  default output: resource First.Handle; // H: Source was declared here
+  default output: fixed First.Handle; // H: Source was declared here
 }
 
 node type Target {
-  default input: resource Second.Handle; // H: Target was declared here
+  default input: fixed Second.Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
@@ -40,8 +40,8 @@ resource type First;
 resource type Second;
 
 node type Invalid {
-  input Service: resource First; // H: Source was declared here
-  default output: resource Second; // H: Target was declared here
+  input Service: fixed First; // H: Source was declared here
+  default output: fixed Second; // H: Target was declared here
   connect Service -> default output; // E: source has resource type `First` but target has resource type `Second`
 }
 
@@ -49,7 +49,7 @@ node type Invalid {
 resource type Handle;
 
 node type Source {
-  default output: resource Handle; // H: Source was declared here
+  default output: fixed Handle; // H: Source was declared here
 }
 
 node type Target {
@@ -57,7 +57,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data ports
+connect source -> target; // E: Cannot connect fixed and value or event ports
 
 // TEST: data_to_resource_value
 resource type Handle;
@@ -67,17 +67,17 @@ node type Source {
 }
 
 node type Target {
-  default input: resource Handle; // H: Target was declared here
+  default input: fixed Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data ports
+connect source -> target; // E: Cannot connect fixed and value or event ports
 
 // TEST: resource_to_data_event
 resource type Handle;
 
 node type Source {
-  default output: resource Handle; // H: Source was declared here
+  default output: fixed Handle; // H: Source was declared here
 }
 
 node type Target {
@@ -85,7 +85,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data ports
+connect source -> target; // E: Cannot connect fixed and value or event ports
 
 // TEST: data_to_resource_event
 resource type Handle;
@@ -95,20 +95,20 @@ node type Source {
 }
 
 node type Target {
-  default input: resource Handle; // H: Target was declared here
+  default input: fixed Handle; // H: Target was declared here
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect resource and data ports
+connect source -> target; // E: Cannot connect fixed and value or event ports
 
 // TEST: circular native initialization
 // LIBRARIES:
 namespace Std {
   resource type Service;
-  native node type DebugValueSource {
-    input Service: resource Service;
-    default output: resource Service;
-    native initializer depends on Service produces default output as "service";
+  node type DebugValueSource {
+    input Service: fixed Service;
+    default output: fixed Service;
+    native initializer create reads Service writes default output as "service";
     // ^E: Circular native initializer dependency
   }
 }
@@ -121,14 +121,14 @@ connect second -> first.Service; // H: Cycle continues here
 // LIBRARIES:
 resource type Service;
 node type Forward {
-  input Service: resource Service;
-  default output: resource Service;
+  input Service: fixed Service;
+  default output: fixed Service;
   connect Service -> default output; // H: Cycle continues here
 }
 namespace Std {
-  native node type DebugValueSource {
-    input Service: resource Service;
-    native initializer depends on Service;
+  node type DebugValueSource {
+    input Service: fixed Service;
+    native initializer create reads Service;
   }
 }
 node first: Forward {}
@@ -142,13 +142,13 @@ connect first -> sink.Service;
 // LIBRARIES:
 resource type Service;
 node type Missing {
-  default output: resource Service; // H: Resource output was declared here
+  default output: fixed Service; // H: Fixed output was declared here
 }
 namespace Std {
-  native node type DebugValueSource {
-    input Service: resource Service;
-    native initializer depends on Service;
-    // ^E: Resource input has no native provider
+  node type DebugValueSource {
+    input Service: fixed Service;
+    native initializer create reads Service;
+    // ^E: Fixed input is not written by an initializer
   }
 }
 node source: Missing {}

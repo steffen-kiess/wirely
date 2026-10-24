@@ -3,7 +3,7 @@
 // TEST: multi read
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let value = values; // E: Multi inputs can only be used
   }
 }
@@ -12,7 +12,7 @@ node probe: Probe {}
 // TEST: multi field
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     values.IsSome; // E: Multi inputs can only be used
   }
 }
@@ -21,7 +21,7 @@ node probe: Probe {}
 // TEST: nested loop
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in values {
       if value {
         for other in values {} // E: Nested for loops
@@ -34,7 +34,7 @@ node probe: Probe {}
 // TEST: scalar source
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let scalar = true;
     for value in scalar {} // E: For loops require a multi value or event input name
   }
@@ -44,7 +44,7 @@ node probe: Probe {}
 // TEST: computed source
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in { values } {} // E: For loops require a multi value or event input name
   }
 }
@@ -53,7 +53,7 @@ node probe: Probe {}
 // TEST: body requires unit even when empty
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in values { true } // E: Invalid unit value
   }
 }
@@ -62,7 +62,7 @@ node probe: Probe {}
 // TEST: loop variable immutable
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in values {
       value = false; // E: Immutable binding
     }
@@ -73,7 +73,7 @@ node probe: Probe {}
 // TEST: loop scope
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for value in values {}
     value; // E: Unknown procedure value
   }
@@ -83,7 +83,7 @@ node probe: Probe {}
 // TEST: loop variable cannot shadow input
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     for values in values {} // E: Cannot shadow procedure port
   }
 }
@@ -92,7 +92,7 @@ node probe: Probe {}
 // TEST: first iteration read
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let mut result: boolean;
     for value in values {
       result = result && value; // E: not definitely initialized
@@ -106,7 +106,7 @@ connect source -> probe;
 // TEST: no definite initialization False
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let mut result: boolean;
     for value in values { result = value; }
     result; // E: not definitely initialized
@@ -117,7 +117,7 @@ node probe: Probe {}
 // TEST: no definite initialization True
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let mut result: boolean;
     for value in values { result = value; }
     result; // E: not definitely initialized
@@ -130,7 +130,7 @@ connect source -> probe;
 // TEST: outer immutable assignment
 node type Probe {
   default input: multi value boolean;
-  procedure run depends on default input as values {
+  procedure run reads default input as values {
     let result: boolean;
     for value in values {
       result = value; // E: Cannot assign outer immutable binding
@@ -145,7 +145,7 @@ connect source -> probe;
 node type Probe {
   default input: multi value boolean;
   default output: value boolean;
-  procedure run depends on default input as values produces default output as output {
+  procedure run reads default input as values writes default output as output {
     for value in values {
       output = value; // E: Cannot assign outer immutable binding
     }
@@ -160,25 +160,25 @@ constant Bad: unit = for value in missing {}; // E: For loops are only allowed i
 // TEST: native implicit multi value
 node type Probe {
   default input: multi value boolean;
-  native procedure run depends on default input as values; // E: Native runtime does not support multi
+  native procedure run reads default input as values; // E: Native runtime does not support multi
 }
 node probe: Probe {}
 
 // TEST: native explicit multi value
 node type Probe {
-  native procedure run depends on values: multi value boolean; // E: Native runtime does not support multi
+  native procedure run reads values: multi value boolean; // E: Native runtime does not support multi
 }
 node probe: Probe {}
 
 // TEST: native implicit multi event
 node type Probe {
   default input: multi event boolean;
-  native procedure run depends on default input as values; // E: Native runtime does not support multi
+  native procedure run reads default input as values; // E: Native runtime does not support multi
 }
 node probe: Probe {}
 
 // TEST: native explicit multi event
 node type Probe {
-  native procedure run depends on values: multi event boolean; // E: Native runtime does not support multi
+  native procedure run reads values: multi event boolean; // E: Native runtime does not support multi
 }
 node probe: Probe {}

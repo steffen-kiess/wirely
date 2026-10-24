@@ -17,18 +17,18 @@ namespace MQTT {
 
   resource type Broker;
 
-  native node type Connection {
+  node type Connection {
     parameter URI: string;
 
-    default output: resource Broker;
+    default output: fixed Broker;
 
-    native initializer produces default output as "broker" uses URI;
+    native initializer create reads URI writes default output as "broker";
   }
 
   #[Internal]
   resource type ValueOptionProviderState;
 
-  native node type ValueOptionProvider {
+  node type ValueOptionProvider {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: string;
@@ -40,17 +40,16 @@ namespace MQTT {
     constant template_parts: TemplateParts =
       ParseTemplate(optional(Template));
 
-    input Broker: resource Broker;
+    input Broker: fixed Broker;
     default input: value Option[Type];
 
-    binding state: resource ValueOptionProviderState;
-    native initializer depends on Broker
-      produces state as "state"
-      uses Type, Topic, optional(Format) as Format, template_parts;
+    binding state: fixed ValueOptionProviderState;
+    native initializer create
+      reads Broker, Type, Topic, optional(Format) as Format, template_parts
+      writes state as "state";
 
     native procedure set_value stage output
-      depends on state as "state", default input as "input"
-      uses Type;
+      reads state as "state", default input as "input", Type;
   }
 
   node type ValueProvider {
@@ -60,7 +59,7 @@ namespace MQTT {
     optional parameter Format: MQTT.Format;
     optional parameter Template: string;
 
-    input Broker: resource Broker;
+    input Broker: fixed Broker;
     default input: value Type;
 
     node create_option: Std.OptionSome { InnerType: Type }
@@ -79,7 +78,7 @@ namespace MQTT {
   #[Internal]
   resource type EventSenderState;
 
-  native node type EventSender {
+  node type EventSender {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: string;
@@ -91,23 +90,22 @@ namespace MQTT {
     constant template_parts: TemplateParts =
       ParseTemplate(optional(Template));
 
-    input Broker: resource Broker;
+    input Broker: fixed Broker;
     default input: event Type;
 
-    binding state: resource EventSenderState;
-    native initializer depends on Broker
-      produces state as "state"
-      uses Type, Topic, optional(Format) as Format, template_parts;
+    binding state: fixed EventSenderState;
+    native initializer create
+      reads Broker, Type, Topic, optional(Format) as Format, template_parts
+      writes state as "state";
 
     native procedure send_value stage output
-      depends on state as "state", default input as "input"
-      uses Type;
+      reads state as "state", default input as "input", Type;
   }
 
   #[Internal]
   resource type EventReceiverState;
 
-  native node type EventReceiver {
+  node type EventReceiver {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter Topic: string;
@@ -116,17 +114,16 @@ namespace MQTT {
 
     assert SupportsType(Type), "Unsupported type for MQTT";
 
-    input Broker: resource Broker;
+    input Broker: fixed Broker;
     default output: event Type;
 
-    binding state: resource EventReceiverState;
-    native initializer depends on Broker
-      produces state as "state"
-      uses Type, Topic, optional(Format) as Format;
+    binding state: fixed EventReceiverState;
+    native initializer create
+      reads Broker, Type, Topic, optional(Format) as Format
+      writes state as "state";
 
     native procedure get_value stage input
-      depends on state as "state"
-      produces default output as "output"
-      uses Type;
+      reads state as "state", Type
+      writes default output as "output";
   }
 }

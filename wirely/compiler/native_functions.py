@@ -136,7 +136,7 @@ def validate_collisions(declarations: Iterable[model.Declaration]) -> None:
 
 
 def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
-    """Reject native names shared by two node types, resource types, enum types, struct types, opaque structs, or functions."""
+    """Reject native names shared by two initializers, resource types, enum types, struct types, opaque structs, or functions."""
     names: dict[tuple[str, str], Any] = {}
 
     # Native declarations have different concrete classes but share name and alias fields.
@@ -154,11 +154,19 @@ def validate_native_names(declarations: Iterable[model.Declaration]) -> None:
             if isinstance(item, model.DeclarationLibrary):
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.DeclarationNodeType):
-                if item.is_native:
-                    register('node type', item, path)
-                elif item.alias is not None:
-                    raise model.ProgramError(item.alias, 'Node type keys require native state')
                 assert item.name is not None
+                prefix = item.alias.value if item.alias is not None else '.'.join(path + (item.name.id_str,))
+                for member in item.declarations:
+                    if not isinstance(member, model.DeclarationInitializer):
+                        continue
+                    name = member.alias.value if member.alias is not None else f'{prefix}:{member.name.id_str}'
+                    keyed = member.alias is not None or item.alias is not None
+                    previous, previous_keyed = names.setdefault(('initializer', name), (member, keyed))
+                    # Wirely name checks report clashes between unkeyed declarations.
+                    if previous is not member and (keyed or previous_keyed):
+                        raise model.ProgramError(member.alias or member.name, f'Duplicate native name `{name}`', hints=[
+                            model.CompilerHint(previous.alias or previous.name, 'Previous declaration was here'),
+                        ])
                 visit(item.declarations, path + (item.name.id_str,))
             elif isinstance(item, model.DeclarationResourceType):
                 register('resource type', item, path)

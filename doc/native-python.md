@@ -8,15 +8,15 @@ See the [language guide](language.md) for `.wrl` syntax and the
 ## Implementations and procedures
 
 Implementation modules use the snake-case namespace name: `Std` uses
-`wirely.native.std`, and `TwoN` uses `wirely.native.two_n`. A node's
-[native name](language.md#declarations-and-names) selects the class with
-its last component's name. For example, `KNX.Connection` selects
-`wirely.native.knx.Connection`.
+`wirely.native.std`, and `TwoN` uses `wirely.native.two_n`. An
+initializer's [native name](language.md#declarations-and-names) selects the
+class named after the node type part. For example, `KNX.Connection:create`
+selects `wirely.native.knx.Connection`.
 
 A procedure such as `Std.DebugEventPrinter:run` selects the nested class
 `DebugEventPrinter.Run`; snake-case procedure names become CamelCase.
 Nested classes can be inherited. Procedures receive native state through
-resource dependencies, as shown [below](#native-objects-resources-and-tasks).
+fixed reads, as shown [below](#native-objects-resources-and-tasks).
 
 Run `tools/generate-native-types` after changing native declarations.
 Generated bindings import implementations lazily, and mypy checks their
@@ -33,8 +33,7 @@ namespace Std {
     default input: event Type;
 
     native procedure run stage output
-      depends on default input as "input"
-      uses Type;
+      reads default input as "input", Type;
   }
 }
 ```
@@ -56,7 +55,7 @@ class DebugEventPrinter:
             pass
 
         def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None
+                input: Some[DynamicValue] | None, type: ValueType[Any]
                 ) -> contracts.DebugEventPrinterRunResult:
             if input is not None:
                 print(f'[{services.name}]: {input.value.to_text()}')
@@ -72,11 +71,11 @@ module of `wirely.generated` named in snake case, such as
 
 | Declaration | Contract | Result class |
 | --- | --- | --- |
-| Initializer of `KNX.Connection` | `ConnectionInitializer` | `ConnectionInitializerResult` |
+| Initializer `KNX.Connection:create` | `ConnectionCreate` | `ConnectionCreateResult` |
 | Procedure `MQTT.EventSender:send_value` | `EventSenderSendValue` | `EventSenderSendValueResult` |
 
-Contract methods take keyword arguments named after the keys of `depends
-on`, `produces`, and `uses`, in snake case: `ChipDeviceFile` becomes
+Contract methods take keyword arguments named after the keys of `reads`
+and `writes`, in snake case: `ChipDeviceFile` becomes
 `chip_device_file`, and `"implicit input"` becomes `implicit_input`. The
 key `""` becomes `_`, and Python keywords, `self`, and `services` get a
 `_` suffix. Result classes are frozen dataclasses whose fields, named the
@@ -154,17 +153,17 @@ implementations and overrides.
 
 The engine constructs each procedure class once per node instance without
 arguments and calls `prepare()` after all native objects are constructed
-and before the first step. `prepare()` receives the resource dependencies
-and the [static values](#static-values-and-prepared-data); store what
-`run()` needs. Contracts with static values declare `prepare()` abstract.
-Raise from `prepare()` to reject unsupported configuration; the program
-then does not start.
+and before the first step. `prepare()` receives the fixed reads and the
+[compile-time values](#compile-time-values-and-prepared-data); store what
+`run()` needs. Contracts with compile-time reads declare `prepare()`
+abstract. Raise from `prepare()` to reject unsupported configuration; the
+program then does not start. Keep `prepare()` free of side effects.
 
 Each invocation calls `run()` synchronously with the current values of
-all dependencies, including resources, and uses the outputs from the
-returned result. Return every declared output; to preserve state, return
-its previous value again. Use native node tasks for asynchronous I/O.
-Native procedures currently accept only single value/event dependencies.
+all reads, including fixed and compile-time values, and uses the outputs
+from the returned result. Return every declared output; to preserve state,
+return its previous value again. Use native node tasks for asynchronous I/O.
+Native procedures currently accept only single value/event reads.
 Use a Wirely procedure to aggregate multi value inputs.
 
 `services` has read-only `name`, which uses the node naming described
@@ -172,7 +171,7 @@ under [native objects](#native-objects-resources-and-tasks), and the
 operations described under [scheduling and time](#scheduling-and-time).
 
 Input and output keys are the port names or `as "key"` strings of the
-`.wrl` `depends on` and `produces` clauses. See
+`.wrl` `reads` and `writes` clauses. See
 [state and execution](language.md#state-and-execution) for ports and state
 access.
 
@@ -189,32 +188,33 @@ These encodings apply to inputs and outputs. Value ports carry values
 directly. After emitting an event, schedule another invocation with
 `services.trigger_self()` to return `None`.
 
-## Static values and prepared data
+## Compile-time values and prepared data
 
-Declare static values for each native procedure or initializer with `uses`:
+Native procedures and initializers read compile-time values in their
+`reads` clause, next to their ports:
 
 ```wirely
 native procedure run
-  depends on input
-  produces output
-  uses Scale, Offset as offset, Example.Parse(Address) as "address";
+  reads input, Scale, Offset as offset, Example.Parse(Address) as "address"
+  writes output;
 
-native initializer depends on Broker uses Topic as topic;
+native initializer create reads Broker, Topic as topic;
 ```
 
-A bare name binds a parameter or constant in the node's scope. Expressions
-and qualified references require an alias; aliases may be identifiers or
-strings. Keys must be unique within each `uses` clause. For expressions
-that need type context, use a typed constant or a typed local in an
-expression block. Clauses may be empty and accept trailing commas.
+A bare name reads a parameter or constant in the node's scope. Other
+compile-time expressions, including qualified references, require an alias;
+aliases may be identifiers or strings. Keys must be unique within each
+`reads` clause. For expressions that need type context, use a typed
+constant or a typed local in an expression block. Clauses may be empty and
+accept trailing commas.
 
-An initializer receives its static values as keyword arguments of
-`initialize()`, and a procedure as keyword arguments of `prepare()`. Each
-expression is evaluated once per consumer per instance during compilation;
-constants are shared within the instance. Static values do not schedule
-procedures.
+An initializer receives its compile-time values as keyword arguments of
+`initialize()`, and a procedure as keyword arguments of `prepare()` and
+`run()`. Each expression is evaluated once per consumer per instance during
+compilation; constants are shared within the instance. Compile-time values
+never change, so they do not schedule procedures.
 
-Bind an optional parameter with `uses optional(Foo) as foo`: `foo` is
+Read an optional parameter with `optional(Foo) as foo`: `foo` is
 `None` when omitted and `Some(value)` when supplied. For an optional
 `Option[T]`, a supplied `None` becomes `Some(None)`. Ordinary bindings and
 resolved defaults are ordinary values.
@@ -250,7 +250,7 @@ Time `ticks` count units of 2^-64 s, given by
 `total_seconds` convert from and to seconds. `Unit` is immutable and
 fieldless; all instances compare equal.
 
-Ports, static values, and function arguments and results of enum or struct
+Ports, compile-time values, and function arguments and results of enum or struct
 types require `native` enums and structs. Code written for them relies on
 their numbers or fields, which are their contract with native code;
 member and field names are not part of it.
@@ -283,13 +283,13 @@ Before running a program, the runtime checks the native interfaces it uses:
   closed enum, member count.
 - Each native struct must have the same field types in the same order.
 - Each opaque struct must have the same field types in the same order, and
-  its implementation must accept the program's static values.
+  its implementation must accept the program's constant values.
 - Each native initializer, procedure, and runtime function must have the
-  stage, keys of inputs, outputs, and `uses`, resource types, and value
-  types its selected extension entry declares. Each type variable is replaced
-  by the type its `uses` binding passes. Each description passes every type
-  parameter its ports use through its own `uses`. An event port and a value port of `Option[T]`
-  are not told apart.
+  stage, keys of reads and writes, resource types, and value types its
+  selected extension entry declares. Each type variable is replaced by the
+  type its compile-time read passes. Each description passes every type
+  parameter its ports use through its own compile-time reads. An event port
+  and a value port of `Option[T]` are not told apart.
 
 Run `tools/generate-native-types` after changing any native declaration.
 
@@ -331,7 +331,7 @@ and struct classes. Values and descriptors carry no context; text and JSON
 conversion, equality, and hashing need none.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
-descriptors are available through static bindings. Each compiled program
+descriptors are available through compile-time reads. Each compiled program
 owns its enum and struct types; use values belonging to that program.
 
 To check that a procedure's type parameter matches its native state's,
@@ -340,21 +340,20 @@ call `wirely.native.check_state_type(services.name, type, state_type)` in
 
 ## Native objects, resources, and tasks
 
-A `native node type` subclasses its initializer contract, which derives
-from `NativeState` in `wirely.runtime.native_api`. The engine constructs
-it without arguments and then calls `initialize()`, which receives the
-initializer's resource dependencies and static values and returns its
-resource outputs. Initialize fields there. Native singletons share one
-object.
+The class of a node type with a native initializer subclasses the
+initializer's contract, which derives from `NativeState` in
+`wirely.runtime.native_api`. The engine constructs it without arguments
+and then calls `initialize()`, which receives the initializer's fixed and
+compile-time reads and returns its fixed outputs. Initialize fields there.
+Native singletons share one object.
 
-The native initializer declares the resource inputs and outputs:
+The native initializer declares its reads and fixed outputs:
 
 ```wirely
-native initializer depends on Broker produces default output as "topic";
+native initializer create reads Broker writes default output as "topic";
 ```
 
-Dependencies and outputs use the same key rules as procedure ports. An
-initializer accepts only resource dependencies and outputs. Providers are
+Reads and outputs use the same key rules as procedure ports. Providers are
 constructed before their consumers. Each output must be an instance of the
 Python type exported for the output's resource type, and the contract
 annotates it with that type. See [`mqtt.py`](../wirely/native/mqtt.py) for
@@ -371,30 +370,30 @@ When the class itself has the resource's name, put the comment above its
 class declaration. Resource objects may differ from the initializer
 object, and an initializer may return several resources.
 
-To give procedures access to the native object, produce it as a
-[resource](language.md#opaque-resource-ports) and depend on it:
+To give procedures access to the native object, write it as a
+[fixed value](language.md#fixed-ports) and read it:
 
 ```wirely
 resource type ReceiverState;
 
-native node type Receiver {
+node type Receiver {
   default output: value Option[boolean];
-  binding state: resource ReceiverState;
-  native initializer produces state as "state";
+  binding state: fixed ReceiverState;
+  native initializer create writes state as "state";
   native procedure get_value stage input
-    depends on state as "state"
-    produces default output as "output";
+    reads state as "state"
+    writes default output as "output";
 }
 ```
 
 ```python
 
 
-class Receiver(contracts.ReceiverInitializer):
+class Receiver(contracts.ReceiverCreate):
     def initialize(self, *, services: StateServices[Literal['state']]
-                   ) -> contracts.ReceiverInitializerResult:
+                   ) -> contracts.ReceiverCreateResult:
         self.value: bool | None = None
-        return contracts.ReceiverInitializerResult(state=self)
+        return contracts.ReceiverCreateResult(state=self)
 
     def receive(self, value: bool) -> None:
         self.value = value
@@ -418,8 +417,8 @@ dotted instance name or, for a singleton, the qualified type name, and
 is `None` outside shutdown or when wall time is unknown; use
 `is_shutting_down` to distinguish these cases. Changes to Python fields
 do not automatically schedule procedures. Call
-`services.trigger(output)` to schedule each procedure that depends on the
-resource output with this Python name, in any node. Repeated triggers
+`services.trigger(output)` to schedule each procedure that reads the
+fixed output with this Python name, in any node. Repeated triggers
 before execution schedule one invocation.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
@@ -435,10 +434,10 @@ and trigger procedures, or send data handed off by output procedures.
 ## Scheduling and time
 
 Procedures run in dependency order within input, default calculation, and
-output stages. Input procedures can depend only on resources. After the
-first step, procedures run when dependencies or state change, when
-explicitly triggered, or when due for a wakeup. A procedure without
-dependencies does not automatically run every step.
+output stages. Input procedures can read only fixed and compile-time
+values. After the first step, procedures run when dependencies or state
+change, when explicitly triggered, or when due for a wakeup. A procedure
+without dependencies does not automatically run every step.
 
 `services.start_time_for_stage(stage)` returns a read-only
 `TimeSnapshot` from `wirely.runtime.time_snapshot`, captured at the start
@@ -477,7 +476,7 @@ timers, offset polling runs only while a request monitors offsets.
 A `native function` runs in procedure bodies and in compile-time
 expressions, so its implementation is shared by the compiler and the
 runtime and lives in [`wirely/functions/`](../wirely/functions/) rather
-than with the runtime-only native node types. The module name is the
+than with the runtime-only native implementations. The module name is the
 snake-case namespace name, and the function name is the snake-case last
 component of its native name:
 

@@ -142,9 +142,9 @@ def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
-class Connection(contracts.ConnectionInitializer):
+class Connection(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['broker']],
-                   uri: str) -> contracts.ConnectionInitializerResult:
+                   uri: str) -> contracts.ConnectionCreateResult:
         aiomqtt = get_aiomqtt()
 
         verbose_print('Create MQTT connection', flush=True)
@@ -155,7 +155,7 @@ class Connection(contracts.ConnectionInitializer):
 
         self.all_subscriptions: dict[str, int] = {}
         self.message_queues: dict[str, list[asyncio.Queue]] = {}
-        return contracts.ConnectionInitializerResult(broker=self)
+        return contracts.ConnectionCreateResult(broker=self)
 
     def create_client(self) -> Any:
         # Note: Has to be called from the async loop so that asyncio.get_event_loop() is correct
@@ -253,10 +253,10 @@ class Connection(contracts.ConnectionInitializer):
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 
 
-class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
+class ValueOptionProvider(contracts.ValueOptionProviderCreate):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
-                   template_parts: MQTTTemplateParts) -> contracts.ValueOptionProviderInitializerResult:
+                   template_parts: MQTTTemplateParts) -> contracts.ValueOptionProviderCreateResult:
         self.current_value = None
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
@@ -281,7 +281,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
-        return contracts.ValueOptionProviderInitializerResult(state=self)
+        return contracts.ValueOptionProviderCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -297,7 +297,7 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             check_state_type(services.name, type, state.value_type)
 
         def run(self, *, services: ProcedureServices, state: 'ValueOptionProvider',
-                input: Some[DynamicValue] | None) -> contracts.ValueOptionProviderSetValueResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
             # TODO: Add checks whether everything is running?
 
             # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
@@ -331,10 +331,10 @@ class ValueOptionProvider(contracts.ValueOptionProviderInitializer):
             verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
-class EventSender(contracts.EventSenderInitializer):
+class EventSender(contracts.EventSenderCreate):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
-                   template_parts: MQTTTemplateParts) -> contracts.EventSenderInitializerResult:
+                   template_parts: MQTTTemplateParts) -> contracts.EventSenderCreateResult:
         self.current_value = None
         # Task is needed for sending out values
         self.task: asyncio.Task | None = None
@@ -359,7 +359,7 @@ class EventSender(contracts.EventSenderInitializer):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
-        return contracts.EventSenderInitializerResult(state=self)
+        return contracts.EventSenderCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -374,7 +374,7 @@ class EventSender(contracts.EventSenderInitializer):
             check_state_type(services.name, type, state.value_type)
 
         def run(self, *, services: ProcedureServices, state: 'EventSender',
-                input: Some[DynamicValue] | None) -> contracts.EventSenderSendValueResult:
+                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.EventSenderSendValueResult:
             # TODO: Add checks whether everything is running?
 
             # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
@@ -410,9 +410,9 @@ class EventSender(contracts.EventSenderInitializer):
             verbose_print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-class EventReceiver(contracts.EventReceiverInitializer):
+class EventReceiver(contracts.EventReceiverCreate):
     def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
-                   topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverInitializerResult:
+                   topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverCreateResult:
         self.task: asyncio.Task | None = None
         self.received_values: list[DynamicValue] = []
 
@@ -432,7 +432,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
 
         self.native_server = broker
         verbose_print(f'  Using native server object: {self.native_server}', flush=True)
-        return contracts.EventReceiverInitializerResult(state=self)
+        return contracts.EventReceiverCreateResult(state=self)
 
     def start_tasks(self, task_group: asyncio.TaskGroup, async_exit_stack: contextlib.AsyncExitStack) -> None:
         super().start_tasks(task_group, async_exit_stack)
@@ -447,7 +447,7 @@ class EventReceiver(contracts.EventReceiverInitializer):
             check_state_type(services.name, type, state.value_type)
 
         def run(self, *, services: ProcedureServices,
-                state: 'EventReceiver') -> contracts.EventReceiverGetValueResult:
+                state: 'EventReceiver', type: ValueType[Any]) -> contracts.EventReceiverGetValueResult:
             # TODO: Add checks whether everything is running?
 
             if len(state.received_values) == 0:

@@ -205,12 +205,12 @@ struct type JsonName {
 }
 
 // A typed value with a byte offset into its associated storage.
-// ConstValues, LoadValues, StateVariables, and Temporaries tables.
+// ConstValues, FixedValues, StateVariables, and Temporaries tables.
 struct type Variable {
   // Index into ValueTypes; resolved stored-value type.
   ValueType: Ref,
-  // Byte offset into ProgramData for ConstValues, the load buffer for
-  // LoadValues, the state buffer for StateVariables, or the temporary
+  // Byte offset into ProgramData for ConstValues, the fixed buffer for
+  // FixedValues, the state buffer for StateVariables, or the temporary
   // buffer for Temporaries.
   Offset: uint32,
 }
@@ -266,8 +266,8 @@ struct type NativeProcedure {
   InputNames: Range,
   // Range into InterfaceNames; names of the outputs.
   OutputNames: Range,
-  // Whether the procedure creates native state.
-  HasState: boolean,
+  // Whether the procedure is an initializer, creating native state.
+  Initializer: boolean,
 }
 
 // A name in NativeNames. InterfaceNames table.
@@ -279,7 +279,7 @@ struct type NameRef {
 // The storage a variable reference selects. 0 is not a valid bank.
 open enum type VariableBank: uint8 {
   ConstValues = 1,
-  LoadValues = 2,
+  FixedValues = 2,
   Temporaries = 3,
   OldState = 4,
   NewState = 5,
@@ -288,18 +288,18 @@ open enum type VariableBank: uint8 {
 // Binds one variable or const value to a procedure input.
 // Inputs table.
 struct type Input {
-  // Const values, load values, temporaries, old state, or new state.
+  // Const values, fixed values, temporaries, old state, or new state.
   Bank: VariableBank,
-  // Index into ConstValues, LoadValues, Temporaries, or StateVariables,
+  // Index into ConstValues, FixedValues, Temporaries, or StateVariables,
   // selected by Bank.
   Variable: Ref,
 }
 
 // Binds one procedure output to a destination variable. Outputs table.
 struct type Output {
-  // Load values, temporaries, or new state.
+  // Fixed values, temporaries, or new state.
   Bank: VariableBank,
-  // Index into LoadValues, Temporaries, or StateVariables, selected by
+  // Index into FixedValues, Temporaries, or StateVariables, selected by
   // Bank.
   Variable: Ref,
 }

@@ -165,7 +165,7 @@ parameter V: S = S { #[unknown] f: 1 }; // E: Unexpected token
 
 // TEST: port attributes deferred
 node type T {
-  native procedure run depends on #[unknown] default input;
+  native procedure run reads #[unknown] default input;
   // ^E: Unexpected token
 }
 
@@ -212,8 +212,8 @@ node type T {
 }
 
 // TEST: Internal initializer
-native node type T {
-  #[Internal] native initializer;
+node type T {
+  #[Internal] native initializer create;
   // ^E: Attribute `Internal` is not permitted on initializer
 }
 

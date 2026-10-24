@@ -350,7 +350,7 @@ struct type Labeled { label: string, enabled: boolean, }
 node type Probe {
   parameter Value: Labeled;
   default output: value boolean;
-  procedure run produces default output as output {
+  procedure run writes default output as output {
     let label = Value.label; // E: parameter-only
     output = Value.enabled;
   }

@@ -1443,7 +1443,7 @@ class ExpressionCompiler:
             if (names not in (['true'], ['false'], ['None'])
                     and self.known_type(expression) != model.types.ValueType
                     and not isinstance(self.known_type(expression), model.types.TypeEnum)):
-                raise ProgramError(expression, f'Unknown procedure value `{expression}`; declare inputs in depends on')
+                raise ProgramError(expression, f'Unknown procedure value `{expression}`; declare inputs in reads')
         if isinstance(expression, model.StructLiteral):
             value_type = (self.known_type(expression)
                           if expected is None or expected.contains_parameters else expected)

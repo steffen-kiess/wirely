@@ -24,7 +24,7 @@ procedure compile_only {
 }
 
 // An unused dependency does not make the body runtime.
-procedure unused_input depends on ignored: value boolean {
+procedure unused_input reads ignored: value boolean {
   let text: string = "hello";
   text == Text;
 }
@@ -58,7 +58,7 @@ node type_value: OptionalValue { Type: type, Value: uint8 }
 
 #[Allow(Unused)] binding comparison: value boolean;
 #[Allow(Unused)] binding selected: value uint8;
-procedure constants produces comparison, selected {
+procedure constants writes comparison, selected {
   comparison = Text == Text && "text" == "text"
     && Settings { text: "a" } != Settings { text: "b" }
     && { let items: List[uint8] = [1, 2]; items == Items }
@@ -74,6 +74,6 @@ struct type Address {
   address: uint16,
 }
 #[Allow(Unused)] binding parsed: value Address;
-procedure parse produces parsed {
+procedure parse writes parsed {
   parsed = Address { address: KNX.ParseGroupAddress("1/2/3") };
 }

@@ -198,10 +198,10 @@ def validate_program(program: Program) -> None:
             raise ValueError(f'{kind} {sorted(names)!r} do not match the declared {sorted(declared)!r}')
 
     def check_bindings(values: Mapping[str, Constant], declared: Iterable[str]) -> None:
-        check_names('Static bindings', values, declared)
+        check_names('Compile-time reads', values, declared)
         for name, constant in values.items():
             if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
-                raise ValueError(f'Static binding `{name}` is not a typed Constant')
+                raise ValueError(f'Compile-time read `{name}` is not a typed Constant')
 
     def check_resources(bindings: Mapping[str, ResourceBinding], declared: Mapping[str, str]) -> None:
         check_names('Resource inputs', bindings, declared)

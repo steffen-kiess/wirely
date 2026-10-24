@@ -27,26 +27,26 @@ def native_classes(contracts):
         # Classes of interfaces a program does not declare are not registered.
         return getattr(contracts, name, None) or type(name, (), {})
 
-    class Provider(contract('ProviderInitializer'), Service):
+    class Provider(contract('ProviderCreate'), Service):
         def initialize(self, *, services):
             self.value = 7
             self.named = Service()
-            return contracts.ProviderInitializerResult(service=self, named=self.named)
+            return contracts.ProviderCreateResult(service=self, named=self.named)
 
-    class Shared(contract('SharedInitializer'), Service):
+    class Shared(contract('SharedCreate'), Service):
         def initialize(self, *, services):
             self.value = 7
-            return contracts.SharedInitializerResult(service=self)
+            return contracts.SharedCreateResult(service=self)
 
-    class Incomplete(contract('IncompleteInitializer'), Service):
+    class Incomplete(contract('IncompleteCreate'), Service):
         def initialize(self, *, services):
             return None
 
-    class WrongProvider(contract('WrongProviderInitializer')):
+    class WrongProvider(contract('WrongProviderCreate')):
         def initialize(self, *, services):
-            return contracts.WrongProviderInitializerResult(service=object())
+            return contracts.WrongProviderCreateResult(service=object())
 
-    class Consumer(contract('ConsumerInitializer')):
+    class Consumer(contract('ConsumerCreate')):
         def initialize(self, *, services, service, other_service, repeated_service, implicit, child):
             assert other_service is implicit
             assert repeated_service is service
@@ -54,7 +54,7 @@ def native_classes(contracts):
             assert service.value == 7
             self.resources = dict(service=service, other_service=other_service, repeated_service=repeated_service,
                                   implicit=implicit, child=child)
-            return contracts.ConsumerInitializerResult(state=self)
+            return contracts.ConsumerCreateResult(state=self)
 
         def start_tasks(self, task_group, async_exit_stack):
             startup_inputs.append(self.resources)
@@ -86,14 +86,14 @@ def native_classes(contracts):
             def run(self, *, services, service, value, child):
                 return contracts.TypedProcedureConsumerReadResult(count=read_count(service, value, child))
 
-    class Dependent(contract('DependentInitializer')):
+    class Dependent(contract('DependentCreate')):
         def initialize(self, *, services, service, child):
             self.resources = dict(service=service, child=child)
-            return contracts.DependentInitializerResult()
+            return contracts.DependentCreateResult()
 
-    initializers = {f'TestLibrary.{cls.__name__}': cls
+    initializers = {f'TestLibrary.{cls.__name__}:create': cls
                     for cls in (Provider, Shared, Incomplete, WrongProvider, Consumer, Dependent)
-                    if hasattr(contracts, cls.__name__ + 'Initializer')}
+                    if hasattr(contracts, cls.__name__ + 'Create')}
     procedures = {name: cls for name, contract_name, cls in (
         ('TestLibrary.Consumer:read', 'ConsumerRead', Consumer.Read),
         ('TestLibrary.Consumer:poll', 'ConsumerPoll', Consumer.Poll),
@@ -127,56 +127,56 @@ namespace TestLibrary {
   resource type Service;
   resource type ConsumerState;
 
-  native node type Provider {
-    default output: resource Service;
-    output Named: resource Service;
-    native initializer produces default output as "service", Named as "named";
+  node type Provider {
+    default output: fixed Service;
+    output Named: fixed Service;
+    native initializer create writes default output as "service", Named as "named";
   }
 
-  singleton native node type Shared {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  singleton node type Shared {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
 
   node type Forward {
-    input Service: resource Service;
-    default output: resource Service;
-    output Named: resource Service;
+    input Service: fixed Service;
+    default output: fixed Service;
+    output Named: fixed Service;
     connect Service -> default output;
     connect Service -> Named;
   }
 
   node type Factory {
-    default output: resource Service;
+    default output: fixed Service;
     node source: Provider {}
     connect source -> default output;
   }
 
-  native node type Consumer {
-    input Service: resource Service;
-    input OtherService: resource Service;
-    input RepeatedService: resource Service;
-    default input: resource Service;
+  node type Consumer {
+    input Service: fixed Service;
+    input OtherService: fixed Service;
+    input RepeatedService: fixed Service;
+    default input: fixed Service;
     output Count: value uint8;
 
     node forwarded: Forward {}
     connect Service -> forwarded.Service;
 
-    binding state: resource ConsumerState;
-    native initializer
-      depends on Service, OtherService, RepeatedService,
+    binding state: fixed ConsumerState;
+    native initializer create
+      reads Service, OtherService, RepeatedService,
         default input as "implicit", forwarded as "child"
-      produces state as "state";
+      writes state as "state";
 
     native procedure read
-      depends on state as "state", Service, OtherService, RepeatedService,
+      reads state as "state", Service, OtherService, RepeatedService,
         default input as "implicit", forwarded as "child"
-      produces Count;
-    native procedure poll stage input depends on state as "state", Service;
+      writes Count;
+    native procedure poll stage input reads state as "state", Service;
   }
 
   node type ProcedureConsumer {
-    input Service: resource Service;
+    input Service: fixed Service;
     input Value: value uint8;
     output Count: value uint8;
 
@@ -184,12 +184,12 @@ namespace TestLibrary {
     connect Service -> forwarded.Service;
 
     native procedure read
-      depends on Service, Value, forwarded.Named as "child"
-      produces Count;
+      reads Service, Value, forwarded.Named as "child"
+      writes Count;
   }
 
   node type TypedProcedureConsumer {
-    input Service: resource Service;
+    input Service: fixed Service;
     input Value: value uint8;
     output Count: value uint8;
 
@@ -197,8 +197,8 @@ namespace TestLibrary {
     connect Service -> forwarded.Service;
 
     native procedure read
-      depends on Service: resource Service, Value: value uint8, child: resource Service
-      produces Count: value uint8;
+      reads Service: fixed Service, Value: value uint8, child: fixed Service
+      writes Count: value uint8;
     connect Service -> read.Service;
     connect Value -> read.Value;
     connect forwarded.Named -> read.child;
@@ -254,16 +254,16 @@ assert len(procedure_calls) == 2
 alias_graph = compile_resources('''
 namespace TestLibrary {
   resource type Service;
-  native node type Provider {
-    default output: resource Service;
-    output Named: resource Service;
-    native initializer produces default output as "service", Named as "named";
+  node type Provider {
+    default output: fixed Service;
+    output Named: fixed Service;
+    native initializer create writes default output as "service", Named as "named";
   }
-  native node type Dependent {
-    input Service: resource Service;
+  node type Dependent {
+    input Service: fixed Service;
     node provider: Provider {}
-    native initializer
-      depends on Service as "service", provider.Named as "child";
+    native initializer create
+      reads Service as "service", provider.Named as "child";
   }
 }
 node sink: TestLibrary.Dependent {}
@@ -279,16 +279,16 @@ assert alias_inputs['child'] is alias_engine.get_native_state('sink.provider').n
 incomplete_graph = compile_resources('''
 namespace TestLibrary {
   resource type Service;
-  native node type Incomplete {
-    default output: resource Service;
-    output Named: resource Service;
-    native initializer produces default output as "service", Named as "named";
+  node type Incomplete {
+    default output: fixed Service;
+    output Named: fixed Service;
+    native initializer create writes default output as "service", Named as "named";
   }
 }
 node source: TestLibrary.Incomplete {}
 ''')
-with checks.assertRaisesRegex(ValueError, "Native state type `TestLibrary.Incomplete` of `source` must return "
-                              'a IncompleteInitializerResult, got None'):
+with checks.assertRaisesRegex(ValueError, "Native initializer `TestLibrary.Incomplete:create` of `source` must "
+                              'return a IncompleteCreateResult, got None'):
     make_engine(incomplete_graph)
 
 
@@ -304,9 +304,9 @@ with checks.assertRaises(dataclasses.FrozenInstanceError):
 wrong_graph = compile_resources('''
 namespace TestLibrary {
   resource type Service;
-  native node type WrongProvider {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  node type WrongProvider {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
 }
 node source: TestLibrary.WrongProvider {}
@@ -318,9 +318,9 @@ with checks.assertRaisesRegex(
 unknown_graph = compile_resources('''
 namespace TestLibrary {
   resource type Unknown;
-  native node type Provider {
-    default output: resource Unknown;
-    native initializer produces default output as "service";
+  node type Provider {
+    default output: fixed Unknown;
+    native initializer create writes default output as "service";
   }
 }
 node source: TestLibrary.Provider {}
@@ -336,27 +336,27 @@ alias_reads = []
 alias_graph = wirely.compiler.compile_strs([('<resource-aliases>', '''
 namespace TestLibrary {
   resource type Service;
-  native node type AliasSource {
-    default output: resource Service;
-    native initializer produces default output as "service";
+  node type AliasSource {
+    default output: fixed Service;
+    native initializer create writes default output as "service";
   }
-  native node type AliasChild {
-    input Service: resource Service;
-    native initializer depends on Service as "service";
+  node type AliasChild {
+    input Service: fixed Service;
+    native initializer create reads Service as "service";
   }
-  native node type AliasHolder {
-    binding state: resource Service;
-    native initializer produces state as "state";
+  node type AliasHolder {
+    binding state: fixed Service;
+    native initializer create writes state as "state";
     node child: AliasChild {}
     connect state -> child.Service;
   }
   node type AliasComposite {
-    binding service: resource Service;
+    binding service: fixed Service;
     node source: AliasSource {}
     connect source -> service;
     node child: AliasChild {}
     connect service -> child.Service;
-    native procedure read depends on service as "service";
+    native procedure read reads service as "service";
   }
 }
 node holder: TestLibrary.AliasHolder {}
@@ -367,21 +367,21 @@ alias_program = program_compiler.compile_nocatch(alias_graph)
 with test_contracts(alias_graph) as contracts:
     alias_registry = {'initializers': {}, 'procedures': {}}
 
-    class AliasSource(contracts.AliasSourceInitializer, Service):
+    class AliasSource(contracts.AliasSourceCreate, Service):
         def initialize(self, *, services):
-            return contracts.AliasSourceInitializerResult(service=self)
-    alias_registry['initializers']['TestLibrary.AliasSource'] = AliasSource
+            return contracts.AliasSourceCreateResult(service=self)
+    alias_registry['initializers']['TestLibrary.AliasSource:create'] = AliasSource
 
-    class AliasChild(contracts.AliasChildInitializer):
+    class AliasChild(contracts.AliasChildCreate):
         def initialize(self, *, services, service):
             self.service = service
-            return contracts.AliasChildInitializerResult()
-    alias_registry['initializers']['TestLibrary.AliasChild'] = AliasChild
+            return contracts.AliasChildCreateResult()
+    alias_registry['initializers']['TestLibrary.AliasChild:create'] = AliasChild
 
-    class AliasHolder(contracts.AliasHolderInitializer, Service):
+    class AliasHolder(contracts.AliasHolderCreate, Service):
         def initialize(self, *, services):
-            return contracts.AliasHolderInitializerResult(state=self)
-    alias_registry['initializers']['TestLibrary.AliasHolder'] = AliasHolder
+            return contracts.AliasHolderCreateResult(state=self)
+    alias_registry['initializers']['TestLibrary.AliasHolder:create'] = AliasHolder
 
     class AliasComposite:
         class Read(contracts.AliasCompositeRead):

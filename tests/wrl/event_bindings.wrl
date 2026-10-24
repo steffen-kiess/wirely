@@ -12,10 +12,10 @@ node type Relay {
   binding forwarded: event Type;
   binding optional_event: event Type;
   connect default input -> incoming;
-  procedure forward depends on incoming as event produces produced as result {
+  procedure forward reads incoming as event writes produced as result {
     on event { emit result(event); }
   }
-  procedure option depends on incoming as event produces optional_event as result {
+  procedure option reads incoming as event writes optional_event as result {
     on event { emit? result(optional(event)); }
   }
   connect produced -> forwarded;
@@ -34,7 +34,7 @@ connect relay -> shared;
 node type Consumer {
   default input: event uint8;
   default output: value Option[uint8];
-  procedure read depends on default input as event produces default output as result {
+  procedure read reads default input as event writes default output as result {
     result = optional(event);
   }
 }
@@ -46,7 +46,7 @@ connect shared -> second;
 node type Sum {
   default input: multi event uint8;
   default output: value uint8;
-  procedure add depends on default input as inputs produces default output as result {
+  procedure add reads default input as inputs writes default output as result {
     let mut sum: uint8 = 0;
     for event in inputs {
       on event { sum = uint8.WrappingAdd(sum, event); }
@@ -57,7 +57,7 @@ node type Sum {
 node sum: Sum {}
 connect shared, shared -> sum;
 binding filtered_event: event uint8;
-procedure filter depends on shared produces filtered_event {
+procedure filter reads shared writes filtered_event {
   on shared {
     emit? filtered_event(if shared == 0 { None } else { Some(shared) });
   }
@@ -73,9 +73,8 @@ node type NativeBinding {
   default output: event Timer.MonotonicTime;
   binding timestamp: event Timer.MonotonicTime;
   native procedure run as "Timer.MonotonicTimestamp:run"
-    depends on default input as "input"
-    produces timestamp as "output"
-    uses unit as Type;
+    reads default input as "input", unit as Type
+    writes timestamp as "output";
   connect timestamp -> default output;
 }
 node timestamp: NativeBinding {}

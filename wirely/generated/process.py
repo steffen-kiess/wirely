@@ -21,49 +21,49 @@ if TYPE_CHECKING:
     from wirely.native.process import LaunchOnEventState
 
 __all__ = [
-    'LaunchOnEventInitializerResult',
-    'LaunchOnEventInitializer',
+    'LaunchOnEventCreateResult',
+    'LaunchOnEventCreate',
     'LaunchOnEventRunResult',
     'LaunchOnEventRun',
 ]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class LaunchOnEventInitializerResult:
-    """Resource outputs of native state type Process.LaunchOnEvent."""
+class LaunchOnEventCreateResult:
+    """Fixed outputs of native initializer Process.LaunchOnEvent:create."""
 
     state: LaunchOnEventState
 
 
-class LaunchOnEventInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type Process.LaunchOnEvent; initialize() returns its resource outputs."""
+class LaunchOnEventCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer Process.LaunchOnEvent:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
         shell_command: str,
-    ) -> LaunchOnEventInitializerResult:
+    ) -> LaunchOnEventCreateResult:
         ...
 
 
-class _LaunchOnEventInitializerAdapter(InitializerAdapter):
+class _LaunchOnEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, LaunchOnEventInitializer)
+        assert isinstance(state, LaunchOnEventCreate)
         result = state.initialize(
             services=services,
             shell_command=cast('str', binding.use('ShellCommand')),
         )
-        binding.check_result(result, LaunchOnEventInitializerResult)
+        binding.check_result(result, LaunchOnEventCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-LaunchOnEventInitializer._adapter = _LaunchOnEventInitializerAdapter()
+LaunchOnEventCreate._adapter = _LaunchOnEventCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -89,6 +89,7 @@ class LaunchOnEventRun(NativeProcedure, abc.ABC):
         services: ProcedureServices,
         state: LaunchOnEventState,
         input: Some[DynamicValue] | None,
+        type: ValueType[Any],
     ) -> LaunchOnEventRunResult:
         ...
 
@@ -110,6 +111,7 @@ class _LaunchOnEventRunAdapter(ProcedureAdapter):
             services=services,
             state=cast('LaunchOnEventState', binding.resource('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, LaunchOnEventRunResult)
         return {}

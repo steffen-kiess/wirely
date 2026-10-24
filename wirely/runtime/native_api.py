@@ -53,7 +53,7 @@ class StateServices(Generic[K]):
         return self._name
 
     def trigger(self, output: K) -> None:
-        """Schedule each procedure that depends on the resource output with this Python name."""
+        """Schedule each procedure that reads the fixed output with this Python name."""
         key = self._output_keys.get(output)
         if key is None:
             raise ValueError(f'Unknown output `{output}` on {self._name}')
@@ -279,7 +279,7 @@ class InterfaceBinding:
         try:
             return to_native(self.signature.uses[key], self.use_types[key], self.use_values[key], native_types=self.native_types)
         except ValueError as error:
-            raise ValueError(f'{self.where}: invalid uses binding `{key}`: {error}') from error
+            raise ValueError(f'{self.where}: invalid compile-time read `{key}`: {error}') from error
 
     def resource(self, key: str) -> object:
         return self.resources[key].object

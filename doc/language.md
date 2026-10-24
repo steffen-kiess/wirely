@@ -33,14 +33,15 @@ A program, like each node type body, is a graph of nodes joined by
 connections. There are four kinds of nodes:
 
 - An instance, `node name: Type { … }`, creates a node of a node type.
-- A binding names a value, event, or resource supplied elsewhere in the graph.
+- A binding names a value, event, or fixed value supplied elsewhere in the
+  graph.
 - State keeps a value from one step to the next.
 - A procedure runs code that reads its inputs and writes its outputs.
 
 [State and execution](#state-and-execution) describes the last three.
 
 Nodes have input and output ports. Each port has a kind, `value`, `event`,
-or `resource`, and a type, as in `value boolean`. An instance has the ports
+or `fixed`, and a type, as in `value boolean`. An instance has the ports
 declared by its node type. A binding has a default input and a default
 output. State has a default input and the outputs `old` and `new`. A
 procedure has the ports it declares. Write `name.Port` for a named port and
@@ -130,8 +131,8 @@ node type Forward {
   default output: value boolean;
 
   procedure run
-    depends on default input as input
-    produces default output as output
+    reads default input as input
+    writes default output as output
   {
     output = input;
   }
@@ -174,24 +175,26 @@ member of the enum.
 Nodes and named ports in one node type, or at the top level, share one
 namespace.
 A `singleton node type` shares one instance across its uses and cannot declare
-parameters. `native node type` indicates that the implementation also owns
-Python state or resources; it requires a `native initializer`, which creates
-them. Both forms require native support when instantiated.
+parameters. A node type whose implementation owns Python state or resources
+declares a [native initializer](#fixed-ports), which creates them.
 
-Node types with native state, resource types, native enums, native structs,
-and native functions accept `as "Qualified.Name"` after their name. Native code
-and `Program` use this native name instead of the qualified Wirely name, so
-the declaration can be renamed or moved without changing its
-implementation, as in
+Resource types, native enums, native structs, and native functions accept
+`as "Qualified.Name"` after their name. Native code and `Program` use this
+native name instead of the qualified Wirely name, so the declaration can be
+renamed or moved without changing its implementation, as in
 `native function Parse as "KNX.ParseGroupAddress"(value: string): uint16;`.
-Each native name identifies one declaration of its kind.
+A node type's `as "Qualified.Name"` replaces its qualified name in the
+native names of its initializer and native procedures, such as
+`Qualified.Name:create`; the compiler warns when none of them uses it. Each
+native name identifies one declaration of its kind.
 
 Identifiers are case-sensitive. Weak keywords `binding`, `changed`, `closed`,
-`constant`, `default`, `emit`, `event`, `in`, `input`, `multi`, `on`,
-`opaque`, `open`, `output`, `resource`, `stage`, `state`, `type`, and `value`
-can also be used as identifiers. Other keywords require the `r#` prefix when
-used as names, for example `node r#node: Std.And {}`. Declarations end with
-`;`, except node instances and type and namespace bodies, which end at `}`.
+`constant`, `default`, `emit`, `event`, `fixed`, `in`, `initializer`, `input`,
+`multi`, `on`, `opaque`, `open`, `output`, `reads`, `resource`, `stage`,
+`state`, `type`, and `value` can also be used as identifiers. Other keywords
+require the `r#` prefix when used as names, for example
+`node r#node: Std.And {}`. Declarations end with `;`, except node instances
+and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
 
 Comma-separated lists allow an optional trailing comma, including arguments,
@@ -411,7 +414,7 @@ A `value boolean` port carries the current value, while an `event boolean`
 port carries an occurrence with a boolean payload.
 An event may be absent in a step. Source and target must have the same kind
 and type; Wirely does not automatically convert them. Ordinary inputs,
-including resource inputs, and the outputs of a node type need exactly one
+including fixed inputs, and the outputs of a node type need exactly one
 source. A `multi value T` or `multi event T` input accepts any number of
 sources; `connect a, b -> target;` connects both. `Std.And` is an example
 of a multi input. A node type can connect its own multi input to a child's
@@ -423,7 +426,7 @@ and from bindings, state, and procedures are described in
 Use `InputName.Length` or `(default input).Length` for an enclosing multi
 input's number of sources, including forwarded sources. Inside procedures,
 an input alias also supports `.Length`; reading an enclosing input's length
-does not require a `depends on` entry. The result is a compile-time `uint32`
+does not require a `reads` entry. The result is a compile-time `uint32`
 constant for each instance, with zero for an empty input. Event inputs count
 sources regardless of event presence. Input lengths are available when
 instances specialize; they cannot select types needed earlier. The default
@@ -441,25 +444,27 @@ node type Fixed {
 ```
 
 Within a scope, parameters, constants, nodes, ports, state, bindings,
-and procedures need distinct names.
+procedures, and initializers need distinct names.
 
-### Opaque resource ports
+### Fixed ports
 
-Libraries can declare opaque resource types for connections between service
-nodes and their clients:
+Fixed values are set when a program is loaded and do not change while it
+runs. Fixed values are currently resources: handles to native objects, such
+as a KNX connection. Libraries declare resource types for connections
+between service nodes and their clients:
 
 ```wirely
 namespace Example {
   resource type Session;
 
-  native node type Connection {
-    default output: resource Session;
-    native initializer produces default output as "session";
+  node type Connection {
+    default output: fixed Session;
+    native initializer create writes default output as "session";
   }
 
-  native node type Client {
-    input Service: resource Session;
-    native initializer depends on Service;
+  node type Client {
+    input Service: fixed Session;
+    native initializer create reads Service;
   }
 }
 ```
@@ -470,27 +475,33 @@ types cannot share a name in the same scope. Resource names resolve through
 enclosing scopes; use a qualified name such as `Example.Session` outside
 that namespace. A declaration may appear after its uses.
 
-Resource ports are compatible only when they refer to the same
-resource declaration. Resources identify opaque service state rather than
-carrying data values. They cannot be used for parameters, state, value
-bindings, `type` arguments, or value types such as `Option[T]` and
-`List[T]`.
-Composite nodes can forward resources through their inputs and outputs.
-A native node type produces each resource output in its
-[native initializer](native-python.md#native-objects-resources-and-tasks)
-or connects it from a child node.
+Fixed ports are compatible only when they refer to the same resource
+declaration. Resources identify opaque service state rather than carrying
+data values. They cannot be used for parameters, state, value bindings,
+`type` arguments, or value types such as `Option[T]` and `List[T]`.
+Composite nodes can forward fixed values through their inputs and outputs.
 
-`binding name: resource Type;` names a resource in a node type or at the
-top level. Its source is a connection or the native initializer of a native
-node type producing it. Connections, initializers, and procedures can use
-it as a source. Native procedures
-access their node's native state through such a resource:
+A `native initializer name` creates the native objects of a node type, as
+described in
+[native objects](native-python.md#native-objects-resources-and-tasks). It
+runs once when the program is loaded, before the procedures, and can read
+fixed values and compile-time values and write the fixed outputs and
+bindings of its node type. A node type has at most one initializer. Its
+native name defaults to `Type:name`, as for
+[native procedures](#state-and-execution). Each fixed output of a node type
+with an initializer is written by the initializer or connected from a
+child node.
+
+`binding name: fixed Type;` names a fixed value in a node type or at the
+top level. Its source is a connection or the initializer writing it.
+Connections, initializers, and procedures can use it as a source. Native
+procedures access their node's native state through such a binding:
 
 ```wirely
-native node type Receiver {
-  binding state: resource ReceiverState;
-  native initializer produces state as "state";
-  native procedure get_value depends on state as "state";
+node type Receiver {
+  binding state: fixed ReceiverState;
+  native initializer create writes state as "state";
+  native procedure get_value reads state as "state";
 }
 ```
 
@@ -501,36 +512,36 @@ The bundled libraries declare `KNX.Bus`, `MQTT.Broker`, and `TwoN.Device`.
 Inside a node type, `state name: Type = value;` declares a persistent value
 with an initial value. `binding name: value Type;` names a value calculated
 within a step. A binding requires an explicit `value`, `event`, or
-`resource` kind.
-A procedure reads its input ports, declared with `depends on`, and writes
-its output ports, declared with `produces`.
+`fixed` kind.
+A procedure reads its input ports, declared with `reads`, and writes its
+output ports, declared with `writes`.
 Procedures run in dependency order; dependencies must be acyclic.
 
 A native procedure's native name has the form `Type:procedure`. It
-defaults to the node type's native name, or its qualified name without
-native state, followed by `:` and the procedure name. Set it with
+defaults to the node type's `as` name, or its qualified name, followed by
+`:` and the procedure name. Set it with
 `as "Type:procedure"` after the procedure name, such as
 `native procedure Run as "Std.Constant:run";`, to rename the procedure or
 its node type without changing the implementation.
 
-Native procedures and initializers accept `uses` after `produces`. Bind
-node parameters and constants by name, or use `expression as name` or
-`expression as "key"`. See
-[native static values](native-python.md#static-values-and-prepared-data)
-for binding syntax and Python access. Procedures with Wirely bodies refer
-to parameters and constants directly and do not accept `uses`.
+Native procedures and initializers can also read compile-time values:
+parameters and constants by name, and other compile-time expressions with
+`expression as name` or `expression as "key"`. See
+[native compile-time values](native-python.md#compile-time-values-and-prepared-data)
+for Python access. Procedures with Wirely bodies refer to parameters and
+constants directly.
 
 A procedure port is either a reference port or a typed port. A reference
 port, `reference as name`, is connected to the reference: from a connection
-source in `depends on`, to a connection target in `produces`. An unaliased
+source in `reads`, to a connection target in `writes`. An unaliased
 simple identifier uses its own name. Default ports and complex references
 require aliases.
 Native procedures also accept `as "key"` for Python keys. For example:
 
 ```wirely
 procedure run
-  depends on default input as current, last_value.old as previous
-  produces default output as output, last_value as next
+  reads default input as current, last_value.old as previous
+  writes default output as output, last_value as next
 {
   output = previous;
   next = current;
@@ -538,8 +549,8 @@ procedure run
 ```
 
 A typed port, `name: value Type`, `name: event Type`, or
-`name: resource Type`, is wired with `connect`. Value and event input ports
-can be `multi`; each resource input takes one provider. Native procedures
+`name: fixed Type`, is wired with `connect`. Value and event input ports
+can be `multi`; each fixed input takes one source. Native procedures
 also accept `name as "key": Type`; Python uses the key, so `name` can change
 without changing the native code.
 Refer to a typed port as `procedure.port`, in `connect` or in a reference
@@ -548,14 +559,14 @@ several places, produce it into a value binding:
 
 ```wirely
 procedure invert
-  depends on value: value boolean
-  produces inverted: value boolean
+  reads value: value boolean
+  writes inverted: value boolean
 {
   inverted = !value;
 }
 procedure forward
-  depends on invert.inverted as value
-  produces default output as output
+  reads invert.inverted as value
+  writes default output as output
 {
   output = value;
 }
@@ -563,9 +574,9 @@ connect default input -> invert.value;
 ```
 
 Port names must be unique within each clause. Each input port needs exactly
-one source unless it is `multi`. A binding takes its value, event, or resource
-from its one source, and state takes its new value from its one source. Output
-ports may have any number of targets.
+one source unless it is `multi`. A binding takes its value, event, or fixed
+value from its one source, and state takes its new value from its one
+source. Output ports may have any number of targets.
 
 `last_value.old` reads the previous step's state without depending on this
 step's source.
@@ -576,7 +587,7 @@ and the previous step's state thereafter. Similarly, `connect name -> target;`
 feeds the value of a binding calculated this step.
 
 `last_value.new` reads the value produced this step. Use it as a
-connection source or reference port in `depends on`. The procedure
+connection source or reference port in `reads`. The procedure
 producing the state's source must run in the same or an earlier stage, and
 the reader depends on that procedure. If the procedure is skipped because
 its inputs are unchanged, it supplies its retained value.
@@ -600,8 +611,8 @@ node type Select {
   default output: value boolean;
 
   procedure run
-    depends on Enabled, default input as input
-    produces default output as output
+    reads Enabled, default input as input
+    writes default output as output
   {
     let selected = if Enabled { input } else { Fallback };
     output = selected;
@@ -776,7 +787,7 @@ struct fields, and build options and structs with `Some(x)` and struct
 literals. List literals are compile-time only.
 Their ports support single and multi `value` and `event` inputs and single
 `value` and `event` outputs. State reads must be listed in
-`depends on`, using `.old` or `.new`.
+`reads`, using `.old` or `.new`.
 
 Procedure bodies are pure: they read declared values and write declared
 outputs. They cannot access resources, clocks, or deadlines.
@@ -795,7 +806,7 @@ output = result;
 ```
 
 The source directly names a multi dependency, declared as a typed
-port or referenced through `depends on`. Multi inputs support iteration
+port or referenced through `reads`. Multi inputs support iteration
 only. Iteration follows connection order, and an empty input executes no
 iterations. The loop variable is immutable and scoped to the unit-valued
 body. Loops yield unit and can omit a trailing semicolon.
@@ -851,13 +862,13 @@ Use an event binding to share an event between procedures or connections:
 
 ```wirely
 binding forwarded: event uint8;
-procedure forward depends on input produces forwarded {
+procedure forward reads input writes forwarded {
   on input { emit forwarded(input); }
 }
 connect forwarded -> target;
 ```
 
-Consumers declare `forwarded` in `depends on` and read it with `on` or
+Consumers declare `forwarded` in `reads` and read it with `on` or
 `optional(...)`, like an event input. A connected event source can also
 supply the binding directly.
 
@@ -885,12 +896,12 @@ intentional unguarded emissions.
 
 A state-change trigger, `on changed name`, runs when the state's value in
 this step differs from its previous value. Name an explicit `.new`
-dependency or an explicit state reference in `produces`, using its
+read or an explicit state reference in `writes`, using its
 procedure-local alias. For a state output, assign it on every path reaching
 the block:
 
 ```wirely
-procedure update depends on input produces saved as next, output {
+procedure update reads input writes saved as next, output {
   next = input;
   on changed next { emit output(next); }
 }

@@ -22,49 +22,49 @@ if TYPE_CHECKING:
     from wirely.native.timer import MonotonicTime
 
 __all__ = [
-    'ValueWriterInitializerResult',
-    'ValueWriterInitializer',
+    'ValueWriterCreateResult',
+    'ValueWriterCreate',
     'ValueWriterRunResult',
     'ValueWriterRun',
 ]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class ValueWriterInitializerResult:
-    """Resource outputs of native state type CSV.ValueWriter."""
+class ValueWriterCreateResult:
+    """Fixed outputs of native initializer CSV.ValueWriter:create."""
 
     state: ValueWriterState
 
 
-class ValueWriterInitializer(NativeState[Literal['state']], abc.ABC):
-    """Native state type CSV.ValueWriter; initialize() returns its resource outputs."""
+class ValueWriterCreate(NativeState[Literal['state']], abc.ABC):
+    """Native initializer CSV.ValueWriter:create; initialize() returns its fixed outputs."""
 
     @abc.abstractmethod
     def initialize(
         self, *,
         services: StateServices[Literal['state']],
         filename: str,
-    ) -> ValueWriterInitializerResult:
+    ) -> ValueWriterCreateResult:
         ...
 
 
-class _ValueWriterInitializerAdapter(InitializerAdapter):
+class _ValueWriterCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
                    binding: InterfaceBinding) -> dict[str, ResourceValue]:
-        assert isinstance(state, ValueWriterInitializer)
+        assert isinstance(state, ValueWriterCreate)
         result = state.initialize(
             services=services,
             filename=cast('str', binding.use('Filename')),
         )
-        binding.check_result(result, ValueWriterInitializerResult)
+        binding.check_result(result, ValueWriterCreateResult)
         return {
             'state': binding.resource_output('state', result.state),
         }
 
 
-ValueWriterInitializer._adapter = _ValueWriterInitializerAdapter()
+ValueWriterCreate._adapter = _ValueWriterCreateAdapter()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -94,6 +94,7 @@ class ValueWriterRun(NativeProcedure, abc.ABC):
         last_written_at_old: Some[MonotonicTime] | None,
         input: DynamicValue,
         repeat_elapsed: Some[bool] | None,
+        type: ValueType[Any],
     ) -> ValueWriterRunResult:
         ...
 
@@ -117,6 +118,7 @@ class _ValueWriterRunAdapter(ProcedureAdapter):
             last_written_at_old=cast('Some[MonotonicTime] | None', binding.input(inputs, 'last_written_at_old')),
             input=cast('DynamicValue', binding.input(inputs, 'input')),
             repeat_elapsed=cast('Some[bool] | None', binding.input(inputs, 'repeat_elapsed')),
+            type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, ValueWriterRunResult)
         return {

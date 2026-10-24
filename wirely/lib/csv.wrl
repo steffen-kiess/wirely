@@ -16,15 +16,15 @@ namespace CSV {
   // TODO: Write a header? Probably not.
   // TODO: Make restarts clear? Should already be clear because null is written
   // on shutdown.
-  native node type ValueWriter {
+  node type ValueWriter {
     parameter Type: type;
     #[Diagram.ShowValue]
     parameter Filename: string;
 
     assert SupportsType(Type), "Type must support CSV conversion";
 
-    binding state: resource ValueWriterState;
-    native initializer produces state as "state" uses Filename;
+    binding state: fixed ValueWriterState;
+    native initializer create reads Filename writes state as "state";
     // TODO: Make repeat interval configurable? Allow disabling repeat?
 
     default input: value Type;
@@ -37,9 +37,9 @@ namespace CSV {
     connect last_written_at.old -> repeat_elapsed;
 
     native procedure run stage output
-      depends on state as "state", last_written_at.old as "last_written_at_old",
-        default input as "input", repeat_elapsed
-      produces last_written_at uses Type;
+      reads state as "state", last_written_at.old as "last_written_at_old",
+        default input as "input", repeat_elapsed, Type
+      writes last_written_at;
   }
 
   // TODO: Add EventWriter

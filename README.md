@@ -111,7 +111,7 @@ Add `--processes 4` to run the tests in four worker processes; see the
 
 To check that compilation does not depend on declaration order, set
 `WIRELY_COMPILER_SHUFFLE_SEED` to an integer. The compiler then shuffles
-declarations, node parameters, procedure ports, `uses` bindings, and open
+declarations, node parameters, procedure reads and writes, and open
 enum members with that seed; connections keep their relative order. Also set `WIRELY_COMPILER_SHUFFLE_LAYOUT=1` to shuffle
 fields of structs and members of closed enums that are not native, which
 changes the runtime representation.

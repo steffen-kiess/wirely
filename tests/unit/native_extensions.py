@@ -92,7 +92,7 @@ node type Probe {
   output Value: value Demo.Payload;
   output Constant: value Demo.Payload;
   state mode: Demo.Mode = Demo.Mode.On;
-  procedure run depends on mode.old as current produces mode, Value, Constant {
+  procedure run reads mode.old as current writes mode, Value, Constant {
     mode = current;
     Value = Demo.Change(Demo.Payload { modes: Some(current) });
     Constant = Demo.Constant(Demo.Payload { modes: Some(Demo.Mode.On) });
@@ -152,15 +152,15 @@ def check_external_generation():
   resource type Spare;
   native constant function Seed(): uint16;
   native function Add(value: uint16): uint16;
-  native node type Counter {
+  node type Counter {
     output Count: value uint16;
     output Added: value uint16;
-    binding state: resource Service;
+    binding state: fixed Service;
     binding count: value uint16;
     constant Seed: uint16 = Demo.Seed();
-    native initializer produces state as "state";
-    native procedure run depends on state as "state" produces count as count uses Seed as seed;
-    procedure add depends on count as value produces Count, Added { Count = value; Added = Demo.Add(value); }
+    native initializer create writes state as "state";
+    native procedure run reads state as "state", Seed as seed writes count as count;
+    procedure add reads count as value writes Count, Added { Count = value; Added = Demo.Add(value); }
   }
 }
 '''
@@ -181,17 +181,17 @@ def check_external_generation():
 from wirely import UInt16
 from wirely.runtime.native_api import StateServices, PreparationServices, ProcedureServices
 
-class Counter(contracts.CounterInitializer):
-    def initialize(self, *, services: StateServices) -> contracts.CounterInitializerResult:
+class Counter(contracts.CounterCreate):
+    def initialize(self, *, services: StateServices) -> contracts.CounterCreateResult:
         self.context = services.native_types
-        return contracts.CounterInitializerResult(state=self)
+        return contracts.CounterCreateResult(state=self)
 
     class Run(contracts.CounterRun):
         def prepare(self, *, services: PreparationServices, state: "Counter", seed: UInt16) -> None:
             assert state.context is services.native_types
             self.value = seed
 
-        def run(self, *, services: ProcedureServices, state: "Counter") -> contracts.CounterRunResult:
+        def run(self, *, services: ProcedureServices, state: "Counter", seed: UInt16) -> contracts.CounterRunResult:
             assert state.context is services.native_types
             return contracts.CounterRunResult(count=UInt16(self.value.value + 1))
 
@@ -214,7 +214,7 @@ def seed(*, services: FunctionServices) -> UInt16:
         try:
             runtime = importlib.import_module('acme.generated').extension
             compiler = importlib.import_module('acme.compiler.generated').extension
-            assert set(runtime.states) == {'Demo.Counter'}
+            assert set(runtime.states) == {'Demo.Counter:create'}
             assert set(runtime.structs) == {'Demo.Payload'}
             assert set(runtime.enums) == {'Demo.Mode'}
             assert set(runtime.resources) == {'Demo.Service', 'Demo.Spare'}
