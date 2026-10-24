@@ -93,11 +93,11 @@ their contents.
 | [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
 | [`InitialState`](#initialstate) | — | Buffer |
 | [`Stages`](#stages) | `Stage` | Table |
-| [`Procedures`](#procedures) | `Procedure` | Table |
+| [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
 | [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
 | [`Bindings`](#bindings) | `VariableRef` | Table |
-| [`ProcedureBodies`](#procedurebodies) | `ProcedureBody` | Table |
+| [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
 | [`NativeNames`](#nativenames) | — | Buffer |
 | [`ProcedureCode`](#procedurecode) | — | Buffer |
@@ -400,8 +400,8 @@ struct type TypeEntry {
 ```
 
 `TypeLists` stores lists of types, such as the field types of a struct, the
-parameter types of a native function, or the locals of a procedure body, as
-ranges of entries. Equal lists can share entries.
+parameter types of a native function, or the locals of a bytecode
+procedure, as ranges of entries. Equal lists can share entries.
 
 ### JsonTypes and JsonNames
 
@@ -463,7 +463,7 @@ struct type Variable {
 }
 ```
 
-Const values describe constants read by procedure bodies and the values
+Const values describe constants read by bytecode procedures and the values
 bound to procedure inputs, such as parameters, constants, and compile-time
 expressions read by native procedures. `const` operands and const inputs
 reference these entries, which can be shared for equal typed values. Their
@@ -557,13 +557,13 @@ open enum type RunStage: uint8 {
 struct type Stage {
   // Stage these procedures run in.
   Stage: RunStage,
-  // Range into Procedures, in execution order.
+  // Range into ProcedureInstances, in execution order.
   Schedule: Range,
 }
 ```
 
 Stage records occur in execution order, including empty stages. Their
-schedule ranges partition the procedure table. Empty stages have a
+schedule ranges partition `ProcedureInstances`. Empty stages have a
 zero-count range.
 
 The `Load` stage runs once when a program is loaded, before its first
@@ -578,16 +578,16 @@ Native objects created during loading become fully functional only after
 that. Running the steps of runtime procedures and state transitions
 cannot fail.
 
-### Procedures
+### ProcedureInstances
 
 ```wirely
-// A native procedure invocation or procedure body with its bindings.
-// Procedures table.
-struct type Procedure {
-  // Index into NativeProcedures, or no entry for a procedure body.
+// A scheduled instance of a native or bytecode procedure with its bindings.
+// ProcedureInstances table.
+struct type ProcedureInstance {
+  // Index into NativeProcedures, or no entry for a bytecode procedure.
   Native: OptionalRef,
-  // Index into ProcedureBodies, or no entry for a native procedure.
-  Body: OptionalRef,
+  // Index into BytecodeProcedures, or no entry for a native procedure.
+  Bytecode: OptionalRef,
   // Range into Bindings; sources of the procedure's inputs.
   Inputs: Range,
   // Range into Bindings; destinations of the procedure's outputs.
@@ -595,22 +595,23 @@ struct type Procedure {
 }
 ```
 
-Procedures are stored in execution order, consecutively within each
-stage. Each procedure has either a native procedure or a body.
+Procedure instances are stored in execution order, consecutively within
+each stage. Each instance refers to either a native or a bytecode
+procedure.
 
 The native procedure identifies the native implementation and its
 interfaces. Native load procedures can create native objects and output
 them as resources. Other procedures reach native objects only through
-their resource inputs. Procedures retain distinct entries even when they
-invoke the same native procedure.
+their resource inputs. Procedure instances retain distinct entries even
+when they invoke the same native procedure.
 
 Native code can request that a runtime native procedure executes, for
 example through a wakeup; the mechanism is part of the runtime's native
 interface.
 
-A body procedure executes its instruction stream. Its inputs, outputs, and
-locals have runtime types. Operands `input.N` and `output.N` select entry
-N of its `Inputs` and `Outputs` ranges.
+A bytecode procedure instance executes its instruction stream. Its inputs,
+outputs, and locals have runtime types. Operands `input.N` and `output.N`
+select entry N of the instance's `Inputs` and `Outputs` ranges.
 
 Load procedures read const values and fixed values and write fixed values.
 Runtime procedures write temporaries and new state. Each fixed value,
@@ -682,7 +683,8 @@ struct type VariableRef {
 }
 ```
 
-`Procedure.Inputs` and `Procedure.Outputs` select ranges in `Bindings`.
+`ProcedureInstance.Inputs` and `ProcedureInstance.Outputs` select ranges
+in `Bindings`.
 Inputs can refer to any bank; outputs refer only to fixed values,
 temporaries, or new state.
 
@@ -692,7 +694,7 @@ For native calls, the `Inputs` range has one entry per name of the native
 procedure's `InputNames` range; entry N binds input N. Optional parameter
 presence requested by `optional` is represented by the bound option value.
 Each value input binds exactly one source.
-Procedure body inputs follow read declaration order; multi value
+Bytecode procedure inputs follow read declaration order; multi value
 inputs expand into scalar inputs in connection order.
 
 An old-state input reads the step's old-state snapshot. A new-state input
@@ -718,11 +720,11 @@ A fixed output writes a fixed value. A new-state output writes the state
 that becomes the next step's old state. A temporary output writes a
 temporary.
 
-### ProcedureBodies
+### BytecodeProcedures
 
 ```wirely
-// An instruction stream and its locals. ProcedureBodies table.
-struct type ProcedureBody {
+// An instruction stream and its locals. BytecodeProcedures table.
+struct type BytecodeProcedure {
   // Byte range in ProcedureCode; the instruction stream.
   Code: ByteRange,
   // Range into TypeLists; local.N has the type of entry N.
@@ -733,7 +735,7 @@ struct type ProcedureBody {
 ### NativeFunctions
 
 ```wirely
-// A native function called by procedure bodies.
+// A native function called by bytecode procedures.
 // NativeFunctions table.
 struct type NativeFunction {
   // Native name in NativeNames.
@@ -787,9 +789,9 @@ linking.
 
 ## ProcedureCode
 
-`ProcedureCode` contains the instruction streams of procedure bodies. Each
-instruction starts with one `uint8` opcode, followed by its operands in the
-order listed below. The opcode determines the operand count and instruction
+`ProcedureCode` contains the instruction streams of bytecode procedures.
+Each instruction starts with one `uint8` opcode, followed by its operands
+in the order listed below. The opcode determines the operand count and instruction
 length. Multi-byte integers are little endian; instructions and operands
 require no alignment.
 
@@ -814,7 +816,7 @@ open enum type OperandKind: uint8 {
 | --- | --- | --- |
 | `immediate` | The number itself, used as the value | Read |
 | `const` | Entry in `ConstValues` | Read |
-| `local` | Entry in the body's `Locals` range | Read/write |
+| `local` | Entry in the bytecode procedure's `Locals` range | Read/write |
 | `input` | Entry in the procedure's `Inputs` range | Read |
 | `output` | Entry in the procedure's `Outputs` range | Read/write |
 
@@ -1060,7 +1062,7 @@ target table, in the same order:
 | --- | --- | --- |
 | `StateVariableSymbols` | `StateVariables` | Variable path, such as `a.b.count` |
 | `TemporarySymbols` | `Temporaries` | Procedure symbol and output port joined by `.`, such as `a.b:run.output` |
-| `ProcedureSymbols` | `Procedures` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
+| `ProcedureSymbols` | `ProcedureInstances` | Owning node path and procedure name joined by `:`, such as `a.b:run` |
 | `TypeSymbols` | `ValueTypes` | Qualified name of an enum or struct, such as `Example.State`; none for other types |
 
 Symbols identify variables, procedures, and types in diagnostics and when
@@ -1144,8 +1146,8 @@ ranges support independent reads.
 | `procs[*].outputs` | Output `Bindings` to fixed values, temporaries, or new state |
 | `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ValueTypes` |
 | `procs[LOAD]`, `procs[*].initializer` | Ordered `Load` procedures and native `Initializer` flags |
-| `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
-| `procs[*].body` | `ProcedureBodies`, `TypeLists`, and `ProcedureCode` |
+| `procs` | `Stages`, `ProcedureInstances`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
+| `procs[*].body` | `BytecodeProcedures`, `TypeLists`, and `ProcedureCode` |
 | `constants` | `ConstValues` and `ProgramData` |
 | `functions` | `NativeFunctions` and `TypeLists` |
 | `variables` | `VariableAliases` |
@@ -1226,8 +1228,8 @@ and each slot starts at or after the end of the previous one. Comparing
 each entry with its predecessor therefore shows that slots do not overlap
 and gives the buffer size. `FixedValues` have load-time types. The types of
 `StateVariables`, `Temporaries`, locals, const and immediate operands,
-procedure body inputs and outputs, aliases, and native function parameters
-and results are runtime types.
+bytecode procedure inputs and outputs, aliases, and native function
+parameters and results are runtime types.
 
 ### Names and bindings
 
@@ -1239,11 +1241,12 @@ native procedure's `InputNames` and `OutputNames` ranges. Each value input
 binds one source. Each symbol table has as many entries as its target
 table.
 
-### Procedures and code
+### Procedure instances and code
 
-Stage schedules follow each other without gaps and cover the procedure
-table. Each procedure has a native procedure or a body. Load procedures
-read only const values and fixed values and write only fixed values;
+Stage schedules follow each other without gaps and cover
+`ProcedureInstances`. Each instance refers to either a native or a
+bytecode procedure. Load procedures read only const values and fixed
+values and write only fixed values;
 runtime procedures write only temporaries and new state. Native
 procedures with `Initializer` are used only by load procedures.
 
@@ -1258,10 +1261,11 @@ kinds and encodings, index bounds, immediate values, operand types, and
 writable destinations are checked as instructions are decoded. Branches
 only go forward, so a branch target is confirmed when decoding reaches it,
 using one bit per code byte or by decoding ahead.
-`FAIL` is checked at every use of a body: its procedure is in the `Load`
-stage, its format index selects a constant `List[string]` of the required
-length, and each specification is supported for the corresponding value
-type. All decoded instructions are checked, including unreachable ones.
+`FAIL` is checked at every use of a bytecode procedure: its instance is in
+the `Load` stage, its format index selects a constant `List[string]` of
+the required length, and each specification is supported for the
+corresponding value type. All decoded instructions are checked, including
+unreachable ones.
 
 ### Producer requirements
 
@@ -1280,13 +1284,13 @@ A transition file carries the state of a running program over to a new
 program. It uses the same header and section directory as a program and
 contains the transition's own `ValueTypes`, `TypeLists`, `NativeNames`,
 `ConstValues`, `ProgramData`, `NativeFunctions`, and `ProcedureCode`, and a
-`ProcedureBodies` table with one entry: the transition procedure. It has no
-stages, procedure records, bindings, or variable tables.
+`BytecodeProcedures` table with one entry: the transition procedure. It has no
+stages, procedure instances, bindings, or variable tables.
 
 The transition procedure reads the old program's state and writes the new
 program's state. Operand `input.N` reads entry N of the old program's
 `StateVariables`, and `output.N` writes entry N of the new program's
-`StateVariables`. The procedure can use locals like any procedure body.
+`StateVariables`. The procedure can use locals like any bytecode procedure.
 Outputs start with their type's default, so the procedure writes every new
 state value that differs from it.
 
@@ -1318,8 +1322,8 @@ types of used inputs and of all outputs are mapped.
 // Origin of the native state of one new load procedure.
 // NativeStateSources table.
 struct type NativeStateSource {
-  // Index into the old program's Procedures whose native state to keep,
-  // or no entry to create new native state.
+  // Index into the old program's ProcedureInstances whose native state
+  // to keep, or no entry to create new native state.
   Old: OptionalRef,
 }
 ```
