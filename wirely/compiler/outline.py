@@ -446,6 +446,8 @@ class _Builder:
 
 def _collect(builder: _Builder, declarations: Iterable[ast.Declaration]) -> None:
     for item in declarations:
+        if isinstance(item, ast.DeclarationLoadAssertion):
+            continue
         if isinstance(item, ast.DeclarationLibrary):
             name = item.name.id_str
             child = builder.namespaces.get(name)

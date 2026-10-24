@@ -1,0 +1,235 @@
+"""Load failure diagnostics, execution timing, and instruction validation."""
+
+from dataclasses import replace
+from unittest import TestCase
+
+import wirely.compiler
+from wirely import types
+from wirely.compiler import program as program_compiler
+from wirely.program import (
+    BranchTarget, Constant, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    Procedure, ProcedureBody, Program, RunStage, VariableTable, validate_program,
+)
+from wirely.runtime import LoadFailure
+from wirely.runtime.engine import Engine
+from tests.infra.support import test_contracts, test_extension
+
+
+checks = TestCase()
+
+
+def compile_program(source):
+    graph = wirely.compiler.compile_strs([('<load-checks>', source)])
+    assert graph is not None
+    return graph, program_compiler.compile_nocatch(graph)
+
+
+def check_failure_messages():
+    for source, message in [
+            ('load assert false;', 'Load-time assertion failed'),
+            ('procedure check stage load { load fail; }', 'Load failed'),
+            ('load assert false, "Literal {{braces}}";', 'Literal {braces}'),
+            ('load assert false, r#"Two values: {}, {}"#, 3, true;', 'Two values: 3, true'),
+            ('procedure check stage load { load fail "Empty message follows"; }', 'Empty message follows'),
+            ('load assert false, "";', ''),
+            ('load assert false, "{}", Some(3);', 'Some(3)'),
+            ('''struct type Pair { enabled: boolean, number: uint8, }
+                load assert false, "{}", Pair { enabled: true, number: 3 };''',
+             'Pair { enabled: true, number: 3 }'),
+    ]:
+        _, program = compile_program(source)
+        with checks.assertRaises(LoadFailure) as caught:
+            Engine(program)
+        failure = caught.exception
+        assert failure.message == message, (failure.message, message)
+        assert failure.node_context.name == '<global>'
+        assert failure.instruction_index >= 0
+        assert failure.procedure
+
+    _, program = compile_program('''procedure check stage load {
+      let mut number: uint8 = 3;
+      load fail "{} / {}", number, { number = 9; number };
+    }''')
+    with checks.assertRaises(LoadFailure) as caught:
+        Engine(program)
+    assert caught.exception.message == '3 / 9'
+    assert tuple(value.to_text() for value in caught.exception.values) == ('3', '9')
+
+    # UnwrapOr evaluates its fallback even for Some; a failed fallback has no
+    # successful path on which the procedure would need to assign its output.
+    _, program = compile_program('''binding result: fixed uint8;
+    procedure check stage load writes result {
+      let option: Option[uint8] = Some(3);
+      let selected = option.UnwrapOr({ load fail "Eager fallback"; 0 });
+    }
+    load assert result == 3;
+    ''')
+    with checks.assertRaises(LoadFailure) as caught:
+        Engine(program)
+    assert caught.exception.message == 'Eager fallback'
+
+
+def check_successful_paths():
+    _, program = compile_program('''node type Example {
+    output result: fixed uint8;
+    procedure compute stage load writes result {
+      let mut value: uint8 = 0;
+      load assert true, "{}", { value = 9; value };
+      load assert true, "{}", { load fail "Must not run"; 1 };
+      if value != 0 { load fail "Diagnostic arguments ran"; }
+      let selected: uint8;
+      if value == 0 { selected = 7; } else { load fail; }
+      let other = if value == 0 { selected } else { load fail; };
+      let reverse = if value != 0 { load fail; } else { other };
+      let option: Option[uint8] = Some(reverse);
+      let chosen = if let Some(number) = option { number } else { load fail; };
+      result = chosen;
+    }
+    load assert result == 7, "Expected 7, received {}", result;
+    }
+    node example: Example {}
+    node type Unused { load assert false; }
+    ''')
+    engine = Engine(program)
+    assert engine.get_value('example.result') == 7
+    engine.step()
+    engine.step()
+    assert engine.get_value('example.result') == 7
+
+
+def check_instances():
+    _, program = compile_program('''node type Checked {
+      parameter Ready: boolean;
+      load assert Ready, "Not ready";
+    }
+    node first: Checked { Ready: true }
+    node second: Checked { Ready: false }
+    ''')
+    with checks.assertRaises(LoadFailure) as caught:
+        Engine(program)
+    assert caught.exception.node_context.name == 'second'
+    assert '<load assert <load-checks>:' in caught.exception.procedure
+
+
+def check_loading_stops():
+    graph, program = compile_program('''namespace TestLibrary {
+      node type Probe {
+        output Ready: fixed boolean;
+        binding checked: fixed boolean;
+        native procedure load stage load writes Ready as "ready";
+        procedure check stage load reads Ready writes checked {
+          load assert Ready, "Rejected";
+          checked = true;
+        }
+        native procedure later stage load reads checked as "checked";
+        native procedure run;
+      }
+    }
+    node probe: TestLibrary.Probe {}
+    ''')
+    calls = []
+    with test_contracts(graph) as contracts:
+        class ProbeLoad(contracts.ProbeLoad):
+            def load(self, *, services):
+                calls.append('load')
+                return contracts.ProbeLoadResult(ready=False)
+
+        class ProbeLater(contracts.ProbeLater):
+            def load(self, *, services, checked):
+                calls.append('later')
+                return contracts.ProbeLaterResult()
+
+        class ProbeRun(contracts.ProbeRun):
+            def prepare(self, *, services):
+                calls.append('prepare')
+
+            def run(self, *, services):
+                return contracts.ProbeRunResult()
+
+        extension = test_extension(contracts=contracts, procedures={
+            'TestLibrary.Probe:load': ProbeLoad,
+            'TestLibrary.Probe:later': ProbeLater,
+            'TestLibrary.Probe:run': ProbeRun,
+        })
+        with checks.assertRaises(LoadFailure):
+            Engine(program, override_extensions=[extension])
+    assert calls == ['load']
+
+
+def make_program(instructions, *, constants=(), local_types=()):
+    instance = NativeInstance('test', {})
+    procedure = Procedure(
+        node_id='test', reference='Test:check', node_context=instance,
+        dependencies=(), outputs={}, body=ProcedureBody(instructions, local_types),
+    )
+    return Program(
+        name='load_checks', state_variables=VariableTable((), 'state'),
+        temporaries=VariableTable((), 'temporaries'), initial_state={}, instances={'test': instance},
+        procs={RunStage.LOAD: (procedure,)}, node_aliases={}, singleton_aliases={}, variables={},
+        constants=constants,
+    )
+
+
+def check_validation():
+    format_constant = Constant(types.TypeList(types.String), ('Value ', '', ''))
+    number = Constant(types.uint8, 7)
+    value = Operand(OperandKind.CONST, 1)
+    fail = Instruction(Opcode.FAIL, (0, 1, value))
+    program = make_program((fail,), constants=(format_constant, number))
+    validate_program(program)
+    with checks.assertRaises(LoadFailure) as caught:
+        Engine(program)
+    assert caught.exception.message == 'Value 7'
+
+    invalid = [
+        (make_program((Instruction(Opcode.FAIL),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (0, -1)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (0, 0xffffffff)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (0, True)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (False, 0)),)), 'Invalid operands'),
+        (make_program((Instruction(Opcode.FAIL, (value, 1, value)),)), 'Invalid operands'),
+        (make_program((fail,), constants=(format_constant,)), 'Operand index out of range'),
+        (make_program((fail,), constants=(number, number)), 'List[string]'),
+        (make_program((Instruction(Opcode.FAIL, (2, 0)),)), 'Format constant index out of range'),
+        (make_program((Instruction(Opcode.FAIL, (-1, 0)),)), 'Format constant index out of range'),
+        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('only one',)), number)),
+         'must contain 3 strings'),
+        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('', 'x', '')), number)),
+         'Unsupported diagnostic format'),
+        (make_program((fail,), constants=(Constant(types.TypeList(types.String), ('', 7, '')), number)),
+         'Constant const.0'),
+        (make_program((Instruction(Opcode.COPY, (Operand(OperandKind.LOCAL, 0), Operand(OperandKind.CONST, 0))),
+                       Instruction(Opcode.RETURN)), constants=(format_constant,), local_types=(types.uint8,)),
+         'resolved runtime type'),
+        (make_program((Instruction(Opcode.FAIL, (0, 1, Operand(OperandKind.CONST, 0))),),
+                      constants=(format_constant,)), 'resolved runtime type'),
+    ]
+    for malformed, message in invalid:
+        with checks.assertRaisesRegex(ValueError, message.replace('[', r'\[').replace(']', r'\]')):
+            validate_program(malformed)
+
+    procedure = program.procs[RunStage.LOAD][0]
+    for stage in (RunStage.INPUT, RunStage.DEFAULT, RunStage.OUTPUT):
+        with checks.assertRaisesRegex(ValueError, 'only allowed in load procedures'):
+            validate_program(replace(program, procs={stage: (procedure,)}))
+    # A shared body must be valid at every use site, including an unreachable FAIL.
+    with checks.assertRaisesRegex(ValueError, 'only allowed in load procedures'):
+        validate_program(replace(program, procs={RunStage.LOAD: (procedure,), RunStage.DEFAULT: (procedure,)}))
+    with checks.assertRaisesRegex(ValueError, 'Unsupported diagnostic format'):
+        validate_program(make_program((Instruction(Opcode.RETURN), fail), constants=(
+            Constant(types.TypeList(types.String), ('', 'x', '')), number)))
+    validate_program(make_program((Instruction(Opcode.JUMP, (BranchTarget(1),)), fail),
+                                  constants=(format_constant, number)))
+    with checks.assertRaisesRegex(ValueError, 'end in RETURN or FAIL'):
+        validate_program(make_program(()))
+    with checks.assertRaisesRegex(ValueError, 'resolved runtime type'):
+        validate_program(replace(program, procs={RunStage.LOAD: (replace(
+            procedure, dependencies=(('format', InputSource(constant=format_constant)),)),)}))
+
+
+async def run_test():
+    check_failure_messages()
+    check_successful_paths()
+    check_instances()
+    check_loading_stops()
+    check_validation()

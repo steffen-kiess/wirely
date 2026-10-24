@@ -880,8 +880,8 @@ Field indices select struct fields in declaration order, starting at zero.
 
 Mnemonics are uppercase and name the members of `Opcode`. Instructions
 with a destination place it first. Each name below denotes a value operand
-except `field`, `offset`, `function`, and `count`, which denote integer
-parameters.
+except `field`, `offset`, `function`, `format`, and `count`, which denote
+integer parameters.
 
 | Instruction | Behavior |
 | --- | --- |
@@ -911,6 +911,7 @@ parameters.
 | `JUMP_IF_TRUE condition, offset` | Branch when the boolean condition is true; otherwise continue with the next instruction. |
 | `JUMP_IF_FALSE condition, offset` | Branch when the boolean condition is false; otherwise continue with the next instruction. |
 | `RETURN` | End the procedure with its current output values. |
+| `FAIL format, count, values…` | Fail loading with a diagnostic formatted from `count` values. Valid only in the `Load` stage. |
 
 ```wirely
 // The first byte of an instruction. 0 is not a valid opcode, and 0xff is
@@ -950,6 +951,7 @@ open enum type Opcode: uint8 {
   JUMP_IF_TRUE = 32,
   JUMP_IF_FALSE = 33,
   RETURN = 34,
+  FAIL = 35,
 }
 ```
 
@@ -976,6 +978,23 @@ parameter count so that instructions can be decoded without the table;
 they match, and the argument and destination types match the entry.
 Functions are pure and return a value for every argument.
 
+`FAIL` selects a `ConstValues` entry with the integer parameter `format`.
+The entry has type `List[string]` and contains exactly `2 * count + 1`
+strings: a literal, then a format specification and the next literal for
+each value operand. An empty specification uses the value type's text
+format. Only empty specifications are supported. Literal strings have no
+format syntax; braces in them are ordinary text. Each value operand has a
+runtime type and cannot be an immediate, since no other operand determines
+its type. Decoding reads `count` value operands without consulting the
+constant table or interpreting format specifications.
+
+Executing `FAIL` renders the diagnostic by alternating literals and values,
+then stops loading the candidate program. It publishes no outputs from the
+failed invocation. Diagnostics identify the procedure and instruction,
+with node and source information when available. A malformed format list
+or an unsupported specification is a verification failure, including in
+unreachable instructions.
+
 Ordering comparisons of `Std.Duration` and `Schedule.TimeOfDay` use native
 functions `Std.Duration.Less` and `Schedule.TimeOfDay.Less`, respectively.
 
@@ -1001,8 +1020,9 @@ The target must be an instruction start inside the stream. The position
 immediately after the stream is not a target: for a 120-byte stream, offset
 119 is valid only if an instruction starts there, and offset 120 is invalid.
 
-The stream is nonempty and its final instruction is `RETURN`. Earlier
-returns are allowed. There are no calls or backward branches.
+The stream is nonempty and its final instruction is `RETURN` or `FAIL`.
+Either instruction ends execution of the stream and can also appear
+earlier. There are no calls or backward branches.
 
 Target calculation must not overflow. Every byte of the stream belongs to
 a decoded instruction; unknown instructions cannot be skipped. Default
@@ -1243,6 +1263,10 @@ kinds and encodings, index bounds, immediate values, operand types, and
 writable destinations are checked as instructions are decoded. Branches
 only go forward, so a branch target is confirmed when decoding reaches it,
 using one bit per code byte or by decoding ahead.
+`FAIL` is checked at every use of a body: its procedure is in the `Load`
+stage, its format index selects a constant `List[string]` of the required
+length, and each specification is supported for the corresponding value
+type. All decoded instructions are checked, including unreachable ones.
 
 ### Producer requirements
 

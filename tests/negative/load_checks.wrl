@@ -1,0 +1,89 @@
+// TEST: runtime_stage
+procedure check {
+  load assert true; // E: Load checks are only allowed in load procedure bodies
+}
+
+// TEST: input_stage
+procedure check stage input {
+  load fail; // E: Load checks are only allowed in load procedure bodies
+}
+
+// TEST: output_stage
+procedure check stage output {
+  load assert true; // E: Load checks are only allowed in load procedure bodies
+}
+
+// TEST: compile_time_context
+constant Valid: boolean = {
+  load assert true; // E: Load checks are only allowed in load procedure bodies
+  true
+};
+
+// TEST: declaration_fail
+load fail "Always fails"; // E: Syntax error
+
+// TEST: condition_type
+node type Unused {
+  load assert 3; // E: Invalid boolean value
+}
+
+// TEST: runtime_declaration_dependency
+node type Unused {
+  input Ready: value boolean;
+  load assert Ready; // E: declared as load stage
+  // ^H: Reads declared here
+}
+
+// TEST: resource_dependency
+resource type Handle;
+node type Unused {
+  input Service: fixed Handle;
+  load assert true, "{}", Service; // E: Procedure bodies cannot read resources
+}
+
+// TEST: string_argument
+node type Unused {
+  load assert true, "{}", "text"; // E: is not a runtime type
+}
+
+// TEST: type_argument
+node type Unused {
+  load assert true, "{}", uint8; // E: is not a runtime type
+}
+
+// TEST: list_argument
+node type Unused {
+  constant Values: List[boolean] = [true];
+  load assert true, "{}", Values; // E: is not a runtime type
+}
+
+// TEST: missing_argument
+load assert true, "{}"; // E: Diagnostic format expects 1 values, got 0
+
+// TEST: extra_argument
+load assert true, "message", 1; // E: Diagnostic format expects 0 values, got 1
+
+// TEST: unclosed_brace
+load assert true, "{"; // E: Invalid diagnostic format
+
+// TEST: unexpected_brace
+load assert true, "}"; // E: Invalid diagnostic format
+
+// TEST: unsupported_format
+load assert true, "{:x}", 1; // E: Invalid diagnostic format
+
+// TEST: ordinary_assert_stays_compile_time
+binding ready: fixed boolean;
+procedure check stage load reads ready {
+  assert ready; // E: Assertion condition must be a compile-time expression
+}
+procedure produce stage load writes ready { ready = true; }
+
+// TEST: unreachable_source_checked
+procedure check stage load {
+  load fail;
+  load assert 3; // E: Invalid boolean value
+}
+
+// TEST: assert_remains_reserved
+constant assert: boolean = true; // E: Syntax error

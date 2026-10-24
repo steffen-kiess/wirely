@@ -1,0 +1,47 @@
+constant load: boolean = true;
+constant fail: boolean = false;
+assert load && !fail;
+load assert load;
+load assert !fail, "Literal {{braces}}";
+load assert true; load assert true;
+
+struct type Pair {
+  valid: boolean,
+  number: uint8,
+}
+
+node type Checked {
+  parameter Expected: uint8;
+  output value: fixed uint8;
+  binding pair: fixed Pair;
+
+  load assert value == Expected, r#"Expected {}, received {}"#,
+    Expected, value;
+  load assert pair.valid, "Pair {}", pair;
+
+  procedure produce stage load writes value, pair {
+    let load: boolean = true;
+    let fail: uint8 = Expected;
+    load assert load, "Load flag {}", load;
+    load assert true, "{}, {}, {}", Some(fail), (), Pair {
+      valid: load,
+      number: fail,
+    };
+    value = if load { fail } else { load fail; };
+    pair = Pair { valid: true, number: fail };
+  }
+}
+
+node type Unused {
+  load assert false;
+}
+
+singleton node type Shared {
+  load assert true;
+}
+
+node checked: Checked { Expected: 3 }
+node other: Checked { Expected: 7 }
+node shared: Shared {}
+node shared_again: Shared {}
+load assert checked.value == 3, "{}", checked.value;

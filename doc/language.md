@@ -189,10 +189,10 @@ native names of its initializer and native procedures, such as
 native name identifies one declaration of its kind.
 
 Identifiers are case-sensitive. Weak keywords `binding`, `changed`, `closed`,
-`constant`, `default`, `emit`, `event`, `fixed`, `in`, `initializer`, `input`,
-`multi`, `on`, `opaque`, `open`, `output`, `reads`, `resource`, `stage`,
-`state`, `type`, and `value` can also be used as identifiers. Other keywords
-require the `r#` prefix when used as names, for example
+`constant`, `default`, `emit`, `event`, `fail`, `fixed`, `in`, `initializer`,
+`input`, `load`, `multi`, `on`, `opaque`, `open`, `output`, `reads`, `resource`,
+`stage`, `state`, `type`, and `value` can also be used as identifiers. Other
+keywords require the `r#` prefix when used as names, for example
 `node r#node: Std.And {}`. Declarations end with `;`, except node instances
 and type and namespace bodies, which end at `}`.
 `//` starts a line comment, and `/* ... */` block comments may be nested.
@@ -276,6 +276,29 @@ instantiated singleton). Block assertions follow expression evaluation order.
 A false condition stops compilation. Unused node types have their declaration
 assertions checked but do not evaluate them. Assertions generate no runtime
 code. Messages may also use raw string literals.
+
+Use `load assert condition;` to check a Boolean condition during loading,
+even when the condition is constant. At the program root or in a node
+type, it reads compile-time and fixed plain values and runs once per
+instance after its dependencies are ready. Independent checks have no
+specified order. Unused node types are checked but their assertions do not
+run. Inside a `stage load` procedure body, the check runs when reached:
+
+```wirely
+load assert minimum <= maximum,
+  "Minimum {} exceeds maximum {}", minimum, maximum;
+```
+
+An optional ordinary or raw string literal supplies the message. Each `{}`
+formats the next diagnostic argument in its type's text format; write `{{`
+and `}}` for literal braces. Arguments must have runtime value types and
+are evaluated left to right only if the check fails. A failed check stops
+loading. The default message is `Load-time assertion failed`.
+
+Inside a load procedure body, use `load fail;` or
+`load fail "message", values…;` to fail unconditionally when reached, with
+the same message formatting. Its default message is `Load failed`. Failed
+paths need not assign outputs or locals used after the branch.
 
 Built-in types are `unit`, `boolean`, signed
 `int8`/`int16`/`int32`/`int64`/`int128`, unsigned
@@ -603,7 +626,8 @@ in dependency order. It reads compile-time and fixed values and writes
 only fixed values. Wirely bodies in this stage use runtime value types,
 without state or events; native load procedures may also handle resources.
 Fixed values cannot replace compile-time values in type arguments,
-parameter configurations, assertions, or other compile-time expressions.
+parameter configurations, compile-time assertions, or other compile-time
+expressions.
 
 Each step runs three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends

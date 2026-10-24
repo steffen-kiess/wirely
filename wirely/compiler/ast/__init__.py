@@ -85,6 +85,7 @@ from .procedures import (
     StaticReads,
     DeclarationInitializer,
     DeclarationProcedure,
+    DeclarationLoadAssertion,
     TypeInitializer,
     TypeProcedure,
 )

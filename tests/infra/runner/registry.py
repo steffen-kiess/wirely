@@ -5,6 +5,7 @@ python_only_tests = [
     'misc/type_check',
     'unit/runtime_program',
     'unit/load_stage',
+    'unit/load_checks',
     'unit/wall_clock',
     'unit/compiler_api',
     'unit/compiler_warnings',
@@ -75,6 +76,7 @@ example_tests = [
 
 to_compile = [
     'compiler/load_stage',
+    'compiler/load_checks',
     'compiler/simple',
     'compiler/assertions',
     'compiler/attributes',
@@ -115,6 +117,7 @@ to_compile = [
 
 negative_tests = [
     'negative/load_stage',
+    'negative/load_checks',
     'negative/library_settings',
     'negative/prepared_configuration',
     'negative/runtime_types',

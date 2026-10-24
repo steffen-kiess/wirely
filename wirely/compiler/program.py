@@ -163,11 +163,12 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
     constants: list[Constant] = []
-    constant_indices: dict[tuple[model.Type, bytes], int] = {}
+    constant_indices: dict[tuple[model.Type, object], int] = {}
 
     def intern_constant(value_type: model.Type, value: object) -> int:
         value = value_type.verify_value(value)
-        key = value_type, value_type.serialize(value)
+        key = value_type, (value if value_type == model.types.TypeList(model.types.String)
+                           else value_type.serialize(value))
         if key not in constant_indices:
             constant_indices[key] = len(constants)
             constants.append(Constant(value_type, value))

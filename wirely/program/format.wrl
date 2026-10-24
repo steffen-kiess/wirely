@@ -370,6 +370,7 @@ open enum type Opcode: uint8 {
   JUMP_IF_TRUE = 32,
   JUMP_IF_FALSE = 33,
   RETURN = 34,
+  FAIL = 35,
 }
 
 // Symbols for the whole program. SymbolMetadata record.

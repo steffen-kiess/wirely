@@ -316,10 +316,11 @@ class EmitExpression(Expression):
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class ExpressionBlock(Expression):
-    statements: tuple[LocalBinding | ExpressionStatement, ...]
+    statements: tuple[LocalBinding | ExpressionStatement | LoadCheckStatement, ...]
 
     @staticmethod
-    def of(*statements: LocalBinding | ExpressionStatement, source_position: SourcePosition) -> ExpressionBlock:
+    def of(*statements: LocalBinding | ExpressionStatement | LoadCheckStatement,
+           source_position: SourcePosition) -> ExpressionBlock:
         return ExpressionBlock(statements, source_position=source_position)
 
 
@@ -337,6 +338,48 @@ class ExpressionStatement(SyntaxElement):
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
 class AssertionStatement(ExpressionStatement):
     message: model.StringConstant | None
+
+
+@dataclasses.dataclass(frozen=True, eq=False, repr=False)
+class LoadCheckStatement(SyntaxElement):
+    condition: AstValue | None
+    message: model.StringConstant | None
+    values: tuple[AstValue, ...]
+
+    @staticmethod
+    def assertion(condition: AstValue, message: model.StringConstant | None, *values: AstValue,
+                  source_position: SourcePosition) -> LoadCheckStatement:
+        return LoadCheckStatement(condition, message, values, source_position=source_position)
+
+    @staticmethod
+    def failure(message: model.StringConstant | None, *values: AstValue,
+                source_position: SourcePosition) -> LoadCheckStatement:
+        return LoadCheckStatement(None, message, values, source_position=source_position)
+
+    def format_parts(self) -> tuple[str, ...]:
+        text = (self.message.value if self.message is not None else
+                'Load-time assertion failed' if self.condition is not None else 'Load failed')
+        parts = ['']
+        index = 0
+        while index < len(text):
+            char = text[index]
+            index += 1
+            if char in '{}':
+                if text.startswith(char, index):
+                    index += 1
+                elif char == '{' and text.startswith('}', index):
+                    index += 1
+                    parts.extend(('', ''))
+                    continue
+                else:
+                    raise ProgramError(self.message or self,
+                                       'Invalid diagnostic format; use {}, {{, or }}')
+            parts[-1] += char
+        count = (len(parts) - 1) // 2
+        if count != len(self.values):
+            raise ProgramError(self.message or self,
+                               f'Diagnostic format expects {count} values, got {len(self.values)}')
+        return tuple(parts)
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -365,6 +408,59 @@ class Binding:
     mutable: bool = False
 
 
+def infer_load_reads(graph: model.NodeType, body: ExpressionBlock) -> tuple[ExpressionBlock, tuple[model.ReferencePort, ...]]:
+    """Replace graph value references with generated procedure input aliases."""
+    ports: dict[tuple[str, ...], model.ReferencePort] = {}
+
+    def visit(value: Any, locals: frozenset[str] = frozenset()) -> Any:
+        if isinstance(value, model.Reference):
+            root = value.identifiers[0].id_str
+            declaration = graph.name_declarations.get(root)
+            if root in locals or not (root in ('default input', 'default output') or isinstance(declaration, (
+                    model.DeclarationBinding, model.DeclarationState, model.DeclarationPort,
+                    model.DeclarationInstance, model.DeclarationProcedure, model.DeclarationInitializer))):
+                return value
+            split = (min(2, value.length) if isinstance(declaration, (
+                model.DeclarationInstance, model.DeclarationProcedure, model.DeclarationInitializer,
+                model.DeclarationState)) else 1)
+            key = tuple(name.id_str for name in value.identifiers[:split])
+            if key not in ports:
+                alias = model.Identifier(f'<load read {len(ports)}>', source_position=value.source_position)
+                reference = model.Reference.from_list(*value.identifiers[:split], source_position=value.source_position)
+                ports[key] = model.ReferencePort(reference, alias, source_position=value.source_position)
+            port_alias = ports[key].alias
+            assert isinstance(port_alias, model.Identifier)
+            result: AstValue = model.Reference.from_list(port_alias, source_position=value.source_position)
+            for name in value.identifiers[split:]:
+                result = PropertyAccess(result, name, source_position=value.source_position)
+            return result
+        if isinstance(value, ExpressionBlock):
+            statements = []
+            for statement in value.statements:
+                statements.append(visit(statement, locals))
+                if isinstance(statement, LocalBinding):
+                    locals = locals | {statement.name.id_str}
+            return replace(value, statements=tuple(statements))
+        if isinstance(value, IfLetExpression):
+            return replace(value, scrutinee=visit(value.scrutinee, locals),
+                           then=visit(value.then, locals | {value.name.id_str}),
+                           otherwise=visit(value.otherwise, locals))
+        if isinstance(value, ForExpression):
+            return replace(value, iterable=visit(value.iterable, locals),
+                           body=visit(value.body, locals | {value.name.id_str}))
+        if isinstance(value, SyntaxElement) and dataclasses.is_dataclass(value):
+            changes = {field.name: visit(getattr(value, field.name), locals)
+                       for field in dataclasses.fields(value)
+                       if field.init and field.name not in (
+                           'source_position', 'outer_attributes', 'inner_attributes', 'name', 'annotation')}
+            return replace(value, **changes)
+        if isinstance(value, tuple):
+            return tuple(visit(item, locals) for item in value)
+        return value
+
+    return visit(body), tuple(ports.values())
+
+
 class ExpressionClassification:
     """Resolve runtime dependencies, including cycles through block locals."""
 
@@ -391,6 +487,8 @@ class ExpressionClassification:
         if not isinstance(expression, SourceElement):
             return
         dependencies = self.dependencies.setdefault(expression, set())
+        if isinstance(expression, LoadCheckStatement):
+            self.runtime.add(expression)
         property_expression = property_reference(self.scope, expression, names)
         if isinstance(property_expression, PropertyAccess) and property_expression.name.id_str == 'Length':
             receiver = property_expression.receiver
@@ -469,6 +567,21 @@ class TypedExpression:
     runtime: bool = False
 
     @property
+    def diverges(self) -> bool:
+        """Whether execution cannot continue past this expression."""
+        if self.operation == 'load_fail':
+            return True
+        if self.operation == 'load_assert':
+            return self.arguments[0].diverges
+        if self.operation in ('if', 'if_let'):
+            return self.arguments[0].diverges or all(value.diverges for value in self.arguments[1:])
+        if self.operation in ('and', 'or'):
+            return self.arguments[0].diverges
+        if self.operation in ('for', 'on'):
+            return False
+        return any(value.diverges for value in self.arguments)
+
+    @property
     def contains_parameters(self) -> bool:
         return (self.value_type.contains_parameters
                 or (self.expected_type is not None and self.expected_type.contains_parameters)
@@ -488,7 +601,7 @@ class TypedExpression:
         return resolved
 
     def check_types(self) -> None:
-        if self.expected_type is not None:
+        if self.expected_type is not None and not self.diverges:
             check_value_type(self.value_type, self.expected_type, self.source)
         boolean = model.types.boolean
         if self.operation == 'list_length':
@@ -521,8 +634,9 @@ class TypedExpression:
         elif self.operation == 'if':
             condition, then, otherwise = self.arguments
             check_value_type(condition.value_type, boolean, condition.source)
-            check_value_type(otherwise.value_type, then.value_type, otherwise.source)
-            check_value_type(then.value_type, self.value_type, then.source)
+            for branch in (then, otherwise):
+                if not branch.diverges:
+                    check_value_type(branch.value_type, self.value_type, branch.source)
         elif self.operation == 'unwrap':
             option = self.arguments[0]
             if not option.value_type.contains_parameters and not isinstance(option.value_type, model.types.TypeOption):
@@ -537,8 +651,11 @@ class TypedExpression:
                 check_value_type(self.arguments[1].value_type, option.value_type.inner_type, self.arguments[1].source)
             else:
                 then, otherwise = self.arguments[1:]
-                check_value_type(otherwise.value_type, then.value_type, otherwise.source)
-            check_value_type(self.arguments[1].value_type, self.value_type, self.arguments[1].source)
+                for branch in (then, otherwise):
+                    if not branch.diverges:
+                        check_value_type(branch.value_type, self.value_type, branch.source)
+            if self.operation == 'unwrap_or':
+                check_value_type(self.arguments[1].value_type, self.value_type, self.arguments[1].source)
         elif self.operation in ('arith', 'neg'):
             for argument in self.arguments[1:]:
                 check_value_type(argument.value_type, self.arguments[0].value_type, argument.source)
@@ -768,6 +885,19 @@ class InstructionCompiler:
 
     def compile(self, expression: TypedExpression, destination: Operand | None = None) -> Operand:
         operation = expression.operation
+        if operation in ('load_assert', 'load_fail'):
+            skip = None
+            diagnostic_arguments = expression.arguments
+            if operation == 'load_assert':
+                skip = self.emit(Opcode.JUMP_IF_TRUE, self.compile(diagnostic_arguments[0]), BranchTarget(0))
+                diagnostic_arguments = diagnostic_arguments[1:]
+            values = [self.snapshot(argument) for argument in diagnostic_arguments]
+            format_index = self.intern_constant(model.types.TypeList(model.types.String), expression.payload)
+            self.emit(Opcode.FAIL, format_index, len(values), *values)
+            if skip is not None:
+                self.patch(skip)
+            # A failed path never reaches this unit value; assertion success does.
+            return self.compile(TypedExpression(model.types.unit, 'unit'), destination)
         if operation in ('constant', 'input', 'local', 'output'):
             if operation == 'constant':
                 source = Operand(OperandKind.CONST, self.intern_constant(
@@ -794,6 +924,8 @@ class InstructionCompiler:
             for value in expression.arguments[:-1]:
                 if value.runtime:
                     self.compile(value)
+                if value.diverges:
+                    return destination or self.allocate(expression.value_type)
             return self.compile(expression.arguments[-1], destination)
         if operation == 'assign':
             value = expression.arguments[0]
@@ -929,10 +1061,11 @@ OPTIONAL_RUNTIME_MESSAGE = 'optional requires an optional parameter without a de
 class ExpressionCompiler:
     def __init__(self, scope: model.Scope, parameters: Mapping[model.NodeParameter, StaticValue], *,
                  runtime: bool = False, names: Mapping[str, TypedExpression] | None = None,
-                 protected: Iterable[str] = ()) -> None:
+                 protected: Iterable[str] = (), load: bool = False) -> None:
         self.scope = scope
         self.parameters = parameters
         self.runtime = runtime
+        self.load = load
         self.names = dict(names or {})
         self.protected = set(protected)
         self.next_slot = 0
@@ -1041,6 +1174,28 @@ class ExpressionCompiler:
                   all(branch[key][1] for branch in branches))
             for key in before
         }
+
+    def merge_successful(self, before: Initialization,
+                         *branches: tuple[TypedExpression, Initialization]) -> None:
+        successful = [state for expression, state in branches if not expression.diverges]
+        self.merge_initialization(before, *(successful or [before]))
+
+    def load_check(self, statement: LoadCheckStatement) -> TypedExpression:
+        if not self.load:
+            raise ProgramError(statement, 'Load checks are only allowed in load procedure bodies')
+        parts = statement.format_parts()
+        before = dict(self.initialization)
+        condition = (self.compile(statement.condition, model.types.boolean)
+                     if statement.condition is not None else None)
+        after_condition = dict(self.initialization)
+        values = tuple(self.compile(value) for value in statement.values)
+        for value in values:
+            check_runtime_type(value.value_type, value.source)
+        # Diagnostic arguments run only on the failing path.
+        self.initialization = after_condition if condition is not None else before
+        return TypedExpression(model.types.unit, 'load_assert' if condition is not None else 'load_fail',
+                               ((condition,) if condition is not None else ()) + values,
+                               payload=parts, source=statement, runtime=True)
 
     def assignment(self, expression: AssignmentExpression) -> TypedExpression:
         target = expression.target
@@ -1230,8 +1385,14 @@ class ExpressionCompiler:
         outer_keys = set(self.initialization)
         statements = []
         result = TypedExpression(model.types.unit, 'unit')
+        failed = False
         try:
             for index, statement in enumerate(expression.statements):
+                if isinstance(statement, LoadCheckStatement):
+                    value = self.load_check(statement)
+                    statements.append(value)
+                    failed |= value.diverges
+                    continue
                 if isinstance(statement, LocalBinding):
                     statements.append(self.local(statement))
                     continue
@@ -1251,14 +1412,16 @@ class ExpressionCompiler:
                 if is_tail:
                     result = value
                 else:
-                    if not statement.terminated:
+                    if not statement.terminated and not value.diverges:
                         check_value_type(value.value_type, model.types.unit, statement)
                     statements.append(value)
+                failed |= value.diverges
         finally:
             self.names = previous_names
             self.initialization = {key: state for key, state in self.initialization.items()
                                    if key in outer_keys}
-        return TypedExpression(result.value_type, 'block', (*statements, result))
+        return TypedExpression(expected if failed and expected is not None else result.value_type,
+                               'block', (*statements, result))
 
     def compile(self, expression: AstValue, expected: model.Type | None = None) -> TypedExpression:
         if self.runtime and self.classification is None:
@@ -1406,10 +1569,11 @@ class ExpressionCompiler:
             then = self.compile(expression.then, branch_type)
             then_state = dict(self.initialization)
             self.initialization = dict(before)
-            otherwise = (self.compile(expression.otherwise, then.value_type)
+            otherwise = (self.compile(expression.otherwise, branch_type if then.diverges else then.value_type)
                          if expression.otherwise is not None else TypedExpression(model.types.unit, 'unit'))
-            self.merge_initialization(before, then_state, self.initialization)
-            return TypedExpression(then.value_type, 'if', (condition, then, otherwise))
+            self.merge_successful(before, (then, then_state), (otherwise, self.initialization))
+            return TypedExpression(otherwise.value_type if then.diverges else then.value_type,
+                                   'if', (condition, then, otherwise))
         if isinstance(expression, IfLetExpression):
             return self.if_let(expression, expected)
         if isinstance(expression, ExpressionBlock):
@@ -1579,10 +1743,11 @@ class ExpressionCompiler:
         finally:
             self.names = previous
         self.initialization = dict(before)
-        otherwise = (self.compile(expression.otherwise, then.value_type)
+        otherwise = (self.compile(expression.otherwise, branch_type if then.diverges else then.value_type)
                      if expression.otherwise is not None else TypedExpression(model.types.unit, 'unit'))
-        self.merge_initialization(before, then_state, self.initialization)
-        return TypedExpression(then.value_type, 'if_let', (option, then, otherwise), slot)
+        self.merge_successful(before, (then, then_state), (otherwise, self.initialization))
+        return TypedExpression(otherwise.value_type if then.diverges else then.value_type,
+                               'if_let', (option, then, otherwise), slot)
 
     def check_runtime_syntax(self, expression: AstValue | None) -> None:
         if not self.is_runtime(expression):
@@ -1640,8 +1805,13 @@ class ExpressionCompiler:
             self.check_runtime_syntax(expression.otherwise)
         elif isinstance(expression, ExpressionBlock):
             for statement in expression.statements:
-                self.check_runtime_syntax(statement.initializer if isinstance(statement, LocalBinding)
-                                          else statement.expression)
+                if isinstance(statement, LoadCheckStatement):
+                    self.check_runtime_syntax(statement.condition)
+                    for value in statement.values:
+                        self.check_runtime_syntax(value)
+                else:
+                    self.check_runtime_syntax(statement.initializer if isinstance(statement, LocalBinding)
+                                              else statement.expression)
         elif isinstance(expression, AssignmentExpression):
             self.check_runtime_syntax(expression.expression)
 
@@ -1650,10 +1820,13 @@ class ExpressionCompiler:
         if isinstance(expression, (model.IntNumber, model.StringConstant)):
             return None
         if isinstance(expression, ExpressionBlock):
+            if any(isinstance(statement, LoadCheckStatement) and statement.condition is None
+                   for statement in expression.statements):
+                return None
             if not expression.statements:
                 return model.types.unit
             tail = expression.statements[-1]
-            if isinstance(tail, LocalBinding) or tail.terminated:
+            if isinstance(tail, (LocalBinding, LoadCheckStatement)) or tail.terminated:
                 return model.types.unit
             return self.context_type(tail.expression) if len(expression.statements) == 1 else None
         if isinstance(expression, BinaryExpression) and expression.operator in SHIFT_OPERATORS:
@@ -1732,10 +1905,13 @@ class ExpressionCompiler:
         if isinstance(expression, AssignmentExpression):
             return model.types.unit
         if isinstance(expression, ExpressionBlock):
+            if any(isinstance(statement, LoadCheckStatement) and statement.condition is None
+                   for statement in expression.statements):
+                return None
             if not expression.statements:
                 return model.types.unit
             tail = expression.statements[-1]
-            if isinstance(tail, LocalBinding) or tail.terminated:
+            if isinstance(tail, (LocalBinding, LoadCheckStatement)) or tail.terminated:
                 return model.types.unit
             if len(expression.statements) == 1:
                 return self.known_type(tail.expression)
@@ -1857,7 +2033,8 @@ def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTy
         if isinstance(value, Value):
             names[name] = TypedExpression(value.value_type, 'constant', payload=value)
     compiler = ExpressionCompiler(instance.node_type, parameters, runtime=True,
-                                  names=names, protected=protected | input_names)
+                                  names=names, protected=protected | input_names,
+                                  load=declaration.stage.stage == model.RunStage.LOAD)
     for name in event_sources:
         event = names[name]
         compiler.events[event.operation, event.payload] = event.value_type.inner_type
@@ -1870,7 +2047,7 @@ def compile_procedure(procedure: model.InstanceProcedure, instance: model.NodeTy
     body = compiler.compile(declaration.body, model.types.unit)
     missing = [name for name in output_types
                if name not in compiler.event_outputs and not compiler.initialization['output', name][1]]
-    if missing:
+    if missing and not body.diverges:
         raise ProgramError(declaration.body, f'Procedure did not assign outputs on every path: {", ".join(f"`{name}`" for name in sorted(missing))}')
     procedure.static_usage = frozenset(compiler.static_usage)
     body = fold_constants(body)

@@ -5,8 +5,22 @@ from typing import Any
 
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, Opcode, OperandKind, Procedure, Program
 from ..types import InternalValue, Some, convert
+from ..types.value_types import DynamicValue
 
 NativeFunction = Callable[[Sequence[InternalValue]], InternalValue]
+
+
+class LoadFailure(Exception):
+    """An intentional failure while executing a candidate program's load stage."""
+
+    def __init__(self, procedure: Procedure, instruction_index: int, message: str,
+                 values: Sequence[DynamicValue]) -> None:
+        self.procedure = procedure.reference
+        self.node_context = procedure.node_context
+        self.instruction_index = instruction_index
+        self.message = message
+        self.values = tuple(values)
+        super().__init__(f'[{self.node_context.name}] {self.procedure} at idx{instruction_index}: {message}')
 
 
 def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[InternalValue],
@@ -46,6 +60,13 @@ def execute_procedure(program: Program, procedure: Procedure, inputs: Sequence[I
         operands: Any = instruction.operands  # Their kinds are checked by validate_program().
         if opcode == Opcode.RETURN:
             break
+        if opcode == Opcode.FAIL:
+            parts = program.constants[operands[0]].value
+            diagnostic_values = tuple(DynamicValue._make(value_type(operand), read(operand))
+                                      for operand in operands[2:])
+            message = parts[0] + ''.join(value.to_text() + parts[2 * index + 2]
+                                         for index, value in enumerate(diagnostic_values))
+            raise LoadFailure(procedure, index, message, diagnostic_values)
         if opcode == Opcode.JUMP:
             index = operands[0].index
             continue

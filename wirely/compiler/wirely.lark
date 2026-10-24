@@ -33,6 +33,7 @@ bare_declaration: "namespace" identifier ("." identifier)* "{" declaration_list 
     | [optional_specifier] "parameter" identifier ":" type ";" -> declaration_parameter
     | "parameter" identifier ":" type "=" expression ";" -> declaration_parameter__with_default_value
     | "assert" expression ["," string_constant] ";" -> declaration_assertion
+    | "load" "assert" expression ["," string_constant ("," expression)*] ";" -> declaration_load_assertion__create
     // Node type interface
     | port_direction identifier ":" port_type_specification ";" -> declaration_port__create
     | "default" port_direction ":" port_type_specification ";" -> declaration_port__create_default
@@ -122,6 +123,8 @@ local_binding: "let" identifier [":" type] ["=" expression] ";"
 block_statement: outer_attribute* bare_block_statement -> attributed
 ?bare_block_statement: local_binding
     | "assert" expression ["," string_constant] ";" -> assertion_statement
+    | "load" "assert" expression ["," string_constant ("," expression)*] ";" -> load_check_statement__assertion
+    | "load" "fail" [string_constant ("," expression)*] ";" -> load_check_statement__failure
     | expression_without_block ";" -> expression_statement
     | block_expression ";" -> expression_statement
     | block_expression -> expression_statement__unterminated
@@ -249,6 +252,8 @@ reference: identifier ("." identifier)* -> reference__from_list
     | "event"
     | "emit"
     | "fixed"
+    | "load"
+    | "fail"
     | "initializer"
     | "input"
     | "in"

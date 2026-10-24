@@ -367,6 +367,48 @@ class DeclarationProcedure(Declaration):
         graph.procedures[self.name.id_str].bind_body()
 
 
+class DeclarationLoadAssertion(DeclarationProcedure):
+    """A declaration assertion lowered to a load procedure with inferred reads."""
+
+    @staticmethod
+    def create(condition: Value, message: StringConstant | None, *values: Value,
+               source_position: SourcePosition) -> 'DeclarationLoadAssertion':
+        from ..expressions import ExpressionBlock, LoadCheckStatement
+
+        name = Identifier(f'<load assert {source_position.filename}:{source_position.start_line}:{source_position.start_pos}>',
+                          source_position=source_position)
+        return DeclarationLoadAssertion(
+            None, name, None, StageDeclaration.create_load(source_position=source_position),
+            ReadsDeclaration.of(source_position=source_position),
+            WritesDeclaration.of(source_position=source_position), source_position=source_position,
+            body=ExpressionBlock.of(LoadCheckStatement.assertion(
+                condition, message, *values, source_position=source_position), source_position=source_position),
+        )
+
+    def prepare_interface(self, graph: 'model.NodeType') -> None:
+        from ..expressions import ExpressionBlock, infer_load_reads
+
+        assert isinstance(self.body, ExpressionBlock)
+        body, ports = infer_load_reads(graph, self.body)
+        object.__setattr__(self, 'body', body)
+        object.__setattr__(self, 'reads', ReadsDeclaration.of(*ports, source_position=self.source_position))
+        self.split_reads(None)
+        super().prepare_interface(graph)
+
+    def bind_body(self, graph: 'model.NodeType') -> None:
+        from ..expressions import ExpressionCompiler, TypedExpression
+
+        super().bind_body(graph)
+        procedure = graph.procedures[self.name.id_str]
+        names = {name: TypedExpression(port.var_type, 'input', payload=name, runtime=True)
+                 for name, port in procedure.input_ports.items()}
+        for name, parameter in graph.static_declarations.items():
+            names[name] = TypedExpression(parameter.type_resolved, 'constant', payload=model.ValueParameter(
+                parameter.type_resolved, parameter, ast_element=parameter.declaration))
+        assert self.body is not None
+        ExpressionCompiler(graph, {}, runtime=True, load=True, names=names).compile(self.body, model.types.unit)
+
+
 class TypeProcedure:
     """A procedure of a node type in a compilation."""
 
@@ -419,6 +461,22 @@ class TypeProcedure:
         if self.graph.parent_graph is None and self.is_native:
             raise ProgramError(self.declaration, 'Native procedures must belong to a node type')
         self.bind_connections(self.graph)
+        if self.declaration.body is not None:
+            self.check_load_statements(self.declaration.body)
+
+    def check_load_statements(self, expression: SourceElement) -> None:
+        from ..expressions import LoadCheckStatement
+
+        if isinstance(expression, LoadCheckStatement):
+            if self.stage.stage != RunStage.LOAD:
+                raise ProgramError(expression, 'Load checks are only allowed in load procedure bodies')
+            expression.format_parts()
+        for name, child in vars(expression).items():
+            if name in ('source_position', 'outer_attributes', 'inner_attributes'):
+                continue
+            for item in child if isinstance(child, tuple) else (child,):
+                if isinstance(item, SourceElement):
+                    self.check_load_statements(item)
 
     def bind_connections(self, graph: 'model.NodeType') -> None:
         # Reference ports connect to the ports they reference.

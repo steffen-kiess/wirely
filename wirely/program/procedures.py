@@ -40,6 +40,8 @@ class Opcode(enum.Enum):
     JUMP_IF_TRUE = enum.auto()
     JUMP_IF_FALSE = enum.auto()
     RETURN = enum.auto()
+    # FAIL format, count, values...: format indexes a constant List[string].
+    FAIL = enum.auto()
     XOR = enum.auto()
     SHIFT_LEFT = enum.auto()
     SHIFT_RIGHT = enum.auto()

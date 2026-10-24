@@ -20,6 +20,7 @@ from .ast import SourceElement, SyntaxElement, capture_source_path
 from .expressions import (
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression, OnTrigger, EmitExpression,
     ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
+    LoadCheckStatement,
 )
 
 
@@ -34,6 +35,7 @@ with open(os.path.dirname(__file__) + '/wirely.lark', 'r') as file:
 ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factories.
     BinaryExpression, UnaryExpression, IfExpression, IfLetExpression, ForExpression, OnExpression, OnTrigger, EmitExpression,
     ExpressionBlock, PropertyAccess, LocalBinding, AssignmentExpression, ExpressionStatement, AssertionStatement,
+    LoadCheckStatement,
     model.ConnectionKindSpecifier,
     model.PortTypeSpecification,
     model.PortTypeSpecificationData,
@@ -59,6 +61,7 @@ ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factori
     model.DeclarationParameter,
     model.DeclarationConstant,
     model.DeclarationAssertion,
+    model.ast.DeclarationLoadAssertion,
     model.DeclarationNodeType,
     model.ParameterBinding,
     model.Instantiation,

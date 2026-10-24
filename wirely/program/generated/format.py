@@ -336,6 +336,7 @@ class Opcode(OpenIntEnum, minimum=0, maximum=255):
     JUMP_IF_TRUE = 32
     JUMP_IF_FALSE = 33
     RETURN = 34
+    FAIL = 35
 
 
 # SymbolMetadata in wirely/program/format.wrl
@@ -443,6 +444,7 @@ _enums['Opcode'] = TypeEnum('Opcode', {
     'JUMP_IF_TRUE': 32,
     'JUMP_IF_FALSE': 33,
     'RETURN': 34,
+    'FAIL': 35,
 }, is_open=True, underlying_type=uint8)
 
 # Wirely types of the records, with field types first.
