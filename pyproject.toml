@@ -43,7 +43,7 @@ include = ["wirely*"]
 namespaces = true
 
 [tool.setuptools.package-data]
-wirely = ["compiler/wirely.lark", "lib/*.wrl"]
+wirely = ["compiler/wirely.lark", "lib/*.wrl", "program/format.wrl"]
 
 [tool.mypy]
 files = ["wirely", "tests/infra"]

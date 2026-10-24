@@ -4,6 +4,7 @@ recursive-include examples *.wrl
 recursive-include tests *.py *.wrl
 include tests/wrl/username_password.txt
 include tools/build-pex
+include tools/generate-native-types
 include tools/git_write_wd_tree.py
 include tools/run-tests
 include tools/run-tests-dependencies
