@@ -34,6 +34,7 @@ python_only_tests = [
     'unit/editor_export',
     'unit/container',
     'unit/format_records',
+    'unit/const_data',
     'unit/monotonic_timestamp',
 ]
 
