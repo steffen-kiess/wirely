@@ -410,7 +410,7 @@ def _declared_types(value_type: Type, seen: set[int]) -> Iterator[TypeEnum | Typ
         yield from _declared_types(value_type.inner_type, seen)
     elif isinstance(value_type, TypeStruct):
         yield value_type
-        for field_type in value_type.fields.values():
+        for field_type in value_type.field_types:
             yield from _declared_types(field_type, seen)
 
 

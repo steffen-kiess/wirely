@@ -131,9 +131,9 @@ def _validate_body(procedure: Procedure, stage: RunStage) -> None:
                     raise ValueError('Field access requires a non-opaque struct')
                 field = operands[2]
                 assert isinstance(field, int)
-                if not 0 <= field < len(struct_type.fields):
+                if not 0 <= field < len(struct_type.field_types):
                     raise ValueError('Field index out of range')
-                field_type = tuple(struct_type.fields.values())[field]
+                field_type = struct_type.field_types[field]
                 _same_type(operand_types[0] if opcode == Opcode.GET_FIELD else operand_types[1], field_type)
             elif opcode in (Opcode.MAKE_SOME, Opcode.GET_OPTION_VALUE, Opcode.IS_SOME):
                 option_type = operand_types[0] if opcode == Opcode.MAKE_SOME else operand_types[1]

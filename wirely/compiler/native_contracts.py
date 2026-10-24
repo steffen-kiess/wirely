@@ -867,7 +867,7 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
         if isinstance(field_type, TypeEnum):
             return field_type.name, f'_enums[{field_type.name!r}]'
         if isinstance(field_type, TypeStruct):
-            return field_type.name, f'_types[{field_type.name!r}]'
+            return str(field_type), f'_types[{str(field_type)!r}]'
         raise ValueError(f'Field `{field}` of format record `{record.name}` has unsupported type `{field_type}`')
 
     classes: list[tuple[int, str, list[str]]] = []

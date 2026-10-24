@@ -68,9 +68,9 @@ def link_native_enums(program: Program, extension: RuntimeNativeExtension) -> No
         if str(enum_type.underlying_type) != expected.underlying_type:
             raise ValueError(f'Native enum type `{name}` must have underlying type `{expected.underlying_type}`, '
                              f'got `{enum_type.underlying_type}`')
-        if not enum_type.is_open and len(enum_type.members) != len(expected.python_type):
+        if not enum_type.is_open and enum_type.member_count != len(expected.python_type):
             raise ValueError(f'Native enum type `{name}` must have {len(expected.python_type)} members, '
-                             f'got {len(enum_type.members)}')
+                             f'got {enum_type.member_count}')
 
 
 def link_native_structs(program: Program, extension: RuntimeNativeExtension) -> None:
@@ -90,7 +90,7 @@ def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> N
     expected = (native_types.opaque_types if struct_type.is_opaque else native_types.structs).get(name)
     if expected is None:
         raise ValueError(f'Cannot find {kind.lower()} `{name}`')
-    field_types = tuple(struct_type.fields.values())
+    field_types = struct_type.field_types
     if len(field_types) != len(expected.fields):
         raise ValueError(f'{kind} `{name}` must have {len(expected.fields)} fields, got {len(field_types)}')
     for index, (field_type, signature_type) in enumerate(zip(field_types, expected.fields)):
@@ -111,7 +111,7 @@ def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> N
 
 def _contains_opaque(value_type: Type) -> bool:
     if isinstance(value_type, TypeStruct):
-        return value_type.is_opaque or any(_contains_opaque(field) for field in value_type.fields.values())
+        return value_type.is_opaque or any(_contains_opaque(field) for field in value_type.field_types)
     if isinstance(value_type, (TypeOption, TypeList)):
         return _contains_opaque(value_type.inner_type)
     return False

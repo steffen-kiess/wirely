@@ -501,6 +501,29 @@ def check_structs():
             call()
 
 
+def check_unnamed_types():
+    # Types loaded without symbols have no type, field, or member names.
+    types = wirely.types
+    point = types.TypeStruct(None, (types.uint8, types.boolean))
+    assert point.field_types == (types.uint8, types.boolean) and point.field_names is None
+    assert point.to_text((7, True)) == 'struct { 7, true }'
+    assert point.deserialize(point.serialize((7, True))) == (7, True)
+    native = types.TypeStruct(None, (), native_name='Native.Empty')
+    assert native.to_text(()) == 'Native.Empty {}'
+    for convenience in (lambda: point.fields, lambda: point.make_value({}), lambda: point.index('x')):
+        with checks.assertRaisesRegex(ValueError, 'has no field names'):
+            convenience()
+
+    closed = types.TypeEnum(None, {}, is_open=False, underlying_type=types.uint8, member_count=3)
+    assert (closed.member_count, closed.to_text(2), closed.parse('2')) == (3, '2', 2)
+    with checks.assertRaises(ValueError):
+        closed.verify_value(3)
+    with checks.assertRaisesRegex(ValueError, 'all members or none'):
+        types.TypeEnum(None, {'First': 0}, is_open=False, underlying_type=types.uint8, member_count=2)
+    named = types.TypeEnum(None, {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    assert (str(named), named.to_text(1)) == ('enum', 'On')
+
+
 def check_default_values():
     from unittest.mock import Mock
 
@@ -664,6 +687,7 @@ check_times()
 check_type_names()
 check_to_text()
 check_structs()
+check_unnamed_types()
 check_default_values()
 
 check_runtime_limits()

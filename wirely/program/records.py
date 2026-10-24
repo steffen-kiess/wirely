@@ -30,7 +30,7 @@ def _record(record_class: type[R], value_type: TypeStruct, value: tuple[Any, ...
     """Return a Wirely struct value as a record of record_class, with nested records and enum members."""
     fields: list[Any] = [_record(_record_classes[field_type.name], field_type, field) if isinstance(field_type, TypeStruct)
               else _enum_classes[field_type.name](field) if isinstance(field_type, TypeEnum)
-              else field for field_type, field in zip(value_type.fields.values(), value)]
+              else field for field_type, field in zip(value_type.field_types, value)]
     return record_class(*fields)
 
 

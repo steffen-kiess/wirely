@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 import re
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NoReturn, TypeAlias
 
@@ -276,29 +276,53 @@ class TypeOption(Type):
 class TypeStruct(Type):
     """A nominal value type with fields kept in declaration order.
 
-    Values are tuples of field values in that order. An opaque struct is
-    implemented by native code, which also parses and formats its values
-    when native_types provides its implementation.
+    Values are tuples of field values in that order. The type name and field
+    names are optional; without them, text output falls back to the native
+    name and field positions. An opaque struct is implemented by native code,
+    which also parses and formats its values when native_types provides its
+    implementation.
     """
 
     is_json_serializable = False
     has_to_csv_value = False
 
-    def __init__(self, name: str, fields: Mapping[str, Type], *, native_name: str | None = None,
-                 is_opaque: bool = False, native_types: NativeTypes | None = None) -> None:
+    def __init__(self, name: str | None, fields: Mapping[str, Type] | Sequence[Type], *,
+                 native_name: str | None = None, is_opaque: bool = False,
+                 native_types: NativeTypes | None = None) -> None:
+        """Create a struct from named fields, or from field types alone."""
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Struct native_name must be a nonempty string or None')
         if is_opaque and native_name is None:
             raise ValueError('Opaque structs require a native_name')
-        self.name = name
+        self.name = name or native_name or 'struct'  # The declared name, else the native name.
+        self.type_name = name  # The declared name, or None.
         self.native_name = native_name  # None for structs native code does not rely on.
         self.is_opaque = is_opaque
         # Native types providing the implementation of an opaque struct, or None.
         self.native_types = native_types
-        self.fields = MappingProxyType(dict(fields))
+        self._fields: Mapping[str, Type] | None
+        if isinstance(fields, Mapping):
+            self._fields = MappingProxyType(dict(fields))
+            self.field_names: tuple[str, ...] | None = tuple(self._fields)
+            self.field_types: tuple[Type, ...] = tuple(self._fields.values())
+        else:
+            self._fields = None
+            self.field_names = None
+            self.field_types = tuple(fields)
         if any(not isinstance(field_type, Type) or field_type.contains_parameters
-               for field_type in self.fields.values()):
+               for field_type in self.field_types):
             raise ValueError('Struct fields require resolved value types')
+
+    @property
+    def fields(self) -> Mapping[str, Type]:
+        """Field types by name; requires field names."""
+        if self._fields is None:
+            raise ValueError(f'Struct `{self}` has no field names')
+        return self._fields
+
+    def field_label(self, index: int) -> str:
+        """Return a field's name, or its position without field names."""
+        return str(index) if self.field_names is None else self.field_names[index]
 
     @property
     def is_ordered(self) -> bool:  # type: ignore[override]
@@ -333,20 +357,20 @@ class TypeStruct(Type):
 
     @property
     def has_runtime_representation(self) -> bool:
-        return all(field_type.has_runtime_representation for field_type in self.fields.values())
+        return all(field_type.has_runtime_representation for field_type in self.field_types)
 
     @property
     def nesting_depth(self) -> int:
-        return 1 + max((field.nesting_depth for field in self.fields.values()), default=0)
+        return 1 + max((field.nesting_depth for field in self.field_types), default=0)
 
     @property
     def total_member_count(self) -> int:
-        return 1 + sum(field.total_member_count for field in self.fields.values())
+        return 1 + sum(field.total_member_count for field in self.field_types)
 
     def _runtime_representation_error(self) -> str | None:
-        for name, field in self.fields.items():
+        for index, field in enumerate(self.field_types):
             if not field.has_runtime_representation:
-                return f'field `{name}`: {field._runtime_representation_error()}'
+                return f'field `{self.field_label(index)}`: {field._runtime_representation_error()}'
         return None
 
     def __str__(self) -> str:
@@ -358,7 +382,7 @@ class TypeStruct(Type):
     def make_value(self, fields: Mapping[str, Any]) -> tuple:
         """Return the value with these field values by name."""
         if not isinstance(fields, Mapping) or fields.keys() != self.fields.keys():
-            raise ValueError(f'Expected exactly the fields of `{self.name}`: {", ".join(f"`{field}`" for field in self.fields)}')
+            raise ValueError(f'Expected exactly the fields of `{self}`: {", ".join(f"`{field}`" for field in self.fields)}')
         return self.verify_value(tuple(fields[name] for name in self.fields))
 
     def index(self, name: str) -> int:
@@ -366,23 +390,23 @@ class TypeStruct(Type):
         return tuple(self.fields).index(name)
 
     def verify_value(self, value: Any) -> Any:
-        if type(value) is not tuple or len(value) != len(self.fields):
-            raise ValueError(f'Expected a value of struct type `{self.name}`, got {value!r}')
-        return tuple(field_type.verify_value(field) for field_type, field in zip(self.fields.values(), value))
+        if type(value) is not tuple or len(value) != len(self.field_types):
+            raise ValueError(f'Expected a value of struct type `{self}`, got {value!r}')
+        return tuple(field_type.verify_value(field) for field_type, field in zip(self.field_types, value))
 
     def equals(self, value1: Any, value2: Any) -> bool:
         value1 = self.verify_value(value1)
         value2 = self.verify_value(value2)
         return all(field_type.equals(field1, field2)
-                   for field_type, field1, field2 in zip(self.fields.values(), value1, value2))
+                   for field_type, field1, field2 in zip(self.field_types, value1, value2))
 
     def default_value(self) -> Any:
-        return tuple(field_type.default_value() for field_type in self.fields.values())
+        return tuple(field_type.default_value() for field_type in self.field_types)
 
     def _parse_impl(self, text: str) -> Any:
         python_type = self.opaque_class()
         if python_type is None or not hasattr(python_type, 'parse'):
-            raise ValueError(f'`{self.name}` does not support text parsing')
+            raise ValueError(f'`{self}` does not support text parsing')
         from ..runtime.native_values import from_native
         assert self.native_types is not None
         return from_native(None, self, python_type.parse(text), native_types=self.native_types)
@@ -393,10 +417,13 @@ class TypeStruct(Type):
         if python_type is not None and hasattr(python_type, 'to_text'):
             return self._to_native(value).to_text()
         if not value:
-            return f'{self.name} {{}}'
-        fields = ', '.join(f'{name}: {field_type.to_text(field)}'
-                           for (name, field_type), field in zip(self.fields.items(), value))
-        return f'{self.name} {{ {fields} }}'
+            return f'{self} {{}}'
+        if self.field_names is None:
+            fields = ', '.join(field_type.to_text(field) for field_type, field in zip(self.field_types, value))
+        else:
+            fields = ', '.join(f'{name}: {field_type.to_text(field)}'
+                               for name, field_type, field in zip(self.field_names, self.field_types, value))
+        return f'{self} {{ {fields} }}'
 
 
 class TypeList(Type):
@@ -735,18 +762,31 @@ def closed_enum_underlying_type(member_count: int) -> TypeInt:
 
 # TODO: Add to_csv_value?
 class TypeEnum(TypePrimitive):
-    """A nominal enum with either dense closed values or an open integer range."""
+    """A nominal enum with either dense closed values or an open integer range.
 
-    def __init__(self, name: str, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
-                     native_name: str | None = None) -> None:
+    The type name and member names are optional; without them, text output
+    uses numbers. members maps the names of all members of a closed enum, or
+    of the named numbers of an open enum.
+    """
+
+    def __init__(self, name: str | None, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
+                 native_name: str | None = None, member_count: int | None = None) -> None:
+        """Create an enum; an unnamed closed enum has no members and gives member_count."""
         if type(is_open) is not bool:
             raise ValueError('Enum is_open must be a boolean')
         if native_name is not None and (type(native_name) is not str or not native_name):
             raise ValueError('Enum native_name must be a nonempty string or None')
         if not isinstance(underlying_type, TypeInt):
             raise ValueError('Enum underlying_type must be an integer type')
-        if not is_open:
-            closed_enum_underlying_type(len(members))
+        if is_open:
+            if member_count is not None:
+                raise ValueError('Open enums have no member count')
+        else:
+            if member_count is None:
+                member_count = len(members)
+            elif members and len(members) != member_count:
+                raise ValueError('Closed enums name either all members or none')
+            closed_enum_underlying_type(member_count)
             if underlying_type.is_signed or underlying_type.bits not in (8, 16, 32):
                 raise ValueError('Closed enum underlying_type must be uint8, uint16, or uint32')
         names: dict[int, str] = {}
@@ -758,7 +798,11 @@ class TypeEnum(TypePrimitive):
             if number in names:
                 raise ValueError(f'Enum members `{names[number]}` and `{member}` have the same number {number}')
             names[number] = member
-        super().__init__(name=name, python_type=int, is_runtime_type=True, is_json_serializable=True, has_to_csv_value=False)
+        # name is the declared name, else the native name.
+        super().__init__(name=name or native_name or 'enum', python_type=int, is_runtime_type=True,
+                         is_json_serializable=True, has_to_csv_value=False)
+        self.type_name = name  # The declared name, or None.
+        self.member_count = member_count  # Number of members of a closed enum; None for open enums.
         self.is_open = is_open
         self.underlying_type = underlying_type
         self.native_name = native_name  # None for enums native code does not rely on.
@@ -768,7 +812,8 @@ class TypeEnum(TypePrimitive):
     def verify_value(self, value: Any) -> Any:
         if self.is_open:
             return self.underlying_type.verify_value(value)
-        if type(value) is not int or not 0 <= value < len(self.members):
+        assert self.member_count is not None
+        if type(value) is not int or not 0 <= value < self.member_count:
             raise ValueError(f'Expected a member number of `{self}`, got {value!r}')
         return value
 
@@ -785,19 +830,21 @@ class TypeEnum(TypePrimitive):
     def to_text(self, value: Any) -> str:
         value = self.verify_value(value)
         name = self._names.get(value)
-        return str(value) if name is None else f'{self.name}.{name}'
+        if name is None:
+            return str(value)
+        return name if self.type_name is None else f'{self.type_name}.{name}'
 
     def _parse_impl(self, text: str) -> Any:
         if text in self.members:
             return self.members[text]
-        if self.is_open:
+        if self.is_open or len(self.members) == 0:
             try:
                 number = int(text, 10)
             except ValueError:
                 pass
             else:
                 return self.verify_value(number)
-        raise ValueError(f'Unknown member `{text}` of `{self.name}`')
+        raise ValueError(f'Unknown member `{text}` of `{self}`')
 
     def json_encode(self, value: Any, format: str | None) -> Any:
         if format not in (None, 'SnakeCase'):

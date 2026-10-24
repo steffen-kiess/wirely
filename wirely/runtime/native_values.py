@@ -71,10 +71,10 @@ def _to_native(signature: signatures.SignatureType | None, value_type: types.Typ
                      for index, item in enumerate(value))
     if isinstance(value_type, types.TypeStruct):
         python_type = _native_struct(value_type, path, native_types)
-        if type(value) is not tuple or len(value) != len(value_type.fields):
-            raise _error(path, f'Expected a tuple of {len(value_type.fields)} fields for `{value_type}`, got {value!r}')
-        fields = (_to_native(None, field_type, field, path + (f'in field `{name}`',), native_types)
-                  for (name, field_type), field in zip(value_type.fields.items(), value))
+        if type(value) is not tuple or len(value) != len(value_type.field_types):
+            raise _error(path, f'Expected a tuple of {len(value_type.field_types)} fields for `{value_type}`, got {value!r}')
+        fields = (_to_native(None, field_type, field, path + (f'in field `{value_type.field_label(index)}`',), native_types)
+                  for index, (field_type, field) in enumerate(zip(value_type.field_types, value)))
         if not value_type.is_opaque:
             return python_type(*fields)
         try:
@@ -115,10 +115,11 @@ def _from_native(signature: signatures.SignatureType | None, value_type: types.T
             raise _error(path, f'Expected a {python_type.__name__} for `{value_type}`, got {value!r}')
         fields = value.to_fields() if value_type.is_opaque else value  # type: ignore[attr-defined]
         assert isinstance(fields, tuple)
-        if len(fields) != len(value_type.fields):
-            raise _error(path, f'Expected {len(value_type.fields)} fields from {python_type.__name__}, got {fields!r}')
-        return tuple(_from_native(None, field_type, field, path + (f'in field `{name}`',), native_types)
-                     for (name, field_type), field in zip(value_type.fields.items(), fields))
+        if len(fields) != len(value_type.field_types):
+            raise _error(path, f'Expected {len(value_type.field_types)} fields from {python_type.__name__}, got {fields!r}')
+        return tuple(_from_native(None, field_type, field, path + (f'in field `{value_type.field_label(index)}`',),
+                                  native_types)
+                     for index, (field_type, field) in enumerate(zip(value_type.field_types, fields)))
     if isinstance(value_type, types.TypeEnum):
         python_type = _native_enum(value_type, path, native_types)
         if type(value) is not python_type:

@@ -19,7 +19,7 @@ def _layout(value_type: Type) -> tuple[int, int, int]:
         alignment = 1
         end = 0
         data_size = 0
-        for field in value_type.fields.values():
+        for field in value_type.field_types:
             field_alignment, field_data_size, field_size = _layout(field)
             alignment = max(alignment, field_alignment)
             offset = (end + field_alignment - 1) & ~(field_alignment - 1)
@@ -60,7 +60,7 @@ def _struct_offsets(value_type: TypeStruct) -> list[int]:
     """Return the field offsets in declaration order."""
     offsets: list[int] = []
     end = 0
-    for field_type in value_type.fields.values():
+    for field_type in value_type.field_types:
         alignment, _, size = _layout(field_type)
         offset = (end + alignment - 1) & ~(alignment - 1)
         offsets.append(offset)
@@ -83,7 +83,7 @@ def _serialize(value_type: Type, value: Any) -> bytes:
     if isinstance(value_type, TypeStruct):
         data = bytearray(length)
         value = value_type.verify_value(value)
-        for field_type, field, offset in zip(value_type.fields.values(), value, _struct_offsets(value_type)):
+        for field_type, field, offset in zip(value_type.field_types, value, _struct_offsets(value_type)):
             encoded = field_type.serialize(field)
             data[offset:offset + len(encoded)] = encoded
         return bytes(data)
@@ -111,7 +111,7 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
     if isinstance(value_type, TypeStruct):
         fields = []
         end = 0
-        for field_type, offset in zip(value_type.fields.values(), _struct_offsets(value_type)):
+        for field_type, offset in zip(value_type.field_types, _struct_offsets(value_type)):
             if any(data[end:offset]):
                 raise ValueError('Struct padding must be zero')
             end = offset + field_type.data_size
