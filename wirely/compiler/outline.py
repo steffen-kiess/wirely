@@ -505,7 +505,7 @@ def _direction(direction: ast.PortDirection) -> str:
 
 
 def _port_kind(spec: ast.PortTypeSpecification) -> str:
-    if isinstance(spec, ast.PortTypeSpecificationResource):
+    if isinstance(spec, ast.PortTypeSpecificationFixed):
         return 'fixed'
     assert isinstance(spec, ast.PortTypeSpecificationData)
     return 'value' if spec.kind_spec.kind == ast.ConnectionKind.Value else 'event'

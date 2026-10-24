@@ -89,7 +89,8 @@ def signature_port(port: Any, variables: Mapping[model.NodeParameter, str], wher
         return signatures.Port('resource', signatures.ResourceType(specification.resource_type.native_name),
                                specification.is_list)
     kind_spec = getattr(specification.port_spec, 'kind_spec', None)
-    kind = 'event' if kind_spec is not None and kind_spec.kind is ConnectionKind.Event else 'value'
+    kind = ('fixed' if kind_spec is not None and kind_spec.kind is ConnectionKind.Fixed
+            else 'event' if kind_spec is not None and kind_spec.kind is ConnectionKind.Event else 'value')
     assert specification.var_type is not None
     return signatures.Port(kind, signature_type(specification.var_type, variables, where), specification.is_list)
 
@@ -153,37 +154,22 @@ def native_signatures(graph: model.Scope,
         assert name is not None
         return namespace is None or name.startswith(namespace + '.')
 
-    state_types = {}
-    procedures = {}
+    state_types: dict[str, signatures.Initializer] = {}
+    procedures: dict[str, signatures.Procedure] = {}
     for node_type in node_types(graph):
         if source_paths is not None and node_type.declaration.source_position.filename not in source_paths:
             continue
-        initializer = node_type.initializer
-        if initializer is not None and included(node_type.native_name):
-            assert node_type.native_name is not None
-            where = f'Native initializer `{node_type.native_name}`'
-            variables = type_variables(node_type, initializer.static_reads, where)
-            depends = {}
-            for port, dependency in zip(initializer.read_ports.dependencies,
-                                        initializer.resolved_dependencies()):
-                if isinstance(dependency, model.InstanceNode):
-                    dependency = dependency.output_ports_byname['']
-                depends[port.key] = signature_port(dependency, variables, where)
-            state_types[node_type.native_name] = signatures.Initializer(
-                depends=depends,
-                produces={key: signature_port(output, variables, where)
-                          for output, key in initializer.output_keys.items()},
-                uses=signature_uses(node_type, initializer.static_reads, variables, where),
-            )
         for procedure in node_type.procedures.values():
             if not procedure.is_native or not included(procedure.native_name):
                 continue
             where = f'Native procedure `{procedure.native_name}`'
             variables = type_variables(node_type, procedure.static_reads, where)
-            procedures[procedure.native_name] = signatures.Procedure(
-                stage=procedure.stage.stage.name.lower(),
-                depends=procedure_ports(procedure.input_ports, variables, where),
-                produces=procedure_ports(procedure.output_ports, variables, where),
-                uses=signature_uses(node_type, procedure.static_reads, variables, where),
-            )
+            depends = procedure_ports(procedure.input_ports, variables, where)
+            produces = procedure_ports(procedure.output_ports, variables, where)
+            uses = signature_uses(node_type, procedure.static_reads, variables, where)
+            if isinstance(procedure, model.TypeInitializer):
+                state_types[procedure.native_name] = signatures.Initializer(depends, produces, uses)
+            else:
+                procedures[procedure.native_name] = signatures.Procedure(
+                    procedure.stage.stage.name.lower(), depends, produces, uses)
     return state_types, procedures, function_signatures(graph, constant=False, namespace=namespace, source_paths=source_paths)

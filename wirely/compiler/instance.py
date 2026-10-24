@@ -23,7 +23,6 @@ class InstanceNode(model.GraphElement):
     parameter_values: dict[model.NodeParameter, StaticValue]
     custom_inputs: dict[model.TypeInputPort, InstanceInputPort]
     custom_outputs: dict[model.TypeOutputPort, InstanceOutputPort]
-    initializer_sources: dict[str, tuple[typing.Any, Port]]  # Data and resource dependencies.
     population_state: ResolutionState
     port_storage: dict[model.ProcedureOutputPort, InstanceTemporary | InstanceStateVariable]
 
@@ -107,8 +106,7 @@ class InstanceNode(model.GraphElement):
                                           hints=[model.CompilerHint(input.port_spec, 'Input was declared here')])
 
         for output in self.output_ports:
-            if (isinstance(output.port_spec, model.PortTypeSpecificationResource)
-                    or output.type_output_port.connected_source is not None):
+            if output.type_output_port.connected_source is not None:
                 continue
             port = 'Default output' if output.name == '' else f'Output `{output.name}`'
             raise model.ProgramError(output.port_spec, f'{port} has no source', hints=[
@@ -189,12 +187,10 @@ class InstanceNode(model.GraphElement):
         var: InstanceInputPort | InstanceOutputPort | InstanceTemporary
         for var in self.all_input_ports:
             # A member forwarding a whole multi input is resolved through its members.
-            if isinstance(var.port_spec, model.PortTypeSpecificationResource) or model.forwards_multi_input(var):
+            if model.forwards_multi_input(var):
                 continue
             variable_map[path, var.var_identifier] = resolve_source(path, var)
         for var in self.output_ports:
-            if isinstance(var.port_spec, model.PortTypeSpecificationResource):
-                continue
             variable_map[path, var.var_identifier] = resolve_source(path, var)
         for var in self.temporaries:
             variable_map[path, var.var_identifier] = resolve_source(path, var)
@@ -273,8 +269,7 @@ class InstanceInputPort(InstanceSource):
             else:
                 raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
         else:
-            # TODO: ?
-            self.impl_var_type = None
+            self.impl_var_type = self.var_type
 
         if self.is_list:
             self.members: list[InstanceInputPort] = []
@@ -335,7 +330,7 @@ class InstanceOutputPort(InstanceTarget):
         copy_attributes(self, type_output_port, type_output_port.attributes)
 
         self.port_spec = self.type_output_port.port_spec
-        self.resource_type = self.type_output_port.resource_type
+        self.resource_type: model.ResourceType | None = self.type_output_port.resource_type
 
         self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):
@@ -347,8 +342,7 @@ class InstanceOutputPort(InstanceTarget):
             else:
                 raise Exception(f'Unknown ConnectionKind: {self.port_spec.kind_spec.kind}')
         else:
-            # TODO: ?
-            self.impl_var_type = None
+            self.impl_var_type = self.var_type
 
         self.input_dependencies = []
         for dependency in input_dependencies:
@@ -472,7 +466,7 @@ class InstanceProcedure:
     def __init__(self, node: 'InstanceNode', dependencies: typing.Iterable[typing.Any],
                  outputs: typing.Iterable[InstanceTemporary | InstanceStateVariable], can_trigger: bool = False,
                  name: str | None = None, *, static_context: model.StaticProcedureContext,
-                 declaration_procedure: model.DeclarationProcedure) -> None:
+                 declaration_procedure: model.DeclarationProcedure | model.DeclarationInitializer) -> None:
         if not isinstance(node, InstanceNode):
             raise Exception('node parameter is not an InstanceNode')
 
@@ -615,11 +609,6 @@ class NodeTypeInstance(NodeInstance):
             for assertion in self.node_type.assertions:
                 assertion.evaluate(self)
 
-            from .static_bindings import evaluate_bindings
-            initializer = self.node_type.initializer
-            self.initializer_values = evaluate_bindings(
-                initializer.static_reads if initializer is not None else None, self,
-            )
 
         parameter_values_bystr = {key.name.id_str: value for key, value in parameter_values_resolved.items()}
         parameters = native_parameters(parameter_values_bystr)

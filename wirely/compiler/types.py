@@ -13,7 +13,7 @@ from .. import types
 from . import model
 
 
-class ResourceType:
+class ResourceType(Type):
     """Nominal port type identifying an opaque service resource."""
 
     def __init__(self, name: str, name_tuple: tuple[str, ...], declaration: model.DeclarationResourceType,
@@ -22,6 +22,22 @@ class ResourceType:
         self.name_tuple = name_tuple  # Qualified name components.
         self.declaration = declaration
         self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
+
+    @property
+    def contains_parameters(self) -> bool:
+        return False
+
+    def default_value(self) -> NoReturn:
+        raise ValueError('Resources have no default value')
+
+    def verify_value(self, value: Any) -> NoReturn:
+        raise ValueError('Resources are opaque load-time values')
+
+    def equals(self, value1: Any, value2: Any) -> bool:
+        return value1 is value2
+
+    def _parse_impl(self, s: str) -> NoReturn:
+        raise ValueError('Resources cannot be parsed')
 
     def __str__(self) -> str:
         return self.name
@@ -237,6 +253,8 @@ _literal_parsers: dict[type, Callable[..., Any]] = {
 
 
 def parse_value(value_type: Type, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
+    if isinstance(value_type, ResourceType):
+        raise model.ProgramError(value, 'Resources cannot be compile-time values')
     parser = _literal_parsers[type(value_type)]
     return value_type.verify_value(parser(value_type, value, scope=scope))
 

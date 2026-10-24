@@ -8,7 +8,7 @@ from wirely.compiler import model
 from wirely.compiler.types import check_runtime_type
 
 from .base import Value, SourcePosition, CompilerHint, ProgramError, InternalCompilerError, Identifier, Declaration
-from .specifiers import ListSpecifier, ConnectionKindSpecifier, ConnectionKind, PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationResource
+from .specifiers import ListSpecifier, ConnectionKindSpecifier, ConnectionKind, PortDirection, PortDirectionSpecifier, PortTypeSpecification, PortTypeSpecificationData, PortTypeSpecificationFixed
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -36,7 +36,7 @@ class DeclarationPort(Declaration):
 
         if self.list_spec.is_list and self.direction != PortDirection.Input:
             raise ProgramError(self, f'Got multi specifier for non-input')
-        if isinstance(self.port_spec, PortTypeSpecificationResource) and self.direction == PortDirection.Input:
+        if isinstance(self.port_spec, PortTypeSpecificationFixed) and self.direction == PortDirection.Input:
             self.port_spec.check_supported_input()
 
         if self.name is None:
@@ -71,9 +71,11 @@ class DeclarationPort(Declaration):
             ty = new_graph.resolve_type(self.ty)
             check_runtime_type(ty, self)
             resource_type = None
-        elif isinstance(self.port_spec, PortTypeSpecificationResource):
-            ty = None
-            resource_type = new_graph.resolve_resource_type(self.port_spec.ty)
+        elif isinstance(self.port_spec, PortTypeSpecificationFixed):
+            ty = new_graph.resolve_type(self.port_spec.ty)
+            if not isinstance(ty, model.ResourceType):
+                check_runtime_type(ty, self)
+            resource_type = ty if isinstance(ty, model.ResourceType) else None
         else:
             raise InternalCompilerError(self, Exception('Unknown port type specification'))
         port: model.TypeInputPort | model.TypeOutputPort

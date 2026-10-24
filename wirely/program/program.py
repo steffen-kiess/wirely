@@ -15,8 +15,9 @@ from .procedures import Constant, Function, ProcedureBody
 
 @immutable_enum
 class RunStage(enum.Enum):
-    """Ordered phases of an engine step."""
+    """Ordered load and per-step execution phases."""
 
+    LOAD = enum.auto()  # Compute fixed values when loading the program.
     INPUT = enum.auto()  # Read external inputs before normal computation.
     DEFAULT = enum.auto()  # Run normal computation.
     OUTPUT = enum.auto()  # Write external outputs after normal computation.
@@ -24,7 +25,7 @@ class RunStage(enum.Enum):
 
 @dataclass(frozen=True, slots=True, eq=False)
 class Variable:
-    """A state or temporary variable, identified by object identity."""
+    """A plain fixed, state, or temporary variable, identified by object identity."""
 
     name: str  # Qualified variable name for lookup and diagnostics.
     var_type: Type  # Resolved value type used for validation and comparison.
@@ -81,42 +82,49 @@ class VariableTable:
 
 @dataclass(frozen=True, slots=True)
 class InputSource:
-    """A procedure input from a temporary, one of the step's state tables, or a constant."""
+    """A procedure input from a constant, fixed value, temporary, or state bank."""
 
-    variable: Variable | None = None  # Source in the temporaries or the state variables.
-    new_state: bool | None = None  # None for temporaries; else whether it reads this step's new state.
+    variable: Variable | None = None  # Source in a plain fixed, temporary, or state table.
+    new_state: bool | None = None  # None outside state; else whether it reads this step's new state.
     constant: Constant | None = None  # Entry of Program.constants, instead of a variable.
+    fixed: bool = False  # Whether a variable belongs to the fixed-value table.
+    resource: ResourceSlot | None = None  # Opaque fixed value, instead of byte storage.
 
     def __post_init__(self) -> None:
-        if (self.variable is None) == (self.constant is None):
-            raise ValueError('Expected either a variable or a constant')
-        if self.constant is not None and self.new_state is not None:
-            raise ValueError('Constant sources have no state phase')
+        if sum(item is not None for item in (self.variable, self.constant, self.resource)) != 1:
+            raise ValueError('Expected a variable, constant, or resource slot')
+        if self.fixed and self.variable is None:
+            raise ValueError('A fixed variable source requires a variable')
+        if (self.constant is not None or self.fixed or self.resource is not None) and self.new_state is not None:
+            raise ValueError('Constant and fixed sources have no state phase')
 
     @property
     def value_type(self) -> Type:
         if self.constant is not None:
             return self.constant.value_type
+        if self.resource is not None:
+            return self.resource.var_type
         assert self.variable is not None
         return self.variable.var_type
 
 
 @dataclass(frozen=True, slots=True)
 class OutputTarget:
-    """A procedure output targeting a temporary or the next step's state."""
+    """A procedure output targeting fixed storage, a temporary, or new state."""
 
-    variable: Variable  # Destination temporary or persistent state variable.
+    variable: Variable | ResourceSlot  # Destination in a fixed, temporary, or state store.
 
 
-@dataclass(frozen=True, slots=True)
-class ResourceBinding:
-    """A resource input bound to a resource output of a native provider."""
+@dataclass(frozen=True, slots=True, eq=False)
+class ResourceSlot:
+    """An opaque fixed value, stored outside the byte-layout variable tables."""
 
-    provider: str  # Provider node ID, a key of Program.instances.
-    output: str  # Key under which the provider's initializer produces the output.
+    name: str
+    var_type: Type
+    native_name: str
 
     def __str__(self) -> str:
-        return f'{self.provider}.{self.output}'
+        return self.name
 
 
 def _resource_types(resources: Mapping[str, str]) -> Mapping[str, str]:
@@ -130,50 +138,29 @@ class NativeProcedureInterface:
 
     uses: tuple[str, ...]  # Keys of the compile-time reads, sorted.
     resources: Mapping[str, str]  # Resource input key -> native resource type name.
-    inputs: tuple[str, ...]  # Value and event input keys, sorted.
+    inputs: tuple[str, ...]  # Plain and generic input keys, sorted.
     outputs: tuple[str, ...]  # Output keys, sorted.
+    resource_outputs: Mapping[str, str] = field(default_factory=dict)
+    initializer: bool = False
+    fixed_inputs: tuple[str, ...] = ()  # Plain fixed input keys, sorted.
 
     def __post_init__(self) -> None:
         for name in ('uses', 'inputs', 'outputs'):
             object.__setattr__(self, name, tuple(sorted(getattr(self, name))))
         object.__setattr__(self, 'resources', _resource_types(self.resources))
-
-
-@dataclass(frozen=True, slots=True)
-class NativeNodeType:
-    """Declared interface of a node type with native state, linked by name at runtime."""
-
-    name: str  # Native initializer name, such as 'KNX.Switch:create'.
-    initializer_uses: tuple[str, ...]  # Keys of the initializer's compile-time reads, sorted.
-    initializer_resources: Mapping[str, str]  # Resource input key -> resource type.
-    resource_outputs: Mapping[str, str]  # Initializer `writes` key -> resource type.
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, 'initializer_uses', tuple(sorted(self.initializer_uses)))
-        for name in ('initializer_resources', 'resource_outputs'):
-            object.__setattr__(self, name, _resource_types(getattr(self, name)))
+        object.__setattr__(self, 'resource_outputs', _resource_types(self.resource_outputs))
+        object.__setattr__(self, 'fixed_inputs', tuple(sorted(self.fixed_inputs)))
 
 
 @dataclass(frozen=True, slots=True)
 class NativeInstance:
-    """Stored node context for procedures and optional native state creation."""
+    """Stored node context shared by its procedures and initializers."""
 
     name: str  # Instance name exposed to native code.
-    type_name: str | None  # Native initializer name; None without native state.
     parameters: Mapping[str, object]  # Resolved parameters as ValueTypes or DynamicValues.
-    initializer_bindings: Mapping[str, ResourceBinding]  # Initializer resource inputs by name.
-    initializer_values: Mapping[str, Constant] = field(default_factory=dict)  # Typed initializer compile-time reads.
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, 'initializer_values', MappingProxyType(dict(self.initializer_values)))
-        parameters = MappingProxyType(dict(self.parameters))
-        object.__setattr__(self, 'parameters', parameters)
-        object.__setattr__(self, 'initializer_bindings', MappingProxyType(dict(self.initializer_bindings)))
-
-    @property
-    def has_native_state(self) -> bool:
-        """Whether the engine creates a native state object."""
-        return self.type_name is not None
+        object.__setattr__(self, 'parameters', MappingProxyType(dict(self.parameters)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,20 +172,19 @@ class Procedure:
     reference: str
     node_context: NativeInstance  # Stored context for this node.
     dependencies: tuple  # (input name/debug label, InputSource) entries in operand order.
-    resources: Mapping[str, ResourceBinding]  # Resource inputs by name.
     outputs: Mapping[str, OutputTarget]  # Output destinations indexed by output name.
+    initializer: bool = False  # Native load procedure that owns state.
     body: ProcedureBody | None = None  # Compiled .wrl body; None selects native dispatch.
     values: Mapping[str, Constant] = field(default_factory=dict)  # Typed procedure compile-time reads.
 
     def __post_init__(self) -> None:
         object.__setattr__(self, 'values', MappingProxyType(dict(self.values)))
         object.__setattr__(self, 'dependencies', tuple((name, source) for name, source in self.dependencies))
-        object.__setattr__(self, 'resources', MappingProxyType(dict(self.resources)))
         object.__setattr__(self, 'outputs', MappingProxyType(dict(self.outputs)))
 
     @property
     def key(self) -> tuple[str, str | tuple[str, str]]:
-        """Return an identity that triggers use: the method name of native procedures."""
+        """Return an identity that triggers use: the native procedure name within its node."""
         name = self.reference.rpartition(':')[2]
         return self.node_id, name if self.body is None else ('procedure', name)
 
@@ -215,25 +201,25 @@ class Program:
     temporaries: VariableTable  # Per-step variables.
     initial_state: Mapping[Variable, object]  # Starting values of persistent state.
     instances: Mapping[str, NativeInstance]  # Stored node contexts indexed by node ID.
-    native_construction_order: tuple[str, ...]  # Node IDs ordered with providers first.
     procs: Mapping[RunStage, tuple[Procedure, ...]]  # Stages and procedures in execution order.
     node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
     variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
+    fixed_values: VariableTable = field(default_factory=lambda: VariableTable((), 'fixed'))
+    resource_slots: tuple[ResourceSlot, ...] = ()
     constants: tuple[Constant, ...] = ()  # Typed values shared by bytecode procedures.
     functions: tuple[Function, ...] = ()  # Native functions called by bytecode procedures.
-    native_types: Mapping[str, NativeNodeType] = field(default_factory=dict)  # By type name.
     native_procedures: Mapping[str, NativeProcedureInterface] = field(default_factory=dict)  # By name.
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
 
     def __post_init__(self) -> None:
         for name in ('initial_state', 'instances', 'node_aliases', 'singleton_aliases', 'variables',
-                     'native_types', 'native_procedures'):
+                     'native_procedures'):
             object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
         object.__setattr__(self, 'procs', MappingProxyType({
             stage: tuple(schedule) for stage, schedule in self.procs.items()
         }))
-        object.__setattr__(self, 'native_construction_order', tuple(self.native_construction_order))
+        object.__setattr__(self, 'resource_slots', tuple(self.resource_slots))
         object.__setattr__(self, 'constants', tuple(self.constants))
         object.__setattr__(self, 'functions', tuple(self.functions))
 
@@ -257,15 +243,13 @@ class Program:
                 line(f'{name}: {constant.value_type}', indent + 2)
                 value('value', constant.value, indent + 4)
 
-        def resources(bindings: Mapping[str, ResourceBinding], indent: int) -> None:
-            for name, binding in bindings.items():
-                line(f'{name}: {binding}', indent)
-
         constant_indices = {id(constant): index for index, constant in enumerate(self.constants)}
 
         def source(input_source: InputSource) -> str:
             if input_source.constant is not None:
                 return f'const.{constant_indices[id(input_source.constant)]}'
+            if input_source.resource is not None:
+                return input_source.resource.name
             assert input_source.variable is not None
             if input_source.new_state is None:
                 return input_source.variable.name
@@ -273,7 +257,7 @@ class Program:
 
         line(f'Program {self.name}')
         for label, variable_table in [('State variables', self.state_variables),
-                                      ('Temporaries', self.temporaries)]:
+                                      ('Temporaries', self.temporaries), ('Fixed values', self.fixed_values)]:
             line()
             line(f'{label} ({variable_table.name}):')
             line(f'size: {variable_table.size}, alignment: {variable_table.alignment}', 2)
@@ -282,6 +266,11 @@ class Program:
                 line(f'offset: {variable_table.offsets[variable]}', 4)
                 if variable in self.initial_state:
                     value('initial', self.initial_state[variable], 4)
+
+        line()
+        line('Fixed resources:')
+        for slot in self.resource_slots:
+            line(f'{slot.name}: {slot.native_name}', 2)
 
         line()
         line('Constants:')
@@ -304,14 +293,6 @@ class Program:
                 line(f'{key}: {resource_type}', indent + 2)
 
         line()
-        line('Native initializers:')
-        for type_name, native_type in sorted(self.native_types.items()):
-            line(f'{type_name}:', 2)
-            names('compile-time reads', native_type.initializer_uses, 4)
-            resource_types('initializer resources', native_type.initializer_resources, 4)
-            resource_types('resource outputs', native_type.resource_outputs, 4)
-
-        line()
         line('Native procedures:')
         for name, interface in sorted(self.native_procedures.items()):
             line(f'{name}:', 2)
@@ -319,22 +300,15 @@ class Program:
             resource_types('resources', interface.resources, 4)
             names('inputs', interface.inputs, 4)
             names('outputs', interface.outputs, 4)
-
-        line()
-        line('Native construction order:')
-        for index, node_id in enumerate(self.native_construction_order, 1):
-            line(f'{index}. {node_id}', 2)
+            resource_types('resource outputs', interface.resource_outputs, 4)
+            line(f'initializer: {interface.initializer}', 4)
 
         line()
         line('Node instances:')
         for node_id, instance in sorted(self.instances.items()):
             line(f'{node_id}:', 2)
             line(f'name: {instance.name}', 4)
-            line(f'native initializer: {instance.type_name}', 4)
             value('parameters', dict(instance.parameters), 4)
-            static_bindings('initializer values', instance.initializer_values, 4)
-            line('initializer resources:', 4)
-            resources(instance.initializer_bindings, 6)
 
         line()
         line('Stages:')
@@ -343,12 +317,12 @@ class Program:
             for index, proc in enumerate(schedule, 1):
                 line(f'{index}. {proc.node_id}: {proc.reference}', 4)
                 line(f'node context: {proc.node_context.name}', 6)
+                if proc.initializer:
+                    line('initializer: True', 6)
                 static_bindings('values', proc.values, 6)
                 line('dependencies:', 6)
                 for name, input_source in proc.dependencies:
                     line(f'{name}: {source(input_source)}', 8)
-                line('resources:', 6)
-                resources(proc.resources, 8)
                 line('outputs:', 6)
                 for name, output_target in proc.outputs.items():
                     line(f'{name}: {output_target.variable.name}', 8)
@@ -387,12 +361,10 @@ def _declared_types(value_type: Type, seen: set[int]) -> Iterator[TypeEnum | Typ
 def used_declared_types(program: Program) -> Iterator[TypeEnum | TypeStruct]:
     """Yield each enum and struct type that occurs in the runtime types of a program once."""
     constants = [*program.constants]
-    value_types = [variable.var_type for table in (program.state_variables, program.temporaries)
+    value_types = [variable.var_type for table in (program.state_variables, program.temporaries, program.fixed_values)
                    for variable in table.variables.values()]
     for function in program.functions:
         value_types += [*function.parameter_types, function.return_type]
-    for instance in program.instances.values():
-        constants += instance.initializer_values.values()
     for schedule in program.procs.values():
         for procedure in schedule:
             constants += procedure.values.values()

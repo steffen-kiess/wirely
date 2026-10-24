@@ -7,11 +7,11 @@ namespace Invalid { // H: In this namespace
 }
 
 // TEST: initializer_duplicate
-// SH: Previous initializer was here
-// SE: Only one initializer per node type is supported
+// SH: Previous declaration was here
+// SE: Duplicate name `create`
 node type Invalid {
-  native initializer create; // H: Previous initializer was here
-  native initializer create; // E: Only one initializer per node type is supported
+  native initializer create; // H: Previous declaration was here
+  native initializer create; // E: Duplicate name `create`
 }
 
 // TEST: initializer_value_dependency
@@ -138,6 +138,6 @@ node type Source {
 node type Invalid {
   default output: fixed Handle;
   node source: Source {}
-  connect source -> default output; // E: Default output is both written and connected
-  native initializer create writes default output as "service"; // H: Written by the native initializer here
+  connect source -> default output; // E: Default output already has a source
+  native initializer create writes default output as "service"; // H: Previous connection was here
 }

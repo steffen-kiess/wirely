@@ -94,6 +94,8 @@ class StructDefinition:
                         CompilerHint(previous[name].name, 'Previous field was here'),
                     ])
                 fields[name] = self.scope.resolve_type(field.field_type)
+                if isinstance(fields[name], model.ResourceType):
+                    raise ProgramError(field.field_type, 'Resources cannot be members of composite types')
                 previous[name] = field
             type_name = self.declaration.name.id_str
             fullname = (self.scope.fullname + '.' + type_name if isinstance(self.scope, model.ast.Namespace)

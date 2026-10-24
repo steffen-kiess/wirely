@@ -12,7 +12,7 @@ from wirely.compiler import compile_strs, standard_library_sources
 from wirely.compiler.program import compile_nocatch
 from wirely.generated import extension
 from wirely.generated import schedule as contracts
-from wirely.native.schedule import IsInDailyInterval, TimeOfDayMinute
+from wirely.native.schedule import IsInDailyIntervalRun, TimeOfDayMinuteGetValue
 from wirely.program import RunStage
 from wirely.runtime.engine import Engine
 from wirely.runtime.native_api import ProcedureServices
@@ -28,7 +28,7 @@ BASE = datetime.datetime(2026, 1, 1, 12, 34, 30, tzinfo=UTC)
 def make_engine(callback=None):
     probes = []
 
-    class Probe(TimeOfDayMinute.GetValue):
+    class Probe(TimeOfDayMinuteGetValue):
         def __init__(self):
             self.calls = 0
             self.snapshots = []
@@ -174,7 +174,7 @@ def check_daily_intervals():
     def interval(start, end):
         probes = []
 
-        class Probe(IsInDailyInterval.Run):
+        class Probe(IsInDailyIntervalRun):
             def __init__(self):
                 self.calls = 0
                 probes.append(self)

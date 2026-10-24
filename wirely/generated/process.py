@@ -12,7 +12,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
@@ -51,7 +50,7 @@ class _LaunchOnEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, LaunchOnEventCreate)
         result = state.initialize(
             services=services,
@@ -59,7 +58,7 @@ class _LaunchOnEventCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, LaunchOnEventCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -100,7 +99,7 @@ class _LaunchOnEventRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, LaunchOnEventRun)
         procedure.prepare(
             services=services,
-            state=cast('LaunchOnEventState', binding.resource('state')),
+            state=cast('LaunchOnEventState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -109,7 +108,7 @@ class _LaunchOnEventRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, LaunchOnEventRun)
         result = procedure.run(
             services=services,
-            state=cast('LaunchOnEventState', binding.resource('state')),
+            state=cast('LaunchOnEventState', binding.fixed('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )

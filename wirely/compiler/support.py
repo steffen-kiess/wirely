@@ -19,7 +19,7 @@ from .types import resolve_type
 debug_variable_resolution = False
 
 
-SOURCE_TYPES = (model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
+SOURCE_TYPES = (model.TypeOutputPort, model.InstanceOutputPort, model.TypeInputPort, model.StateNode, model.TemporaryNode,
                 StateRead, model.ProcedureOutputPort, StaticSource, model.LocalResource)
 TARGET_TYPES = (model.InstanceInputPort, model.TypeOutputPort, model.ProcedureInputPort, model.TemporaryNode,
                 model.StateNode, model.LocalResource)
@@ -123,18 +123,12 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
             model.CompilerHint(port_declaration(target), 'Target was declared here'),
         ])
 
-    source_resource = isinstance(getattr(source, 'port_spec', None), model.PortTypeSpecificationResource)
-    target_resource = isinstance(getattr(target, 'port_spec', None), model.PortTypeSpecificationResource)
-    if source_resource or target_resource:
-        if not (source_resource and target_resource):
-            incompatible('Cannot connect fixed and value or event ports')
-        if source.resource_type is not target.resource_type:
-            incompatible(f'source has resource type `{source.resource_type}` but target has resource type `{target.resource_type}`')
-        return True
-
     source_kind = connection_kind(source)
     target_kind = connection_kind(target)
-    if source_kind != target_kind:
+    compatible_kind = (source_kind == target_kind
+                       or source_kind == model.ConnectionKind.Fixed and target_kind == model.ConnectionKind.Value
+                       or isinstance(source, StaticSource) and target_kind == model.ConnectionKind.Fixed)
+    if not compatible_kind:
         incompatible(f'source has kind {source_kind} but target has kind {target_kind}')
 
     source_type = source.var_type
@@ -145,7 +139,9 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
         target_type = resolve_type(target_type, target.node.par_values)
     if source_type != target_type:
         incompatible(f'source has type `{source_type}` but target has type `{target_type}`')
-    return False
+    if isinstance(source_type, model.ResourceType) and target_kind != model.ConnectionKind.Fixed:
+        incompatible('Resources require fixed ports')
+    return isinstance(source_type, model.ResourceType)
 
 
 def path_resolve_singleton(path: ResolutionPath) -> ResolutionPath:
@@ -307,7 +303,7 @@ def resolve_variable(path: ResolutionPath, var: Any,
         source = var.type_output_port.connected_source
         if source is not None:
             return resolve_variable(path_resolve_singleton(path + (source.node,)), source, seen)
-        if isinstance(var.port_spec, model.PortTypeSpecificationResource):
+        if isinstance(var.port_spec, model.PortTypeSpecificationFixed):
             return path, var
         raise Exception(f'Output {var} is not connected')
 

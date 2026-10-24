@@ -310,6 +310,11 @@ class ResolvedPortReference(SourceElement):
                 self.port = variables[self.node_name_str]
                 return
         if direction == PortDirection.Output:
+            own_output = graph.output_ports.get(self.node_name_str)
+            if (own_output is not None and self.port_name_str == ''
+                    and isinstance(own_output.port_spec, model.PortTypeSpecificationFixed)):
+                self.port = own_output
+                return
             variable = graph.value_nodes.get(self.node_name_str)
             if isinstance(variable, model.ast.DeclarationState):
                 if self.port_name_str not in ('old', 'new'):

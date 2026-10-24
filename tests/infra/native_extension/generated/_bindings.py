@@ -13,10 +13,10 @@ states: dict[str, Callable[[], StateImplementation]] = {
 
 def _load_procedures_test_library_test_node_test_procedure() -> ProcedureImplementation:
     from tests.infra.native_extension.generated.test_library import TestNodeTestProcedure
-    from tests.infra.native_extension.native.test_library import TestNode
+    from tests.infra.native_extension.native.test_library import TestNodeTestProcedure as Implementation
 
     def create() -> TestNodeTestProcedure:
-        return TestNode.TestProcedure()
+        return Implementation()
 
     return ProcedureImplementation(create, TestNodeTestProcedure._adapter)
 

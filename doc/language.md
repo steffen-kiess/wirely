@@ -449,9 +449,9 @@ procedures, and initializers need distinct names.
 ### Fixed ports
 
 Fixed values are set when a program is loaded and do not change while it
-runs. Fixed values are currently resources: handles to native objects, such
-as a KNX connection. Libraries declare resource types for connections
-between service nodes and their clients:
+runs. Use `fixed T` for a runtime value type or a resource type. Resources
+are handles to native objects, such as a KNX connection. Libraries declare
+resource types for connections between service nodes and their clients:
 
 ```wirely
 namespace Example {
@@ -475,25 +475,31 @@ types cannot share a name in the same scope. Resource names resolve through
 enclosing scopes; use a qualified name such as `Example.Session` outside
 that namespace. A declaration may appear after its uses.
 
-Fixed ports are compatible only when they refer to the same resource
-declaration. Resources identify opaque service state rather than carrying
-data values. They cannot be used for parameters, state, value bindings,
-`type` arguments, or value types such as `Option[T]` and `List[T]`.
-Composite nodes can forward fixed values through their inputs and outputs.
+A fixed input accepts a compile-time or fixed source of the same type.
+A runtime `value` input also accepts a fixed plain value. Events are never
+fixed, and fixed inputs take one source.
+
+Resources refer to the same resource declaration to be compatible. They
+can be passed as `type` arguments for generic fixed ports, but cannot be
+stored in state, value or event ports, parameters, structs, `Option[T]`, or
+`List[T]`. Composite nodes can forward fixed values through their inputs
+and outputs.
 
 A `native initializer name` creates the native objects of a node type, as
 described in
 [native objects](native-python.md#native-objects-resources-and-tasks). It
-runs once when the program is loaded, before the procedures, and can read
+runs once when the program is loaded and can read
 fixed values and compile-time values and write the fixed outputs and
-bindings of its node type. A node type has at most one initializer. Its
-native name defaults to `Type:name`, as for
+bindings of its node type. A node type can have several named initializers,
+each owning its own native state. An initializer's native name defaults
+to `Type:name`, as for
 [native procedures](#state-and-execution). Each fixed output of a node type
-with an initializer is written by the initializer or connected from a
-child node.
+with an initializer has one source: a load procedure, initializer, or
+connection. Load procedures and initializers run after their inputs have
+been produced; their dependencies must be acyclic.
 
 `binding name: fixed Type;` names a fixed value in a node type or at the
-top level. Its source is a connection or the initializer writing it.
+top level. Its source is a connection, initializer, or load procedure.
 Connections, initializers, and procedures can use it as a source. Native
 procedures access their node's native state through such a binding:
 
@@ -592,7 +598,14 @@ producing the state's source must run in the same or an earlier stage, and
 the reader depends on that procedure. If the procedure is skipped because
 its inputs are unchanged, it supplies its retained value.
 
-Procedures run in three stages: `stage input` reads external sources, the
+`stage load` runs once before the first step, interleaved with initializers
+in dependency order. It reads compile-time and fixed values and writes
+only fixed values. Wirely bodies in this stage use runtime value types,
+without state or events; native load procedures may also handle resources.
+Fixed values cannot replace compile-time values in type arguments,
+parameter configurations, assertions, or other compile-time expressions.
+
+Each step runs three stages: `stage input` reads external sources, the
 default stage calculates values and updates state, and `stage output` sends
 results to external systems. State updates become visible on the next step.
 Connecting a value to state and reading `.old` delays it by one step; use

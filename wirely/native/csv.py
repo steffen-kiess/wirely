@@ -51,7 +51,7 @@ class MyCsvWriter:
         self.stream.write(encoded)
 
 
-class ValueWriter(contracts.ValueWriterCreate):
+class ValueWriterCreate(contracts.ValueWriterCreate):
     # TODO: Should writing to the file be done on a background thread?
 
     def initialize(self, *, services: StateServices[typing.Literal['state']],
@@ -126,36 +126,37 @@ class ValueWriter(contracts.ValueWriterCreate):
         self.last_value_csv = new_value_csv
         return True
 
-    class Run(contracts.ValueWriterRun):
-        def prepare(self, *, services: PreparationServices, state: 'ValueWriter', type: ValueType[Any]) -> None:
-            pass
 
-        def run(self, *, services: ProcedureServices, state: 'ValueWriter',
-                last_written_at_old: Some[MonotonicTime] | None, input: DynamicValue,
-                repeat_elapsed: Some[bool] | None, type: ValueType[Any]) -> contracts.ValueWriterRunResult:
-            elapsed = repeat_elapsed
-            last_written_at = last_written_at_old
+class ValueWriterRun(contracts.ValueWriterRun):
+    def prepare(self, *, services: PreparationServices, state: 'ValueWriterCreate', type: ValueType[Any]) -> None:
+        pass
 
-            new_value_csv = input.to_csv_value()
+    def run(self, *, services: ProcedureServices, state: 'ValueWriterCreate',
+            last_written_at_old: Some[MonotonicTime] | None, input: DynamicValue,
+            repeat_elapsed: Some[bool] | None, type: ValueType[Any]) -> contracts.ValueWriterRunResult:
+        elapsed = repeat_elapsed
+        last_written_at = last_written_at_old
 
-            # If elapsed is None or Some(True), the value has to be repeated
-            # Note: The empty value is not repeated
-            force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
+        new_value_csv = input.to_csv_value()
 
-            # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
-            time = services.start_time_for_stage(RunStage.DEFAULT).local
+        # If elapsed is None or Some(True), the value has to be repeated
+        # Note: The empty value is not repeated
+        force = elapsed != wirely.Some(False) and new_value_csv != ('', False)
 
-            if force:
-                # Re-evaluate the repeat decision next step after recording this write.
-                # TODO: Should this simply be done whenever write_value() is called?
-                services.trigger_self()
+        # Note: This uses RunStage.DEFAULT to be as consistent as possible with the time seen by procedures in the default stage
+        time = services.start_time_for_stage(RunStage.DEFAULT).local
 
-            written = state.write_value(new_value_csv, time, force=force)
-            if written:
-                # TODO: Think what happens if new_value_csv is ('', False)
-                last_written_at = wirely.Some(services.start_time_for_stage(RunStage.DEFAULT).monotonic)
+        if force:
+            # Re-evaluate the repeat decision next step after recording this write.
+            # TODO: Should this simply be done whenever write_value() is called?
+            services.trigger_self()
 
-            return contracts.ValueWriterRunResult(last_written_at=last_written_at)
+        written = state.write_value(new_value_csv, time, force=force)
+        if written:
+            # TODO: Think what happens if new_value_csv is ('', False)
+            last_written_at = wirely.Some(services.start_time_for_stage(RunStage.DEFAULT).monotonic)
+
+        return contracts.ValueWriterRunResult(last_written_at=last_written_at)
 
 
-ValueWriterState = ValueWriter  # Used as a resource type.
+ValueWriterState = ValueWriterCreate  # Used as a resource type.

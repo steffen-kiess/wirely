@@ -6,8 +6,8 @@ from .procedures import (
     Operand, OperandKind, ProcedureBody,
 )
 from .program import (
-    InputSource, NativeInstance, NativeNodeType, NativeProcedureInterface, Procedure, Program,
-    OutputTarget, ResourceBinding, RunStage, Variable, VariableTable, used_declared_types,
+    InputSource, NativeInstance, NativeProcedureInterface, Procedure, Program,
+    OutputTarget, ResourceSlot, RunStage, Variable, VariableTable, used_declared_types,
 )
 from .records import pack_record, record_size, unpack_record
 from .validation import validate_program

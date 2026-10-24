@@ -142,7 +142,7 @@ def parse_mqtt_uri(uri: str) -> 'ParsedMQTTUri':
         raise Exception('Unknown KNX URI scheme: {!r}'.format(scheme))
 
 
-class Connection(contracts.ConnectionCreate):
+class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['broker']],
                    uri: str) -> contracts.ConnectionCreateResult:
         aiomqtt = get_aiomqtt()
@@ -253,8 +253,8 @@ class Connection(contracts.ConnectionCreate):
 # TODO: Should this be persistent? If so, should it be cleared by the last will message?
 
 
-class ValueOptionProvider(contracts.ValueOptionProviderCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
                    template_parts: MQTTTemplateParts) -> contracts.ValueOptionProviderCreateResult:
         self.current_value = None
@@ -291,32 +291,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderCreate):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    class SetValue(contracts.ValueOptionProviderSetValue):
-        def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
-                    type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices, state: 'ValueOptionProvider',
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
-            # TODO: Add checks whether everything is running?
-
-            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if input is None:
-                value_bytes = b''
-            else:
-                value = json.dumps(input.value.json_encode(state.format),
-                                   ensure_ascii=False, allow_nan=False, sort_keys=True)
-                value = state.template_prefix + value + state.template_suffix
-                value_bytes = bytes(value, 'utf-8')
-
-            verbose_print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
-
-            # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
-            # TODO: Provide some notification if this is happening?
-            state.value_to_send = value_bytes
-            state.event.set()
-            return contracts.ValueOptionProviderSetValueResult()
-
     async def run_task(self) -> None:
         while True:
             while self.value_to_send is None:
@@ -331,8 +305,35 @@ class ValueOptionProvider(contracts.ValueOptionProviderCreate):
             verbose_print(f'Sending {value!r} to {self.topic} done', flush=True)
 
 
-class EventSender(contracts.EventSenderCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+class ValueOptionProviderSetValue(contracts.ValueOptionProviderSetValue):
+    def prepare(self, *, services: PreparationServices, state: 'ValueOptionProviderCreate',
+                type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices, state: 'ValueOptionProviderCreate',
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
+        # TODO: Add checks whether everything is running?
+
+        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+        if input is None:
+            value_bytes = b''
+        else:
+            value = json.dumps(input.value.json_encode(state.format),
+                               ensure_ascii=False, allow_nan=False, sort_keys=True)
+            value = state.template_prefix + value + state.template_suffix
+            value_bytes = bytes(value, 'utf-8')
+
+        verbose_print(f'Setting output {state.topic} to {value_bytes!r}, old value_to_send is {state.value_to_send!r}', flush=True)
+
+        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+        # TODO: Provide some notification if this is happening?
+        state.value_to_send = value_bytes
+        state.event.set()
+        return contracts.ValueOptionProviderSetValueResult()
+
+
+class EventSenderCreate(contracts.EventSenderCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None,
                    template_parts: MQTTTemplateParts) -> contracts.EventSenderCreateResult:
         self.current_value = None
@@ -369,34 +370,6 @@ class EventSender(contracts.EventSenderCreate):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    class SendValue(contracts.EventSenderSendValue):
-        def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices, state: 'EventSender',
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.EventSenderSendValueResult:
-            # TODO: Add checks whether everything is running?
-
-            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if input is None:
-                return contracts.EventSenderSendValueResult()
-            else:
-                value = json.dumps(input.value.json_encode(state.format),
-                                   ensure_ascii=False, allow_nan=False, sort_keys=True)
-                value = state.template_prefix + value + state.template_suffix
-                value_bytes = bytes(value, 'utf-8')
-
-            verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
-
-            # Note: If sending is too slow, there might be multiple events queued up.
-            # TODO: Provide a notification in this case?
-            state.values_to_send.append(value_bytes)
-            state.event.set()
-
-            # This makes sure that the value is sent again if the input does not change
-            services.trigger_self()
-            return contracts.EventSenderSendValueResult()
-
     async def run_task(self) -> None:
         while True:
             while len(self.values_to_send) == 0:
@@ -410,8 +383,37 @@ class EventSender(contracts.EventSenderCreate):
             verbose_print(f'Sending {value} to {self.topic} done', flush=True)
 
 
-class EventReceiver(contracts.EventReceiverCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], broker: Connection, type: ValueType[Any],
+class EventSenderSendValue(contracts.EventSenderSendValue):
+    def prepare(self, *, services: PreparationServices, state: 'EventSenderCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices, state: 'EventSenderCreate',
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.EventSenderSendValueResult:
+        # TODO: Add checks whether everything is running?
+
+        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+        if input is None:
+            return contracts.EventSenderSendValueResult()
+        else:
+            value = json.dumps(input.value.json_encode(state.format),
+                               ensure_ascii=False, allow_nan=False, sort_keys=True)
+            value = state.template_prefix + value + state.template_suffix
+            value_bytes = bytes(value, 'utf-8')
+
+        verbose_print(f'Sending event {state.topic} to {value_bytes!r}, old values_to_send is {state.values_to_send}', flush=True)
+
+        # Note: If sending is too slow, there might be multiple events queued up.
+        # TODO: Provide a notification in this case?
+        state.values_to_send.append(value_bytes)
+        state.event.set()
+
+        # This makes sure that the value is sent again if the input does not change
+        services.trigger_self()
+        return contracts.EventSenderSendValueResult()
+
+
+class EventReceiverCreate(contracts.EventReceiverCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], broker: ConnectionCreate, type: ValueType[Any],
                    topic: str, format: Some[MQTTFormat] | None) -> contracts.EventReceiverCreateResult:
         self.task: asyncio.Task | None = None
         self.received_values: list[DynamicValue] = []
@@ -441,25 +443,6 @@ class EventReceiver(contracts.EventReceiverCreate):
             raise Exception('self.task is not None')
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    class GetValue(contracts.EventReceiverGetValue):
-        def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices,
-                state: 'EventReceiver', type: ValueType[Any]) -> contracts.EventReceiverGetValueResult:
-            # TODO: Add checks whether everything is running?
-
-            if len(state.received_values) == 0:
-                return contracts.EventReceiverGetValueResult(output=None)
-            value = state.received_values.pop(0)
-
-            res_opt = wirely.Some(value)
-            # print(f'get_value: {res_opt}')
-
-            services.trigger_self()
-
-            return contracts.EventReceiverGetValueResult(output=res_opt)
 
     async def run_task(self) -> None:
         # TODO: Should subscribing be done here or in start_tasks()?
@@ -491,7 +474,27 @@ class EventReceiver(contracts.EventReceiverCreate):
                         print(f'Warning: Error while parsing received MQTT message topic {message.topic.value!r} data {message.payload!r}: {e}', flush=True)
 
 
-Broker = Connection  # Used as a resource type.
-ValueOptionProviderState = ValueOptionProvider  # Used as a resource type.
-EventSenderState = EventSender  # Used as a resource type.
-EventReceiverState = EventReceiver  # Used as a resource type.
+class EventReceiverGetValue(contracts.EventReceiverGetValue):
+    def prepare(self, *, services: PreparationServices, state: 'EventReceiverCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices,
+            state: 'EventReceiverCreate', type: ValueType[Any]) -> contracts.EventReceiverGetValueResult:
+        # TODO: Add checks whether everything is running?
+
+        if len(state.received_values) == 0:
+            return contracts.EventReceiverGetValueResult(output=None)
+        value = state.received_values.pop(0)
+
+        res_opt = wirely.Some(value)
+        # print(f'get_value: {res_opt}')
+
+        services.trigger_self()
+
+        return contracts.EventReceiverGetValueResult(output=res_opt)
+
+
+Broker = ConnectionCreate  # Used as a resource type.
+ValueOptionProviderState = ValueOptionProviderCreate  # Used as a resource type.
+EventSenderState = EventSenderCreate  # Used as a resource type.
+EventReceiverState = EventReceiverCreate  # Used as a resource type.

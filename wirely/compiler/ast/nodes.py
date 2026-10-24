@@ -11,7 +11,7 @@ from wirely.compiler import model
 from wirely.compiler.types import resolve_type, check_runtime_type, type_parameters
 
 from .base import SourcePosition, SyntaxElement, CompilerHint, ProgramError, Identifier, Declaration, Value
-from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationResource
+from .specifiers import PortDirection, PortTypeSpecification, PortTypeSpecificationFixed
 from .values import Reference
 
 
@@ -209,22 +209,12 @@ def validate_nodes(graph: 'model.NodeType') -> None:
         storage = (graph.state_nodes if is_state else graph.temporary_nodes)[name]
         if storage.connected_source is None:
             raise ProgramError(variable, f'{"State" if is_state else "Binding"} `{name}` has no source')
-    initializer = getattr(graph, 'initializer', None)
-    produced = initializer.output_keys if initializer is not None else {}
     for resource in graph.local_resources.values():
-        if resource.connected_source is None and resource not in produced:
+        if resource.connected_source is None:
             raise ProgramError(resource.declaration, f'Binding `{resource.name}` has no source')
-        if resource.connected_source is not None and resource in produced:
-            connection = next(connection.source_element for connection in graph.connections
-                              if connection.target is resource)
-            assert initializer is not None
-            port = next(port for port in initializer.writes.outputs if port.key == produced[resource])
-            raise ProgramError(connection, f'Binding `{resource.name}` is both written and connected', hints=[
-                CompilerHint(port, 'Written by the native initializer here'),
-            ])
     for node in (*graph.state_nodes.values(), *graph.temporary_nodes.values(), *graph.local_resources.values()):
         check_alias_cycle(graph, node)
-    if getattr(graph, 'initializer', None) is not None:
+    if graph.initializers:
         validate_resource_outputs(graph)
     check_unused(graph)
 
@@ -232,17 +222,12 @@ def validate_nodes(graph: 'model.NodeType') -> None:
 def check_unused(graph: 'model.NodeType') -> None:
     """Warn about bindings of the node type that nothing reads, and about an unused native name."""
     read = {id(connection.source) for connection in graph.connections}
-    initializer = getattr(graph, 'initializer', None)
-    if initializer is not None:
-        read.update(id(dependency) for dependency in initializer.resolved_dependencies())
     warnings = graph.coordinator.warnings
     assert warnings is not None
     alias = getattr(graph, 'alias', None)
     if alias is not None:
         # The alias is the prefix of the native names of members without their own.
         used = any(procedure.is_native and procedure.alias is None for procedure in graph.procedures.values())
-        if initializer is not None and initializer.declaration.alias is None:
-            used = True
         if not used:
             warnings.warn('Unused', alias, f'Native name `{alias.value}` is not used by an initializer or native procedure',
                           instance_trace=False)
@@ -258,21 +243,12 @@ def check_unused(graph: 'model.NodeType') -> None:
 
 def validate_resource_outputs(graph: 'model.NodeType') -> None:
     """Require one source for each fixed output of a node type with an initializer."""
-    assert graph.initializer is not None
-    produced = graph.initializer.output_keys
     for output in graph.output_ports.values():
-        if output.resource_type is None:
+        if not isinstance(output.port_spec, model.PortTypeSpecificationFixed):
             continue
         name = 'Default output' if output.output_name == '' else f'Output `{output.output_name}`'
-        if output.connected_source is None and output not in produced:
+        if output.connected_source is None:
             raise ProgramError(output.port_spec, f'{name} has no source')
-        if output.connected_source is not None and output in produced:
-            connection = next(connection.source_element for connection in graph.connections
-                              if connection.target is output)
-            port = next(port for port in graph.initializer.writes.outputs if port.key == produced[output])
-            raise ProgramError(connection, f'{name} is both written and connected', hints=[
-                CompilerHint(port, 'Written by the native initializer here'),
-            ])
 
 
 def passed_on_variable(source: object) -> Any:
@@ -335,7 +311,7 @@ class DeclarationBinding(Declaration):
 
     @property
     def is_resource(self) -> bool:
-        return isinstance(self.port_spec, PortTypeSpecificationResource)
+        return isinstance(self.port_spec, PortTypeSpecificationFixed)
 
     def collect_declarations(self, graph: 'model.NodeType') -> None:
         name = self.name_str
@@ -350,7 +326,9 @@ class DeclarationBinding(Declaration):
     def prepare_interface(self, new_graph: 'model.NodeType') -> None:
         variable: model.LocalResource | model.TemporaryNode
         if self.is_resource:
-            resource_type = new_graph.resolve_resource_type(self.port_spec.ty)
+            resource_type = new_graph.resolve_type(self.port_spec.ty)
+            if not isinstance(resource_type, model.ResourceType):
+                check_runtime_type(resource_type, self)
             variable = model.LocalResource(new_graph, self, resource_type)
         else:
             ty = new_graph.resolve_type(self.var_type)

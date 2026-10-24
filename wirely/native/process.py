@@ -8,7 +8,7 @@ from wirely.runtime.native_api import PreparationServices, ProcedureServices, St
 from wirely.util import verbose_print
 
 
-class LaunchOnEvent(contracts.LaunchOnEventCreate):
+class LaunchOnEventCreate(contracts.LaunchOnEventCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
                    shell_command: str) -> contracts.LaunchOnEventCreateResult:
         self.shell_command = shell_command
@@ -24,24 +24,6 @@ class LaunchOnEvent(contracts.LaunchOnEventCreate):
             raise Exception('self.task is not None')
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    class Run(contracts.LaunchOnEventRun):
-        def prepare(self, *, services: PreparationServices, state: 'LaunchOnEvent', type: ValueType[Any]) -> None:
-            pass
-
-        def run(self, *, services: ProcedureServices, state: 'LaunchOnEvent',
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.LaunchOnEventRunResult:
-            if input is None:
-                return contracts.LaunchOnEventRunResult()
-
-            if state.pending:
-                print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
-            state.pending = True
-            state.event.set()
-
-            # This makes sure that the value is sent again if the input does not change
-            services.trigger_self()
-            return contracts.LaunchOnEventRunResult()
 
     async def run_task(self) -> None:
         while True:
@@ -60,4 +42,23 @@ class LaunchOnEvent(contracts.LaunchOnEventCreate):
                 verbose_print(f"Command {self.shell_command!r} finished with exit code {code}", flush=True)
 
 
-LaunchOnEventState = LaunchOnEvent  # Used as a resource type.
+class LaunchOnEventRun(contracts.LaunchOnEventRun):
+    def prepare(self, *, services: PreparationServices, state: 'LaunchOnEventCreate', type: ValueType[Any]) -> None:
+        pass
+
+    def run(self, *, services: ProcedureServices, state: 'LaunchOnEventCreate',
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.LaunchOnEventRunResult:
+        if input is None:
+            return contracts.LaunchOnEventRunResult()
+
+        if state.pending:
+            print('Warning: Process.LaunchOnEvent: Got new trigger while launch is already pending', flush=True)
+        state.pending = True
+        state.event.set()
+
+        # This makes sure that the value is sent again if the input does not change
+        services.trigger_self()
+        return contracts.LaunchOnEventRunResult()
+
+
+LaunchOnEventState = LaunchOnEventCreate  # Used as a resource type.

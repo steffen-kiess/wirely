@@ -238,6 +238,7 @@ node probe: Probe {}
 resource type Service;
 node type Provider {
   default output: fixed Service;
+  native initializer create writes default output as "service";
 }
 node type Probe {
   input ServiceInput: fixed Service;
@@ -287,7 +288,7 @@ node probe: Probe {}
 resource type Service;
 node type Probe {
   output ServiceOutput: fixed Service;
-  procedure run writes ServiceOutput {} // E: Only initializers can write fixed values
+  procedure run writes ServiceOutput {} // E: Only load procedures can write fixed values
 }
 node probe: Probe {}
 

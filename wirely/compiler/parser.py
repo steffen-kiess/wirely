@@ -37,7 +37,7 @@ ast_classes: list[Any] = [  # Grammar dispatch includes constructors and factori
     model.ConnectionKindSpecifier,
     model.PortTypeSpecification,
     model.PortTypeSpecificationData,
-    model.PortTypeSpecificationResource,
+    model.PortTypeSpecificationFixed,
     model.DeclarationResourceType,
     model.DeclarationEnumType,
     model.EnumMember,

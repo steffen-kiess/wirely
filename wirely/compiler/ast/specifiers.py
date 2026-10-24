@@ -46,6 +46,7 @@ class ListSpecifier(SyntaxElement):
 class ConnectionKind(enum.Enum):
     Value = enum.auto()
     Event = enum.auto()
+    Fixed = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -74,9 +75,13 @@ class PortTypeSpecificationData(PortTypeSpecification):
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
-class PortTypeSpecificationResource(PortTypeSpecification):
+class PortTypeSpecificationFixed(PortTypeSpecification):
     list_spec: ListSpecifier
     ty: Value
+
+    @property
+    def kind_spec(self) -> ConnectionKindSpecifier:
+        return ConnectionKindSpecifier(ConnectionKind.Fixed, source_position=self.source_position)
 
     def check_supported_input(self) -> None:
         if self.list_spec.is_list:

@@ -11,74 +11,65 @@ from wirely.types import InternalValue
 from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
 
 
-class DebugValuePrinter:
-
-    class Run(contracts.DebugValuePrinterRun):
-        def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
-            pass
-
-        def run(self, *, services: ProcedureServices, input: DynamicValue,
-                type: ValueType[Any]) -> contracts.DebugValuePrinterRunResult:
-            print(f'[{services.name}]: Got value {input.to_text()}', flush=True)
-            return contracts.DebugValuePrinterRunResult()
 
 
-class DebugEventPrinter:
 
-    class Run(contracts.DebugEventPrinterRun):
-        def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
-            pass
+class DebugValuePrinterRun(contracts.DebugValuePrinterRun):
+    def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
+        pass
 
-        def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.DebugEventPrinterRunResult:
-            if input is not None:
-                print(f'[{services.name}]: Got event {input.value.to_text()}', flush=True)
-            return contracts.DebugEventPrinterRunResult()
+    def run(self, *, services: ProcedureServices, input: DynamicValue,
+            type: ValueType[Any]) -> contracts.DebugValuePrinterRunResult:
+        print(f'[{services.name}]: Got value {input.to_text()}', flush=True)
+        return contracts.DebugValuePrinterRunResult()
 
 
-class WarnOnEvent:
 
-    class Run(contracts.WarnOnEventRun):
-        def prepare(self, *, services: PreparationServices, type: ValueType[Any],
-                    format_parts: StdFormatParts) -> None:
-            self.parts = format_parts
 
-        def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None, type: ValueType[Any],
-                format_parts: StdFormatParts) -> contracts.WarnOnEventRunResult:
-            if input is None:
-                return contracts.WarnOnEventRunResult()
 
-            parts = self.parts
-            if parts.has_value:
-                message = parts.prefix + input.value.to_text() + parts.suffix
-            else:
-                message = parts.prefix
-            print(f'Warning: [{services.name}]: {message}', flush=True)
+class DebugEventPrinterRun(contracts.DebugEventPrinterRun):
+    def prepare(self, *, services: PreparationServices, type: ValueType[Any]) -> None:
+        pass
 
-            # This makes sure that an identical event in the next step is not skipped
-            services.trigger_self()
+    def run(self, *, services: ProcedureServices,
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.DebugEventPrinterRunResult:
+        if input is not None:
+            print(f'[{services.name}]: Got event {input.value.to_text()}', flush=True)
+        return contracts.DebugEventPrinterRunResult()
+
+
+
+
+
+class WarnOnEventRun(contracts.WarnOnEventRun):
+    def prepare(self, *, services: PreparationServices, type: ValueType[Any],
+                format_parts: StdFormatParts) -> None:
+        self.parts = format_parts
+
+    def run(self, *, services: ProcedureServices,
+            input: Some[DynamicValue] | None, type: ValueType[Any],
+            format_parts: StdFormatParts) -> contracts.WarnOnEventRunResult:
+        if input is None:
             return contracts.WarnOnEventRunResult()
 
+        parts = self.parts
+        if parts.has_value:
+            message = parts.prefix + input.value.to_text() + parts.suffix
+        else:
+            message = parts.prefix
+        print(f'Warning: [{services.name}]: {message}', flush=True)
 
-class DebugValueSource(contracts.DebugValueSourceCreate):
+        # This makes sure that an identical event in the next step is not skipped
+        services.trigger_self()
+        return contracts.WarnOnEventRunResult()
+
+
+class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
                    type: ValueType[Any]) -> contracts.DebugValueSourceCreateResult:
         self.value_type = type
         self.current_value: DynamicValue | None = None  # None until a value is set.
         return contracts.DebugValueSourceCreateResult(state=self)
-
-    class Run(contracts.DebugValueSourceRun):
-        def prepare(self, *, services: PreparationServices, state: 'DebugValueSource', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices,
-                state: 'DebugValueSource', type: ValueType[Any]) -> contracts.DebugValueSourceRunResult:
-            value = state.current_value
-            if value is None:
-                # Option types start without a value; others need one to be set.
-                value = DynamicValue._make(state.value_type._type, None)
-            return contracts.DebugValueSourceRunResult(output=value)
 
     def set_value(self, value: InternalValue) -> None:
         """Set the value, in the representation of Engine.get_value()."""
@@ -106,25 +97,26 @@ class DebugValueSource(contracts.DebugValueSourceCreate):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-class DebugEventSource(contracts.DebugEventSourceCreate):
+class DebugValueSourceRun(contracts.DebugValueSourceRun):
+    def prepare(self, *, services: PreparationServices, state: 'DebugValueSourceCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices,
+            state: 'DebugValueSourceCreate', type: ValueType[Any]) -> contracts.DebugValueSourceRunResult:
+        value = state.current_value
+        if value is None:
+            # Option types start without a value; others need one to be set.
+            value = DynamicValue._make(state.value_type._type, None)
+        return contracts.DebugValueSourceRunResult(output=value)
+
+
+class DebugEventSourceCreate(contracts.DebugEventSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
                    type: ValueType[Any]) -> contracts.DebugEventSourceCreateResult:
         self.value_type = type
         # TODO: Allow a queue of values?
         self.next_value: Some[DynamicValue] | None = None
         return contracts.DebugEventSourceCreateResult(state=self)
-
-    class Run(contracts.DebugEventSourceRun):
-        def prepare(self, *, services: PreparationServices, state: 'DebugEventSource', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices,
-                state: 'DebugEventSource', type: ValueType[Any]) -> contracts.DebugEventSourceRunResult:
-            value = state.next_value
-            if value is not None:
-                state.next_value = None
-                services.trigger_self()
-            return contracts.DebugEventSourceRunResult(output=value)
 
     def send_event(self, value: InternalValue) -> None:
         """Send an event given as Some(payload), in the representation of Engine.get_value()."""
@@ -134,7 +126,7 @@ class DebugEventSource(contracts.DebugEventSourceCreate):
 
     def _send(self, value: Some[DynamicValue] | None) -> None:
         if self.next_value is not None:
-            raise Exception(f'DebugEventSource already has an event set: {self.next_value!r}, trying to set {value!r}')
+            raise Exception(f'DebugEventSourceCreate already has an event set: {self.next_value!r}, trying to set {value!r}')
 
         self.next_value = value
 
@@ -158,5 +150,18 @@ class DebugEventSource(contracts.DebugEventSourceCreate):
             raise Exception(f'Unknown command: {parameters!r}')
 
 
-DebugValueSourceState = DebugValueSource  # Used as a resource type.
-DebugEventSourceState = DebugEventSource  # Used as a resource type.
+class DebugEventSourceRun(contracts.DebugEventSourceRun):
+    def prepare(self, *, services: PreparationServices, state: 'DebugEventSourceCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices,
+            state: 'DebugEventSourceCreate', type: ValueType[Any]) -> contracts.DebugEventSourceRunResult:
+        value = state.next_value
+        if value is not None:
+            state.next_value = None
+            services.trigger_self()
+        return contracts.DebugEventSourceRunResult(output=value)
+
+
+DebugValueSourceState = DebugValueSourceCreate  # Used as a resource type.
+DebugEventSourceState = DebugEventSourceCreate  # Used as a resource type.

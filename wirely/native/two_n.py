@@ -12,7 +12,7 @@ from wirely.generated.structs import TwoNCredentials
 from wirely.util import verbose_print
 
 
-class Connection(contracts.ConnectionCreate):
+class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['device']], host: str, port: UInt16,
                    tlsa: tuple[str, ...], credentials: TwoNCredentials) -> contracts.ConnectionCreateResult:
         import wirely.two_n.client
@@ -38,8 +38,8 @@ class Connection(contracts.ConnectionCreate):
         verbose_print('Starting TwoN client done', flush=True)
 
 
-class KeyEvent(contracts.KeyEventCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+class KeyEventCreate(contracts.KeyEventCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    key: str) -> contracts.KeyEventCreateResult:
         self.key = key
 
@@ -82,20 +82,21 @@ class KeyEvent(contracts.KeyEventCreate):
         self.services.trigger('state')
         self.received_value = new_value
 
-    class GetValue(contracts.KeyEventGetValue):
-        def run(self, *, services: ProcedureServices, state: 'KeyEvent') -> contracts.KeyEventGetValueResult:
-            value = state.received_value
-            state.received_value = None
 
-            if value is None:
-                return contracts.KeyEventGetValueResult(output=None)
-            # Trigger to set value to None again
-            services.trigger_self()
-            return contracts.KeyEventGetValueResult(output=wirely.Some(value))
+class KeyEventGetValue(contracts.KeyEventGetValue):
+    def run(self, *, services: ProcedureServices, state: 'KeyEventCreate') -> contracts.KeyEventGetValueResult:
+        value = state.received_value
+        state.received_value = None
+
+        if value is None:
+            return contracts.KeyEventGetValueResult(output=None)
+        # Trigger to set value to None again
+        services.trigger_self()
+        return contracts.KeyEventGetValueResult(output=wirely.Some(value))
 
 
-class CodeEnteredEvent(contracts.CodeEnteredEventCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+class CodeEnteredEventCreate(contracts.CodeEnteredEventCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    code: str) -> contracts.CodeEnteredEventCreateResult:
         self.code = code
 
@@ -134,21 +135,22 @@ class CodeEnteredEvent(contracts.CodeEnteredEventCreate):
         self.services.trigger('state')
         self.pending = True
 
-    class GetValue(contracts.CodeEnteredEventGetValue):
-        def run(self, *, services: ProcedureServices,
-                state: 'CodeEnteredEvent') -> contracts.CodeEnteredEventGetValueResult:
-            value = state.pending
-            state.pending = False
 
-            if not value:
-                return contracts.CodeEnteredEventGetValueResult(output=None)
-            # Trigger to set value to None again
-            services.trigger_self()
-            return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
+class CodeEnteredEventGetValue(contracts.CodeEnteredEventGetValue):
+    def run(self, *, services: ProcedureServices,
+            state: 'CodeEnteredEventCreate') -> contracts.CodeEnteredEventGetValueResult:
+        value = state.pending
+        state.pending = False
+
+        if not value:
+            return contracts.CodeEnteredEventGetValueResult(output=None)
+        # Trigger to set value to None again
+        services.trigger_self()
+        return contracts.CodeEnteredEventGetValueResult(output=wirely.Some(wirely.Unit()))
 
 
-class IOState(contracts.IOStateCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+class IOStateCreate(contracts.IOStateCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    port: str) -> contracts.IOStateCreateResult:
         self.port = port
 
@@ -172,7 +174,7 @@ class IOState(contracts.IOStateCreate):
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         if not self.native_device.log_receiver.is_subscribed:
-            raise Exception('Attempting to start up IOState without event subscription')
+            raise Exception('Attempting to start up IOStateCreate without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/io/status", params={
             'port': self.port,
@@ -180,15 +182,15 @@ class IOState(contracts.IOStateCreate):
         # print('RESPONSE', response)
         ports = response['ports']
         if len(ports) != 1:
-            raise Exception('TwoN.IOState: len(ports) != 1')
+            raise Exception('TwoN.IOStateCreate: len(ports) != 1')
         port = ports[0]
         if port['port'] != self.port:
-            raise Exception("TwoN.IOState: port['port'] != self.port")
+            raise Exception("TwoN.IOStateCreate: port['port'] != self.port")
         state = port['state']
         if type(state) != int:
-            raise Exception('TwoN.IOState: type(state) != int')
+            raise Exception('TwoN.IOStateCreate: type(state) != int')
         if state != 0 and state != 1:
-            raise Exception('TwoN.IOState: state != 0 and state != 1')
+            raise Exception('TwoN.IOStateCreate: state != 0 and state != 1')
         self.current_value = bool(state)
 
     def handler(self, event: dict[str, Any]) -> None:
@@ -213,17 +215,18 @@ class IOState(contracts.IOStateCreate):
         self.services.trigger('state')
         self.current_value = new_value
 
-    class GetValue(contracts.IOStateGetValue):
-        def run(self, *, services: ProcedureServices, state: 'IOState') -> contracts.IOStateGetValueResult:
-            value = state.current_value
-            if value is None:
-                raise Exception('TwoN.IOState: get_value() called while current_value is None')
 
-            return contracts.IOStateGetValueResult(output=value)
+class IOStateGetValue(contracts.IOStateGetValue):
+    def run(self, *, services: ProcedureServices, state: 'IOStateCreate') -> contracts.IOStateGetValueResult:
+        value = state.current_value
+        if value is None:
+            raise Exception('TwoN.IOStateCreate: get_value() called while current_value is None')
+
+        return contracts.IOStateGetValueResult(output=value)
 
 
-class SwitchState(contracts.SwitchStateCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+class SwitchStateCreate(contracts.SwitchStateCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    switch_number: Int32) -> contracts.SwitchStateCreateResult:
         self.switch_number = switch_number.value
 
@@ -247,7 +250,7 @@ class SwitchState(contracts.SwitchStateCreate):
         await super().start_tasks_async(task_group=task_group, async_exit_stack=async_exit_stack)
 
         if not self.native_device.log_receiver.is_subscribed:
-            raise Exception('Attempting to start up SwitchState without event subscription')
+            raise Exception('Attempting to start up SwitchStateCreate without event subscription')
 
         response = await self.native_device.client.json_request("GET", "/api/switch/status", params={
             'switch': self.switch_number,
@@ -255,13 +258,13 @@ class SwitchState(contracts.SwitchStateCreate):
         # print('RESPONSE', response)
         switches = response['switches']
         if len(switches) != 1:
-            raise Exception('TwoN.SwitchState: len(switches) != 1')
+            raise Exception('TwoN.SwitchStateCreate: len(switches) != 1')
         switch = switches[0]
         if switch['switch'] != self.switch_number:
-            raise Exception("TwoN.SwitchState: switch['switch'] != self.switch_number")
+            raise Exception("TwoN.SwitchStateCreate: switch['switch'] != self.switch_number")
         active = switch['active']
         if type(active) != bool:
-            raise Exception('TwoN.SwitchState: type(active) != bool')
+            raise Exception('TwoN.SwitchStateCreate: type(active) != bool')
         self.current_value = active
 
     def handler(self, event: dict[str, Any]) -> None:
@@ -286,17 +289,18 @@ class SwitchState(contracts.SwitchStateCreate):
         self.services.trigger('state')
         self.current_value = new_value
 
-    class GetValue(contracts.SwitchStateGetValue):
-        def run(self, *, services: ProcedureServices, state: 'SwitchState') -> contracts.SwitchStateGetValueResult:
-            value = state.current_value
-            if value is None:
-                raise Exception('TwoN.SwitchState: get_value() called while current_value is None')
 
-            return contracts.SwitchStateGetValueResult(output=value)
+class SwitchStateGetValue(contracts.SwitchStateGetValue):
+    def run(self, *, services: ProcedureServices, state: 'SwitchStateCreate') -> contracts.SwitchStateGetValueResult:
+        value = state.current_value
+        if value is None:
+            raise Exception('TwoN.SwitchStateCreate: get_value() called while current_value is None')
+
+        return contracts.SwitchStateGetValueResult(output=value)
 
 
-class OutputControl(contracts.OutputControlCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], device: Connection,
+class OutputControlCreate(contracts.OutputControlCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], device: ConnectionCreate,
                    port: str) -> contracts.OutputControlCreateResult:
         self.port = port
 
@@ -322,24 +326,6 @@ class OutputControl(contracts.OutputControlCreate):
             raise Exception('self.task is not None')
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    class SendValue(contracts.OutputControlSendValue):
-        def run(self, *, services: ProcedureServices, state: 'OutputControl',
-                input: Some[bool] | None) -> contracts.OutputControlSendValueResult:
-            # TODO: Add checks whether everything is running?
-
-            if input is None:
-                return contracts.OutputControlSendValueResult()
-            value = input.value
-
-            if state.value_to_send is not None:
-                print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
-            state.value_to_send = value
-            state.event.set()
-
-            # This makes sure that the value is sent again if the input does not change
-            services.trigger_self()
-            return contracts.OutputControlSendValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -368,9 +354,28 @@ class OutputControl(contracts.OutputControlCreate):
             verbose_print(f"Sending {value} to port {self.port} done with result {response}", flush=True)
 
 
-Device = Connection  # Used as a resource type.
-KeyEventState = KeyEvent  # Used as a resource type.
-CodeEnteredEventState = CodeEnteredEvent  # Used as a resource type.
-IOStateState = IOState  # Used as a resource type.
-SwitchStateState = SwitchState  # Used as a resource type.
-OutputControlState = OutputControl  # Used as a resource type.
+class OutputControlSendValue(contracts.OutputControlSendValue):
+    def run(self, *, services: ProcedureServices, state: 'OutputControlCreate',
+            input: Some[bool] | None) -> contracts.OutputControlSendValueResult:
+        # TODO: Add checks whether everything is running?
+
+        if input is None:
+            return contracts.OutputControlSendValueResult()
+        value = input.value
+
+        if state.value_to_send is not None:
+            print('Warning: TwoN.OutputControl: Got new event to send while old event is pending', flush=True)
+        state.value_to_send = value
+        state.event.set()
+
+        # This makes sure that the value is sent again if the input does not change
+        services.trigger_self()
+        return contracts.OutputControlSendValueResult()
+
+
+Device = ConnectionCreate  # Used as a resource type.
+KeyEventState = KeyEventCreate  # Used as a resource type.
+CodeEnteredEventState = CodeEnteredEventCreate  # Used as a resource type.
+IOStateState = IOStateCreate  # Used as a resource type.
+SwitchStateState = SwitchStateCreate  # Used as a resource type.
+OutputControlState = OutputControlCreate  # Used as a resource type.

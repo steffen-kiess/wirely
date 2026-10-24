@@ -12,7 +12,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
@@ -52,7 +51,7 @@ class _ValueWriterCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, ValueWriterCreate)
         result = state.initialize(
             services=services,
@@ -60,7 +59,7 @@ class _ValueWriterCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, ValueWriterCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -105,7 +104,7 @@ class _ValueWriterRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueWriterRun)
         procedure.prepare(
             services=services,
-            state=cast('ValueWriterState', binding.resource('state')),
+            state=cast('ValueWriterState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -114,7 +113,7 @@ class _ValueWriterRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueWriterRun)
         result = procedure.run(
             services=services,
-            state=cast('ValueWriterState', binding.resource('state')),
+            state=cast('ValueWriterState', binding.fixed('state')),
             last_written_at_old=cast('Some[MonotonicTime] | None', binding.input(inputs, 'last_written_at_old')),
             input=cast('DynamicValue', binding.input(inputs, 'input')),
             repeat_elapsed=cast('Some[bool] | None', binding.input(inputs, 'repeat_elapsed')),

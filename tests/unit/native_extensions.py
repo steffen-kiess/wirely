@@ -181,22 +181,22 @@ def check_external_generation():
 from wirely import UInt16
 from wirely.runtime.native_api import StateServices, PreparationServices, ProcedureServices
 
-class Counter(contracts.CounterCreate):
+class CounterCreate(contracts.CounterCreate):
     def initialize(self, *, services: StateServices) -> contracts.CounterCreateResult:
         self.context = services.native_types
         return contracts.CounterCreateResult(state=self)
 
-    class Run(contracts.CounterRun):
-        def prepare(self, *, services: PreparationServices, state: "Counter", seed: UInt16) -> None:
-            assert state.context is services.native_types
-            self.value = seed
+class CounterRun(contracts.CounterRun):
+    def prepare(self, *, services: PreparationServices, state: "CounterCreate", seed: UInt16) -> None:
+        assert state.context is services.native_types
+        self.value = seed
 
-        def run(self, *, services: ProcedureServices, state: "Counter", seed: UInt16) -> contracts.CounterRunResult:
-            assert state.context is services.native_types
-            return contracts.CounterRunResult(count=UInt16(self.value.value + 1))
+    def run(self, *, services: ProcedureServices, state: "CounterCreate", seed: UInt16) -> contracts.CounterRunResult:
+        assert state.context is services.native_types
+        return contracts.CounterRunResult(count=UInt16(self.value.value + 1))
 
-Service = Counter  # Used as a resource type.
-Spare = Counter  # Used as a resource type.
+Service = CounterCreate  # Used as a resource type.
+Spare = CounterCreate  # Used as a resource type.
 ''')
         (root / 'acme/functions/demo.py').write_text('''from wirely import UInt16
 

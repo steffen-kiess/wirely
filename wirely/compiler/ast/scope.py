@@ -67,6 +67,8 @@ class Scope(abc.ABC):
                 # if len(ty.parameters) != 1:
                 #     raise model.ProgramError(ty, f'Expected 1 type parameter, got {len(ty.parameters)}: {ty}')
                 par_type = self.resolve_type(ty.parameter, par_values=par_values)
+                if isinstance(par_type, model.ResourceType):
+                    raise ProgramError(ty, 'Resources cannot be members of composite types')
                 return gen_type(par_type)
             elif not isinstance(ty, Reference):
                 raise model.ProgramError(ty, f'Expected Reference or BracketOperator as type name, got {ty}')
@@ -104,6 +106,9 @@ class Scope(abc.ABC):
                     if candidate is None:
                         break
                 if candidate is not None:
+                    resource = candidate.resource_types.get(ty.identifiers[-1].id_str)
+                    if resource is not None:
+                        return resource
                     struct = candidate.struct_types.get(ty.identifiers[-1].id_str)
                     if struct is not None:
                         return struct.resolve_fields()

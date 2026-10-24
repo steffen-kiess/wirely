@@ -13,7 +13,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.integers import UInt16
 from wirely.types.option import Some
@@ -74,7 +73,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
     output_keys = {'bus': 'bus'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, ConnectionCreate)
         result = state.initialize(
             services=services,
@@ -87,7 +86,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, ConnectionCreateResult)
         return {
-            'bus': binding.resource_output('bus', result.bus),
+            'bus': binding.output('bus', result.bus),
         }
 
 
@@ -120,18 +119,18 @@ class _EventReceiverCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, EventReceiverCreate)
         result = state.initialize(
             services=services,
-            bus=cast('Bus', binding.resource('Bus')),
+            bus=cast('Bus', binding.fixed('Bus')),
             type=cast('ValueType[Any]', binding.use('Type')),
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
         binding.check_result(result, EventReceiverCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -164,18 +163,18 @@ class _EventSenderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, EventSenderCreate)
         result = state.initialize(
             services=services,
-            bus=cast('Bus', binding.resource('Bus')),
+            bus=cast('Bus', binding.fixed('Bus')),
             type=cast('ValueType[Any]', binding.use('Type')),
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
         binding.check_result(result, EventSenderCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -208,18 +207,18 @@ class _ValueOptionProviderCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, ValueOptionProviderCreate)
         result = state.initialize(
             services=services,
-            bus=cast('Bus', binding.resource('Bus')),
+            bus=cast('Bus', binding.fixed('Bus')),
             type=cast('ValueType[Any]', binding.use('Type')),
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
         binding.check_result(result, ValueOptionProviderCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -252,18 +251,18 @@ class _ValueReceiverCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, ValueReceiverCreate)
         result = state.initialize(
             services=services,
-            bus=cast('Bus', binding.resource('Bus')),
+            bus=cast('Bus', binding.fixed('Bus')),
             type=cast('ValueType[Any]', binding.use('Type')),
             group_address=cast('UInt16', binding.use('group_address')),
             value_type_name=cast('str', binding.use('value_type_name')),
         )
         binding.check_result(result, ValueReceiverCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -305,7 +304,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventReceiverGetValue)
         procedure.prepare(
             services=services,
-            state=cast('EventReceiverState', binding.resource('state')),
+            state=cast('EventReceiverState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -314,7 +313,7 @@ class _EventReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventReceiverGetValue)
         result = procedure.run(
             services=services,
-            state=cast('EventReceiverState', binding.resource('state')),
+            state=cast('EventReceiverState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, EventReceiverGetValueResult)
@@ -360,7 +359,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventSenderSendValue)
         procedure.prepare(
             services=services,
-            state=cast('EventSenderState', binding.resource('state')),
+            state=cast('EventSenderState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -369,7 +368,7 @@ class _EventSenderSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, EventSenderSendValue)
         result = procedure.run(
             services=services,
-            state=cast('EventSenderState', binding.resource('state')),
+            state=cast('EventSenderState', binding.fixed('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
@@ -414,7 +413,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueOptionProviderSetValue)
         procedure.prepare(
             services=services,
-            state=cast('ValueOptionProviderState', binding.resource('state')),
+            state=cast('ValueOptionProviderState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -423,7 +422,7 @@ class _ValueOptionProviderSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueOptionProviderSetValue)
         result = procedure.run(
             services=services,
-            state=cast('ValueOptionProviderState', binding.resource('state')),
+            state=cast('ValueOptionProviderState', binding.fixed('state')),
             input=cast('Some[DynamicValue] | None', binding.input(inputs, 'input')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
@@ -469,7 +468,7 @@ class _ValueReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueReceiverGetValue)
         procedure.prepare(
             services=services,
-            state=cast('ValueReceiverState', binding.resource('state')),
+            state=cast('ValueReceiverState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -478,7 +477,7 @@ class _ValueReceiverGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, ValueReceiverGetValue)
         result = procedure.run(
             services=services,
-            state=cast('ValueReceiverState', binding.resource('state')),
+            state=cast('ValueReceiverState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, ValueReceiverGetValueResult)

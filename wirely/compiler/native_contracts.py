@@ -259,11 +259,11 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
     where = f'Native initializer {native_name}'
 
     def annotate(item: signatures.SignatureType | signatures.ResourceType) -> str:
-        return annotation(item, imports, resource_classes, strict)
+        return 'object' if isinstance(item, signatures.TypeVar) else annotation(item, imports, resource_classes, strict)
 
     for key, port in [*signature.depends.items(), *signature.produces.items()]:
-        if port.kind != 'resource' or port.multi:
-            raise ValueError(f'{where}: `{key}` must be a single resource')
+        if port.kind not in ('resource', 'fixed') or port.multi:
+            raise ValueError(f'{where}: `{key}` must be a single fixed value')
     arguments = _python_names(where, [*(('input', key) for key in signature.depends),
                                       *(('compile-time read', key) for key in signature.uses)])
     outputs = _python_names(where, (('output', key) for key in signature.produces))
@@ -275,14 +275,14 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
     types.update((key, annotate(item)) for key, item in signature.uses.items())
     for name in ('NativeState', 'StateServices', 'InitializerAdapter', 'InterfaceBinding'):
         imports.add('wirely.runtime.native_api', name)
-    imports.add('wirely.runtime.resources', 'ResourceValue')
+    imports.add('wirely.types', 'InternalValue')
     imports.add('typing', 'Any')
     imports.add('typing', 'cast')
     imports.module('abc')
     imports.add('dataclasses', 'dataclass')
 
     def value(key: str) -> str:
-        source = f"binding.resource({key!r})" if key in signature.depends else f'binding.use({key!r})'
+        source = f"binding.fixed({key!r})" if key in signature.depends else f'binding.use({key!r})'
         return f'cast({types[key]!r}, {source})'
 
     parameters = _parameters([('services', f'StateServices[{literal}]'),
@@ -304,14 +304,67 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
         f'    output_keys = {{{", ".join(f"{name!r}: {key!r}" for key, name in outputs.items())}}}',
         '',
         '    def initialize(self, state: NativeState[Any], services: StateServices[Any],',
-        '                   binding: InterfaceBinding) -> dict[str, ResourceValue]:',
+        '                   binding: InterfaceBinding) -> dict[str, InternalValue]:',
         f'        assert isinstance(state, {contract})',
         *_call('state.initialize', [('services', 'services'), *((name, value(key)) for key, name in arguments.items())]),
         f'        binding.check_result(result, {result})',
-        *_outputs((key, f'binding.resource_output({key!r}, result.{name})') for key, name in outputs.items()),
+        *_outputs((key, f'binding.output({key!r}, result.{name})') for key, name in outputs.items()),
         '',
         '',
         f'{contract}._adapter = _{contract}Adapter()',
+    ]
+    return lines
+
+
+def _load_code(native_name: str, signature: signatures.Procedure, imports: _Imports,
+               resource_classes: Mapping[str, tuple[str, str]], strict: bool) -> list[str]:
+    """Generate a pure load procedure with a single call and no runtime services."""
+    _, contract = contract_location('procedure', native_name)
+    result = contract + 'Result'
+    where = f'Native load procedure {native_name}'
+    for key, port in [*signature.depends.items(), *signature.produces.items()]:
+        if port.kind not in ('fixed', 'resource') or port.multi:
+            raise ValueError(f'{where}: `{key}` must be a single fixed value')
+    arguments = _python_names(where, [*(('input', key) for key in signature.depends),
+                                      *(('compile-time read', key) for key in signature.uses)])
+    outputs = _python_names(where, (('output', key) for key in signature.produces))
+
+    def annotate(item: signatures.SignatureType | signatures.ResourceType) -> str:
+        return 'object' if isinstance(item, signatures.TypeVar) else annotation(item, imports, resource_classes, strict)
+
+    types = {key: annotate(port.type) for key, port in signature.depends.items()}
+    types.update((key, annotation(item, imports, resource_classes, strict)) for key, item in signature.uses.items())
+    for name in ('NativeProcedure', 'PreparationServices', 'ProcedureServices', 'ProcedureAdapter', 'InterfaceBinding'):
+        imports.add('wirely.runtime.native_api', name)
+    imports.add('wirely.types', 'InternalValue')
+    imports.add('collections.abc', 'Mapping')
+    imports.add('typing', 'cast')
+    imports.module('abc')
+    imports.add('dataclasses', 'dataclass')
+    parameters = _parameters([('services', 'PreparationServices'),
+                              *((name, types[key]) for key, name in arguments.items())])
+    lines = _result_class(result, f'Fixed outputs of native load procedure {native_name}.',
+                          ((outputs[key], annotate(port.type)) for key, port in signature.produces.items()))
+    lines += [
+        f'class {contract}(NativeProcedure, abc.ABC):',
+        f'    """Native load procedure {native_name}."""',
+        '', '    @abc.abstractmethod',
+        '    def load' + parameters[0], *parameters[1:], f'    ) -> {result}:', '        ...', '', '',
+        f'class _{contract}Adapter(ProcedureAdapter):',
+        '    def prepare(self, procedure: NativeProcedure, services: PreparationServices, binding: InterfaceBinding) -> None:',
+        '        raise ValueError("Load procedures cannot be prepared for runtime execution")', '',
+        '    def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,',
+        '            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:',
+        '        raise ValueError("Load procedures cannot run during a step")', '',
+        '    def load(self, procedure: NativeProcedure, services: PreparationServices, binding: InterfaceBinding,',
+        '             inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:',
+        f'        assert isinstance(procedure, {contract})',
+        *_call('procedure.load', [('services', 'services'), *((name,
+            f"cast({types[key]!r}, binding.input(inputs, {key!r}))" if key in signature.depends
+            else f"cast({types[key]!r}, binding.use({key!r}))") for key, name in arguments.items())]),
+        f'        binding.check_result(result, {result})',
+        *_outputs((key, f'binding.output({key!r}, result.{name})') for key, name in outputs.items()),
+        '', '', f'{contract}._adapter = _{contract}Adapter()',
     ]
     return lines
 
@@ -328,16 +381,16 @@ def _procedure_code(native_name: str, signature: signatures.Procedure, imports: 
     for key, port in [*signature.depends.items(), *signature.produces.items()]:
         if port.multi:
             raise ValueError(f'{where}: multi port `{key}` is not supported')
-    for key, port in signature.produces.items():
-        if port.kind == 'resource':
-            raise ValueError(f'{where}: output `{key}` cannot be a resource')
-    resources = [key for key, port in signature.depends.items() if port.kind == 'resource']
+    if signature.stage == 'load':
+        return _load_code(native_name, signature, imports, resource_classes, strict)
+    resources = [key for key, port in signature.depends.items() if port.kind in ('resource', 'fixed')]
     prepared = _python_names(where, [*(('input', key) for key in resources),
                                      *(('compile-time read', key) for key in signature.uses)])
     inputs = _python_names(where, [*(('input', key) for key in signature.depends),
                                    *(('compile-time read', key) for key in signature.uses)])
     outputs = _python_names(where, (('output', key) for key in signature.produces))
-    port_types = {key: annotate(_port_type(port)) for key, port in signature.depends.items()}
+    port_types = {key: ('object' if port.kind == 'fixed' and isinstance(port.type, signatures.TypeVar)
+                        else annotate(_port_type(port))) for key, port in signature.depends.items()}
     use_types = {key: annotate(item) for key, item in signature.uses.items()}
     for name in ('NativeProcedure', 'PreparationServices', 'ProcedureServices', 'ProcedureAdapter',
                  'InterfaceBinding'):
@@ -351,13 +404,13 @@ def _procedure_code(native_name: str, signature: signatures.Procedure, imports: 
     def prepared_value(key: str) -> str:
         if key in signature.uses:
             return f'cast({use_types[key]!r}, binding.use({key!r}))'
-        return f'cast({port_types[key]!r}, binding.resource({key!r}))'
+        return f'cast({port_types[key]!r}, binding.fixed({key!r}))'
 
     def input_value(key: str) -> str:
         if key in signature.uses:
             return f'cast({use_types[key]!r}, binding.use({key!r}))'
         if signature.depends[key].kind == 'resource':
-            return f'cast({port_types[key]!r}, binding.resource({key!r}))'
+            return f'cast({port_types[key]!r}, binding.fixed({key!r}))'
         return f'cast({port_types[key]!r}, binding.input(inputs, {key!r}))'
 
     prepare_parameters = _parameters([('services', 'PreparationServices'),
@@ -1104,14 +1157,14 @@ def generate_bindings(interfaces: Interfaces, *,
             namespace, _, symbol = prefix.rpartition('.')
             module, contract = contract_location(kind, name)
             loader = '_load_' + table_name + '_' + module + '_' + snake_case(contract)
-            implementation = snake_case(symbol) if kind == 'function' else symbol
+            implementation = snake_case(symbol) if kind == 'function' else symbol + camel_case(name.rpartition(':')[2])
             lines += ['', f'def {loader}() -> {result}:',
                       f'    from wirely.generated.{module} import {contract}',
-                      f'    from wirely.{"functions" if kind == "function" else "native"}.{module_name(namespace)} import {implementation}']
+                      f'    from wirely.{"functions" if kind == "function" else "native"}.{module_name(namespace)} import {implementation}{" as Implementation" if kind != "function" else ""}']
             if kind == 'function':
                 lines += [f'    return {contract}.implementation({implementation})', '']
             else:
-                target = implementation + ('.' + camel_case(name.rpartition(':')[2]) if kind == 'procedure' else '')
+                target = 'Implementation'
                 lines += ['', f'    def create() -> {contract}:', f'        return {target}()', '',
                           f'    return {result}(create, {contract}._adapter)', '']
             entries.append((name, loader))

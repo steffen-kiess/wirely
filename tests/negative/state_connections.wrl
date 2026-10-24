@@ -154,7 +154,7 @@ node type Invalid {
   node event_sink: EventSink {}
   node resource_sink: ResourceSink {}
   node source: Std.Constant { Type: boolean, Value: true }
-  connect saved.old -> resource_sink; // E: Cannot connect fixed and value or event ports
+  connect saved.old -> resource_sink; // E: source has kind ConnectionKind.Value but target has kind ConnectionKind.Fixed
 }
 
 // TEST: target_old_state

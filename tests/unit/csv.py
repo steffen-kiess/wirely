@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from wirely.generated import extension as builtin_extension
 import wirely
-from wirely.native.csv import MyCsvWriter, ValueWriter
+from wirely.native.csv import MyCsvWriter, ValueWriterCreate, ValueWriterRun
 from wirely.program import RunStage
 from wirely.runtime.native_api import ProcedureServices, StateServices
 
@@ -14,7 +14,7 @@ class Invocation:
 
     def __init__(self, writer):
         self.writer = writer
-        self.procedure = ValueWriter.Run()
+        self.procedure = ValueWriterRun()
         self.value_type = wirely.value_types.option(wirely.value_types.boolean)
         self.inputs = {}
         self.last_written_at = None
@@ -41,7 +41,7 @@ class Invocation:
 
 
 def check_repeat_recovery():
-    writer = ValueWriter()
+    writer = ValueWriterCreate()
     writer.initialize(services=StateServices(name='writer', output_keys={'state': 'state'},
                                              trigger=lambda key: None, shutdown_time=lambda: None,
                                              is_shutting_down=lambda: False, native_types=builtin_extension.native_types),

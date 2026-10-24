@@ -56,6 +56,8 @@ class NodeParameter:
         try:
             # TODO: Is this correct?
             self.type_resolved = self.node_type.resolve_type(self.ty)
+            if isinstance(self.type_resolved, model.ResourceType):
+                raise model.ProgramError(self.ty, 'Resources cannot be parameter value types')
         finally:
             self.resolving_type = False
 

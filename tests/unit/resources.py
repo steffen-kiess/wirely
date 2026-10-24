@@ -294,7 +294,8 @@ with checks.assertRaisesRegex(ValueError, "Native initializer `TestLibrary.Incom
 
 # Resource outputs are typed ResourceValues; their objects are checked
 # against the Python type registered for the resource type.
-service_value = native_resource_engine.resource_outputs['factory.source', 'service']
+service_value = next(value for slot, value in native_resource_engine.resource_values.items()
+                     if slot.name == 'factory.source:create.service')
 assert isinstance(service_value, ResourceValue) and service_value.object is provider
 checks.assertEqual((service_value.type.name, service_value.type.python_type), ('TestLibrary.Service', Service))
 with checks.assertRaises(dataclasses.FrozenInstanceError):
@@ -398,7 +399,9 @@ assert alias_resource_engine.get_native_state('holder.child').service is holder
 source_state = alias_resource_engine.get_native_state('composite.source')
 assert alias_resource_engine.get_native_state('composite.child').service is source_state
 read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node_id == 'composite')
-assert dict(read.resources) == {'service': wirely.program.ResourceBinding('composite.source', 'service')}
+assert [(name, source.resource.name) for name, source in read.dependencies] == [
+    ('service', 'composite.source:create.service'),
+]
 alias_resource_engine.step()
 assert alias_reads == [source_state]
 

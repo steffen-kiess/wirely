@@ -177,7 +177,7 @@ node type Probe {
 }
 constant Flag: boolean = true; // H: Source was declared here
 node probe: Probe {}
-connect Flag -> probe.Service; // E: Cannot connect fixed and value or event ports
+connect Flag -> probe.Service; // E: source has type `boolean` but target has type `Service`
 
 // TEST: type-valued constant source
 node type Probe {

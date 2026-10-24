@@ -2,38 +2,38 @@
 resource type Handle;
 
 node type Invalid {
-  default output: value Handle; // E: Cannot find type `Handle`
+  default output: value Handle; // E: Type `Handle` is not a runtime type: `Handle` is parameter-only
 }
 
 // TEST: resource_parameter_type
 resource type Handle;
 
 node type Invalid {
-  parameter Service: Handle; // E: Cannot find type `Handle`
+  parameter Service: Handle; // E: Resources cannot be parameter value types
 }
 
 // TEST: resource_state_type
 resource type Handle;
 
 node type Invalid {
-  state service: Handle = (); // E: Cannot find type `Handle`
+  state service: Handle = (); // E: Type `Handle` is not a runtime type: `Handle` is parameter-only
 }
 
 // TEST: resource_temporary_type
 resource type Handle;
 
 node type Invalid {
-  binding service: value Handle; // E: Cannot find type `Handle`
+  binding service: value Handle; // E: Type `Handle` is not a runtime type: `Handle` is parameter-only
 }
 
 // TEST: resource_generic_type
 resource type Handle;
 
 node type Invalid {
-  default output: value Option[Handle]; // E: Cannot find type `Handle`
+  default output: value Option[Handle]; // E: Resources cannot be members of composite types
 }
 
 // TEST: resource_type_argument
 // LIBRARIES: std
 resource type Handle;
-node source: Std.Constant { Type: Handle, Value: () } // E: Cannot find type `Handle`
+node source: Std.Constant { Type: Handle, Value: () } // E: Resources cannot be compile-time values

@@ -38,19 +38,19 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
                  functions=()):
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'output{index}', value_type) for index, value_type in enumerate(output_types))
-    instance = NativeInstance('test', None, {}, ())
+    instance = NativeInstance('test', {})
     procedure = Procedure(
         node_id='test', reference='Test:run', node_context=instance,
         dependencies=tuple((variable.name, InputSource(variable, new_state=False))
                            for variable in state),
-        resources=(), outputs={variable.name: OutputTarget(variable) for variable in outputs},
+        outputs={variable.name: OutputTarget(variable) for variable in outputs},
         body=ProcedureBody(instructions, local_types),
     )
     return Program(
         name='instructions', state_variables=VariableTable(state, 'state'),
         temporaries=VariableTable(outputs, 'temporaries'),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
-        instances={'test': instance}, native_construction_order=('test',),
+        instances={'test': instance},
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
         variables={variable.name: InputSource(variable) for variable in outputs}, constants=constants,
         functions=functions,

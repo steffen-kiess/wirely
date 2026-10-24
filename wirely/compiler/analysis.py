@@ -395,7 +395,7 @@ def _resolve(value_type: model.Type | None,
 def _resolved_port(port: model.TypeInputPort | model.TypeOutputPort, direction: str,
                    parameter_values: Mapping[model.NodeParameter, StaticValue] | None) -> ResolvedPort:
     spec = port.port_spec
-    if isinstance(spec, model.PortTypeSpecificationResource):
+    if isinstance(spec, model.PortTypeSpecificationFixed):
         kind = 'fixed'
     else:
         assert isinstance(spec, model.PortTypeSpecificationData)

@@ -16,7 +16,7 @@ from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
-    NativeNodeType, NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceBinding,
+    NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceSlot,
     RunStage, Variable, VariableTable,
 )
 
@@ -104,6 +104,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
 
     variable_map: dict[tuple[NodePath, str], InputSource] = {}
     all_variables: list[Variable] = []
+    fixed_variables: list[Variable] = []
+    resource_slots: list[ResourceSlot] = []
     state_map: dict[tuple[NodePath, model.InstanceStateVariable], Variable] = {}
     state_variables: list[Variable] = []
     # TODO: Try to avoid needing this by making sure everyone uses instance values instead of paths?
@@ -137,18 +139,24 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                       else owner.node_type.value_nodes[target.name])
         else:
             source = owner.node_type.value_nodes.get(var.name, owner.instantiation)
-        check_runtime_type(var_type, source)
+        if not isinstance(var_type, model.ResourceType):
+            check_runtime_type(var_type, source)
         # TODO: Clean up name?
         # name = '.'.join([node.name for node in path])
         name = model.InstanceNode.path_name(path)
         # Port storage is named after its procedure: <path>:<procedure>.<port>.
         separator = ':' if getattr(var, 'port', None) is not None else '.'
         variable_name = name + separator + var.name if name else var.name
-        v = Variable(variable_name, var_type)
-        # print(v.name)
-        input_source = InputSource(v)
+        if isinstance(var_type, model.ResourceType):
+            slot = ResourceSlot(variable_name, var_type, var_type.native_name)
+            resource_slots.append(slot)
+            input_source = InputSource(resource=slot)
+        else:
+            v = Variable(variable_name, var_type)
+            fixed = model.connection_kind(var) == model.ConnectionKind.Fixed
+            input_source = InputSource(v, fixed=fixed)
+            (fixed_variables if fixed else all_variables).append(v)
         variable_map[path, var.var_identifier] = input_source
-        all_variables.append(v)
         return input_source
 
     specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
@@ -243,22 +251,24 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                               steps, via)
         doing.append((key, reference, via))
         for dep in proc.dependencies:
-            if model.ast.dependency_is_resource(dep):
-                continue
-            else:
-                for member_path, member, member_steps in members(path, dep):
-                    trace = {(step_path, id(step)): step for step_path, step in member_steps}
-                    producer_path, variable = model.resolve_variable(member_path, member, trace)
-                    connections = model.traced_connections(list(trace.values()))
-                    if isinstance(variable, model.StateRead):
-                        if variable.phase == 'new':
-                            assert isinstance(variable.state, model.InstanceStateVariable)
-                            assert variable.state.producer is not None
-                            assert isinstance(variable.reference, model.ast.SourceElement)
-                            do(producer_path, variable.state.producer, variable.reference, connections)
-                        continue
-                    if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
-                        do(producer_path, variable.producer, proc.declaration_procedure.reads, connections)
+            for member_path, member, member_steps in members(path, dep):
+                trace = {(step_path, id(step)): step for step_path, step in member_steps}
+                producer_path, variable = model.resolve_variable(member_path, member, trace)
+                connections = model.traced_connections(list(trace.values()))
+                if isinstance(variable, model.StateRead):
+                    if variable.phase == 'new':
+                        assert isinstance(variable.state, model.InstanceStateVariable)
+                        assert variable.state.producer is not None
+                        assert isinstance(variable.reference, model.ast.SourceElement)
+                        do(producer_path, variable.state.producer, variable.reference, connections)
+                    continue
+                if isinstance(variable, model.InstanceOutputPort):
+                    raise model.ProgramError(proc.declaration_procedure.reads,
+                                             'Fixed input is not written by a load procedure', hints=[
+                        model.CompilerHint(variable.port_spec, 'Fixed output was declared here'),
+                    ])
+                if not isinstance(variable, (model.InstanceStateVariable, model.StaticSource)):
+                    do(producer_path, variable.producer, proc.declaration_procedure.reads, connections)
         if doing.pop()[0] != key:
             raise Exception('doing.pop()[0] != key')
         # print(f'Adding {path} {proc}')
@@ -286,63 +296,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
-    def resource_path(path: NodePath, source: Any,
-                      port: model.ast.SourceElement) -> tuple[NodePath, ResourceBinding, list[model.Connection]]:
-        """Return a resource provider, its binding, and the connections leading to it."""
-        trace: dict = {}
-        provider_path, output = model.resolve_variable(path, source, trace)
-        node_type = instances[provider_path].node_type
-        if node_type.initializer is None:
-            raise model.ProgramError(port, 'Fixed input is not written by an initializer', hints=[
-                model.CompilerHint(output.port_spec, 'Fixed output was declared here'),
-            ])
-        produced = output.resource if isinstance(output, model.InstanceLocalResource) else output.type_output_port
-        assert node_type.initializer is not None
-        binding = ResourceBinding(node_ids[provider_path], node_type.initializer.output_keys[produced])
-        return provider_path, binding, model.traced_connections(list(trace.values()))
-
-    initializer_bindings: dict[NodePath, dict[str, ResourceBinding]] = {}
-    construction_dependencies: dict[NodePath, list[tuple[NodePath, model.ast.SourceElement, list[model.Connection]]]] = {}
-    for path, instance in instances.items():
-        node = instance.node if instance.node is not None else instance.node_type.singleton_instance
-        bindings = {}
-        providers: list[tuple[NodePath, model.ast.SourceElement, list[model.Connection]]] = []
-        for name, (source, port) in node.initializer_sources.items():
-            provider, bindings[name], via = resource_path(path, source, port)
-            providers.append((provider, port, via))
-        initializer_bindings[path] = bindings
-        construction_dependencies[path] = providers
-
-    construction_order: list[NodePath] = []
-    constructed: set[NodePath] = set()
-    # (path, port, via) of each node being constructed and how it was reached.
-    constructing: list[tuple[NodePath, model.ast.SourceElement | None, Sequence[model.Connection]]] = []
-
-    def order_construction(path: NodePath, port: model.ast.SourceElement | None = None,
-                           via: Sequence[model.Connection] = ()) -> None:
-        if path in constructed:
-            return
-        constructing.append((path, port, via))
-        for provider, provider_port, provider_via in construction_dependencies[path]:
-            paths = [entry[0] for entry in constructing]
-            if provider in paths:
-                steps = [entry[1:] for entry in constructing[paths.index(provider) + 1:]]
-                raise cycle_error(provider_port, 'Circular native initializer dependency', steps, provider_via)
-            order_construction(provider, provider_port, provider_via)
-        constructing.pop()
-        constructed.add(path)
-        construction_order.append(path)
-
-    for path in instances:
-        order_construction(path)
-    native_construction_order = tuple(node_ids[path] for path in construction_order)
     native_instances = {
-        node_ids[path]: NativeInstance(
-            name=node_ids[path], type_name=instance.node_type.native_name,
-            parameters=instance.static_context.parameters,
-            initializer_bindings=initializer_bindings[path],
-            initializer_values=instance.initializer_values,
-        )
+        node_ids[path]: NativeInstance(name=node_ids[path], parameters=instance.static_context.parameters)
         for path, instance in instances.items()
     }
     initial_state = {}
@@ -376,7 +331,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         for path, proc in stage_procs:
             # Native multi value/event specialization is not implemented by the runtime.
             if proc.declaration_procedure.is_native and any(
-                    getattr(source, 'is_list', False) and not model.ast.dependency_is_resource(source)
+                    getattr(source, 'is_list', False) and not model.ast.dependency_is_fixed(source)
                     for source in proc.static_context._sources.values()):
                 raise model.ProgramError(proc.declaration_procedure,
                                          'Native runtime does not support multi value or event dependencies')
@@ -401,7 +356,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                           and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes
                           and port.reference.identifiers[1].id_str == 'new'):
                         changed_states[name] = variable
-                if model.ast.dependency_is_resource(source):
+                if not getattr(source, 'is_list', False) and isinstance(resolve_source(path, source).value_type, model.ResourceType):
                     raise model.ProgramError(port, 'Procedure bodies cannot read resources')
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
@@ -430,8 +385,8 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 spec = getattr(target, 'port_spec', None)
                 port = next(port for port in proc.declaration_procedure.writes.outputs
                                if port.key == name)
-                if isinstance(spec, model.PortTypeSpecificationResource):
-                    raise model.ProgramError(port, 'Only initializers can write fixed values')
+                if isinstance(resolve_source(path, target).value_type, model.ResourceType):
+                    raise model.ProgramError(port, 'Procedure bodies cannot write resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_outputs.add(name)
                 output_variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
@@ -455,7 +410,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         schedule = []
         for path, proc in stage_procs:
             dependencies: list[tuple[str, InputSource]] = []
-            resources = {}
             outputs = {}
             declaration = proc.declaration_procedure
             input_ports = {port.key: port for port in declaration.read_ports.dependencies}
@@ -463,9 +417,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             for name, source in proc.static_context._sources.items():
                 port = input_ports[name]
                 key = port.python_key
-                if model.ast.dependency_is_resource(source):
-                    _, resources[key], _ = resource_path(path, source, port)
-                    continue
                 is_list = getattr(source, 'is_list', False)
                 for index, (member_path, member, _) in enumerate(members(path, source)):
                     debug_name = f'{key}[{index}]' if is_list else key
@@ -477,16 +428,17 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 if isinstance(target, model.InstanceStateVariable):
                     outputs[key] = OutputTarget(state_map[path, target])
                 else:
-                    output_variable = variable_map[path, target.var_identifier].variable
-                    assert output_variable is not None
-                    outputs[key] = OutputTarget(output_variable)
+                    target_source = resolve_source(path, target)
+                    destination = target_source.resource or target_source.variable
+                    assert destination is not None
+                    outputs[key] = OutputTarget(destination)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].node_type.procedures[declaration.name.id_str].native_name
                            if declaration.is_native
                            else f'{instances[path].node_type.qualified_name}:{declaration.name.id_str}'),
                 node_context=native_instances[node_ids[path]],
-                dependencies=tuple(dependencies), resources=resources,
+                dependencies=tuple(dependencies), initializer=isinstance(declaration, model.DeclarationInitializer),
                 outputs=outputs, body=bodies.get((path, proc)),
                 values=evaluate_bindings(proc.declaration_procedure.static_reads, instances[path]),
             ))
@@ -505,7 +457,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 reference=f'{instance.node_type.qualified_name}:<state {state.name}>',
                 node_context=native_instances[node_ids[path]],
                 dependencies=(('value', resolve_source(path, state.copy_source)),),
-                resources={}, outputs={'value': OutputTarget(state_map[path, state])},
+                outputs={'value': OutputTarget(state_map[path, state])},
                 body=COPY_BODY,
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)
@@ -544,14 +496,10 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         instance.node_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton
     }
-    native_types: dict[str, NativeNodeType] = {}
     native_procedures: dict[str, NativeProcedureInterface] = {}
     native_declarations: dict[str, model.TypeProcedure] = {}
     for instance in instances.values():
         node_type = instance.node_type
-        if node_type.initializer is not None:
-            assert node_type.native_name is not None
-            native_types[node_type.native_name] = native_node_type(node_type)
         for procedure in node_type.procedures.values():
             if not procedure.is_native:
                 continue
@@ -567,12 +515,13 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         name=str(graph), graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
         state_variables=VariableTable(state_variables, f'{graph}.state_variables'),
-        native_construction_order=native_construction_order,
+        fixed_values=VariableTable(fixed_variables, f'{graph}.fixed'),
+        resource_slots=tuple(resource_slots),
         instances=native_instances, initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
         constants=tuple(constants),
         functions=tuple(functions),
-        native_types=native_types, native_procedures=native_procedures,
+        native_procedures=native_procedures,
     )
 
 
@@ -581,35 +530,19 @@ def uses_names(static_reads: model.StaticReads | None) -> tuple[str, ...]:
 
 
 def native_procedure_interface(procedure: model.TypeProcedure) -> NativeProcedureInterface:
-    """Return the declared interface of a native procedure."""
+    """Return the declared interface of a native procedure, including initializers."""
     return NativeProcedureInterface(
         uses=uses_names(procedure.static_reads),
         resources={port.declaration.python_key: port.resource_type.native_name
                    for port in procedure.input_ports.values() if port.resource_type is not None},
         inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
                      if port.resource_type is None),
-        outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
-    )
-
-
-def native_node_type(node_type: model.NodeType) -> NativeNodeType:
-    """Return the declared native interface of a node type with native state."""
-    initializer = node_type.initializer
-    initializer_resources = {}
-    resource_outputs = {}
-    if initializer is not None:
-        for port, dependency in zip(initializer.read_ports.dependencies,
-                                    initializer.resolved_dependencies()):
-            if isinstance(dependency, model.InstanceNode):
-                dependency = dependency.output_ports_byname['']
-            initializer_resources[port.key] = dependency.resource_type.native_name
-        for output, key in initializer.output_keys.items():
-            assert isinstance(output, (model.TypeOutputPort, model.LocalResource))
-            assert output.resource_type is not None
-            resource_outputs[key] = output.resource_type.native_name
-    assert node_type.native_name is not None
-    return NativeNodeType(
-        name=node_type.native_name,
-        initializer_uses=uses_names(initializer.static_reads) if initializer is not None else (),
-        initializer_resources=initializer_resources, resource_outputs=resource_outputs,
+        outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()
+                      if port.resource_type is None),
+        resource_outputs={port.declaration.python_key: port.resource_type.native_name
+                          for port in procedure.output_ports.values() if port.resource_type is not None},
+        initializer=isinstance(procedure, model.TypeInitializer),
+        fixed_inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
+                           if isinstance(port.port_spec, model.PortTypeSpecificationFixed)
+                           and port.resource_type is None),
     )

@@ -13,7 +13,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.option import Some
 from wirely.types.value_types import DynamicValue, ValueType
@@ -62,7 +61,7 @@ class _DebugEventSourceCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, DebugEventSourceCreate)
         result = state.initialize(
             services=services,
@@ -70,7 +69,7 @@ class _DebugEventSourceCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, DebugEventSourceCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -100,7 +99,7 @@ class _DebugValueSourceCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, DebugValueSourceCreate)
         result = state.initialize(
             services=services,
@@ -108,7 +107,7 @@ class _DebugValueSourceCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, DebugValueSourceCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -200,7 +199,7 @@ class _DebugEventSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugEventSourceRun)
         procedure.prepare(
             services=services,
-            state=cast('DebugEventSourceState', binding.resource('state')),
+            state=cast('DebugEventSourceState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -209,7 +208,7 @@ class _DebugEventSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugEventSourceRun)
         result = procedure.run(
             services=services,
-            state=cast('DebugEventSourceState', binding.resource('state')),
+            state=cast('DebugEventSourceState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugEventSourceRunResult)
@@ -306,7 +305,7 @@ class _DebugValueSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugValueSourceRun)
         procedure.prepare(
             services=services,
-            state=cast('DebugValueSourceState', binding.resource('state')),
+            state=cast('DebugValueSourceState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
 
@@ -315,7 +314,7 @@ class _DebugValueSourceRunAdapter(ProcedureAdapter):
         assert isinstance(procedure, DebugValueSourceRun)
         result = procedure.run(
             services=services,
-            state=cast('DebugValueSourceState', binding.resource('state')),
+            state=cast('DebugValueSourceState', binding.fixed('state')),
             type=cast('ValueType[Any]', binding.use('Type')),
         )
         binding.check_result(result, DebugValueSourceRunResult)

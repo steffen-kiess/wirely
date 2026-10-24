@@ -11,7 +11,7 @@ import asyncio
 import contextlib
 import datetime
 from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
 from ..program import RunStage
@@ -251,7 +251,7 @@ class NativeState(Generic[K]):
 
 
 class NativeProcedure:
-    """Base class of native procedures; contracts declare their prepare() and run() methods."""
+    """Base class of native procedures; contracts declare load() or prepare() and run()."""
 
     _adapter: ClassVar[ProcedureAdapter]  # Set by the contract module.
 
@@ -268,6 +268,11 @@ class InterfaceBinding:
     resources: Mapping[str, ResourceValue]  # Resource dependencies by key.
     port_types: Mapping[str, Type]  # Value and event ports by key; events as Option.
     output_resource_types: Mapping[str, ResourceType]  # Resource outputs by key.
+
+    fixed_inputs: Mapping[str, InternalValue] = field(default_factory=dict)
+
+    def fixed(self, key: str) -> object:
+        return self.resource(key) if key in self.resources else self.input(self.fixed_inputs, key)
 
     def _port_signature(self, key: str) -> signatures.SignatureType:
         port = self.signature.depends.get(key) or self.signature.produces[key]
@@ -286,13 +291,17 @@ class InterfaceBinding:
 
     def input(self, inputs: Mapping[str, InternalValue], key: str) -> object:
         """Return an input value in native representation."""
+        if key in self.resources:
+            return self.resource(key)
         try:
             return to_native(self._port_signature(key), self.port_types[key], inputs[key], native_types=self.native_types)
         except ValueError as error:
             raise ValueError(f'{self.where}: invalid input `{key}`: {error}') from error
 
-    def output(self, key: str, value: object) -> InternalValue:
+    def output(self, key: str, value: object) -> Any:
         """Return the internal value of an output that an implementation returned."""
+        if key in self.output_resource_types:
+            return self.resource_output(key, value)
         try:
             return from_native(self._port_signature(key), self.port_types[key], value, native_types=self.native_types)
         except ValueError as error:
@@ -315,7 +324,7 @@ class InitializerAdapter(abc.ABC):
     output_keys: ClassVar[Mapping[str, str]]  # Binding keys of the resource outputs by Python name.
 
     def construct(self, state_factory: Callable[[], NativeState[Any]], services: StateServices[Any],
-                  binding: InterfaceBinding) -> tuple[NativeState[Any], dict[str, ResourceValue]]:
+                  binding: InterfaceBinding) -> tuple[NativeState[Any], dict[str, Any]]:
         """Construct and initialize a native state; return it and its resource outputs."""
         state = state_factory()
         state._services = services
@@ -323,7 +332,7 @@ class InitializerAdapter(abc.ABC):
 
     @abc.abstractmethod
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, Any]:
         ...
 
 
@@ -334,9 +343,13 @@ class ProcedureAdapter(abc.ABC):
     def prepare(self, procedure: NativeProcedure, services: PreparationServices, binding: InterfaceBinding) -> None:
         ...
 
+    def load(self, procedure: NativeProcedure, services: PreparationServices, binding: InterfaceBinding,
+             inputs: Mapping[str, InternalValue]) -> dict[str, Any]:
+        raise NotImplementedError
+
     @abc.abstractmethod
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
-            inputs: Mapping[str, InternalValue]) -> dict[str, InternalValue]:
+            inputs: Mapping[str, InternalValue]) -> dict[str, Any]:
         """Invoke a procedure with input values by key; return its output values by key."""
 
 

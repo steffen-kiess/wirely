@@ -1,0 +1,104 @@
+// TEST: runtime_read
+node type Invalid {
+  default input: value boolean;
+  default output: fixed boolean;
+  procedure run stage load reads default input as input // E: declared as load stage
+  // ^H: Reads declared here
+    writes default output as output { output = input; }
+}
+
+// TEST: state_read
+node type Invalid {
+  state saved: boolean = false;
+  connect saved.old -> saved;
+  default output: fixed boolean;
+  procedure run stage load reads saved.old as saved // E: declared as load stage
+  // ^H: Reads declared here
+    writes default output as output { output = saved; }
+}
+
+// TEST: runtime_write
+node type Invalid {
+  default output: value boolean;
+  procedure run stage load
+    writes default output as output { output = true; } // E: Load procedures can only write fixed values
+}
+
+// TEST: event_read
+node type Invalid {
+  default input: event boolean;
+  procedure run stage load reads default input as input {} // E: declared as load stage
+  // ^H: Reads declared here
+}
+
+// TEST: state_write
+node type Invalid {
+  state saved: boolean = false;
+  procedure run stage load writes saved { saved = true; } // E: Load procedures can only write fixed values
+}
+
+// TEST: resource_body_output
+resource type Handle;
+node type Invalid {
+  default output: fixed Handle;
+  procedure run stage load writes default output as output {} // E: Procedure bodies cannot write resources
+}
+node invalid: Invalid {}
+
+// TEST: duplicate_initializers
+node type Invalid {
+  default output: fixed boolean;
+  native initializer first writes default output as "output"; // H: Previous connection was here
+  native initializer second writes default output as "output"; // E: Default output already has a source
+}
+
+// TEST: fixed_is_not_compile_time
+node type Invalid {
+  binding ready: fixed boolean;
+  procedure run stage load writes ready { ready = true; }
+  assert ready; // E: Invalid boolean value
+}
+
+// TEST: generic_resource_value_port
+resource type Handle;
+node type Invalid {
+  parameter Type: type;
+  default input: value Type;
+}
+node invalid: Invalid { Type: Handle } // E: is not a runtime type
+
+// TEST: generic_resource_event_port
+resource type Handle;
+node type Invalid {
+  parameter Type: type;
+  default input: event Type;
+}
+node invalid: Invalid { Type: Handle } // E: is not a runtime type
+
+// TEST: generic_resource_option
+resource type Handle;
+node type Invalid {
+  parameter Type: type;
+  default input: value Option[Type];
+}
+node invalid: Invalid { Type: Handle } // E: is not a runtime type
+
+// TEST: fixed_to_event
+constant Flag: boolean = true;
+node type Invalid {
+  input Ready: fixed boolean; // H: Source was declared here
+  default output: event boolean; // H: Target was declared here
+  connect Ready -> default output; // E: source has kind ConnectionKind.Fixed but target has kind ConnectionKind.Event
+}
+
+// TEST: event_to_fixed
+node type Invalid {
+  default input: event boolean; // H: Source was declared here
+  default output: fixed boolean; // H: Target was declared here
+  connect default input -> default output; // E: source has kind ConnectionKind.Event but target has kind ConnectionKind.Fixed
+}
+
+// TEST: multi_fixed_plain
+node type Invalid {
+  default input: multi fixed boolean; // E: Multi fixed inputs are not supported
+}

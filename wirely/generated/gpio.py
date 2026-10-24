@@ -13,7 +13,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 
 if TYPE_CHECKING:
@@ -54,7 +53,7 @@ class _OutputCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, OutputCreate)
         result = state.initialize(
             services=services,
@@ -66,7 +65,7 @@ class _OutputCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, OutputCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -104,7 +103,7 @@ class _OutputSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputSetValue)
         procedure.prepare(
             services=services,
-            state=cast('OutputState', binding.resource('state')),
+            state=cast('OutputState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -112,7 +111,7 @@ class _OutputSetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputSetValue)
         result = procedure.run(
             services=services,
-            state=cast('OutputState', binding.resource('state')),
+            state=cast('OutputState', binding.fixed('state')),
             input=cast('bool', binding.input(inputs, 'input')),
         )
         binding.check_result(result, OutputSetValueResult)

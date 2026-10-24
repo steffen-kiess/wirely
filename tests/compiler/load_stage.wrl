@@ -1,0 +1,36 @@
+constant Flag: boolean = true;
+
+node type Plain {
+  parameter Input: boolean;
+  default output: fixed boolean;
+  binding first: fixed boolean;
+  binding second: fixed boolean;
+  output Optional: fixed Option[uint8];
+
+  procedure compute stage load reads Input as input writes first { first = !input; }
+  procedure forward stage load reads first writes second { second = first; }
+  procedure optional_value stage load writes Optional as option { option = Some(3); }
+  connect second -> default output;
+}
+
+node type Forward {
+  parameter Type: type;
+  default input: fixed Type;
+  default output: fixed Type;
+  connect default input -> default output;
+}
+
+namespace Fixture {
+  resource type Handle;
+  node type AcceptType {
+    parameter Type: type;
+    assert Type == Handle;
+  }
+}
+
+node plain: Plain { Input: Flag }
+node forward: Forward { Type: boolean }
+connect plain -> forward;
+node constant: Forward { Type: boolean }
+connect Flag -> constant;
+node types: Fixture.AcceptType { Type: Fixture.Handle }

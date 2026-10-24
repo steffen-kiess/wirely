@@ -1122,14 +1122,13 @@ ranges support independent reads.
 | --- | --- |
 | `name` | `SymbolMetadata` |
 | `state_variables`, `temporaries` | `StateVariables`, `Temporaries`, and their symbols |
+| `fixed_values`, `resource_slots` | `FixedValues`, with resource entries using `ResourceType` |
 | `initial_state` | `InitialState` |
-| Native-state `instances` | `Load` procedures with initializer native procedures, and their `ProcedureSymbols` |
-| `instances[*].initializer_values`, `procs[*].values` | `Inputs` from `ConstValues`, and their values |
-| `instances[*].initializer_bindings`, `procs[*].resources` | `Inputs` from `FixedValues` |
-| Resources provided by `instances` | `Outputs` to `FixedValues` |
-| `native_types` | `NativeProcedures` with `Initializer`, `InterfaceNames`, and `ResourceType` entries of `ValueTypes` |
-| `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ResourceType` entries of `ValueTypes` |
-| `native_construction_order` | Order of the `Load` stage |
+| `procs[*].values` | `Inputs` from `ConstValues`, and their values |
+| `procs[*].dependencies` | `Inputs` from the sources' banks |
+| `procs[*].outputs` | `Outputs` to fixed values, temporaries, or new state |
+| `native_procedures` | `NativeProcedures`, `InterfaceNames`, and `ValueTypes` |
+| `procs[LOAD]`, `procs[*].initializer` | Ordered `Load` procedures and native `Initializer` flags |
 | `procs` | `Stages`, `Procedures`, `NativeProcedures`, bindings, and `ProcedureSymbols` |
 | `procs[*].body` | `ProcedureBodies`, `TypeLists`, and `ProcedureCode` |
 | `constants` | `ConstValues` and `ProgramData` |

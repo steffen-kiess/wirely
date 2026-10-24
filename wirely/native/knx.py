@@ -21,7 +21,7 @@ def _protocol_name(option: Some[KNXProtocol] | None) -> str | None:
     return name
 
 
-class Connection(contracts.ConnectionCreate):
+class ConnectionCreate(contracts.ConnectionCreate):
     def initialize(self, *, services: StateServices[Literal['bus']], host: Some[str] | None,
                    protocol: Some[KNXProtocol] | None, port: Some[UInt16] | None, unix_path: Some[str] | None,
                    ssh_target: Some[str] | None,
@@ -54,8 +54,8 @@ class Connection(contracts.ConnectionCreate):
         verbose_print('Connecting to KNX bus done', flush=True)
 
 
-class ValueReceiver(contracts.ValueReceiverCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+class ValueReceiverCreate(contracts.ValueReceiverCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: ConnectionCreate, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.ValueReceiverCreateResult:
         self.knx_type = get_value_type(type, value_type_name)
         self.current_value: DynamicValue | None = None
@@ -95,27 +95,28 @@ class ValueReceiver(contracts.ValueReceiverCreate):
 
         self.services.trigger('state')
 
-    class GetValue(contracts.ValueReceiverGetValue):
-        def prepare(self, *, services: PreparationServices, state: 'ValueReceiver', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
 
-        def run(self, *, services: ProcedureServices,
-                state: 'ValueReceiver', type: ValueType[Any]) -> contracts.ValueReceiverGetValueResult:
-            # TODO: Add checks whether everything is running?
+class ValueReceiverGetValue(contracts.ValueReceiverGetValue):
+    def prepare(self, *, services: PreparationServices, state: 'ValueReceiverCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
 
-            res = state.current_value
+    def run(self, *, services: ProcedureServices,
+            state: 'ValueReceiverCreate', type: ValueType[Any]) -> contracts.ValueReceiverGetValueResult:
+        # TODO: Add checks whether everything is running?
 
-            if res is None:
-                res_opt = None
-            else:
-                res_opt = wirely.Some(res)
-            # print(f'get_value: {res_opt}')
+        res = state.current_value
 
-            return contracts.ValueReceiverGetValueResult(output=res_opt)
+        if res is None:
+            res_opt = None
+        else:
+            res_opt = wirely.Some(res)
+        # print(f'get_value: {res_opt}')
+
+        return contracts.ValueReceiverGetValueResult(output=res_opt)
 
 
-class ValueOptionProvider(contracts.ValueOptionProviderCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+class ValueOptionProviderCreate(contracts.ValueOptionProviderCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: ConnectionCreate, type: ValueType[Any],
                    group_address: UInt16,
                    value_type_name: str) -> contracts.ValueOptionProviderCreateResult:
         self.knx_type = get_value_type(type, value_type_name)
@@ -157,32 +158,6 @@ class ValueOptionProvider(contracts.ValueOptionProviderCreate):
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
 
-    class SetValue(contracts.ValueOptionProviderSetValue):
-        def prepare(self, *, services: PreparationServices, state: 'ValueOptionProvider',
-                    type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices, state: 'ValueOptionProvider',
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
-            # TODO: Add checks whether everything is running?
-
-            if input is None:
-                # TODO: Somehow reset the state.expose value in this case?
-                value = None
-            else:
-                value = state.knx_type.to_knx(input.value, state.services.native_types)
-
-            verbose_print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
-
-            # This does not work because this function is not async
-            # Also this would have to handle None values
-            # await state.expose.set(value)
-            # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
-            # TODO: Provide some notification if this is happening?
-            state.value_to_send = value
-            state.event.set()
-            return contracts.ValueOptionProviderSetValueResult()
-
     async def run_task(self) -> None:
         while True:
             while self.value_to_send is None:
@@ -197,8 +172,35 @@ class ValueOptionProvider(contracts.ValueOptionProviderCreate):
             verbose_print(f'Sending {value} to {self.address} done', flush=True)
 
 
-class EventReceiver(contracts.EventReceiverCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+class ValueOptionProviderSetValue(contracts.ValueOptionProviderSetValue):
+    def prepare(self, *, services: PreparationServices, state: 'ValueOptionProviderCreate',
+                type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices, state: 'ValueOptionProviderCreate',
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.ValueOptionProviderSetValueResult:
+        # TODO: Add checks whether everything is running?
+
+        if input is None:
+            # TODO: Somehow reset the state.expose value in this case?
+            value = None
+        else:
+            value = state.knx_type.to_knx(input.value, state.services.native_types)
+
+        verbose_print(f'Setting output {state.address} to {value}, old value_to_send is {state.value_to_send}', flush=True)
+
+        # This does not work because this function is not async
+        # Also this would have to handle None values
+        # await state.expose.set(value)
+        # Note: This can overwrite a non-None value if sending is too slow. In this case, the overwritten value will be discarded and not sent at all.
+        # TODO: Provide some notification if this is happening?
+        state.value_to_send = value
+        state.event.set()
+        return contracts.ValueOptionProviderSetValueResult()
+
+
+class EventReceiverCreate(contracts.EventReceiverCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: ConnectionCreate, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventReceiverCreateResult:
         self.knx_type = get_value_type(type, value_type_name)
         self.received_values: list[DynamicValue] = []
@@ -256,28 +258,29 @@ class EventReceiver(contracts.EventReceiverCreate):
         self.received_values.append(value)
         self.services.trigger('state')
 
-    class GetValue(contracts.EventReceiverGetValue):
-        def prepare(self, *, services: PreparationServices, state: 'EventReceiver', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
 
-        def run(self, *, services: ProcedureServices,
-                state: 'EventReceiver', type: ValueType[Any]) -> contracts.EventReceiverGetValueResult:
-            # TODO: Add checks whether everything is running?
+class EventReceiverGetValue(contracts.EventReceiverGetValue):
+    def prepare(self, *, services: PreparationServices, state: 'EventReceiverCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
 
-            if len(state.received_values) == 0:
-                return contracts.EventReceiverGetValueResult(output=None)
-            value = state.received_values.pop(0)
+    def run(self, *, services: ProcedureServices,
+            state: 'EventReceiverCreate', type: ValueType[Any]) -> contracts.EventReceiverGetValueResult:
+        # TODO: Add checks whether everything is running?
 
-            res_opt = wirely.Some(value)
-            # print(f'get_value: {res_opt}')
+        if len(state.received_values) == 0:
+            return contracts.EventReceiverGetValueResult(output=None)
+        value = state.received_values.pop(0)
 
-            services.trigger_self()
+        res_opt = wirely.Some(value)
+        # print(f'get_value: {res_opt}')
 
-            return contracts.EventReceiverGetValueResult(output=res_opt)
+        services.trigger_self()
+
+        return contracts.EventReceiverGetValueResult(output=res_opt)
 
 
-class EventSender(contracts.EventSenderCreate):
-    def initialize(self, *, services: StateServices[Literal['state']], bus: Connection, type: ValueType[Any],
+class EventSenderCreate(contracts.EventSenderCreate):
+    def initialize(self, *, services: StateServices[Literal['state']], bus: ConnectionCreate, type: ValueType[Any],
                    group_address: UInt16, value_type_name: str) -> contracts.EventSenderCreateResult:
         self.knx_type = get_value_type(type, value_type_name)
         # Task is needed for sending out values
@@ -301,7 +304,7 @@ class EventSender(contracts.EventSenderCreate):
 
         # TODO: Where does this get cleaned up?
         # Use ExposeSensor instead of Sensor because Sensor does not support binary and BinarySensor does not support writing values
-        self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSender", group_address=self.address, respond_to_read=False, value_type=self.value_type_knx)
+        self.sensor = xknx.devices.ExposeSensor(self.native_bus.knx, name="EventSenderCreate", group_address=self.address, respond_to_read=False, value_type=self.value_type_knx)
         self.native_bus.knx.devices.async_add(self.sensor)  # TODO: Is this needed?
         return contracts.EventSenderCreateResult(state=self)
 
@@ -312,31 +315,6 @@ class EventSender(contracts.EventSenderCreate):
             raise Exception('self.task is not None')
 
         self.task = self.start_task(task_group, async_exit_stack, self.run_task())
-
-    class SendValue(contracts.EventSenderSendValue):
-        def prepare(self, *, services: PreparationServices, state: 'EventSender', type: ValueType[Any]) -> None:
-            check_state_type(services.name, type, state.value_type)
-
-        def run(self, *, services: ProcedureServices, state: 'EventSender',
-                input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.EventSenderSendValueResult:
-            # TODO: Add checks whether everything is running?
-
-            # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
-            if input is None:
-                return contracts.EventSenderSendValueResult()
-            else:
-                value = state.knx_type.to_knx(input.value, state.services.native_types)
-
-            verbose_print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
-
-            # Note: If sending is too slow, there might be multiple events queued up.
-            # TODO: Provide a notification in this case?
-            state.values_to_send.append(value)
-            state.event.set()
-
-            # This makes sure that the value is sent again if the input does not change
-            services.trigger_self()
-            return contracts.EventSenderSendValueResult()
 
     async def run_task(self) -> None:
         while True:
@@ -352,8 +330,34 @@ class EventSender(contracts.EventSenderCreate):
             verbose_print(f'Sending {value} to {self.address} done', flush=True)
 
 
-Bus = Connection  # Used as a resource type.
-ValueReceiverState = ValueReceiver  # Used as a resource type.
-ValueOptionProviderState = ValueOptionProvider  # Used as a resource type.
-EventReceiverState = EventReceiver  # Used as a resource type.
-EventSenderState = EventSender  # Used as a resource type.
+class EventSenderSendValue(contracts.EventSenderSendValue):
+    def prepare(self, *, services: PreparationServices, state: 'EventSenderCreate', type: ValueType[Any]) -> None:
+        check_state_type(services.name, type, state.value_type)
+
+    def run(self, *, services: ProcedureServices, state: 'EventSenderCreate',
+            input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.EventSenderSendValueResult:
+        # TODO: Add checks whether everything is running?
+
+        # TODO: Is this correct or should this distinguish between a value which has not yet been sent/received and an empty string?
+        if input is None:
+            return contracts.EventSenderSendValueResult()
+        else:
+            value = state.knx_type.to_knx(input.value, state.services.native_types)
+
+        verbose_print(f'Sending event {value} to {state.address}, old values_to_send is {state.values_to_send}', flush=True)
+
+        # Note: If sending is too slow, there might be multiple events queued up.
+        # TODO: Provide a notification in this case?
+        state.values_to_send.append(value)
+        state.event.set()
+
+        # This makes sure that the value is sent again if the input does not change
+        services.trigger_self()
+        return contracts.EventSenderSendValueResult()
+
+
+Bus = ConnectionCreate  # Used as a resource type.
+ValueReceiverState = ValueReceiverCreate  # Used as a resource type.
+ValueOptionProviderState = ValueOptionProviderCreate  # Used as a resource type.
+EventReceiverState = EventReceiverCreate  # Used as a resource type.
+EventSenderState = EventSenderCreate  # Used as a resource type.

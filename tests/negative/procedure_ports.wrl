@@ -223,7 +223,7 @@ node type Invalid {
 resource type Handle;
 node type Invalid {
   native procedure run
-    writes handle: fixed Handle; // E: Only initializers can write fixed values
+    writes handle: fixed Handle; // E: Only load procedures can write fixed values
 }
 
 // TEST: procedure_port_input_stage

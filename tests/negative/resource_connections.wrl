@@ -13,7 +13,7 @@ namespace Fixture {
 }
 node source: Fixture.Source {}
 node target: Fixture.Target {}
-connect source -> target.Service; // E: source has resource type `Fixture.First` but target has resource type `Fixture.Second`
+connect source -> target.Service; // E: source has type `Fixture.First` but target has type `Fixture.Second`
 
 // TEST: resource_same_name_mismatch
 namespace First {
@@ -33,7 +33,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: source has resource type `First.Handle` but target has resource type `Second.Handle`
+connect source -> target; // E: source has type `First.Handle` but target has type `Second.Handle`
 
 // TEST: resource_boundary_mismatch
 resource type First;
@@ -42,7 +42,7 @@ resource type Second;
 node type Invalid {
   input Service: fixed First; // H: Source was declared here
   default output: fixed Second; // H: Target was declared here
-  connect Service -> default output; // E: source has resource type `First` but target has resource type `Second`
+  connect Service -> default output; // E: source has type `First` but target has type `Second`
 }
 
 // TEST: resource_to_data_value
@@ -57,7 +57,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect fixed and value or event ports
+connect source -> target; // E: source has type `Handle` but target has type `boolean`
 
 // TEST: data_to_resource_value
 resource type Handle;
@@ -71,7 +71,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect fixed and value or event ports
+connect source -> target; // E: source has kind ConnectionKind.Value but target has kind ConnectionKind.Fixed
 
 // TEST: resource_to_data_event
 resource type Handle;
@@ -85,7 +85,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect fixed and value or event ports
+connect source -> target; // E: source has kind ConnectionKind.Fixed but target has kind ConnectionKind.Event
 
 // TEST: data_to_resource_event
 resource type Handle;
@@ -99,7 +99,7 @@ node type Target {
 }
 node source: Source {}
 node target: Target {}
-connect source -> target; // E: Cannot connect fixed and value or event ports
+connect source -> target; // E: source has kind ConnectionKind.Event but target has kind ConnectionKind.Fixed
 
 // TEST: circular native initialization
 // LIBRARIES:
@@ -109,7 +109,8 @@ namespace Std {
     input Service: fixed Service;
     default output: fixed Service;
     native initializer create reads Service writes default output as "service";
-    // ^E: Circular native initializer dependency
+    // ^E: Circular procedure dependency
+    // ^^H: Cycle continues here
   }
 }
 node first: Std.DebugValueSource {}
@@ -142,15 +143,14 @@ connect first -> sink.Service;
 // LIBRARIES:
 resource type Service;
 node type Missing {
-  default output: fixed Service; // H: Fixed output was declared here
+  default output: fixed Service; // E: Default output has no source
 }
 namespace Std {
   node type DebugValueSource {
     input Service: fixed Service;
     native initializer create reads Service;
-    // ^E: Fixed input is not written by an initializer
   }
 }
-node source: Missing {}
+node source: Missing {} // H: While instantiating `source`
 node sink: Std.DebugValueSource {}
 connect source -> sink.Service;

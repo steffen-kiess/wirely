@@ -13,7 +13,6 @@ from wirely.runtime.native_api import (
     InitializerAdapter, InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter,
     ProcedureServices, StateServices,
 )
-from wirely.runtime.resources import ResourceValue
 from wirely.types import InternalValue
 from wirely.types.integers import Int32, UInt16
 from wirely.types.option import Some
@@ -74,16 +73,16 @@ class _CodeEnteredEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, CodeEnteredEventCreate)
         result = state.initialize(
             services=services,
-            device=cast('Device', binding.resource('Device')),
+            device=cast('Device', binding.fixed('Device')),
             code=cast('str', binding.use('Code')),
         )
         binding.check_result(result, CodeEnteredEventCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -116,7 +115,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
     output_keys = {'device': 'device'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, ConnectionCreate)
         result = state.initialize(
             services=services,
@@ -127,7 +126,7 @@ class _ConnectionCreateAdapter(InitializerAdapter):
         )
         binding.check_result(result, ConnectionCreateResult)
         return {
-            'device': binding.resource_output('device', result.device),
+            'device': binding.output('device', result.device),
         }
 
 
@@ -158,16 +157,16 @@ class _IOStateCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, IOStateCreate)
         result = state.initialize(
             services=services,
-            device=cast('Device', binding.resource('Device')),
+            device=cast('Device', binding.fixed('Device')),
             port=cast('str', binding.use('Port')),
         )
         binding.check_result(result, IOStateCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -198,16 +197,16 @@ class _KeyEventCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, KeyEventCreate)
         result = state.initialize(
             services=services,
-            device=cast('Device', binding.resource('Device')),
+            device=cast('Device', binding.fixed('Device')),
             key=cast('str', binding.use('Key')),
         )
         binding.check_result(result, KeyEventCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -238,16 +237,16 @@ class _OutputControlCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, OutputControlCreate)
         result = state.initialize(
             services=services,
-            device=cast('Device', binding.resource('Device')),
+            device=cast('Device', binding.fixed('Device')),
             port=cast('str', binding.use('Port')),
         )
         binding.check_result(result, OutputControlCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -278,16 +277,16 @@ class _SwitchStateCreateAdapter(InitializerAdapter):
     output_keys = {'state': 'state'}
 
     def initialize(self, state: NativeState[Any], services: StateServices[Any],
-                   binding: InterfaceBinding) -> dict[str, ResourceValue]:
+                   binding: InterfaceBinding) -> dict[str, InternalValue]:
         assert isinstance(state, SwitchStateCreate)
         result = state.initialize(
             services=services,
-            device=cast('Device', binding.resource('Device')),
+            device=cast('Device', binding.fixed('Device')),
             switch_number=cast('Int32', binding.use('SwitchNumber')),
         )
         binding.check_result(result, SwitchStateCreateResult)
         return {
-            'state': binding.resource_output('state', result.state),
+            'state': binding.output('state', result.state),
         }
 
 
@@ -326,7 +325,7 @@ class _CodeEnteredEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, CodeEnteredEventGetValue)
         procedure.prepare(
             services=services,
-            state=cast('CodeEnteredEventState', binding.resource('state')),
+            state=cast('CodeEnteredEventState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -334,7 +333,7 @@ class _CodeEnteredEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, CodeEnteredEventGetValue)
         result = procedure.run(
             services=services,
-            state=cast('CodeEnteredEventState', binding.resource('state')),
+            state=cast('CodeEnteredEventState', binding.fixed('state')),
         )
         binding.check_result(result, CodeEnteredEventGetValueResult)
         return {
@@ -377,7 +376,7 @@ class _IOStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, IOStateGetValue)
         procedure.prepare(
             services=services,
-            state=cast('IOStateState', binding.resource('state')),
+            state=cast('IOStateState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -385,7 +384,7 @@ class _IOStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, IOStateGetValue)
         result = procedure.run(
             services=services,
-            state=cast('IOStateState', binding.resource('state')),
+            state=cast('IOStateState', binding.fixed('state')),
         )
         binding.check_result(result, IOStateGetValueResult)
         return {
@@ -428,7 +427,7 @@ class _KeyEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, KeyEventGetValue)
         procedure.prepare(
             services=services,
-            state=cast('KeyEventState', binding.resource('state')),
+            state=cast('KeyEventState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -436,7 +435,7 @@ class _KeyEventGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, KeyEventGetValue)
         result = procedure.run(
             services=services,
-            state=cast('KeyEventState', binding.resource('state')),
+            state=cast('KeyEventState', binding.fixed('state')),
         )
         binding.check_result(result, KeyEventGetValueResult)
         return {
@@ -478,7 +477,7 @@ class _OutputControlSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputControlSendValue)
         procedure.prepare(
             services=services,
-            state=cast('OutputControlState', binding.resource('state')),
+            state=cast('OutputControlState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -486,7 +485,7 @@ class _OutputControlSendValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, OutputControlSendValue)
         result = procedure.run(
             services=services,
-            state=cast('OutputControlState', binding.resource('state')),
+            state=cast('OutputControlState', binding.fixed('state')),
             input=cast('Some[bool] | None', binding.input(inputs, 'input')),
         )
         binding.check_result(result, OutputControlSendValueResult)
@@ -528,7 +527,7 @@ class _SwitchStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, SwitchStateGetValue)
         procedure.prepare(
             services=services,
-            state=cast('SwitchStateState', binding.resource('state')),
+            state=cast('SwitchStateState', binding.fixed('state')),
         )
 
     def run(self, procedure: NativeProcedure, services: ProcedureServices, binding: InterfaceBinding,
@@ -536,7 +535,7 @@ class _SwitchStateGetValueAdapter(ProcedureAdapter):
         assert isinstance(procedure, SwitchStateGetValue)
         result = procedure.run(
             services=services,
-            state=cast('SwitchStateState', binding.resource('state')),
+            state=cast('SwitchStateState', binding.fixed('state')),
         )
         binding.check_result(result, SwitchStateGetValueResult)
         return {

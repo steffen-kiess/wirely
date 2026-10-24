@@ -72,7 +72,7 @@ function_argument: identifier ":" type
 // Ports, nodes and connections
 
 port_type_specification: list_specifier connection_kind type -> port_type_specification_data
-    | list_specifier "fixed" reference -> port_type_specification_resource
+    | list_specifier "fixed" type -> port_type_specification_fixed
 list_specifier: "multi" -> list_specifier__create_list
     | () -> list_specifier__create_nolist
 connection_kind: "value" -> connection_kind_specifier__create_value
@@ -93,6 +93,7 @@ connection_source: outer_attribute* reference -> attributed
 
 // Clauses in fixed order: stage, reads, and writes; each may be omitted.
 stage_declaration: () -> stage_declaration__create_default
+    | "stage" "load" -> stage_declaration__create_load
     | "stage" "input" -> stage_declaration__create_input
     | "stage" "output" -> stage_declaration__create_output
 reads_declaration: () -> reads_declaration__of

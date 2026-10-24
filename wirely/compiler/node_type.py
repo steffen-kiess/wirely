@@ -34,7 +34,7 @@ class NodeType(model.Scope):
         self.node_declarations: dict[str, model.ChildNode] = {}
         # Nodes, named ports, parameters, and constants share names.
         self.name_declarations: dict[str, model.Declaration] = {}
-        self.initializer: model.TypeInitializer | None = None
+        self.initializers: dict[str, model.TypeInitializer] = {}
         self.value_nodes: dict[str, model.DeclarationState | model.DeclarationBinding] = {}
         # TODO: Clarify what is the key here (name or input_name)
         self.input_ports: dict[str, model.TypeInputPort] = {}
@@ -240,7 +240,7 @@ class NodeType(model.Scope):
             # if not isinstance(input.port_spec, model.PortTypeSpecificationData):
             #     continue
             # TODO: Is the name of the node and the name of the input always the same?
-            if input.var_type is not None and not incomplete:
+            if input.var_type is not None and not incomplete and not isinstance(input.port_spec, model.PortTypeSpecificationFixed):
                 with self.coordinator.contain(None):
                     check_runtime_type(resolve_type(input.var_type, node.par_values), instantiation)
             new_input = model.InstanceInputPort(node, input.input_name, input.is_list, input.var_type, type_input_port=input)
@@ -250,7 +250,7 @@ class NodeType(model.Scope):
             # if not isinstance(output.port_spec, model.PortTypeSpecificationData):
             #     continue
             # TODO: Is the name of the node and the name of the output always the same?
-            if output.var_type is not None and not incomplete:
+            if output.var_type is not None and not incomplete and not isinstance(output.port_spec, model.PortTypeSpecificationFixed):
                 with self.coordinator.contain(None):
                     check_runtime_type(resolve_type(output.var_type, node.par_values), instantiation)
             new_output = model.InstanceOutputPort(node, output.output_name, output.var_type, type_output_port=output)
@@ -322,6 +322,8 @@ class NodeType(model.Scope):
             """Map a connection source in this type to this instance."""
             if isinstance(port, model.TypeInputPort):
                 return node.custom_inputs[port]
+            if isinstance(port, model.TypeOutputPort):
+                return node.custom_outputs[port]
             if isinstance(port, model.TemporaryNode):
                 return temporaries[port.name]
             if isinstance(port, model.StateRead):
@@ -345,21 +347,6 @@ class NodeType(model.Scope):
         for name, state in self.state_nodes.items():
             if state.copy_source is not None:
                 state_variables[name].copy_source = source(state.copy_source)
-
-        node.initializer_sources = {}
-        if self.initializer is not None:
-            read_ports = self.initializer.read_ports
-            source_port: typing.Any  # Data and resource dependencies use different source classes.
-            for dependency_port, dep in zip(read_ports.dependencies, self.initializer.resolved_dependencies()):
-                if isinstance(dep, model.TypeInputPort):
-                    source_port = node.custom_inputs[dep]
-                elif isinstance(dep, model.InstanceNode):
-                    source_port = dep.output_ports_byname['']
-                elif isinstance(dep, model.LocalResource):
-                    source_port = source(dep)
-                else:
-                    source_port = dep
-                node.initializer_sources[dependency_port.key] = (source_port, dependency_port)
 
         # TODO: Probably more stuff should be done at an earlier stage
         for procedure in self.procedures.values():
@@ -403,11 +390,6 @@ class NodeType(model.Scope):
     def native_prefix(self) -> str:
         """The default prefix of the native names of initializers and native procedures."""
         return self.alias.value if self.alias is not None else self.qualified_name
-
-    @property
-    def native_name(self) -> str | None:
-        """The native name of the initializer, which links native state, or None without one."""
-        return self.initializer.native_name if self.initializer is not None else None
 
     @property
     def fullname_tuple(self) -> tuple[str, ...]:

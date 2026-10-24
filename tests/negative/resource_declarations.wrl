@@ -1,6 +1,6 @@
 // TEST: resource_unknown
 node type Client {
-  input Service: fixed Missing; // E: Cannot find resource type `Missing`
+  input Service: fixed Missing; // E: Cannot find type `Missing`
 }
 
 // TEST: resource_unknown_qualified
@@ -9,12 +9,12 @@ namespace Fixture {
 }
 
 node type Invalid {
-  input Service: fixed Fixture.Missing; // E: Cannot find resource type `Fixture.Missing`
+  input Service: fixed Fixture.Missing; // E: Cannot find type `Fixture.Missing`
 }
 
-// TEST: resource_data_type
+// TEST: fixed_parameter_only_type
 node type Invalid {
-  input Service: fixed boolean; // E: Cannot find resource type `boolean`; fixed values of other types are not supported yet
+  input Service: fixed string; // E: is not a runtime type
 }
 
 // TEST: resource_duplicate
@@ -172,7 +172,7 @@ node type Invalid {
 
 // TEST: local_resource_unknown_type
 node type Invalid {
-  binding state: fixed Missing; // E: Cannot find resource type `Missing`
+  binding state: fixed Missing; // E: Cannot find type `Missing`
   native initializer create writes state as "state";
 }
 
@@ -211,8 +211,8 @@ resource type Handle;
 node type Invalid {
   input Service: fixed Handle;
   binding state: fixed Handle;
-  native initializer create writes state as "state"; // H: Written by the native initializer here
-  connect Service -> state; // E: Binding `state` is both written and connected
+  native initializer create writes state as "state"; // H: Previous connection was here
+  connect Service -> state; // E: Binding `state` already has a source
 }
 
 // TEST: local_resource_cycle
@@ -230,7 +230,7 @@ node type Invalid {
 resource type Handle;
 node type Invalid {
   binding state: fixed Handle;
-  native initializer create reads state as "input" // E: Circular native initializer dependency
+  native initializer create reads state as "input" // E: Circular procedure dependency
     writes state as "state";
 }
 node invalid: Invalid {}
@@ -240,7 +240,7 @@ resource type Handle;
 node type Invalid {
   binding state: fixed Handle;
   native initializer create writes state as "state";
-  native procedure run writes state as "state"; // E: Only initializers can write fixed values
+  native procedure run writes state as "state"; // E: Only load procedures can write fixed values
 }
 
 // TEST: local_resource_port

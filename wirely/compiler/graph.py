@@ -182,15 +182,15 @@ class TemporaryNode(GraphElement):
 
 
 class LocalResource(GraphElement):
-    """A declared resource, connected from one source or produced by the native initializer."""
+    """A declared fixed value, connected from one source or written by a load procedure."""
 
     def __init__(self, graph: 'model.NodeType', declaration: 'model.DeclarationBinding',
-                 resource_type: 'model.ResourceType') -> None:
+                 resource_type: 'model.Type') -> None:
         super().__init__(graph, name=declaration.name.id_str)
         self.declaration = declaration
         self.port_spec = declaration.port_spec
-        self.resource_type = resource_type
-        self.var_type = None
+        self.resource_type = resource_type if isinstance(resource_type, model.ResourceType) else None
+        self.var_type = resource_type
         graph.local_resources[self.name] = self
 
         self.connected_source: Any = None  # Heterogeneous connection sources.
@@ -208,7 +208,7 @@ class LocalResource(GraphElement):
 
 
 class InstanceLocalResource:
-    """A local resource of one node instance."""
+    """A local fixed value of one node instance."""
 
     def __init__(self, node: 'model.InstanceNode', resource: LocalResource) -> None:
         self.node = node
@@ -223,8 +223,12 @@ class InstanceLocalResource:
         return self.resource.port_spec
 
     @property
-    def resource_type(self) -> 'model.ResourceType':
+    def resource_type(self) -> 'model.ResourceType | None':
         return self.resource.resource_type
+
+    @property
+    def var_type(self) -> 'model.Type':
+        return self.resource.var_type
 
     def __repr__(self) -> str:
         return f'<InstanceLocalResource "{self.node.name}.{self.resource.name}">'
@@ -285,7 +289,8 @@ def port_specification(port: Any) -> PortSpecification:
     var_type = port.var_type
     if isinstance(port.node, model.InstanceNode) and var_type is not None:
         var_type = resolve_type(var_type, port.node.par_values)
-    return PortSpecification(var_type, port.port_spec, port.resource_type,
+    resource_type = var_type if isinstance(var_type, model.ResourceType) else None
+    return PortSpecification(var_type, port.port_spec, resource_type,
                              getattr(port, 'is_list', False))
 
 

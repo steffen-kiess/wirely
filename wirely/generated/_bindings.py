@@ -9,200 +9,200 @@ from wirely.runtime.native_api import ProcedureImplementation, StateImplementati
 
 def _load_states_csv_value_writer_create() -> StateImplementation:
     from wirely.generated.csv import ValueWriterCreate
-    from wirely.native.csv import ValueWriter
+    from wirely.native.csv import ValueWriterCreate as Implementation
 
     def create() -> ValueWriterCreate:
-        return ValueWriter()
+        return Implementation()
 
     return StateImplementation(create, ValueWriterCreate._adapter)
 
 
 def _load_states_gpio_output_create() -> StateImplementation:
     from wirely.generated.gpio import OutputCreate
-    from wirely.native.gpio import Output
+    from wirely.native.gpio import OutputCreate as Implementation
 
     def create() -> OutputCreate:
-        return Output()
+        return Implementation()
 
     return StateImplementation(create, OutputCreate._adapter)
 
 
 def _load_states_knx_connection_create() -> StateImplementation:
     from wirely.generated.knx import ConnectionCreate
-    from wirely.native.knx import Connection
+    from wirely.native.knx import ConnectionCreate as Implementation
 
     def create() -> ConnectionCreate:
-        return Connection()
+        return Implementation()
 
     return StateImplementation(create, ConnectionCreate._adapter)
 
 
 def _load_states_knx_event_receiver_create() -> StateImplementation:
     from wirely.generated.knx import EventReceiverCreate
-    from wirely.native.knx import EventReceiver
+    from wirely.native.knx import EventReceiverCreate as Implementation
 
     def create() -> EventReceiverCreate:
-        return EventReceiver()
+        return Implementation()
 
     return StateImplementation(create, EventReceiverCreate._adapter)
 
 
 def _load_states_knx_event_sender_create() -> StateImplementation:
     from wirely.generated.knx import EventSenderCreate
-    from wirely.native.knx import EventSender
+    from wirely.native.knx import EventSenderCreate as Implementation
 
     def create() -> EventSenderCreate:
-        return EventSender()
+        return Implementation()
 
     return StateImplementation(create, EventSenderCreate._adapter)
 
 
 def _load_states_knx_value_option_provider_create() -> StateImplementation:
     from wirely.generated.knx import ValueOptionProviderCreate
-    from wirely.native.knx import ValueOptionProvider
+    from wirely.native.knx import ValueOptionProviderCreate as Implementation
 
     def create() -> ValueOptionProviderCreate:
-        return ValueOptionProvider()
+        return Implementation()
 
     return StateImplementation(create, ValueOptionProviderCreate._adapter)
 
 
 def _load_states_knx_value_receiver_create() -> StateImplementation:
     from wirely.generated.knx import ValueReceiverCreate
-    from wirely.native.knx import ValueReceiver
+    from wirely.native.knx import ValueReceiverCreate as Implementation
 
     def create() -> ValueReceiverCreate:
-        return ValueReceiver()
+        return Implementation()
 
     return StateImplementation(create, ValueReceiverCreate._adapter)
 
 
 def _load_states_mqtt_connection_create() -> StateImplementation:
     from wirely.generated.mqtt import ConnectionCreate
-    from wirely.native.mqtt import Connection
+    from wirely.native.mqtt import ConnectionCreate as Implementation
 
     def create() -> ConnectionCreate:
-        return Connection()
+        return Implementation()
 
     return StateImplementation(create, ConnectionCreate._adapter)
 
 
 def _load_states_mqtt_event_receiver_create() -> StateImplementation:
     from wirely.generated.mqtt import EventReceiverCreate
-    from wirely.native.mqtt import EventReceiver
+    from wirely.native.mqtt import EventReceiverCreate as Implementation
 
     def create() -> EventReceiverCreate:
-        return EventReceiver()
+        return Implementation()
 
     return StateImplementation(create, EventReceiverCreate._adapter)
 
 
 def _load_states_mqtt_event_sender_create() -> StateImplementation:
     from wirely.generated.mqtt import EventSenderCreate
-    from wirely.native.mqtt import EventSender
+    from wirely.native.mqtt import EventSenderCreate as Implementation
 
     def create() -> EventSenderCreate:
-        return EventSender()
+        return Implementation()
 
     return StateImplementation(create, EventSenderCreate._adapter)
 
 
 def _load_states_mqtt_value_option_provider_create() -> StateImplementation:
     from wirely.generated.mqtt import ValueOptionProviderCreate
-    from wirely.native.mqtt import ValueOptionProvider
+    from wirely.native.mqtt import ValueOptionProviderCreate as Implementation
 
     def create() -> ValueOptionProviderCreate:
-        return ValueOptionProvider()
+        return Implementation()
 
     return StateImplementation(create, ValueOptionProviderCreate._adapter)
 
 
 def _load_states_process_launch_on_event_create() -> StateImplementation:
     from wirely.generated.process import LaunchOnEventCreate
-    from wirely.native.process import LaunchOnEvent
+    from wirely.native.process import LaunchOnEventCreate as Implementation
 
     def create() -> LaunchOnEventCreate:
-        return LaunchOnEvent()
+        return Implementation()
 
     return StateImplementation(create, LaunchOnEventCreate._adapter)
 
 
 def _load_states_std_debug_event_source_create() -> StateImplementation:
     from wirely.generated.std import DebugEventSourceCreate
-    from wirely.native.std import DebugEventSource
+    from wirely.native.std import DebugEventSourceCreate as Implementation
 
     def create() -> DebugEventSourceCreate:
-        return DebugEventSource()
+        return Implementation()
 
     return StateImplementation(create, DebugEventSourceCreate._adapter)
 
 
 def _load_states_std_debug_value_source_create() -> StateImplementation:
     from wirely.generated.std import DebugValueSourceCreate
-    from wirely.native.std import DebugValueSource
+    from wirely.native.std import DebugValueSourceCreate as Implementation
 
     def create() -> DebugValueSourceCreate:
-        return DebugValueSource()
+        return Implementation()
 
     return StateImplementation(create, DebugValueSourceCreate._adapter)
 
 
 def _load_states_two_n_code_entered_event_create() -> StateImplementation:
     from wirely.generated.two_n import CodeEnteredEventCreate
-    from wirely.native.two_n import CodeEnteredEvent
+    from wirely.native.two_n import CodeEnteredEventCreate as Implementation
 
     def create() -> CodeEnteredEventCreate:
-        return CodeEnteredEvent()
+        return Implementation()
 
     return StateImplementation(create, CodeEnteredEventCreate._adapter)
 
 
 def _load_states_two_n_connection_create() -> StateImplementation:
     from wirely.generated.two_n import ConnectionCreate
-    from wirely.native.two_n import Connection
+    from wirely.native.two_n import ConnectionCreate as Implementation
 
     def create() -> ConnectionCreate:
-        return Connection()
+        return Implementation()
 
     return StateImplementation(create, ConnectionCreate._adapter)
 
 
 def _load_states_two_n_io_state_create() -> StateImplementation:
     from wirely.generated.two_n import IOStateCreate
-    from wirely.native.two_n import IOState
+    from wirely.native.two_n import IOStateCreate as Implementation
 
     def create() -> IOStateCreate:
-        return IOState()
+        return Implementation()
 
     return StateImplementation(create, IOStateCreate._adapter)
 
 
 def _load_states_two_n_key_event_create() -> StateImplementation:
     from wirely.generated.two_n import KeyEventCreate
-    from wirely.native.two_n import KeyEvent
+    from wirely.native.two_n import KeyEventCreate as Implementation
 
     def create() -> KeyEventCreate:
-        return KeyEvent()
+        return Implementation()
 
     return StateImplementation(create, KeyEventCreate._adapter)
 
 
 def _load_states_two_n_output_control_create() -> StateImplementation:
     from wirely.generated.two_n import OutputControlCreate
-    from wirely.native.two_n import OutputControl
+    from wirely.native.two_n import OutputControlCreate as Implementation
 
     def create() -> OutputControlCreate:
-        return OutputControl()
+        return Implementation()
 
     return StateImplementation(create, OutputControlCreate._adapter)
 
 
 def _load_states_two_n_switch_state_create() -> StateImplementation:
     from wirely.generated.two_n import SwitchStateCreate
-    from wirely.native.two_n import SwitchState
+    from wirely.native.two_n import SwitchStateCreate as Implementation
 
     def create() -> SwitchStateCreate:
-        return SwitchState()
+        return Implementation()
 
     return StateImplementation(create, SwitchStateCreate._adapter)
 
@@ -233,240 +233,240 @@ states: dict[str, Callable[[], StateImplementation]] = {
 
 def _load_procedures_csv_value_writer_run() -> ProcedureImplementation:
     from wirely.generated.csv import ValueWriterRun
-    from wirely.native.csv import ValueWriter
+    from wirely.native.csv import ValueWriterRun as Implementation
 
     def create() -> ValueWriterRun:
-        return ValueWriter.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, ValueWriterRun._adapter)
 
 
 def _load_procedures_gpio_output_set_value() -> ProcedureImplementation:
     from wirely.generated.gpio import OutputSetValue
-    from wirely.native.gpio import Output
+    from wirely.native.gpio import OutputSetValue as Implementation
 
     def create() -> OutputSetValue:
-        return Output.SetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, OutputSetValue._adapter)
 
 
 def _load_procedures_knx_event_receiver_get_value() -> ProcedureImplementation:
     from wirely.generated.knx import EventReceiverGetValue
-    from wirely.native.knx import EventReceiver
+    from wirely.native.knx import EventReceiverGetValue as Implementation
 
     def create() -> EventReceiverGetValue:
-        return EventReceiver.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, EventReceiverGetValue._adapter)
 
 
 def _load_procedures_knx_event_sender_send_value() -> ProcedureImplementation:
     from wirely.generated.knx import EventSenderSendValue
-    from wirely.native.knx import EventSender
+    from wirely.native.knx import EventSenderSendValue as Implementation
 
     def create() -> EventSenderSendValue:
-        return EventSender.SendValue()
+        return Implementation()
 
     return ProcedureImplementation(create, EventSenderSendValue._adapter)
 
 
 def _load_procedures_knx_value_option_provider_set_value() -> ProcedureImplementation:
     from wirely.generated.knx import ValueOptionProviderSetValue
-    from wirely.native.knx import ValueOptionProvider
+    from wirely.native.knx import ValueOptionProviderSetValue as Implementation
 
     def create() -> ValueOptionProviderSetValue:
-        return ValueOptionProvider.SetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, ValueOptionProviderSetValue._adapter)
 
 
 def _load_procedures_knx_value_receiver_get_value() -> ProcedureImplementation:
     from wirely.generated.knx import ValueReceiverGetValue
-    from wirely.native.knx import ValueReceiver
+    from wirely.native.knx import ValueReceiverGetValue as Implementation
 
     def create() -> ValueReceiverGetValue:
-        return ValueReceiver.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, ValueReceiverGetValue._adapter)
 
 
 def _load_procedures_mqtt_event_receiver_get_value() -> ProcedureImplementation:
     from wirely.generated.mqtt import EventReceiverGetValue
-    from wirely.native.mqtt import EventReceiver
+    from wirely.native.mqtt import EventReceiverGetValue as Implementation
 
     def create() -> EventReceiverGetValue:
-        return EventReceiver.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, EventReceiverGetValue._adapter)
 
 
 def _load_procedures_mqtt_event_sender_send_value() -> ProcedureImplementation:
     from wirely.generated.mqtt import EventSenderSendValue
-    from wirely.native.mqtt import EventSender
+    from wirely.native.mqtt import EventSenderSendValue as Implementation
 
     def create() -> EventSenderSendValue:
-        return EventSender.SendValue()
+        return Implementation()
 
     return ProcedureImplementation(create, EventSenderSendValue._adapter)
 
 
 def _load_procedures_mqtt_value_option_provider_set_value() -> ProcedureImplementation:
     from wirely.generated.mqtt import ValueOptionProviderSetValue
-    from wirely.native.mqtt import ValueOptionProvider
+    from wirely.native.mqtt import ValueOptionProviderSetValue as Implementation
 
     def create() -> ValueOptionProviderSetValue:
-        return ValueOptionProvider.SetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, ValueOptionProviderSetValue._adapter)
 
 
 def _load_procedures_process_launch_on_event_run() -> ProcedureImplementation:
     from wirely.generated.process import LaunchOnEventRun
-    from wirely.native.process import LaunchOnEvent
+    from wirely.native.process import LaunchOnEventRun as Implementation
 
     def create() -> LaunchOnEventRun:
-        return LaunchOnEvent.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, LaunchOnEventRun._adapter)
 
 
 def _load_procedures_schedule_is_in_daily_interval_run() -> ProcedureImplementation:
     from wirely.generated.schedule import IsInDailyIntervalRun
-    from wirely.native.schedule import IsInDailyInterval
+    from wirely.native.schedule import IsInDailyIntervalRun as Implementation
 
     def create() -> IsInDailyIntervalRun:
-        return IsInDailyInterval.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, IsInDailyIntervalRun._adapter)
 
 
 def _load_procedures_schedule_time_of_day_minute_get_value() -> ProcedureImplementation:
     from wirely.generated.schedule import TimeOfDayMinuteGetValue
-    from wirely.native.schedule import TimeOfDayMinute
+    from wirely.native.schedule import TimeOfDayMinuteGetValue as Implementation
 
     def create() -> TimeOfDayMinuteGetValue:
-        return TimeOfDayMinute.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, TimeOfDayMinuteGetValue._adapter)
 
 
 def _load_procedures_std_debug_event_printer_run() -> ProcedureImplementation:
     from wirely.generated.std import DebugEventPrinterRun
-    from wirely.native.std import DebugEventPrinter
+    from wirely.native.std import DebugEventPrinterRun as Implementation
 
     def create() -> DebugEventPrinterRun:
-        return DebugEventPrinter.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, DebugEventPrinterRun._adapter)
 
 
 def _load_procedures_std_debug_event_source_run() -> ProcedureImplementation:
     from wirely.generated.std import DebugEventSourceRun
-    from wirely.native.std import DebugEventSource
+    from wirely.native.std import DebugEventSourceRun as Implementation
 
     def create() -> DebugEventSourceRun:
-        return DebugEventSource.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, DebugEventSourceRun._adapter)
 
 
 def _load_procedures_std_debug_value_printer_run() -> ProcedureImplementation:
     from wirely.generated.std import DebugValuePrinterRun
-    from wirely.native.std import DebugValuePrinter
+    from wirely.native.std import DebugValuePrinterRun as Implementation
 
     def create() -> DebugValuePrinterRun:
-        return DebugValuePrinter.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, DebugValuePrinterRun._adapter)
 
 
 def _load_procedures_std_debug_value_source_run() -> ProcedureImplementation:
     from wirely.generated.std import DebugValueSourceRun
-    from wirely.native.std import DebugValueSource
+    from wirely.native.std import DebugValueSourceRun as Implementation
 
     def create() -> DebugValueSourceRun:
-        return DebugValueSource.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, DebugValueSourceRun._adapter)
 
 
 def _load_procedures_std_warn_on_event_run() -> ProcedureImplementation:
     from wirely.generated.std import WarnOnEventRun
-    from wirely.native.std import WarnOnEvent
+    from wirely.native.std import WarnOnEventRun as Implementation
 
     def create() -> WarnOnEventRun:
-        return WarnOnEvent.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, WarnOnEventRun._adapter)
 
 
 def _load_procedures_timer_monotonic_time_reached_run() -> ProcedureImplementation:
     from wirely.generated.timer import MonotonicTimeReachedRun
-    from wirely.native.timer import MonotonicTimeReached
+    from wirely.native.timer import MonotonicTimeReachedRun as Implementation
 
     def create() -> MonotonicTimeReachedRun:
-        return MonotonicTimeReached.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, MonotonicTimeReachedRun._adapter)
 
 
 def _load_procedures_timer_monotonic_timestamp_run() -> ProcedureImplementation:
     from wirely.generated.timer import MonotonicTimestampRun
-    from wirely.native.timer import MonotonicTimestamp
+    from wirely.native.timer import MonotonicTimestampRun as Implementation
 
     def create() -> MonotonicTimestampRun:
-        return MonotonicTimestamp.Run()
+        return Implementation()
 
     return ProcedureImplementation(create, MonotonicTimestampRun._adapter)
 
 
 def _load_procedures_two_n_code_entered_event_get_value() -> ProcedureImplementation:
     from wirely.generated.two_n import CodeEnteredEventGetValue
-    from wirely.native.two_n import CodeEnteredEvent
+    from wirely.native.two_n import CodeEnteredEventGetValue as Implementation
 
     def create() -> CodeEnteredEventGetValue:
-        return CodeEnteredEvent.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, CodeEnteredEventGetValue._adapter)
 
 
 def _load_procedures_two_n_io_state_get_value() -> ProcedureImplementation:
     from wirely.generated.two_n import IOStateGetValue
-    from wirely.native.two_n import IOState
+    from wirely.native.two_n import IOStateGetValue as Implementation
 
     def create() -> IOStateGetValue:
-        return IOState.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, IOStateGetValue._adapter)
 
 
 def _load_procedures_two_n_key_event_get_value() -> ProcedureImplementation:
     from wirely.generated.two_n import KeyEventGetValue
-    from wirely.native.two_n import KeyEvent
+    from wirely.native.two_n import KeyEventGetValue as Implementation
 
     def create() -> KeyEventGetValue:
-        return KeyEvent.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, KeyEventGetValue._adapter)
 
 
 def _load_procedures_two_n_output_control_send_value() -> ProcedureImplementation:
     from wirely.generated.two_n import OutputControlSendValue
-    from wirely.native.two_n import OutputControl
+    from wirely.native.two_n import OutputControlSendValue as Implementation
 
     def create() -> OutputControlSendValue:
-        return OutputControl.SendValue()
+        return Implementation()
 
     return ProcedureImplementation(create, OutputControlSendValue._adapter)
 
 
 def _load_procedures_two_n_switch_state_get_value() -> ProcedureImplementation:
     from wirely.generated.two_n import SwitchStateGetValue
-    from wirely.native.two_n import SwitchState
+    from wirely.native.two_n import SwitchStateGetValue as Implementation
 
     def create() -> SwitchStateGetValue:
-        return SwitchState.GetValue()
+        return Implementation()
 
     return ProcedureImplementation(create, SwitchStateGetValue._adapter)
 

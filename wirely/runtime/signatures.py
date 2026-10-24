@@ -71,7 +71,7 @@ class ResourceType:
 
 @dataclass(frozen=True, slots=True)
 class Port:
-    kind: str  # 'value', 'event', or 'resource'.
+    kind: str  # 'value', 'event', 'fixed', or 'resource'.
     type: SignatureType | ResourceType  # Value or event payload type, or resource type.
     multi: bool = False
 
@@ -82,7 +82,7 @@ def _frozen(mapping: Mapping) -> MappingProxyType:
 
 @dataclass(frozen=True, slots=True)
 class Initializer:
-    """The native initializer of a node type with native state."""
+    """A load procedure that owns native state."""
 
     depends: Mapping[str, Port]
     produces: Mapping[str, Port]
@@ -95,7 +95,7 @@ class Initializer:
 
 @dataclass(frozen=True, slots=True)
 class Procedure:
-    stage: str  # 'input', 'default', or 'output'.
+    stage: str  # 'load', 'input', 'default', or 'output'.
     depends: Mapping[str, Port]
     produces: Mapping[str, Port]
     uses: Mapping[str, SignatureType]

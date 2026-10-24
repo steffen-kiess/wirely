@@ -11,7 +11,7 @@ import wirely.misc.service
 
 # TODO: Where should this import be done?
 import wirely.compiler
-from wirely.native.std import DebugValueSource
+from wirely.native.std import DebugValueSourceCreate
 from wirely.runtime.engine import Engine
 
 
@@ -48,11 +48,11 @@ async def execute(engine: Engine, line: str) -> None:
             raise CommandException('Unknown debug command')
     else:
         node_path = engine.get_node_path(parts[0])
-        native_state = engine.native_states[node_path]
+        native_state = engine.get_native_state(parts[0])
 
         if native_state is None:
             raise CommandException(f'Node `{parts[0]}` has no native state')
-        node_type_name = engine.program.instances[node_path].type_name
+        node_type_name = type(native_state).__name__
         if not hasattr(native_state, 'debug_command'):
             raise CommandException(f'Node `{parts[0]}` (`{node_type_name}`) has no `debug_command` function')
         native_state.debug_command(parts[1:])
@@ -122,13 +122,12 @@ def main() -> None:
 
     eng = Engine(prog)
 
-    for node_id, instance in prog.instances.items():
-        if instance.type_name == 'Std.DebugValueSource':
+    for (node_id, _), native_inst in eng.native_states.items():
+        instance = prog.instances[node_id]
+        if isinstance(native_inst, DebugValueSourceCreate):
             value_type = instance.parameters['Type']
             assert isinstance(value_type, wirely.value_types.ValueType)
             ty = value_type._type
-            native_inst = eng.native_states[node_id]
-            assert isinstance(native_inst, DebugValueSource)
             if ty == wirely.types.boolean:
                 native_inst.set_value(False)
             elif isinstance(ty, wirely.types.TypeOption):

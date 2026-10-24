@@ -208,7 +208,7 @@ def check_stage_times():
     clock_declarations = []
     stage_snapshots = {}
     clock_contexts = []
-    stages = list(RunStage)
+    stages = [stage for stage in RunStage if stage != RunStage.LOAD]
     utc_times = [datetime.datetime(2026, 1, 1, 12, 0, index,
                                    tzinfo=datetime.timezone.utc)
                  for index in range(3)]

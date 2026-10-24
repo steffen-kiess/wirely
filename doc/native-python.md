@@ -8,15 +8,14 @@ See the [language guide](language.md) for `.wrl` syntax and the
 ## Implementations and procedures
 
 Implementation modules use the snake-case namespace name: `Std` uses
-`wirely.native.std`, and `TwoN` uses `wirely.native.two_n`. An
-initializer's [native name](language.md#declarations-and-names) selects the
-class named after the node type part. For example, `KNX.Connection:create`
-selects `wirely.native.knx.Connection`.
-
-A procedure such as `Std.DebugEventPrinter:run` selects the nested class
-`DebugEventPrinter.Run`; snake-case procedure names become CamelCase.
-Nested classes can be inherited. Procedures receive native state through
-fixed reads, as shown [below](#native-objects-resources-and-tasks).
+`wirely.native.std`, and `TwoN` uses `wirely.native.two_n`. A
+native initializer or procedure's [native name](language.md#declarations-and-names)
+selects a flat class name: `KNX.Connection:create` selects
+`wirely.native.knx.ConnectionCreate`, and `Std.DebugEventPrinter:run`
+selects `wirely.native.std.DebugEventPrinterRun`. Snake-case member names
+become CamelCase. Each class subclasses its generated contract.
+Procedures receive native state through fixed reads, as shown
+[below](#native-objects-resources-and-tasks).
 
 Run `tools/generate-native-types` after changing native declarations.
 Generated bindings import implementations lazily, and mypy checks their
@@ -48,18 +47,17 @@ from wirely.generated import std as contracts
 from wirely.runtime.native_api import PreparationServices, ProcedureServices
 
 
-class DebugEventPrinter:
-    class Run(contracts.DebugEventPrinterRun):
-        def prepare(self, *, services: PreparationServices,
-                    type: ValueType[Any]) -> None:
-            pass
+class DebugEventPrinterRun(contracts.DebugEventPrinterRun):
+    def prepare(self, *, services: PreparationServices,
+                type: ValueType[Any]) -> None:
+        pass
 
-        def run(self, *, services: ProcedureServices,
-                input: Some[DynamicValue] | None, type: ValueType[Any]
-                ) -> contracts.DebugEventPrinterRunResult:
-            if input is not None:
-                print(f'[{services.name}]: {input.value.to_text()}')
-            return contracts.DebugEventPrinterRunResult()
+    def run(self, *, services: ProcedureServices,
+            input: Some[DynamicValue] | None, type: ValueType[Any]
+            ) -> contracts.DebugEventPrinterRunResult:
+        if input is not None:
+            print(f'[{services.name}]: {input.value.to_text()}')
+        return contracts.DebugEventPrinterRunResult()
 ```
 
 ## Contracts
@@ -151,9 +149,9 @@ implementations and overrides.
 
 ## Inputs, outputs, and state
 
-The engine constructs each procedure class once per node instance without
-arguments and calls `prepare()` after all native objects are constructed
-and before the first step. `prepare()` receives the fixed reads and the
+For runtime procedures, the engine constructs each class once per node
+instance without arguments and calls `prepare()` after loading and before
+the first step. `prepare()` receives the fixed reads and the
 [compile-time values](#compile-time-values-and-prepared-data); store what
 `run()` needs. Contracts with compile-time reads declare `prepare()`
 abstract. Raise from `prepare()` to reject unsupported configuration; the
@@ -165,6 +163,12 @@ from the returned result. Return every declared output; to preserve state,
 return its previous value again. Use native node tasks for asynchronous I/O.
 Native procedures currently accept only single value/event reads.
 Use a Wirely procedure to aggregate multi value inputs.
+
+A native `stage load` procedure implements `load()` instead of `prepare()`
+and `run()`. The engine calls it once with all compile-time and fixed reads
+and stores its returned fixed outputs. Its `PreparationServices` provides
+`name` and `native_types`, without triggers or wakeups. Load procedures are
+pure; use an initializer to own native state or asynchronous tasks.
 
 `services` has read-only `name`, which uses the node naming described
 under [native objects](#native-objects-resources-and-tasks), and the
@@ -209,8 +213,8 @@ constant or a typed local in an expression block. Clauses may be empty and
 accept trailing commas.
 
 An initializer receives its compile-time values as keyword arguments of
-`initialize()`, and a procedure as keyword arguments of `prepare()` and
-`run()`. Each expression is evaluated once per consumer per instance during
+`initialize()`, a load procedure in `load()`, and a runtime procedure in
+`prepare()` and `run()`. Each expression is evaluated once per consumer per instance during
 compilation; constants are shared within the instance. Compile-time values
 never change, so they do not schedule procedures.
 
@@ -236,8 +240,11 @@ resolved defaults are ordinary values.
 | `type` | `wirely.ValueType` |
 | `Option[T]` | `None` or `wirely.Some(value)` |
 | `List[T]` | `tuple` of inner values |
-| A `type` parameter `T` | `wirely.DynamicValue` |
+| A runtime value of a `type` parameter `T` | `wirely.DynamicValue` |
 | Resources | The object the provider returned |
+
+A generic `fixed T` port carries a resource object when `T` is a resource
+type, and a `DynamicValue` when `T` is a runtime value type.
 
 Integer values are immutable and check their type's range when
 constructed; booleans are not integers. Read the Python integer with
@@ -340,12 +347,13 @@ call `wirely.native.check_state_type(services.name, type, state_type)` in
 
 ## Native objects, resources, and tasks
 
-The class of a node type with a native initializer subclasses the
-initializer's contract, which derives from `NativeState` in
+Each native initializer's class subclasses its generated contract, which
+derives from `NativeState` in
 `wirely.runtime.native_api`. The engine constructs it without arguments
 and then calls `initialize()`, which receives the initializer's fixed and
 compile-time reads and returns its fixed outputs. Initialize fields there.
-Native singletons share one object.
+Each initializer owns its state object. For a singleton node type, each
+initializer shares its object across uses of the node type.
 
 The native initializer declares its reads and fixed outputs:
 
@@ -355,15 +363,15 @@ native initializer create reads Broker writes default output as "topic";
 
 Reads and outputs use the same key rules as procedure ports. Providers are
 constructed before their consumers. Each output must be an instance of the
-Python type exported for the output's resource type, and the contract
-annotates it with that type. See [`mqtt.py`](../wirely/native/mqtt.py) for
+Python type exported for a resource output's type; plain fixed outputs use
+the usual native value representation. See [`mqtt.py`](../wirely/native/mqtt.py) for
 provider and client examples.
 
 Export the Python class under the resource type's last name component.
 Use an ordinary type alias when the names differ, with a short comment:
 
 ```python
-Bus = Connection  # Used as a resource type.
+Bus = ConnectionCreate  # Used as a resource type.
 ```
 
 When the class itself has the resource's name, put the comment above its
@@ -389,7 +397,7 @@ node type Receiver {
 ```python
 
 
-class Receiver(contracts.ReceiverCreate):
+class ReceiverCreate(contracts.ReceiverCreate):
     def initialize(self, *, services: StateServices[Literal['state']]
                    ) -> contracts.ReceiverCreateResult:
         self.value: bool | None = None
@@ -399,14 +407,15 @@ class Receiver(contracts.ReceiverCreate):
         self.value = value
         self.services.trigger('state')
 
-    class GetValue(contracts.ReceiverGetValue):
-        def run(self, *, services: ProcedureServices, state: 'Receiver'
-                ) -> contracts.ReceiverGetValueResult:
-            value = None if state.value is None else Some(state.value)
-            return contracts.ReceiverGetValueResult(output=value)
+
+class ReceiverGetValue(contracts.ReceiverGetValue):
+    def run(self, *, services: ProcedureServices, state: 'ReceiverCreate'
+            ) -> contracts.ReceiverGetValueResult:
+        value = None if state.value is None else Some(state.value)
+        return contracts.ReceiverGetValueResult(output=value)
 
 
-ReceiverState = Receiver  # Used as a resource type.
+ReceiverState = ReceiverCreate  # Used as a resource type.
 ```
 
 `self.services` is the `StateServices` object that `initialize()` also
@@ -418,7 +427,8 @@ is `None` outside shutdown or when wall time is unknown; use
 `is_shutting_down` to distinguish these cases. Changes to Python fields
 do not automatically schedule procedures. Call
 `services.trigger(output)` to schedule each procedure that reads the
-fixed output with this Python name, in any node. Repeated triggers
+resource output with this Python name, including consumers reached through
+a load selector returning that handle. Repeated triggers
 before execution schedule one invocation.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
