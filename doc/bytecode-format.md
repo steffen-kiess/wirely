@@ -1258,9 +1258,9 @@ procedures and aliases. A writer derives the remaining tables:
   forward, encoding the instructions from last to first gives each
   displacement its shortest form.
 - `immediate` operands are an encoding choice: a writer chooses them by a
-  fixed rule for constants that fit and whose type another operand
-  determines. A reader turns them back into `Constant` objects using the
-  type the position requires.
+  fixed rule for constants that fit and whose type another operand, the
+  called function, or the instruction determines. A reader turns them
+  back into `Constant` objects using the type the position requires.
 
 ## Verification
 

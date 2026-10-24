@@ -89,7 +89,7 @@ def run_objdump(path, **options):
 
 def check_objdump():
     with tempfile.TemporaryDirectory() as directory:
-        path = os.path.join(directory, 'program.wrly')
+        path = os.path.join(directory, 'program.wbc')
         SectionList(sections, (0, 1)).save(path)
 
         status, headers = run_objdump(path, section_headers=True)

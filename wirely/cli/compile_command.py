@@ -3,13 +3,18 @@
 import argparse
 import sys
 import time
+from pathlib import Path
 
 from ..compiler import compile_files
 from ..compiler import program as program_compiler
 from ..runtime.engine import Engine
+from ..program.writer import write_program
 
 
 def run(args: argparse.Namespace) -> int | None:
+    if args.output is not None and not args.create_program:
+        print('Error: --output cannot be used with --no-create-program', file=sys.stderr)
+        return 2
     if args.dump_program and not args.create_program:
         print('Error: --dump-program cannot be used with --no-create-program',
               file=sys.stderr)
@@ -42,6 +47,13 @@ def _compile(args: argparse.Namespace, timings: list[tuple[str, float]] | None) 
             timings.append(('lower program', time.perf_counter() - start))
         if args.dump_program:
             prog.dump()
+        if args.output is not None:
+            try:
+                data = write_program(prog)
+                Path(args.output).write_bytes(data)
+            except (ValueError, OSError) as error:
+                print(f'Error: {error}', file=sys.stderr)
+                return 1
         if args.create_engine:
             start = time.perf_counter()
             Engine(prog)

@@ -1,0 +1,50 @@
+"""Canonical instruction operand encodings shared by bytecode tools."""
+
+from .generated.format import Opcode, OperandKind
+
+
+def _uint32(value: int) -> None:
+    if not 0 <= value <= 0xffffffff:
+        raise ValueError(f'{value} does not fit uint32')
+
+
+def encode_value_operand(kind: OperandKind, index: int) -> bytes:
+    """Encode a value operand using the shortest index form."""
+    _uint32(index)
+    if kind not in tuple(OperandKind):
+        raise ValueError(f'Unknown operand kind {kind}')
+    if index <= 28:
+        return bytes([(int(kind) << 5) | index])
+    size, selector = (1, 29) if index <= 0xff else (2, 30) if index <= 0xffff else (4, 31)
+    return bytes([(int(kind) << 5) | selector]) + index.to_bytes(size, 'little')
+
+
+def encode_integer_parameter(value: int) -> bytes:
+    """Encode an unsigned integer parameter using the shortest form."""
+    _uint32(value)
+    if value <= 253:
+        return bytes([value])
+    size, prefix = (2, 254) if value <= 0xffff else (4, 255)
+    return bytes([prefix]) + value.to_bytes(size, 'little')
+
+
+def zigzag(value: int) -> int:
+    """Map signed integers to unsigned integers, interleaving signs."""
+    return value * 2 if value >= 0 else -value * 2 - 1
+
+
+def immediate_positions(opcode: Opcode, operand_count: int) -> tuple[int, ...]:
+    """Return eligible positions; comparisons still require one typed source."""
+    if opcode in (Opcode.COPY, Opcode.SET_FIELD, Opcode.MAKE_SOME, Opcode.NOT):
+        return (1,)
+    if opcode in (Opcode.AND, Opcode.OR, Opcode.XOR, Opcode.SHIFT_LEFT, Opcode.SHIFT_RIGHT,
+                  Opcode.ADD_WRAPPING, Opcode.SUB_WRAPPING, Opcode.MUL_WRAPPING,
+                  Opcode.ADD_SATURATING, Opcode.SUB_SATURATING, Opcode.MUL_SATURATING,
+                  Opcode.ADD_CHECKED, Opcode.SUB_CHECKED, Opcode.MUL_CHECKED,
+                  Opcode.DIV_CHECKED, Opcode.REM_CHECKED, Opcode.EQUAL, Opcode.LESS):
+        return (1, 2)
+    if opcode == Opcode.CALL:
+        return tuple(range(3, operand_count))
+    if opcode in (Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE):
+        return (0,)
+    return ()
