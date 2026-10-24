@@ -7,7 +7,7 @@ import wirely.compiler
 from wirely import types
 from wirely.compiler import program as program_compiler
 from wirely.program import (
-    BranchTarget, Constant, ConstOperand, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
+    BranchTarget, Constant, ConstOperand, InputSource, Instruction, Opcode, Operand, OperandKind,
     Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime import LoadFailure
@@ -42,7 +42,7 @@ def check_failure_messages():
             Engine(program)
         failure = caught.exception
         assert failure.message == message, (failure.message, message)
-        assert failure.node_context.name == '<global>'
+        assert failure.node == '<global>'
         assert failure.instruction_index >= 0
         assert failure.procedure
 
@@ -107,7 +107,7 @@ def check_instances():
     ''')
     with checks.assertRaises(LoadFailure) as caught:
         Engine(program)
-    assert caught.exception.node_context.name == 'second'
+    assert caught.exception.node == 'second'
     assert '<load assert <load-checks>:' in caught.exception.procedure
 
 
@@ -157,14 +157,10 @@ def check_loading_stops():
 
 
 def make_program(instructions, *, local_types=()):
-    instance = NativeInstance('test', {})
-    procedure = Procedure(
-        node_id='test', reference='Test:check', node_context=instance,
-        dependencies=(), outputs={}, body=ProcedureBody(instructions, local_types),
-    )
+    procedure = Procedure(name='test:check', inputs=(), outputs=(), body=ProcedureBody(instructions, local_types))
     return Program(
         name='load_checks', state_variables=VariableTable((), 'state'),
-        temporaries=VariableTable((), 'temporaries'), initial_state={}, instances={'test': instance},
+        temporaries=VariableTable((), 'temporaries'), initial_state={},
         procs={RunStage.LOAD: (procedure,)}, node_aliases={}, singleton_aliases={}, variables={},
     )
 
@@ -219,7 +215,7 @@ def check_validation():
         validate_program(make_program(()))
     with checks.assertRaisesRegex(ValueError, 'resolved runtime type'):
         validate_program(replace(program, procs={RunStage.LOAD: (replace(
-            procedure, dependencies=(('format', InputSource(VariableBank.CONST_VALUES, constant=format_constant)),)),)}))
+            procedure, inputs=(InputSource(VariableBank.CONST_VALUES, constant=format_constant),)),)}))
 
 
 async def run_test():

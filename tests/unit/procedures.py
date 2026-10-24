@@ -731,10 +731,10 @@ def check_multi_procedures():
         machine.assert_value_is(name, expected)
     machine.assert_is_idle()
     procedure = next(proc for schedule in machine.program.procs.values() for proc in schedule
-                     if proc.node_id == 'digits')
-    assert procedure.reference.endswith(':run')
-    assert [name for name, _ in procedure.dependencies] == ['z[0]', 'z[1]', 'middle', 'a[0]', 'a[1]']
-    assert all(isinstance(source, wirely.program.InputSource) for _, source in procedure.dependencies)
+                     if proc.node == 'digits')
+    assert procedure.name == 'digits:run'
+    # Inputs z[0], z[1], middle, a[0], a[1].
+    assert [source.constant.value for source in procedure.inputs] == [2, 1, 3, 5, 4]
 
     # A short-circuited member still schedules a new invocation when it changes.
     program = compile_program('''

@@ -1,13 +1,13 @@
 """Validation of typed procedure instructions before execution."""
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Sequence
 
 from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeStruct, boolean, String, uint32
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
-from .program import InputSource, Procedure, Program, ResourceSlot, RunStage, VariableBank
+from .program import InputSource, NativeProcedureEntry, Procedure, Program, ResourceSlot, RunStage, VariableBank
 
 
 # Operand stands for a value operand: an Operand or a ConstOperand.
@@ -61,11 +61,11 @@ def _validate_body(procedure: Procedure, stage: RunStage) -> None:
     body = procedure.body
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
-    if any(source.resource is not None for _, source in procedure.dependencies) or any(
-            isinstance(target.variable, ResourceSlot) for target in procedure.outputs.values()):
+    if any(source.resource is not None for source in procedure.inputs) or any(
+            isinstance(target.variable, ResourceSlot) for target in procedure.outputs):
         raise ValueError('Bytecode procedures cannot access resources')
-    input_types = [source.value_type for _, source in procedure.dependencies]
-    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
+    input_types = [source.value_type for source in procedure.inputs]
+    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs)
     tables = {
         OperandKind.INPUT: tuple(input_types),
         OperandKind.OUTPUT: output_types,
@@ -200,10 +200,10 @@ def validate_program(program: Program) -> None:
         try:
             if not isinstance(constant, Constant):
                 raise ValueError('Expected a Constant')
-            if constant.value_type == TypeList(String):
-                constant.value_type.verify_value(constant.value)
-            else:
-                _runtime_type(constant.value_type)
+            if not isinstance(constant.value_type, Type):
+                raise ValueError(f'Expected a type, got {constant.value_type!r}')
+            constant.value_type.verify_value(constant.value)
+            if constant.value_type.is_runtime_type:
                 constant.value_type.serialize(constant.value)
         except Exception as error:
             raise ValueError(f'Constant const.{index}: {error}') from error
@@ -218,16 +218,6 @@ def validate_program(program: Program) -> None:
         except ValueError as error:
             raise ValueError(f'Function func.{index}: {error}') from error
 
-    def check_names(kind: str, names: Iterable[str], declared: Iterable[str]) -> None:
-        if set(names) != set(declared):
-            raise ValueError(f'{kind} {sorted(names)!r} do not match the declared {sorted(declared)!r}')
-
-    def check_bindings(values: Mapping[str, Constant], declared: Iterable[str]) -> None:
-        check_names('Compile-time reads', values, declared)
-        for name, constant in values.items():
-            if not isinstance(constant, Constant) or not isinstance(constant.value_type, Type):
-                raise ValueError(f'Compile-time read `{name}` is not a typed Constant')
-
     fixed = program.fixed_values.variable_set
     slots = frozenset(program.resource_slots)
     bank_tables = {
@@ -239,33 +229,22 @@ def validate_program(program: Program) -> None:
     assigned: set = set()
 
     def check_native_procedure(procedure: Procedure) -> None:
-        prefix, _, method = procedure.reference.rpartition(':')
+        native = procedure.native
+        if not isinstance(native, NativeProcedureEntry):
+            raise ValueError('Expected a native procedure entry')
+        prefix, _, method = native.name.rpartition(':')
         if not prefix or not method:
             raise ValueError('Expected a native procedure name of the form `Type:procedure`')
-        interface = program.native_procedures.get(procedure.reference)
-        if interface is None:
-            raise ValueError('Unknown native procedure')
-        if procedure.initializer != interface.initializer:
-            raise ValueError('Initializer flag does not match its native interface')
-        check_bindings(procedure.values, interface.uses)
-        check_names('Inputs', [name for name, _ in procedure.dependencies], [*interface.inputs, *interface.resources])
-        check_names('Outputs', procedure.outputs, [*interface.outputs, *interface.resource_outputs])
-        for key, source in procedure.dependencies:
-            expected = interface.resources.get(key)
-            if expected is not None and (source.resource is None or source.resource.native_name != expected):
-                raise ValueError(f'Input `{key}` expected resource `{expected}`')
-            if (key in interface.fixed_inputs or expected is not None) and source.bank not in (
-                    VariableBank.CONST_VALUES, VariableBank.FIXED_VALUES):
-                raise ValueError(f'Input `{key}` requires a constant or fixed source')
-        for key, target in procedure.outputs.items():
-            expected = interface.resource_outputs.get(key)
-            if expected is not None and (not isinstance(target.variable, ResourceSlot)
-                                         or target.variable.native_name != expected):
-                raise ValueError(f'Output `{key}` expected resource `{expected}`')
+        for kind, names, bindings in [('inputs', native.input_names, procedure.inputs),
+                                      ('outputs', native.output_names, procedure.outputs)]:
+            if len(set(names)) != len(names):
+                raise ValueError(f'Native procedure {kind} must have unique names')
+            if len(bindings) != len(names):
+                raise ValueError(f'Expected {len(names)} {kind}, got {len(bindings)}')
 
     def check_source(source: InputSource) -> None:
-        if source.constant is not None:
-            _runtime_type(source.constant.value_type)
+        if not isinstance(source, InputSource):
+            raise ValueError('Expected an InputSource')
         if source.resource is not None:
             if source.resource not in slots:
                 raise ValueError('Unknown resource slot')
@@ -275,20 +254,20 @@ def validate_program(program: Program) -> None:
     for stage in RunStage:
         for procedure in program.procs.get(stage, ()):
             try:
-                if procedure.initializer and (stage != RunStage.LOAD or procedure.body is not None):
-                    raise ValueError('Initializers must be native load procedures')
-                if procedure.body is None:
+                if (procedure.native is None) == (procedure.body is None):
+                    raise ValueError('Expected either a native procedure or a body')
+                if procedure.initializer and stage != RunStage.LOAD:
+                    raise ValueError('Initializers must be load procedures')
+                if procedure.native is not None:
                     check_native_procedure(procedure)
-                else:
-                    check_bindings(procedure.values, ())
-                for _, source in procedure.dependencies:
+                for source in procedure.inputs:
                     check_source(source)
                     if stage == RunStage.LOAD and source.bank not in (VariableBank.CONST_VALUES,
                                                                       VariableBank.FIXED_VALUES):
                         raise ValueError('Load procedures can only read constants and fixed values')
                     if source.bank == VariableBank.FIXED_VALUES and source.variable not in assigned:
                         raise ValueError('Fixed value is read before assignment')
-                for output in procedure.outputs.values():
+                for output in procedure.outputs:
                     target = output.variable
                     is_fixed = output.bank == VariableBank.FIXED_VALUES
                     if is_fixed != (stage == RunStage.LOAD):
@@ -304,11 +283,13 @@ def validate_program(program: Program) -> None:
                 if procedure.body is not None:
                     _validate_body(procedure, stage)
             except ValueError as error:
-                raise ValueError(f'Procedure `{procedure.reference}`: {error}') from error
+                raise ValueError(f'Procedure `{procedure.name}`: {error}') from error
     if assigned != fixed | slots:
         raise ValueError('Every fixed value must be assigned once')
     for name, input_source in program.variables.items():
         try:
             check_source(input_source)
+            if input_source.constant is not None:
+                _runtime_type(input_source.constant.value_type)
         except ValueError as error:
             raise ValueError(f'Variable `{name}`: {error}') from error

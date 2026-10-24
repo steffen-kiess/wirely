@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
-from ..program import Constant, Program, ResourceSlot, VariableBank, used_declared_types
+from ..program import Constant, InputSource, Program, ResourceSlot, VariableBank, used_declared_types
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
@@ -96,9 +96,6 @@ def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> N
     """Check static and initial values containing opaque structs with their implementations."""
     from .native_values import to_native
     values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
-    for schedule in program.procs.values():
-        for procedure in schedule:
-            values += [(constant.value_type, constant.value) for constant in procedure.values.values()]
     values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
     for value_type, value in values:
         if _contains_opaque(value_type):
@@ -127,8 +124,13 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
             raise ValueError(f'{where}: {label} has type `{value_type}`, expected {describe(signature_type, bindings)}')
 
     def check_uses(where: str, signature: Initializer | SignatureProcedure,
-                   values: Mapping[str, Constant]) -> dict[str, Type]:
-        check_keys(where, 'compile-time reads', values, signature.uses)
+                   sources: Mapping[str, InputSource]) -> dict[str, Type]:
+        check_keys(where, 'compile-time reads', sources, signature.uses)
+        values: dict[str, Constant] = {}
+        for key, source in sources.items():
+            if source.constant is None:
+                raise ValueError(f'{where}: compile-time read `{key}` requires a constant')
+            values[key] = source.constant
         # Each `type` binding gives the type of the type variable with its key.
         bindings: dict[str, Type] = {}
         for key, signature_type in signature.uses.items():
@@ -167,28 +169,29 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
 
     for stage, schedule in program.procs.items():
         for procedure in schedule:
-            if procedure.body is not None:
+            if procedure.native is None:
                 continue
-            procedure_signature_entry = (extension.states if procedure.initializer else extension.procedures).get(procedure.reference)
+            native_name = procedure.native.name
+            procedure_signature_entry = (extension.states if procedure.initializer else extension.procedures).get(native_name)
             if procedure_signature_entry is None:
-                raise ValueError(f'Cannot find the signature of native {"initializer" if procedure.initializer else "procedure"} `{procedure.reference}`')
+                raise ValueError(f'Cannot find the signature of native {"initializer" if procedure.initializer else "procedure"} `{native_name}`')
             procedure_signature = procedure_signature_entry.signature
-            where = f'Native procedure `{procedure.reference}` of `{procedure.node_id}`'
+            where = f'Native procedure `{native_name}` of `{procedure.node}`'
             expected_stage = getattr(procedure_signature, 'stage', 'load')
             if stage.name.lower() != expected_stage:
                 raise ValueError(f'{where}: runs in stage {stage.name.lower()}, expected {expected_stage}')
-            inputs = {name: source.value_type for name, source in procedure.dependencies if source.resource is None}
-            if len({name for name, _ in procedure.dependencies}) != len(procedure.dependencies):
-                raise ValueError(f'{where}: multi inputs are not supported')
-            outputs = {name: target.variable.var_type for name, target in procedure.outputs.items()
+            uses = {name: source for name, source in procedure.named_inputs() if name in procedure_signature.uses}
+            ports = [(name, source) for name, source in procedure.named_inputs() if name not in uses]
+            inputs = {name: source.value_type for name, source in ports if source.resource is None}
+            outputs = {name: target.variable.var_type for name, target in procedure.named_outputs()
                        if not isinstance(target.variable, ResourceSlot)}
-            resources = {name: source.resource.native_name for name, source in procedure.dependencies
+            resources = {name: source.resource.native_name for name, source in ports
                          if source.resource is not None}
-            resource_outputs = {name: target.variable.native_name for name, target in procedure.outputs.items()
+            resource_outputs = {name: target.variable.native_name for name, target in procedure.named_outputs()
                                 if isinstance(target.variable, ResourceSlot)}
-            bindings = check_uses(where, procedure_signature, procedure.values)
+            bindings = check_uses(where, procedure_signature, uses)
             check_ports(where, 'inputs', procedure_signature.depends, inputs, resources, bindings)
-            for key, source in procedure.dependencies:
+            for key, source in ports:
                 port = procedure_signature.depends[key]
                 if port.kind in ('fixed', 'resource') and source.bank not in (VariableBank.CONST_VALUES,
                                                                              VariableBank.FIXED_VALUES):
@@ -214,16 +217,16 @@ def link_native_contracts(program: Program, extension: RuntimeNativeExtension
     """Load the required typed factories and adapters before constructing any native objects."""
 
     states = {}
-    for name in sorted({procedure.reference for schedule in program.procs.values()
-                        for procedure in schedule if procedure.initializer}):
+    for name in sorted({procedure.native.name for schedule in program.procs.values()
+                        for procedure in schedule if procedure.native is not None and procedure.initializer}):
         loader = extension.states.get(name)
         if loader is None:
             raise ValueError(f'Cannot find native initializer `{name}`')
         implementation = loader.load()
         states[name] = LinkedState(implementation.factory, implementation.adapter, loader.signature)
     procedures = {}
-    for reference in sorted({procedure.reference for schedule in program.procs.values()
-                             for procedure in schedule if procedure.body is None and not procedure.initializer}):
+    for reference in sorted({procedure.native.name for schedule in program.procs.values()
+                             for procedure in schedule if procedure.native is not None and not procedure.initializer}):
         procedure_loader = extension.procedures.get(reference)
         if procedure_loader is None:
             raise ValueError(f'Cannot find native procedure `{reference}`')

@@ -122,12 +122,9 @@ def main() -> None:
 
     eng = Engine(prog)
 
-    for (node_id, _), native_inst in eng.native_states.items():
-        instance = prog.instances[node_id]
+    for native_inst in eng.native_states.values():
         if isinstance(native_inst, DebugValueSourceCreate):
-            value_type = instance.parameters['Type']
-            assert isinstance(value_type, wirely.value_types.ValueType)
-            ty = value_type._type
+            ty = native_inst.value_type._type
             if ty == wirely.types.boolean:
                 native_inst.set_value(False)
             elif isinstance(ty, wirely.types.TypeOption):

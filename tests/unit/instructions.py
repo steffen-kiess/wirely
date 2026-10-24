@@ -6,7 +6,7 @@ from wirely import types
 from tests.infra.native_extension.generated import test_library as contracts
 from tests.infra.support import library_type, test_extension
 from wirely.program import (
-    BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction, NativeInstance,
+    BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
     RunStage, Variable, VariableBank, VariableTable, validate_program,
 )
@@ -37,19 +37,16 @@ def instruction(opcode, *operands):
 def make_program(instructions, *, local_types=(), output_types=(types.boolean,), inputs=()):
     state = tuple(Variable(f'input{index}', value_type) for index, (value_type, _) in enumerate(inputs))
     outputs = tuple(Variable(f'output{index}', value_type) for index, value_type in enumerate(output_types))
-    instance = NativeInstance('test', {})
     procedure = Procedure(
-        node_id='test', reference='Test:run', node_context=instance,
-        dependencies=tuple((variable.name, InputSource(VariableBank.OLD_STATE, variable))
-                           for variable in state),
-        outputs={variable.name: OutputTarget(VariableBank.TEMPORARIES, variable) for variable in outputs},
+        name='test:run',
+        inputs=tuple(InputSource(VariableBank.OLD_STATE, variable) for variable in state),
+        outputs=tuple(OutputTarget(VariableBank.TEMPORARIES, variable) for variable in outputs),
         body=ProcedureBody(instructions, local_types),
     )
     return Program(
         name='instructions', state_variables=VariableTable(state, 'state'),
         temporaries=VariableTable(outputs, 'temporaries'),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
-        instances={'test': instance},
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
         variables={variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs},
     )
@@ -274,7 +271,7 @@ def check_arithmetic():
     validate_program(program)
     procedure = program.procs[RunStage.DEFAULT][0]
     for _ in range(3):
-        assert execute_procedure(procedure, ()) == {'output0': True}
+        assert execute_procedure(procedure, ()) == [True]
 
 
 def check_bitwise_and_shifts():

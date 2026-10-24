@@ -15,8 +15,8 @@ from wirely.compiler.types import resolve_type, check_runtime_type
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
-    Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
-    NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceSlot,
+    Constant, Function, InputSource, Instruction, NativeProcedureEntry, Opcode, Operand, OperandKind,
+    OutputTarget, Procedure, ProcedureBody, Program, ResourceSlot,
     RunStage, Variable, VariableBank, VariableTable,
 )
 
@@ -162,12 +162,21 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     specialize_instances(graph, root, variable_map=variable_map, all_variables=all_variables,
                          state_map=state_map, state_variables=state_variables, instances=instances)
 
-    constants: dict[tuple[model.Type, object], Constant] = {}
+    constants: dict[tuple[model.Type, object], Constant] = {}  # By type and serialized or const-only value.
 
     def intern_constant(value_type: model.Type, value: object) -> Constant:
+        """Return a shared Constant for equal typed values."""
         value = value_type.verify_value(value)
-        key = value_type, (value if value_type == model.types.TypeList(model.types.String)
-                           else value_type.serialize(value))
+        key: tuple[model.Type, object]
+        if value_type.is_runtime_type:
+            key = value_type, value_type.serialize(value)
+        else:
+            # Const-only values are compared directly; unhashable ones are not shared.
+            try:
+                hash(value)
+            except TypeError:
+                return Constant(value_type, value)
+            key = value_type, value
         if key not in constants:
             constants[key] = Constant(value_type, value)
         return constants[key]
@@ -296,10 +305,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     node_ids = {path: instance.static_context.name
                 for path, instance in instances.items()}
 
-    native_instances = {
-        node_ids[path]: NativeInstance(name=node_ids[path], parameters=instance.static_context.parameters)
-        for path, instance in instances.items()
-    }
     initial_state = {}
     for path, instance in instances.items():
         node = instance.node or instance.node_type.singleton_instance
@@ -400,42 +405,65 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     multi_sources, event_sources, event_outputs, changed_states, old_states,
                 )
 
+    native_entries: dict[str, NativeProcedureEntry] = {}
+    native_declarations: dict[str, model.TypeProcedure] = {}
+    for instance in instances.values():
+        node_type = instance.node_type
+        for procedure in node_type.procedures.values():
+            if not procedure.is_native:
+                continue
+            name = procedure.native_name
+            entry = native_procedure_entry(procedure)
+            previous = native_declarations.setdefault(name, procedure)
+            if previous is not procedure and native_entries[name] != entry:
+                raise model.ProgramError(procedure.declaration,
+                                         f'Native procedure `{name}` is declared with different interfaces',
+                                         hints=[model.CompilerHint(previous.declaration, 'Previous declaration was here')])
+            native_entries[name] = entry
+
     from .static_bindings import evaluate_bindings
     schedules: dict[RunStage, tuple[Procedure, ...]] = {}
     for stage, stage_procs in procs.items():
         schedule = []
         for path, proc in stage_procs:
-            dependencies: list[tuple[str, InputSource]] = []
-            outputs = {}
+            inputs: list[tuple[str, InputSource]] = []
+            outputs: list[tuple[str, OutputTarget]] = []
             declaration = proc.declaration_procedure
             input_ports = {port.key: port for port in declaration.read_ports.dependencies}
             output_keys = {port.key: port.python_key for port in declaration.writes.outputs}
             for name, source in proc.static_context._sources.items():
                 port = input_ports[name]
                 key = port.python_key
-                is_list = getattr(source, 'is_list', False)
-                for index, (member_path, member, _) in enumerate(members(path, source)):
-                    debug_name = f'{key}[{index}]' if is_list else key
-                    dependencies.append((debug_name, resolve_source(member_path, member)))
+                if declaration.is_native and getattr(source, 'is_list', False):
+                    raise model.ProgramError(port, 'Native runtime does not support multi value or event dependencies')
+                for member_path, member, _ in members(path, source):
+                    inputs.append((key, resolve_source(member_path, member)))
             for old_state in old_state_dependencies.get((path, proc), ()):
-                dependencies.append((f'<changed old {old_state.name}>', InputSource(VariableBank.OLD_STATE, old_state)))
+                inputs.append(('', InputSource(VariableBank.OLD_STATE, old_state)))
             for name, target in proc.static_context._targets.items():
                 key = output_keys[name]
                 if isinstance(target, model.InstanceStateVariable):
-                    outputs[key] = OutputTarget(VariableBank.NEW_STATE, state_map[path, target])
+                    outputs.append((key, OutputTarget(VariableBank.NEW_STATE, state_map[path, target])))
                 else:
                     target_source = resolve_source(path, target)
                     assert target_source.variable is not None
-                    outputs[key] = OutputTarget(target_source.bank, target_source.variable)
+                    outputs.append((key, OutputTarget(target_source.bank, target_source.variable)))
+            native = None
+            if declaration.is_native:
+                native = native_entries[instances[path].node_type.procedures[declaration.name.id_str].native_name]
+                for key, constant in evaluate_bindings(declaration.static_reads, instances[path],
+                                                       intern_constant).items():
+                    inputs.append((key, InputSource(VariableBank.CONST_VALUES, constant=constant)))
+                named_inputs, named_outputs = dict(inputs), dict(outputs)
+                assert sorted(named_inputs) == sorted(native.input_names), (named_inputs, native)
+                assert sorted(named_outputs) == sorted(native.output_names), (named_outputs, native)
+                inputs = [(name, named_inputs[name]) for name in native.input_names]
+                outputs = [(name, named_outputs[name]) for name in native.output_names]
             schedule.append(Procedure(
-                node_id=node_ids[path],
-                reference=(instances[path].node_type.procedures[declaration.name.id_str].native_name
-                           if declaration.is_native
-                           else f'{instances[path].node_type.qualified_name}:{declaration.name.id_str}'),
-                node_context=native_instances[node_ids[path]],
-                dependencies=tuple(dependencies), initializer=isinstance(declaration, model.DeclarationInitializer),
-                outputs=outputs, body=bodies.get((path, proc)),
-                values=evaluate_bindings(proc.declaration_procedure.static_reads, instances[path]),
+                name=f'{node_ids[path]}:{declaration.name.id_str}',
+                inputs=tuple(source for _, source in inputs),
+                outputs=tuple(target for _, target in outputs),
+                native=native, body=bodies.get((path, proc)),
             ))
         schedules[stage] = tuple(schedule)
 
@@ -448,11 +476,9 @@ def lower_program(global_node_type: model.NodeType) -> Program:
             if state.copy_source is None:
                 continue
             copies.append(Procedure(
-                node_id=node_ids[path],
-                reference=f'{instance.node_type.qualified_name}:<state {state.name}>',
-                node_context=native_instances[node_ids[path]],
-                dependencies=(('value', resolve_source(path, state.copy_source)),),
-                outputs={'value': OutputTarget(VariableBank.NEW_STATE, state_map[path, state])},
+                name=f'{node_ids[path]}:<state {state.name}>',
+                inputs=(resolve_source(path, state.copy_source),),
+                outputs=(OutputTarget(VariableBank.NEW_STATE, state_map[path, state]),),
                 body=COPY_BODY,
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)
@@ -491,51 +517,24 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         instance.node_type.fullname: node_ids[path]
         for path, instance in instances.items() if instance.is_singleton
     }
-    native_procedures: dict[str, NativeProcedureInterface] = {}
-    native_declarations: dict[str, model.TypeProcedure] = {}
-    for instance in instances.values():
-        node_type = instance.node_type
-        for procedure in node_type.procedures.values():
-            if not procedure.is_native:
-                continue
-            name = procedure.native_name
-            interface = native_procedure_interface(procedure)
-            previous = native_declarations.setdefault(name, procedure)
-            if previous is not procedure and native_procedures[name] != interface:
-                raise model.ProgramError(procedure.declaration,
-                                         f'Native procedure `{name}` is declared with different interfaces',
-                                         hints=[model.CompilerHint(previous.declaration, 'Previous declaration was here')])
-            native_procedures[name] = interface
     return Program(
         name=str(graph), graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
         state_variables=VariableTable(state_variables, f'{graph}.state_variables'),
         fixed_values=VariableTable(fixed_variables, f'{graph}.fixed'),
         resource_slots=tuple(resource_slots),
-        instances=native_instances, initial_state=initial_state, procs=schedules,
+        initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
-        native_procedures=native_procedures,
     )
 
 
-def uses_names(static_reads: model.StaticReads | None) -> tuple[str, ...]:
-    return () if static_reads is None else tuple(binding.key for binding in static_reads.bindings)
-
-
-def native_procedure_interface(procedure: model.TypeProcedure) -> NativeProcedureInterface:
-    """Return the declared interface of a native procedure, including initializers."""
-    return NativeProcedureInterface(
-        uses=uses_names(procedure.static_reads),
-        resources={port.declaration.python_key: port.resource_type.native_name
-                   for port in procedure.input_ports.values() if port.resource_type is not None},
-        inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
-                     if port.resource_type is None),
-        outputs=tuple(port.declaration.python_key for port in procedure.output_ports.values()
-                      if port.resource_type is None),
-        resource_outputs={port.declaration.python_key: port.resource_type.native_name
-                          for port in procedure.output_ports.values() if port.resource_type is not None},
+def native_procedure_entry(procedure: model.TypeProcedure) -> NativeProcedureEntry:
+    """Return the native procedure entry of a native procedure or initializer declaration."""
+    static_reads = procedure.static_reads
+    return NativeProcedureEntry(
+        name=procedure.native_name,
+        input_names=(*(() if static_reads is None else (binding.key for binding in static_reads.bindings)),
+                     *(port.declaration.python_key for port in procedure.input_ports.values())),
+        output_names=tuple(port.declaration.python_key for port in procedure.output_ports.values()),
         initializer=isinstance(procedure, model.TypeInitializer),
-        fixed_inputs=tuple(port.declaration.python_key for port in procedure.input_ports.values()
-                           if isinstance(port.port_spec, model.PortTypeSpecificationFixed)
-                           and port.resource_type is None),
     )

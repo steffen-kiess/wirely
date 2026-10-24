@@ -15,23 +15,24 @@ class LoadFailure(Exception):
 
     def __init__(self, procedure: Procedure, instruction_index: int, message: str,
                  values: Sequence[DynamicValue]) -> None:
-        self.procedure = procedure.reference
-        self.node_context = procedure.node_context
+        self.procedure = procedure.name
+        self.node = procedure.node
         self.instruction_index = instruction_index
         self.message = message
         self.values = tuple(values)
-        super().__init__(f'[{self.node_context.name}] {self.procedure} at idx{instruction_index}: {message}')
+        super().__init__(f'{self.procedure} at idx{instruction_index}: {message}')
 
 
 def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
-                      functions: Mapping[str, NativeFunction] = {}) -> dict[str, InternalValue]:
+                      functions: Mapping[str, NativeFunction] = {}) -> list[InternalValue]:
     """Run a bytecode procedure on internal values.
 
-    functions maps the names of called functions to their linked implementations."""
+    functions maps the names of called functions to their linked implementations.
+    Returns the output values in operand order."""
     body = procedure.body
     assert body is not None
-    input_types = tuple(source.value_type for _, source in procedure.dependencies)
-    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs.values())
+    input_types = tuple(source.value_type for source in procedure.inputs)
+    output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs)
     values = {
         OperandKind.INPUT: list(inputs),
         OperandKind.OUTPUT: [value_type.default_value() for value_type in output_types],
@@ -123,4 +124,4 @@ def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
                 result = value_type(operands[1]).less(left, right)
             values[destination.kind][destination.index] = result
         index += 1
-    return dict(zip(procedure.outputs, values[OperandKind.OUTPUT]))
+    return values[OperandKind.OUTPUT]

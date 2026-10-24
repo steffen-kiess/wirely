@@ -51,7 +51,7 @@ class Engine:
         # The time of the last complete async task shutdown. Should be used only for debugging / tests.
         self.last_shutdown_time: datetime.datetime | None = None
 
-        self.triggered_procs: set[tuple] = set()
+        self.triggered_procs: set[str] = set()  # Names of triggered procedures.
         self.triggered_procs_event = asyncio.Event()
 
         self.step_count = 0  # Number of completed steps.
@@ -60,9 +60,9 @@ class Engine:
         self._resumed_event = asyncio.Event()
         self._resumed_event.set()
 
-        self.wakeups: dict[tuple, MonotonicTime] = {}
+        self.wakeups: dict[str, MonotonicTime] = {}
         self.next_wakeup: MonotonicTime | None = None
-        self.wall_wakeups: dict[tuple, WallWakeup] = {}
+        self.wall_wakeups: dict[str, WallWakeup] = {}
 
         # The current state, will be .old during the next step.
         self.state = VariableTableInstance(self.program.state_variables)
@@ -86,73 +86,74 @@ class Engine:
         self.fixed_values = VariableTableInstance(program.fixed_values)
         self.resource_values: dict[ResourceSlot, ResourceValue] = {}
         # Triggers follow resource object identity, including handles passed through load selectors.
-        self._resource_triggers: dict[ResourceSlot, list[tuple]] = {}
+        self._resource_triggers: dict[ResourceSlot, list[str]] = {}
         self._resource_origins: dict[ResourceSlot, frozenset[ResourceSlot]] = {}
-        self._initializer_outputs: dict[tuple, Mapping[str, ResourceSlot]] = {}
+        self._initializer_outputs: dict[str, Mapping[str, ResourceSlot]] = {}
         self._native_procedures: dict[int, tuple[NativeProcedure, ProcedureAdapter, InterfaceBinding]] = {}
         for proc in program.procs.get(RunStage.LOAD, ()):
-            if proc.body is not None:
-                values = [self._fixed_input(source) for _, source in proc.dependencies]
-                outputs = execute_procedure(proc, values, self.native_functions)
-            elif proc.initializer:
-                linked = linked_states[proc.reference]
-                interface = self._procedure_binding(proc, linked.signature)
-                self._initializer_outputs[proc.key] = {
-                    key: target.variable for key, target in proc.outputs.items()
-                    if isinstance(target.variable, ResourceSlot)
-                }
-                services: StateServices[Any] = StateServices(
-                    native_types=self.native_types, name=proc.node_context.name,
-                    output_keys=linked.adapter.output_keys,
-                    trigger=functools.partial(self._trigger_output, proc.key),
-                    shutdown_time=lambda: self.shutdown_time,
-                    is_shutting_down=lambda: self.is_shutting_down,
-                )
-                state, outputs = linked.adapter.construct(linked.factory, services, interface)
-                self.native_states[proc.key] = state
+            if proc.native is None:
+                values = [self._fixed_input(source) for source in proc.inputs]
+                output_values = execute_procedure(proc, values, self.native_functions)
             else:
-                linked_procedure = linked_procedures[proc.reference]
-                interface = self._procedure_binding(proc, linked_procedure.signature)
-                inputs = {key: self._fixed_input(source) for key, source in proc.dependencies
-                          if source.resource is None}
-                outputs = linked_procedure.adapter.load(
-                    linked_procedure.factory(),
-                    PreparationServices(native_types=self.native_types, name=proc.node_context.name),
-                    interface, inputs,
-                )
-            for key, target in proc.outputs.items():
+                if proc.initializer:
+                    linked = linked_states[proc.native.name]
+                    interface = self._procedure_binding(proc, linked.signature)
+                    self._initializer_outputs[proc.name] = {
+                        key: target.variable for key, target in proc.named_outputs()
+                        if isinstance(target.variable, ResourceSlot)
+                    }
+                    services: StateServices[Any] = StateServices(
+                        native_types=self.native_types, name=proc.node,
+                        output_keys=linked.adapter.output_keys,
+                        trigger=functools.partial(self._trigger_output, proc.name),
+                        shutdown_time=lambda: self.shutdown_time,
+                        is_shutting_down=lambda: self.is_shutting_down,
+                    )
+                    state, outputs = linked.adapter.construct(linked.factory, services, interface)
+                    self.native_states[proc.name] = state
+                else:
+                    linked_procedure = linked_procedures[proc.native.name]
+                    interface = self._procedure_binding(proc, linked_procedure.signature)
+                    inputs = {key: self._fixed_input(source) for key, source in self._port_inputs(proc, interface)
+                              if source.resource is None}
+                    outputs = linked_procedure.adapter.load(
+                        linked_procedure.factory(),
+                        PreparationServices(native_types=self.native_types, name=proc.node),
+                        interface, inputs,
+                    )
+                output_values = [outputs[key] for key in proc.native.output_names]
+            for (index, target), value in zip(enumerate(proc.outputs), output_values):
                 if isinstance(target.variable, ResourceSlot):
-                    value = outputs[key]
                     if not isinstance(value, ResourceValue):
-                        raise ValueError(f'Resource output `{key}` did not return a resource')
+                        raise ValueError(f'Resource output {index} did not return a resource')
                     if target.variable in self.resource_values:
                         raise ValueError('Resource slot is already initialized')
                     self.resource_values[target.variable] = value
                     origins = set()
                     if not proc.initializer:
-                        for _, source in proc.dependencies:
+                        for source in proc.inputs:
                             if source.resource is not None and self.resource_values[source.resource].object is value.object:
                                 origins.update(self._resource_origins[source.resource])
                     self._resource_origins[target.variable] = frozenset(origins or (target.variable,))
                 else:
-                    self.fixed_values.add(target.variable, outputs[key])
+                    self.fixed_values.add(target.variable, value)
         # Prepare runtime procedures only after the complete load schedule has run.
         for stage, schedule in program.procs.items():
             if stage == RunStage.LOAD:
                 continue
             for proc in schedule:
-                for _, source in proc.dependencies:
+                for source in proc.inputs:
                     if source.resource is not None:
                         for origin in self._resource_origins[source.resource]:
                             keys = self._resource_triggers.setdefault(origin, [])
-                            if proc.key not in keys:
-                                keys.append(proc.key)
-                if proc.body is None:
-                    linked_procedure = linked_procedures[proc.reference]
+                            if proc.name not in keys:
+                                keys.append(proc.name)
+                if proc.native is not None:
+                    linked_procedure = linked_procedures[proc.native.name]
                     interface = self._procedure_binding(proc, linked_procedure.signature)
                     implementation = linked_procedure.factory()
                     linked_procedure.adapter.prepare(
-                        implementation, PreparationServices(native_types=self.native_types, name=proc.node_context.name), interface)
+                        implementation, PreparationServices(native_types=self.native_types, name=proc.node), interface)
                     self._native_procedures[id(proc)] = implementation, linked_procedure.adapter, interface
         for variable, initial in program.initial_state.items():
             self.state.add(variable, initial)
@@ -165,21 +166,29 @@ class Engine:
         assert source.bank == VariableBank.FIXED_VALUES and isinstance(source.variable, Variable)
         return self.fixed_values[source.variable]
 
+    @staticmethod
+    def _port_inputs(proc: Procedure, interface: InterfaceBinding) -> list[tuple[str, InputSource]]:
+        """Return the named inputs of a native procedure that are not compile-time reads."""
+        return [(name, source) for name, source in proc.named_inputs() if name not in interface.signature.uses]
+
     def _procedure_binding(self, proc: Procedure, signature: Any) -> InterfaceBinding:
-        port_types = {name: source.value_type for name, source in proc.dependencies if source.resource is None}
-        port_types.update((name, target.variable.var_type) for name, target in proc.outputs.items()
+        assert proc.native is not None
+        uses = {name: source.constant for name, source in proc.named_inputs() if name in signature.uses}
+        ports = [(name, source) for name, source in proc.named_inputs() if name not in uses]
+        port_types = {name: source.value_type for name, source in ports if source.resource is None}
+        port_types.update((name, target.variable.var_type) for name, target in proc.named_outputs()
                           if not isinstance(target.variable, ResourceSlot))
         return InterfaceBinding(
             native_types=self.native_types,
-            where=f'Native {"initializer" if proc.initializer else "procedure"} `{proc.reference}` of `{proc.node_context.name}`', signature=signature,
-            use_types={key: constant.value_type for key, constant in proc.values.items()},
-            use_values={key: cast(InternalValue, constant.value) for key, constant in proc.values.items()},
-            resources={name: self.resource_values[source.resource] for name, source in proc.dependencies
+            where=f'Native {"initializer" if proc.initializer else "procedure"} `{proc.native.name}` of `{proc.node}`', signature=signature,
+            use_types={key: constant.value_type for key, constant in uses.items() if constant is not None},
+            use_values={key: cast(InternalValue, constant.value) for key, constant in uses.items() if constant is not None},
+            resources={name: self.resource_values[source.resource] for name, source in ports
                        if source.resource is not None},
             port_types=port_types,
             output_resource_types={name: self.resource_types[target.variable.native_name]
-                                   for name, target in proc.outputs.items() if isinstance(target.variable, ResourceSlot)},
-            fixed_inputs={name: self._fixed_input(source) for name, source in proc.dependencies
+                                   for name, target in proc.named_outputs() if isinstance(target.variable, ResourceSlot)},
+            fixed_inputs={name: self._fixed_input(source) for name, source in ports
                           if source.resource is None
                           and source.bank in (VariableBank.FIXED_VALUES, VariableBank.CONST_VALUES)},
         )
@@ -216,14 +225,14 @@ class Engine:
 
     # TODO: Threading?
     def trigger(self, node_id: str, proc_name: str) -> None:
-        key = node_id, proc_name
+        key = f'{node_id}:{proc_name}'
         if not isinstance(proc_name, str) or not any(
-            proc.key == key for stage, schedule in self.program.procs.items() if stage != RunStage.LOAD for proc in schedule
+            proc.name == key for stage, schedule in self.program.procs.items() if stage != RunStage.LOAD for proc in schedule
         ):
             raise ValueError(f'Unknown procedure name `{proc_name}` on {node_id}')
         self._trigger_key(key)
 
-    def _trigger_output(self, initializer: tuple, output: str) -> None:
+    def _trigger_output(self, initializer: str, output: str) -> None:
         slot = self._initializer_outputs[initializer].get(output)
         if slot is None:
             raise ValueError(f'Output `{output}` is not a resource')
@@ -231,7 +240,7 @@ class Engine:
             for key in self._resource_triggers.get(slot, ()):
                 self._trigger_key(key)
 
-    def _trigger_key(self, key: tuple) -> None:
+    def _trigger_key(self, key: str) -> None:
         self.triggered_procs.add(key)
         self.triggered_procs_event.set()
 
@@ -266,11 +275,10 @@ class Engine:
             step_info.start_stage(self, stage)
             now = step_info.stage_start_time_monotonic[stage]
             for proc in stage_procs:
-                key = proc.key
-                # Bytecode procedures read multi inputs, which repeat names, positionally.
+                key = proc.name
                 values: list[InternalValue] = []
                 skip_step = cache is not None and key not in self.triggered_procs
-                for name, input_source in proc.dependencies:
+                for input_source in proc.inputs:
                     if input_source.resource is not None:
                         continue
                     if input_source.bank == VariableBank.CONST_VALUES:
@@ -310,7 +318,7 @@ class Engine:
                     skip_step = False
                 if skip_step:
                     assert cache is not None
-                    for output in proc.outputs.values():
+                    for output in proc.outputs:
                         variable = output.variable
                         assert isinstance(variable, Variable)
                         if output.bank == VariableBank.NEW_STATE:
@@ -321,21 +329,23 @@ class Engine:
                         self.update_next_wakeup(now, self.wakeups[key])
                     continue
                 if self.debug:
-                    print(f'Running procedure {proc.node_id} {proc.reference}')
+                    print(f'Running procedure {proc.name}')
                 run_count += 1
                 self.triggered_procs.discard(key)
-                if proc.body is None:
+                if proc.native is not None:
                     implementation, adapter, binding = self._native_procedures[id(proc)]
-                    services = ProcedureServices(name=proc.node_context.name, native_types=self.native_types,
+                    services = ProcedureServices(name=proc.node, native_types=self.native_types,
                                                  stage_times=step_info._stage_times,
                                                  trigger_self=functools.partial(self._trigger_key, key))
-                    inputs = {name: value for (name, _), value in zip(
-                        ((name, source) for name, source in proc.dependencies if source.resource is None), values)}
+                    value_names = [name for name, source in proc.named_inputs() if source.resource is None]
+                    inputs = {name: value for name, value in zip(value_names, values)
+                              if name not in binding.signature.uses}
                     outputs = adapter.run(implementation, services, binding, inputs)
+                    output_values = [outputs[name] for name in proc.native.output_names]
                     wakeup_time = services.wakeup_time
                     wall_wakeup = services.wall_wakeup
                 else:
-                    outputs = execute_procedure(proc, values, self.native_functions)
+                    output_values = execute_procedure(proc, values, self.native_functions)
                     wakeup_time = None
                     wall_wakeup = None
                 if wall_wakeup is None:
@@ -347,10 +357,9 @@ class Engine:
                 else:
                     self.wakeups[key] = wakeup_time
                 self.update_next_wakeup(now, wakeup_time)
-                for name, output in proc.outputs.items():
+                for output, value in zip(proc.outputs, output_values):
                     variable = output.variable
                     assert isinstance(variable, Variable)
-                    value = outputs[name]
                     if output.bank == VariableBank.NEW_STATE:
                         state_new.add(variable, value)
                         changed = not variable.var_type.equals(state_old[variable], value)
@@ -438,8 +447,8 @@ class Engine:
 
     def _get_native_state(self, node_id: str, initializer: str | None) -> NativeState | None:
         if initializer is not None:
-            return self.native_states.get((node_id, initializer))
-        states = [state for key, state in self.native_states.items() if key[0] == node_id]
+            return self.native_states.get(f'{node_id}:{initializer}')
+        states = [state for key, state in self.native_states.items() if key.partition(':')[0] == node_id]
         if len(states) > 1:
             raise ValueError(f'Node `{node_id}` has several initializers; specify an initializer name')
         return states[0] if states else None

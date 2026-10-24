@@ -398,8 +398,8 @@ holder = alias_resource_engine.get_native_state('holder')
 assert alias_resource_engine.get_native_state('holder.child').service is holder
 source_state = alias_resource_engine.get_native_state('composite.source')
 assert alias_resource_engine.get_native_state('composite.child').service is source_state
-read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node_id == 'composite')
-assert [(name, source.resource.name) for name, source in read.dependencies] == [
+read = next(proc for schedule in alias_program.procs.values() for proc in schedule if proc.node == 'composite')
+assert [(name, source.resource.name) for name, source in read.named_inputs()] == [
     ('service', 'composite.source:create.service'),
 ]
 alias_resource_engine.step()

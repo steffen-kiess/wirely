@@ -6,7 +6,7 @@ from .procedures import (
     Operand, OperandKind, ProcedureBody, ValueOperand,
 )
 from .program import (
-    InputSource, NativeInstance, NativeProcedureInterface, Procedure, Program,
+    InputSource, NativeProcedureEntry, Procedure, Program,
     OutputTarget, ResourceSlot, RunStage, Variable, VariableBank, VariableTable, used_declared_types,
 )
 from .records import pack_record, record_size, unpack_record

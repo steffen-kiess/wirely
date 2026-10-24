@@ -9,7 +9,8 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, ResourceSlot, RunStage, VariableBank, validate_program
+from wirely.program import InputSource, NativeProcedureEntry, ResourceSlot, RunStage, VariableBank, validate_program
+from wirely.runtime.linking import link_native_signatures
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_contracts, test_engine
 
@@ -194,15 +195,25 @@ connect service -> consumer.Service;
     assert graph is not None
     program = program_compiler.compile_nocatch(graph)
     schedule = program.procs[RunStage.LOAD]
-    consumer = next(proc for proc in schedule if proc.node_id == 'consumer')
+    consumer = next(proc for proc in schedule if proc.name == 'consumer:create')
     service = next(slot for slot in program.resource_slots if slot.native_name == 'TestLibrary.Service')
     other = next(slot for slot in program.resource_slots if slot.native_name == 'TestLibrary.Other')
     unknown = ResourceSlot('missing', service.var_type, service.native_name)
-    for slot, message in ((unknown, 'Unknown resource slot'), (other, 'expected resource `TestLibrary.Service`')):
-        modified = replace(consumer, dependencies=(('Service', InputSource(VariableBank.FIXED_VALUES, slot)),))
+
+    def with_source(slot):
+        modified = replace(consumer, inputs=(InputSource(VariableBank.FIXED_VALUES, slot),))
         procs = {**program.procs, RunStage.LOAD: tuple(proc for proc in schedule if proc is not consumer) + (modified,)}
-        with checks.assertRaisesRegex(ValueError, message):
-            validate_program(replace(program, procs=procs))
+        return replace(program, procs=procs)
+
+    with checks.assertRaisesRegex(ValueError, 'Unknown resource slot'):
+        validate_program(with_source(unknown))
+    # Resource types are checked when linking.
+    with test_contracts(graph) as contracts:
+        names = ('TestLibrary.ServiceProvider:create', 'TestLibrary.OtherProvider:create',
+                 'TestLibrary.Consumer:create')
+        extension = test_extension(initializers={name: object for name in names}, contracts=contracts)
+        with checks.assertRaisesRegex(ValueError, 'expected resource `TestLibrary.Service`'):
+            link_native_signatures(with_source(other), extension)
 
 
 def check_native_names():
@@ -243,11 +254,12 @@ connect source -> sink.Service;
         bindings = test_extension(**registry, contracts=contracts)
         resource_bindings = test_extension(resources={'TestLibrary.Service': Provider}, contracts=contracts)
         engine = Engine(program, override_extensions=[bindings, resource_bindings])
-    initializer = next(proc for proc in program.procs[RunStage.LOAD] if proc.node_id == 'source')
-    assert initializer.reference == 'TestLibrary.Provider:create' and initializer.initializer
-    assert program.native_procedures[initializer.reference].resource_outputs == {'service': 'TestLibrary.Service'}
-    assert set(program.native_procedures) == {'TestLibrary.Provider:create', 'TestLibrary.Consumer:run'}
-    assert program.native_procedures['TestLibrary.Consumer:run'].resources == {'Service': 'TestLibrary.Service'}
+    initializer = next(proc for proc in program.procs[RunStage.LOAD] if proc.node == 'source')
+    assert initializer.native == NativeProcedureEntry('TestLibrary.Provider:create', (), ('service',), True)
+    assert program.native_procedures == (
+        NativeProcedureEntry('TestLibrary.Consumer:run', ('Service',), ('output',)),
+        initializer.native,
+    )
     engine.step()
     engine.assert_value_is('sink', 7)
 
