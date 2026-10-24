@@ -9,6 +9,7 @@ from wirely.program import Program, RunStage, Variable, VariableTable, InputSour
 
 # Names exported lazily; add new names to the TYPE_CHECKING imports below too.
 _exports = {
+    'EnumType': 'compiler.types',
     'ResourceType': 'compiler.types',
     'TypeParameter': 'compiler.types',
     'Value': 'compiler.value',
@@ -126,6 +127,7 @@ _modules = {
 
 if TYPE_CHECKING:
     from wirely.compiler.types import (
+        EnumType,
         ResourceType,
         TypeParameter,
     )

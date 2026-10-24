@@ -35,7 +35,7 @@ class Scope(abc.ABC):
         self.libraries: dict[str, model.Namespace] = {}
         self.node_types: dict[str, model.NodeType] = {}
         self.resource_types: dict[str, model.ResourceType] = {}
-        self.enum_types: dict[str, model.types.TypeEnum] = {}
+        self.enum_types: dict[str, model.EnumType] = {}
         self.struct_types: dict[str, model.StructDefinition] = {}
         self.connections: list[model.Connection] = []
         self.native_functions: dict[str, model.CompiledFunction] = {}

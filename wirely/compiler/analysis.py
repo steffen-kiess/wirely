@@ -219,7 +219,7 @@ class Analysis:
         assert self._global is not None
         coordinator = self._global.coordinator
 
-        def add(declarations: Mapping[str, model.StructDefinition | model.types.TypeEnum], prefix: str,
+        def add(declarations: Mapping[str, model.StructDefinition | model.EnumType], prefix: str,
                 internal: bool) -> None:
             for name, declaration in declarations.items():
                 if include_internal or not (internal or _is_internal(coordinator.attributes(declaration.declaration))):

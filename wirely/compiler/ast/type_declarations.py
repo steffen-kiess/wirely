@@ -216,9 +216,8 @@ class DeclarationEnumType(Declaration):
         native_name = None
         if self.is_native:
             native_name = self.alias.value if self.alias is not None else fullname
-        value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
-                                          native_name=native_name)
-        value_type.declaration = self
+        value_type = model.EnumType(self, fullname, numbers, is_open=self.is_open, underlying_type=underlying,
+                                    native_name=native_name)
         graph.enum_types[name] = value_type
 
 

@@ -737,8 +737,6 @@ def closed_enum_underlying_type(member_count: int) -> TypeInt:
 class TypeEnum(TypePrimitive):
     """A nominal enum with either dense closed values or an open integer range."""
 
-    declaration: Any  # The compiler's declaration, set by the compiler.
-
     def __init__(self, name: str, members: Mapping[str, int], *, is_open: bool, underlying_type: TypeInt,
                      native_name: str | None = None) -> None:
         if type(is_open) is not bool:
