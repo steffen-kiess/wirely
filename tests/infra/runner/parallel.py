@@ -100,7 +100,7 @@ def _captured_descriptors(output: io.StringIO) -> Iterator[None]:
             output.write(capture.read().decode('utf-8', errors='replace'))
 
 
-def _worker(threads: int, normal: Any, exclusive: Any, results: Any, stop: Any) -> None:
+def _worker(threads: int, normal: Any, exclusive: Any, results: Any, stop: Any, bytecode_roundtrip: bool) -> None:
     """Run tests from the queues until their stop markers; report to results."""
     for stream in (sys.stdout, sys.stderr):
         cast(io.TextIOWrapper, stream).reconfigure(line_buffering=True)
@@ -120,11 +120,11 @@ def _worker(threads: int, normal: Any, exclusive: Any, results: Any, stop: Any) 
             try:
                 if alone:
                     with _captured_descriptors(output):
-                        run_named_test(name)
+                        run_named_test(name, bytecode_roundtrip=bytecode_roundtrip)
                 else:
                     stdout.local.buffer = stderr.local.buffer = output
                     try:
-                        run_named_test(name)
+                        run_named_test(name, bytecode_roundtrip=bytecode_roundtrip)
                     finally:
                         stdout.local.buffer = stderr.local.buffer = None
             except KeyboardInterrupt:
@@ -149,7 +149,7 @@ def _worker(threads: int, normal: Any, exclusive: Any, results: Any, stop: Any) 
 
 
 def run_parallel(names: Sequence[str], *, processes: int, threads: int, keep_going: bool,
-                 durations: list[tuple[str, float]], failed: list[str]) -> None:
+                 durations: list[tuple[str, float]], failed: list[str], bytecode_roundtrip: bool = False) -> None:
     """Run tests in worker processes; record durations and failed tests."""
     context = multiprocessing.get_context('spawn')
     normal, exclusive, results = context.Queue(), context.Queue(), context.Queue()
@@ -163,7 +163,7 @@ def run_parallel(names: Sequence[str], *, processes: int, threads: int, keep_goi
 
     workers: dict[int, Any] = {}
     for _ in range(processes):
-        process = context.Process(target=_worker, args=(threads, normal, exclusive, results, stop))
+        process = context.Process(target=_worker, args=(threads, normal, exclusive, results, stop, bytecode_roundtrip))
         process.start()
         assert process.pid is not None
         workers[process.pid] = process

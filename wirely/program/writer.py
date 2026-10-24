@@ -323,6 +323,8 @@ class _Writer:
         for index, value_type in enumerate(self.types.types):
             numbers_offset = 0xffffffff
             if isinstance(value_type, TypeEnum):
+                if not value_type.is_json_serializable:
+                    continue
                 numbers = sorted(value_type.json_names)
                 if not value_type.is_open and len(numbers) != value_type.member_count:
                     continue  # Unnamed closed enums have no JSON representation.

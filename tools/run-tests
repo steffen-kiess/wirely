@@ -9,6 +9,8 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--bytecode-roundtrip', action='store_true',
+                        help='Write and reload programs before creating test engines')
     parser.add_argument('--python', help='Python executable name or path')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
@@ -37,6 +39,8 @@ def main():
     os.chdir(repository_root)
     runner_args = (['--timings'] if args.timings else []) + (['--keep-going'] if args.keep_going else [])
     runner_args += ['--processes', str(args.processes), '--threads', str(args.threads)]
+    if args.bytecode_roundtrip:
+        runner_args.append('--bytecode-roundtrip')
     return subprocess.run(
         [python, '-m', 'tests.infra.runner', *runner_args, *args.names],
     ).returncode

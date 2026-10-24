@@ -9,6 +9,10 @@ tools/run-tests compiler/types negative/runtime_types examples/test
 tools/run-tests compiler
 ```
 
+Add `--bytecode-roundtrip` to write and reload programs before creating
+test engines. This checks identical output bytes and runs the decoded
+programs, with debug names restored from the compilation for test lookup.
+
 The launcher uses `venv/bin/python`, or the current interpreter when no venv
 exists. `--python PATH` selects another interpreter. The runner stops at the
 first failure; with `--keep-going`, it runs the remaining tests, lists the

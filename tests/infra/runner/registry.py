@@ -36,6 +36,7 @@ python_only_tests = [
     'unit/format_records',
     'unit/const_data',
     'unit/program_writer',
+    'unit/program_loader',
     'unit/monotonic_timestamp',
 ]
 
@@ -187,5 +188,6 @@ exclusive_tests = [
     'unit/container',
     'wrl/std',
     'unit/program_writer',
+    'unit/program_loader',
     'wrl/event_bindings',
 ]

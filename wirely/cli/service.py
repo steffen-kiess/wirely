@@ -8,6 +8,7 @@ import asyncio
 import ssl
 import sys
 import logging
+from pathlib import Path
 
 from wirely.compiler import program as program_compiler
 
@@ -18,8 +19,16 @@ import wirely.misc.service
 from wirely.control.server import ControlServer
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.runtime.engine import Engine
+from wirely.runtime.procedures import LoadFailure
+from wirely.program.loader import load_program
+from wirely.program.container import SectionList
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
+
+
+def _is_binary_program(filename: str) -> bool:
+    with open(filename, 'rb') as file:
+        return file.read(4) == SectionList.MAGIC.to_bytes(4, 'little')
 
 
 async def run_engine(engine: Engine, state_directory: str | None = None,
@@ -54,6 +63,15 @@ async def run_engine(engine: Engine, state_directory: str | None = None,
 async def async_run(args: argparse.Namespace) -> int | None:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
 
+    try:
+        binary_input = any(_is_binary_program(filename) for filename in args.input_filename)
+    except OSError as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
+    if binary_input and len(args.input_filename) != 1:
+        print('Error: a binary program must be the only input file', file=sys.stderr)
+        return 2
+
     if (args.control_tls_cert is None) != (args.control_tls_key is None):
         print('Error: --control-tls-cert and --control-tls-key must be used together', file=sys.stderr)
         return 2
@@ -74,15 +92,21 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 print(f'Error: {error}', file=sys.stderr)
                 return 1
 
-        global_node_type = wirely.compiler.compile_files(args.input_filename)
-        if global_node_type is None:
-            sys.exit(1)
-
-        prog = program_compiler.compile(global_node_type)
-        if prog is None:
-            sys.exit(1)
-
-        eng = Engine(prog)
+        try:
+            if binary_input:
+                prog = load_program(Path(args.input_filename[0]).read_bytes())
+            else:
+                global_node_type = wirely.compiler.compile_files(args.input_filename)
+                if global_node_type is None:
+                    return 1
+                compiled = program_compiler.compile(global_node_type)
+                if compiled is None:
+                    return 1
+                prog = compiled
+            eng = Engine(prog)
+        except (OSError, ValueError, LoadFailure) as error:
+            print(f'Error: {error}', file=sys.stderr)
+            return 1
 
         if args.debug:
             eng.debug = True

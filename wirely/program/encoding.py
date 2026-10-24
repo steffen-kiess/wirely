@@ -33,6 +33,31 @@ def zigzag(value: int) -> int:
     return value * 2 if value >= 0 else -value * 2 - 1
 
 
+def _read_integer(data: bytes | memoryview, offset: int, size: int) -> tuple[int, int]:
+    if offset < 0 or offset + size > len(data):
+        raise ValueError(f'Truncated operand at byte {offset}')
+    return int.from_bytes(data[offset:offset + size], 'little'), offset + size
+
+
+def decode_value_operand(data: bytes | memoryview, offset: int = 0) -> tuple[OperandKind, int, int]:
+    """Return the operand kind, index, and next byte offset."""
+    descriptor, offset = _read_integer(data, offset, 1)
+    kind = OperandKind(descriptor >> 5)
+    if kind not in tuple(OperandKind):
+        raise ValueError(f'Unknown operand kind {kind}')
+    selector = descriptor & 31
+    if selector <= 28:
+        return kind, selector, offset
+    index, offset = _read_integer(data, offset, {29: 1, 30: 2, 31: 4}[selector])
+    return kind, index, offset
+
+
+def decode_integer_parameter(data: bytes | memoryview, offset: int = 0) -> tuple[int, int]:
+    """Return an unsigned integer parameter and the next byte offset."""
+    first, offset = _read_integer(data, offset, 1)
+    return (first, offset) if first <= 253 else _read_integer(data, offset, 2 if first == 254 else 4)
+
+
 def immediate_positions(opcode: Opcode, operand_count: int) -> tuple[int, ...]:
     """Return eligible positions; comparisons still require one typed source."""
     if opcode in (Opcode.COPY, Opcode.SET_FIELD, Opcode.MAKE_SOME, Opcode.NOT):

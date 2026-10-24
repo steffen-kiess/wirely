@@ -182,7 +182,16 @@ async def run_runtime_test(test_name: str) -> None:
     print(f'Done running test {test_name}')
 
 
-def run_named_test(name: str) -> None:
+def run_named_test(name: str, *, bytecode_roundtrip: bool = False) -> None:
+    from tests.infra.bytecode import bytecode_roundtrip_mode
+    token = bytecode_roundtrip_mode.set(bytecode_roundtrip)
+    try:
+        _run_named_test(name)
+    finally:
+        bytecode_roundtrip_mode.reset(token)
+
+
+def _run_named_test(name: str) -> None:
     if name in example_tests:
         compile_test(name + '.wrl')
     elif name in to_compile:

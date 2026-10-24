@@ -14,6 +14,8 @@ from .registry import example_tests, exclusive_tests, negative_tests, python_onl
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Run Wirely tests')
+    parser.add_argument('--bytecode-roundtrip', action='store_true',
+                        help='Write and reload programs before creating test engines')
     parser.add_argument('--timings', action='store_true',
                         help='List test durations, slowest first, at the end')
     parser.add_argument('--keep-going', action='store_true',
@@ -47,10 +49,10 @@ def main() -> None:
 
     def run_one(name: str) -> None:
         if not args.keep_going:
-            run_named_test(name)
+            run_named_test(name, bytecode_roundtrip=args.bytecode_roundtrip)
             return
         try:
-            run_named_test(name)
+            run_named_test(name, bytecode_roundtrip=args.bytecode_roundtrip)
         except Exception:
             traceback.print_exc()
             failed.append(name)
@@ -58,7 +60,7 @@ def main() -> None:
     try:
         if args.processes > 1 or args.threads > 1:
             run_parallel(names, processes=args.processes, threads=args.threads, keep_going=args.keep_going,
-                         durations=durations, failed=failed)
+                         durations=durations, failed=failed, bytecode_roundtrip=args.bytecode_roundtrip)
         else:
             for name in names:
                 start = time.perf_counter()

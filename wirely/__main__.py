@@ -17,7 +17,8 @@ def main() -> None:
                                     help='certificate chain for TLS on the control socket')
     run_service_parser.add_argument('--control-tls-key',
                                     help='private key for TLS on the control socket')
-    run_service_parser.add_argument('input_filename', type=str, nargs='+')
+    run_service_parser.add_argument('input_filename', type=str, nargs='+',
+                                    help='Wirely source files or a single .wbc program')
     run_service_parser.set_defaults(module_name='wirely.cli.service')
 
     compile_parser = subparsers.add_parser('compile')

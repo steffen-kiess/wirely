@@ -150,23 +150,41 @@ def read_const(data: bytes | memoryview, offset: int, value_type: Type, type_at:
     type_at returns the type with a ValueTypes index. Values of opaque
     structs are not checked; linking checks them.
     """
-    buffer = memoryview(data)
-    alignment, data_size, size = const_layout(value_type)
-    if offset % alignment:
-        raise ValueError(f'Slot at offset {offset} is not aligned for `{value_type}`')
-    slot = _slice(buffer, offset, size, 'Slot')
-    if any(slot[data_size:]):
-        raise ValueError('Slot tail padding must be zero')
-    return _Reader(buffer, type_at).decode(value_type, slot[:data_size])
+    return ConstDataReader(data, type_at).read(offset, value_type)
+
+
+class ConstDataReader:
+    """Read const slots with an optional shared budget for decoded values."""
+
+    def __init__(self, data: bytes | memoryview, type_at: Callable[[int], Type], *,
+                 max_values: int | None = None) -> None:
+        if max_values is not None and max_values < 0:
+            raise ValueError('max_values must be nonnegative')
+        self._reader = _Reader(memoryview(data), type_at, max_values)
+
+    def read(self, offset: int, value_type: Type) -> Any:
+        """Decode an aligned slot, consuming the shared value budget."""
+        alignment, data_size, size = const_layout(value_type)
+        if offset % alignment:
+            raise ValueError(f'Slot at offset {offset} is not aligned for `{value_type}`')
+        slot = _slice(self._reader.data, offset, size, 'Slot')
+        if any(slot[data_size:]):
+            raise ValueError('Slot tail padding must be zero')
+        return self._reader.decode(value_type, slot[:data_size])
 
 
 class _Reader:
-    def __init__(self, data: memoryview, type_at: Callable[[int], Type]) -> None:
+    def __init__(self, data: memoryview, type_at: Callable[[int], Type], remaining: int | None) -> None:
         self.data = data
         self.type_at = type_at
+        self.remaining = remaining
 
     def decode(self, value_type: Type, data: memoryview) -> Any:
         """Decode a value from exactly its data bytes."""
+        if self.remaining is not None:
+            if self.remaining == 0:
+                raise ValueError('Decoded value budget exhausted')
+            self.remaining -= 1
         if isinstance(value_type, TypeString):
             string = unpack_record(StringRef, data)
             if string.length_bytes == 0:
@@ -191,8 +209,11 @@ class _Reader:
                 raise ValueError(f'List elements at offset {list_value.offset} are not aligned '
                                  f'for `{value_type.inner_type}`')
             elements = _slice(self.data, list_value.offset, list_value.element_count * size, 'List')
+            if self.remaining is not None and list_value.element_count > self.remaining:
+                raise ValueError('Decoded value budget exhausted')
             items = []
-            for start in range(0, len(elements), size) if size else (0,) * list_value.element_count:
+            for index in range(list_value.element_count):
+                start = index * size
                 if any(elements[start + data_size:start + size]):
                     raise ValueError('List element tail padding must be zero')
                 items.append(self.decode(value_type.inner_type, elements[start:start + data_size]))

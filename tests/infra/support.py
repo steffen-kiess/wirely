@@ -106,6 +106,13 @@ def test_constant_function(native_name: str, implementation: Callable[..., objec
 def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine:
     """Create an engine using the test fixture extension."""
     from tests.infra.native_extension.generated import extension
+    from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
+    if bytecode_roundtrip_mode.get():
+        from wirely.runtime.extensions import resolve_extensions
+        kwargs['override_extensions'] = tuple(kwargs.get('override_extensions', ()))
+        registry = resolve_extensions([extension], override_extensions=kwargs['override_extensions'],
+                                      include_builtin_extensions=kwargs.get('include_builtin_extensions', True))
+        program = roundtrip_program(program, registry.native_types)
     return Engine(program, extensions=[extension], **kwargs)
 
 

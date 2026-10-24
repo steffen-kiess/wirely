@@ -1,0 +1,382 @@
+"""Binary program decoding, execution integration, and malformed input."""
+
+import argparse
+import contextlib
+import io
+import struct
+import subprocess
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from pathlib import Path
+from unittest import TestCase
+from unittest.mock import AsyncMock, Mock, mock_open, patch
+
+from wirely import types
+from wirely.cli import service
+from wirely.program import (
+    Constant, InputSource, NativeProcedureEntry, Opcode, Operand, OperandKind,
+    OutputTarget, Procedure, ProcedureBody, RunStage, Section, SectionList, Variable, VariableBank,
+    pack_record,
+)
+from wirely.program.const_data import ConstDataReader, ConstDataWriter
+from wirely.program.encoding import (
+    decode_integer_parameter, decode_value_operand, encode_integer_parameter, encode_value_operand,
+)
+from wirely.program.generated import format as fmt
+from wirely.program.loader import load_program
+from wirely.program.writer import write_program
+from wirely.runtime.engine import Engine
+from wirely.runtime.extensions import NativeTypes, resolve_extensions
+from wirely.runtime.procedures import LoadFailure
+from wirely.runtime.signatures import Int
+from wirely.types.value_types import NativeOpaque
+from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
+from tests.infra.runner.execution import run_named_test
+from tests.unit import program_writer as writer_cases
+from tests.unit.program_writer import body_program, const, instruction, local, program, records
+
+
+checks = TestCase()
+root = Path(__file__).resolve().parents[2]
+
+
+def change_section(data, section_type, transform):
+    container = SectionList.from_bytes(data)
+    container.sections = [transform(section) if section.section_type == section_type else section
+                          for section in container.sections]
+    return container.to_bytes()
+
+
+def replace_data(data, section_type, content):
+    return change_section(data, section_type, lambda section: replace(section, data=content))
+
+
+def roundtrip(prog):
+    data = write_program(prog)
+    loaded = load_program(data)
+    assert loaded.graph is None and not loaded.symbols.node_aliases and not loaded.symbols.variable_aliases
+    assert write_program(loaded) == data
+    return loaded
+
+
+def check_helpers():
+    for kind in fmt.OperandKind:
+        for index in (0, 28, 29, 255, 256, 65535, 65536, 0xffffffff):
+            data = encode_value_operand(kind, index)
+            assert decode_value_operand(b'x' + data, 1) == (kind, index, 1 + len(data))
+            for end in range(len(data)):
+                with checks.assertRaisesRegex(ValueError, 'Truncated'):
+                    decode_value_operand(data[:end])
+    for index in (0, 253, 254, 65535, 65536, 0xffffffff):
+        data = encode_integer_parameter(index)
+        assert decode_integer_parameter(data) == (index, len(data))
+        for end in range(len(data)):
+            with checks.assertRaisesRegex(ValueError, 'Truncated'):
+                decode_integer_parameter(data[:end])
+    with checks.assertRaisesRegex(ValueError, 'Unknown operand kind'):
+        decode_value_operand(b'\xe0')
+
+
+def check_writer_images():
+    def write_reloaded(prog):
+        data = write_program(prog)
+        reloaded = write_program(load_program(data))
+        assert reloaded == data
+        return reloaded
+
+    # Reuse the writer's independent byte/table assertions on reloaded images.
+    with patch.object(writer_cases, 'write_program', side_effect=write_reloaded):
+        writer_cases.check_container()
+        writer_cases.check_types_and_constants()
+        writer_cases.check_variables_and_procedures()
+        writer_cases.check_nested_type_values()
+        writer_cases.check_code()
+        writer_cases.check_scalar_immediates()
+        writer_cases.check_aliases()
+        writer_cases.check_constant_order()
+        writer_cases.check_stage_order()
+
+
+def check_stripped_types_and_state():
+    mode = types.TypeEnum('Mode', {'Off': 0, 'On': 1}, is_open=False, underlying_type=types.uint8)
+    signed = types.TypeEnum('Signed', {'Negative': -3}, is_open=True, underlying_type=types.int16)
+    pair = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
+    other = types.TypeStruct('Pair', {'flag': types.boolean, 'mode': mode})
+    variables = (Variable('pair', pair), Variable('other', other), Variable('signed', signed),
+                 Variable('empty', types.TypeStruct('Empty', {})))
+    original = program(state=variables, initial=dict(zip(variables, ((True, 1), (False, 0), -3, ()))))
+    loaded = roundtrip(original)
+    state = list(loaded.state_variables.offsets)
+    assert list(loaded.initial_state.values()) == [original.initial_state[var] for var in original.state_variables.offsets]
+    by_name = dict(zip((old.name for old in original.state_variables.offsets), state))
+    loaded_pair = by_name['pair'].var_type
+    assert loaded_pair is not by_name['other'].var_type
+    assert loaded_pair.type_name is None and loaded_pair.field_names is None
+    assert loaded_pair.json_names == ('flag', 'mode')
+    loaded_mode = loaded_pair.field_types[1]
+    assert loaded_pair.field_types[0] is types.boolean
+    assert not loaded_mode.members and loaded_mode.type_name is None
+    assert dict(loaded_mode.json_names) == {0: 'Off', 1: 'On'}
+    assert loaded_mode.underlying_type is types.uint8
+    assert by_name['empty'].var_type.json_names == ()
+
+
+def check_json_presence():
+    opened = types.TypeEnum('Numbers', {}, is_open=True, underlying_type=types.uint8)
+    variable = Variable('value', opened)
+    image = write_program(program(state=(variable,), initial={variable: 7}))
+    present = load_program(image)
+    assert next(iter(present.state_variables.offsets)).var_type.is_json_serializable
+    # A zero-name entry still enables numeric JSON conversion for an open enum.
+    stripped = replace_data(image, fmt.SectionType.JsonTypes, b'')
+    absent = load_program(stripped)
+    assert not next(iter(absent.state_variables.offsets)).var_type.is_json_serializable
+    normalized = write_program(absent)
+    assert write_program(load_program(normalized)) == normalized
+    assert not next(section.data for section in SectionList.from_bytes(normalized).sections
+                    if section.section_type == fmt.SectionType.JsonTypes)
+
+
+def check_shared_bodies():
+    flag, number = Variable('flag', types.boolean), Variable('number', types.int8)
+    first = Procedure('first:run', (), (OutputTarget(VariableBank.TEMPORARIES, flag),), body=ProcedureBody((
+        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.boolean, True)), instruction(Opcode.RETURN))))
+    second = Procedure('second:run', (), (OutputTarget(VariableBank.TEMPORARIES, number),), body=ProcedureBody((
+        instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), const(types.int8, -1)), instruction(Opcode.RETURN))))
+    data = write_program(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
+
+    def share(section):
+        instances = records(section.data, fmt.ProcedureInstance)
+        instances[1] = instances[1]._replace(bytecode=fmt.OptionalRef(0))
+        return replace(section, data=b''.join(map(pack_record, instances)))
+
+    loaded = load_program(change_section(data, fmt.SectionType.ProcedureInstances, share))
+    left, right = loaded.procs[RunStage.DEFAULT]
+    assert left.body is not right.body
+    assert left.body.instructions[0].operands[1].constant.value is True
+    assert right.body.instructions[0].operands[1].constant.value == -1
+    machine = Engine(loaded)
+    machine.step()
+    assert machine.cache[left.outputs[0].variable] is True
+    assert machine.cache[right.outputs[0].variable] == -1
+    copy = ProcedureBody((instruction(Opcode.COPY, Operand(OperandKind.OUTPUT, 0), Operand(OperandKind.INPUT, 0)),
+                          instruction(Opcode.RETURN)))
+    first = replace(first, inputs=(InputSource(VariableBank.CONST_VALUES, constant=Constant(types.boolean, True)),), body=copy)
+    second = replace(second, inputs=(InputSource(VariableBank.CONST_VALUES, constant=Constant(types.int8, -1)),), body=copy)
+    loaded = roundtrip(program(temporaries=(flag, number), procs=((RunStage.DEFAULT, (first, second)),)))
+    left, right = loaded.procs[RunStage.DEFAULT]
+    assert left.body is right.body  # No immediates need specializing.
+
+
+def check_budgets():
+    value_type = types.TypeList(types.unit)
+    writer = ConstDataWriter(lambda value_type: 0)
+    offset = writer.add(value_type, (types.Unit(),) * 3)
+    reader = ConstDataReader(writer.data, lambda index: types.unit, max_values=8)
+    assert len(reader.read(offset, value_type)) == 3
+    assert len(reader.read(offset, value_type)) == 3
+    with checks.assertRaisesRegex(ValueError, 'budget'):
+        reader.read(offset, value_type)
+    constant = Constant(value_type, (types.Unit(),) * 3)
+    proc = Procedure('test:run', (InputSource(VariableBank.CONST_VALUES, constant=constant),), (),
+                     native=NativeProcedureEntry('Test:run', ('value',), ()))
+    data = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
+    assert load_program(data, max_decoded_values=4)
+    with checks.assertRaisesRegex(ValueError, 'budget'):
+        load_program(data, max_decoded_values=3)
+    program_data = next(section.data for section in SectionList.from_bytes(data).sections
+                        if section.section_type == fmt.SectionType.ProgramData)
+    huge = bytearray(program_data)
+    struct.pack_into('<I', huge, 4, 0xffffffff)
+    with checks.assertRaisesRegex(ValueError, 'budget'):
+        load_program(replace_data(data, fmt.SectionType.ProgramData, bytes(huge)))
+
+
+def check_malformed():
+    data = write_program(program())
+    container = SectionList.from_bytes(data)
+    container.sections = container.sections[:-1]
+    with checks.assertRaisesRegex(ValueError, 'Missing section JsonTypes'):
+        load_program(container.to_bytes())
+    with checks.assertRaisesRegex(ValueError, 'wrong record type'):
+        load_program(change_section(data, fmt.SectionType.Stages, lambda section: replace(section, record_type=0)))
+    with checks.assertRaisesRegex(ValueError, 'truncated record'):
+        load_program(replace_data(data, fmt.SectionType.Stages, b'x'))
+    unknown = SectionList.from_bytes(data)
+    unknown.sections.append(Section(0xf0000, 0xffffffff, b'ignored'))
+    assert write_program(load_program(unknown.to_bytes())) == data
+    for code, message in ((b'\xff', 'Unknown opcode'), (b'\x01\x40', 'Truncated'),
+                          (b'\x1f\x01\x22', 'Branch target'), (b'\x02\x00\x22', 'Immediate is not allowed'),
+                          (b'\x20\x02\x00\x22', 'Boolean immediate'),
+                          (b'\x1d\x40\x00\x00\x22', 'typed counterpart'),
+                          (b'\x01\x40\x60\x22', 'INPUT index')):
+        image = write_program(body_program((instruction(Opcode.RETURN),), (types.boolean,)))
+        image = replace_data(image, fmt.SectionType.ProcedureCode, code)
+        image = replace_data(image, fmt.SectionType.BytecodeProcedures,
+                             pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(code)), fmt.Range(fmt.Ref(0), 1))))
+        with checks.assertRaisesRegex(ValueError, message):
+            load_program(image)
+    image = write_program(body_program((instruction(Opcode.COPY, local(0), const(types.uint8, 1)),
+                                       instruction(Opcode.RETURN)), (types.uint8,)))
+    with checks.assertRaisesRegex(ValueError, 'ValueTypes index'):
+        load_program(replace_data(image, fmt.SectionType.ValueTypes,
+                                  pack_record(fmt.CompositeType(fmt.TypeKind.Option, fmt.Ref(100))) + bytes(24)))
+    oversized = b'\x01\x40\x1e\x00\x01\x22'  # Immediate 256 does not fit uint8.
+    oversized_image = replace_data(image, fmt.SectionType.ProcedureCode, oversized)
+    oversized_image = replace_data(oversized_image, fmt.SectionType.BytecodeProcedures,
+                                   pack_record(fmt.BytecodeProcedure(fmt.ByteRange(0, len(oversized)), fmt.Range(fmt.Ref(0), 1))))
+    with checks.assertRaisesRegex(ValueError, 'instruction 0'):
+        load_program(oversized_image)
+    # A type-valued constant's reference is checked by the reader's callback.
+    proc = Procedure('test:run', (InputSource(VariableBank.CONST_VALUES, constant=Constant(types.ValueType, types.uint8)),), (),
+                     native=NativeProcedureEntry('Test:run', ('type',), ()))
+    image = write_program(program(procs=((RunStage.LOAD, (proc,)),)))
+    with checks.assertRaisesRegex(ValueError, 'ValueTypes index'):
+        load_program(replace_data(image, fmt.SectionType.ProgramData, struct.pack('<I', 0xffffffff)))
+    with checks.assertRaisesRegex(ValueError, 'invalid UTF-8'):
+        load_program(change_section(image, fmt.SectionType.NativeNames,
+                                    lambda section: replace(section, data=b'\xff' * len(section.data))))
+    with checks.assertRaisesRegex(ValueError, 'InterfaceNames range'):
+        load_program(replace_data(image, fmt.SectionType.NativeProcedures,
+                                  pack_record(fmt.NativeProcedure(fmt.StringRef(0, 8), fmt.Range(fmt.Ref(1000), 1),
+                                                                   fmt.Range(fmt.Ref(0), 0), False))))
+
+
+def check_native_registry():
+    opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
+    variable = Variable('value', opaque)
+    image = write_program(program(state=(variable,), initial={variable: (7,)}))
+    factory = Mock(side_effect=AssertionError('Decoding must not load native implementations'))
+    registry = NativeTypes(opaque_types={'Custom.Native': NativeOpaque((Int(8, False),), factory)})
+    loaded = load_program(image, native_types=registry)
+    assert next(iter(loaded.state_variables.offsets)).var_type.native_types is registry
+    factory.assert_not_called()
+    with checks.assertRaisesRegex(ValueError, 'Custom.Native'):
+        Engine(loaded)
+
+
+def check_test_metadata():
+    from wirely.compiler import compile_strs
+    from wirely.compiler import program as program_compiler
+    source = '''struct type Pair { flag: boolean, number: uint8, }
+node type Source {
+  output Value: value Pair;
+  procedure run writes Value { Value = Pair { flag: true, number: 7 }; }
+}
+node source: Source {}
+'''
+    graph = compile_strs([('<loader>', source)])
+    assert graph is not None
+    original = program_compiler.compile(graph)
+    assert original is not None
+    restored = roundtrip_program(original, resolve_extensions().native_types)
+    assert restored.graph is original.graph
+    original_vars = list(original.temporaries.offsets)
+    restored_vars = list(restored.temporaries.offsets)
+    assert restored_vars[0] is not original_vars[0]
+    assert restored_vars[0].name == original_vars[0].name
+    assert list(restored_vars[0].var_type.fields) == ['flag', 'number']
+    initial_mode = bytecode_roundtrip_mode.get()
+
+    def check_mode(enabled):
+        with patch('tests.infra.runner.execution._run_named_test') as run:
+            run.side_effect = lambda name: checks.assertEqual(bytecode_roundtrip_mode.get(), enabled)
+            run_named_test('test', bytecode_roundtrip=enabled)
+        assert bytecode_roundtrip_mode.get() == initial_mode
+
+    check_mode(True)
+    check_mode(False)
+    with patch('tests.infra.runner.execution._run_named_test', side_effect=ValueError('test failure')):
+        with checks.assertRaisesRegex(ValueError, 'test failure'):
+            run_named_test('test', bytecode_roundtrip=not initial_mode)
+    assert bytecode_roundtrip_mode.get() == initial_mode
+    # Context values stay local to each thread without changing process state.
+    def thread_mode(enabled):
+        token = bytecode_roundtrip_mode.set(enabled)
+        try:
+            return bytecode_roundtrip_mode.get()
+        finally:
+            bytecode_roundtrip_mode.reset(token)
+    with ThreadPoolExecutor(2) as pool:
+        assert list(pool.map(thread_mode, (True, False))) == [True, False]
+
+
+async def check_service():
+    magic = SectionList.MAGIC.to_bytes(4, 'little')
+    with patch('wirely.cli.service.open', mock_open(read_data=magic + b'ignored')) as opened:
+        assert service._is_binary_program('program')
+        opened().read.assert_called_once_with(4)
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / 'program.bin'
+        path.write_bytes(write_program(program()))
+        source = Path(directory) / 'source.wbc'
+        source.write_text('', encoding='utf-8')
+        args = argparse.Namespace(input_filename=[str(path)], verbose=False, debug=False,
+                                  state_directory=None, control_tls_cert=None, control_tls_key=None)
+        with patch.object(service.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
+            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+                assert await service.async_run(args) is None
+                run.assert_awaited_once()
+            for filenames, status in (([str(path), str(source)], 2), ([str(source), str(path)], 2),
+                                       ([str(path), str(path)], 2)):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    assert await service.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
+            for error in (ValueError('link failure'), LoadFailure(Procedure('test:load', (), ()), 0, 'load failure', ())):
+                with patch.object(service, 'Engine', side_effect=error), patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+                    output = io.StringIO()
+                    with contextlib.redirect_stderr(output):
+                        assert await service.async_run(args) == 1
+                    assert str(error) in output.getvalue()
+                    run.assert_not_awaited()
+            path.write_bytes(magic)
+            with patch.object(service, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
+                assert await service.async_run(args) == 1
+                engine.assert_not_called()
+            path.unlink()
+            with patch.object(service, 'Engine') as engine, contextlib.redirect_stderr(io.StringIO()):
+                assert await service.async_run(args) == 1
+                engine.assert_not_called()
+            failure = Constant(types.TypeList(types.String), ('intentional failure',))
+            path.write_bytes(write_program(body_program((instruction(Opcode.FAIL, failure, 0),), stage=RunStage.LOAD)))
+            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+                output = io.StringIO()
+                with contextlib.redirect_stderr(output):
+                    assert await service.async_run(args) == 1
+                assert 'intentional failure' in output.getvalue()
+                run.assert_not_awaited()
+        args.input_filename = [str(source)]
+        with patch.object(service, 'load_program', side_effect=AssertionError('must compile source')):
+            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+                assert await service.async_run(args) is None
+                run.assert_awaited_once()
+        for prefix in (b'', magic[:1], magic[:2], magic[:3]):
+            source.write_bytes(prefix)
+            with patch.object(service.wirely.compiler, 'compile_files', return_value=None) as compile_files:
+                with patch.object(service, 'load_program') as load:
+                    assert await service.async_run(args) == 1
+                    compile_files.assert_called_once_with([str(source)])
+                    load.assert_not_called()
+
+
+def check_runner_processes():
+    for executable in ([sys.executable, 'tools/run-tests'], [sys.executable, '-m', 'tests.infra.runner']):
+        result = subprocess.run([*executable, '--bytecode-roundtrip', '--processes', '2', '--threads', '2',
+                                 'compiler/simple', 'wrl/equality'], cwd=root, capture_output=True, text=True)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert 'Done running test wrl/equality' in result.stdout
+
+
+async def run_test():
+    check_helpers()
+    check_writer_images()
+    check_stripped_types_and_state()
+    check_json_presence()
+    check_shared_bodies()
+    check_budgets()
+    check_malformed()
+    check_native_registry()
+    check_test_metadata()
+    await check_service()
+    check_runner_processes()

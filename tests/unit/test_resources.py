@@ -18,6 +18,7 @@ from wirely.compiler.function_implementations.test import (
 )
 from tests.infra.runner.execution import run_runtime_test as runner_run_test
 from tests.infra.runner.services import TestResourceProvider, with_maybe_knxd, with_maybe_mqtt
+from wirely.program import Program, VariableTable
 from wirely.two_n.fake_server import Server
 from wirely.runtime.engine import Engine
 
@@ -195,7 +196,9 @@ async def check_runner_cleanup():
         with contextlib.ExitStack() as mocks:
             mocks.enter_context(patch('tests.infra.runner.execution.model.compiler.compile_files', side_effect=compile_fixture))
             mocks.enter_context(patch('tests.infra.runner.execution.program_compiler.compile',
-                                      return_value=None if mode == 'program' else MagicMock()))
+                                      return_value=None if mode == 'program' else Program(
+                                          state_variables=VariableTable((), 'state'), temporaries=VariableTable((), 'temporary'),
+                                          initial_state={}, procs={})))
             construct = mocks.enter_context(patch('tests.infra.support.Engine', return_value=SimpleNamespace()))
             mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_knxd', daemon))
             mocks.enter_context(patch('tests.infra.runner.execution.with_maybe_mqtt', daemon))
