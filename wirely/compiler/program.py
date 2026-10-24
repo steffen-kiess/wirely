@@ -16,7 +16,7 @@ from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeProcedureEntry, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, Program,
+    OutputTarget, Procedure, ProcedureBody, Program, ProgramSymbols,
     RunStage, Variable, VariableBank, VariableTable,
 )
 
@@ -512,12 +512,13 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         for path, instance in instances.items() if instance.is_singleton
     }
     return Program(
-        name=str(graph), graph=graph,
+        graph=graph,
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
         state_variables=VariableTable(state_variables, f'{graph}.state_variables'),
         fixed_values=VariableTable(fixed_variables, f'{graph}.fixed'),
         initial_state=initial_state, procs=schedules,
-        node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
+        symbols=ProgramSymbols(name=str(graph), node_aliases=node_aliases, singleton_aliases=singleton_aliases,
+                               variable_aliases=variables),
     )
 
 

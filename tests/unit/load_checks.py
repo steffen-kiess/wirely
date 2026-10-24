@@ -159,9 +159,9 @@ def check_loading_stops():
 def make_program(instructions, *, local_types=()):
     procedure = Procedure(name='test:check', inputs=(), outputs=(), body=ProcedureBody(instructions, local_types))
     return Program(
-        name='load_checks', state_variables=VariableTable((), 'state'),
+        state_variables=VariableTable((), 'state'),
         temporaries=VariableTable((), 'temporaries'), initial_state={},
-        procs={RunStage.LOAD: (procedure,)}, node_aliases={}, singleton_aliases={}, variables={},
+        procs={RunStage.LOAD: (procedure,)},
     )
 
 

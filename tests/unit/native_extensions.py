@@ -112,7 +112,7 @@ node probe: Probe {}
         engine = engines[index]
         runtime, _, payload, mode = variants[index]
         engine.step()
-        descriptor = wirely.ValueType(engine.program.variables['probe.Value'].value_type)
+        descriptor = wirely.ValueType(engine.program.symbols.variable_aliases['probe.Value'].value_type)
         value = descriptor.from_native(payload(wirely.Some(mode(index + 2))), native_types=engine.native_types)
         native = value.to_native(native_types=engine.native_types)
         assert type(native) is payload and type(native.modes.value) is mode

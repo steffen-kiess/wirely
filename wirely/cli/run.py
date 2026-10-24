@@ -25,7 +25,7 @@ async def execute(engine: Engine, line: str) -> None:
 
     if line == 'list':
         print('Got nodes:')
-        for node_name in engine.program.node_aliases:
+        for node_name in engine.program.symbols.node_aliases:
             if '.' in node_name:
                 continue
             print(f'  {node_name}')

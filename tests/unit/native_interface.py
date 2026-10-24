@@ -986,7 +986,7 @@ node constant: Std.Constant { Type: Example.Percent, Value: "7%" }
     probe.step()
     assert received == [Percent(42)]
     probe.assert_value_is('constant', (7,))
-    percent = wirely.ValueType(probe.program.variables['constant'].constant.value_type)
+    percent = wirely.ValueType(probe.program.symbols.variable_aliases['constant'].constant.value_type)
     assert percent.from_native(Percent(5), native_types=probe.native_types).to_text() == '5%'
     for opaque_type, level, message in [
         (None, '"42%"', "Cannot find opaque struct type `Test.Percent`"),

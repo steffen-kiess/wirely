@@ -195,6 +195,20 @@ class Procedure:
         return tuple(zip(self.native.output_names, self.outputs))
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ProgramSymbols:
+    """Debug names and aliases of a program; stripped programs have none."""
+
+    name: str = ''  # Program name for diagnostics.
+    node_aliases: Mapping[str, str] = field(default_factory=dict)  # Declared node paths to node paths.
+    singleton_aliases: Mapping[str, str] = field(default_factory=dict)  # Singleton type names to node paths.
+    variable_aliases: Mapping[str, InputSource] = field(default_factory=dict)  # Source names to their sources.
+
+    def __post_init__(self) -> None:
+        for name in ('node_aliases', 'singleton_aliases', 'variable_aliases'):
+            object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
+
+
 @dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class Program:
     """An executable program with immutable structure and optional debug data.
@@ -202,15 +216,12 @@ class Program:
     Referenced type descriptors, payload objects, and graph are not frozen.
     """
 
-    name: str  # Program name for diagnostics.
     state_variables: VariableTable  # Variables persisted between engine steps.
     temporaries: VariableTable  # Per-step variables.
     initial_state: Mapping[Variable, object]  # Starting values of persistent state.
     procs: Mapping[RunStage, tuple[Procedure, ...]]  # Stages and procedures in execution order.
-    node_aliases: Mapping[str, str]  # Debug lookup from declared node paths to node IDs.
-    singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
-    variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
     fixed_values: VariableTable = field(default_factory=lambda: VariableTable((), 'fixed'))
+    symbols: ProgramSymbols = field(default_factory=ProgramSymbols)
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
     # Constants of input bindings, instructions, and variable aliases, by identity in first-use order.
     constants: tuple[Constant, ...] = field(init=False)
@@ -218,8 +229,7 @@ class Program:
     native_procedures: tuple[NativeProcedureEntry, ...] = field(init=False)  # Used entries, sorted by name.
 
     def __post_init__(self) -> None:
-        for name in ('initial_state', 'node_aliases', 'singleton_aliases', 'variables'):
-            object.__setattr__(self, name, MappingProxyType(dict(getattr(self, name))))
+        object.__setattr__(self, 'initial_state', MappingProxyType(dict(self.initial_state)))
         object.__setattr__(self, 'procs', MappingProxyType({
             stage: tuple(schedule) for stage, schedule in self.procs.items()
         }))
@@ -267,7 +277,7 @@ class Program:
                 return f'{input_source.variable.name} (new state)'
             return input_source.variable.name
 
-        line(f'Program {self.name}')
+        line(f'Program {self.symbols.name}')
         for label, variable_table in [('State variables', self.state_variables),
                                       ('Temporaries', self.temporaries), ('Fixed values', self.fixed_values)]:
             line()
@@ -327,9 +337,9 @@ class Program:
                     for index, instruction in enumerate(proc.body.instructions):
                         line(f'idx{index}: {instruction_text(instruction)}', 8)
 
-        variable_aliases = {name: source(input_source) for name, input_source in self.variables.items()}
-        for label, aliases in [('Node aliases', self.node_aliases),
-                               ('Singleton aliases', self.singleton_aliases),
+        variable_aliases = {name: source(input_source) for name, input_source in self.symbols.variable_aliases.items()}
+        for label, aliases in [('Node aliases', self.symbols.node_aliases),
+                               ('Singleton aliases', self.symbols.singleton_aliases),
                                ('Variable aliases', variable_aliases)]:
             line()
             line(label + ':')
@@ -355,7 +365,7 @@ def _collect_constants(program: Program) -> tuple[Constant, ...]:
                             add(operand.constant)
                         elif isinstance(operand, Constant):
                             add(operand)
-    for source in program.variables.values():
+    for source in program.symbols.variable_aliases.values():
         add(source.constant)
     return tuple(constants.values())
 

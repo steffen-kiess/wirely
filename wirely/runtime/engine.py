@@ -259,7 +259,7 @@ class Engine:
 
     def step(self) -> tuple[int, int, StepContext]:
         if self.debug:
-            print(f'Starting step of {self.program.name}')
+            print(f'Starting step of {self.program.symbols.name}')
         self.next_wakeup = None
         cache = self.cache
         state_old = self.state  # Snapshot read throughout this step.
@@ -371,7 +371,7 @@ class Engine:
         self.state = state_new
         self.step_count += 1
         if self.debug:
-            print(f'Finished step of {self.program.name}')
+            print(f'Finished step of {self.program.symbols.name}')
         return run_count, state_change_count, step_info
 
     async def run(self) -> None:
@@ -435,13 +435,13 @@ class Engine:
 
     def get_node_path(self, name: str) -> str:
         try:
-            return self.program.node_aliases[name]
+            return self.program.symbols.node_aliases[name]
         except KeyError:
             raise ValueError(f'Cannot find node `{name}`') from None
 
     def get_node_path_singleton(self, name: str) -> str:
         try:
-            return self.program.singleton_aliases[name]
+            return self.program.symbols.singleton_aliases[name]
         except KeyError:
             raise ValueError(f'Cannot find singleton `{name}`') from None
 
@@ -469,7 +469,7 @@ class Engine:
 
     def _get_source(self, name: str) -> InputSource:
         try:
-            return self.program.variables[name]
+            return self.program.symbols.variable_aliases[name]
         except KeyError:
             raise ValueError(f'Could not find variable `{name}`') from None
 

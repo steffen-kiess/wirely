@@ -286,7 +286,7 @@ def validate_program(program: Program) -> None:
                 raise ValueError(f'Procedure `{procedure.name}`: {error}') from error
     if assigned != fixed:
         raise ValueError('Every fixed value must be assigned once')
-    for name, input_source in program.variables.items():
+    for name, input_source in program.symbols.variable_aliases.items():
         try:
             check_source(input_source)
             if input_source.constant is not None:

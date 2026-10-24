@@ -7,7 +7,7 @@ from tests.infra.native_extension.generated import test_library as contracts
 from tests.infra.support import library_type, test_extension
 from wirely.program import (
     BranchTarget, Constant, ConstOperand, Function, InputSource, Instruction,
-    Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
+    Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, ProgramSymbols, OutputTarget,
     RunStage, Variable, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime.engine import Engine
@@ -44,11 +44,12 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
         body=ProcedureBody(instructions, local_types),
     )
     return Program(
-        name='instructions', state_variables=VariableTable(state, 'state'),
+        state_variables=VariableTable(state, 'state'),
         temporaries=VariableTable(outputs, 'temporaries'),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
-        procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
-        variables={variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs},
+        procs={RunStage.DEFAULT: (procedure,)},
+        symbols=ProgramSymbols(variable_aliases={
+            variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs}),
     )
 
 
@@ -57,7 +58,7 @@ def execute(instructions, *, override_extensions=(), **kwargs):
     from tests.infra.native_extension.generated import extension as fixture
     machine = Engine(program, extensions=[fixture], override_extensions=override_extensions)
     machine.step()
-    return tuple(machine.get_value(name) for name in program.variables)
+    return tuple(machine.get_value(name) for name in program.symbols.variable_aliases)
 
 
 def check_boolean_operations():

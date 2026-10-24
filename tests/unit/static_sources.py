@@ -18,7 +18,7 @@ def check_static_sources():
     engine.assert_is_idle()
 
     # Equal values share one constant.
-    limit = program.variables['forward'].constant
+    limit = program.symbols.variable_aliases['forward'].constant
     assert [constant.value for constant in program.constants].count(12) == 1
     procedure = next(proc for schedule in program.procs.values() for proc in schedule
                      if proc.node == 'limit_twice')

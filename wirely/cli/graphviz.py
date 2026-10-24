@@ -21,7 +21,7 @@ def get_graph(graph, engine=None):
             # Default inputs have no alias; their edge shows the source.
             if engine is not None and engine.cache is not None and input.name != '':
                 name = node.name + '.' + input.name
-                if name in engine.program.variables:
+                if name in engine.program.symbols.variable_aliases:
                     label += f' = {engine.get_value(name)}'
                 else:
                     # TODO: Handle this
@@ -43,7 +43,7 @@ def get_graph(graph, engine=None):
                 label = '()'
             if engine is not None and engine.cache is not None:
                 name = node.name + '.' + output.name if output.name else node.name
-                if name in engine.program.variables:
+                if name in engine.program.symbols.variable_aliases:
                     label += f' = {engine.get_value(name)}'
                 else:
                     # TODO: Handle this
