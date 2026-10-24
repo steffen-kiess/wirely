@@ -7,7 +7,7 @@ from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
 )
-from .program import InputSource, NativeProcedureEntry, Procedure, Program, ResourceSlot, RunStage, VariableBank
+from .program import InputSource, NativeProcedureEntry, Procedure, Program, RunStage, VariableBank
 
 
 # Operand stands for a value operand: an Operand or a ConstOperand.
@@ -62,7 +62,7 @@ def _validate_body(procedure: Procedure, stage: RunStage) -> None:
     if not isinstance(body, ProcedureBody):
         raise ValueError('Expected a ProcedureBody')
     if any(source.resource is not None for source in procedure.inputs) or any(
-            isinstance(target.variable, ResourceSlot) for target in procedure.outputs):
+            target.variable.is_resource for target in procedure.outputs):
         raise ValueError('Bytecode procedures cannot access resources')
     input_types = [source.value_type for source in procedure.inputs]
     output_types = tuple(output_target.variable.var_type for output_target in procedure.outputs)
@@ -218,8 +218,11 @@ def validate_program(program: Program) -> None:
         except ValueError as error:
             raise ValueError(f'Function func.{index}: {error}') from error
 
+    for table in (program.state_variables, program.temporaries):
+        for variable in table.variables.values():
+            if variable.is_resource:
+                raise ValueError(f'Variable `{variable}`: only fixed values can hold resources')
     fixed = program.fixed_values.variable_set
-    slots = frozenset(program.resource_slots)
     bank_tables = {
         VariableBank.FIXED_VALUES: fixed,
         VariableBank.TEMPORARIES: program.temporaries.variable_set,
@@ -245,10 +248,7 @@ def validate_program(program: Program) -> None:
     def check_source(source: InputSource) -> None:
         if not isinstance(source, InputSource):
             raise ValueError('Expected an InputSource')
-        if source.resource is not None:
-            if source.resource not in slots:
-                raise ValueError('Unknown resource slot')
-        elif source.variable is not None and source.variable not in bank_tables[source.bank]:
+        if source.variable is not None and source.variable not in bank_tables[source.bank]:
             raise ValueError('Source variable is not in its declared bank')
 
     for stage in RunStage:
@@ -273,7 +273,7 @@ def validate_program(program: Program) -> None:
                     if is_fixed != (stage == RunStage.LOAD):
                         raise ValueError('Load procedures write only fixed values; runtime procedures cannot write them')
                     if is_fixed:
-                        if target not in (slots if isinstance(target, ResourceSlot) else fixed):
+                        if target not in fixed:
                             raise ValueError('Unknown output variable')
                         if target in assigned:
                             raise ValueError('Fixed value is assigned more than once')
@@ -284,7 +284,7 @@ def validate_program(program: Program) -> None:
                     _validate_body(procedure, stage)
             except ValueError as error:
                 raise ValueError(f'Procedure `{procedure.name}`: {error}') from error
-    if assigned != fixed | slots:
+    if assigned != fixed:
         raise ValueError('Every fixed value must be assigned once')
     for name, input_source in program.variables.items():
         try:

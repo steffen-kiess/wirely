@@ -6,8 +6,8 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
-from ..program import Constant, InputSource, Program, ResourceSlot, VariableBank, used_declared_types
-from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
+from ..program import Constant, InputSource, Program, Variable, VariableBank, used_declared_types
+from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
@@ -36,7 +36,8 @@ class LinkedProcedure(NamedTuple):
 def link_native_resource_types(program: Program, extension: RuntimeNativeExtension) -> dict[str, ResourceType]:
     """Resolve the Python type of every resource type in the program's native interfaces."""
     names: set[str] = set()
-    names.update(slot.native_name for slot in program.resource_slots)
+    names.update(variable.var_type.native_name for variable in program.fixed_values.variables.values()
+                 if isinstance(variable.var_type, TypeResource))
     result = {}
     for name in sorted(names):
         loader = extension.resources.get(name)
@@ -44,6 +45,12 @@ def link_native_resource_types(program: Program, extension: RuntimeNativeExtensi
             raise ValueError(f'Cannot find native resource type `{name}`')
         result[name] = ResourceType(name, loader())
     return result
+
+
+def resource_name(variable: Variable | None) -> str:
+    """Return the native resource type name of a resource variable."""
+    assert variable is not None and isinstance(variable.var_type, TypeResource)
+    return variable.var_type.native_name
 
 
 def link_native_enums(program: Program, extension: RuntimeNativeExtension) -> None:
@@ -184,11 +191,11 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
             ports = [(name, source) for name, source in procedure.named_inputs() if name not in uses]
             inputs = {name: source.value_type for name, source in ports if source.resource is None}
             outputs = {name: target.variable.var_type for name, target in procedure.named_outputs()
-                       if not isinstance(target.variable, ResourceSlot)}
-            resources = {name: source.resource.native_name for name, source in ports
+                       if not target.variable.is_resource}
+            resources = {name: resource_name(source.variable) for name, source in ports
                          if source.resource is not None}
-            resource_outputs = {name: target.variable.native_name for name, target in procedure.named_outputs()
-                                if isinstance(target.variable, ResourceSlot)}
+            resource_outputs = {name: resource_name(target.variable) for name, target in procedure.named_outputs()
+                                if target.variable.is_resource}
             bindings = check_uses(where, procedure_signature, uses)
             check_ports(where, 'inputs', procedure_signature.depends, inputs, resources, bindings)
             for key, source in ports:

@@ -9,7 +9,7 @@ from types import MappingProxyType
 from typing import TextIO
 
 from ..util import immutable_enum
-from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
+from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
 from .procedures import Constant, ConstOperand, Function, Instruction, Opcode, ProcedureBody
 
 
@@ -25,17 +25,23 @@ class RunStage(enum.Enum):
 
 @dataclass(frozen=True, slots=True, eq=False)
 class Variable:
-    """A plain fixed, state, or temporary variable, identified by object identity."""
+    """A fixed, state, or temporary variable, identified by object identity."""
 
     name: str  # Qualified variable name for lookup and diagnostics.
-    var_type: Type  # Resolved value type used for validation and comparison.
+    # Resolved value type used for validation and comparison: a runtime type, or a resource for fixed values.
+    var_type: Type
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str):
             raise Exception('name parameter is not a str')
-        if not self.var_type.is_runtime_type:
+        if not self.is_resource and not self.var_type.is_runtime_type:
             raise ValueError(f'Type `{self.var_type}` is not a runtime type: {self.var_type.runtime_type_error()}')
         object.__setattr__(self, 'name', str(self.name))
+
+    @property
+    def is_resource(self) -> bool:
+        """Whether the variable holds a resource, kept outside the byte buffer."""
+        return isinstance(self.var_type, TypeResource)
 
     def __repr__(self) -> str:
         return f'Variable[{self}]'
@@ -85,7 +91,7 @@ class VariableBank(enum.Enum):
     """The storage a procedure input or output refers to."""
 
     CONST_VALUES = enum.auto()  # Constants, collected in Program.constants.
-    FIXED_VALUES = enum.auto()  # Fixed values and resource slots, written by load procedures.
+    FIXED_VALUES = enum.auto()  # Fixed values, including resources, written by load procedures.
     TEMPORARIES = enum.auto()  # Values computed during a step.
     OLD_STATE = enum.auto()  # The state at the start of a step.
     NEW_STATE = enum.auto()  # The state written during a step.
@@ -96,7 +102,7 @@ class InputSource:
     """A procedure input from a constant, fixed value, temporary, or state bank."""
 
     bank: VariableBank
-    variable: Variable | ResourceSlot | None = None  # Source in the bank; None for constants.
+    variable: Variable | None = None  # Source in the bank; None for constants.
     constant: Constant | None = None  # Source for CONST_VALUES.
 
     def __post_init__(self) -> None:
@@ -105,16 +111,15 @@ class InputSource:
         if self.bank == VariableBank.CONST_VALUES:
             if self.variable is not None:
                 raise ValueError('Constant sources have no variable')
-        elif self.bank == VariableBank.FIXED_VALUES:
-            if not isinstance(self.variable, (Variable, ResourceSlot)):
-                raise ValueError('Expected a variable or resource slot for a fixed source')
         elif not isinstance(self.variable, Variable):
             raise ValueError(f'Expected a variable for bank {self.bank.name}')
+        elif self.variable.is_resource and self.bank != VariableBank.FIXED_VALUES:
+            raise ValueError('Resources belong to the fixed values')
 
     @property
-    def resource(self) -> ResourceSlot | None:
-        """The resource slot of a resource source, or None."""
-        return self.variable if isinstance(self.variable, ResourceSlot) else None
+    def resource(self) -> Variable | None:
+        """The variable of a resource source, or None."""
+        return self.variable if self.variable is not None and self.variable.is_resource else None
 
     @property
     def value_type(self) -> Type:
@@ -129,25 +134,13 @@ class OutputTarget:
     """A procedure output targeting fixed storage, a temporary, or new state."""
 
     bank: VariableBank  # FIXED_VALUES, TEMPORARIES, or NEW_STATE.
-    variable: Variable | ResourceSlot  # Destination in the bank; resource slots only for FIXED_VALUES.
+    variable: Variable  # Destination in the bank; resources only for FIXED_VALUES.
 
     def __post_init__(self) -> None:
         if self.bank not in (VariableBank.FIXED_VALUES, VariableBank.TEMPORARIES, VariableBank.NEW_STATE):
             raise ValueError(f'Outputs cannot target bank {self.bank.name}')
-        if isinstance(self.variable, ResourceSlot) and self.bank != VariableBank.FIXED_VALUES:
-            raise ValueError('Resource slots belong to the fixed values')
-
-
-@dataclass(frozen=True, slots=True, eq=False)
-class ResourceSlot:
-    """An opaque fixed value, stored outside the byte-layout variable tables."""
-
-    name: str
-    var_type: Type
-    native_name: str
-
-    def __str__(self) -> str:
-        return self.name
+        if self.variable.is_resource and self.bank != VariableBank.FIXED_VALUES:
+            raise ValueError('Resources belong to the fixed values')
 
 
 def _sorted_names(names: Iterable[str]) -> tuple[str, ...]:
@@ -218,7 +211,6 @@ class Program:
     singleton_aliases: Mapping[str, str]  # Debug lookup from singleton type names to node IDs.
     variables: Mapping[str, InputSource]  # Debug lookup from variable aliases to sources.
     fixed_values: VariableTable = field(default_factory=lambda: VariableTable((), 'fixed'))
-    resource_slots: tuple[ResourceSlot, ...] = ()
     graph: object | None = None  # Optional compiler graph for debugging and visualization.
     # Constants of input bindings, instructions, and variable aliases, by identity in first-use order.
     constants: tuple[Constant, ...] = field(init=False)
@@ -231,7 +223,6 @@ class Program:
         object.__setattr__(self, 'procs', MappingProxyType({
             stage: tuple(schedule) for stage, schedule in self.procs.items()
         }))
-        object.__setattr__(self, 'resource_slots', tuple(self.resource_slots))
         object.__setattr__(self, 'constants', _collect_constants(self))
         object.__setattr__(self, 'functions', _collect_functions(self))
         object.__setattr__(self, 'native_procedures', _collect_native_procedures(self))
@@ -288,10 +279,6 @@ class Program:
                 if variable in self.initial_state:
                     value('initial', self.initial_state[variable], 4)
 
-        line()
-        line('Fixed resources:')
-        for slot in self.resource_slots:
-            line(f'{slot.name}: {slot.native_name}', 2)
 
         line()
         line('Constants:')

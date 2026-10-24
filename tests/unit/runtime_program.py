@@ -9,7 +9,7 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, NativeProcedureEntry, ResourceSlot, RunStage, VariableBank, validate_program
+from wirely.program import InputSource, NativeProcedureEntry, RunStage, Variable, VariableBank, validate_program
 from wirely.runtime.linking import link_native_signatures
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_contracts, test_engine
@@ -196,16 +196,17 @@ connect service -> consumer.Service;
     program = program_compiler.compile_nocatch(graph)
     schedule = program.procs[RunStage.LOAD]
     consumer = next(proc for proc in schedule if proc.name == 'consumer:create')
-    service = next(slot for slot in program.resource_slots if slot.native_name == 'TestLibrary.Service')
-    other = next(slot for slot in program.resource_slots if slot.native_name == 'TestLibrary.Other')
-    unknown = ResourceSlot('missing', service.var_type, service.native_name)
+    resources = {variable.var_type.native_name: variable for variable in program.fixed_values.variables.values()
+                 if variable.is_resource}
+    service, other = resources['TestLibrary.Service'], resources['TestLibrary.Other']
+    unknown = Variable('missing', service.var_type)
 
-    def with_source(slot):
-        modified = replace(consumer, inputs=(InputSource(VariableBank.FIXED_VALUES, slot),))
+    def with_source(variable):
+        modified = replace(consumer, inputs=(InputSource(VariableBank.FIXED_VALUES, variable),))
         procs = {**program.procs, RunStage.LOAD: tuple(proc for proc in schedule if proc is not consumer) + (modified,)}
         return replace(program, procs=procs)
 
-    with checks.assertRaisesRegex(ValueError, 'Unknown resource slot'):
+    with checks.assertRaisesRegex(ValueError, 'not in its declared bank'):
         validate_program(with_source(unknown))
     # Resource types are checked when linking.
     with test_contracts(graph) as contracts:

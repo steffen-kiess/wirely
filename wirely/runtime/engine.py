@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
 import wirely
-from wirely.program import InputSource, Procedure, Program, ResourceSlot, RunStage, Variable, VariableBank, validate_program
+from wirely.program import InputSource, Procedure, Program, RunStage, Variable, VariableBank, validate_program
 from wirely.runtime.contexts import StepContext, VariableTableInstance
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter, ProcedureServices,
@@ -15,7 +15,7 @@ from wirely.runtime.native_api import (
 from wirely.runtime.extensions import RuntimeNativeExtension, resolve_extensions
 from wirely.runtime.resources import ResourceValue
 from wirely.runtime.signatures import Procedure as SignatureProcedure
-from wirely.types import InternalValue
+from wirely.types import InternalValue, TypeResource
 from wirely.types.time import Duration, MonotonicTime
 from wirely.runtime.procedures import execute_procedure
 from wirely.runtime.wall_clock import WallClockWaiter, WallWakeup
@@ -84,11 +84,11 @@ class Engine:
         linked_states, linked_procedures = link_native_contracts(program, extension)
         self.native_functions = link_native_functions(program, extension)
         self.fixed_values = VariableTableInstance(program.fixed_values)
-        self.resource_values: dict[ResourceSlot, ResourceValue] = {}
+        self.resource_values: dict[Variable, ResourceValue] = {}
         # Triggers follow resource object identity, including handles passed through load selectors.
-        self._resource_triggers: dict[ResourceSlot, list[str]] = {}
-        self._resource_origins: dict[ResourceSlot, frozenset[ResourceSlot]] = {}
-        self._initializer_outputs: dict[str, Mapping[str, ResourceSlot]] = {}
+        self._resource_triggers: dict[Variable, list[str]] = {}
+        self._resource_origins: dict[Variable, frozenset[Variable]] = {}
+        self._initializer_outputs: dict[str, Mapping[str, Variable]] = {}
         self._native_procedures: dict[int, tuple[NativeProcedure, ProcedureAdapter, InterfaceBinding]] = {}
         for proc in program.procs.get(RunStage.LOAD, ()):
             if proc.native is None:
@@ -100,7 +100,7 @@ class Engine:
                     interface = self._procedure_binding(proc, linked.signature)
                     self._initializer_outputs[proc.name] = {
                         key: target.variable for key, target in proc.named_outputs()
-                        if isinstance(target.variable, ResourceSlot)
+                        if target.variable.is_resource
                     }
                     services: StateServices[Any] = StateServices(
                         native_types=self.native_types, name=proc.node,
@@ -123,11 +123,11 @@ class Engine:
                     )
                 output_values = [outputs[key] for key in proc.native.output_names]
             for (index, target), value in zip(enumerate(proc.outputs), output_values):
-                if isinstance(target.variable, ResourceSlot):
+                if target.variable.is_resource:
                     if not isinstance(value, ResourceValue):
                         raise ValueError(f'Resource output {index} did not return a resource')
                     if target.variable in self.resource_values:
-                        raise ValueError('Resource slot is already initialized')
+                        raise ValueError('Resource is already initialized')
                     self.resource_values[target.variable] = value
                     origins = set()
                     if not proc.initializer:
@@ -177,7 +177,7 @@ class Engine:
         ports = [(name, source) for name, source in proc.named_inputs() if name not in uses]
         port_types = {name: source.value_type for name, source in ports if source.resource is None}
         port_types.update((name, target.variable.var_type) for name, target in proc.named_outputs()
-                          if not isinstance(target.variable, ResourceSlot))
+                          if not target.variable.is_resource)
         return InterfaceBinding(
             native_types=self.native_types,
             where=f'Native {"initializer" if proc.initializer else "procedure"} `{proc.native.name}` of `{proc.node}`', signature=signature,
@@ -186,8 +186,8 @@ class Engine:
             resources={name: self.resource_values[source.resource] for name, source in ports
                        if source.resource is not None},
             port_types=port_types,
-            output_resource_types={name: self.resource_types[target.variable.native_name]
-                                   for name, target in proc.named_outputs() if isinstance(target.variable, ResourceSlot)},
+            output_resource_types={name: self.resource_types[cast(TypeResource, target.variable.var_type).native_name]
+                                   for name, target in proc.named_outputs() if target.variable.is_resource},
             fixed_inputs={name: self._fixed_input(source) for name, source in ports
                           if source.resource is None
                           and source.bank in (VariableBank.FIXED_VALUES, VariableBank.CONST_VALUES)},

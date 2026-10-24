@@ -5,7 +5,7 @@ import re
 
 from collections.abc import Callable, Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, NoReturn, TypeAlias
 
 from .option import Some
 from .unit import Unit
@@ -459,6 +459,50 @@ class TypeList(Type):
 
     def to_text(self, value: Any) -> str:
         return '[' + ', '.join(self.inner_type.to_text(item) for item in self.verify_value(value)) + ']'
+
+
+
+class TypeResource(Type):
+    """A handle to a native object, such as a KNX connection; a load-time type only.
+
+    Resources have storage size zero and alignment 1; the runtime keeps the
+    native object separately. Types are equal exactly when they are the same
+    object.
+    """
+
+    def __init__(self, name: str, native_name: str) -> None:
+        self.name = name  # Qualified name for diagnostics.
+        self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
+
+    @property
+    def contains_parameters(self) -> bool:
+        return False
+
+    @property
+    def alignment(self) -> int:
+        return 1
+
+    @property
+    def data_size(self) -> int:
+        return 0
+
+    def default_value(self) -> NoReturn:
+        raise ValueError('Resources have no default value')
+
+    def verify_value(self, value: Any) -> NoReturn:
+        raise ValueError('Resources are opaque load-time values')
+
+    def equals(self, value1: Any, value2: Any) -> bool:
+        return value1 is value2
+
+    def _parse_impl(self, s: str) -> NoReturn:
+        raise ValueError('Resources cannot be parsed')
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f'TypeResource({self.name})'
 
 
 # TODO: Add to_csv_value?

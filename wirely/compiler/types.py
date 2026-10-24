@@ -13,34 +13,14 @@ from .. import types
 from . import model
 
 
-class ResourceType(Type):
+class ResourceType(types.TypeResource):
     """Nominal port type identifying an opaque service resource."""
 
     def __init__(self, name: str, name_tuple: tuple[str, ...], declaration: model.DeclarationResourceType,
                  native_name: str) -> None:
-        self.name = name
+        super().__init__(name, native_name)
         self.name_tuple = name_tuple  # Qualified name components.
         self.declaration = declaration
-        self.native_name = native_name  # Name in native interfaces, such as 'KNX.Bus'.
-
-    @property
-    def contains_parameters(self) -> bool:
-        return False
-
-    def default_value(self) -> NoReturn:
-        raise ValueError('Resources have no default value')
-
-    def verify_value(self, value: Any) -> NoReturn:
-        raise ValueError('Resources are opaque load-time values')
-
-    def equals(self, value1: Any, value2: Any) -> bool:
-        return value1 is value2
-
-    def _parse_impl(self, s: str) -> NoReturn:
-        raise ValueError('Resources cannot be parsed')
-
-    def __str__(self) -> str:
-        return self.name
 
     def __repr__(self) -> str:
         return f'ResourceType({self.name})'

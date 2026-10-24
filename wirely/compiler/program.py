@@ -16,7 +16,7 @@ from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeProcedureEntry, Opcode, Operand, OperandKind,
-    OutputTarget, Procedure, ProcedureBody, Program, ResourceSlot,
+    OutputTarget, Procedure, ProcedureBody, Program,
     RunStage, Variable, VariableBank, VariableTable,
 )
 
@@ -105,7 +105,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
     variable_map: dict[tuple[NodePath, str], InputSource] = {}
     all_variables: list[Variable] = []
     fixed_variables: list[Variable] = []
-    resource_slots: list[ResourceSlot] = []
     state_map: dict[tuple[NodePath, model.InstanceStateVariable], Variable] = {}
     state_variables: list[Variable] = []
     # TODO: Try to avoid needing this by making sure everyone uses instance values instead of paths?
@@ -147,15 +146,10 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         # Port storage is named after its procedure: <path>:<procedure>.<port>.
         separator = ':' if getattr(var, 'port', None) is not None else '.'
         variable_name = name + separator + var.name if name else var.name
-        if isinstance(var_type, model.ResourceType):
-            slot = ResourceSlot(variable_name, var_type, var_type.native_name)
-            resource_slots.append(slot)
-            input_source = InputSource(VariableBank.FIXED_VALUES, slot)
-        else:
-            v = Variable(variable_name, var_type)
-            fixed = model.connection_kind(var) == model.ConnectionKind.Fixed
-            input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
-            (fixed_variables if fixed else all_variables).append(v)
+        v = Variable(variable_name, var_type)
+        fixed = isinstance(var_type, model.ResourceType) or model.connection_kind(var) == model.ConnectionKind.Fixed
+        input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
+        (fixed_variables if fixed else all_variables).append(v)
         variable_map[path, var.var_identifier] = input_source
         return input_source
 
@@ -522,7 +516,6 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         temporaries=VariableTable(all_variables, f'{graph}.temporaries'),
         state_variables=VariableTable(state_variables, f'{graph}.state_variables'),
         fixed_values=VariableTable(fixed_variables, f'{graph}.fixed'),
-        resource_slots=tuple(resource_slots),
         initial_state=initial_state, procs=schedules,
         node_aliases=node_aliases, variables=variables, singleton_aliases=singleton_aliases,
     )
