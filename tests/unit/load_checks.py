@@ -8,7 +8,7 @@ from wirely import types
 from wirely.compiler import program as program_compiler
 from wirely.program import (
     BranchTarget, Constant, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
-    Procedure, ProcedureBody, Program, RunStage, VariableTable, validate_program,
+    Procedure, ProcedureBody, Program, RunStage, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime import LoadFailure
 from wirely.runtime.engine import Engine
@@ -224,7 +224,7 @@ def check_validation():
         validate_program(make_program(()))
     with checks.assertRaisesRegex(ValueError, 'resolved runtime type'):
         validate_program(replace(program, procs={RunStage.LOAD: (replace(
-            procedure, dependencies=(('format', InputSource(constant=format_constant)),)),)}))
+            procedure, dependencies=(('format', InputSource(VariableBank.CONST_VALUES, constant=format_constant)),)),)}))
 
 
 async def run_test():

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import wirely
 import wirely.compiler
 from wirely.compiler import program as program_compiler
-from wirely.program import InputSource, ResourceSlot, RunStage, validate_program
+from wirely.program import InputSource, ResourceSlot, RunStage, VariableBank, validate_program
 from wirely.runtime.engine import Engine
 from tests.infra.support import test_extension, test_contracts, test_engine
 
@@ -199,7 +199,7 @@ connect service -> consumer.Service;
     other = next(slot for slot in program.resource_slots if slot.native_name == 'TestLibrary.Other')
     unknown = ResourceSlot('missing', service.var_type, service.native_name)
     for slot, message in ((unknown, 'Unknown resource slot'), (other, 'expected resource `TestLibrary.Service`')):
-        modified = replace(consumer, dependencies=(('Service', InputSource(resource=slot)),))
+        modified = replace(consumer, dependencies=(('Service', InputSource(VariableBank.FIXED_VALUES, slot)),))
         procs = {**program.procs, RunStage.LOAD: tuple(proc for proc in schedule if proc is not consumer) + (modified,)}
         with checks.assertRaisesRegex(ValueError, message):
             validate_program(replace(program, procs=procs))

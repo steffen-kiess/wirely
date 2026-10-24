@@ -80,30 +80,46 @@ class VariableTable:
         object.__setattr__(self, 'alignment', alignment)
 
 
+@immutable_enum
+class VariableBank(enum.Enum):
+    """The storage a procedure input or output refers to."""
+
+    CONST_VALUES = enum.auto()  # Entries of Program.constants.
+    FIXED_VALUES = enum.auto()  # Fixed values and resource slots, written by load procedures.
+    TEMPORARIES = enum.auto()  # Values computed during a step.
+    OLD_STATE = enum.auto()  # The state at the start of a step.
+    NEW_STATE = enum.auto()  # The state written during a step.
+
+
 @dataclass(frozen=True, slots=True)
 class InputSource:
     """A procedure input from a constant, fixed value, temporary, or state bank."""
 
-    variable: Variable | None = None  # Source in a plain fixed, temporary, or state table.
-    new_state: bool | None = None  # None outside state; else whether it reads this step's new state.
-    constant: Constant | None = None  # Entry of Program.constants, instead of a variable.
-    fixed: bool = False  # Whether a variable belongs to the fixed-value table.
-    resource: ResourceSlot | None = None  # Opaque fixed value, instead of byte storage.
+    bank: VariableBank
+    variable: Variable | ResourceSlot | None = None  # Source in the bank; None for constants.
+    constant: Constant | None = None  # Entry of Program.constants, for CONST_VALUES.
 
     def __post_init__(self) -> None:
-        if sum(item is not None for item in (self.variable, self.constant, self.resource)) != 1:
-            raise ValueError('Expected a variable, constant, or resource slot')
-        if self.fixed and self.variable is None:
-            raise ValueError('A fixed variable source requires a variable')
-        if (self.constant is not None or self.fixed or self.resource is not None) and self.new_state is not None:
-            raise ValueError('Constant and fixed sources have no state phase')
+        if (self.bank == VariableBank.CONST_VALUES) != (self.constant is not None):
+            raise ValueError('Constant sources, and only they, require a constant')
+        if self.bank == VariableBank.CONST_VALUES:
+            if self.variable is not None:
+                raise ValueError('Constant sources have no variable')
+        elif self.bank == VariableBank.FIXED_VALUES:
+            if not isinstance(self.variable, (Variable, ResourceSlot)):
+                raise ValueError('Expected a variable or resource slot for a fixed source')
+        elif not isinstance(self.variable, Variable):
+            raise ValueError(f'Expected a variable for bank {self.bank.name}')
+
+    @property
+    def resource(self) -> ResourceSlot | None:
+        """The resource slot of a resource source, or None."""
+        return self.variable if isinstance(self.variable, ResourceSlot) else None
 
     @property
     def value_type(self) -> Type:
         if self.constant is not None:
             return self.constant.value_type
-        if self.resource is not None:
-            return self.resource.var_type
         assert self.variable is not None
         return self.variable.var_type
 
@@ -112,7 +128,14 @@ class InputSource:
 class OutputTarget:
     """A procedure output targeting fixed storage, a temporary, or new state."""
 
-    variable: Variable | ResourceSlot  # Destination in a fixed, temporary, or state store.
+    bank: VariableBank  # FIXED_VALUES, TEMPORARIES, or NEW_STATE.
+    variable: Variable | ResourceSlot  # Destination in the bank; resource slots only for FIXED_VALUES.
+
+    def __post_init__(self) -> None:
+        if self.bank not in (VariableBank.FIXED_VALUES, VariableBank.TEMPORARIES, VariableBank.NEW_STATE):
+            raise ValueError(f'Outputs cannot target bank {self.bank.name}')
+        if isinstance(self.variable, ResourceSlot) and self.bank != VariableBank.FIXED_VALUES:
+            raise ValueError('Resource slots belong to the fixed values')
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -248,12 +271,12 @@ class Program:
         def source(input_source: InputSource) -> str:
             if input_source.constant is not None:
                 return f'const.{constant_indices[id(input_source.constant)]}'
-            if input_source.resource is not None:
-                return input_source.resource.name
             assert input_source.variable is not None
-            if input_source.new_state is None:
-                return input_source.variable.name
-            return f'{input_source.variable.name} ({"new" if input_source.new_state else "old"} state)'
+            if input_source.bank == VariableBank.OLD_STATE:
+                return f'{input_source.variable.name} (old state)'
+            if input_source.bank == VariableBank.NEW_STATE:
+                return f'{input_source.variable.name} (new state)'
+            return input_source.variable.name
 
         line(f'Program {self.name}')
         for label, variable_table in [('State variables', self.state_variables),

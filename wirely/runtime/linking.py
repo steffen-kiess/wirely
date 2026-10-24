@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
-from ..program import Constant, Program, ResourceSlot, used_declared_types
+from ..program import Constant, Program, ResourceSlot, VariableBank, used_declared_types
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
@@ -190,7 +190,8 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
             check_ports(where, 'inputs', procedure_signature.depends, inputs, resources, bindings)
             for key, source in procedure.dependencies:
                 port = procedure_signature.depends[key]
-                if port.kind in ('fixed', 'resource') and source.constant is None and not (source.fixed or source.resource):
+                if port.kind in ('fixed', 'resource') and source.bank not in (VariableBank.CONST_VALUES,
+                                                                             VariableBank.FIXED_VALUES):
                     raise ValueError(f'{where}: fixed input `{key}` requires a constant or fixed source')
             check_ports(where, 'outputs', procedure_signature.produces, outputs, resource_outputs, bindings)
 

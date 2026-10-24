@@ -17,7 +17,7 @@ from .stages import ResolutionState
 from wirely.program import (
     Constant, Function, InputSource, Instruction, NativeInstance, Opcode, Operand, OperandKind,
     NativeProcedureInterface, OutputTarget, Procedure, ProcedureBody, Program, ResourceSlot,
-    RunStage, Variable, VariableTable,
+    RunStage, Variable, VariableBank, VariableTable,
 )
 
 # Body of a procedure storing a copied state: output.0 = input.0.
@@ -150,11 +150,11 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         if isinstance(var_type, model.ResourceType):
             slot = ResourceSlot(variable_name, var_type, var_type.native_name)
             resource_slots.append(slot)
-            input_source = InputSource(resource=slot)
+            input_source = InputSource(VariableBank.FIXED_VALUES, slot)
         else:
             v = Variable(variable_name, var_type)
             fixed = model.connection_kind(var) == model.ConnectionKind.Fixed
-            input_source = InputSource(v, fixed=fixed)
+            input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
             (fixed_variables if fixed else all_variables).append(v)
         variable_map[path, var.var_identifier] = input_source
         return input_source
@@ -194,16 +194,17 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 if hint is not None:
                     error.hints = (*error.hints, hint)
                 raise
-        return InputSource(constant=constants[intern_constant(value_type, concrete)])
+        return InputSource(VariableBank.CONST_VALUES, constant=constants[intern_constant(value_type, concrete)])
 
     def resolve_source(path: NodePath, source: Any) -> InputSource:
         source_path, variable = model.resolve_variable(path, source)
         if isinstance(variable, model.StaticSource):
             return static_source(source_path, variable)
         if isinstance(variable, model.StateRead):
-            return InputSource(state_map[source_path, variable.state], new_state=variable.phase == 'new')
+            bank = VariableBank.NEW_STATE if variable.phase == 'new' else VariableBank.OLD_STATE
+            return InputSource(bank, state_map[source_path, variable.state])
         if isinstance(variable, model.InstanceStateVariable):
-            return InputSource(state_map[source_path, variable], new_state=False)
+            return InputSource(VariableBank.OLD_STATE, state_map[source_path, variable])
         return add_var(source_path, variable)
 
     for path in instances:
@@ -392,7 +393,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     event_outputs.add(name)
                 output_variable = (state_map[path, target] if isinstance(target, model.InstanceStateVariable)
                                    else variable_map[path, target.var_identifier].variable)
-                assert output_variable is not None
+                assert isinstance(output_variable, Variable)
                 output_types[name] = output_variable.var_type
                 if (isinstance(target, model.InstanceStateVariable)
                         and isinstance(port, model.ast.ReferencePort)
@@ -423,16 +424,15 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                     debug_name = f'{key}[{index}]' if is_list else key
                     dependencies.append((debug_name, resolve_source(member_path, member)))
             for old_state in old_state_dependencies.get((path, proc), ()):
-                dependencies.append((f'<changed old {old_state.name}>', InputSource(old_state, new_state=False)))
+                dependencies.append((f'<changed old {old_state.name}>', InputSource(VariableBank.OLD_STATE, old_state)))
             for name, target in proc.static_context._targets.items():
                 key = output_keys[name]
                 if isinstance(target, model.InstanceStateVariable):
-                    outputs[key] = OutputTarget(state_map[path, target])
+                    outputs[key] = OutputTarget(VariableBank.NEW_STATE, state_map[path, target])
                 else:
                     target_source = resolve_source(path, target)
-                    destination = target_source.resource or target_source.variable
-                    assert destination is not None
-                    outputs[key] = OutputTarget(destination)
+                    assert target_source.variable is not None
+                    outputs[key] = OutputTarget(target_source.bank, target_source.variable)
             schedule.append(Procedure(
                 node_id=node_ids[path],
                 reference=(instances[path].node_type.procedures[declaration.name.id_str].native_name
@@ -458,7 +458,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 reference=f'{instance.node_type.qualified_name}:<state {state.name}>',
                 node_context=native_instances[node_ids[path]],
                 dependencies=(('value', resolve_source(path, state.copy_source)),),
-                outputs={'value': OutputTarget(state_map[path, state])},
+                outputs={'value': OutputTarget(VariableBank.NEW_STATE, state_map[path, state])},
                 body=COPY_BODY,
             ))
     schedules[RunStage.OUTPUT] += tuple(copies)

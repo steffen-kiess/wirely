@@ -15,7 +15,7 @@ from .attributes import copy_attributes
 from .stages import ResolutionState
 from wirely.compiler.parameters import ParameterValues, native_parameters
 from wirely.compiler.types import resolve_type, check_runtime_type
-from wirely.program import InputSource, Variable
+from wirely.program import InputSource, Variable, VariableBank
 
 # TODO: Probably InstanceInputPort, InstanceOutputPort, InstanceStateVariable etc. should only exist in NodeType
 class InstanceNode(model.GraphElement):
@@ -179,7 +179,7 @@ class InstanceNode(model.GraphElement):
             check_runtime_type(var_type, source)
             v = Variable(path_prefix + state_var.name, var_type)
             state_map[path, state_var] = v
-            variable_map[path, state_var.var_identifier] = InputSource(v, new_state=False)
+            variable_map[path, state_var.var_identifier] = InputSource(VariableBank.OLD_STATE, v)
             state_variables.append(v)
 
     def bind_variables(self, *, path: NodePath, variable_map: dict[tuple[NodePath, str], InputSource],

@@ -214,9 +214,9 @@ accept trailing commas.
 
 An initializer receives its compile-time values as keyword arguments of
 `initialize()`, a load procedure in `load()`, and a runtime procedure in
-`prepare()` and `run()`. Each expression is evaluated once per consumer per instance during
-compilation; constants are shared within the instance. Compile-time values
-never change, so they do not schedule procedures.
+`prepare()` and `run()`. Each expression is evaluated once per consumer per
+instance during compilation; constants are shared within the instance.
+Compile-time values never change, so they do not schedule procedures.
 
 Read an optional parameter with `optional(Foo) as foo`: `foo` is
 `None` when omitted and `Some(value)` when supplied. For an optional

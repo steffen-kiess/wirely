@@ -8,7 +8,7 @@ from tests.infra.support import library_type, test_extension
 from wirely.program import (
     BranchTarget, Constant, Function, InputSource, Instruction, NativeInstance,
     Opcode, Operand, OperandKind, Procedure, ProcedureBody, Program, OutputTarget,
-    RunStage, Variable, VariableTable, validate_program,
+    RunStage, Variable, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime.engine import Engine
 from wirely.runtime.procedures import execute_procedure
@@ -41,9 +41,9 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
     instance = NativeInstance('test', {})
     procedure = Procedure(
         node_id='test', reference='Test:run', node_context=instance,
-        dependencies=tuple((variable.name, InputSource(variable, new_state=False))
+        dependencies=tuple((variable.name, InputSource(VariableBank.OLD_STATE, variable))
                            for variable in state),
-        outputs={variable.name: OutputTarget(variable) for variable in outputs},
+        outputs={variable.name: OutputTarget(VariableBank.TEMPORARIES, variable) for variable in outputs},
         body=ProcedureBody(instructions, local_types),
     )
     return Program(
@@ -52,7 +52,7 @@ def make_program(instructions, *, local_types=(), output_types=(types.boolean,),
         initial_state={variable: value for variable, (_, value) in zip(state, inputs)},
         instances={'test': instance},
         procs={RunStage.DEFAULT: (procedure,)}, node_aliases={}, singleton_aliases={},
-        variables={variable.name: InputSource(variable) for variable in outputs}, constants=constants,
+        variables={variable.name: InputSource(VariableBank.TEMPORARIES, variable) for variable in outputs}, constants=constants,
         functions=functions,
     )
 

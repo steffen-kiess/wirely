@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any, cast
 
 import wirely
-from wirely.program import InputSource, Procedure, Program, ResourceSlot, RunStage, Variable, validate_program
+from wirely.program import InputSource, Procedure, Program, ResourceSlot, RunStage, Variable, VariableBank, validate_program
 from wirely.runtime.contexts import StepContext, VariableTableInstance
 from wirely.runtime.native_api import (
     InterfaceBinding, NativeProcedure, NativeState, PreparationServices, ProcedureAdapter, ProcedureServices,
@@ -162,7 +162,7 @@ class Engine:
             return source.constant.value
         if source.resource is not None:
             return self.resource_values[source.resource]
-        assert source.fixed and source.variable is not None
+        assert source.bank == VariableBank.FIXED_VALUES and isinstance(source.variable, Variable)
         return self.fixed_values[source.variable]
 
     def _procedure_binding(self, proc: Procedure, signature: Any) -> InterfaceBinding:
@@ -180,7 +180,8 @@ class Engine:
             output_resource_types={name: self.resource_types[target.variable.native_name]
                                    for name, target in proc.outputs.items() if isinstance(target.variable, ResourceSlot)},
             fixed_inputs={name: self._fixed_input(source) for name, source in proc.dependencies
-                          if source.resource is None and (source.fixed or source.constant is not None)},
+                          if source.resource is None
+                          and source.bank in (VariableBank.FIXED_VALUES, VariableBank.CONST_VALUES)},
         )
 
     async def start_tasks_async(self, task_group: asyncio.TaskGroup,
@@ -230,12 +231,6 @@ class Engine:
             for key in self._resource_triggers.get(slot, ()):
                 self._trigger_key(key)
 
-    def trigger_dependents(self, node_id: str, output: str) -> None:
-        """Schedule runtime readers of a resource output belonging to this node."""
-        for key, outputs in self._initializer_outputs.items():
-            if key[0] == node_id and output in outputs:
-                self._trigger_output(key, output)
-
     def _trigger_key(self, key: tuple) -> None:
         self.triggered_procs.add(key)
         self.triggered_procs_event.set()
@@ -276,30 +271,31 @@ class Engine:
                 values: list[InternalValue] = []
                 skip_step = cache is not None and key not in self.triggered_procs
                 for name, input_source in proc.dependencies:
-                    variable = input_source.variable
                     if input_source.resource is not None:
                         continue
-                    if input_source.fixed:
-                        assert variable is not None
-                        value = self.fixed_values[variable]
-                    elif input_source.constant is not None:
+                    if input_source.bank == VariableBank.CONST_VALUES:
                         # Constants never change.
+                        assert input_source.constant is not None
                         value = input_source.constant.value
-                    elif input_source.new_state is None:
-                        assert variable is not None
+                        values.append(cast(InternalValue, value))
+                        continue
+                    variable = input_source.variable
+                    assert isinstance(variable, Variable)
+                    if input_source.bank == VariableBank.FIXED_VALUES:
+                        # Fixed values never change after loading.
+                        value = self.fixed_values[variable]
+                    elif input_source.bank == VariableBank.TEMPORARIES:
                         value = variables[variable]
                         if skip_step:
                             assert cache is not None
                             if not variable.var_type.equals(value, cache[variable]):
                                 skip_step = False
-                    elif input_source.new_state:
-                        assert variable is not None
+                    elif input_source.bank == VariableBank.NEW_STATE:
                         value = state_new[variable]
                         # The old state is the previous step's new state.
                         if skip_step and not variable.var_type.equals(value, state_old[variable]):
                             skip_step = False
                     else:
-                        assert variable is not None
                         value = state_old[variable]
                         if skip_step:
                             assert self.last_step_state is not None
@@ -317,7 +313,7 @@ class Engine:
                     for output in proc.outputs.values():
                         variable = output.variable
                         assert isinstance(variable, Variable)
-                        if variable in self.program.state_variables.variable_set:
+                        if output.bank == VariableBank.NEW_STATE:
                             state_new.add(variable, state_old[variable])
                         else:
                             variables.add(variable, cache[variable])
@@ -355,7 +351,7 @@ class Engine:
                     variable = output.variable
                     assert isinstance(variable, Variable)
                     value = outputs[name]
-                    if variable in self.program.state_variables.variable_set:
+                    if output.bank == VariableBank.NEW_STATE:
                         state_new.add(variable, value)
                         changed = not variable.var_type.equals(state_old[variable], value)
                         state_change_count += changed
@@ -458,6 +454,8 @@ class Engine:
         variable = self._get_source(name).variable
         if variable is None:
             raise ValueError(f'Variable alias `{name}` refers to a constant')
+        if not isinstance(variable, Variable):
+            raise ValueError(f'Variable alias `{name}` refers to a resource')
         return variable
 
     def _get_source(self, name: str) -> InputSource:
@@ -470,18 +468,17 @@ class Engine:
         return self.get_source_value(self._get_source(name))
 
     def get_source_value(self, input_source: InputSource) -> object:
-        if input_source.fixed or input_source.resource is not None:
+        if input_source.bank in (VariableBank.CONST_VALUES, VariableBank.FIXED_VALUES):
             return self._fixed_input(input_source)
-        if input_source.constant is not None:
-            return input_source.constant.value
-        assert input_source.variable is not None
-        if input_source.new_state is None:
+        variable = input_source.variable
+        assert isinstance(variable, Variable)
+        if input_source.bank == VariableBank.TEMPORARIES:
             assert self.cache is not None
-            return self.cache[input_source.variable]
-        if input_source.new_state:
-            return self.state[input_source.variable]
+            return self.cache[variable]
+        if input_source.bank == VariableBank.NEW_STATE:
+            return self.state[variable]
         assert self.last_step_state is not None
-        return self.last_step_state[input_source.variable]
+        return self.last_step_state[variable]
 
     def assert_value_is(self, name: str, expected_value: object) -> None:
         actual_value = self.get_value(name)
