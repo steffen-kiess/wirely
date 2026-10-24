@@ -60,9 +60,9 @@ struct type SectionEntry {
 The directory contains `header.SectionCount` consecutive entries with
 strictly ascending `SectionType`, so each section type occurs at most once.
 Sections occupy disjoint byte ranges starting on 16-byte boundaries. Their
-offsets locate bytes independently of directory order. Numeric
-section-type and record-type assignments will be specified when the format
-is finalized.
+offsets locate bytes independently of directory order. Section type zero
+is invalid. Symbol section IDs start at base `0x10000`; individual symbol
+and transition section IDs are not assigned yet.
 
 Each section holds a table, a record, or a buffer, depending on its
 layout. A table contains consecutive records of its record type, so its
@@ -70,8 +70,7 @@ length is an exact multiple of the record size. A record section contains
 one record with its storage size. A buffer contains `Length` bytes of
 values, strings, or instruction streams. Empty tables and buffers have
 length zero. Padding between sections is outside their lengths.
-Buffers use the record type `None`, whose numeric assignment is deferred
-with the other record types.
+Buffers use record type `None` (0).
 
 Consumers ignore unknown section types. Structured records are always
 stored in tables or record sections, so a known `RecordType` lets
@@ -82,41 +81,60 @@ section's semantics.
 `wirely objdump -h FILE` lists the sections of a file, and `-s` dumps
 their contents.
 
-| Section | Record type | Layout |
-| --- | --- | --- |
-| [`BuildIDSHA512`](#buildidsha512) | `None` | Buffer |
-| [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
-| [`TypeLists`](#typelists) | `TypeEntry` | Table |
-| [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
-| [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
-| [`JsonData`](#jsondata) | `None` | Buffer |
-| [`ConstValues`](#constvalues) | `Variable` | Table |
-| [`ProgramData`](#programdata) | `None` | Buffer |
-| [`FixedValues`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| [`StateVariables`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
-| [`InitialState`](#initialstate) | `None` | Buffer |
-| [`Stages`](#stages) | `Stage` | Table |
-| [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
-| [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
-| [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
-| [`Bindings`](#bindings) | `VariableRef` | Table |
-| [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
-| [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
-| [`NativeNames`](#nativenames) | `None` | Buffer |
-| [`ProcedureCode`](#procedurecode) | `None` | Buffer |
-| [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
-| [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
-| [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
-| [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
-| [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
-| [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
-| [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
-| [`SymbolData`](#symboldata) | `None` | Buffer |
+| ID | Section | Record type | Layout |
+| --- | --- | --- | --- |
+| 1 | [`BuildIDSHA512`](#buildidsha512) | `None` | Buffer |
+| 2 | [`NativeNames`](#nativenames) | `None` | Buffer |
+| 3 | [`ValueTypes`](#valuetypes) | `TypeRecord` | Table |
+| 4 | [`TypeLists`](#typelists) | `TypeEntry` | Table |
+| 5 | [`ProgramData`](#programdata) | `None` | Buffer |
+| 6 | [`ConstValues`](#constvalues) | `Variable` | Table |
+| 7 | [`FixedValues`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| 8 | [`Temporaries`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| 9 | [`StateVariables`](#fixedvalues-statevariables-and-temporaries) | `Variable` | Table |
+| 10 | [`InitialState`](#initialstate) | `None` | Buffer |
+| 11 | [`NativeFunctions`](#nativefunctions) | `NativeFunction` | Table |
+| 12 | [`ProcedureCode`](#procedurecode) | `None` | Buffer |
+| 13 | [`BytecodeProcedures`](#bytecodeprocedures) | `BytecodeProcedure` | Table |
+| 14 | [`InterfaceNames`](#interfacenames) | `NameRef` | Table |
+| 15 | [`NativeProcedures`](#nativeprocedures) | `NativeProcedure` | Table |
+| 16 | [`Bindings`](#bindings) | `VariableRef` | Table |
+| 17 | [`ProcedureInstances`](#procedureinstances) | `ProcedureInstance` | Table |
+| 18 | [`Stages`](#stages) | `Stage` | Table |
+| 19 | [`JsonData`](#jsondata) | `None` | Buffer |
+| 20 | [`JsonNames`](#jsontypes-and-jsonnames) | `JsonName` | Table |
+| 21 | [`JsonTypes`](#jsontypes-and-jsonnames) | `JsonType` | Table |
+| — | [`SymbolMetadata`](#symbolmetadata) | `SymbolMetadata` | Record |
+| — | [`StateVariableSymbols`](#symbol-tables) | `Symbol` | Table |
+| — | [`TemporarySymbols`](#symbol-tables) | `Symbol` | Table |
+| — | [`ProcedureSymbols`](#symbol-tables) | `Symbol` | Table |
+| — | [`TypeSymbols`](#typesymbols-and-membersymbols) | `TypeSymbol` | Table |
+| — | [`MemberSymbols`](#typesymbols-and-membersymbols) | `Symbol` | Table |
+| — | [`VariableAliases`](#variablealiases) | `VariableAlias` | Table |
+| — | [`SymbolData`](#symboldata) | `None` | Buffer |
 
 The sections from `SymbolMetadata` on are
 [symbol sections](#symbol-sections); each of them is optional. All other
 sections are present.
+
+Record type IDs identify section layouts. IDs for records used only by
+symbols or transitions are not assigned yet.
+
+| ID | Record type |
+| --- | --- |
+| 0 | `None` |
+| 1 | `TypeRecord` |
+| 2 | `TypeEntry` |
+| 3 | `Variable` |
+| 4 | `NativeFunction` |
+| 5 | `BytecodeProcedure` |
+| 6 | `NameRef` |
+| 7 | `NativeProcedure` |
+| 8 | `VariableRef` |
+| 9 | `ProcedureInstance` |
+| 10 | `Stage` |
+| 11 | `JsonName` |
+| 12 | `JsonType` |
 
 ### BuildIDSHA512
 
@@ -599,10 +617,10 @@ cannot fail.
 // A scheduled instance of a native or bytecode procedure with its bindings.
 // ProcedureInstances table.
 struct type ProcedureInstance {
-  // Index into NativeProcedures, or no entry for a bytecode procedure.
-  Native: OptionalRef,
   // Index into BytecodeProcedures, or no entry for a native procedure.
   Bytecode: OptionalRef,
+  // Index into NativeProcedures, or no entry for a bytecode procedure.
+  Native: OptionalRef,
   // Range into Bindings; sources of the procedure's inputs.
   Inputs: Range,
   // Range into Bindings; destinations of the procedure's outputs.
