@@ -15,14 +15,19 @@ from wirely.compiler import program as program_compiler
 # TODO: Where should this import be done?
 import wirely.compiler
 
+import wirely.cli.client
 import wirely.misc.service
-from wirely.control.server import ControlServer
+from wirely.control.client import ControlClient
+from wirely.control.controller import RuntimeController
+from wirely.control.framing import memory_framing_pair
+from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.runtime.engine import Engine
 from wirely.runtime.procedures import LoadFailure
 from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import program_build_id
 from wirely.program.container import SectionList
+from wirely.program.program import Program
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
 
@@ -32,25 +37,42 @@ def _is_binary_program(filename: str) -> bool:
         return file.read(4) == SectionList.MAGIC.to_bytes(4, 'little')
 
 
-async def run_engine(engine: Engine, state_directory: str | None = None,
-                     tls_context: ssl.SSLContext | None = None, build_id: bytes | None = None) -> None:
-    """Run an engine; with a state directory, serve the control protocol for the program with build_id."""
+async def run_engine(engine: Engine, controller: RuntimeController | None = None, state_directory: str | None = None,
+                     tls_context: ssl.SSLContext | None = None, *, interactive: bool = False,
+                     program: Program | None = None) -> int | None:
+    """Run an engine; with a state directory, serve the control protocol on its sockets.
+
+    With interactive, read client commands from stdin over an internal session, with names from
+    program, and return their exit status when they end.
+    """
+    status = None
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
             await engine.start_tasks_async(tg, async_exit_stack)
             tg.create_task(wirely.misc.service.should_never_return(engine.run()))
             if state_directory is not None:
-                assert build_id is not None
-                await async_exit_stack.enter_async_context(
-                    ControlServer(engine, state_directory, tls_context, build_id=build_id))
+                assert controller is not None
+                await async_exit_stack.enter_async_context(ControlServer(controller, state_directory, tls_context))
             # tg.create_task(wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw()))
 
             now = datetime.datetime.now()
             print('{}: Started'.format(now.isoformat()), flush=True)
             sdnotify.SystemdNotifier().notify('READY=1')
 
-            await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
+            if not interactive:
+                await wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw())
+            assert controller is not None
+            tg.create_task(wirely.misc.service.loop_until_sigint_and_throw(announce=False))
+            client_end, server_end = memory_framing_pair()
+            tg.create_task(serve_session(controller, server_end))
+            client = ControlClient(client_end)
+            try:
+                await client.hello()
+                status = await wirely.cli.client.interactive(client, program)
+            finally:
+                await client.close()
+            raise wirely.misc.service.TerminateProgram()
     except* wirely.misc.service.TerminateProgram:
         # Discard TerminateProgram exceptions
 
@@ -61,6 +83,7 @@ async def run_engine(engine: Engine, state_directory: str | None = None,
         # Alternative: Kill python process
         # signal.signal(signal.SIGINT, signal.SIG_DFL)
         # signal.raise_signal(signal.SIGINT)
+    return status
 
 
 async def async_run(args: argparse.Namespace) -> int | None:
@@ -97,6 +120,7 @@ async def async_run(args: argparse.Namespace) -> int | None:
 
         try:
             build_id = None
+            names = None  # The program for names in interactive commands; binary programs have none.
             if binary_input:
                 data = Path(args.input_filename[0]).read_bytes()
                 prog = load_program(data)
@@ -109,7 +133,8 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 if compiled is None:
                     return 1
                 prog = compiled
-                if args.state_directory is not None:
+                names = compiled
+                if args.state_directory is not None or args.interactive:
                     build_id = program_build_id(prog)
             eng = Engine(prog)
         except (OSError, ValueError, LoadFailure) as error:
@@ -122,5 +147,6 @@ async def async_run(args: argparse.Namespace) -> int | None:
         now = datetime.datetime.now()
         print('{}: Start'.format(now.isoformat()), flush=True)
 
-        await run_engine(eng, args.state_directory, tls_context, build_id)
-    return None
+        controller = None if build_id is None else RuntimeController(eng, build_id)
+        return await run_engine(eng, controller, args.state_directory, tls_context, interactive=args.interactive,
+                                program=names)

@@ -8,7 +8,7 @@ import ssl as ssl_module
 from collections.abc import AsyncIterator, Iterable
 from typing import Any
 
-from .framing import STREAM_PREFACE, SerialFraming, StreamFraming
+from .framing import STREAM_PREFACE, MemoryFraming, SerialFraming, StreamFraming
 from .messages import (
     MIN_MESSAGE_SIZE, PROTOCOL_VERSION, STATUS_DEFAULT_MASK, ControlError, ErrorCode, Kind, Op, decode,
     encode, get_field,
@@ -18,7 +18,8 @@ from .messages import (
 class ControlClient:
     """A session with a runtime; requests are sent in order and may overlap up to the window."""
 
-    def __init__(self, framing: StreamFraming | SerialFraming, *, timeout: float = 1.0, retries: int = 5) -> None:
+    def __init__(self, framing: StreamFraming | SerialFraming | MemoryFraming, *, timeout: float = 1.0,
+                 retries: int = 5) -> None:
         self.framing = framing
         # On unreliable transports, the retransmission timeout in seconds and the number of retransmissions.
         self.timeout = timeout
@@ -57,12 +58,7 @@ class ControlClient:
         return client
 
     async def close(self) -> None:
-        writer = self.framing.writer
-        writer.close()
-        try:
-            await writer.wait_closed()
-        except OSError:
-            pass
+        await self.framing.close()
 
     async def hello(self) -> Any:
         nonce = os.urandom(8)

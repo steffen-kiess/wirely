@@ -1,4 +1,4 @@
-"""Control protocol server on Unix domain sockets."""
+"""Control protocol server on Unix domain sockets and in-process connections."""
 
 from __future__ import annotations
 
@@ -11,15 +11,12 @@ import ssl
 import stat
 from collections.abc import AsyncIterator, Coroutine
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .controller import RuntimeController
-
-if TYPE_CHECKING:
-    from ..runtime.engine import Engine
 from .framing import (
     SERIAL_NOTIFICATION_INTERVAL, SERIAL_NOTIFICATION_TIMEOUT, SERIAL_WINDOW, STREAM_NOTIFICATION_INTERVAL,
-    STREAM_PREFACE, STREAM_WINDOW, TLS_HANDSHAKE_BYTE, FramingError, SerialFraming, StreamFraming,
+    STREAM_PREFACE, STREAM_WINDOW, TLS_HANDSHAKE_BYTE, FramingError, MemoryFraming, SerialFraming, StreamFraming,
 )
 from .messages import (
     MIN_MESSAGE_SIZE, PROTOCOL_VERSION, STATUS_DEFAULT_MASK, ControlError, ErrorCode, Kind, Message, Op,
@@ -45,7 +42,7 @@ class StatusSubscription:
 class Session:
     """Protocol state of one connection, which serves requests until it closes."""
 
-    def __init__(self, framing: StreamFraming | SerialFraming, controller: RuntimeController) -> None:
+    def __init__(self, framing: StreamFraming | SerialFraming | MemoryFraming, controller: RuntimeController) -> None:
         self.framing = framing
         self.controller = controller
         self.window = STREAM_WINDOW if framing.reliable else SERIAL_WINDOW
@@ -243,9 +240,9 @@ class ControlServer:
     directory lock, see `wirely.misc.state_directory`.
     """
 
-    def __init__(self, engine: Engine, state_directory: str, tls_context: ssl.SSLContext | None = None, *,
-                 build_id: bytes) -> None:
-        self.controller = RuntimeController(engine, build_id)
+    def __init__(self, controller: RuntimeController, state_directory: str,
+                 tls_context: ssl.SSLContext | None = None) -> None:
+        self.controller = controller
         self.state_directory = state_directory
         self.tls_context = tls_context
         self._sockets: list[tuple[socket.socket, str]] = []  # Listening sockets and their paths.
@@ -345,10 +342,16 @@ class ControlServer:
             await self._serve(SerialFraming(reader, writer))
 
     async def _serve(self, framing: StreamFraming | SerialFraming) -> None:
-        try:
-            await Session(framing, self.controller).serve()
-        except (FramingError, OSError) as error:
-            logger.info('Control connection closed: %s', error)
+        await serve_session(self.controller, framing)
+
+
+async def serve_session(controller: RuntimeController, framing: StreamFraming | SerialFraming | MemoryFraming,
+                        ) -> None:
+    """Serve one connection until it closes."""
+    try:
+        await Session(framing, controller).serve()
+    except (FramingError, OSError) as error:
+        logger.info('Control connection closed: %s', error)
 
 
 async def _peek_byte(conn: socket.socket) -> int | None:

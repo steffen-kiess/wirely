@@ -538,6 +538,10 @@ one per line, until `quit` or end of input. On a terminal, it offers line
 editing, history, and completion; otherwise it stops at the first failing
 command.
 
+`wirely run-service -i FILES` runs the program and reads these commands
+from the terminal itself, with names from the source files. `quit` stops
+the service. It creates the sockets only with `--state-directory`.
+
 Use `--tls` for TLS connections, with `--tls-ca` and `--tls-server-name`
 to verify the certificate.
 

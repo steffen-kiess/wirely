@@ -9,8 +9,8 @@ from typing import NoReturn
 
 # TODO: Shouldn't the handlers be set earlier for most callers?
 # Maybe this should be split into a part which throws when a signal is received and a part which just sleeps until canceled
-async def loop_until_sigint(allow_sigterm: bool = True) -> None:
-    """Loop until Crtl-C was pressed."""
+async def loop_until_sigint(allow_sigterm: bool = True, announce: bool = True) -> None:
+    """Loop until Crtl-C was pressed; with announce, tell the user how to stop."""
 
     sigint_received = asyncio.Event()
 
@@ -25,7 +25,8 @@ async def loop_until_sigint(allow_sigterm: bool = True) -> None:
         loop.add_signal_handler(signal.SIGINT, sigint_handler)
         if allow_sigterm:
             loop.add_signal_handler(signal.SIGTERM, sigint_handler)
-    print("Press Ctrl+C to stop", flush=True)
+    if announce:
+        print("Press Ctrl+C to stop", flush=True)
     await sigint_received.wait()
     # TODO: Reset handlers?
 
@@ -34,8 +35,8 @@ class TerminateProgram(BaseException):
     pass
 
 
-async def loop_until_sigint_and_throw(allow_sigterm: bool = True) -> NoReturn:
-    await loop_until_sigint(allow_sigterm=allow_sigterm)
+async def loop_until_sigint_and_throw(allow_sigterm: bool = True, announce: bool = True) -> NoReturn:
+    await loop_until_sigint(allow_sigterm=allow_sigterm, announce=announce)
     # Raising a KeyboardInterrupt (or SystemExit) here causes a
     # "Task exception was never retrieved" message
     # See <https://github.com/python/cpython/issues/101515>

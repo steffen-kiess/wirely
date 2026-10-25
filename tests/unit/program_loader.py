@@ -367,9 +367,10 @@ async def check_service():
         source = Path(directory) / 'source.wbc'
         source.write_text('', encoding='utf-8')
         args = argparse.Namespace(input_filename=[str(path)], verbose=False, debug=False,
-                                  state_directory=None, control_tls_cert=None, control_tls_key=None)
+                                  state_directory=None, control_tls_cert=None, control_tls_key=None,
+                                  interactive=False)
         with patch.object(service.wirely.compiler, 'compile_files', side_effect=AssertionError('must not compile')):
-            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 assert await service.async_run(args) is None
                 run.assert_awaited_once()
             for filenames, status in (([str(path), str(source)], 2), ([str(source), str(path)], 2),
@@ -377,7 +378,7 @@ async def check_service():
                 with contextlib.redirect_stderr(io.StringIO()):
                     assert await service.async_run(argparse.Namespace(**{**vars(args), 'input_filename': filenames})) == status
             for error in (ValueError('link failure'), LoadFailure(Procedure('test:load', (), ()), 0, 'load failure', ())):
-                with patch.object(service, 'Engine', side_effect=error), patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+                with patch.object(service, 'Engine', side_effect=error), patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                     output = io.StringIO()
                     with contextlib.redirect_stderr(output):
                         assert await service.async_run(args) == 1
@@ -393,7 +394,7 @@ async def check_service():
                 engine.assert_not_called()
             failure = Constant(types.TypeList(types.String), ('intentional failure',))
             path.write_bytes(write_program(body_program((instruction(Opcode.FAIL, failure, 0),), stage=RunStage.LOAD)))
-            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 output = io.StringIO()
                 with contextlib.redirect_stderr(output):
                     assert await service.async_run(args) == 1
@@ -401,7 +402,7 @@ async def check_service():
                 run.assert_not_awaited()
         args.input_filename = [str(source)]
         with patch.object(service, 'load_program', side_effect=AssertionError('must compile source')):
-            with patch.object(service, 'run_engine', new_callable=AsyncMock) as run:
+            with patch.object(service, 'run_engine', new_callable=AsyncMock, return_value=None) as run:
                 assert await service.async_run(args) is None
                 run.assert_awaited_once()
         for prefix in (b'', magic[:1], magic[:2], magic[:3]):

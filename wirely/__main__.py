@@ -11,6 +11,8 @@ def main() -> None:
     run_service_parser = subparsers.add_parser('run-service')
     run_service_parser.add_argument('--verbose', action='store_true')
     run_service_parser.add_argument('--debug', action='store_true')
+    run_service_parser.add_argument('-i', '--interactive', action='store_true',
+                                    help='read control commands from the terminal; quit stops the service')
     run_service_parser.add_argument('--state-directory',
                                     help='directory for the control sockets')
     run_service_parser.add_argument('--control-tls-cert',

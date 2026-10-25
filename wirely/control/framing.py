@@ -1,6 +1,7 @@
 """Stream and serial framing of control protocol messages."""
 
 import asyncio
+import contextlib
 import zlib
 
 STREAM_PREFACE = b'WRLC'
@@ -50,6 +51,9 @@ class StreamFraming:
         self.writer.write(len(message).to_bytes(2, 'little') + message)
         await self.writer.drain()
 
+    async def close(self) -> None:
+        await _close_writer(self.writer)
+
 
 class SerialFraming:
     """COBS-encoded frames with a CRC-32, for transports that can lose or corrupt data."""
@@ -95,6 +99,49 @@ class SerialFraming:
         data = message + zlib.crc32(message).to_bytes(4, 'little')
         self.writer.write(cobs_encode(data) + b'\0')
         await self.writer.drain()
+
+    async def close(self) -> None:
+        await _close_writer(self.writer)
+
+
+class MemoryFraming:
+    """One end of an in-process connection, created by memory_framing_pair()."""
+
+    reliable = True
+
+    def __init__(self, max_message_size: int = STREAM_MAX_MESSAGE_SIZE) -> None:
+        self.max_message_size = max_message_size
+        self._incoming: asyncio.Queue[bytes | None] = asyncio.Queue()
+        self._peer: MemoryFraming = self
+
+    async def read(self) -> bytes | None:
+        """Return the next message, or None once either end has closed."""
+        message = await self._incoming.get()
+        if message is None:
+            self._incoming.put_nowait(None)  # Later reads also see the end.
+        return message
+
+    async def write(self, message: bytes) -> None:
+        if len(message) > self._peer.max_message_size:
+            raise FramingError(f'Message of {len(message)} bytes exceeds limit of {self._peer.max_message_size}')
+        self._peer._incoming.put_nowait(message)
+
+    async def close(self) -> None:
+        self._incoming.put_nowait(None)
+        self._peer._incoming.put_nowait(None)
+
+
+def memory_framing_pair() -> tuple[MemoryFraming, MemoryFraming]:
+    """Return the two connected ends of an in-process connection."""
+    first, second = MemoryFraming(), MemoryFraming()
+    first._peer, second._peer = second, first
+    return first, second
+
+
+async def _close_writer(writer: asyncio.StreamWriter) -> None:
+    writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
 
 
 def cobs_encode(data: bytes) -> bytes:

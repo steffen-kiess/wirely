@@ -16,15 +16,19 @@ from cryptography.x509.oid import NameOID
 
 import wirely.cli.client
 import wirely.compiler
+import wirely.misc.service
+from wirely.cli import service
 from wirely.compiler import program as program_compiler
 from wirely.control import node_commands
 from wirely.control.client import ControlClient
-from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
+from wirely.control.controller import RuntimeController
+from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode, memory_framing_pair
 from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, encode
-from wirely.control.server import ControlServer
+from wirely.control.server import ControlServer, serve_session
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.program.program import procedure_instances
 from wirely.program.writer import program_build_id
+from wirely.runtime.engine import Engine
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
 
@@ -221,6 +225,36 @@ async def check_client_ignores_notifications():
     framing = QueuedFraming([encode(Kind.NOTIFICATION, 1, Op.STATUS, {1: 1}),
                              encode(Kind.RESPONSE, 1, Op.STATUS, {1: 0})])
     assert await ControlClient(framing).request(Op.STATUS) == {1: 0}
+
+
+async def check_memory_framing():
+    """An in-process connection carries a session, which ends when the client closes."""
+    client_end, server_end = memory_framing_pair()
+    server_task = asyncio.create_task(serve_session(RuntimeController(engine, program_build_id(engine.program)),
+                                                    server_end))
+    client = ControlClient(client_end)
+    await client.hello()
+    assert await client.request(Op.STATUS) == {1: 0, 2: engine.step_count}
+    await client.close()
+    await asyncio.wait_for(server_task, 2)
+
+
+async def check_service_interactive():
+    """run-service -i reads commands over an internal session until quit, which stops the service."""
+    async def wait_forever(**kwargs):
+        await asyncio.Event().wait()
+
+    program = engine.program
+    runtime = Engine(program)
+    output = io.StringIO()
+    with (contextlib.redirect_stdout(output), contextlib.redirect_stderr(output),
+          unittest.mock.patch('sys.stdin', io.StringIO('pause\nset value 5\nget value\nquit\nresume\n')),
+          unittest.mock.patch.object(wirely.misc.service, 'loop_until_sigint_and_throw', wait_forever)):
+        controller = RuntimeController(runtime, program_build_id(program))
+        assert await asyncio.wait_for(service.run_engine(runtime, controller, interactive=True, program=program),
+                                      5) == 0
+    lines = output.getvalue().splitlines()
+    assert lines[1].startswith('paused, ') and lines[2] == '5' and 'running' not in output.getvalue(), lines
 
 
 def instance_index(name):
@@ -509,7 +543,7 @@ async def check_cli(server):
     lines = output.splitlines()
     assert (lines[0], lines[2:]) == ('11', ['none', '6', 'Error: COMMAND_FAILED: An event is already queued (reason 1)'])
     await run_client_command(*serial, 'resume')
-    assert await run_client_command(*serial, 'get', 'value', status=1) == 'Error: `get` requires --program\n'
+    assert await run_client_command(*serial, 'get', 'value', status=1) == "Error: `get` requires the program's .wrl files\n"
 
     # Runtime options.
     assert await run_client_command(*serial, 'debug') == 'off\n'
@@ -528,7 +562,7 @@ async def check_cli(server):
         'events      Std.DebugEventSource  uint8   get, send\n'
         'last_event  LastEvent\n')
     assert await run_client_command(*offline, 'list', 'missing', status=1) == 'Error: Cannot find node `missing`\n'
-    assert await run_client_command(*offline[:2], 'list', status=1) == 'Error: `list` requires --program\n'
+    assert await run_client_command(*offline[:2], 'list', status=1) == "Error: `list` requires the program's .wrl files\n"
 
     # Without a command, commands are read from stdin.
     output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
@@ -543,6 +577,8 @@ async def run_test():
     check_node_commands()
     check_node_tree()
     await check_client_ignores_notifications()
+    await check_memory_framing()
+    await check_service_interactive()
     run_task = asyncio.create_task(engine.run())
     try:
         with tempfile.TemporaryDirectory(prefix='test_control.') as directory:
@@ -551,8 +587,8 @@ async def run_test():
             context.load_cert_chain(cert_path, key_path)
             state_directory = os.path.join(directory, 'state')
             with lock_state_directory(state_directory):
-                async with ControlServer(engine, state_directory, context,
-                                         build_id=program_build_id(engine.program)) as server:
+                controller = RuntimeController(engine, program_build_id(engine.program))
+                async with ControlServer(controller, state_directory, context) as server:
                     assert sorted(os.listdir(state_directory)) == ['control', 'control-serial', 'lock']
                     await check_locked(server)
                     await check_stream(server)

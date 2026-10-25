@@ -170,6 +170,11 @@ def _print_help(choices: Mapping[str, argparse.ArgumentParser]) -> None:
     print('Enter COMMAND -h for the options of a command.')
 
 
+async def interactive(client: ControlClient, program: 'Program | None') -> int:
+    """Run commands from stdin on a connected client, as without a command; program provides names."""
+    return await _interactive(client, argparse.Namespace(compiled_program=program))
+
+
 async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
     """Run commands from stdin until EOF or quit.
 
@@ -342,7 +347,7 @@ async def _list(client: ControlClient | None, args: argparse.Namespace) -> int:
     from ..control.node_commands import NodeCommandError, node_tree
 
     if args.compiled_program is None:
-        print('Error: `list` requires --program', file=sys.stderr)
+        print("Error: `list` requires the program's .wrl files", file=sys.stderr)
         return 1
     try:
         nodes = node_tree(args.compiled_program, args.node)
@@ -366,7 +371,7 @@ async def _typed_command(client: ControlClient, args: argparse.Namespace) -> int
     name = args.client_command
     program = args.compiled_program
     if program is None:
-        print(f'Error: `{name}` requires --program', file=sys.stderr)
+        print(f"Error: `{name}` requires the program's .wrl files", file=sys.stderr)
         return 1
     try:
         target = resolve(program, args.node)
