@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from ..native_functions import ConstantFunctionImplementation
 
 from wirely.compiler import model
+from wirely.program.limits import is_runtime_type
 
 from .base import SourceElement, SyntaxElement, ProgramError, Declaration, Identifier, SourcePosition, Value
 from .values import StringConstant
@@ -80,7 +81,7 @@ class CompiledFunction:
                 raise ProgramError(self.declaration, 'Native functions require fixed value types')
             if not self.is_constant:
                 for ty in self.parameter_types + [self.return_type]:
-                    if not ty.is_runtime_type:
+                    if not is_runtime_type(ty):
                         raise ProgramError(self.declaration,
                                            f'Function `{self.function_name}` uses parameter-only type `{ty}`; '
                                            'declare it native constant function')

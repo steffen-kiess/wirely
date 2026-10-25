@@ -5,7 +5,7 @@ from unittest import TestCase
 
 from wirely import types
 from wirely.program.const_data import ConstDataWriter, const_layout, read_const
-from wirely.program.limits import MAX_TOTAL_MEMBER_COUNT
+from wirely.program.limits import MAX_TOTAL_MEMBER_COUNT, is_runtime_type
 from wirely.types import Some, Unit
 
 
@@ -38,7 +38,7 @@ def check_round_trips():
                                              'counts': types.TypeList(types.uint16)})
     # Too many members for a runtime type, but a valid const value.
     wide = types.TypeStruct('Wide', [types.uint8] * MAX_TOTAL_MEMBER_COUNT)
-    assert not wide.is_runtime_type
+    assert not is_runtime_type(wide)
     cases = [
         (types.uint8, 7), (types.int64, -5), (types.boolean, True), (types.unit, Unit()), (mode, 1),
         (types.TypeOption(types.uint32), Some(9)), (types.TypeOption(types.uint32), None),

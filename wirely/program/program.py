@@ -10,6 +10,7 @@ from typing import TextIO
 
 from ..util import immutable_enum
 from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
+from .limits import is_runtime_type, runtime_type_error
 from .names import member_owner
 from .procedures import Constant, ConstOperand, Function, Instruction, Opcode, ProcedureBody
 
@@ -35,8 +36,8 @@ class Variable:
     def __post_init__(self) -> None:
         if self.name is not None and not isinstance(self.name, str):
             raise TypeError('name parameter must be a str or None')
-        if not self.is_resource and not self.var_type.is_runtime_type:
-            raise ValueError(f'Type `{self.var_type}` is not a runtime type: {self.var_type.runtime_type_error()}')
+        if not self.is_resource and not is_runtime_type(self.var_type):
+            raise ValueError(f'Type `{self.var_type}` is not a runtime type: {runtime_type_error(self.var_type)}')
 
     @property
     def is_resource(self) -> bool:

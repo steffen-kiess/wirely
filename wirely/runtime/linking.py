@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
 from ..program import Constant, InputSource, Program, Variable, VariableBank, used_declared_types
+from ..program.limits import is_runtime_type
 from ..types import Type, TypeEnum, TypeResource, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
@@ -151,7 +152,7 @@ def link_native_signatures(program: Program, extension: RuntimeNativeExtension) 
                 expected_resource = port.type.native_name
             elif isinstance(port.type, TypeVar) and port.kind == 'fixed':
                 bound_type = bindings.get(port.type.name)
-                if bound_type is not None and not bound_type.is_runtime_type:
+                if bound_type is not None and not is_runtime_type(bound_type):
                     expected_resource = getattr(bound_type, 'native_name', None)
             if expected_resource is not None:
                 if resource_types.get(key) != expected_resource:

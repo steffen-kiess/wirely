@@ -8,9 +8,10 @@ from .unit import Unit
 
 
 def _check_runtime(value_type: Type) -> None:
-    """Reject types without an eligible runtime representation."""
-    if not value_type.is_runtime_type:
-        raise ValueError(f'Type `{value_type}` is not a runtime type: {value_type.runtime_type_error()}')
+    """Reject types without a runtime representation; runtime limits are not checked."""
+    if not value_type.has_runtime_representation:
+        raise ValueError(f'Type `{value_type}` has no runtime representation: '
+                         f'{value_type.runtime_representation_error()}')
 
 
 def _layout(value_type: Type) -> tuple[int, int, int]:

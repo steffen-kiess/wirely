@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 from wirely.compiler import model
 from wirely.compiler.diagnostics import Diagnostic, error_diagnostics, print_diagnostic
 from wirely.compiler.types import resolve_type, check_runtime_type
+from wirely.program.limits import is_runtime_type
 from wirely.program.names import member_name
 from .expressions import compile_constant, compile_procedure
 from .stages import ResolutionState
@@ -157,7 +158,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
         """Return a shared Constant for equal typed values."""
         value = value_type.verify_value(value)
         key: tuple[model.Type, object]
-        if value_type.is_runtime_type:
+        if is_runtime_type(value_type):
             key = value_type, value_type.serialize(value)
         else:
             # Const-only values are compared directly; unhashable ones are not shared.

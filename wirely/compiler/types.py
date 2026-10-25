@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from ..runtime.extensions import NativeTypes
     from .parameters import StaticValue
 
+from ..program.limits import is_runtime_type, runtime_type_error
 from ..types import Type, TypeOption, TypeList
 from .. import types
 from . import model
@@ -84,8 +85,8 @@ class TypeParameter(Type):
 
 def check_runtime_type(value_type: Type, source: model.ast.SourceElement | None) -> None:
     """Check runtime eligibility once any type parameters have resolved."""
-    if not value_type.contains_parameters and not value_type.is_runtime_type:
-        raise model.ProgramError(source, f'Type `{value_type}` is not a runtime type: {value_type.runtime_type_error()}')
+    if not value_type.contains_parameters and not is_runtime_type(value_type):
+        raise model.ProgramError(source, f'Type `{value_type}` is not a runtime type: {runtime_type_error(value_type)}')
 
 
 def resolve_type(value_type: Type, par_values: Mapping[model.NodeParameter, StaticValue]) -> Type:

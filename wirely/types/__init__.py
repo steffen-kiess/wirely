@@ -53,42 +53,11 @@ class Type(abc.ABC):
             raise ValueError('Type parameters require resolution before counting members')
         return 1
 
-    def _runtime_limit_violation(self) -> tuple[str, int, int] | None:
-        from ..program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT
-        from .serialization import _layout
-
-        depth = self.nesting_depth
-        if depth > MAX_NESTING_DEPTH:
-            return 'nesting depth', depth, MAX_NESTING_DEPTH
-        count = self.total_member_count
-        if count > MAX_TOTAL_MEMBER_COUNT:
-            return 'total member count', count, MAX_TOTAL_MEMBER_COUNT
-        size = _layout(self)[2]
-        if size > MAX_STORAGE_SIZE:
-            return 'storage size', size, MAX_STORAGE_SIZE
-        return None
-
-    @property
-    def is_runtime_type(self) -> bool:
-        """Whether values have a representation within the runtime limits."""
-        return self.has_runtime_representation and self._runtime_limit_violation() is None
-
-    def _runtime_representation_error(self) -> str | None:
+    def runtime_representation_error(self) -> str | None:
+        """Return why a type without a runtime representation has none."""
         if self.contains_parameters:
             return 'type parameters require resolution'
         return f'`{self}` is parameter-only'
-
-    def runtime_type_error(self) -> str | None:
-        """Return the reason for runtime ineligibility, or None."""
-        if not self.has_runtime_representation:
-            return self._runtime_representation_error()
-        violation = self._runtime_limit_violation()
-        if violation is None:
-            return None
-        metric, actual, maximum = violation
-        if metric == 'storage size':
-            return f'{metric} {actual} bytes exceeds {maximum} bytes'
-        return f'{metric} {actual} exceeds {maximum}'
 
     @property
     def alignment(self) -> int:
@@ -226,8 +195,8 @@ class TypeOption(Type):
     def total_member_count(self) -> int:
         return 1 + self.inner_type.total_member_count
 
-    def _runtime_representation_error(self) -> str | None:
-        return f'inner type: {self.inner_type._runtime_representation_error()}'
+    def runtime_representation_error(self) -> str | None:
+        return f'inner type: {self.inner_type.runtime_representation_error()}'
 
     @property
     def has_to_csv_value(self) -> bool:
@@ -386,10 +355,10 @@ class TypeStruct(Type):
     def total_member_count(self) -> int:
         return 1 + sum(field.total_member_count for field in self.field_types)
 
-    def _runtime_representation_error(self) -> str | None:
+    def runtime_representation_error(self) -> str | None:
         for index, field in enumerate(self.field_types):
             if not field.has_runtime_representation:
-                return f'field `{self.field_label(index)}`: {field._runtime_representation_error()}'
+                return f'field `{self.field_label(index)}`: {field.runtime_representation_error()}'
         return None
 
     def __str__(self) -> str:

@@ -2,6 +2,7 @@ import typing
 from unittest import TestCase
 from unittest.mock import patch
 
+from wirely.program.limits import is_runtime_type
 from wirely.runtime.extensions import NativeTypes
 from wirely.generated import extension as builtin_extension
 import wirely
@@ -586,7 +587,7 @@ def check_default_values():
         assert type(value) is type(expected)
         assert value_type.equals(value, expected)
         assert value_type.equals(value_type.verify_value(value), value)
-        if value_type.is_runtime_type:
+        if is_runtime_type(value_type):
             assert value_type.equals(value_type.deserialize(value_type.serialize(value)), value)
     assert packet.serialize(packet.default_value()) == bytes(9)
 
@@ -606,7 +607,7 @@ def check_default_values():
     for i in range(17):
         deep = types.TypeStruct('DeepDefault' + str(i), {'value': deep})
     for value_type in (wide, many, deep, types.TypeOption(wide)):
-        assert not value_type.is_runtime_type
+        assert not is_runtime_type(value_type)
         value = value_type.default_value()
         assert value_type.equals(value_type.verify_value(value), value)
 
@@ -615,7 +616,7 @@ def check_runtime_limits():
     from unittest.mock import patch
 
     from wirely.program import Variable
-    from wirely.program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT
+    from wirely.program.limits import MAX_NESTING_DEPTH, MAX_STORAGE_SIZE, MAX_TOTAL_MEMBER_COUNT, runtime_type_error
 
     assert (MAX_STORAGE_SIZE, MAX_NESTING_DEPTH, MAX_TOTAL_MEMBER_COUNT) == (128, 16, 128)
     types = wirely.types
@@ -624,7 +625,7 @@ def check_runtime_limits():
     for primitive in (types.unit, types.boolean, types.uint64, enum_type, types.String, types.ValueType):
         assert (primitive.nesting_depth, primitive.total_member_count) == (0, 1)
     assert (empty.nesting_depth, empty.total_member_count, empty.size) == (1, 1, 0)
-    assert empty.is_runtime_type and empty.runtime_type_error() is None
+    assert is_runtime_type(empty) and runtime_type_error(empty) is None
 
     pair = types.TypeStruct('Pair', {'first': types.unit, 'second': empty})
     repeated = types.TypeStruct('Repeated', {'first': pair, 'second': pair})
@@ -632,44 +633,44 @@ def check_runtime_limits():
     assert (repeated.nesting_depth, repeated.total_member_count) == (3, 7)
     items = types.TypeList(types.TypeOption(repeated))
     assert (items.nesting_depth, items.total_member_count) == (5, 9)
-    assert not items.has_runtime_representation and not items.is_runtime_type
-    assert 'parameter-only' in items.runtime_type_error()
+    assert not items.has_runtime_representation and not is_runtime_type(items)
+    assert 'parameter-only' in runtime_type_error(items)
     settings = types.TypeStruct('Settings', {'payload': types.TypeOption(types.String)})
     assert not settings.has_runtime_representation
-    assert settings.runtime_type_error() == 'field `payload`: inner type: `string` is parameter-only'
+    assert runtime_type_error(settings) == 'field `payload`: inner type: `string` is parameter-only'
 
     depth = types.unit
     for _ in range(MAX_NESTING_DEPTH):
         depth = types.TypeOption(depth)
-    assert depth.nesting_depth == MAX_NESTING_DEPTH and depth.is_runtime_type
+    assert depth.nesting_depth == MAX_NESTING_DEPTH and is_runtime_type(depth)
     too_deep = types.TypeOption(depth)
-    assert too_deep.runtime_type_error() == 'nesting depth 17 exceeds 16'
+    assert runtime_type_error(too_deep) == 'nesting depth 17 exceeds 16'
 
     members = types.TypeStruct('Members', {str(i): empty for i in range(127)})
     assert members.total_member_count == MAX_TOTAL_MEMBER_COUNT and members.size == 0
-    assert members.is_runtime_type
+    assert is_runtime_type(members)
     too_many = types.TypeOption(members)
     assert too_many.has_runtime_representation
-    assert too_many.runtime_type_error() == 'total member count 129 exceeds 128'
+    assert runtime_type_error(too_many) == 'total member count 129 exceeds 128'
     assert too_many.verify_value(None) is None
     assert too_many.equals(None, None)
 
     storage = types.TypeStruct('Storage', {str(i): types.uint64 for i in range(16)})
-    assert storage.size == MAX_STORAGE_SIZE and storage.is_runtime_type
+    assert storage.size == MAX_STORAGE_SIZE and is_runtime_type(storage)
     too_large = types.TypeOption(storage)
-    assert too_large.runtime_type_error() == 'storage size 136 bytes exceeds 128 bytes'
+    assert runtime_type_error(too_large) == 'storage size 136 bytes exceeds 128 bytes'
     # A presence byte can fit in the final field's unused tail padding.
     padded = types.TypeStruct('Padded', {
         **{str(i): types.uint64 for i in range(15)}, 'last': types.uint8,
     })
     assert (padded.data_size, padded.size) == (121, 128)
     assert types.TypeOption(padded).size == 128
-    assert types.TypeOption(padded).is_runtime_type
+    assert is_runtime_type(types.TypeOption(padded))
     # Storage size, rather than encoded data size, is limited.
     padded_overflow = types.TypeStruct('PaddedOverflow', {
         **dict(storage.fields), 'last': types.uint8,
     })
-    assert padded_overflow.runtime_type_error() == 'storage size 136 bytes exceeds 128 bytes'
+    assert runtime_type_error(padded_overflow) == 'storage size 136 bytes exceeds 128 bytes'
 
     for value_type, value in (
             (storage, storage.make_value({str(i): i for i in range(16)})),
@@ -680,25 +681,30 @@ def check_runtime_limits():
 
     # Representation support takes precedence; then depth, count, and storage.
     unsupported = types.TypeStruct('Unsupported', {'large': too_large, 'text': types.String})
-    assert unsupported.runtime_type_error() == 'field `text`: `string` is parameter-only'
+    assert runtime_type_error(unsupported) == 'field `text`: `string` is parameter-only'
     multiple_limits = types.TypeStruct('MultipleLimits', {str(i): types.uint64 for i in range(128)})
-    assert multiple_limits.runtime_type_error() == 'total member count 129 exceeds 128'
+    assert runtime_type_error(multiple_limits) == 'total member count 129 exceeds 128'
     deep_and_wide = types.TypeStruct('DeepAndWide', {'deep': too_deep, 'wide': multiple_limits})
-    assert deep_and_wide.runtime_type_error() == 'nesting depth 18 exceeds 16'
+    assert runtime_type_error(deep_and_wide) == 'nesting depth 18 exceeds 16'
 
+    # Types without a runtime representation have no layout; types beyond the limits have one but
+    # cannot be runtime variables.
     for value_type in (types.String, settings, too_deep, too_many, too_large):
-        assert not value_type.is_runtime_type
-        reason = value_type.runtime_type_error()
-        for operation in (lambda: value_type.size, lambda: value_type.data_size,
-                          lambda: value_type.alignment, lambda: value_type.serialize(None),
-                          lambda: value_type.deserialize(b''), lambda: Variable(value_type)):
+        assert not is_runtime_type(value_type)
+        reason = runtime_type_error(value_type)
+        operations = [lambda: Variable(value_type)]
+        if not value_type.has_runtime_representation:
+            operations += [lambda: value_type.size, lambda: value_type.data_size, lambda: value_type.alignment,
+                           lambda: value_type.serialize(None), lambda: value_type.deserialize(b'')]
+        for operation in operations:
             with checks.assertRaises(ValueError) as raised:
                 operation()
             assert reason in str(raised.exception)
-    with patch.object(types.Type, 'runtime_type_error', side_effect=AssertionError('formatted a diagnostic')):
-        assert storage.is_runtime_type
-        assert not too_large.is_runtime_type
-        assert not settings.is_runtime_type
+    assert too_large.size == 136
+    with patch('wirely.program.limits.runtime_type_error', side_effect=AssertionError('formatted a diagnostic')):
+        assert is_runtime_type(storage)
+        assert not is_runtime_type(too_large)
+        assert not is_runtime_type(settings)
 
 
 check_parsing_and_conversions()

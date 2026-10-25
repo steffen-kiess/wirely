@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from ..types import Type, TypeBoolean, TypeEnum, TypeInt, TypeList, TypeOption, TypeStruct, boolean, String, uint32
+from .limits import is_runtime_type
 from .procedures import (
     ARITHMETIC_OPCODES, CONVERSION_OPCODES, Function,
     BranchTarget, Constant, ConstOperand, Instruction, Opcode, Operand, OperandKind, ProcedureBody,
@@ -38,7 +39,7 @@ _BRANCHES = (Opcode.JUMP, Opcode.JUMP_IF_TRUE, Opcode.JUMP_IF_FALSE)
 
 
 def _runtime_type(value_type: object) -> None:
-    if not isinstance(value_type, Type) or not value_type.is_runtime_type:
+    if not isinstance(value_type, Type) or not is_runtime_type(value_type):
         raise ValueError(f'Expected a resolved runtime type, got {value_type!r}')
 
 
@@ -203,7 +204,7 @@ def validate_program(program: Program) -> None:
             if not isinstance(constant.value_type, Type):
                 raise ValueError(f'Expected a type, got {constant.value_type!r}')
             constant.value_type.verify_value(constant.value)
-            if constant.value_type.is_runtime_type:
+            if is_runtime_type(constant.value_type):
                 constant.value_type.serialize(constant.value)
         except Exception as error:
             raise ValueError(f'Constant const.{index}: {error}') from error
