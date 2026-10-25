@@ -32,6 +32,8 @@ class Op(enum.IntEnum):
     RESUME = 0x03
     STEP = 0x04
     BIND_PROGRAM = 0x05
+    SET_OPTIONS = 0x06
+    GET_OPTIONS = 0x07
     SNAPSHOT = 0x10
     READ_SNAPSHOT = 0x11
     RELEASE_SNAPSHOT = 0x12

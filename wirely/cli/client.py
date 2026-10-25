@@ -55,6 +55,12 @@ def _add_commands(commands: Any) -> None:
     call_parser.add_argument('command', type=int, help='command number, as documented by the library')
     call_parser.add_argument('argument', nargs='?', type=_diagnostic_value,
                              help="argument in CBOR diagnostic notation, such as h'0700'")
+    debug_parser = add('debug', 'show or switch the runtime printing each step and procedure run')
+    debug_parser.add_argument('state', nargs='?', choices=['on', 'off'])
+    option_parser = add('option', 'list, show, or set runtime options')
+    option_parser.add_argument('key', nargs='?', type=_option_key, help='option name, or number')
+    option_parser.add_argument('value', nargs='?', type=_diagnostic_value,
+                               help='new value in CBOR diagnostic notation, such as true')
     # Commands that need --program.
     list_parser = add('list', 'list the nodes of the program with their types, without contacting the runtime')
     list_parser.add_argument('node', nargs='?', help='list only this node and the nodes inside it')
@@ -66,6 +72,14 @@ def _add_commands(commands: Any) -> None:
     send_parser = add('send', 'send an event from a debug event source')
     send_parser.add_argument('node')
     send_parser.add_argument('value', help='payload in the value text format')
+
+
+def _option_key(text: str) -> int | str:
+    """Return an option key: an integer if the text is one, otherwise the text."""
+    try:
+        return int(text)
+    except ValueError:
+        return text
 
 
 def _diagnostic_value(text: str) -> Any:
@@ -299,6 +313,30 @@ async def _call(client: ControlClient, args: argparse.Namespace) -> int:
     return 0
 
 
+async def _debug(client: ControlClient, args: argparse.Namespace) -> int:
+    if args.state is None:
+        body = await client.request(Op.GET_OPTIONS, {1: ['debug']})
+        print('on' if body[1]['debug'] else 'off')
+    else:
+        await client.request(Op.SET_OPTIONS, {1: {'debug': args.state == 'on'}})
+    return 0
+
+
+async def _option(client: ControlClient, args: argparse.Namespace) -> int:
+    from ..control import diagnostic
+
+    if args.value is not None:
+        await client.request(Op.SET_OPTIONS, {1: {args.key: args.value}})
+        return 0
+    body = await client.request(Op.GET_OPTIONS, {} if args.key is None else {1: [args.key]})
+    if args.key is not None:
+        print(diagnostic.format(body[1][args.key]))
+    else:
+        for key, value in body[1].items():
+            print(f'{diagnostic.format(key)}: {diagnostic.format(value)}')
+    return 0
+
+
 async def _list(client: ControlClient | None, args: argparse.Namespace) -> int:
     """Print the node tree of the program; this needs no connection."""
     from ..control.node_commands import NodeCommandError, node_tree
@@ -395,6 +433,8 @@ _commands = {
     'dump': _dump,
     'call': _call,
     'list': _list,
+    'debug': _debug,
+    'option': _option,
     'get': _typed_command,
     'set': _typed_command,
     'send': _typed_command,

@@ -325,6 +325,25 @@ connect top -> seen;
         (0, 'top.inner'), (1, 'top.inner.source')]
 
 
+async def check_options(server):
+    client = await ControlClient.connect_unix(server.stream_path)
+    try:
+        assert await client.request(Op.GET_OPTIONS) == {1: {'debug': False}}
+        assert await client.request(Op.SET_OPTIONS, {1: {'debug': True}}) == {}
+        assert engine.debug
+        assert await client.request(Op.GET_OPTIONS, {1: ['debug']}) == {1: {'debug': True}}
+        await expect_error(ErrorCode.INVALID_ARGUMENT, client.request(Op.SET_OPTIONS, {1: {'debug': 1}}))
+        # A request with an unknown option changes nothing; negative keys are reserved for the protocol.
+        for options in ({'debug': False, 'nope': 1}, {-1: True}):
+            await expect_error(ErrorCode.NOT_FOUND, client.request(Op.SET_OPTIONS, {1: options}))
+        assert engine.debug
+        await expect_error(ErrorCode.NOT_FOUND, client.request(Op.GET_OPTIONS, {1: ['nope']}))
+        await client.request(Op.SET_OPTIONS, {1: {'debug': False}})
+        assert not engine.debug
+    finally:
+        await client.close()
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -492,6 +511,14 @@ async def check_cli(server):
     await run_client_command(*serial, 'resume')
     assert await run_client_command(*serial, 'get', 'value', status=1) == 'Error: `get` requires --program\n'
 
+    # Runtime options.
+    assert await run_client_command(*serial, 'debug') == 'off\n'
+    assert await run_client_command(*serial, 'debug', 'on') == ''
+    assert await run_client_command(*serial, 'debug') == 'on\n'
+    assert await run_client_command(*serial, 'option') == '"debug": true\n'
+    assert await run_client_command(*serial, 'option', 'debug', 'false') == ''
+    assert await run_client_command(*serial, 'option', 'debug') == 'false\n'
+
     # list is local: it works without a runtime at the socket path.
     offline = ['--unix-path', os.path.join(os.path.dirname(server.stream_path), 'missing'), '--program', program_path]
     assert await run_client_command(*offline, 'list') == (
@@ -533,6 +560,7 @@ async def run_test():
                     await check_status(server)
                     await check_status_serial(server)
                     await check_native_commands(server)
+                    await check_options(server)
                     await check_tls(server, cert_path)
                     await check_serial(server)
                     await check_cli(server)

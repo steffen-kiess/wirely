@@ -111,6 +111,8 @@ responses whose `Seq` does not match an outstanding request.
 | `0x03` | `Resume` | Yes | Running or paused |
 | `0x04` | `Step` | Yes | Paused |
 | `0x05` | `BindProgram` | Yes | Running or paused |
+| `0x06` | `SetOptions` | Yes | Any |
+| `0x07` | `GetOptions` | Yes | Any |
 | `0x10` | `Snapshot` | Yes | Running or paused |
 | `0x11` | `ReadSnapshot` | Yes | Any |
 | `0x12` | `ReleaseSnapshot` | Yes | Any |
@@ -224,6 +226,22 @@ execution. Both respond with the `Status` fields 1 and 2.
 
 `Step` runs steps while paused. Request `{1: count}`, where `count`
 defaults to 1. Response `{1: steps completed, 2: procedures run}`.
+
+### Options
+
+Options configure the runtime, not a session or a program: they need no
+binding, persist across `Activate`, and last until they are changed or the
+runtime restarts. Negative integer keys are reserved for options this
+protocol defines, of which there are none yet. Runtimes define and
+document options with positive integer keys and keys of other types;
+key 0 is reserved. Values are CBOR values that each option defines.
+
+`SetOptions {1: {key: value, …}}` sets options and responds with `{}`. The
+runtime checks every entry before changing any and answers `NotFound` for
+an unknown key or `InvalidArgument` for a rejected value.
+
+`GetOptions {1: [key, …]}` responds with `{1: {key: value, …}}`. Without
+key 1, it returns all options. It answers `NotFound` for an unknown key.
 
 ### BindProgram
 
@@ -478,8 +496,10 @@ While running, the service holds a write lock on `DIR/lock`, so only one
 runtime uses a state directory at a time.
 
 Neither socket uses authentication tags. The service currently supports
-`Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, the
-snapshot operations, and `NativeCommand`.
+`Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, the options
+and snapshot operations, and `NativeCommand`. Its only option is
+`"debug"`, a boolean: while true, the service prints each step and
+procedure run on its standard output, as `run-service --debug` does.
 
 `wirely client` sends requests to these sockets, for example:
 
@@ -499,6 +519,10 @@ program whenever they change, until it is interrupted.
 result use CBOR diagnostic notation: integers, `h'…'` byte strings, text
 strings, `true`, `false`, `null`, arrays, and maps. Quote arguments for the
 shell and in interactive mode, as in `call 0 1 "{1: h'0700'}"`.
+
+`debug` shows whether the service prints its trace, and `debug on|off`
+switches it. `option [KEY [VALUE]]` lists, shows, or sets options, with
+values in diagnostic notation.
 
 With `--program`, `get NODE`, `set NODE VALUE`, and `send NODE VALUE` use
 the commands of debug source nodes by name, with values in the

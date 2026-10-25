@@ -23,7 +23,7 @@ class RuntimeController:
 
     supported_ops = (
         Op.HELLO, Op.STATUS, Op.PAUSE, Op.RESUME, Op.STEP, Op.BIND_PROGRAM,
-        Op.SNAPSHOT, Op.READ_SNAPSHOT, Op.RELEASE_SNAPSHOT, Op.NATIVE_COMMAND,
+        Op.SNAPSHOT, Op.READ_SNAPSHOT, Op.RELEASE_SNAPSHOT, Op.NATIVE_COMMAND, Op.SET_OPTIONS, Op.GET_OPTIONS,
     )
     # Operations that refer to program entities and require a bound session.
     bound_ops = (Op.SNAPSHOT, Op.NATIVE_COMMAND)
@@ -90,6 +90,37 @@ class RuntimeController:
             run_count, _, _ = self.engine.step()
             procedures += run_count
         return {1: count, 2: procedures}
+
+    # Options of this runtime by key: getter, value check, and setter. Negative integer keys are reserved
+    # for options the protocol defines.
+    _options: 'dict[Any, tuple[Callable[[Engine], Any], Callable[[Any], bool], Callable[[Engine, Any], None]]]' = {
+        # Prints each step and procedure run on stdout, like run-service --debug.
+        'debug': (lambda engine: engine.debug, lambda value: isinstance(value, bool),
+                  lambda engine, value: setattr(engine, 'debug', value)),
+    }
+
+    def _option(self, key: Any) -> 'tuple[Callable[[Engine], Any], Callable[[Any], bool], Callable[[Engine, Any], None]]':
+        try:
+            return self._options[key]
+        except (KeyError, TypeError):  # Maps and arrays are not hashable.
+            raise ControlError(ErrorCode.NOT_FOUND, f'Unknown option {key!r}') from None
+
+    def _set_options(self, body: Any) -> dict[int, Any]:
+        options = get_field(body, 1, dict, required=True)
+        setters = []
+        # Check every entry before applying any.
+        for key, value in options.items():
+            _, check, setter = self._option(key)
+            if not check(value):
+                raise ControlError(ErrorCode.INVALID_ARGUMENT, f'Invalid value for option {key!r}')
+            setters.append((setter, value))
+        for setter, value in setters:
+            setter(self.engine, value)
+        return {}
+
+    def _get_options(self, body: Any) -> dict[int, Any]:
+        keys = get_field(body, 1, list, default=list(self._options))
+        return {1: {key: self._option(key)[0](self.engine) for key in keys}}
 
     def _snapshot(self, body: Any) -> dict[int, Any]:
         engine = self.engine
@@ -162,4 +193,6 @@ class RuntimeController:
         Op.READ_SNAPSHOT: _read_snapshot,
         Op.RELEASE_SNAPSHOT: _release_snapshot,
         Op.NATIVE_COMMAND: _native_command,
+        Op.SET_OPTIONS: _set_options,
+        Op.GET_OPTIONS: _get_options,
     }
