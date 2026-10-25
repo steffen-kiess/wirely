@@ -4,6 +4,9 @@ import collections
 from collections.abc import Callable
 from typing import Any, TYPE_CHECKING
 
+from ..program.program import procedure_instances
+from ..runtime.native_api import CommandFailed, InvalidCommandArgument
+
 if TYPE_CHECKING:
     from ..runtime.engine import Engine
 
@@ -20,10 +23,10 @@ class RuntimeController:
 
     supported_ops = (
         Op.HELLO, Op.STATUS, Op.PAUSE, Op.RESUME, Op.STEP, Op.BIND_PROGRAM,
-        Op.SNAPSHOT, Op.READ_SNAPSHOT, Op.RELEASE_SNAPSHOT,
+        Op.SNAPSHOT, Op.READ_SNAPSHOT, Op.RELEASE_SNAPSHOT, Op.NATIVE_COMMAND,
     )
     # Operations that refer to program entities and require a bound session.
-    bound_ops = (Op.SNAPSHOT,)
+    bound_ops = (Op.SNAPSHOT, Op.NATIVE_COMMAND)
 
     def __init__(self, engine: 'Engine', build_id: bytes) -> None:
         if len(build_id) != BUILD_ID_LENGTH:
@@ -125,6 +128,26 @@ class RuntimeController:
         self._snapshots.move_to_end(snapshot_id)
         return {1: bytes(result)}
 
+    def _native_command(self, body: Any) -> dict[int, Any]:
+        index = get_field(body, 1, int, required=True)
+        number = get_field(body, 2, int, required=True, signed=True)
+        argument = body.get(3)
+        instances = procedure_instances(self.engine.program)
+        # Only initializers have native states.
+        state = self.engine.native_states.get(instances[index].name) if index < len(instances) else None
+        if state is None:
+            raise ControlError(ErrorCode.NOT_FOUND, f'Procedure instance {index} has no native state')
+        command = type(state).control_commands.get(number)
+        if command is None:
+            raise ControlError(ErrorCode.NOT_FOUND, f'Unknown command {number}')
+        try:
+            result = command(state, argument)
+        except InvalidCommandArgument as error:
+            raise ControlError(ErrorCode.INVALID_ARGUMENT, error.text, error.reason, error.detail) from None
+        except CommandFailed as error:
+            raise ControlError(ErrorCode.COMMAND_FAILED, error.text, error.reason, error.detail) from None
+        return {} if result is None else {1: result}
+
     def _release_snapshot(self, body: Any) -> dict[int, Any]:
         snapshot_id, _ = self._get_snapshot(body)
         del self._snapshots[snapshot_id]
@@ -138,4 +161,5 @@ class RuntimeController:
         Op.SNAPSHOT: _snapshot,
         Op.READ_SNAPSHOT: _read_snapshot,
         Op.RELEASE_SNAPSHOT: _release_snapshot,
+        Op.NATIVE_COMMAND: _native_command,
     }

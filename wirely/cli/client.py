@@ -7,10 +7,13 @@ import shlex
 import ssl
 import sys
 from collections.abc import Mapping
-from typing import Any, Never
+from typing import TYPE_CHECKING, Any, Never
 
 from ..control.client import ControlClient
 from ..control.messages import BUILD_ID_PREFIX_LENGTH, Bank, ControlError, ErrorCode, Op, RunState
+
+if TYPE_CHECKING:
+    from ..program import Program
 
 # Response bytes besides the data of a ReadSnapshot response: header, map, key, byte string header.
 READ_OVERHEAD = 3 + 1 + 1 + 3
@@ -47,6 +50,21 @@ def _add_commands(commands: Any) -> None:
     dump_parser.add_argument('--bank', choices=['state', 'temporaries', 'all'], default='all')
     dump_parser.add_argument('--program', nargs='+', metavar='FILE',
                              help='.wrl files of the running program, for printing values by name')
+    call_parser = add('call', 'send a command to the native state of an initializer')
+    call_parser.add_argument('instance', type=int, help='index of the initializer instance')
+    call_parser.add_argument('command', type=int, help='command number, as documented by the library')
+    call_parser.add_argument('argument', nargs='?', type=_diagnostic_value,
+                             help="argument in CBOR diagnostic notation, such as h'0700'")
+    call_parser.add_argument('--program', nargs='+', metavar='FILE',
+                             help='.wrl files of the program the instance index refers to')
+
+
+def _diagnostic_value(text: str) -> Any:
+    from ..control import diagnostic
+    try:
+        return diagnostic.parse(text)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from None
 
 
 async def async_run(args: argparse.Namespace) -> int:
@@ -224,27 +242,52 @@ async def _step(client: ControlClient, args: argparse.Namespace) -> int:
     return 0
 
 
-async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
-    variable_tables = None
-    if args.program is not None:
-        from ..compiler import compile_files
-        from ..compiler import program as program_compiler
+async def _bind(client: ControlClient, program_files: list[str] | None) -> 'Program | bool':
+    """Bind to the program compiled from program_files, or to the active program without them.
 
-        global_node_type = compile_files(args.program)
-        program = None if global_node_type is None else program_compiler.compile(global_node_type)
-        if program is None:
-            return 1
-        variable_tables = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
-        from ..program.writer import program_build_id
-        try:
-            await client.request(Op.BIND_PROGRAM, {1: program_build_id(program)[:BUILD_ID_PREFIX_LENGTH]})
-        except ControlError as error:
-            if error.code != ErrorCode.NOT_BOUND:
-                raise
-            print('Error: The running program does not match the program files', file=sys.stderr)
-            return 1
-    else:
+    Return the compiled program or True on success, and False after reporting an error.
+    """
+    if program_files is None:
         await client.request(Op.BIND_PROGRAM)
+        return True
+    from ..compiler import compile_files
+    from ..compiler import program as program_compiler
+    from ..program.writer import program_build_id
+
+    global_node_type = compile_files(program_files)
+    program = None if global_node_type is None else program_compiler.compile(global_node_type)
+    if program is None:
+        return False
+    try:
+        await client.request(Op.BIND_PROGRAM, {1: program_build_id(program)[:BUILD_ID_PREFIX_LENGTH]})
+    except ControlError as error:
+        if error.code != ErrorCode.NOT_BOUND:
+            raise
+        print('Error: The running program does not match the program files', file=sys.stderr)
+        return False
+    return program
+
+
+async def _call(client: ControlClient, args: argparse.Namespace) -> int:
+    if not await _bind(client, args.program):
+        return 1
+    request = {1: args.instance, 2: args.command}
+    if args.argument is not None:
+        request[3] = args.argument
+    body = await client.request(Op.NATIVE_COMMAND, request)
+    if 1 in body:
+        from ..control import diagnostic
+        print(diagnostic.format(body[1]))
+    return 0
+
+
+async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
+    program = await _bind(client, args.program)
+    if not program:
+        return 1
+    variable_tables = None
+    if not isinstance(program, bool):
+        variable_tables = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
 
     banks = list(Bank) if args.bank == 'all' else [Bank[args.bank.upper()]]
     snapshot = await client.request(Op.SNAPSHOT)
@@ -285,5 +328,6 @@ _commands = {
     'resume': _resume,
     'step': _step,
     'dump': _dump,
+    'call': _call,
     'watch': _watch,
 }

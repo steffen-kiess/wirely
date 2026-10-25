@@ -155,7 +155,8 @@ class ControlClient:
                     continue
                 if message.kind == Kind.ERROR:
                     raise ControlError(get_field(message.body, 1, int, required=True),
-                                       get_field(message.body, 2, str))
+                                       get_field(message.body, 2, str),
+                                       get_field(message.body, 3, int, signed=True), message.body.get(4))
                 return message.body
 
     async def _exchange(self, seq: int, op: int, body: Any) -> Any:

@@ -428,3 +428,8 @@ def used_declared_types(program: Program) -> Iterator[TypeEnum | TypeStruct]:
     seen: set[int] = set()  # Identities of visited types.
     for value_type in value_types:
         yield from _declared_types(value_type, seen)
+
+
+def procedure_instances(program: Program) -> tuple[Procedure, ...]:
+    """Return the procedures of all stages in stage order, the order of the ProcedureInstances table."""
+    return tuple(procedure for stage in RunStage for procedure in program.procs.get(stage, ()))

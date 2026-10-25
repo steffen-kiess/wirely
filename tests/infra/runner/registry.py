@@ -13,6 +13,7 @@ python_only_tests = [
     'unit/native_contracts',
     'unit/native_extensions',
     'unit/instructions',
+    'unit/cbor_diagnostic',
     'unit/test_resources',
     'repo/files',
     'repo/native_types',

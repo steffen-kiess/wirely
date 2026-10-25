@@ -24,7 +24,7 @@ from the frame.
 
 The body is one CBOR data item (RFC 8949), normally a map with small
 unsigned integer keys. An empty body is equivalent to an empty map.
-Receivers ignore unknown keys. Bodies use only unsigned integers, booleans,
+Receivers ignore unknown keys. Bodies use only integers, booleans,
 byte strings, text strings, arrays, and maps; notifications also use null.
 
 In an authenticated session, an 8-byte tag follows the body. See
@@ -42,8 +42,10 @@ limit. Clients choose chunk and read lengths so that responses fit.
 ### Errors
 
 An error response has `Kind` 2 and the body
-`{1: code, 2: message text}`. The text is optional and runtimes may omit
-it on slow links.
+`{1: code, 2: message text, 3: reason, 4: detail}`. The text is optional
+and runtimes may omit it on slow links. The reason, an integer, and the
+detail, any value with data about the failure, are optional; the operation
+defines both.
 
 | Code | Name | Meaning |
 | --- | --- | --- |
@@ -62,6 +64,7 @@ it on slow links.
 | 13 | `TransitionFailed` | The state transition procedure failed |
 | 14 | `Internal` | The runtime failed to handle the request |
 | 15 | `NotBound` | The session is not bound to the active program |
+| 16 | `CommandFailed` | A native command could not be carried out |
 
 ## Sessions
 
@@ -115,6 +118,7 @@ responses whose `Seq` does not match an outstanding request.
 | `0x22` | `UploadFinish` | Yes | Any |
 | `0x23` | `Activate` | Yes | Any |
 | `0x24` | `ReadProgram` | Yes | Any |
+| `0x30` | `NativeCommand` | Yes | Running or paused |
 
 Operations `0x80` through `0xff` are reserved for runtime-specific
 extensions.
@@ -224,9 +228,9 @@ defaults to 1. Response `{1: steps completed, 2: procedures run}`.
 
 `BindProgram` binds the session to the active program. Operations that
 refer to program entities by index or offset require a bound session, and
-otherwise fail with `NotBound`: `Snapshot` and `ReadProgram` of the active
-program. In a bound session, `Activate` also requires that the bound
-program is still active.
+otherwise fail with `NotBound`: `Snapshot`, `NativeCommand`, and
+`ReadProgram` of the active program. In a bound session, `Activate` also
+requires that the bound program is still active.
 
 Request:
 
@@ -366,6 +370,29 @@ The runtime returns the program as it stores it, which may lack symbol
 sections. To match variables by name, clients need the unstripped file
 with the same build ID.
 
+### NativeCommand
+
+`NativeCommand` sends a command to the native state that an initializer of
+a library created, for example to set the value of a
+`Std.DebugValueSource`. Libraries number and document their commands;
+negative numbers are reserved for commands common to all native states.
+Request:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| 1 | uint | Index of the initializer in `ProcedureInstances` |
+| 2 | int | Command |
+| 3 | any | Argument, optional |
+
+The response is `{1: result}`, without key 1 if the command has no result.
+The runtime runs commands between steps; their effects show in later
+steps. It answers `NotFound` if the procedure instance has no native state
+or the command is unknown. Commands report rejected arguments as
+`InvalidArgument` and other failures as `CommandFailed`, both optionally
+with a reason and a detail that the command defines. When an argument,
+result, or detail is a map, its negative keys are reserved for meanings
+common to all native states, like negative command numbers.
+
 ## Authentication
 
 Authentication uses a pre-shared 32-byte key per runtime. The runtime's
@@ -431,8 +458,8 @@ While running, the service holds a write lock on `DIR/lock`, so only one
 runtime uses a state directory at a time.
 
 Neither socket uses authentication tags. The service currently supports
-`Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, and the
-snapshot operations.
+`Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, the
+snapshot operations, and `NativeCommand`.
 
 `wirely client` sends requests to these sockets, for example:
 
@@ -443,6 +470,11 @@ wirely client --unix-path DIR/control-serial --protocol serial pause
 
 `wirely client --unix-path DIR/control watch` prints the run state and
 program whenever they change, until it is interrupted.
+
+`call INSTANCE COMMAND [ARGUMENT]` sends a native command. Argument and
+result use CBOR diagnostic notation: integers, `h'…'` byte strings, text
+strings, `true`, `false`, `null`, arrays, and maps. Quote arguments for the
+shell and in interactive mode, as in `call 0 1 "{1: h'0700'}"`.
 
 Without a command, `wirely client` reads commands with the same syntax,
 one per line, until `quit` or end of input. On a terminal, it offers line

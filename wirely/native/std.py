@@ -5,7 +5,10 @@ import wirely
 from wirely import DynamicValue, Some, ValueType
 from wirely.generated import std as contracts
 from wirely.native import check_state_type
-from wirely.runtime.native_api import PreparationServices, ProcedureServices, StateServices
+from wirely.runtime.native_api import (
+    InvalidCommandArgument, CommandFailed, PreparationServices, ProcedureServices, StateServices,
+    control_command,
+)
 from wirely.generated.structs import StdFormatParts
 from wirely.types import InternalValue
 from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
@@ -64,6 +67,34 @@ class WarnOnEventRun(contracts.WarnOnEventRun):
         return contracts.WarnOnEventRunResult()
 
 
+# Control commands of the debug sources take and return maps. Key 1 holds a value in the runtime
+# binary representation, with exactly the data size of the type.
+
+
+def _encode_value(value: DynamicValue) -> bytes:
+    return value._type.serialize(value._value)
+
+
+def _decode_value(value_type: ValueType[Any], argument: object) -> DynamicValue:
+    data = _argument(argument).get(1)
+    data_size = value_type._type.data_size
+    if not isinstance(data, bytes) or len(data) != data_size:
+        raise InvalidCommandArgument(f'Expected a byte string of {data_size} bytes in key 1')
+    try:
+        return DynamicValue._make(value_type._type, value_type._type.deserialize(data))
+    except ValueError as error:
+        raise InvalidCommandArgument(str(error)) from None
+
+
+def _argument(argument: object) -> dict[Any, Any]:
+    """Return the argument map; an omitted argument is an empty map."""
+    if argument is None:
+        return {}
+    if not isinstance(argument, dict):
+        raise InvalidCommandArgument('Expected a map')
+    return argument
+
+
 class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
                    type: ValueType[Any], initial: DynamicValue) -> contracts.DebugValueSourceCreateResult:
@@ -78,6 +109,16 @@ class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
     def _set(self, value: DynamicValue) -> None:
         self.current_value = value
         self.services.trigger('state')
+
+    @control_command(0)
+    def get_command(self, argument: object) -> dict[int, bytes]:
+        _argument(argument)
+        return {1: _encode_value(self.current_value)}
+
+    @control_command(1)
+    def set_command(self, argument: object) -> dict[int, Any]:
+        self._set(_decode_value(self.value_type, argument))
+        return {}
 
     def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:
@@ -127,6 +168,21 @@ class DebugEventSourceCreate(contracts.DebugEventSourceCreate):
         self.next_value = value
 
         self.services.trigger('state')
+
+    @control_command(0)
+    def get_command(self, argument: object) -> dict[int, bytes]:
+        """Return the payload of the queued event, if any."""
+        _argument(argument)
+        return {} if self.next_value is None else {1: _encode_value(self.next_value.value)}
+
+    @control_command(1)
+    def send_command(self, argument: object) -> dict[int, Any]:
+        payload = _decode_value(self.value_type, argument)
+        if self.next_value is not None:
+            # Reason 1: an event is pending.
+            raise CommandFailed('An event is already queued', reason=1)
+        self._send(wirely.Some(payload))
+        return {}
 
     def debug_command(self, parameters: Sequence[str]) -> None:
         if len(parameters) == 0:

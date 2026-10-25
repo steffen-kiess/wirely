@@ -215,11 +215,56 @@ class ProcedureServices:
         return f'ProcedureServices(name={self._name!r})'
 
 
+class CommandFailed(Exception):
+    """Raised by a control command that cannot be carried out.
+
+    The library defines the optional reason code and detail data for each command.
+    """
+
+    def __init__(self, text: str | None = None, *, reason: int | None = None, detail: Any = None) -> None:
+        super().__init__(text)
+        self.text = text
+        self.reason = reason
+        self.detail = detail
+
+
+class InvalidCommandArgument(CommandFailed):
+    """Raised by a control command for an argument it does not accept."""
+
+
+def control_command(number: int) -> Callable[[F], F]:
+    """Declare a NativeState method `(self, argument) -> result` as the control command `number`.
+
+    Arguments and results are CBOR values; None is an absent argument or result.
+    """
+    def decorate(method: F) -> F:
+        setattr(method, '_control_command', number)
+        return method
+    return decorate
+
+
 class NativeState(Generic[K]):
     """Base class of native states; contracts declare their initialize() method."""
 
     _adapter: ClassVar[InitializerAdapter]  # Set by the contract module.
     _services: StateServices[K]
+    # Control commands by number, collected from @control_command methods.
+    control_commands: ClassVar[Mapping[int, Callable[[Any, Any], Any]]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        commands = dict(cls.control_commands)
+        own: dict[int, str] = {}
+        for name, member in vars(cls).items():
+            number = getattr(member, '_control_command', None)
+            if number is None:
+                continue
+            if number in own:
+                raise TypeError(f'{cls.__name__}: control command {number} is declared by both '
+                                f'{own[number]} and {name}')
+            own[number] = name
+            commands[number] = member
+        cls.control_commands = commands
 
     @property
     def services(self) -> StateServices[K]:

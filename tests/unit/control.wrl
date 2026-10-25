@@ -11,3 +11,27 @@ node type CachedConstant {
 node c: CachedConstant { Value: 42 }
 state d: uint32 = 7;
 connect c -> d;
+
+// Inputs for native commands, connected to procedures that add temporaries but no state.
+node type Forward {
+  default input: value uint16;
+  default output: value uint16;
+  procedure run reads default input as input writes default output as output {
+    output = input;
+  }
+}
+node type LastEvent {
+  default input: event uint8;
+  default output: value Option[uint8];
+  procedure run reads default input as input writes default output as output {
+    let mut last: Option[uint8] = None;
+    on input { last = Some(input); }
+    output = last;
+  }
+}
+node value: Std.DebugValueSource { Type: uint16, Initial: 5 }
+node forward: Forward {}
+connect value -> forward;
+node events: Std.DebugEventSource { Type: uint8 }
+node last_event: LastEvent {}
+connect events -> last_event;

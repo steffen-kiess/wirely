@@ -20,6 +20,7 @@ from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
 from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, encode
 from wirely.control.server import ControlServer
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
+from wirely.program.program import procedure_instances
 from wirely.program.writer import program_build_id
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
@@ -219,6 +220,54 @@ async def check_client_ignores_notifications():
     assert await ControlClient(framing).request(Op.STATUS) == {1: 0}
 
 
+def instance_index(name):
+    return [procedure.name for procedure in procedure_instances(engine.program)].index(name)
+
+
+async def check_native_commands(server):
+    value = instance_index('value:create')
+    events = instance_index('events:create')
+    client = await ControlClient.connect_unix(server.stream_path)
+
+    def command(index, number, *argument):
+        return client.request(Op.NATIVE_COMMAND, {1: index, 2: number, **({3: argument[0]} if argument else {})})
+
+    try:
+        await expect_error(ErrorCode.NOT_BOUND, command(value, 0))
+        await client.request(Op.BIND_PROGRAM)
+        # Negative command numbers are valid integers, but these targets do not have them.
+        for index, number in [(value, 9), (value, -1), (instance_index('c:run'), 0),
+                              (len(procedure_instances(engine.program)), 0)]:
+            await expect_error(ErrorCode.NOT_FOUND, command(index, number))
+
+        # DebugValueSource: 0 gets and 1 sets the value, in its binary representation in key 1.
+        assert await command(value, 0) == {1: {1: (5).to_bytes(2, 'little')}}
+        await client.request(Op.PAUSE)
+        assert await command(value, 1, {1: (7).to_bytes(2, 'little')}) == {1: {}}
+        await client.request(Op.STEP)
+        assert engine.get_value('forward') == 7
+        assert await command(value, 0, {}) == {1: {1: (7).to_bytes(2, 'little')}}
+        for argument in ({1: b'\x07'}, {1: 'text'}, {}, b'\x07\x00'):
+            await expect_error(ErrorCode.INVALID_ARGUMENT, command(value, 1, argument))
+        await expect_error(ErrorCode.INVALID_ARGUMENT, command(value, 0, b''))
+
+        # DebugEventSource: 0 gets the queued payload and 1 sends an event.
+        assert await command(events, 0) == {1: {}}
+        assert await command(events, 1, {1: b'\x03'}) == {1: {}}
+        assert await command(events, 0) == {1: {1: b'\x03'}}
+        try:
+            await command(events, 1, {1: b'\x04'})
+        except ControlError as error:
+            assert (error.code, error.reason, error.detail) == (ErrorCode.COMMAND_FAILED, 1, None), error
+        else:
+            raise AssertionError('Expected COMMAND_FAILED')
+        await client.request(Op.STEP)
+        assert await command(events, 0) == {1: {}}
+        await client.request(Op.RESUME)
+    finally:
+        await client.close()
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -298,7 +347,7 @@ async def check_serial(server):
         assert await exchange(hello()) == hello_response
 
         # Invalid CBOR, data after the body, and items outside the subset are malformed.
-        for body in [b'\xff', b'\x5f', b'\xa0\x00', b'\x20', b'\xf9\x00\x00']:
+        for body in [b'\xff', b'\x5f', b'\xa0\x00', b'\xf7', b'\xf9\x00\x00']:
             response = decode(await exchange(bytes([Kind.REQUEST, 1, Op.STATUS]) + body))
             assert (response.kind, response.body[1]) == (Kind.ERROR, ErrorCode.MALFORMED), body
 
@@ -366,6 +415,18 @@ async def check_cli(server):
         assert output == 'Error: The running program does not match the program files\n'
     assert 'running' in await run_client_command(*serial, 'resume')
 
+    # Native commands take and print CBOR diagnostic notation.
+    value = str(instance_index('value:create'))
+    events = str(instance_index('events:create'))
+    assert await run_client_command(*serial, 'call', value, '1', "{1: h'0900'}") == '{}\n'
+    assert await run_client_command(*serial, 'call', value, '0', '--program', program_path) == "{1: h'0900'}\n"
+    # While paused, the first event stays queued.
+    await run_client_command(*serial, 'pause')
+    assert await run_client_command(*serial, 'call', events, '1', "{1: h'05'}") == '{}\n'
+    output = await run_client_command(*serial, 'call', events, '1', "{1: h'06'}", status=1)
+    assert output == 'Error: COMMAND_FAILED: An event is already queued (reason 1)\n'
+    await run_client_command(*serial, 'resume')
+
     # Without a command, commands are read from stdin.
     output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
     assert 'paused' in output and '2 steps' in output and 'running' in output
@@ -393,6 +454,7 @@ async def run_test():
                     await check_binding(server)
                     await check_status(server)
                     await check_status_serial(server)
+                    await check_native_commands(server)
                     await check_tls(server, cert_path)
                     await check_serial(server)
                     await check_cli(server)

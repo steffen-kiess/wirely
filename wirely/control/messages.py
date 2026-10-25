@@ -40,6 +40,7 @@ class Op(enum.IntEnum):
     UPLOAD_FINISH = 0x22
     ACTIVATE = 0x23
     READ_PROGRAM = 0x24
+    NATIVE_COMMAND = 0x30
 
 
 class ErrorCode(enum.IntEnum):
@@ -58,6 +59,7 @@ class ErrorCode(enum.IntEnum):
     TRANSITION_FAILED = 13
     INTERNAL = 14
     NOT_BOUND = 15
+    COMMAND_FAILED = 16
 
 
 class RunState(enum.IntEnum):
@@ -75,19 +77,31 @@ class Bank(enum.IntEnum):
 class ControlError(Exception):
     """An error response, raised by handlers and returned to clients."""
 
-    def __init__(self, code: int, text: str | None = None) -> None:
+    def __init__(self, code: int, text: str | None = None, reason: int | None = None, detail: Any = None) -> None:
         self.code = code
         self.text = text
+        # Defined by the operation, e.g. by a library for NativeCommand.
+        self.reason = reason
+        self.detail = detail
         try:
             name = ErrorCode(code).name
         except ValueError:
             name = f'Error {code}'
-        super().__init__(f'{name}: {text}' if text else name)
+        message = f'{name}: {text}' if text else name
+        if reason is not None:
+            message += f' (reason {reason})'
+        if detail is not None:
+            message += f' (detail {detail!r})'
+        super().__init__(message)
 
     def body(self) -> dict[int, Any]:
         body: dict[int, Any] = {1: int(self.code)}
         if self.text is not None:
             body[2] = self.text
+        if self.reason is not None:
+            body[3] = self.reason
+        if self.detail is not None:
+            body[4] = self.detail
         return body
 
 
@@ -126,7 +140,7 @@ def decode(data: bytes) -> Message:
 def _check_item(item: object) -> None:
     """Reject CBOR items outside the subset used by message bodies."""
     # Notifications use null for keys that no longer have a value.
-    if item is None or isinstance(item, (bool, bytes, str)) or isinstance(item, int) and item >= 0:
+    if item is None or isinstance(item, (bool, int, bytes, str)):
         return
     if isinstance(item, list):
         for element in item:
@@ -140,8 +154,9 @@ def _check_item(item: object) -> None:
     raise ControlError(ErrorCode.MALFORMED, f'Unsupported CBOR item {type(item).__name__}')
 
 
-def get_field(body: Any, key: int, kind: type, *, default: Any = None, required: bool = False) -> Any:
-    """Return a body field after checking its Python type."""
+def get_field(body: Any, key: int, kind: type, *, default: Any = None, required: bool = False,
+              signed: bool = False) -> Any:
+    """Return a body field after checking its Python type; integers are nonnegative unless signed."""
     if not isinstance(body, dict):
         raise ControlError(ErrorCode.MALFORMED, 'Body is not a map')
     if key not in body:
@@ -152,6 +167,6 @@ def get_field(body: Any, key: int, kind: type, *, default: Any = None, required:
     # bool is a subclass of int, but CBOR keeps them apart.
     if not isinstance(value, kind) or (kind is int and isinstance(value, bool)):
         raise ControlError(ErrorCode.INVALID_ARGUMENT, f'Field {key} has the wrong type')
-    if kind is int and isinstance(value, int) and value < 0:
+    if isinstance(value, int) and not signed and value < 0:
         raise ControlError(ErrorCode.INVALID_ARGUMENT, f'Field {key} is negative')
     return value

@@ -74,9 +74,23 @@ its functions.
 | `DetectEdge` | `EdgeType: Std.EdgeType` | In: `value boolean`; out: `event boolean`. `Rising` detects false → true, `Falling` true → false, and `Both` either transition. Emits the new value; initialization emits nothing. |
 
 The debug sources are intended for testing and interactive control. Their
-input is supplied through the engine's debug interface, not a `.wrl`
-connection. `TwoStageValueForward` is primarily a demonstration of procedure
-dependencies.
+input is supplied through the engine's debug interface or the control
+protocol's [`NativeCommand`](control-protocol.md#nativecommand), not a
+`.wrl` connection. `TwoStageValueForward` is primarily a demonstration of
+procedure dependencies.
+
+Commands of the debug sources take and return maps. Key 1 holds a value
+as a byte string in the
+[runtime binary representation](value-types.md#runtime-binary-representation),
+with the data size of `Type`; event payloads have no `Option` wrapper. An
+omitted argument is an empty map.
+
+| Node type | Command | Argument | Result |
+| --- | --- | --- | --- |
+| `DebugValueSource` | 0 | `{}` | `{1: current value}` |
+| `DebugValueSource` | 1 | `{1: new value}` | `{}` |
+| `DebugEventSource` | 0 | `{}` | `{1: payload}` of the queued event, or `{}` |
+| `DebugEventSource` | 1 | `{1: payload}` of an event to send | `{}`; while an event is queued, `CommandFailed` with reason 1 |
 
 ## Schedule
 

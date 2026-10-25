@@ -441,6 +441,17 @@ Use `self.start_task(task_group, async_exit_stack, coroutine)` for a task
 that runs until cancellation during cleanup. Tasks can update Python fields
 and trigger procedures, or send data handed off by output procedures.
 
+A native state accepts control commands, which clients send with the
+control protocol's [`NativeCommand`](control-protocol.md#nativecommand), from
+methods decorated with `@control_command(number)` from
+`wirely.runtime.native_api`. A command method takes the argument and
+returns the result, both as CBOR values in Python form, with `None` for an
+absent argument or result. It runs between steps; call `services.trigger()`
+for changes that procedures should see. Raise `InvalidCommandArgument` for
+an argument the command does not accept and `CommandFailed` for other
+failures, each with an optional text, `reason`, and `detail`. Document the
+commands with the library.
+
 ## Scheduling and time
 
 Procedures run in dependency order within input, default calculation, and
