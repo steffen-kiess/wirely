@@ -56,7 +56,7 @@ class NodeParameter:
         try:
             # TODO: Is this correct?
             self.type_resolved = self.node_type.resolve_type(self.ty)
-            if isinstance(self.type_resolved, model.ResourceType):
+            if isinstance(self.type_resolved, model.types.TypeResource):
                 raise model.ProgramError(self.ty, 'Resources cannot be parameter value types')
         finally:
             self.resolving_type = False
@@ -95,7 +95,7 @@ class NamespaceConstant:
     def resolve_type(self) -> None:
         if not hasattr(self, 'type_resolved'):
             self.type_resolved = self.namespace.resolve_type(self.declaration.ty)
-            if isinstance(self.type_resolved, model.ResourceType):
+            if isinstance(self.type_resolved, model.types.TypeResource):
                 raise model.ProgramError(self.declaration.ty, 'Resources cannot be constant value types')
 
     def check(self) -> None:

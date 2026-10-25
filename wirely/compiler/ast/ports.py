@@ -73,9 +73,9 @@ class DeclarationPort(Declaration):
             resource_type = None
         elif isinstance(self.port_spec, PortTypeSpecificationFixed):
             ty = new_graph.resolve_type(self.port_spec.ty)
-            if not isinstance(ty, model.ResourceType):
+            if not isinstance(ty, model.types.TypeResource):
                 check_runtime_type(ty, self)
-            resource_type = ty if isinstance(ty, model.ResourceType) else None
+            resource_type = ty if isinstance(ty, model.types.TypeResource) else None
         else:
             raise InternalCompilerError(self, Exception('Unknown port type specification'))
         port: model.TypeInputPort | model.TypeOutputPort

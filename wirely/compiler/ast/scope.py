@@ -36,8 +36,8 @@ class Scope(abc.ABC):
     def __init__(self) -> None:
         self.libraries: dict[str, model.Namespace] = {}
         self.node_types: dict[str, model.NodeType] = {}
-        self.resource_types: dict[str, model.ResourceType] = {}
-        self.enum_types: dict[str, model.EnumType] = {}
+        self.resource_types: dict[str, model.ResourceDefinition] = {}
+        self.enum_types: dict[str, model.EnumDefinition] = {}
         self.struct_types: dict[str, model.StructDefinition] = {}
         self.connections: list[model.Connection] = []
         self.native_functions: dict[str, model.CompiledFunction] = {}
@@ -69,7 +69,7 @@ class Scope(abc.ABC):
                 # if len(ty.parameters) != 1:
                 #     raise model.ProgramError(ty, f'Expected 1 type parameter, got {len(ty.parameters)}: {ty}')
                 par_type = self.resolve_type(ty.parameter, par_values=par_values)
-                if isinstance(par_type, model.ResourceType):
+                if isinstance(par_type, model.types.TypeResource):
                     raise ProgramError(ty, 'Resources cannot be members of composite types')
                 return gen_type(par_type)
             elif not isinstance(ty, Reference):
@@ -124,13 +124,13 @@ class Scope(abc.ABC):
                 if candidate is not None:
                     resource = candidate.resource_types.get(ty.identifiers[-1].id_str)
                     if resource is not None:
-                        return resource
+                        return resource.value_type
                     struct = candidate.struct_types.get(ty.identifiers[-1].id_str)
                     if struct is not None:
                         return struct.resolve_fields()
                     enum_type = candidate.enum_types.get(ty.identifiers[-1].id_str)
                     if enum_type is not None:
-                        return enum_type
+                        return enum_type.value_type
                 scope = scope.parent_graph
             raise model.ProgramError(ty, f'Cannot find type `{ty}`')
 
@@ -184,12 +184,12 @@ class Scope(abc.ABC):
         # mypy joins the union to object when inferring T.
         return cast('model.NamespaceConstant | model.NodeParameter | None', self._lookup(names, find))
 
-    def resolve_resource_type(self, name: Value) -> 'model.ResourceType':
+    def resolve_resource_type(self, name: Value) -> 'model.types.TypeResource':
         assert isinstance(name, Reference)
         names = tuple(identifier.id_str for identifier in name.identifiers)
         resource_type = self._lookup(names, lambda scope, name: scope.resource_types.get(name))
         if resource_type is not None:
-            return resource_type
+            return resource_type.value_type
         raise model.ProgramError(name, f'Cannot find resource type `{name}`; fixed values of other types are not '
                                  'supported yet')
 

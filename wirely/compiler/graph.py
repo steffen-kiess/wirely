@@ -92,7 +92,7 @@ class GraphElement:
 class TypeInputPort(GraphElement):
     def __init__(self, graph: 'model.NodeType', type: 'model.types.Type | None', *, name: str,
                  input_name: str, is_list: bool, port_spec: 'model.PortTypeSpecification',
-                 resource_type: 'model.ResourceType | None' = None) -> None:
+                 resource_type: 'model.types.TypeResource | None' = None) -> None:
         super().__init__(graph, name=name)
         # TODO: Clean up
         self.var_type = type
@@ -117,7 +117,7 @@ class TypeInputPort(GraphElement):
 class TypeOutputPort(GraphElement):
     def __init__(self, graph: 'model.NodeType', type: 'model.types.Type | None', *, name: str,
                  output_name: str, port_spec: 'model.PortTypeSpecification',
-                 resource_type: 'model.ResourceType | None' = None) -> None:
+                 resource_type: 'model.types.TypeResource | None' = None) -> None:
         super().__init__(graph, name=name)
         self.var_type = type
         self.output_name = output_name
@@ -189,7 +189,7 @@ class LocalResource(GraphElement):
         super().__init__(graph, name=declaration.name.id_str)
         self.declaration = declaration
         self.port_spec = declaration.port_spec
-        self.resource_type = resource_type if isinstance(resource_type, model.ResourceType) else None
+        self.resource_type = resource_type if isinstance(resource_type, model.types.TypeResource) else None
         self.var_type = resource_type
         graph.local_resources[self.name] = self
 
@@ -223,7 +223,7 @@ class InstanceLocalResource:
         return self.resource.port_spec
 
     @property
-    def resource_type(self) -> 'model.ResourceType | None':
+    def resource_type(self) -> 'model.types.TypeResource | None':
         return self.resource.resource_type
 
     @property
@@ -273,7 +273,7 @@ class PortSpecification:
 
     var_type: 'model.types.Type | None'
     port_spec: 'model.PortTypeSpecification | None'
-    resource_type: 'model.ResourceType | None'
+    resource_type: 'model.types.TypeResource | None'
     is_list: bool
 
 
@@ -289,7 +289,7 @@ def port_specification(port: Any) -> PortSpecification:
     var_type = port.var_type
     if isinstance(port.node, model.InstanceNode) and var_type is not None:
         var_type = resolve_type(var_type, port.node.par_values)
-    resource_type = var_type if isinstance(var_type, model.ResourceType) else None
+    resource_type = var_type if isinstance(var_type, model.types.TypeResource) else None
     return PortSpecification(var_type, port.port_spec, resource_type,
                              getattr(port, 'is_list', False))
 
@@ -354,7 +354,7 @@ class ProcedurePort(GraphElement):
         return self.specification.port_spec
 
     @property
-    def resource_type(self) -> 'model.ResourceType | None':
+    def resource_type(self) -> 'model.types.TypeResource | None':
         return self.specification.resource_type
 
     @property

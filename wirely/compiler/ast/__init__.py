@@ -48,6 +48,8 @@ from .type_declarations import (
     StructField,
     DeclarationStructType,
     StructDefinition,
+    EnumDefinition,
+    ResourceDefinition,
     DeclarationEnumType,
     DeclarationResourceType,
 )

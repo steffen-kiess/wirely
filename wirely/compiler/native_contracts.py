@@ -719,9 +719,9 @@ def library_interfaces(*graphs: Any) -> Interfaces:
 
 def native_enums(scope: Any) -> Iterator[tuple[Any, Any]]:
     """Yield (TypeEnum, declaration) for each native enum declared in a scope and its namespaces."""
-    for value_type in scope.enum_types.values():
-        if value_type.native_name is not None:
-            yield value_type, value_type.declaration
+    for definition in scope.enum_types.values():
+        if definition.value_type.native_name is not None:
+            yield definition.value_type, definition.declaration
     for library in scope.libraries.values():
         yield from native_enums(library)
 
@@ -749,8 +749,8 @@ def native_opaque_types(scope: Any) -> Iterator[tuple[Any, Any]]:
 
 def native_resources(scope: Any) -> Iterator[tuple[str, Any]]:
     """Yield native resource names and declarations, including resources without consumers."""
-    for resource in scope.resource_types.values():
-        yield resource.native_name, resource.declaration
+    for definition in scope.resource_types.values():
+        yield definition.value_type.native_name, definition.declaration
     for nested in (*scope.libraries.values(), *scope.node_types.values()):
         yield from native_resources(nested)
 
@@ -848,7 +848,8 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
     def position(declaration: Any) -> int:
         return declaration.source_position.meta.start_pos
 
-    enums = sorted(graph.enum_types.values(), key=lambda value_type: position(value_type.declaration))
+    enum_definitions = sorted(graph.enum_types.values(), key=lambda definition: position(definition.declaration))
+    enums = [definition.value_type for definition in enum_definitions]
     definitions = sorted(graph.struct_types.values(), key=lambda definition: position(definition.declaration))
     value_types = [definition.resolve_fields() for definition in definitions]
     constants: set[str] = set()
@@ -872,17 +873,17 @@ def generate_format_records(graph: Any, *, source_root: Path = repository_root) 
         raise ValueError(f'Field `{field}` of format record `{record.name}` has unsupported type `{field_type}`')
 
     classes: list[tuple[int, str, list[str]]] = []
-    for value_type in enums:
+    for enum_definition, value_type in zip(enum_definitions, enums):
         if not value_type.members:
             # Python cannot look up values of an enum without members.
             raise ValueError(f'Format enum `{value_type.name}` must have members')
         underlying = value_type.underlying_type
         base = (f'OpenIntEnum, minimum={underlying.min_value}, maximum={underlying.max_value}'
                 if value_type.is_open else 'enum.IntEnum')
-        body = ['', source_comment(value_type.name, value_type.declaration, source_root),
+        body = ['', source_comment(value_type.name, enum_definition.declaration, source_root),
                 f'class {value_type.name}({base}):']
         body += [f'    {member} = {number}' for member, number in value_type.members.items()]
-        classes.append((position(value_type.declaration), value_type.name, body + ['']))
+        classes.append((position(enum_definition.declaration), value_type.name, body + ['']))
     for definition, value_type in zip(definitions, value_types):
         names = struct_field_names(value_type)
         body = ['', source_comment(value_type.name, definition.declaration, source_root),

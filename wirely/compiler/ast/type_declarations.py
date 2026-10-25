@@ -94,7 +94,7 @@ class StructDefinition:
                         CompilerHint(previous[name].name, 'Previous field was here'),
                     ])
                 fields[name] = self.scope.resolve_type(field.field_type)
-                if isinstance(fields[name], model.ResourceType):
+                if isinstance(fields[name], model.types.TypeResource):
                     raise ProgramError(field.field_type, 'Resources cannot be members of composite types')
                 previous[name] = field
             type_name = self.declaration.name.id_str
@@ -122,6 +122,22 @@ class StructDefinition:
             return self.value_type
         finally:
             self.resolving = False
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class EnumDefinition:
+    """An enum type declared in a scope, in a compilation."""
+
+    declaration: 'DeclarationEnumType'
+    value_type: 'model.types.TypeEnum'
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class ResourceDefinition:
+    """A resource type declared in a scope, in a compilation."""
+
+    declaration: 'DeclarationResourceType'
+    value_type: 'model.types.TypeResource'
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -216,9 +232,9 @@ class DeclarationEnumType(Declaration):
         native_name = None
         if self.is_native:
             native_name = self.alias.value if self.alias is not None else fullname
-        value_type = model.EnumType(self, fullname, numbers, is_open=self.is_open, underlying_type=underlying,
-                                    native_name=native_name)
-        graph.enum_types[name] = value_type
+        value_type = model.types.TypeEnum(fullname, numbers, is_open=self.is_open, underlying_type=underlying,
+                                          native_name=native_name)
+        graph.enum_types[name] = EnumDefinition(self, value_type)
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -254,4 +270,4 @@ class DeclarationResourceType(Declaration):
         else:
             name_tuple = (name,)
         native_name = self.alias.value if self.alias is not None else '.'.join(name_tuple)
-        graph.resource_types[name] = model.ResourceType('.'.join(name_tuple), name_tuple, self, native_name)
+        graph.resource_types[name] = ResourceDefinition(self, model.types.TypeResource('.'.join(name_tuple), native_name))

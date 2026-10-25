@@ -51,7 +51,7 @@ class ResolvedPort:
     is_list: bool
     # None if the type did not resolve, or for resources.
     type: model.Type | None
-    resource_type: model.ResourceType | None
+    resource_type: model.types.TypeResource | None
 
 
 @dataclass(frozen=True)
@@ -219,7 +219,7 @@ class Analysis:
         assert self._global is not None
         coordinator = self._global.coordinator
 
-        def add(declarations: Mapping[str, model.StructDefinition | model.EnumType], prefix: str,
+        def add(declarations: Mapping[str, model.StructDefinition | model.EnumDefinition], prefix: str,
                 internal: bool) -> None:
             for name, declaration in declarations.items():
                 if include_internal or not (internal or _is_internal(coordinator.attributes(declaration.declaration))):

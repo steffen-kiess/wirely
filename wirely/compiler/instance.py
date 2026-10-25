@@ -252,7 +252,7 @@ class InstanceInputPort(InstanceSource):
         copy_attributes(self, type_input_port, type_input_port.attributes)
 
         self.port_spec: model.PortTypeSpecification = self.type_input_port.port_spec
-        self.resource_type: model.ResourceType | None = self.type_input_port.resource_type
+        self.resource_type: model.types.TypeResource | None = self.type_input_port.resource_type
 
         self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):
@@ -325,7 +325,7 @@ class InstanceOutputPort(InstanceTarget):
         copy_attributes(self, type_output_port, type_output_port.attributes)
 
         self.port_spec = self.type_output_port.port_spec
-        self.resource_type: model.ResourceType | None = self.type_output_port.resource_type
+        self.resource_type: model.types.TypeResource | None = self.type_output_port.resource_type
 
         self.impl_var_type: model.types.Type | None
         if isinstance(self.port_spec, model.PortTypeSpecificationData):

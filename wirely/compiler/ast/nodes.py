@@ -327,7 +327,7 @@ class DeclarationBinding(Declaration):
         variable: model.LocalResource | model.TemporaryNode
         if self.is_resource:
             resource_type = new_graph.resolve_type(self.port_spec.ty)
-            if not isinstance(resource_type, model.ResourceType):
+            if not isinstance(resource_type, model.types.TypeResource):
                 check_runtime_type(resource_type, self)
             variable = model.LocalResource(new_graph, self, resource_type)
         else:

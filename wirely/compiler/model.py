@@ -9,8 +9,6 @@ from wirely.program import Program, RunStage, Variable, VariableTable, InputSour
 
 # Names exported lazily; add new names to the TYPE_CHECKING imports below too.
 _exports = {
-    'EnumType': 'compiler.types',
-    'ResourceType': 'compiler.types',
     'TypeParameter': 'compiler.types',
     'Value': 'compiler.value',
     'ConstantValue': 'compiler.value',
@@ -99,6 +97,8 @@ _exports = {
     'EnumMember': 'compiler.ast',
     'DeclarationStructType': 'compiler.ast',
     'StructDefinition': 'compiler.ast',
+    'EnumDefinition': 'compiler.ast',
+    'ResourceDefinition': 'compiler.ast',
     'StructField': 'compiler.ast',
     'StructLiteral': 'compiler.ast',
     'StructLiteralField': 'compiler.ast',
@@ -128,8 +128,6 @@ _modules = {
 
 if TYPE_CHECKING:
     from wirely.compiler.types import (
-        EnumType,
-        ResourceType,
         TypeParameter,
     )
     from wirely.compiler.value import (
@@ -230,6 +228,8 @@ if TYPE_CHECKING:
         EnumMember,
         DeclarationStructType,
         StructDefinition,
+        EnumDefinition,
+        ResourceDefinition,
         StructField,
         StructLiteral,
         StructLiteralField,

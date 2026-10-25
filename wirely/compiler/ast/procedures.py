@@ -583,9 +583,9 @@ class TypeProcedure:
             resource_type = None
         else:
             var_type = graph.resolve_type(spec.ty)
-            if not isinstance(var_type, model.ResourceType):
+            if not isinstance(var_type, model.types.TypeResource):
                 check_runtime_type(var_type, spec)
-            resource_type = var_type if isinstance(var_type, model.ResourceType) else None
+            resource_type = var_type if isinstance(var_type, model.types.TypeResource) else None
         specification = model.PortSpecification(var_type, spec, resource_type, spec.list_spec.is_list)
         return port_type(graph, self, declaration, specification=specification)
 

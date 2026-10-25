@@ -14,28 +14,6 @@ from .. import types
 from . import model
 
 
-class ResourceType(types.TypeResource):
-    """Nominal port type identifying an opaque service resource."""
-
-    def __init__(self, name: str, name_tuple: tuple[str, ...], declaration: model.DeclarationResourceType,
-                 native_name: str) -> None:
-        super().__init__(name, native_name)
-        self.name_tuple = name_tuple  # Qualified name components.
-        self.declaration = declaration
-
-    def __repr__(self) -> str:
-        return f'ResourceType({self.name})'
-
-
-class EnumType(types.TypeEnum):
-    """An enum declared in a program, with its declaration."""
-
-    def __init__(self, declaration: model.ast.DeclarationEnumType, name: str, members: Mapping[str, int], *,
-                 is_open: bool, underlying_type: types.TypeInt, native_name: str | None = None) -> None:
-        super().__init__(name, members, is_open=is_open, underlying_type=underlying_type, native_name=native_name)
-        self.declaration = declaration
-
-
 class TypeParameter(Type):
     def __init__(self, parameter: model.NodeParameter, *,
                  ast_element: model.ast.SourceElement | None = None) -> None:
@@ -241,13 +219,12 @@ _literal_parsers: dict[type, Callable[..., Any]] = {
     types.TypeValueType: _parse_value_type,
     types.TypeString: _parse_string,
     types.TypeEnum: _parse_enum,
-    EnumType: _parse_enum,
     types.TypeStruct: _parse_struct,
 }
 
 
 def parse_value(value_type: Type, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
-    if isinstance(value_type, ResourceType):
+    if isinstance(value_type, types.TypeResource):
         raise model.ProgramError(value, 'Resources cannot be compile-time values')
     parser = _literal_parsers[type(value_type)]
     return value_type.verify_value(parser(value_type, value, scope=scope))

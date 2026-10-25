@@ -139,9 +139,9 @@ def check_compatible(source: Any, target: Any, source_element: model.ast.SourceE
         target_type = resolve_type(target_type, target.node.par_values)
     if source_type != target_type:
         incompatible(f'source has type `{source_type}` but target has type `{target_type}`')
-    if isinstance(source_type, model.ResourceType) and target_kind != model.ConnectionKind.Fixed:
+    if isinstance(source_type, model.types.TypeResource) and target_kind != model.ConnectionKind.Fixed:
         incompatible('Resources require fixed ports')
-    return isinstance(source_type, model.ResourceType)
+    return isinstance(source_type, model.types.TypeResource)
 
 
 def path_resolve_singleton(path: ResolutionPath) -> ResolutionPath:

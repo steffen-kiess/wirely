@@ -139,10 +139,10 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                       else owner.node_type.value_nodes[target.name])
         else:
             source = owner.node_type.value_nodes.get(var.name, owner.instantiation)
-        if not isinstance(var_type, model.ResourceType):
+        if not isinstance(var_type, model.types.TypeResource):
             check_runtime_type(var_type, source)
         v = Variable(var_type)
-        fixed = isinstance(var_type, model.ResourceType) or model.connection_kind(var) == model.ConnectionKind.Fixed
+        fixed = isinstance(var_type, model.types.TypeResource) or model.connection_kind(var) == model.ConnectionKind.Fixed
         input_source = InputSource(VariableBank.FIXED_VALUES if fixed else VariableBank.TEMPORARIES, v)
         (fixed_variables if fixed else all_variables).append(v)
         variable_map[path, var.var_identifier] = input_source
@@ -346,7 +346,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                           and port.reference.identifiers[0].id_str in instances[path].node_type.state_nodes
                           and port.reference.identifiers[1].id_str == 'new'):
                         changed_states[name] = variable
-                if not getattr(source, 'is_list', False) and isinstance(resolve_source(path, source).value_type, model.ResourceType):
+                if not getattr(source, 'is_list', False) and isinstance(resolve_source(path, source).value_type, model.types.TypeResource):
                     raise model.ProgramError(port, 'Procedure bodies cannot read resources')
                 spec = getattr(source, 'port_spec', None)
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
@@ -375,7 +375,7 @@ def lower_program(global_node_type: model.NodeType) -> Program:
                 spec = getattr(target, 'port_spec', None)
                 port = next(port for port in proc.declaration_procedure.writes.outputs
                                if port.key == name)
-                if isinstance(resolve_source(path, target).value_type, model.ResourceType):
+                if isinstance(resolve_source(path, target).value_type, model.types.TypeResource):
                     raise model.ProgramError(port, 'Procedure bodies cannot write resources')
                 if spec is not None and spec.kind_spec.kind == model.ConnectionKind.Event:
                     event_outputs.add(name)
