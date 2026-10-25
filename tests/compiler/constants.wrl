@@ -81,3 +81,39 @@ node type BooleanExpression {
   assert Enabled && Matches;
 }
 node expression: BooleanExpression { Type: boolean, Value: false }
+
+// Namespace and root constants are visible in nested scopes.
+namespace Limits {
+  constant Doubled: int16 = Base * 2;
+  constant Base: int16 = 21;
+  constant Corner: Settings = Settings { enabled: true, number: Base, at: "06:00" };
+  constant Kind: type = int16;
+
+  node type Check {
+    parameter Value: Kind = Doubled;
+    assert Value == 42 && Limits.Base == 21;
+  }
+}
+namespace Limits.Inner {
+  constant Tripled: int16 = Base * 3;
+}
+assert Limits.Doubled == 42 && Limits.Inner.Tripled == 63;
+assert Limits.Corner.number == 21 && Limits.Corner.enabled;
+node check: Limits.Check {}
+node kind: Std.Constant { Type: Limits.Kind, Value: Limits.Base }
+
+constant RootOffset: int16 = RootLater + 1;
+optional parameter RootOption: boolean;
+constant RootOptionValue: Option[boolean] = optional(RootOption);
+node type UsesRoot {
+  constant Copy: RootType = RootOffset;
+  constant RootValue: int16 = 1;
+  assert Copy == 13 && RootOptionValue == None;
+  // A node type's own constants shadow root constants.
+  assert RootValue == 1;
+  default output: value int16;
+  procedure run writes default output as output {
+    output = RootOffset + Limits.Base;
+  }
+}
+node uses_root: UsesRoot {}

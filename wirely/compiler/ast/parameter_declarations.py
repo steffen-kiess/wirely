@@ -1,10 +1,11 @@
 """Parameter, constant, and assertion declarations."""
 
 import dataclasses
+from typing import Any
 
 from wirely.compiler import model
 
-from .base import SourcePosition, ProgramError, Identifier, Declaration, Value
+from .base import SourcePosition, CompilerHint, ProgramError, Identifier, Declaration, Value
 from .specifiers import OptionalSpecifier
 from .values import StringConstant
 
@@ -36,6 +37,31 @@ class DeclarationConstant(DeclarationParameter):
     @staticmethod
     def make(name: Identifier, ty: Value, initializer: Value, *, source_position: SourcePosition) -> 'DeclarationConstant':
         return DeclarationConstant(None, name, ty, default_value=initializer, source_position=source_position)
+
+    def collect_declarations(self, scope: Any) -> None:
+        # Node types collect their constants as parameters.
+        if not isinstance(scope, model.Namespace):
+            return
+        name = self.name.id_str
+        previous = scope.constants.get(name)
+        if previous is not None:
+            raise ProgramError(self.name, f'Duplicate constant name `{name}`', hints=[
+                CompilerHint(previous.declaration, 'Previous declaration was here'),
+            ])
+        scope.constants[name] = model.NamespaceConstant(self, scope)
+
+    def prepare_interface(self, scope: Any) -> None:
+        if not isinstance(scope, model.Namespace):
+            return
+        name = self.name.id_str
+        constant = scope.constants[name]
+        if constant.declaration is not self:
+            return  # A duplicate, reported when it was collected.
+        for other in (scope.native_functions, scope.node_types, scope.libraries, scope.struct_types,
+                      scope.enum_types, scope.resource_types):
+            if name in other:
+                raise ProgramError(self.name, f'Duplicate name `{name}`')
+        constant.check()
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)

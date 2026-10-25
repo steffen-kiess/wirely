@@ -158,6 +158,11 @@ def property_reference(scope: model.Scope, expression: SyntaxT,
             or root in getattr(scope, 'input_ports', {})
             or root in ('true', 'false', 'None')):
         split = 1
+    elif (split := next((length for length in range(1, expression.length)
+                         if scope.resolve_constant(model.Reference.from_list(
+                             *identifiers[:length], source_position=expression.source_position)) is not None),
+                        0)):
+        pass  # Fields of a namespace or root constant.
     else:
         # An enum member is a value, but the enum's namespace path is not.
         for split in range(2, expression.length):
@@ -1606,6 +1611,7 @@ class ExpressionCompiler:
         if self.runtime and isinstance(expression, model.Reference):
             names = [identifier.id_str for identifier in expression.identifiers]
             if (names not in (['true'], ['false'], ['None'])
+                    and self.scope.resolve_constant(expression) is None
                     and self.known_type(expression) != model.types.ValueType
                     and not isinstance(self.known_type(expression), model.types.TypeEnum)):
                 raise ProgramError(expression, f'Unknown procedure value `{expression}`; declare inputs in reads')
@@ -1859,6 +1865,10 @@ class ExpressionCompiler:
             optional_type = model.types.TypeOption(optional_parameter.type_resolved)
             return resolve_type(optional_type, self.parameters) if self.runtime else optional_type
         if isinstance(expression, model.Reference):
+            if expression.length > 1 or expression.identifiers[0].id_str not in self.names:
+                constant = self.scope.resolve_constant(expression)
+                if constant is not None:
+                    return constant_type(constant)
             if expression.length == 1:
                 name = expression.identifiers[0].id_str
                 if name in self.names:
@@ -1958,6 +1968,15 @@ class ExpressionCompiler:
             if function is not None:
                 return function.return_type
         return None
+
+
+def constant_type(constant: model.NamespaceConstant | model.NodeParameter) -> model.Type:
+    """Return the type of a namespace or root constant's value."""
+    if isinstance(constant, model.NamespaceConstant):
+        value = constant.value()
+        return model.types.ValueType if isinstance(value, model.Type) else value.value_type
+    constant.resolve_type()
+    return constant.type_resolved
 
 
 def input_length_source(expression: TypedExpression,

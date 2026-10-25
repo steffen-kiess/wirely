@@ -166,8 +166,8 @@ namespace ABB.JRA {
 
 Both forms define `ABB.JRA.Status`. Repeated declarations of the same namespace
 path add their contents to one namespace; node type names within it must remain
-unique. Namespaces contain node, enum, struct, and resource types or other
-namespaces, not instances.
+unique. Namespaces contain node, enum, struct, and resource types, constants,
+native functions, or other namespaces, not instances.
 A namespace can share its name with a struct or enum type in the same scope
 to hold functions for that type, which are called as in
 `Std.Duration.FromSecs(5)`. Such a function cannot share its name with a
@@ -238,12 +238,17 @@ parameter fails compilation. `optional(Name)` is a compile-time expression,
 also inside procedure bodies, where it can also read an event; see
 [procedure bodies](#procedure-bodies).
 
-Declare a constant in a node type or at the program root with
-`constant Name: Type = expression;`. Constants use the same types as
+Declare a constant in a node type, in a namespace, or at the program root
+with `constant Name: Type = expression;`. Constants use the same types as
 parameters, including `type`, and cannot be overridden. Each instance
 resolves all its constants once, even unused ones. Initializers may refer to
 parameters and other constants in the same scope, in any declaration order.
-Pass constants to children through ordinary parameter bindings:
+
+Namespace and root constants have one value per compilation. Like functions,
+they are visible in nested scopes, either qualified, as in `Limits.Max`, or
+unqualified from inside; a node type's own names shadow them. Constants of a
+node type are visible only in that node type. Pass them to children through
+ordinary parameter bindings:
 
 ```wirely
 node type Select {

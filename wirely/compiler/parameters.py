@@ -76,6 +76,73 @@ class NodeParameter:
         return f'{self.node_type.name}.{self.name}'
 
 
+class NamespaceConstant:
+    """A constant declared in a namespace, with one value per compilation, evaluated on first use."""
+
+    type_resolved: model.Type  # Set by resolve_type().
+    # Constants whose values are being resolved, outermost first.
+    _resolving: list[NamespaceConstant] = []
+
+    def __init__(self, declaration: model.DeclarationConstant, namespace: model.Namespace) -> None:
+        self.declaration = declaration
+        self.namespace = namespace
+        self._value: StaticValue | None = None
+
+    @property
+    def name(self) -> model.Identifier:
+        return self.declaration.name
+
+    def resolve_type(self) -> None:
+        if not hasattr(self, 'type_resolved'):
+            self.type_resolved = self.namespace.resolve_type(self.declaration.ty)
+            if isinstance(self.type_resolved, model.ResourceType):
+                raise model.ProgramError(self.declaration.ty, 'Resources cannot be constant value types')
+
+    def check(self) -> None:
+        """Check the initializer without evaluating it, like NodeParameter.bind_body()."""
+        from .expressions import compile_constant
+        self.resolve_type()
+        initializer = self.declaration.default_value
+        assert initializer is not None
+        with initializer.context:
+            if self.type_resolved == model.types.ValueType:
+                self.namespace.get_const_value(initializer, self.type_resolved)
+            else:
+                compile_constant(self.namespace, initializer, self.type_resolved, {})
+
+    def value(self) -> StaticValue:
+        """Return the value, a type for `type` constants, resolving it on first use."""
+        if self._value is not None:
+            return self._value
+        if self in NamespaceConstant._resolving:
+            names = [item.name.id_str for item in NamespaceConstant._resolving[NamespaceConstant._resolving.index(self):]]
+            names.append(self.name.id_str)
+            raise model.ProgramError(self.declaration,
+                                     f'Cyclic static value resolution: {" -> ".join(f"`{name}`" for name in names)}')
+        NamespaceConstant._resolving.append(self)
+        try:
+            self.resolve_type()
+            initializer = self.declaration.default_value
+            assert initializer is not None
+            with initializer.context:
+                value = self.namespace.get_const_value(initializer, self.type_resolved).resolve_self(par_values={})
+                if isinstance(value, model.Value):
+                    model.value.check_value_type(value.value_type, self.type_resolved, value.ast_element)
+                    try:
+                        concrete = self.type_resolved.verify_value(value.evaluate())
+                    except (ValueError, ArithmeticError) as error:
+                        raise model.ProgramError(value.ast_element, str(error)) from error
+                    value = (concrete if self.type_resolved == model.types.ValueType else
+                             model.ConstantValue(self.type_resolved, concrete, ast_element=value.ast_element))
+            self._value = value
+            return value
+        finally:
+            NamespaceConstant._resolving.pop()
+
+    def __repr__(self) -> str:
+        return f'{self.namespace.fullname}.{self.name}'
+
+
 class ParameterValues(dict['NodeParameter', 'StaticValue']):
     def __init__(self, values: Mapping[NodeParameter, StaticValue], *,
                  instance: model.NodeTypeInstance | None = None) -> None:

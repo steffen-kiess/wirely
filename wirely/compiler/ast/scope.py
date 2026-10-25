@@ -1,8 +1,8 @@
 """Scopes holding declarations, with name and type resolution."""
 
 import abc
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 if TYPE_CHECKING:
     from ..coordinator import CompilerCoordinator
@@ -12,6 +12,8 @@ from wirely.compiler.types import parse_value
 
 from .base import ProgramError, Value
 from .values import Reference, FunctionCall, OptionalExpression, BracketOperator, StructLiteral, check_struct_literal
+
+T = TypeVar('T')
 
 
 class Scope(abc.ABC):
@@ -97,6 +99,20 @@ class Scope(abc.ABC):
                         return result
                 if name in model.types.type_by_name:
                     return model.types.type_by_name[name]
+            constant = self.resolve_constant(ty)
+            if constant is not None:
+                constant.resolve_type()
+                if constant.type_resolved == model.types.ValueType:
+                    if isinstance(constant, model.NamespaceConstant):
+                        value = constant.value()
+                        assert isinstance(value, model.Type)
+                        return value
+                    if constant not in par_values:
+                        return model.TypeParameter(constant, ast_element=ty)
+                    result = par_values[constant]
+                    if not isinstance(result, model.Type):
+                        raise ProgramError(ty, f'Expected a type for `{ty}`')
+                    return result
             scope: Scope | None = self
             while scope is not None:
                 candidate: Scope | None = scope
@@ -118,10 +134,9 @@ class Scope(abc.ABC):
                 scope = scope.parent_graph
             raise model.ProgramError(ty, f'Cannot find type `{ty}`')
 
-    def resolve_function(self, reference: Reference, *,
-                         required: bool = True) -> 'model.CompiledFunction | None':
+    def _lookup(self, names: tuple[str, ...], find: 'Callable[[Scope, str], T | None]') -> 'T | None':
+        """Find a declaration by its namespace path, searching this and enclosing scopes."""
         scope: Scope | None = self
-        names = tuple(identifier.id_str for identifier in reference.identifiers)
         while scope is not None:
             candidate: Scope | None = scope
             for name in names[:-1]:
@@ -129,28 +144,52 @@ class Scope(abc.ABC):
                 candidate = candidate.libraries.get(name)
                 if candidate is None:
                     break
-            if candidate is not None and names[-1] in candidate.native_functions:
-                return candidate.native_functions[names[-1]].resolve_signature()
+            if candidate is not None:
+                result = find(candidate, names[-1])
+                if result is not None:
+                    return result
             scope = scope.parent_graph
+        return None
+
+    def resolve_function(self, reference: Reference, *,
+                         required: bool = True) -> 'model.CompiledFunction | None':
+        names = tuple(identifier.id_str for identifier in reference.identifiers)
+        function = self._lookup(names, lambda scope, name: scope.native_functions.get(name))
+        if function is not None:
+            return function.resolve_signature()
         if required:
             raise ProgramError(reference, f'Cannot find function `{".".join(names)}`')
         return None
 
+    def resolve_constant(self, reference: Value) -> 'model.NamespaceConstant | model.NodeParameter | None':
+        """Find a namespace or root constant visible from this scope.
+
+        The scope's own parameters and constants shadow it; callers check those first.
+        """
+        if not isinstance(reference, Reference):
+            return None
+        names = tuple(identifier.id_str for identifier in reference.identifiers)
+        if len(names) == 1 and names[0] in self.static_declarations:
+            return None
+
+        def find(scope: Scope, name: str) -> 'model.NamespaceConstant | model.NodeParameter | None':
+            if isinstance(scope, model.Namespace):
+                return scope.constants.get(name)
+            # The root has no arguments, so its constants have one value; constants of other node types
+            # depend on their instance.
+            if scope.parent_graph is None and isinstance(scope, model.NodeType):
+                return scope.parsed_constants.get(name)
+            return None
+
+        # mypy joins the union to object when inferring T.
+        return cast('model.NamespaceConstant | model.NodeParameter | None', self._lookup(names, find))
+
     def resolve_resource_type(self, name: Value) -> 'model.ResourceType':
         assert isinstance(name, Reference)
-        scope: Scope | None = self
-        while scope is not None:
-            candidate: Scope | None = scope
-            for identifier in name.identifiers[:-1]:
-                assert candidate is not None
-                candidate = candidate.libraries.get(identifier.id_str)
-                if candidate is None:
-                    break
-            if candidate is not None:
-                resource_type = candidate.resource_types.get(name.identifiers[-1].id_str)
-                if resource_type is not None:
-                    return resource_type
-            scope = scope.parent_graph
+        names = tuple(identifier.id_str for identifier in name.identifiers)
+        resource_type = self._lookup(names, lambda scope, name: scope.resource_types.get(name))
+        if resource_type is not None:
+            return resource_type
         raise model.ProgramError(name, f'Cannot find resource type `{name}`; fixed values of other types are not '
                                  'supported yet')
 
@@ -177,12 +216,16 @@ class Scope(abc.ABC):
             if value_type.contains_parameters:
                 if (isinstance(value, Reference) and value.length == 1
                         and value.identifiers[0].id_str not in self.static_declarations
-                        and value.identifiers[0].id_str not in ('true', 'false', 'None')):
+                        and value.identifiers[0].id_str not in ('true', 'false', 'None')
+                        and self.resolve_constant(value) is None):
                     try:
                         self.resolve_type(value, par_values)
                     except ProgramError:
                         raise ProgramError(value, f'Unknown static value `{value}`') from None
                 return model.value.DeferredValue(self, value, value_type)
+            constant = self.resolve_constant(value)
+            if constant is not None:
+                return self.constant_value(constant, value, value_type, par_values)
             if (isinstance(value, Expression)
                     or (isinstance(value, Reference) and value.length == 1
                         and value.identifiers[0].id_str in ('default input', 'default output'))):
@@ -242,6 +285,26 @@ class Scope(abc.ABC):
                             return model.ConstantValue(value_type, value_type.verify_value(par_values[par].evaluate()), ast_element=value)
             return model.ConstantValue(value_type, parse_value(value_type, value, scope=self), ast_element=value)
             # raise model.ProgramError(value, f'Cannot turn {value!r} into constant value of type {value_type}')
+
+    def constant_value(self, constant: 'model.NamespaceConstant | model.NodeParameter', reference: Value,
+                       value_type: 'model.types.Type', par_values: Mapping[Any, Any]) -> 'model.value.Value':
+        """Return a namespace or root constant as a value of value_type."""
+        if isinstance(constant, model.NamespaceConstant):
+            result = constant.value()
+            if isinstance(result, model.Type):
+                model.value.check_value_type(model.types.ValueType, value_type, reference)
+                return model.ConstantValue(model.types.ValueType, result, ast_element=reference)
+            assert isinstance(result, model.Value)
+            model.value.check_value_type(result.value_type, value_type, reference)
+            return model.ConstantValue(result.value_type, result.evaluate(), ast_element=reference)
+        constant.resolve_type()
+        model.value.check_value_type(constant.type_resolved, value_type, reference)
+        if constant not in par_values:
+            return model.ValueParameter(constant.type_resolved, constant, ast_element=reference)
+        result = par_values[constant]
+        if isinstance(result, model.Type):
+            return model.ConstantValue(model.types.ValueType, result, ast_element=reference)
+        return model.ConstantValue(constant.type_resolved, result.evaluate(), ast_element=reference)
 
     def resolve_node_type(self, name: Reference, par_values: Mapping[Any, Any] = {}) -> 'model.NodeType':
         # print(self, 'resolve_node_type', name)

@@ -138,10 +138,52 @@ node type Probe {
 }
 node probe: Probe {}
 
-// TEST: namespace constants deferred
-namespace Example { // H: In this namespace
-  constant Flag: boolean = true; // E: Declaration not allowed in namespace
+// TEST: namespace constant cycle
+namespace Example {
+  constant Count: uint8 = Count + 1; // E: Cyclic static value resolution: `Count` -> `Count`
 }
+
+// TEST: duplicate namespace constants
+namespace Example {
+  constant Flag: boolean = true; // H: Previous declaration was here
+}
+namespace Example {
+  constant Flag: boolean = false; // E: Duplicate constant name `Flag`
+}
+
+// TEST: namespace constant named like a node type
+namespace Example {
+  node type Flag {
+  }
+  constant Flag: boolean = true; // E: Duplicate name `Flag`
+}
+
+// TEST: namespace constant named like a function
+namespace Example {
+  native function Flag(value: boolean): boolean;
+  constant Flag: boolean = true; // E: Duplicate or conflicting function declaration `Flag`
+}
+
+// TEST: unknown name in unused namespace constant
+namespace Example {
+  constant Flag: boolean = Missing; // E: Invalid boolean value
+}
+
+// TEST: namespace constant type mismatch
+namespace Example {
+  constant Count: uint8 = 1;
+}
+constant Flag: boolean = Example.Count; // E: Expected value of type `boolean`, got `uint8`
+
+// TEST: outer node type constants are not visible
+node type Outer {
+  constant Hidden: uint8 = 5;
+  node type Inner {
+    constant Copy: uint8 = Hidden; // E: Invalid int value
+  }
+  node inner: Inner {}
+}
+node outer: Outer {}
 
 // TEST: qualified constants deferred
 node type Probe {
@@ -175,16 +217,6 @@ node type Probe {
   constant Value: Type = 256; // E: out of range
 }
 node probe: Probe { Type: uint8 } // H: While instantiating `probe`
-
-// TEST: enclosing constants are not child procedure names
-constant Flag: boolean = true;
-node type Probe {
-  default output: value boolean;
-  procedure run writes default output as output {
-    output = Flag; // E: Unknown procedure value `Flag`
-  }
-}
-node probe: Probe {}
 
 // TEST: constant type in runtime port
 node type Probe {

@@ -17,6 +17,7 @@ _exports = {
     'ValueParameter': 'compiler.value',
     'ParameterValues': 'compiler.parameters',
     'NodeParameter': 'compiler.parameters',
+    'NamespaceConstant': 'compiler.parameters',
     'GraphElement': 'compiler.graph',
     'TypeInputPort': 'compiler.graph',
     'TypeOutputPort': 'compiler.graph',
@@ -139,6 +140,7 @@ if TYPE_CHECKING:
     from wirely.compiler.parameters import (
         ParameterValues,
         NodeParameter,
+        NamespaceConstant,
     )
     from wirely.compiler.graph import (
         GraphElement,

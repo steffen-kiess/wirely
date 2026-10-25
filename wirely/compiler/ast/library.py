@@ -9,6 +9,7 @@ from .base import SourcePosition, CompilerHint, Declaration, ProgramError, Ident
 from .scope import Scope
 from .type_declarations import DeclarationStructType, DeclarationEnumType, DeclarationResourceType
 from .functions import DeclarationNativeFunction
+from .parameter_declarations import DeclarationConstant
 
 
 @dataclasses.dataclass(frozen=True, eq=False, repr=False)
@@ -47,7 +48,8 @@ class DeclarationLibrary(Declaration):
         for decl in self.declarations:
             with namespace.coordinator.contain(decl), decl.context:
                 # TODO: What is allowed here?
-                if not isinstance(decl, (model.DeclarationNodeType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType, DeclarationNativeFunction)):
+                if not isinstance(decl, (model.DeclarationNodeType, DeclarationLibrary, DeclarationResourceType, DeclarationEnumType, DeclarationStructType, DeclarationNativeFunction,
+                                         DeclarationConstant)):
                     hints = [
                         CompilerHint(self, 'In this namespace'),
                     ]
@@ -61,6 +63,7 @@ class Namespace(Scope):
 
     def __init__(self, block: DeclarationLibrary, parent_graph: Scope) -> None:
         super().__init__()
+        self.constants: dict[str, model.NamespaceConstant] = {}
         self.blocks = [block]
         self.parent_graph = parent_graph
         self.services = parent_graph.services
