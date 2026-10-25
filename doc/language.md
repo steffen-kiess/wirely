@@ -23,8 +23,8 @@ python3 -m wirely compile hello.wrl
 ```
 
 `compile` builds the graph and checks its connections. To start the service,
-use `python3 -m wirely run-service hello.wrl`; add `-i` to control it from
-the terminal. Runtime service dependencies are described in
+use `python3 -m wirely run hello.wrl`; add `-i` to control it from the
+terminal. Runtime service dependencies are described in
 [the library reference](libraries.md). To inspect or pause a running service,
 see [local control sockets](control-protocol.md#local-sockets).
 

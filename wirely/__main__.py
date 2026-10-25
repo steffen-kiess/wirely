@@ -8,20 +8,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(title='subcommands', dest='command', required=True)
 
-    run_service_parser = subparsers.add_parser('run-service')
-    run_service_parser.add_argument('--verbose', action='store_true')
-    run_service_parser.add_argument('--debug', action='store_true')
-    run_service_parser.add_argument('-i', '--interactive', action='store_true',
-                                    help='read control commands from the terminal; quit stops the service')
-    run_service_parser.add_argument('--state-directory',
-                                    help='directory for the control sockets')
-    run_service_parser.add_argument('--control-tls-cert',
-                                    help='certificate chain for TLS on the control socket')
-    run_service_parser.add_argument('--control-tls-key',
-                                    help='private key for TLS on the control socket')
-    run_service_parser.add_argument('input_filename', type=str, nargs='+',
-                                    help='Wirely source files or a single .wbc program')
-    run_service_parser.set_defaults(module_name='wirely.cli.service')
+    run_parser = subparsers.add_parser('run')
+    run_parser.add_argument('--verbose', action='store_true')
+    run_parser.add_argument('--debug', action='store_true')
+    run_parser.add_argument('-i', '--interactive', action='store_true',
+                            help='read control commands from the terminal; quit stops the service')
+    run_parser.add_argument('--state-directory',
+                            help='directory for the control sockets')
+    run_parser.add_argument('--control-tls-cert',
+                            help='certificate chain for TLS on the control socket')
+    run_parser.add_argument('--control-tls-key',
+                            help='private key for TLS on the control socket')
+    run_parser.add_argument('input_filename', type=str, nargs='+',
+                            help='Wirely source files or a single .wbc program')
+    run_parser.set_defaults(module_name='wirely.cli.service')
 
     compile_parser = subparsers.add_parser('compile')
     program_group = compile_parser.add_mutually_exclusive_group()

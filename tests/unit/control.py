@@ -242,7 +242,7 @@ async def check_memory_framing():
 
 
 async def check_service_interactive():
-    """run-service -i reads commands over an internal session until quit, which stops the service."""
+    """run -i reads commands over an internal session until quit, which stops the service."""
     async def wait_forever(**kwargs):
         await asyncio.Event().wait()
 

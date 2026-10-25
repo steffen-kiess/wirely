@@ -94,7 +94,7 @@ class RuntimeController:
     # Options of this runtime by key: getter, value check, and setter. Negative integer keys are reserved
     # for options the protocol defines.
     _options: 'dict[Any, tuple[Callable[[Engine], Any], Callable[[Any], bool], Callable[[Engine, Any], None]]]' = {
-        # Prints each step and procedure run on stdout, like run-service --debug.
+        # Prints each step and procedure run on stdout, like run --debug.
         'debug': (lambda engine: engine.debug, lambda value: isinstance(value, bool),
                   lambda engine, value: setattr(engine, 'debug', value)),
     }

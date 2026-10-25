@@ -484,8 +484,8 @@ The KNX transport will be specified later. Working notes, not final:
 
 ## Local sockets
 
-`wirely run-service --state-directory DIR` creates two Unix domain sockets
-in `DIR`, accessible only to the user running the service:
+`wirely run --state-directory DIR` creates two Unix domain sockets in
+`DIR`, accessible only to the user running the service:
 
 - `control` uses the TCP framing and accepts plain and TLS connections.
   TLS requires `--control-tls-cert` and `--control-tls-key`.
@@ -499,7 +499,7 @@ Neither socket uses authentication tags. The service currently supports
 `Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, the options
 and snapshot operations, and `NativeCommand`. Its only option is
 `"debug"`, a boolean: while true, the service prints each step and
-procedure run on its standard output, as `run-service --debug` does.
+procedure run on its standard output, as `run --debug` does.
 
 `wirely client` sends requests to these sockets, for example:
 
@@ -538,9 +538,9 @@ one per line, until `quit` or end of input. On a terminal, it offers line
 editing, history, and completion; otherwise it stops at the first failing
 command.
 
-`wirely run-service -i FILES` runs the program and reads these commands
-from the terminal itself, with names from the source files. `quit` stops
-the service. It creates the sockets only with `--state-directory`.
+`wirely run -i FILES` runs the program and reads these commands from the
+terminal itself, with names from the source files. `quit` stops the
+service. It creates the sockets only with `--state-directory`.
 
 Use `--tls` for TLS connections, with `--tls-ca` and `--tls-server-name`
 to verify the certificate.
