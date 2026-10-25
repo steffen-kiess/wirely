@@ -20,7 +20,8 @@ from wirely.control.server import ControlServer
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
 from wirely.runtime.engine import Engine
 from wirely.runtime.procedures import LoadFailure
-from wirely.program.loader import load_program
+from wirely.program.loader import load_program, read_build_id
+from wirely.program.writer import program_build_id
 from wirely.program.container import SectionList
 
 # TODO: Handle stopping restarting properly, i.e. write data to CSV log files etc.
@@ -32,15 +33,17 @@ def _is_binary_program(filename: str) -> bool:
 
 
 async def run_engine(engine: Engine, state_directory: str | None = None,
-                     tls_context: ssl.SSLContext | None = None) -> None:
+                     tls_context: ssl.SSLContext | None = None, build_id: bytes | None = None) -> None:
+    """Run an engine; with a state directory, serve the control protocol for the program with build_id."""
     try:
         # Note: async_exit_stack must be exited before tg (and therefore entered after tg), otherwise destroying exiting tg might hang because there are still some tasks running
         async with asyncio.TaskGroup() as tg, contextlib.AsyncExitStack() as async_exit_stack:
             await engine.start_tasks_async(tg, async_exit_stack)
             tg.create_task(wirely.misc.service.should_never_return(engine.run()))
             if state_directory is not None:
+                assert build_id is not None
                 await async_exit_stack.enter_async_context(
-                    ControlServer(engine, state_directory, tls_context))
+                    ControlServer(engine, state_directory, tls_context, build_id=build_id))
             # tg.create_task(wirely.misc.service.should_never_return(wirely.misc.service.loop_until_sigint_and_throw()))
 
             now = datetime.datetime.now()
@@ -93,8 +96,11 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 return 1
 
         try:
+            build_id = None
             if binary_input:
-                prog = load_program(Path(args.input_filename[0]).read_bytes())
+                data = Path(args.input_filename[0]).read_bytes()
+                prog = load_program(data)
+                build_id = read_build_id(data)
             else:
                 global_node_type = wirely.compiler.compile_files(args.input_filename)
                 if global_node_type is None:
@@ -103,6 +109,8 @@ async def async_run(args: argparse.Namespace) -> int | None:
                 if compiled is None:
                     return 1
                 prog = compiled
+                if args.state_directory is not None:
+                    build_id = program_build_id(prog)
             eng = Engine(prog)
         except (OSError, ValueError, LoadFailure) as error:
             print(f'Error: {error}', file=sys.stderr)
@@ -114,5 +122,5 @@ async def async_run(args: argparse.Namespace) -> int | None:
         now = datetime.datetime.now()
         print('{}: Start'.format(now.isoformat()), flush=True)
 
-        await run_engine(eng, args.state_directory, tls_context)
+        await run_engine(eng, args.state_directory, tls_context, build_id)
     return None

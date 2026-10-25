@@ -20,6 +20,7 @@ from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
 from wirely.control.messages import ControlError, ErrorCode, Kind, Op, decode, encode
 from wirely.control.server import ControlServer
 from wirely.misc.state_directory import StateDirectoryLocked, lock_state_directory
+from wirely.program.writer import program_build_id
 
 program_path = os.path.join(os.path.dirname(__file__), 'control.wrl')
 
@@ -78,6 +79,27 @@ async def check_locked(server):
         await client.close()
 
 
+async def check_binding(server):
+    build_id = program_build_id(engine.program)
+    client = await ControlClient.connect_unix(server.stream_path)
+    try:
+        await expect_error(ErrorCode.NOT_BOUND, client.request(Op.SNAPSHOT))
+        # Without a prefix, the runtime binds to the active program and returns a prefix of its ID.
+        assert await client.request(Op.BIND_PROGRAM) == {1: build_id[:16]}
+        snapshot = await client.request(Op.SNAPSHOT)
+        assert await client.request(Op.RELEASE_SNAPSHOT, {1: snapshot[1]}) == {}
+        for prefix in (b'', build_id[:4], build_id):
+            assert await client.request(Op.BIND_PROGRAM, {1: prefix}) == {}
+        # A failed attempt leaves the session unbound.
+        await expect_error(ErrorCode.NOT_BOUND,
+                           client.request(Op.BIND_PROGRAM, {1: bytes([build_id[0] ^ 1])}))
+        await expect_error(ErrorCode.NOT_BOUND, client.request(Op.SNAPSHOT))
+        await expect_error(ErrorCode.INVALID_ARGUMENT, client.request(Op.BIND_PROGRAM, {1: build_id + b'\0'}))
+        await expect_error(ErrorCode.INVALID_ARGUMENT, client.request(Op.BIND_PROGRAM, {1: 'id'}))
+    finally:
+        await client.close()
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -91,9 +113,10 @@ async def check_stream(server):
         assert await client.request(Op.STEP, {1: 2}) == {1: 2, 2: 0}
         assert engine.step_count == steps + 2
 
+        await client.request(Op.BIND_PROGRAM)
         snapshot = await client.request(Op.SNAPSHOT)
         assert snapshot[2] == steps + 2
-        assert snapshot[4] == [len(engine.state.data), len(engine.cache.data)]
+        assert snapshot[3] == [len(engine.state.data), len(engine.cache.data)]
         state = await client.request(Op.READ_SNAPSHOT, {1: snapshot[1], 2: 0, 3: [[0, 4]]})
         assert state == {1: (42).to_bytes(4, 'little')}
         assert state[1] == bytes(engine.state.data)
@@ -152,6 +175,7 @@ async def check_serial(server):
 
         hello_response = await exchange(hello())
         assert decode(hello_response).body[5] == 1
+        assert Op.BIND_PROGRAM in decode(hello_response).body[8]
         assert await exchange(hello()) == hello_response
 
         # Invalid CBOR, data after the body, and items outside the subset are malformed.
@@ -178,14 +202,17 @@ async def check_serial(server):
         assert (response.kind, response.body[1]) == (Kind.ERROR, ErrorCode.BAD_SEQUENCE)
 
         # Responses that exceed the client's limit of 64 bytes are refused.
-        snapshot = decode(await exchange(encode(Kind.REQUEST, 4, Op.SNAPSHOT, {}))).body
+        await exchange(encode(Kind.REQUEST, 4, Op.BIND_PROGRAM, {1: b''}))
+        snapshot = decode(await exchange(encode(Kind.REQUEST, 5, Op.SNAPSHOT, {}))).body
         response = decode(await exchange(encode(
-            Kind.REQUEST, 5, Op.READ_SNAPSHOT, {1: snapshot[1], 2: 0, 3: [[0, 4]] * 20})))
+            Kind.REQUEST, 6, Op.READ_SNAPSHOT, {1: snapshot[1], 2: 0, 3: [[0, 4]] * 20})))
         assert (response.kind, response.body[1]) == (Kind.ERROR, ErrorCode.TOO_LARGE)
 
-        # A new Hello starts a new session.
+        # A new Hello starts a new session, without the binding.
         await exchange(hello(b'abcdefgh'))
-        response = decode(await exchange(encode(Kind.REQUEST, 1, Op.RESUME, {})))
+        response = decode(await exchange(encode(Kind.REQUEST, 1, Op.SNAPSHOT, {})))
+        assert (response.kind, response.body[1]) == (Kind.ERROR, ErrorCode.NOT_BOUND)
+        response = decode(await exchange(encode(Kind.REQUEST, 2, Op.RESUME, {})))
         assert (response.kind, response.body[1]) == (Kind.RESPONSE, 0)
     finally:
         writer.close()
@@ -210,6 +237,14 @@ async def check_cli(server):
     assert '  c:run.output: 42\n' in output
     output = await run_client_command(*serial, 'dump', '--bank', 'state')
     assert '  00000000  2a 00 00 00\n' in output
+    # Program files must match the running program.
+    with tempfile.TemporaryDirectory(prefix='test_control.') as directory:
+        other_path = os.path.join(directory, 'other.wrl')
+        with open(program_path, encoding='utf-8') as source, open(other_path, 'w', encoding='utf-8') as other:
+            other.write(source.read().replace('Value: 42', 'Value: 43'))
+        output = await run_client_command('--unix-path', server.stream_path, 'dump', '--program', other_path,
+                                          status=1)
+        assert output == 'Error: The running program does not match the program files\n'
     assert 'running' in await run_client_command(*serial, 'resume')
 
     # Without a command, commands are read from stdin.
@@ -230,10 +265,12 @@ async def run_test():
             context.load_cert_chain(cert_path, key_path)
             state_directory = os.path.join(directory, 'state')
             with lock_state_directory(state_directory):
-                async with ControlServer(engine, state_directory, context) as server:
+                async with ControlServer(engine, state_directory, context,
+                                         build_id=program_build_id(engine.program)) as server:
                     assert sorted(os.listdir(state_directory)) == ['control', 'control-serial', 'lock']
                     await check_locked(server)
                     await check_stream(server)
+                    await check_binding(server)
                     await check_tls(server, cert_path)
                     await check_serial(server)
                     await check_cli(server)

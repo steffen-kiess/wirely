@@ -43,6 +43,8 @@ class Session:
         self.peer_max_message_size = MIN_MESSAGE_SIZE
         self.counter = 0
         self.hello_response: bytes | None = None
+        # The controller activation this session is bound to, or None when unbound.
+        self.bound_activation: int | None = None
         # On unreliable transports, the last response for retransmitted requests.
         self.last_response: bytes | None = None
 
@@ -99,6 +101,7 @@ class Session:
         self.peer_max_message_size = max_message_size
         self.counter = 0
         self.last_response = None
+        self.bound_activation = None
         self.hello_response = encode(Kind.RESPONSE, 0, Op.HELLO, {
             1: self.framing.max_message_size,
             2: os.urandom(8),
@@ -111,7 +114,13 @@ class Session:
 
     def _run(self, message: Message) -> bytes:
         try:
-            body = self.controller.handle(message.op, message.body)
+            if message.op == Op.BIND_PROGRAM:
+                # A failed attempt leaves the session unbound.
+                self.bound_activation = None
+                body, self.bound_activation = self.controller.bind(message.body)
+            else:
+                bound = self.bound_activation == self.controller.activation
+                body = self.controller.handle(message.op, message.body, bound=bound)
         except ControlError as error:
             return self._error(message.seq, message.op, error)
         except Exception as error:
@@ -137,8 +146,9 @@ class ControlServer:
     directory lock, see `wirely.misc.state_directory`.
     """
 
-    def __init__(self, engine: Engine, state_directory: str, tls_context: ssl.SSLContext | None = None) -> None:
-        self.controller = RuntimeController(engine)
+    def __init__(self, engine: Engine, state_directory: str, tls_context: ssl.SSLContext | None = None, *,
+                 build_id: bytes) -> None:
+        self.controller = RuntimeController(engine, build_id)
         self.state_directory = state_directory
         self.tls_context = tls_context
         self._sockets: list[tuple[socket.socket, str]] = []  # Listening sockets and their paths.

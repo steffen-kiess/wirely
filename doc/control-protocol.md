@@ -61,6 +61,7 @@ it on slow links.
 | 12 | `ProgramRejected` | The runtime cannot load the uploaded program |
 | 13 | `TransitionFailed` | The state transition procedure failed |
 | 14 | `Internal` | The runtime failed to handle the request |
+| 15 | `NotBound` | The session is not bound to the active program |
 
 ## Sessions
 
@@ -69,7 +70,8 @@ the transport connection closes. Serial links have no connections, so a
 session lasts until the next `Hello` or until the runtime restarts.
 
 Snapshots, uploads, and the run state belong to the runtime, not to a
-session. A client can resume an upload after reconnecting.
+session. A client can resume an upload after reconnecting. A
+[program binding](#bindprogram) belongs to the session; `Hello` clears it.
 
 ### Sequencing
 
@@ -104,6 +106,7 @@ responses whose `Seq` does not match an outstanding request.
 | `0x02` | `Pause` | Yes | Running or paused |
 | `0x03` | `Resume` | Yes | Running or paused |
 | `0x04` | `Step` | Yes | Paused |
+| `0x05` | `BindProgram` | Yes | Running or paused |
 | `0x10` | `Snapshot` | Yes | Running or paused |
 | `0x11` | `ReadSnapshot` | Yes | Any |
 | `0x12` | `ReleaseSnapshot` | Yes | Any |
@@ -118,10 +121,15 @@ extensions.
 
 ### Program identity
 
-Programs are identified by their short build ID, the first 16 bytes of
-the [Build ID](bytecode-format.md#buildidsha512). Clients use it to
-find the matching unstripped program file, whose symbol sections map
-names to variables.
+Programs are identified by their
+[Build ID](bytecode-format.md#buildidsha512). Clients use it to find the
+matching unstripped program file, whose symbol sections map names to
+variables.
+
+Messages carry a prefix of the build ID. A prefix in a request has 0 to 64
+bytes and matches every program whose build ID starts with it; the empty
+prefix matches any program. Prefixes in responses have at least 8 bytes;
+this runtime sends 16.
 
 ### Hello
 
@@ -157,8 +165,8 @@ Response:
 | --- | --- | --- |
 | 1 | uint | Run state: 0 running, 1 paused, 2 no program, 3 failed |
 | 2 | uint | Number of steps completed by the active program |
-| 3 | bytes(16) | Short build ID of the active program, if any |
-| 4 | bytes(16) | Short build ID of the staged program, if any |
+| 3 | bytes | Build ID prefix of the active program, if any |
+| 4 | bytes | Build ID prefix of the staged program, if any |
 | 5 | text | Last error, if any |
 
 ### Pause, Resume, and Step
@@ -171,6 +179,32 @@ execution. Both respond with the `Status` fields 1 and 2.
 `Step` runs steps while paused. Request `{1: count}`, where `count`
 defaults to 1. Response `{1: steps completed, 2: procedures run}`.
 
+### BindProgram
+
+`BindProgram` binds the session to the active program. Operations that
+refer to program entities by index or offset require a bound session, and
+otherwise fail with `NotBound`: `Snapshot` and `ReadProgram` of the active
+program. In a bound session, `Activate` also requires that the bound
+program is still active.
+
+Request:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| 1 | bytes | Build ID prefix of the expected program, optional |
+
+With key 1, the runtime binds the session only if the active program
+matches the prefix and responds with `{}`. Without key 1, it binds the
+session to the active program and responds with `{1: build ID prefix}`.
+It answers `NotBound` when the prefix does not match, when no program is
+active, or while programs are switching. A failed `BindProgram` leaves the
+session unbound.
+
+A binding lasts until the session's next `Hello` or until any `Activate`,
+including one that starts the same program again. Binding again replaces
+the binding. After `NotBound`, clients check `Status` and bind again if
+the program they expect is active.
+
 ### Snapshots
 
 A snapshot is a consistent view of the runtime buffers between two steps.
@@ -181,14 +215,14 @@ use the
 of the active program. Snapshots do not include native state, whose
 representation depends on the runtime.
 
-`Snapshot` takes a snapshot. Response:
+`Snapshot` takes a snapshot of the program the session is bound to.
+Response:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
 | 1 | uint | Snapshot ID |
 | 2 | uint | Steps completed when the snapshot was taken |
-| 3 | bytes(16) | Short build ID of the program |
-| 4 | array of uint | Byte size of each bank |
+| 3 | array of uint | Byte size of each bank |
 
 `ReadSnapshot` reads byte ranges from one bank. Request:
 
@@ -240,7 +274,7 @@ next offset. The response is `{1: next offset}`.
 
 `UploadFinish` checks the length and digest, decodes and validates the
 program, and makes it the staged program, replacing any earlier one. The
-response is `{1: short build ID}`. Failures are reported as
+response is `{1: build ID prefix}`. Failures are reported as
 `IntegrityFailure` or `ProgramRejected`; the upload is then discarded.
 
 ### Activate
@@ -249,7 +283,7 @@ Request:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
-| 1 | bytes(16) | Short build ID of the staged program |
+| 1 | bytes | Build ID prefix of the staged program |
 | 2 | bool | Start paused, default false |
 | 3 | bool | Keep the program after a runtime restart, default false |
 | 4 | bool | Require a state transition, default false |
@@ -261,6 +295,10 @@ transition on its state and native state. Otherwise the staged program
 starts with its initial state; if key 4 is true, the runtime instead
 answers `NotFound` and keeps the active program.
 
+In a bound session, the runtime answers `NotBound` unless the bound
+program is still active. Activating a program clears the bindings of all
+sessions.
+
 The runtime checks these conditions before responding and then switches
 programs. If the transition or the start of the new program fails, the
 runtime returns to the previous program and records the error. Clients use
@@ -269,17 +307,19 @@ runtime returns to the previous program and records the error. Clients use
 ### ReadProgram
 
 `ReadProgram` downloads the active or staged program, for example to
-prepare a state transition. Request:
+prepare a state transition. Reading the active program requires a session
+bound to it. Request:
 
 | Key | Type | Meaning |
 | --- | --- | --- |
 | 1 | uint | 0 active, 1 staged |
-| 2 | bytes(16) | Short build ID of the expected program |
+| 2 | bytes | Build ID prefix of the expected staged program |
 | 3 | uint | Offset |
 | 4 | uint | Length |
 
-The response is `{1: bytes, 2: file length}`. If the program does not have
-the expected build ID, the runtime answers `NotFound`.
+Key 2 is required for the staged program and not used for the active one.
+The response is `{1: bytes, 2: file length}`. If the staged program does
+not match the prefix, the runtime answers `NotFound`.
 
 The runtime returns the program as it stores it, which may lack symbol
 sections. To match variables by name, clients need the unstripped file
@@ -349,7 +389,8 @@ While running, the service holds a write lock on `DIR/lock`, so only one
 runtime uses a state directory at a time.
 
 Neither socket uses authentication tags. The service currently supports
-`Hello`, `Status`, `Pause`, `Resume`, `Step`, and the snapshot operations.
+`Hello`, `Status`, `Pause`, `Resume`, `Step`, `BindProgram`, and the
+snapshot operations.
 
 `wirely client` sends requests to these sockets, for example:
 

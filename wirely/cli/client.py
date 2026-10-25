@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Any, Never
 
 from ..control.client import ControlClient
-from ..control.messages import Bank, ControlError, Op, RunState
+from ..control.messages import BUILD_ID_PREFIX_LENGTH, Bank, ControlError, ErrorCode, Op, RunState
 
 # Response bytes besides the data of a ReadSnapshot response: header, map, key, byte string header.
 READ_OVERHEAD = 3 + 1 + 1 + 3
@@ -219,6 +219,16 @@ async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
         if program is None:
             return 1
         variable_tables = {Bank.STATE: program.state_variables, Bank.TEMPORARIES: program.temporaries}
+        from ..program.writer import program_build_id
+        try:
+            await client.request(Op.BIND_PROGRAM, {1: program_build_id(program)[:BUILD_ID_PREFIX_LENGTH]})
+        except ControlError as error:
+            if error.code != ErrorCode.NOT_BOUND:
+                raise
+            print('Error: The running program does not match the program files', file=sys.stderr)
+            return 1
+    else:
+        await client.request(Op.BIND_PROGRAM)
 
     banks = list(Bank) if args.bank == 'all' else [Bank[args.bank.upper()]]
     snapshot = await client.request(Op.SNAPSHOT)
@@ -227,7 +237,7 @@ async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
     chunk_size = client.framing.max_message_size - READ_OVERHEAD
     try:
         for bank in banks:
-            size = snapshot[4][bank]
+            size = snapshot[3][bank]
             chunks = await client.requests(
                 (Op.READ_SNAPSHOT, {1: snapshot_id, 2: int(bank), 3: [[offset, min(chunk_size, size - offset)]]})
                 for offset in range(0, size, chunk_size)
@@ -239,11 +249,6 @@ async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
                 _print_hex(data)
                 continue
             variable_table = variable_tables[bank]
-            if variable_table.size != size:
-                print(f'Error: Program has {variable_table.size} bytes for this bank; '
-                      'it does not match the running program', file=sys.stderr)
-                return 1
-            # Without program identities, matching sizes are the only available check.
             for name, variable in sorted(variable_table.variables.items()):
                 offset = variable_table.offsets[variable]
                 value = variable.var_type.deserialize(data[offset:offset + variable.var_type.data_size])

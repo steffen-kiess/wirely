@@ -351,9 +351,18 @@ class _Writer:
 
 def write_program(program: Program) -> bytes:
     """Encode a validated program, without symbols, including its SHA-512 build ID."""
-    validate_program(program)
-    sections = _Writer(program).sections()
-    container = SectionList(sections, (0, 0))
-    digest = sha512(container.to_bytes()).digest()
-    sections[0] = Section(fmt.SectionType.BuildIDSHA512, fmt.RecordType.Buffer, digest)
+    container = _container(program)
+    container.sections[0] = Section(fmt.SectionType.BuildIDSHA512, fmt.RecordType.Buffer,
+                                    sha512(container.to_bytes()).digest())
     return container.to_bytes()
+
+
+def program_build_id(program: Program) -> bytes:
+    """Return the 64-byte build ID of the file that write_program() writes."""
+    return sha512(_container(program).to_bytes()).digest()
+
+
+def _container(program: Program) -> SectionList:
+    """Return the sections of a validated program, with a zero build ID."""
+    validate_program(program)
+    return SectionList(_Writer(program).sections(), (0, 0))

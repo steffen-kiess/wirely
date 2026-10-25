@@ -10,6 +10,9 @@ import cbor2
 PROTOCOL_VERSION = 0
 MIN_MESSAGE_SIZE = 64
 HEADER_SIZE = 3
+# Bytes of a build ID that the runtime sends; requests may use any prefix.
+BUILD_ID_PREFIX_LENGTH = 16
+BUILD_ID_LENGTH = 64
 
 
 class Kind(enum.IntEnum):
@@ -24,6 +27,7 @@ class Op(enum.IntEnum):
     PAUSE = 0x02
     RESUME = 0x03
     STEP = 0x04
+    BIND_PROGRAM = 0x05
     SNAPSHOT = 0x10
     READ_SNAPSHOT = 0x11
     RELEASE_SNAPSHOT = 0x12
@@ -49,6 +53,7 @@ class ErrorCode(enum.IntEnum):
     PROGRAM_REJECTED = 12
     TRANSITION_FAILED = 13
     INTERNAL = 14
+    NOT_BOUND = 15
 
 
 class RunState(enum.IntEnum):

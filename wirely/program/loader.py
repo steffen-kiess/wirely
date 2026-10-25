@@ -8,6 +8,7 @@ from .. import types
 from ..runtime.extensions import NativeTypes, resolve_extensions
 from .const_data import ConstDataReader
 from ._binary import BinaryFile, ValueRef
+from .container import SectionList
 from .generated import format as fmt
 from .procedures import (
     ARITHMETIC_OPCODES, BranchTarget, Constant, ConstOperand, Function,
@@ -290,6 +291,14 @@ class _Loader:
                           initial_state=initial, procs=schedules)
         validate_program(program)
         return program
+
+
+def read_build_id(data: bytes | bytearray | memoryview) -> bytes:
+    """Return the 64-byte build ID stored in a binary program file."""
+    for section in SectionList.from_bytes(data).sections:
+        if section.section_type == fmt.SectionType.BuildIDSHA512:
+            return section.data
+    raise ValueError('Missing section BuildIDSHA512')
 
 
 def load_program(data: bytes | bytearray | memoryview, *, native_types: NativeTypes | None = None,
