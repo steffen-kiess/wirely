@@ -356,6 +356,14 @@ compile-time reads and returns its fixed outputs. Initialize fields there.
 Each initializer owns its state object. For a singleton node type, each
 initializer shares its object across uses of the node type.
 
+`initialize()`, `load()`, and `prepare()` depend only on their arguments
+and on what stays the same when the runtime restarts (see
+[Stages](bytecode-format.md#stages)): do not connect to peers, open the
+files or devices a program configures, or read the clock, and do not
+start tasks. Raise from them only for configuration the implementation
+does not support. Import the libraries an implementation needs in its
+module, so that a missing library makes linking fail.
+
 The native initializer declares its reads and fixed outputs:
 
 ```wirely
@@ -434,6 +442,11 @@ before execution schedule one invocation.
 
 Startup calls `start_tasks(task_group, async_exit_stack)`, then awaits
 `start_tasks_async(task_group, async_exit_stack)` on each native object.
+Startup follows successful loading of the whole program. Do not raise
+from these hooks or from tasks when a peer, file, or device is
+unavailable; retry in a task, and report the condition through an output
+where procedures need it. Cleanup runs once; a native object is not
+started again afterwards.
 Use these hooks for task creation and resource acquisition. Use the
 supplied `AsyncExitStack` for resource contexts and cleanup callbacks,
 which run in reverse registration order.

@@ -651,15 +651,25 @@ Load procedures may fail, which makes loading fail. Preparing runtime
 native procedures is part of loading and may also fail; preparation has
 no side effects and does not use the resources it receives. Loading a new
 program leaves the running program unchanged until loading succeeds.
-Native objects created during loading become fully functional only after
-that. Running the steps of runtime procedures and state transitions
-cannot fail.
+Running the steps of runtime procedures and state transitions cannot
+fail.
 
 Whether loading succeeds is deterministic. Verification, linking, load
 procedures, and preparation depend only on the program and the runtime,
 not on the environment, and in a transition not on the transition, the
 old program, or its state. A program that loaded once therefore also
 loads after a restart.
+
+The runtime is what stays the same when it restarts, for example after a
+reboot or power loss: its implementation, the native code it links
+against with that code's dependencies, and whatever it provides as part
+of itself, such as a built-in KNX interface or GPIO lines. Anything else
+is the environment, which may change across restarts, such as network
+peers, files a program writes, and time. Native objects created during
+loading do not access the environment. The runtime activates them after
+loading succeeds. Activation and later operation cannot fail; native code
+handles an unavailable environment itself. If loading fails, the runtime
+discards the native objects created so far.
 
 ### ProcedureInstances
 
