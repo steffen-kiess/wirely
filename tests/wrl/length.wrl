@@ -36,8 +36,8 @@ node type Fields {
     output = value.Length;
   }
 }
-node source: Std.DebugValueSource { Type: boolean }
-node measurement: Std.DebugValueSource { Type: Measurement }
+node source: Std.DebugValueSource { Type: boolean, Initial: false }
+node measurement: Std.DebugValueSource { Type: Measurement, Initial: Measurement { Length: 0 } }
 node fields: Fields {}
 connect measurement -> fields;
 node empty: Lengths { Expected: 0 }

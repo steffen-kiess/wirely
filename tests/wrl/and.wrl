@@ -1,6 +1,6 @@
-node inp0: Std.DebugValueSource { Type: boolean }
-node inp1: Std.DebugValueSource { Type: boolean }
-node inp2: Std.DebugValueSource { Type: boolean }
+node inp0: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp1: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp2: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node and0: Std.And {}
 

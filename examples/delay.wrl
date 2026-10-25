@@ -1,4 +1,4 @@
-node in: Std.DebugValueSource { Type: boolean }
+node in: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node delay: Timer.DebounceStable { Type: boolean, Duration: "PT1S" }
 connect in -> delay;

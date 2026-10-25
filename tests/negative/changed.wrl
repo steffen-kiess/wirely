@@ -20,7 +20,7 @@ procedure run writes saved {
 
 // TEST: partially_assigned_output
 // LIBRARIES: std
-node source: Std.DebugValueSource { Type: boolean }
+node source: Std.DebugValueSource { Type: boolean, Initial: false }
 state saved: boolean = false;
 procedure run reads source writes saved {
   if source { saved = true; }

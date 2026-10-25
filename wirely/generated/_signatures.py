@@ -171,6 +171,7 @@ native_state_types: dict[str, Initializer] = {
         },
         uses={
             'Type': Builtin('type'),
+            'Initial': TypeVar('Type'),
         },
     ),
     'TwoN.CodeEnteredEvent:create': Initializer(

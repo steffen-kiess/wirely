@@ -11,7 +11,6 @@ import wirely.misc.service
 
 # TODO: Where should this import be done?
 import wirely.compiler
-from wirely.native.std import DebugValueSourceCreate
 from wirely.runtime.engine import Engine
 
 
@@ -121,16 +120,6 @@ def main() -> None:
         sys.exit(1)
 
     eng = Engine(prog)
-
-    for native_inst in eng.native_states.values():
-        if isinstance(native_inst, DebugValueSourceCreate):
-            ty = native_inst.value_type._type
-            if ty == wirely.types.boolean:
-                native_inst.set_value(False)
-            elif isinstance(ty, wirely.types.TypeOption):
-                native_inst.set_value(None)
-            else:
-                raise Exception(f'Unknown type for debug input: {ty}')
 
     # eng.debug = True
     asyncio.run(run(eng))

@@ -1,4 +1,4 @@
-node input: Std.DebugValueSource { Type: boolean }
+node input: Std.DebugValueSource { Type: boolean, Initial: false }
 node rising: Std.DetectEdge { EdgeType: Std.EdgeType.Rising }
 node falling: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 node both: Std.DetectEdge { EdgeType: Std.EdgeType.Both }

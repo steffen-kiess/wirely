@@ -60,48 +60,48 @@ node type Booleans {
   }
 }
 
-node boolean_source: Std.DebugValueSource { Type: boolean }
-node other_source: Std.DebugValueSource { Type: boolean }
+node boolean_source: Std.DebugValueSource { Type: boolean, Initial: false }
+node other_source: Std.DebugValueSource { Type: boolean, Initial: false }
 node booleans: Booleans {}
 connect boolean_source -> booleans;
 connect other_source -> booleans.Other;
 
-node int8_source: Std.DebugValueSource { Type: int8 }
+node int8_source: Std.DebugValueSource { Type: int8, Initial: 0 }
 node int8_ops: Operations { Type: int8 }
 connect int8_source -> int8_ops;
 
-node uint8_source: Std.DebugValueSource { Type: uint8 }
+node uint8_source: Std.DebugValueSource { Type: uint8, Initial: 0 }
 node uint8_ops: Operations { Type: uint8 }
 connect uint8_source -> uint8_ops;
 
-node int16_source: Std.DebugValueSource { Type: int16 }
+node int16_source: Std.DebugValueSource { Type: int16, Initial: 0 }
 node int16_ops: Operations { Type: int16 }
 connect int16_source -> int16_ops;
 
-node uint16_source: Std.DebugValueSource { Type: uint16 }
+node uint16_source: Std.DebugValueSource { Type: uint16, Initial: 0 }
 node uint16_ops: Operations { Type: uint16 }
 connect uint16_source -> uint16_ops;
 
-node int32_source: Std.DebugValueSource { Type: int32 }
+node int32_source: Std.DebugValueSource { Type: int32, Initial: 0 }
 node int32_ops: Operations { Type: int32 }
 connect int32_source -> int32_ops;
 
-node uint32_source: Std.DebugValueSource { Type: uint32 }
+node uint32_source: Std.DebugValueSource { Type: uint32, Initial: 0 }
 node uint32_ops: Operations { Type: uint32 }
 connect uint32_source -> uint32_ops;
 
-node int64_source: Std.DebugValueSource { Type: int64 }
+node int64_source: Std.DebugValueSource { Type: int64, Initial: 0 }
 node int64_ops: Operations { Type: int64 }
 connect int64_source -> int64_ops;
 
-node uint64_source: Std.DebugValueSource { Type: uint64 }
+node uint64_source: Std.DebugValueSource { Type: uint64, Initial: 0 }
 node uint64_ops: Operations { Type: uint64 }
 connect uint64_source -> uint64_ops;
 
-node int128_source: Std.DebugValueSource { Type: int128 }
+node int128_source: Std.DebugValueSource { Type: int128, Initial: 0 }
 node int128_ops: Operations { Type: int128 }
 connect int128_source -> int128_ops;
 
-node uint128_source: Std.DebugValueSource { Type: uint128 }
+node uint128_source: Std.DebugValueSource { Type: uint128, Initial: 0 }
 node uint128_ops: Operations { Type: uint128 }
 connect uint128_source -> uint128_ops;

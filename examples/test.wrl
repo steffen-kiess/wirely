@@ -19,7 +19,7 @@ node type MyBlock {
   output x4: value boolean;
   parameter i: uint8;
 
-  node di: Std.DebugValueSource { Type: boolean }
+  node di: Std.DebugValueSource { Type: boolean, Initial: false }
   // connect x1 -> x4;
   connect di -> x4;
 }
@@ -44,8 +44,8 @@ node type DoubleDelay {
   connect d2.old -> default output;
 }
 
-node inp1: Std.DebugValueSource { Type: boolean }
-node inp2: Std.DebugValueSource { Type: boolean }
+node inp1: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp2: Std.DebugValueSource { Type: boolean, Initial: false }
 
 // node inp1_d : Std.DoubleDelay {}
 // node inp1_d : Std.SingleDelay {}

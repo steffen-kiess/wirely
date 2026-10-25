@@ -1,4 +1,4 @@
-node value: Std.DebugValueSource { Type: uint8 }
+node value: Std.DebugValueSource { Type: uint8, Initial: 0 }
 node event: Std.DebugEventSource { Type: unit }
 
 node type Watch {

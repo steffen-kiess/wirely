@@ -123,7 +123,7 @@ node type Readers {
 }
 node readers: Readers {}
 connect a_value -> readers.Value;
-node a_value: Std.DebugValueSource { Type: boolean }
+node a_value: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node type EmitWarnings {
   input Input: event boolean;

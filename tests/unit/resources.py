@@ -213,7 +213,7 @@ node factory: TestLibrary.Factory {}
 node shared: TestLibrary.Shared {}
 node other_shared: TestLibrary.Shared {}
 node forward: TestLibrary.Forward {}
-node value_source: Std.DebugValueSource { Type: uint8 }
+node value_source: Std.DebugValueSource { Type: uint8, Initial: 0 }
 connect factory -> forward.Service;
 connect forward -> consumer.Service;
 connect shared -> consumer.OtherService;

@@ -1,7 +1,7 @@
-node inp0: Std.DebugValueSource { Type: boolean }
-node inp1: Std.DebugValueSource { Type: boolean }
-node inp2: Std.DebugValueSource { Type: boolean }
-node number_inp: Std.DebugValueSource { Type: uint16 }
+node inp0: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp1: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp2: Std.DebugValueSource { Type: boolean, Initial: false }
+node number_inp: Std.DebugValueSource { Type: uint16, Initial: 0 }
 
 node val0: Std.OptionNone { InnerType: boolean }
 node is_some0: Std.OptionIsSome { InnerType: boolean }
@@ -27,7 +27,7 @@ connect val3 -> is_some3;
 node unwrapped: Std.OptionUnwrapOr { InnerType: uint16, Default: 77 }
 connect val3 -> unwrapped;
 
-node nested_input: Std.DebugValueSource { Type: Option[boolean] }
+node nested_input: Std.DebugValueSource { Type: Option[boolean], Initial: None }
 node nested_some: Std.OptionSome { InnerType: Option[boolean] }
 connect nested_input -> nested_some;
 node nested_created: Std.OptionCreate { InnerType: Option[boolean] }

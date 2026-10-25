@@ -66,9 +66,9 @@ class WarnOnEventRun(contracts.WarnOnEventRun):
 
 class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
     def initialize(self, *, services: StateServices[Literal['state']],
-                   type: ValueType[Any]) -> contracts.DebugValueSourceCreateResult:
+                   type: ValueType[Any], initial: DynamicValue) -> contracts.DebugValueSourceCreateResult:
         self.value_type = type
-        self.current_value: DynamicValue | None = None  # None until a value is set.
+        self.current_value = initial
         return contracts.DebugValueSourceCreateResult(state=self)
 
     def set_value(self, value: InternalValue) -> None:
@@ -103,11 +103,7 @@ class DebugValueSourceRun(contracts.DebugValueSourceRun):
 
     def run(self, *, services: ProcedureServices,
             state: 'DebugValueSourceCreate', type: ValueType[Any]) -> contracts.DebugValueSourceRunResult:
-        value = state.current_value
-        if value is None:
-            # Option types start without a value; others need one to be set.
-            value = DynamicValue._make(state.value_type._type, None)
-        return contracts.DebugValueSourceRunResult(output=value)
+        return contracts.DebugValueSourceRunResult(output=state.current_value)
 
 
 class DebugEventSourceCreate(contracts.DebugEventSourceCreate):

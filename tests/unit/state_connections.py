@@ -172,7 +172,7 @@ def make_engine(source, *, declarations=definitions):
 
 def check_old_snapshots():
     probe = make_engine('''
-    node source: Std.DebugValueSource { Type: boolean }
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
     node other: Std.Constant { Type: boolean, Value: false }
     node owner: TestLibrary.Owner { Type: boolean, InitialValue: false }
     node second: TestLibrary.Owner { Type: boolean, InitialValue: true }
@@ -318,7 +318,7 @@ namespace TestLibrary {
 
 def check_current_snapshots():
     current_source = '''
-    node source: Std.DebugValueSource { Type: uint8 }
+    node source: Std.DebugValueSource { Type: uint8, Initial: 0 }
     node owner: TestLibrary.Current { Type: uint8, InitialValue: 0 }
     node observer: TestLibrary.Forward { Type: uint8 }
     connect source -> owner;
@@ -467,7 +467,7 @@ node type Copies {
 
 def check_copied_states():
     copied = make_engine('''
-    node source: Std.DebugValueSource { Type: uint8 }
+    node source: Std.DebugValueSource { Type: uint8, Initial: 0 }
     node copies: Copies {}
     connect source -> copies;
     ''', declarations=copied_definitions)

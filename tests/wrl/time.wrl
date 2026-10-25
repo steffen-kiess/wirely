@@ -14,17 +14,17 @@ node trigger_value: Schedule.TriggerAt {
 // TODO: Add tests
 node trigger2: Schedule.TriggerAt { Time: "03:10" }
 
-node delay_input: Std.DebugValueSource { Type: int8 }
+node delay_input: Std.DebugValueSource { Type: int8, Initial: 0 }
 node delay: Timer.DebounceStable { Type: int8, Duration: "PT10S" }
 node delay_output: Std.DebugValuePrinter { Type: int8 }
 connect delay_input -> delay;
 connect delay -> delay_output;
 
-node reached_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime] }
+node reached_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime], Initial: None }
 node reached: Timer.MonotonicTimeReached {}
 connect reached_input -> reached;
 
-node elapsed_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime] }
+node elapsed_input: Std.DebugValueSource { Type: Option[Timer.MonotonicTime], Initial: None }
 node elapsed: Timer.DurationElapsed { Duration: "PT10S" }
 connect elapsed_input -> elapsed;
 node elapsed_zero: Timer.DurationElapsed { Duration: "PT0S" }

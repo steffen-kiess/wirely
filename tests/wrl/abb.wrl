@@ -1,5 +1,5 @@
-node inp0: Std.DebugValueSource { Type: uint16 }
-node inp1: Std.DebugValueSource { Type: Option[uint16] }
+node inp0: Std.DebugValueSource { Type: uint16, Initial: 0 }
+node inp1: Std.DebugValueSource { Type: Option[uint16], Initial: None }
 
 node val0: ABB.JRA.InterpretStatusInformation {}
 connect inp0 -> val0;

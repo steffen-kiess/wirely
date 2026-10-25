@@ -1,4 +1,4 @@
-node in: Std.DebugValueSource { Type: boolean }
+node in: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node gpio: GPIO.Output {
   ChipDeviceFile: "/dev/gpiochip0",

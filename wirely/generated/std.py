@@ -91,6 +91,7 @@ class DebugValueSourceCreate(NativeState[Literal['state']], abc.ABC):
         self, *,
         services: StateServices[Literal['state']],
         type: ValueType[Any],
+        initial: DynamicValue,
     ) -> DebugValueSourceCreateResult:
         ...
 
@@ -104,6 +105,7 @@ class _DebugValueSourceCreateAdapter(InitializerAdapter):
         result = state.initialize(
             services=services,
             type=cast('ValueType[Any]', binding.use('Type')),
+            initial=cast('DynamicValue', binding.use('Initial')),
         )
         binding.check_result(result, DebugValueSourceCreateResult)
         return {

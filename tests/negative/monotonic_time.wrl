@@ -21,30 +21,36 @@ node type Probe {
     output = Timer.MonotonicTime.CheckedLess(span, span); // E: Expected value of type `Timer.MonotonicTime`, got `Std.Duration`
   }
 }
-node source: Std.DebugValueSource { Type: Std.Duration }
+node source: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
 node probe: Probe {}
 connect source -> probe;
 
 // TEST: checked comparison used as a boolean
 node type Probe {
-  default input: value Timer.MonotonicTime;
+  default input: value Option[Timer.MonotonicTime];
   default output: value boolean;
-  procedure run reads default input as time writes default output as output {
-    output = Timer.MonotonicTime.CheckedLess(time, time); // E: Expected value of type `boolean`, got `Option[boolean]`
+  procedure run reads default input as input writes default output as output {
+    output = false;
+    if let Some(time) = input {
+      output = Timer.MonotonicTime.CheckedLess(time, time); // E: Expected value of type `boolean`, got `Option[boolean]`
+    }
   }
 }
-node source: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node source: Std.DebugValueSource { Type: Option[Timer.MonotonicTime], Initial: None }
 node probe: Probe {}
 connect source -> probe;
 
 // TEST: ordering operator
 node type Probe {
-  default input: value Timer.MonotonicTime;
+  default input: value Option[Timer.MonotonicTime];
   default output: value boolean;
-  procedure run reads default input as time writes default output as output {
-    output = time < time; // E: got `Timer.MonotonicTime`
+  procedure run reads default input as input writes default output as output {
+    output = false;
+    if let Some(time) = input {
+      output = time < time; // E: got `Timer.MonotonicTime`
+    }
   }
 }
-node source: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node source: Std.DebugValueSource { Type: Option[Timer.MonotonicTime], Initial: None }
 node probe: Probe {}
 connect source -> probe;

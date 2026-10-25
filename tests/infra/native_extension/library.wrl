@@ -1,6 +1,8 @@
-// Interfaces of the native test code in wirely/native/test_library.py and
-// wirely/functions/test_library.py. tools/generate-native-types generates
-// their contracts; tests declare the interfaces they use themselves.
+// Interfaces of the native test code in wirely/native/test_library.py,
+// wirely/functions/test_library.py, and
+// compiler/function_implementations/test_library.py.
+// tools/generate-native-types generates their contracts; tests declare the
+// interfaces they use themselves.
 namespace TestLibrary {
   node type TestNode {
     native procedure test_procedure;
@@ -9,4 +11,7 @@ namespace TestLibrary {
   native function Clamp(value: int16, low: int16, high: int16): int16;
   native function Nothing(): unit;
   native function Fail(): boolean;
+
+  // A monotonic time for test inputs that tests overwrite before reading.
+  native constant function MonotonicTime(generation: uint64, ticks: uint128): Timer.MonotonicTime;
 }

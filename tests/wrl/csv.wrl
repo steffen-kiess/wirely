@@ -1,4 +1,4 @@
-node test_input: Std.DebugValueSource { Type: boolean }
+node test_input: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node test_value_writer: CSV.ValueWriter {
   Filename: Test.ReplaceOutputPath("foo.csv"),
@@ -6,7 +6,7 @@ node test_value_writer: CSV.ValueWriter {
 }
 connect test_input -> test_value_writer;
 
-node test_option_input: Std.DebugValueSource { Type: Option[boolean] }
+node test_option_input: Std.DebugValueSource { Type: Option[boolean], Initial: None }
 
 node test_option_value_writer: CSV.ValueWriter {
   Filename: Test.ReplaceOutputPath("foo2.csv"),

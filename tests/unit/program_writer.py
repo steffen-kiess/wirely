@@ -426,7 +426,7 @@ def check_stage_order():
 
 
 def check_compiled_programs():
-    source = ('node x: Std.DebugValueSource { Type: boolean }\n'
+    source = ('node x: Std.DebugValueSource { Type: boolean, Initial: false }\n'
               'node y: Std.TwoStageValueForward { Type: boolean }\nconnect x -> y;')
 
     def compile_source():

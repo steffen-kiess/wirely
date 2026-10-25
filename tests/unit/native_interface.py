@@ -1318,7 +1318,7 @@ namespace TestLibrary {
     native procedure run reads state as "state", (default input).Length as Count writes default output as output;
   }
 }
-node source: Std.DebugValueSource { Type: boolean }
+node source: Std.DebugValueSource { Type: boolean, Initial: false }
 node empty: TestLibrary.LengthProbe {}
 node multiple: TestLibrary.LengthProbe {}
 connect source, source -> multiple;

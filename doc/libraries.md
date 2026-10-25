@@ -64,7 +64,7 @@ its functions.
 | `DebugValuePrinter` | `Type: type` | In: `value Type`. Prints changes in the output stage. |
 | `DebugEventPrinter` | `Type: type` | In: `event Type`. Prints events in the output stage. |
 | `WarnOnEvent` | `Format: string`, `Type: type = unit` | In: `event Type`. Prints `Format` as a warning for each event in the output stage. `{}` marks the payload in the [text format](value-types.md#text-format) and is required exactly when `Type` is not `unit`; write `{{` and `}}` for braces. |
-| `DebugValueSource` | `Type: type` | Out: `value Type`. Debug-controlled value source. |
+| `DebugValueSource` | `Type: type`, `Initial: Type` | Out: `value Type`. Debug-controlled value source; outputs `Initial` until a value is set. |
 | `DebugEventSource` | `Type: type` | Out: `event Type`. Debug-controlled event source. |
 | `OptionNone` | `InnerType: type` | Out: `value Option[InnerType]`. Produces `None`. |
 | `OptionSome` | `InnerType: type` | In: `value InnerType`; out: `value Option[InnerType]`. Wraps the input. |

@@ -74,7 +74,7 @@ node wrapper: Wrapper {{ {arguments} }}
     if node_type == 'Memory.ToggleFlipFlopTrigger':
         external = 'wrapper' if forward else target
         source += f'''node input: Std.DebugEventSource {{ Type: boolean }}
-node feedback: Std.DebugValueSource {{ Type: Option[boolean] }}
+node feedback: Std.DebugValueSource {{ Type: Option[boolean], Initial: None }}
 connect input -> {external};
 connect feedback -> {external}.Feedback;
 '''
@@ -297,7 +297,7 @@ def check_debounce_duration():
   connect default input -> child;
   connect child -> default output;
 }
-node input: Std.DebugValueSource { Type: uint16 }
+node input: Std.DebugValueSource { Type: uint16, Initial: 0 }
 node wrapper: Wrapper { Span: "PT2S" }
 connect input -> wrapper;
 ''')
@@ -315,7 +315,7 @@ connect input -> wrapper;
 
 
 def check_debounce_behavior():
-    def make_runtime(value_type='uint16', duration='PT10S'):
+    def make_runtime(value_type='uint16', duration='PT10S', initial='0'):
         program = compile_program(f'''node type Wrapper {{
   parameter Type: type;
   parameter Span: Std.Duration;
@@ -325,7 +325,7 @@ def check_debounce_behavior():
   connect default input -> child;
   connect child -> default output;
 }}
-node input: Std.DebugValueSource {{ Type: {value_type} }}
+node input: Std.DebugValueSource {{ Type: {value_type}, Initial: {initial} }}
 node wrapper: Wrapper {{ Type: {value_type}, Span: {json.dumps(duration)} }}
 connect input -> wrapper;
 ''')
@@ -399,7 +399,7 @@ connect input -> wrapper;
     step(2)
 
     # An absent Option payload is a value, distinct from no pending change.
-    runtime = make_runtime('Option[boolean]', 'PT2S')
+    runtime = make_runtime('Option[boolean]', 'PT2S', 'None')
     source = runtime.get_native_state('input')
     source.set_value(None)
     step(None)

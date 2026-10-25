@@ -116,11 +116,13 @@ namespace Std {
 
   node type DebugValueSource {
     parameter Type: type;
+    #[Diagram.ShowValue]
+    parameter Initial: Type;
 
     default output: value Type;
 
     binding state: fixed DebugValueSourceState;
-    native initializer create reads Type writes state as "state";
+    native initializer create reads Type, Initial writes state as "state";
 
     native procedure run stage input
       reads state as "state", Type

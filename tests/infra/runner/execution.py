@@ -48,8 +48,9 @@ def compile_checked(fn: str, *, services: Mapping[str, object] | None = None) ->
     # Diagnostics are printed only on failure, so expected warnings stay silent.
     diagnostics: list[Diagnostic] = []
     from tests.infra.native_extension.generated import extension
+    from tests.infra.native_extension.compiler.generated import extension as compiler_extension
     global_node_type = model.compiler.compile_files([full_fn], services=services, on_diagnostic=diagnostics.append,
-                                                    extensions=[extension])
+                                                    extensions=[extension], compiler_extensions=[compiler_extension])
     prog = None if global_node_type is None else program_compiler.compile(global_node_type,
                                                                           on_diagnostic=diagnostics.append)
     if prog is None:

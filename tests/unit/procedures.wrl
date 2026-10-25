@@ -1,3 +1,7 @@
+namespace TestLibrary {
+  native constant function MonotonicTime(generation: uint64, ticks: uint128): Timer.MonotonicTime;
+}
+
 namespace ProcedureTests {
   open enum type Mode: uint8 { Off = 0, On = 1 }
   struct type Pair { enabled: boolean, number: uint8 }
@@ -154,13 +158,13 @@ namespace ProcedureTests {
   }
 }
 
-node source: Std.DebugValueSource { Type: boolean }
+node source: Std.DebugValueSource { Type: boolean, Initial: false }
 node selected: ProcedureTests.Select {}
 node fallback: ProcedureTests.Select { Enabled: false, Fallback: true }
 node delayed: ProcedureTests.Delay {}
 node constants: ProcedureTests.Constants {}
 node constant_blocks: ProcedureTests.ConstantBlocks {}
-node constant_source: Std.DebugValueSource { Type: boolean }
+node constant_source: Std.DebugValueSource { Type: boolean, Initial: false }
 connect constant_source -> constant_blocks;
 node optional_absent: ProcedureTests.OptionalConstant {}
 node optional_present: ProcedureTests.OptionalConstant { Enabled: true }
@@ -197,8 +201,8 @@ node type Presence {
   }
 }
 
-node option_source: Std.DebugValueSource { Type: Option[boolean] }
-node nested_source: Std.DebugValueSource { Type: Option[Option[boolean]] }
+node option_source: Std.DebugValueSource { Type: Option[boolean], Initial: None }
+node nested_source: Std.DebugValueSource { Type: Option[Option[boolean]], Initial: None }
 node presence: Presence { Type: boolean, Default: true }
 node nested_presence: Presence { Type: Option[boolean], Default: Some(true) }
 connect option_source -> presence;
@@ -223,9 +227,9 @@ node type Ordering {
   }
 }
 
-node int_source: Std.DebugValueSource { Type: int16 }
-node duration_source: Std.DebugValueSource { Type: Std.Duration }
-node time_source: Std.DebugValueSource { Type: Schedule.TimeOfDay }
+node int_source: Std.DebugValueSource { Type: int16, Initial: 0 }
+node duration_source: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
+node time_source: Std.DebugValueSource { Type: Schedule.TimeOfDay, Initial: "00:00" }
 node int_ordering: Ordering { Type: int16, Limit: -1 }
 node duration_ordering: Ordering { Type: Std.Duration, Limit: "PT1S" }
 node time_ordering: Ordering { Type: Schedule.TimeOfDay, Limit: "08:00" }
@@ -255,8 +259,8 @@ node type Arithmetic {
   }
 }
 
-node int8_source: Std.DebugValueSource { Type: int8 }
-node uint8_source: Std.DebugValueSource { Type: uint8 }
+node int8_source: Std.DebugValueSource { Type: int8, Initial: 0 }
+node uint8_source: Std.DebugValueSource { Type: uint8, Initial: 0 }
 node int8_arithmetic: Arithmetic { Type: int8, Step: 1 }
 node uint8_arithmetic: Arithmetic { Type: uint8, Step: 1 }
 connect int8_source -> int8_arithmetic;
@@ -300,7 +304,7 @@ node type PairFields {
   }
 }
 
-node pair_source: Std.DebugValueSource { Type: ProcedureTests.Pair }
+node pair_source: Std.DebugValueSource { Type: ProcedureTests.Pair, Initial: ProcedureTests.Pair { enabled: false, number: 0 } }
 node pair_fields: PairFields {}
 connect pair_source -> pair_fields;
 
@@ -349,8 +353,8 @@ node type DurationMath {
   }
 }
 
-node span_source: Std.DebugValueSource { Type: Std.Duration }
-node factor_source: Std.DebugValueSource { Type: uint32 }
+node span_source: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
+node factor_source: Std.DebugValueSource { Type: uint32, Initial: 0 }
 node duration_math: DurationMath {}
 connect span_source -> duration_math;
 connect factor_source -> duration_math.Factor;
@@ -394,9 +398,9 @@ node type MonotonicMath {
   }
 }
 
-node monotonic_source: Std.DebugValueSource { Type: Timer.MonotonicTime }
-node monotonic_other: Std.DebugValueSource { Type: Timer.MonotonicTime }
-node monotonic_span: Std.DebugValueSource { Type: Std.Duration }
+node monotonic_source: Std.DebugValueSource { Type: Timer.MonotonicTime, Initial: TestLibrary.MonotonicTime(1, 0) }
+node monotonic_other: Std.DebugValueSource { Type: Timer.MonotonicTime, Initial: TestLibrary.MonotonicTime(1, 0) }
+node monotonic_span: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
 node monotonic_math: MonotonicMath {}
 connect monotonic_source -> monotonic_math;
 connect monotonic_other -> monotonic_math.Other;

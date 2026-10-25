@@ -6,5 +6,12 @@ from collections.abc import Callable
 from wirely.compiler.native_functions import ConstantFunctionImplementation
 
 
+def _load_test_library_monotonic_time() -> ConstantFunctionImplementation:
+    from tests.infra.native_extension.compiler.generated._contracts.test_library import _MonotonicTime
+    from tests.infra.native_extension.compiler.function_implementations.test_library import monotonic_time
+    return _MonotonicTime.implementation(monotonic_time)
+
+
 functions: dict[str, Callable[[], ConstantFunctionImplementation]] = {
+    'TestLibrary.MonotonicTime': _load_test_library_monotonic_time,
 }

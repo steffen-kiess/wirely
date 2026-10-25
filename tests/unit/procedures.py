@@ -228,7 +228,7 @@ def check_procedure_ports():
       connect last.old -> Previous;
       connect fed -> Fed;
     }
-    node source: Std.DebugValueSource { Type: boolean }
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
     node p: Ports {}
     connect source -> p;
     ''', add_std=True)
@@ -344,7 +344,7 @@ def check_root_dependencies():
       default output: value boolean;
       procedure run writes default output as output { output = true; }
     }
-    node source: Std.DebugValueSource { Type: boolean }
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
     node copied: Copy {}
     node shared: Shared {}
     node shared_again: Shared {}
@@ -385,7 +385,7 @@ def check_root_state():
         output = input;
       }
     }
-    node source: Std.DebugValueSource { Type: boolean }
+    node source: Std.DebugValueSource { Type: boolean, Initial: false }
     node old_copy: Copy {}
     node new_copy: Copy {}
     connect saved.old -> old_copy;
@@ -574,7 +574,7 @@ def check_native_functions():
         Done = TestLibrary.Nothing();
       }
     }
-    node source: Std.DebugValueSource { Type: int16 }
+    node source: Std.DebugValueSource { Type: int16, Initial: 0 }
     node clamped: Clamped {}
     connect source -> clamped;
     ''', add_std=True)
@@ -738,8 +738,8 @@ def check_multi_procedures():
 
     # A short-circuited member still schedules a new invocation when it changes.
     program = compile_program('''
-    node first: Std.DebugValueSource { Type: boolean }
-    node second: Std.DebugValueSource { Type: boolean }
+    node first: Std.DebugValueSource { Type: boolean, Initial: false }
+    node second: Std.DebugValueSource { Type: boolean, Initial: false }
     node combined: Std.And {}
     connect first, second -> combined;
     ''', add_std=True)

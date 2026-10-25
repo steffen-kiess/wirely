@@ -17,9 +17,9 @@ node type Outer {
   connect inner -> default output;
 }
 
-node inp0: Std.DebugValueSource { Type: boolean }
-node inp1: Std.DebugValueSource { Type: boolean }
-node inp2: Std.DebugValueSource { Type: boolean }
+node inp0: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp1: Std.DebugValueSource { Type: boolean, Initial: false }
+node inp2: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node inner: Inner {}
 connect inp0, inp1 -> inner;

@@ -3,7 +3,7 @@ node server: MQTT.Connection {
   URI: Test.ReplaceMQTTURI("mqtt://localhost"),
 }
 
-node provider_input: Std.DebugValueSource { Type: boolean }
+node provider_input: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node provider: MQTT.ValueProvider {
   Topic: "test/t1",
@@ -16,7 +16,7 @@ connect provider_input -> provider;
 // add tests for that
 connect server -> provider.Broker;
 
-node template_provider_input: Std.DebugValueSource { Type: boolean }
+node template_provider_input: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node template_provider: MQTT.ValueProvider {
   Topic: r"test/t1t",
@@ -27,7 +27,7 @@ connect template_provider_input -> template_provider;
 
 connect server -> template_provider.Broker;
 
-node option_provider_input: Std.DebugValueSource { Type: Option[boolean] }
+node option_provider_input: Std.DebugValueSource { Type: Option[boolean], Initial: None }
 
 node option_provider: MQTT.ValueOptionProvider {
   Topic: "test/t2",

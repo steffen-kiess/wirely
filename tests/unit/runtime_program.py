@@ -82,7 +82,7 @@ singleton node type Shared {
   connect constant -> default output;
 }
 
-node source: Std.DebugValueSource { Type: boolean }
+node source: Std.DebugValueSource { Type: boolean, Initial: false }
 node envelope: Envelope {}
 connect source -> envelope;
 node shared: Shared {}

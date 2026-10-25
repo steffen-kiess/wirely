@@ -4,7 +4,8 @@ node c0: Std.Constant { Type: boolean, Value: true }
 // node c1 : Std.Constant { Type: int16, Value: -1000 }
 node c1: Std.Constant { Type: int16, Value: 1000 }
 
-node in: Std.DebugValueSource { Type: boolean }
+node in: Std.DebugValueSource { Type: boolean, Initial: false }
+node initial: Std.DebugValueSource { Type: uint8, Initial: 7 }
 
 node edge: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 connect in -> edge;
@@ -13,7 +14,7 @@ connect in -> rising;
 node both: Std.DetectEdge { EdgeType: Std.EdgeType.Both }
 connect in -> both;
 
-node initial_true: Std.DebugValueSource { Type: boolean }
+node initial_true: Std.DebugValueSource { Type: boolean, Initial: false }
 node initial_falling: Std.DetectEdge { EdgeType: Std.EdgeType.Falling }
 connect initial_true -> initial_falling;
 node initial_rising: Std.DetectEdge { EdgeType: Std.EdgeType.Rising }

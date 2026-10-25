@@ -272,7 +272,8 @@ def _initializer_code(native_name: str, signature: signatures.Initializer, impor
     else:
         literal = imports.add('typing', 'Never')
     types = {key: annotate(port.type) for key, port in signature.depends.items()}
-    types.update((key, annotate(item)) for key, item in signature.uses.items())
+    # Compile-time reads are never resources.
+    types.update((key, annotation(item, imports, resource_classes, strict)) for key, item in signature.uses.items())
     for name in ('NativeState', 'StateServices', 'InitializerAdapter', 'InterfaceBinding'):
         imports.add('wirely.runtime.native_api', name)
     imports.add('wirely.types', 'InternalValue')

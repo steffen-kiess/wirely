@@ -21,6 +21,12 @@ engine.step()
 for name in ('edge', 'rising', 'both', 'initial_falling', 'initial_rising', 'initial_both'):
     engine.assert_value_is(name, None)
 
+# Std.DebugValueSource outputs Initial until a value is set.
+engine.assert_value_is('initial', 7)
+engine.get_native_state('initial').set_value(3)
+engine.step()
+engine.assert_value_is('initial', 3)
+
 check(True, 1000)
 check(True, 1000)
 

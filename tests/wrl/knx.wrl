@@ -24,7 +24,7 @@ node receiver_value2: Std.OptionUnwrapOr {
 }
 connect receiver -> receiver_value2;
 
-node provider_input: Std.DebugValueSource { Type: boolean }
+node provider_input: Std.DebugValueSource { Type: boolean, Initial: false }
 
 node provider: KNX.ValueProvider { GroupAddress: "0/6/7", Type: boolean }
 connect bus -> provider.Bus;
@@ -121,7 +121,7 @@ node type KNXConversionCase {
   }
   connect Bus -> value_receiver.Bus;
 
-  node value_input: Std.DebugValueSource { Type: Option[Type] }
+  node value_input: Std.DebugValueSource { Type: Option[Type], Initial: None }
   node value_sender: KNX.ValueOptionProvider {
     Type: Type,
     GroupAddress: ValueSendAddress,

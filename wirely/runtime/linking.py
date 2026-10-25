@@ -104,9 +104,24 @@ def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> N
     from .native_values import to_native
     values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
     values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
-    for value_type, value in values:
-        if _contains_opaque(value_type):
+    def check(value_type: Type, value: Any) -> None:
+        if not _contains_opaque(value_type):
+            return
+        # Only opaque structs need a native representation; declared structs around them need none.
+        if isinstance(value_type, TypeStruct) and not value_type.is_opaque:
+            for field_type, field in zip(value_type.field_types, value):
+                check(field_type, field)
+        elif isinstance(value_type, TypeOption):
+            if value is not None:
+                check(value_type.inner_type, value.value)
+        elif isinstance(value_type, TypeList):
+            for element in value:
+                check(value_type.inner_type, element)
+        else:
             to_native(None, value_type, value, native_types=extension.native_types)
+
+    for value_type, value in values:
+        check(value_type, value)
 
 
 def _contains_opaque(value_type: Type) -> bool:

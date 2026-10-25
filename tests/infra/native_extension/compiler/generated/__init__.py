@@ -8,4 +8,5 @@ from . import _bindings
 __all__ = ["extension"]
 
 extension = CompilerNativeExtension(functions={
+    'TestLibrary.MonotonicTime': NativeConstantFunction(Function((Int(64, False), Int(128, False)), Opaque('Timer.MonotonicTime')), _bindings.functions['TestLibrary.MonotonicTime']),
 })

@@ -1,3 +1,7 @@
+namespace TestLibrary {
+  native constant function MonotonicTime(generation: uint64, ticks: uint128): Timer.MonotonicTime;
+}
+
 struct type Packet {
   flag: boolean,
   at: Schedule.TimeOfDay,
@@ -23,50 +27,50 @@ node type Compare {
   }
 }
 
-node time_left: Std.DebugValueSource { Type: Schedule.TimeOfDay }
-node time_right: Std.DebugValueSource { Type: Schedule.TimeOfDay }
+node time_left: Std.DebugValueSource { Type: Schedule.TimeOfDay, Initial: "00:00" }
+node time_right: Std.DebugValueSource { Type: Schedule.TimeOfDay, Initial: "00:00" }
 node time: Compare { Type: Schedule.TimeOfDay }
 connect time_left -> time.Left;
 connect time_right -> time.Right;
 
-node duration_left: Std.DebugValueSource { Type: Std.Duration }
-node duration_right: Std.DebugValueSource { Type: Std.Duration }
+node duration_left: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
+node duration_right: Std.DebugValueSource { Type: Std.Duration, Initial: "PT0S" }
 node duration: Compare { Type: Std.Duration }
 connect duration_left -> duration.Left;
 connect duration_right -> duration.Right;
 
-node monotonic_left: Std.DebugValueSource { Type: Timer.MonotonicTime }
-node monotonic_right: Std.DebugValueSource { Type: Timer.MonotonicTime }
+node monotonic_left: Std.DebugValueSource { Type: Timer.MonotonicTime, Initial: TestLibrary.MonotonicTime(1, 0) }
+node monotonic_right: Std.DebugValueSource { Type: Timer.MonotonicTime, Initial: TestLibrary.MonotonicTime(1, 0) }
 node monotonic: Compare { Type: Timer.MonotonicTime }
 connect monotonic_left -> monotonic.Left;
 connect monotonic_right -> monotonic.Right;
 
-node option_left: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay] }
-node option_right: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay] }
+node option_left: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay], Initial: None }
+node option_right: Std.DebugValueSource { Type: Option[Schedule.TimeOfDay], Initial: None }
 node option: Compare { Type: Option[Schedule.TimeOfDay] }
 connect option_left -> option.Left;
 connect option_right -> option.Right;
 
-node nested_option_left: Std.DebugValueSource { Type: Option[Option[unit]] }
-node nested_option_right: Std.DebugValueSource { Type: Option[Option[unit]] }
+node nested_option_left: Std.DebugValueSource { Type: Option[Option[unit]], Initial: None }
+node nested_option_right: Std.DebugValueSource { Type: Option[Option[unit]], Initial: None }
 node nested_option: Compare { Type: Option[Option[unit]] }
 connect nested_option_left -> nested_option.Left;
 connect nested_option_right -> nested_option.Right;
 
-node packet_left: Std.DebugValueSource { Type: Packet }
-node packet_right: Std.DebugValueSource { Type: Packet }
+node packet_left: Std.DebugValueSource { Type: Packet, Initial: Packet { flag: false, at: "00:00", span: "PT0S", instant: TestLibrary.MonotonicTime(1, 0) } }
+node packet_right: Std.DebugValueSource { Type: Packet, Initial: Packet { flag: false, at: "00:00", span: "PT0S", instant: TestLibrary.MonotonicTime(1, 0) } }
 node packet: Compare { Type: Packet }
 connect packet_left -> packet.Left;
 connect packet_right -> packet.Right;
 
-node nested_left: Std.DebugValueSource { Type: Option[Nested] }
-node nested_right: Std.DebugValueSource { Type: Option[Nested] }
+node nested_left: Std.DebugValueSource { Type: Option[Nested], Initial: None }
+node nested_right: Std.DebugValueSource { Type: Option[Nested], Initial: None }
 node nested: Compare { Type: Option[Nested] }
 connect nested_left -> nested.Left;
 connect nested_right -> nested.Right;
 
-node empty_left: Std.DebugValueSource { Type: Empty }
-node empty_right: Std.DebugValueSource { Type: Empty }
+node empty_left: Std.DebugValueSource { Type: Empty, Initial: Empty {} }
+node empty_right: Std.DebugValueSource { Type: Empty, Initial: Empty {} }
 node empty: Compare { Type: Empty }
 connect empty_left -> empty.Left;
 connect empty_right -> empty.Right;

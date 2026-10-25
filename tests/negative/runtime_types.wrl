@@ -49,7 +49,7 @@ node source: Std.Constant { Type: string, Value: "text" } // E: parameter-only
 
 // TEST: runtime_generic_list
 // LIBRARIES: std
-node source: Std.DebugValueSource { Type: List[uint8] } // E: parameter-only
+node source: Std.DebugValueSource { Type: List[uint8], Initial: [] } // E: parameter-only
 
 // TEST: runtime_generic_state
 node type Invalid {

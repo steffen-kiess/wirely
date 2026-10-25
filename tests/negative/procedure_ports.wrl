@@ -277,7 +277,7 @@ connect a -> run.values;
 
 // TEST: optional_value_dependency
 // LIBRARIES: std
-node a: Std.DebugValueSource { Type: boolean }
+node a: Std.DebugValueSource { Type: boolean, Initial: false }
 state result: boolean = false;
 procedure run reads a writes result {
   result = optional(a).IsSome; // E: optional requires an optional parameter without a default or a single event dependency
@@ -293,7 +293,7 @@ procedure run reads a writes result {
 
 // TEST: on_value_trigger
 // LIBRARIES: std
-node a: Std.DebugValueSource { Type: boolean }
+node a: Std.DebugValueSource { Type: boolean, Initial: false }
 state result: boolean = false;
 procedure run reads a writes result {
   on a {} // E: `a` is not an event dependency
