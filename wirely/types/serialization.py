@@ -116,10 +116,7 @@ def _deserialize(value_type: Type, data: bytes | memoryview) -> Any:
                 raise ValueError('Struct padding must be zero')
             end = offset + field_type.data_size
             fields.append(field_type.deserialize(data[offset:end]))
-        value = value_type.verify_value(tuple(fields))
-        if value_type.is_opaque:
-            value_type.check_opaque_value(value)
-        return value
+        return value_type.verify_value(tuple(fields))
     if isinstance(value_type, TypeOption):
         present = data[-1]
         if present > 1:

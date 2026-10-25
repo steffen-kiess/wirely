@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterator, Mapping
 from typing import TYPE_CHECKING, Any, NoReturn
 
 if TYPE_CHECKING:
+    from ..runtime.extensions import NativeTypes
     from .parameters import StaticValue
 
 from ..types import Type, TypeOption, TypeList
@@ -99,7 +100,7 @@ class TypeParameter(Type):
     def equals(self, value1: object, value2: object) -> NoReturn:
         raise Exception('Not a concrete type')
 
-    def _parse_impl(self, s: str) -> NoReturn:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> NoReturn:
         raise Exception('Not a concrete type')
 
 
@@ -198,19 +199,22 @@ def _parse_enum(self: types.TypeEnum, expr: model.ast.Value, *, scope: model.Sco
     if not matches:
         raise model.ProgramError(expr, f'Expected enum type `{self.name}`, got `{type_name}`')
     try:
-        return self._parse_impl(member_name)
+        return self._parse_impl(member_name, native_types=None)
     except ValueError as error:
         raise model.ProgramError(expr, str(error)) from None
 
 
-def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value) -> Any:
+def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value, scope: model.Scope | None) -> Any:
     """Parse a string literal with the implementation of an opaque struct."""
     if isinstance(expr, model.StructLiteral):
         raise model.ProgramError(expr, f'Expected `{self}`, got struct literal')
-    python_type = self.opaque_class()
+    assert scope is not None and self.native_name is not None
+    native_types = scope.coordinator.global_node_type.native_extension.native_types
+    native = native_types.opaque_types.get(self.native_name)
+    python_type = None if native is None else native.python_type
     if isinstance(expr, model.StringConstant) and python_type is not None and hasattr(python_type, 'parse'):
         try:
-            return self.parse(expr.value)
+            return self.parse(expr.value, native_types=native_types)
         except ValueError:
             raise model.ProgramError(expr, f'Invalid `{self}` value {expr.value!r}') from None
     if isinstance(expr, model.StringConstant) and python_type is None:
@@ -220,7 +224,7 @@ def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value) -> Any:
 
 def _parse_struct(self: types.TypeStruct, value: model.ast.Value, *, scope: model.Scope | None = None) -> Any:
     if self.is_opaque:
-        return _parse_opaque(self, value)
+        return _parse_opaque(self, value, scope)
     if not isinstance(value, model.StructLiteral):
         raise model.ProgramError(value, f'Expected struct literal `{self.name} {{ ... }}`')
     fields = model.ast.check_struct_literal(self, value, scope)

@@ -56,7 +56,8 @@ class DebugEventPrinterRun(contracts.DebugEventPrinterRun):
             input: Some[DynamicValue] | None, type: ValueType[Any]
             ) -> contracts.DebugEventPrinterRunResult:
         if input is not None:
-            print(f'[{services.name}]: {input.value.to_text()}')
+            text = input.value.to_text(native_types=services.native_types)
+            print(f'[{services.name}]: {text}')
         return contracts.DebugEventPrinterRunResult()
 ```
 
@@ -307,7 +308,8 @@ carry `wirely.DynamicValue`s. A dynamic value is immutable and has a
 `type`, a `wirely.ValueType`. Dynamic values are equal when their types
 and values are equal.
 
-- `to_text()` formats the value in the [text format](value-types.md#text-format).
+- `to_text(native_types=context)` formats the value in the
+  [text format](value-types.md#text-format).
 - `json_encode(format=None)` returns a JSON-compatible Python value,
   without serializing JSON text.
 - `to_csv_value()` returns `(text, needs_quotes)`.
@@ -326,17 +328,17 @@ a `wirely.UInt8`.
 
 - `from_native(value, native_types=context)` returns the dynamic value
   of a Python representation.
-- `parse(text)` parses text in the value text format, or raises
-  `ValueError`.
+- `parse(text, native_types=context)` parses text in the value text
+  format, or raises `ValueError`.
 - `json_decode(value, format=None)` converts a JSON-compatible Python value.
 - `supports_json` and `supports_csv` indicate support for JSON and CSV
   conversion.
 
-Native conversions require a `NativeTypes` context: use
+Native and text conversions require a `NativeTypes` context: use
 `services.native_types` inside native implementations or
 `engine.native_types` when calling from Python. Contexts select native enum
-and struct classes. Values and descriptors carry no context; text and JSON
-conversion, equality, and hashing need none.
+and struct classes and implement opaque structs. Values and descriptors
+carry no context; JSON conversion, equality, and hashing need none.
 
 Invalid values and unsupported conversions raise `ValueError`. Composite
 descriptors are available through compile-time reads. Each compiled program

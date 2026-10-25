@@ -337,7 +337,7 @@ async def check_unnamed_native_commands():
     client.requests = requests
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
-        assert await wirely.cli.client._dump(client, argparse.Namespace(compiled_program=program, bank='all')) == 0
+        assert await wirely.cli.client._dump(client, argparse.Namespace(compiled_program=program, native_types=engine.native_types, bank='all')) == 0
     assert 'temporary[0]' in output.getvalue() and 'None:' not in output.getvalue(), output.getvalue()
 
 
@@ -345,17 +345,18 @@ def check_node_commands():
     """Typed commands find nodes by name and encode values with their node type's types."""
     target = node_commands.resolve(engine.program, 'value')
     assert (target.instance, target.node_type) == (instance_index('value.create'), 'Std.DebugValueSource')
-    assert target.encode('9') == {1: b'\x09\x00'} and target.decode({1: b'\x09\x00'}) == '9'
+    native_types = engine.native_types
+    assert target.encode('9', native_types) == {1: b'\x09\x00'} and target.decode({1: b'\x09\x00'}, native_types) == '9'
     events = node_commands.resolve(engine.program, 'events')
-    assert str(events.value_type) == 'uint8' and events.decode({}) is None
+    assert str(events.value_type) == 'uint8' and events.decode({}, native_types) is None
     assert node_commands.command_targets(engine.program) == {
         'get': {'value', 'events'}, 'set': {'value'}, 'send': {'events'}}
     for action, message in [
         (lambda: events.command('set'), '`events` (`Std.DebugEventSource`) has no command `set`; it has `get`, `send`'),
         (lambda: node_commands.resolve(engine.program, 'c'), '`c` has no typed commands'),
         (lambda: node_commands.resolve(engine.program, 'missing'), 'Cannot find node `missing`'),
-        (lambda: target.encode('x'), "Invalid `uint16` value 'x'"),
-        (lambda: dataclasses.replace(target, value_type=wirely.types.boolean).encode('2'),
+        (lambda: target.encode('x', native_types), "Invalid `uint16` value 'x'"),
+        (lambda: dataclasses.replace(target, value_type=wirely.types.boolean).encode('2', native_types),
          "Invalid `boolean` value '2'"),
     ]:
         try:

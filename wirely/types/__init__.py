@@ -136,16 +136,22 @@ class Type(abc.ABC):
     def equals(self, value1: Any, value2: Any) -> bool:
         ...
 
-    def parse(self, s: str) -> Any:
-        """Parse text in the value text format; invalid text raises ValueError."""
-        return self.verify_value(self._parse_impl(s))
+    def parse(self, s: str, *, native_types: NativeTypes | None = None) -> Any:
+        """Parse text in the value text format; invalid text raises ValueError.
+
+        Opaque structs, also nested ones, need native_types for their text.
+        """
+        return self.verify_value(self._parse_impl(s, native_types=native_types))
 
     @abc.abstractmethod
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         ...
 
-    def to_text(self, value: Any) -> str:
-        """Format value as text, using Wirely literal syntax where it exists."""
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
+        """Format value as text, using Wirely literal syntax where it exists.
+
+        Opaque structs, also nested ones, need native_types for their text.
+        """
         raise ValueError(f'`{self}` values cannot be formatted as text')
 
 
@@ -261,17 +267,17 @@ class TypeOption(Type):
             raise ValueError('Type parameters require resolution before producing a default value')
         return None
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         if s == 'none':
             return None
         # TODO: Use different format for strings?
-        return Some(self.inner_type.parse(s))
+        return Some(self.inner_type.parse(s, native_types=native_types))
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         value = self.verify_value(value)
         if value is None:
             return 'None'
-        return f'Some({self.inner_type.to_text(value.value)})'
+        return f'Some({self.inner_type.to_text(value.value, native_types=native_types)})'
 
 
 class TypeStruct(Type):
@@ -280,16 +286,15 @@ class TypeStruct(Type):
     Values are tuples of field values in that order. The type name and field
     names are optional; without them, text output falls back to the native
     name and field positions. An opaque struct is implemented by native code,
-    which also parses and formats its values when native_types provides its
-    implementation.
+    which also parses and formats its values when the native_types passed to
+    parse() and to_text() provide its implementation.
     """
 
     is_json_serializable = False
     has_to_csv_value = False
 
     def __init__(self, name: str | None, fields: Mapping[str, Type] | Sequence[Type], *,
-                 native_name: str | None = None, is_opaque: bool = False,
-                 native_types: NativeTypes | None = None, json_names: Sequence[str] | None = None,
+                 native_name: str | None = None, is_opaque: bool = False, json_names: Sequence[str] | None = None,
                  field_names: Sequence[str | None] | None = None) -> None:
         """Create a struct from named fields, or from field types alone.
 
@@ -305,8 +310,6 @@ class TypeStruct(Type):
         self.type_name = name  # The declared name, or None.
         self.native_name = native_name  # None for structs native code does not rely on.
         self.is_opaque = is_opaque
-        # Native types providing the implementation of an opaque struct, or None.
-        self.native_types = native_types
         self._fields: Mapping[str, Type] | None
         if isinstance(fields, Mapping):
             self._fields = MappingProxyType(dict(fields))
@@ -359,23 +362,13 @@ class TypeStruct(Type):
             raise ValueError(f'`{self}` values are not ordered')
         return self.verify_value(value1) < self.verify_value(value2)
 
-    def opaque_class(self) -> type | None:
-        """Return the Python class implementing an opaque struct, or None if it is unavailable."""
-        if not self.is_opaque or self.native_types is None:
-            return None
-        assert self.native_name is not None
-        native = self.native_types.opaque_types.get(self.native_name)
+    def _opaque_class(self, native_types: NativeTypes | None) -> type | None:
+        """Return the Python class implementing an opaque struct for text conversion, or None if there is none."""
+        assert self.is_opaque and self.native_name is not None
+        if native_types is None:
+            raise ValueError(f'`{self}` needs native types for text conversion')
+        native = native_types.opaque_types.get(self.native_name)
         return None if native is None else native.python_type
-
-    def check_opaque_value(self, value: Any) -> None:
-        """Raise ValueError if the implementation of an opaque struct rejects a value."""
-        if self.opaque_class() is not None:
-            self._to_native(value)
-
-    def _to_native(self, value: Any) -> Any:
-        from ..runtime.native_values import to_native
-        assert self.native_types is not None
-        return to_native(None, self, value, native_types=self.native_types)
 
     @property
     def contains_parameters(self) -> bool:
@@ -435,25 +428,29 @@ class TypeStruct(Type):
     def default_value(self) -> Any:
         return tuple(field_type.default_value() for field_type in self.field_types)
 
-    def _parse_impl(self, text: str) -> Any:
-        python_type = self.opaque_class()
+    def _parse_impl(self, text: str, *, native_types: NativeTypes | None) -> Any:
+        python_type = self._opaque_class(native_types) if self.is_opaque else None
         if python_type is None or not hasattr(python_type, 'parse'):
             raise ValueError(f'`{self}` does not support text parsing')
         from ..runtime.native_values import from_native
-        assert self.native_types is not None
-        return from_native(None, self, python_type.parse(text), native_types=self.native_types)
+        assert native_types is not None
+        return from_native(None, self, python_type.parse(text), native_types=native_types)
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         value = self.verify_value(value)
-        python_type = self.opaque_class()
+        python_type = self._opaque_class(native_types) if self.is_opaque else None
         if python_type is not None and hasattr(python_type, 'to_text'):
-            return self._to_native(value).to_text()
+            from ..runtime.native_values import to_native
+            assert native_types is not None
+            native: Any = to_native(None, self, value, native_types=native_types)
+            return native.to_text()
         if not value:
             return f'{self} {{}}'
         if self.field_names is None:
-            fields = ', '.join(field_type.to_text(field) for field_type, field in zip(self.field_types, value))
+            fields = ', '.join(field_type.to_text(field, native_types=native_types)
+                               for field_type, field in zip(self.field_types, value))
         else:
-            fields = ', '.join(f'{self.field_label(index)}: {field_type.to_text(field)}'
+            fields = ', '.join(f'{self.field_label(index)}: {field_type.to_text(field, native_types=native_types)}'
                                for index, (field_type, field) in enumerate(zip(self.field_types, value)))
         return f'{self} {{ {fields} }}'
 
@@ -513,12 +510,13 @@ class TypeList(Type):
             raise ValueError('Type parameters require resolution before producing a default value')
         return ()
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         # TODO: Implement TypeList.parse
         raise ValueError(f'`{self}` values cannot be parsed')
 
-    def to_text(self, value: Any) -> str:
-        return '[' + ', '.join(self.inner_type.to_text(item) for item in self.verify_value(value)) + ']'
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
+        return '[' + ', '.join(self.inner_type.to_text(item, native_types=native_types)
+                               for item in self.verify_value(value)) + ']'
 
 
 
@@ -555,7 +553,7 @@ class TypeResource(Type):
     def equals(self, value1: Any, value2: Any) -> bool:
         return value1 is value2
 
-    def _parse_impl(self, s: str) -> NoReturn:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> NoReturn:
         raise ValueError('Resources cannot be parsed')
 
     def __str__(self) -> str:
@@ -573,12 +571,12 @@ class TypeUnit(TypePrimitive):
     def default_value(self) -> Any:
         return Unit()
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         if s != '()':
             raise ValueError(f'Invalid unit value {s!r}')
         return Unit()
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         self.verify_value(value)
         return '()'
 
@@ -603,7 +601,7 @@ class TypeBoolean(TypePrimitive):
     def default_value(self) -> Any:
         return False
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         if s == '0' or s.lower() == 'false':
             return False
         elif s == '1' or s.lower() == 'true':
@@ -611,7 +609,7 @@ class TypeBoolean(TypePrimitive):
         else:
             raise ValueError(f'Invalid boolean value {s!r}')
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         return 'true' if self.verify_value(value) else 'false'
 
     def json_encode(self, expr: Any, format: str | None) -> Any:
@@ -715,10 +713,10 @@ class TypeInt(TypePrimitive):
             raise ValueError(f'Unknown integer operation {operation!r}')
         return _fit_integer(result, self.min_value, self.max_value, overflow)
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         return int(s)
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         return str(self.verify_value(value))
 
     def json_encode(self, expr: Any, format: str | None) -> Any:
@@ -747,11 +745,11 @@ class TypeValueType(TypePrimitive):
     def default_value(self) -> Any:
         return unit
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         # TODO: Implement TypeValueType.parse
         raise ValueError(f'`{self}` values cannot be parsed')
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         return str(self.verify_value(value))
 
 
@@ -764,10 +762,10 @@ class TypeString(TypePrimitive):
     def default_value(self) -> Any:
         return ''
 
-    def _parse_impl(self, s: str) -> Any:
+    def _parse_impl(self, s: str, *, native_types: NativeTypes | None) -> Any:
         raise ValueError(f'`{self}` values cannot be parsed')
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         return _string_literal(self.verify_value(value))
 
     def json_encode(self, expr: Any, format: str | None) -> Any:
@@ -871,14 +869,14 @@ class TypeEnum(TypePrimitive):
     def default_value(self) -> Any:
         return 0
 
-    def to_text(self, value: Any) -> str:
+    def to_text(self, value: Any, *, native_types: NativeTypes | None = None) -> str:
         value = self.verify_value(value)
         name = self._names.get(value)
         if name is None:
             return str(value)
         return name if self.type_name is None else f'{self.type_name}.{name}'
 
-    def _parse_impl(self, text: str) -> Any:
+    def _parse_impl(self, text: str, *, native_types: NativeTypes | None) -> Any:
         if text in self.members:
             return self.members[text]
         if self.is_open or len(self.members) < (self.member_count or 1):

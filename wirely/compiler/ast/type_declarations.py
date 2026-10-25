@@ -112,7 +112,7 @@ class StructDefinition:
                     # Without an implementation, values have no literals or text, and linking fails.
                     native_types = None
             self.value_type = model.types.TypeStruct(fullname, fields, native_name=native_name,
-                                                     is_opaque=self.declaration.is_opaque, native_types=native_types)
+                                                     is_opaque=self.declaration.is_opaque)
             if native_types is not None:
                 from wirely.runtime.linking import check_native_struct
                 try:

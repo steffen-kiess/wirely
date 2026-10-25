@@ -6,6 +6,7 @@ from typing import Any
 from ..program import ARITHMETIC_OPCODES, CONVERSION_OPCODES, ConstOperand, Opcode, OperandKind, Procedure
 from ..types import InternalValue, Some, convert
 from ..types.value_types import DynamicValue
+from .extensions import NativeTypes
 
 NativeFunction = Callable[[Sequence[InternalValue]], InternalValue]
 
@@ -28,11 +29,12 @@ class LoadFailure(Exception):
 
 
 def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
-                      functions: Mapping[str, NativeFunction] = {}, *,
+                      functions: Mapping[str, NativeFunction] = {}, *, native_types: NativeTypes,
                       procedure_index: int | None = None) -> list[InternalValue]:
     """Run a bytecode procedure on internal values.
 
     functions maps the names of called functions to their linked implementations.
+    native_types formats the values of failure messages.
     Returns the output values in operand order."""
     body = procedure.body
     assert body is not None
@@ -70,7 +72,7 @@ def execute_procedure(procedure: Procedure, inputs: Sequence[InternalValue],
             parts = operands[0].value
             diagnostic_values = tuple(DynamicValue._make(value_type(operand), read(operand))
                                       for operand in operands[2:])
-            message = parts[0] + ''.join(value.to_text() + parts[2 * index + 2]
+            message = parts[0] + ''.join(value.to_text(native_types=native_types) + parts[2 * index + 2]
                                          for index, value in enumerate(diagnostic_values))
             raise LoadFailure(procedure, index, message, diagnostic_values, procedure_index=procedure_index)
         if opcode == Opcode.JUMP:

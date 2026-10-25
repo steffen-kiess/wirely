@@ -9,6 +9,7 @@ from typing import Any
 
 from ..program import Program
 from ..program.program import procedure_instances
+from ..runtime.extensions import NativeTypes
 from ..types import Type, TypeOption
 
 
@@ -55,19 +56,19 @@ class Target:
                 f'`{self.name}` (`{self.node_type}`) has no command `{name}`; '
                 f'it has {", ".join(f"`{command}`" for command in self.commands)}') from None
 
-    def encode(self, text: str) -> dict[int, Any]:
+    def encode(self, text: str, native_types: NativeTypes) -> dict[int, Any]:
         """Return the argument of a command that takes the value given as text."""
         try:
-            value = self.value_type.parse(text)
+            value = self.value_type.parse(text, native_types=native_types)
         except ValueError as error:
             raise NodeCommandError(f'Invalid `{self.value_type}` value {text!r}: {error}') from None
         return {1: self.value_type.serialize(value)}
 
-    def decode(self, result: Any) -> str | None:
+    def decode(self, result: Any, native_types: NativeTypes) -> str | None:
         """Return the value in a command's result as text, or None if it has none."""
         if not isinstance(result, dict) or 1 not in result:
             return None
-        return self.value_type.to_text(self.value_type.deserialize(result[1]))
+        return self.value_type.to_text(self.value_type.deserialize(result[1]), native_types=native_types)
 
 
 def resolve(program: Program, name: str) -> Target:

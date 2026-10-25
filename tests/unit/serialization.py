@@ -2,7 +2,9 @@ from unittest import TestCase
 
 import wirely
 from wirely.program import Variable, VariableTable
+from wirely.generated import extension as builtin_extension
 from wirely.runtime.contexts import VariableTableInstance
+from wirely.runtime.native_values import check_opaque_values
 from tests.infra.support import internal, library_type
 
 
@@ -90,10 +92,14 @@ def check_scalar_codecs():
         (nested_uint64, bytes(8) + b'\x02\x01'),
         (wirely.types.TypeEnum('Closed', {'A': 0, 'B': 1},
                                is_open=False, underlying_type=wirely.types.uint8), b'\x02'),
-        (library_type('Schedule.TimeOfDay'), (wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little')),
     ]:
         with checks.assertRaises(ValueError):
             ty.deserialize(malformed)
+    # Deserialization checks the layout; the implementation of an opaque struct checks its values.
+    time_of_day = library_type('Schedule.TimeOfDay')
+    late = time_of_day.deserialize((wirely.TimeOfDay.END_TICKS + 1).to_bytes(16, 'little'))
+    with checks.assertRaises(ValueError):
+        check_opaque_values(time_of_day, late, native_types=builtin_extension.native_types)
 
     # Nanosecond values up to 24:00 round-trip.
     for text in ('00:00', '00:00:00.00000000000000000005', '23:59:59.99999999999999999995', '24:00'):

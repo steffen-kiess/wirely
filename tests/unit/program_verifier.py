@@ -374,14 +374,13 @@ def check_limits_and_independence():
     verify_program(contexts)
     with checks.assertRaises(VerificationLimitError):
         verify_program(contexts, max_steps=50_000)
-    with patch('wirely.program.loader.resolve_extensions', side_effect=AssertionError('must verify first')):
-        with patch('wirely.program.loader._Loader', side_effect=AssertionError('must not decode')):
-            verify_program(data)
-            reject(b'bad')
-            with checks.assertRaises(VerificationError):
-                load_program(b'bad')
-            with checks.assertRaises(VerificationLimitError):
-                load_program(data, max_verification_steps=0)
+    with patch('wirely.program.loader._Loader', side_effect=AssertionError('must not decode')):
+        verify_program(data)
+        reject(b'bad')
+        with checks.assertRaises(VerificationError):
+            load_program(b'bad')
+        with checks.assertRaises(VerificationLimitError):
+            load_program(data, max_verification_steps=0)
     opaque = types.TypeStruct('Opaque', {'value': types.uint128}, native_name='Unknown.Opaque', is_opaque=True)
     verify_program(bound_constants(Constant(opaque, ((1 << 128) - 1,))))
 

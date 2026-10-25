@@ -15,6 +15,7 @@ from wirely.program.loader import load_program
 from wirely.program.writer import write_program
 from wirely.runtime import LoadFailure
 from wirely.runtime.engine import Engine
+from wirely.runtime.extensions import NativeTypes
 from tests.infra.support import test_contracts, test_extension
 
 
@@ -56,7 +57,7 @@ def check_failure_messages():
     with checks.assertRaises(LoadFailure) as caught:
         Engine(program)
     assert caught.exception.message == '3 / 9'
-    assert tuple(value.to_text() for value in caught.exception.values) == ('3', '9')
+    assert tuple(value.to_text(native_types=NativeTypes()) for value in caught.exception.values) == ('3', '9')
 
     # UnwrapOr evaluates its fallback even for Some; a failed fallback has no
     # successful path on which the procedure would need to assign its output.

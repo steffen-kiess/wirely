@@ -108,11 +108,7 @@ def test_engine(program: Program, graph: object = None, **kwargs: Any) -> Engine
     from tests.infra.native_extension.generated import extension
     from tests.infra.bytecode import bytecode_roundtrip_mode, roundtrip_program
     if bytecode_roundtrip_mode.get():
-        from wirely.runtime.extensions import resolve_extensions
-        kwargs['override_extensions'] = tuple(kwargs.get('override_extensions', ()))
-        registry = resolve_extensions([extension], override_extensions=kwargs['override_extensions'],
-                                      include_builtin_extensions=kwargs.get('include_builtin_extensions', True))
-        program = roundtrip_program(program, registry.native_types)
+        program = roundtrip_program(program)
     return Engine(program, extensions=[extension], **kwargs)
 
 
@@ -130,7 +126,8 @@ def internal(value: Any) -> Any:
 
 def send_event_text(source: Any, text: str) -> None:
     """Send an event from a Std.DebugEventSource state, with its payload in the value text format."""
-    source.send_event(model.Some(source.value_type.parse(text)._value))
+    value = source.value_type.parse(text, native_types=source.services.native_types)
+    source.send_event(model.Some(value._value))
 
 
 @functools.cache

@@ -11,7 +11,6 @@ from wirely.program import (
 )
 from wirely.program.loader import load_program
 from wirely.program.writer import write_program
-from wirely.runtime.extensions import NativeTypes
 
 bytecode_roundtrip_mode: ContextVar[bool] = ContextVar('bytecode_roundtrip_mode', default=False)
 
@@ -197,10 +196,10 @@ def match_programs(original: Program, loaded: Program, *, symbols: bool = True) 
     return matcher.match
 
 
-def roundtrip_program(original: Program, native_types: NativeTypes) -> Program:
+def roundtrip_program(original: Program) -> Program:
     """Use decoded runtime data and symbols, retaining only source-only context."""
     data = write_program(original)
-    loaded = load_program(data, native_types=native_types)
+    loaded = load_program(data)
     assert write_program(loaded) == data, 'Bytecode write/load/write changed the bytes'
     match_programs(original, loaded)
     return replace(loaded, graph=original.graph, symbols=replace(

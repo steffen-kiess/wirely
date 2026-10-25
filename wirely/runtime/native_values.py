@@ -30,6 +30,35 @@ def from_native(signature: signatures.SignatureType | None, value_type: types.Ty
     return _from_native(signature, value_type, value, (), native_types)
 
 
+def check_opaque_values(value_type: types.Type, value: InternalValue, *, native_types: NativeTypes) -> None:
+    """Raise ValueError if the implementation of an opaque struct in a valid internal value rejects it."""
+    if not _contains_opaque(value_type):
+        return
+    # Only opaque structs need a native representation; declared structs around them need none.
+    if isinstance(value_type, types.TypeStruct) and not value_type.is_opaque:
+        assert isinstance(value, tuple)
+        for field_type, field in zip(value_type.field_types, value):
+            check_opaque_values(field_type, field, native_types=native_types)
+    elif isinstance(value_type, types.TypeOption):
+        if value is not None:
+            assert isinstance(value, Some)
+            check_opaque_values(value_type.inner_type, value.value, native_types=native_types)
+    elif isinstance(value_type, types.TypeList):
+        assert isinstance(value, tuple)
+        for element in value:
+            check_opaque_values(value_type.inner_type, element, native_types=native_types)
+    else:
+        to_native(None, value_type, value, native_types=native_types)
+
+
+def _contains_opaque(value_type: types.Type) -> bool:
+    if isinstance(value_type, types.TypeStruct):
+        return value_type.is_opaque or any(_contains_opaque(field) for field in value_type.field_types)
+    if isinstance(value_type, (types.TypeOption, types.TypeList)):
+        return _contains_opaque(value_type.inner_type)
+    return False
+
+
 def _error(path: tuple[str, ...], message: str) -> ValueError:
     return ValueError(f'{" ".join(path)}: {message}' if path else message)
 

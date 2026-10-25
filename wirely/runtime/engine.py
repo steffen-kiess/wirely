@@ -99,7 +99,7 @@ class Engine:
         for proc in program.procs.get(RunStage.LOAD, ()):
             if proc.native is None:
                 values = [self._fixed_input(source) for source in proc.inputs]
-                output_values = execute_procedure(proc, values, self.native_functions,
+                output_values = execute_procedure(proc, values, self.native_functions, native_types=self.native_types,
                                                   procedure_index=self._procedure_indices[proc])
             else:
                 if proc.initializer:
@@ -364,7 +364,7 @@ class Engine:
                     wakeup_time = services.wakeup_time
                     wall_wakeup = services.wall_wakeup
                 else:
-                    output_values = execute_procedure(proc, values, self.native_functions,
+                    output_values = execute_procedure(proc, values, self.native_functions, native_types=self.native_types,
                                                       procedure_index=self._procedure_indices[proc])
                     wakeup_time = None
                     wall_wakeup = None

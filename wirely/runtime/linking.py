@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..functions import bind_native_function
 from ..program import Constant, InputSource, Program, Variable, VariableBank, used_declared_types
-from ..types import Type, TypeEnum, TypeList, TypeOption, TypeResource, TypeStruct
+from ..types import Type, TypeEnum, TypeResource, TypeStruct
 from .extensions import NativeTypes, RuntimeNativeExtension
 from .native_api import InitializerAdapter, NativeProcedure, NativeState, ProcedureAdapter
 from .procedures import NativeFunction
@@ -101,35 +101,11 @@ def check_native_struct(struct_type: TypeStruct, native_types: NativeTypes) -> N
 
 def link_opaque_values(program: Program, extension: RuntimeNativeExtension) -> None:
     """Check static and initial values containing opaque structs with their implementations."""
-    from .native_values import to_native
+    from .native_values import check_opaque_values
     values: list[tuple[Type, Any]] = [(constant.value_type, constant.value) for constant in program.constants]
     values += [(variable.var_type, value) for variable, value in program.initial_state.items()]
-    def check(value_type: Type, value: Any) -> None:
-        if not _contains_opaque(value_type):
-            return
-        # Only opaque structs need a native representation; declared structs around them need none.
-        if isinstance(value_type, TypeStruct) and not value_type.is_opaque:
-            for field_type, field in zip(value_type.field_types, value):
-                check(field_type, field)
-        elif isinstance(value_type, TypeOption):
-            if value is not None:
-                check(value_type.inner_type, value.value)
-        elif isinstance(value_type, TypeList):
-            for element in value:
-                check(value_type.inner_type, element)
-        else:
-            to_native(None, value_type, value, native_types=extension.native_types)
-
     for value_type, value in values:
-        check(value_type, value)
-
-
-def _contains_opaque(value_type: Type) -> bool:
-    if isinstance(value_type, TypeStruct):
-        return value_type.is_opaque or any(_contains_opaque(field) for field in value_type.field_types)
-    if isinstance(value_type, (TypeOption, TypeList)):
-        return _contains_opaque(value_type.inner_type)
-    return False
+        check_opaque_values(value_type, value, native_types=extension.native_types)
 
 
 def link_native_signatures(program: Program, extension: RuntimeNativeExtension) -> None:

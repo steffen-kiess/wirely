@@ -9,6 +9,8 @@ from wirely.runtime.native_api import (
     control_command,
 )
 from wirely.generated.structs import StdFormatParts
+from wirely.runtime.extensions import NativeTypes
+from wirely.runtime.native_values import check_opaque_values
 from wirely.types import InternalValue
 from wirely.types.time import Duration as Duration  # Implements the opaque struct Std.Duration.
 
@@ -22,7 +24,7 @@ class DebugValuePrinterRun(contracts.DebugValuePrinterRun):
 
     def run(self, *, services: ProcedureServices, input: DynamicValue,
             type: ValueType[Any]) -> contracts.DebugValuePrinterRunResult:
-        print(f'[{services.name}]: Got value {input.to_text()}', flush=True)
+        print(f'[{services.name}]: Got value {input.to_text(native_types=services.native_types)}', flush=True)
         return contracts.DebugValuePrinterRunResult()
 
 
@@ -36,7 +38,7 @@ class DebugEventPrinterRun(contracts.DebugEventPrinterRun):
     def run(self, *, services: ProcedureServices,
             input: Some[DynamicValue] | None, type: ValueType[Any]) -> contracts.DebugEventPrinterRunResult:
         if input is not None:
-            print(f'[{services.name}]: Got event {input.value.to_text()}', flush=True)
+            print(f'[{services.name}]: Got event {input.value.to_text(native_types=services.native_types)}', flush=True)
         return contracts.DebugEventPrinterRunResult()
 
 
@@ -56,7 +58,7 @@ class WarnOnEventRun(contracts.WarnOnEventRun):
 
         parts = self.parts
         if parts.has_value:
-            message = parts.prefix + input.value.to_text() + parts.suffix
+            message = parts.prefix + input.value.to_text(native_types=services.native_types) + parts.suffix
         else:
             message = parts.prefix
         print(f'Warning: [{services.name}]: {message}', flush=True)
@@ -74,13 +76,15 @@ def _encode_value(value: DynamicValue) -> bytes:
     return value._type.serialize(value._value)
 
 
-def _decode_value(value_type: ValueType[Any], argument: object) -> DynamicValue:
+def _decode_value(value_type: ValueType[Any], argument: object, native_types: NativeTypes) -> DynamicValue:
     data = _argument(argument).get(1)
     data_size = value_type._type.data_size
     if not isinstance(data, bytes) or len(data) != data_size:
         raise InvalidCommandArgument(f'Expected a byte string of {data_size} bytes in key 1')
     try:
-        return DynamicValue._make(value_type._type, value_type._type.deserialize(data))
+        value = value_type._type.deserialize(data)
+        check_opaque_values(value_type._type, value, native_types=native_types)
+        return DynamicValue._make(value_type._type, value)
     except ValueError as error:
         raise InvalidCommandArgument(str(error)) from None
 
@@ -116,7 +120,7 @@ class DebugValueSourceCreate(contracts.DebugValueSourceCreate):
 
     @control_command(1)
     def set_command(self, argument: object) -> dict[int, Any]:
-        self._set(_decode_value(self.value_type, argument))
+        self._set(_decode_value(self.value_type, argument, self.services.native_types))
         return {}
 
 
@@ -159,7 +163,7 @@ class DebugEventSourceCreate(contracts.DebugEventSourceCreate):
 
     @control_command(1)
     def send_command(self, argument: object) -> dict[int, Any]:
-        payload = _decode_value(self.value_type, argument)
+        payload = _decode_value(self.value_type, argument, self.services.native_types)
         if self.next_value is not None:
             # Reason 1: an event is pending.
             raise CommandFailed('An event is already queued', reason=1)

@@ -69,7 +69,7 @@ async def run_engine(engine: Engine, controller: RuntimeController | None = None
             client = ControlClient(client_end)
             try:
                 await client.hello()
-                status = await wirely.cli.client.read_commands(client, program, commands)
+                status = await wirely.cli.client.read_commands(client, program, engine.native_types, commands)
             finally:
                 await client.close()
             raise wirely.misc.service.TerminateProgram()

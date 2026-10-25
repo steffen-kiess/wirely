@@ -11,6 +11,7 @@ from wirely.program import (
     RunStage, Variable, VariableBank, VariableTable, validate_program,
 )
 from wirely.runtime.engine import Engine
+from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.procedures import execute_procedure
 
 
@@ -272,7 +273,7 @@ def check_arithmetic():
     validate_program(program)
     procedure = program.procs[RunStage.DEFAULT][0]
     for _ in range(3):
-        assert execute_procedure(procedure, ()) == [True]
+        assert execute_procedure(procedure, (), native_types=NativeTypes()) == [True]
 
 
 def check_bitwise_and_shifts():

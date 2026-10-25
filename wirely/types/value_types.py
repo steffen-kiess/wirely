@@ -116,9 +116,9 @@ class ValueType(Generic[N]):
     def __repr__(self) -> str:
         return f'ValueType({self})'
 
-    def parse(self, text: str) -> DynamicValue:
+    def parse(self, text: str, *, native_types: NativeTypes) -> DynamicValue:
         """Parse a value in the text format."""
-        return DynamicValue._make(self._type, self._type.parse(text))
+        return DynamicValue._make(self._type, self._type.parse(text, native_types=native_types))
 
     @property
     def supports_json(self) -> bool:
@@ -187,18 +187,18 @@ class DynamicValue:
 
     def __repr__(self) -> str:
         try:
-            text = self.to_text()
-        except ValueError:
+            text = self._type.to_text(self._value)
+        except Exception:
             text = repr(self._value)
         return f'DynamicValue({self._type}: {text})'
 
     def __reduce__(self) -> NoReturn:
         raise TypeError('DynamicValue cannot be pickled')
 
-    def to_text(self) -> str:
+    def to_text(self, *, native_types: NativeTypes) -> str:
         """Format the value in the text format."""
         try:
-            return self._type.to_text(self._value)
+            return self._type.to_text(self._value, native_types=native_types)
         except Exception as error:
             raise ValueError(str(error)) from error
 

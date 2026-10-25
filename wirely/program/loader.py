@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Any, Literal, TypeVar, overload
 
 from .. import types
-from ..runtime.extensions import NativeTypes, resolve_extensions
 from .const_data import ConstDataReader
 from ._binary import BinaryFile, ValueRef
 from .container import SectionList
@@ -42,9 +41,8 @@ class _RawInstruction:
 class _Loader:
     """Decode a file that passed verification, so references and layouts are valid."""
 
-    def __init__(self, file: BinaryFile, native_types: NativeTypes, max_decoded_values: int) -> None:
+    def __init__(self, file: BinaryFile, max_decoded_values: int) -> None:
         self.file = file
-        self.native_types = native_types
         self.type_lists = self.table(fmt.SectionType.TypeLists, fmt.TypeEntry)
         self.json_names = self.table(fmt.SectionType.JsonNames, fmt.JsonName)
         self.json_types = {record.type.value: record for record in self.table(fmt.SectionType.JsonTypes, fmt.JsonType)}
@@ -307,11 +305,6 @@ class _Loader:
                 body = None if native is not None else self.body(instance.bytecode.value, inputs, outputs)
                 schedule.append(Procedure(inputs, outputs, name=self.procedure_names.get(index), native=native, body=body))
             schedules[run_stage] = tuple(schedule)
-        # Decoding is independent of native implementations. Linking and opaque
-        # value checks happen when Engine is constructed with the same registry.
-        for value_type in self.types:
-            if isinstance(value_type, types.TypeStruct):
-                value_type.native_types = self.native_types
         aliases = {}
         for alias in self.table(fmt.SectionType.VariableSymbolAliases, fmt.VariableSymbolAlias):
             aliases[self.string(alias.name, fmt.SectionType.SymbolData)] = self.binding(
@@ -332,20 +325,19 @@ def read_build_id(data: bytes | bytearray | memoryview) -> bytes:
     raise ValueError('Missing section BuildIDSHA512')
 
 
-def load_program(data: bytes | bytearray | memoryview, *, native_types: NativeTypes | None = None,
-                 max_decoded_values: int = 1_000_000, max_verification_steps: int = 10_000_000) -> Program:
+def load_program(data: bytes | bytearray | memoryview, *, max_decoded_values: int = 1_000_000,
+                 max_verification_steps: int = 10_000_000) -> Program:
     """Decode a binary program without linking or executing its load stage.
 
-    native_types defaults to the built-in registry. max_decoded_values bounds
-    the total number of const values, including nested fields and list elements.
+    Decoding uses no native implementations; an engine checks opaque values
+    when it links the program. max_decoded_values bounds the total number of
+    const values, including nested fields and list elements.
     max_verification_steps bounds the preceding native-independent verification.
     """
     if max_decoded_values < 0:
         raise ValueError('max_decoded_values must be nonnegative')
     file = verified_file(data, max_verification_steps)
-    if native_types is None:
-        native_types = resolve_extensions().native_types
     try:
-        return _Loader(file, native_types, max_decoded_values).program()
+        return _Loader(file, max_decoded_values).program()
     except RecursionError as error:
         raise ValueError('Program types or values are nested too deeply') from error

@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import replace
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import AsyncMock, Mock, mock_open, patch
+from unittest.mock import AsyncMock, mock_open, patch
 
 from wirely import types
 from wirely.cli import run as run_command
@@ -25,10 +25,7 @@ from wirely.program.generated import format as fmt
 from wirely.program.loader import load_program, read_build_id
 from wirely.program.writer import write_program
 from wirely.runtime.engine import Engine
-from wirely.runtime.extensions import NativeTypes
 from wirely.runtime.procedures import LoadFailure
-from wirely.runtime.signatures import Int
-from wirely.types.value_types import NativeOpaque
 from tests.infra.bytecode import match_programs
 from tests.unit.program_writer import body_program, const, instruction, local, program, records
 
@@ -467,14 +464,10 @@ def check_malformed():
 
 
 def check_native_registry():
+    # Decoding needs no native implementations; linking rejects unknown opaque structs.
     opaque = types.TypeStruct('Native', {'value': types.uint8}, native_name='Custom.Native', is_opaque=True)
     variable = Variable(opaque)
-    image = write_program(state_program((variable,), {variable: (7,)}))
-    factory = Mock(side_effect=AssertionError('Decoding must not load native implementations'))
-    registry = NativeTypes(opaque_types={'Custom.Native': NativeOpaque((Int(8, False),), factory)})
-    loaded = load_program(image, native_types=registry)
-    assert next(iter(loaded.state_variables.offsets)).var_type.native_types is registry
-    factory.assert_not_called()
+    loaded = load_program(write_program(state_program((variable,), {variable: (7,)})))
     with checks.assertRaisesRegex(ValueError, 'Custom.Native'):
         Engine(loaded)
 

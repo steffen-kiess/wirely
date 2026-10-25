@@ -15,6 +15,7 @@ from ..control.messages import BUILD_ID_PREFIX_LENGTH, Bank, ControlError, Error
 
 if TYPE_CHECKING:
     from ..program import Program
+    from ..runtime.extensions import NativeTypes
 
 # Response bytes besides the data of a ReadSnapshot response: header, map, key, byte string header.
 READ_OVERHEAD = 3 + 1 + 1 + 3
@@ -111,14 +112,16 @@ async def async_run(args: argparse.Namespace) -> int:
         if args.tls_server_name is None:
             ssl_context.check_hostname = False
     args.compiled_program = None
+    args.native_types = None  # Native implementations of the compiled program, for opaque value text.
     if args.program is not None:
         from ..compiler import compile_files
         from ..compiler import program as program_compiler
 
         global_node_type = compile_files(args.program)
         args.compiled_program = None if global_node_type is None else program_compiler.compile(global_node_type)
-        if args.compiled_program is None:
+        if global_node_type is None or args.compiled_program is None:
             return 1
+        args.native_types = global_node_type.native_extension.native_types
     if args.client_command == 'list':
         return await _list(None, args)
     try:
@@ -180,9 +183,12 @@ def _print_help(choices: Mapping[str, argparse.ArgumentParser]) -> None:
     print('Enter COMMAND -h for the options of a command.')
 
 
-async def read_commands(client: ControlClient, program: 'Program | None', mode: str) -> int:
-    """Run commands from stdin on a connected client, as without a command; program provides names."""
-    return await _read_commands(client, argparse.Namespace(compiled_program=program), mode)
+async def read_commands(client: ControlClient, program: 'Program | None', native_types: 'NativeTypes', mode: str) -> int:
+    """Run commands from stdin on a connected client, as without a command.
+
+    program provides names, and native_types formats and parses values of its opaque structs.
+    """
+    return await _read_commands(client, argparse.Namespace(compiled_program=program, native_types=native_types), mode)
 
 
 async def _read_commands(client: ControlClient, args: argparse.Namespace, mode: str) -> int:
@@ -393,7 +399,7 @@ async def _typed_command(client: ControlClient, args: argparse.Namespace) -> int
     try:
         target = resolve(program, args.node)
         command = target.command(name)
-        argument = target.encode(args.value) if command.takes_value else {}
+        argument = target.encode(args.value, args.native_types) if command.takes_value else {}
     except NodeCommandError as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1
@@ -401,7 +407,7 @@ async def _typed_command(client: ControlClient, args: argparse.Namespace) -> int
         return 1
     body = await client.request(Op.NATIVE_COMMAND, {1: target.instance, 2: command.number, 3: argument})
     if not command.takes_value:
-        value = target.decode(body.get(1))
+        value = target.decode(body.get(1), args.native_types)
         print('none' if value is None else value)
     return 0
 
@@ -438,7 +444,7 @@ async def _dump(client: ControlClient, args: argparse.Namespace) -> int:
                 name = program.variable_label(variable)
                 offset = variable_table.offsets[variable]
                 value = variable.var_type.deserialize(data[offset:offset + variable.var_type.data_size])
-                print(f'  {name}: {variable.var_type.to_text(value)}')
+                print(f'  {name}: {variable.var_type.to_text(value, native_types=args.native_types)}')
     finally:
         await client.request(Op.RELEASE_SNAPSHOT, {1: snapshot_id})
     return 0
