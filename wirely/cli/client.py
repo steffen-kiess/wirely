@@ -55,7 +55,9 @@ def _add_commands(commands: Any) -> None:
     call_parser.add_argument('command', type=int, help='command number, as documented by the library')
     call_parser.add_argument('argument', nargs='?', type=_diagnostic_value,
                              help="argument in CBOR diagnostic notation, such as h'0700'")
-    # Typed commands of node types, which need --program.
+    # Commands that need --program.
+    list_parser = add('list', 'list the nodes of the program with their types, without contacting the runtime')
+    list_parser.add_argument('node', nargs='?', help='list only this node and the nodes inside it')
     get_parser = add('get', 'print the value of a debug source, or its queued event')
     get_parser.add_argument('node')
     set_parser = add('set', 'set the value of a debug value source')
@@ -94,6 +96,8 @@ async def async_run(args: argparse.Namespace) -> int:
         args.compiled_program = None if global_node_type is None else program_compiler.compile(global_node_type)
         if args.compiled_program is None:
             return 1
+    if args.client_command == 'list':
+        return await _list(None, args)
     try:
         client = await ControlClient.connect_unix(
             args.unix_path, args.protocol, ssl=ssl_context,
@@ -199,7 +203,7 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
         return 0
 
     from prompt_toolkit import PromptSession
-    from prompt_toolkit.completion import NestedCompleter
+    from prompt_toolkit.completion import NestedCompleter, WordCompleter
     from prompt_toolkit.history import InMemoryHistory
     from prompt_toolkit.patch_stdout import patch_stdout
     from prompt_toolkit.shortcuts import CompleteStyle
@@ -207,8 +211,10 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
     completions: dict[str, Any] = dict.fromkeys(choices)
     if args.compiled_program is not None:
         from ..control.node_commands import command_targets
-        # Typed commands complete the names of the nodes that support them.
-        completions.update(command_targets(args.compiled_program))
+        # Typed commands complete the names of the nodes that support them, and list all names.
+        # Node paths contain dots, so words end only at whitespace.
+        names = dict(command_targets(args.compiled_program), list=set(args.compiled_program.symbols.node_aliases))
+        completions.update((command, WordCompleter(sorted(nodes), WORD=True)) for command, nodes in names.items())
     session: PromptSession[str] = PromptSession(
         history=InMemoryHistory(),
         completer=NestedCompleter.from_nested_dict(completions),
@@ -293,6 +299,28 @@ async def _call(client: ControlClient, args: argparse.Namespace) -> int:
     return 0
 
 
+async def _list(client: ControlClient | None, args: argparse.Namespace) -> int:
+    """Print the node tree of the program; this needs no connection."""
+    from ..control.node_commands import NodeCommandError, node_tree
+
+    if args.compiled_program is None:
+        print('Error: `list` requires --program', file=sys.stderr)
+        return 1
+    try:
+        nodes = node_tree(args.compiled_program, args.node)
+    except NodeCommandError as error:
+        print(f'Error: {error}', file=sys.stderr)
+        return 1
+    rows = [['  ' * node.depth + node.name, node.node_type]
+            + ([str(node.target.value_type), ', '.join(node.target.commands)] if node.target is not None else [])
+            for node in nodes]
+    widths = [max((len(row[column]) for row in rows if column < len(row)), default=0) for column in range(3)]
+    for row in rows:
+        print('  '.join(cell.ljust(widths[column]) if column < 3 else cell
+                        for column, cell in enumerate(row)).rstrip())
+    return 0
+
+
 async def _typed_command(client: ControlClient, args: argparse.Namespace) -> int:
     """Run get, set, or send for a node, using its node type's native commands."""
     from ..control.node_commands import NodeCommandError, resolve
@@ -366,6 +394,7 @@ _commands = {
     'step': _step,
     'dump': _dump,
     'call': _call,
+    'list': _list,
     'get': _typed_command,
     'set': _typed_command,
     'send': _typed_command,

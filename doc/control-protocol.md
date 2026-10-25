@@ -505,6 +505,9 @@ the commands of debug source nodes by name, with values in the
 [text format](value-types.md#text-format): `set` and `get` for a
 `Std.DebugValueSource`, and `send` and `get`, for the queued event, for a
 `Std.DebugEventSource`.
+`list [NODE]` prints the program's node tree, or the subtree at `NODE`,
+with each node's type and, for debug sources, its value type and commands.
+It does not contact the runtime.
 
 Without a command, `wirely client` reads commands with the same syntax,
 one per line, until `quit` or end of input. On a terminal, it offers line

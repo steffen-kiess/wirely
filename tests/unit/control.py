@@ -15,6 +15,8 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 import wirely.cli.client
+import wirely.compiler
+from wirely.compiler import program as program_compiler
 from wirely.control import node_commands
 from wirely.control.client import ControlClient
 from wirely.control.framing import SerialFraming, cobs_decode, cobs_encode
@@ -292,6 +294,37 @@ def check_node_commands():
             raise AssertionError(f'Expected {message}')
 
 
+def check_node_tree():
+    """The node tree lists nested nodes in declaration order with their types."""
+    graph = wirely.compiler.compile_strs([('<tree>', '''
+node type Inner {
+  default output: value boolean;
+  node source: Std.DebugValueSource { Type: boolean, Initial: false }
+  connect source -> default output;
+}
+namespace Lib {
+  node type Outer {
+    node inner: Inner {}
+    node count: Std.DebugValueSource { Type: uint8, Initial: 3 }
+    default output: value boolean;
+    connect inner -> default output;
+  }
+}
+node top: Lib.Outer {}
+state seen: boolean = false;
+connect top -> seen;
+''')], add_std=True)
+    program = program_compiler.compile(graph)
+    tree = [(node.depth, node.name, node.path, node.node_type, node.target is not None)
+            for node in node_commands.node_tree(program)]
+    assert tree == [(0, 'top', 'top', 'Lib.Outer', False),
+                    (1, 'inner', 'top.inner', 'Inner', False),
+                    (2, 'source', 'top.inner.source', 'Std.DebugValueSource', True),
+                    (1, 'count', 'top.count', 'Std.DebugValueSource', True)]
+    assert [(node.depth, node.path) for node in node_commands.node_tree(program, 'top.inner')] == [
+        (0, 'top.inner'), (1, 'top.inner.source')]
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -459,6 +492,17 @@ async def check_cli(server):
     await run_client_command(*serial, 'resume')
     assert await run_client_command(*serial, 'get', 'value', status=1) == 'Error: `get` requires --program\n'
 
+    # list is local: it works without a runtime at the socket path.
+    offline = ['--unix-path', os.path.join(os.path.dirname(server.stream_path), 'missing'), '--program', program_path]
+    assert await run_client_command(*offline, 'list') == (
+        'c           CachedConstant\n'
+        'value       Std.DebugValueSource  uint16  get, set\n'
+        'forward     Forward\n'
+        'events      Std.DebugEventSource  uint8   get, send\n'
+        'last_event  LastEvent\n')
+    assert await run_client_command(*offline, 'list', 'missing', status=1) == 'Error: Cannot find node `missing`\n'
+    assert await run_client_command(*offline[:2], 'list', status=1) == 'Error: `list` requires --program\n'
+
     # Without a command, commands are read from stdin.
     output = await run_client_command(*serial, stdin='pause\nstep --count 2\nresume\n')
     assert 'paused' in output and '2 steps' in output and 'running' in output
@@ -470,6 +514,7 @@ async def check_cli(server):
 async def run_test():
     check_cobs()
     check_node_commands()
+    check_node_tree()
     await check_client_ignores_notifications()
     run_task = asyncio.create_task(engine.run())
     try:

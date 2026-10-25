@@ -105,3 +105,43 @@ def command_targets(program: Program) -> dict[str, set[str]]:
         for command in target.commands:
             targets.setdefault(command, set()).add(name)
     return targets
+
+
+@dataclass(frozen=True)
+class TreeNode:
+    """A node in the node tree of a program."""
+
+    depth: int
+    name: str  # The last component of the path.
+    path: str  # The declared node path.
+    node_type: str
+    target: Target | None  # The node's typed commands, if any.
+
+
+def node_tree(program: Program, root: str | None = None) -> list[TreeNode]:
+    """Return the nodes of a program, or of the subtree at root, in declaration order."""
+    if program.graph is None:
+        raise NodeCommandError('Listing nodes needs the program compiled from its sources')
+    nodes: list[TreeNode] = []
+
+    def visit(node_type: Any, prefix: str, depth: int) -> None:
+        for name, child in node_type.node_declarations.items():
+            path = prefix + name
+            try:
+                target: Target | None = resolve(program, path)
+            except NodeCommandError:
+                target = None
+            child_type = child.node_type
+            nodes.append(TreeNode(depth, name, path, getattr(child_type, 'qualified_name', None)
+                                  or child_type.fullname, target))
+            visit(child_type, path + '.', depth + 1)
+
+    visit(program.graph, '', 0)
+    if root is None:
+        return nodes
+    path = program.symbols.node_aliases.get(root, root)
+    subtree = [node for node in nodes if node.path == path or node.path.startswith(path + '.')]
+    if not subtree:
+        raise NodeCommandError(f'Cannot find node `{root}`')
+    base = subtree[0].depth
+    return [TreeNode(node.depth - base, node.name, node.path, node.node_type, node.target) for node in subtree]
