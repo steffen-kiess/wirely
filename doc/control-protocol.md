@@ -18,14 +18,14 @@ from the frame.
 
 | Offset | Field | Type | Meaning |
 | --- | --- | --- | --- |
-| 0 | `Kind` | `uint8` | 0 = request, 1 = response, 2 = error |
+| 0 | `Kind` | `uint8` | 0 = request, 1 = response, 2 = error, 3 = notification, 4 = acknowledgement |
 | 1 | `Seq` | `uint8` | Sequence number, see [Sequencing](#sequencing) |
 | 2 | `Op` | `uint8` | Operation; responses and errors repeat it |
 
 The body is one CBOR data item (RFC 8949), normally a map with small
 unsigned integer keys. An empty body is equivalent to an empty map.
 Receivers ignore unknown keys. Bodies use only unsigned integers, booleans,
-byte strings, text strings, arrays, and maps.
+byte strings, text strings, arrays, and maps; notifications also use null.
 
 In an authenticated session, an 8-byte tag follows the body. See
 [Authentication](#authentication).
@@ -159,6 +159,19 @@ from a counter kept in persistent storage.
 
 ### Status
 
+Request:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| 1 | uint | Mask of the response keys to send, default 6 (keys 1 and 2) |
+| 2 | bool | Subscribe to changes, or with false cancel the subscription |
+
+Bit *n* of the mask selects key *n*. The response contains the selected
+keys that have values. With key 2 true, the session subscribes to changes
+of the selected keys, replacing an earlier `Status` subscription; see
+[Notifications](#notifications). Without key 2, the subscription stays
+unchanged.
+
 Response:
 
 | Key | Type | Meaning |
@@ -168,6 +181,34 @@ Response:
 | 3 | bytes | Build ID prefix of the active program, if any |
 | 4 | bytes | Build ID prefix of the staged program, if any |
 | 5 | text | Last error, if any |
+
+### Notifications
+
+A session can subscribe to changes, currently with `Status`. The runtime
+then sends notifications: messages with `Kind` 3, the `Op` of the
+subscribing request, and a body in the format of its response that
+contains only the keys that changed since the last acknowledged
+notification, or since the subscribing response. `null` means that a key
+no longer has a value.
+
+Notifications have their own counter, which goes up by one with each
+notification; `Seq` holds its low 8 bits. They do not count against the
+window and are not ordered with responses.
+
+The client acknowledges each notification with `Kind` 4 and the
+notification's `Op` and `Seq`. The body is empty, or `{1: true}` to also
+cancel the subscription. The runtime sends at most one unacknowledged
+notification per session and ignores acknowledgements of other
+notifications. It may delay notifications and merge changes into one.
+
+On transports that can lose messages, the runtime sends a new
+notification with the next `Seq` if it receives no acknowledgement before
+its timeout. Because the client may have applied the unacknowledged
+notification, the new one contains every key whose value differs from
+either state.
+
+A subscription ends when it is cancelled, with the session's next `Hello`,
+or when the connection closes.
 
 ### Pause, Resume, and Step
 
@@ -339,6 +380,7 @@ HMAC-SHA256(key, direction || client nonce || runtime nonce
 ```
 
 `direction` is one byte: 0 for requests, 1 for responses and errors.
+Tags for notifications and acknowledgements are not specified yet.
 `counter` is the request counter as a little-endian `uint32`. Responses use
 the counter of their request. Receivers discard messages with invalid tags,
 and the runtime answers them with `Unauthenticated` without a tag.
@@ -398,6 +440,9 @@ snapshot operations.
 wirely client --unix-path DIR/control dump --program program.wrl
 wirely client --unix-path DIR/control-serial --protocol serial pause
 ```
+
+`wirely client --unix-path DIR/control watch` prints the run state and
+program whenever they change, until it is interrupted.
 
 Without a command, `wirely client` reads commands with the same syntax,
 one per line, until `quit` or end of input. On a terminal, it offers line

@@ -8,7 +8,8 @@ if TYPE_CHECKING:
     from ..runtime.engine import Engine
 
 from .messages import (
-    BUILD_ID_LENGTH, BUILD_ID_PREFIX_LENGTH, Bank, ControlError, ErrorCode, Op, RunState, get_field,
+    BUILD_ID_LENGTH, BUILD_ID_PREFIX_LENGTH, STATUS_DEFAULT_MASK, Bank, ControlError, ErrorCode, Op, RunState,
+    get_field,
 )
 
 MAX_SNAPSHOTS = 4
@@ -54,18 +55,28 @@ class RuntimeController:
             raise ControlError(ErrorCode.NOT_BOUND, 'Another program is active')
         return {}, self.activation
 
+    def status(self, mask: int = STATUS_DEFAULT_MASK) -> dict[int, Any]:
+        """Return the Status keys selected by mask (bit n selects key n) that have values."""
+        values: dict[int, Any] = {
+            1: int(RunState.PAUSED if self.engine.paused else RunState.RUNNING),
+            2: self.engine.step_count,
+            3: self.build_id[:BUILD_ID_PREFIX_LENGTH],
+        }
+        return {key: value for key, value in values.items() if mask >> key & 1}
+
     def _status(self, body: Any) -> dict[int, Any]:
-        run_state = RunState.PAUSED if self.engine.paused else RunState.RUNNING
-        return {1: int(run_state), 2: self.engine.step_count}
+        # Key 2, the subscription, is handled by the session.
+        get_field(body, 2, bool)
+        return self.status(get_field(body, 1, int, default=STATUS_DEFAULT_MASK))
 
     def _pause(self, body: Any) -> dict[int, Any]:
         # Requests run between steps, so no step is running here.
         self.engine.pause()
-        return self._status(body)
+        return self.status()
 
     def _resume(self, body: Any) -> dict[int, Any]:
         self.engine.resume()
-        return self._status(body)
+        return self.status()
 
     def _step(self, body: Any) -> dict[int, Any]:
         count = get_field(body, 1, int, default=1)

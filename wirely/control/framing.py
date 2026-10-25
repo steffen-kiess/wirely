@@ -11,6 +11,10 @@ STREAM_MAX_MESSAGE_SIZE = 0xffff
 STREAM_WINDOW = 16
 SERIAL_MAX_MESSAGE_SIZE = 256
 SERIAL_WINDOW = 1
+# Shortest time between notifications, and on serial the time before an unacknowledged one is resent.
+STREAM_NOTIFICATION_INTERVAL = 0.1
+SERIAL_NOTIFICATION_INTERVAL = 0.25
+SERIAL_NOTIFICATION_TIMEOUT = 1.0
 
 
 class FramingError(Exception):

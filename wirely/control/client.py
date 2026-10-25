@@ -5,13 +5,13 @@ from __future__ import annotations
 import asyncio
 import os
 import ssl as ssl_module
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from typing import Any
 
 from .framing import STREAM_PREFACE, SerialFraming, StreamFraming
 from .messages import (
-    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, ControlError, ErrorCode, Kind, Op, decode, encode,
-    get_field,
+    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, STATUS_DEFAULT_MASK, ControlError, ErrorCode, Kind, Op, decode,
+    encode, get_field,
 )
 
 
@@ -103,6 +103,36 @@ class ControlClient:
             results.append(await self._receive(seq, op))
         return results
 
+    async def watch_status(self, mask: int = STATUS_DEFAULT_MASK) -> AsyncIterator[dict[int, Any]]:
+        """Subscribe to Status and yield the selected values, first in full and then after each change.
+
+        Other requests must not be sent on this client while watching.
+        """
+        values = dict(await self.request(Op.STATUS, {1: mask, 2: True}))
+        yield dict(values)
+        last_seq: int | None = None
+        while True:
+            data = await self.framing.read()
+            if data is None:
+                raise ConnectionError('Connection closed by runtime')
+            try:
+                message = decode(data)
+            except ControlError:
+                continue
+            if message.kind != Kind.NOTIFICATION or message.op != Op.STATUS:
+                continue
+            await self.framing.write(encode(Kind.ACK, message.seq, Op.STATUS, {}))
+            # A resent notification that was already applied only needs another acknowledgement.
+            if message.seq == last_seq:
+                continue
+            last_seq = message.seq
+            for key, value in message.body.items():
+                if value is None:
+                    values.pop(key, None)
+                else:
+                    values[key] = value
+            yield dict(values)
+
     async def _send(self, seq: int, op: int, body: Any) -> bytes:
         message = encode(Kind.REQUEST, seq, op, body)
         if len(message) > self.peer_max_message_size:
@@ -121,7 +151,7 @@ class ControlClient:
                     message = decode(data)
                 except ControlError:
                     continue
-                if message.seq != seq or message.op != op or message.kind == Kind.REQUEST:
+                if message.seq != seq or message.op != op or message.kind not in (Kind.RESPONSE, Kind.ERROR):
                     continue
                 if message.kind == Kind.ERROR:
                     raise ControlError(get_field(message.body, 1, int, required=True),

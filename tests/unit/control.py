@@ -100,6 +100,125 @@ async def check_binding(server):
         await client.close()
 
 
+async def read_message(client, timeout=2.0):
+    async with asyncio.timeout(timeout):
+        return decode(await client.framing.read())
+
+
+async def expect_silence(client, duration):
+    try:
+        message = await read_message(client, duration)
+    except TimeoutError:
+        return
+    raise AssertionError(f'Unexpected message {message}')
+
+
+async def acknowledge(client, notification, body=None):
+    await client.framing.write(encode(Kind.ACK, notification.seq, Op.STATUS, body or {}))
+
+
+async def check_status(server):
+    build_id = program_build_id(engine.program)
+    watcher = await ControlClient.connect_unix(server.stream_path)
+    other = await ControlClient.connect_unix(server.stream_path)
+    try:
+        # Bit n of the mask selects key n.
+        assert await watcher.request(Op.STATUS, {1: 1 << 1}) == {1: 0}
+        assert await watcher.request(Op.STATUS, {1: 1 << 3}) == {3: build_id[:16]}
+        assert await watcher.request(Op.STATUS) == {1: 0, 2: engine.step_count}
+
+        assert await watcher.request(Op.STATUS, {2: True}) == {1: 0, 2: engine.step_count}
+        await other.request(Op.PAUSE)
+        notification = await read_message(watcher)
+        assert (notification.kind, notification.op, notification.body) == (Kind.NOTIFICATION, Op.STATUS, {1: 1})
+        # Further changes wait for the acknowledgement and arrive merged.
+        steps = engine.step_count
+        await other.request(Op.STEP, {1: 2})
+        await other.request(Op.STEP)
+        await expect_silence(watcher, 0.15)
+        await acknowledge(watcher, notification)
+        update = await read_message(watcher)
+        assert (update.seq, update.body) == ((notification.seq + 1) & 0xff, {2: steps + 3})
+        await acknowledge(watcher, update)
+        # Status without key 2 keeps the subscription.
+        assert await watcher.request(Op.STATUS, {1: 1 << 1}) == {1: 1}
+        await other.request(Op.RESUME)
+        update = await read_message(watcher)
+        # Resuming may also run a step.
+        assert update.body[1] == 0
+        # The acknowledgement can cancel the subscription.
+        await acknowledge(watcher, update, {1: True})
+        await other.request(Op.PAUSE)
+        await expect_silence(watcher, 0.15)
+
+        # Hello ends the subscription, too.
+        assert await watcher.request(Op.STATUS, {2: True}) == {1: 1, 2: engine.step_count}
+        await watcher.hello()
+        await other.request(Op.RESUME)
+        await expect_silence(watcher, 0.15)
+
+        # watch_status() acknowledges notifications and merges their deltas.
+        updates = watcher.watch_status(1 << 1 | 1 << 3)
+        assert await anext(updates) == {1: 0, 3: build_id[:16]}
+        await other.request(Op.PAUSE)
+        assert await anext(updates) == {1: 1, 3: build_id[:16]}
+        await other.request(Op.RESUME)
+        assert await anext(updates) == {1: 0, 3: build_id[:16]}
+        await updates.aclose()
+    finally:
+        await watcher.close()
+        await other.close()
+
+
+async def check_status_serial(server):
+    """An unacknowledged notification is resent with the next Seq."""
+    # A shorter resend timeout keeps the test fast.
+    with unittest.mock.patch('wirely.control.server.SERIAL_NOTIFICATION_TIMEOUT', 0.1):
+        watcher = await ControlClient.connect_unix(server.serial_path, 'serial')
+        other = await ControlClient.connect_unix(server.stream_path)
+        try:
+            assert await watcher.request(Op.STATUS, {1: 1 << 1, 2: True}) == {1: 0}
+            await other.request(Op.PAUSE)
+            first = await read_message(watcher)
+            assert first.body == {1: 1}
+            resent = await read_message(watcher)
+            assert (resent.seq, resent.body) == ((first.seq + 1) & 0xff, {1: 1})
+            # Only the latest notification can be acknowledged.
+            await acknowledge(watcher, first)
+            latest = await read_message(watcher)
+            assert latest.seq == (resent.seq + 1) & 0xff
+            await acknowledge(watcher, latest)
+            await expect_silence(watcher, 0.4)
+        finally:
+            await other.request(Op.RESUME)
+            await watcher.close()
+            await other.close()
+
+
+class QueuedFraming:
+    """Framing that returns queued messages and records written ones."""
+
+    reliable = True
+    max_message_size = 0xffff
+
+    def __init__(self, messages):
+        self.messages = list(messages)
+        self.written = []
+
+    async def read(self):
+        return self.messages.pop(0) if self.messages else None
+
+    async def write(self, message):
+        self.written.append(message)
+
+
+async def check_client_ignores_notifications():
+    # A notification whose Seq and Op match the outstanding request is not its response.
+    framing = QueuedFraming([encode(Kind.NOTIFICATION, 1, Op.STATUS, {1: 1}),
+                             encode(Kind.RESPONSE, 1, Op.STATUS, {1: 0})])
+    assert await ControlClient(framing).request(Op.STATUS) == {1: 0}
+
+
 async def check_stream(server):
     client = await ControlClient.connect_unix(server.stream_path)
     try:
@@ -257,6 +376,7 @@ async def check_cli(server):
 
 async def run_test():
     check_cobs()
+    await check_client_ignores_notifications()
     run_task = asyncio.create_task(engine.run())
     try:
         with tempfile.TemporaryDirectory(prefix='test_control.') as directory:
@@ -271,6 +391,8 @@ async def run_test():
                     await check_locked(server)
                     await check_stream(server)
                     await check_binding(server)
+                    await check_status(server)
+                    await check_status_serial(server)
                     await check_tls(server, cert_path)
                     await check_serial(server)
                     await check_cli(server)

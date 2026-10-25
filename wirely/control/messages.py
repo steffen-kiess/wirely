@@ -13,12 +13,16 @@ HEADER_SIZE = 3
 # Bytes of a build ID that the runtime sends; requests may use any prefix.
 BUILD_ID_PREFIX_LENGTH = 16
 BUILD_ID_LENGTH = 64
+# Status keys sent without a mask: run state and step count.
+STATUS_DEFAULT_MASK = 0b110
 
 
 class Kind(enum.IntEnum):
     REQUEST = 0
     RESPONSE = 1
     ERROR = 2
+    NOTIFICATION = 3
+    ACK = 4  # Acknowledges a notification.
 
 
 class Op(enum.IntEnum):
@@ -121,7 +125,8 @@ def decode(data: bytes) -> Message:
 
 def _check_item(item: object) -> None:
     """Reject CBOR items outside the subset used by message bodies."""
-    if isinstance(item, (bool, bytes, str)) or isinstance(item, int) and item >= 0:
+    # Notifications use null for keys that no longer have a value.
+    if item is None or isinstance(item, (bool, bytes, str)) or isinstance(item, int) and item >= 0:
         return
     if isinstance(item, list):
         for element in item:

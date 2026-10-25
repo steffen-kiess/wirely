@@ -28,6 +28,9 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     commands = parser.add_subparsers(title='commands', dest='client_command',
                                      description='without a command, read commands interactively')
     _add_commands(commands)
+    # Only on the command line: it runs until interrupted.
+    watch_parser = commands.add_parser('watch', help='print the run state and program whenever they change')
+    watch_parser.add_argument('--steps', action='store_true', help='also print the step count, after each step')
 
 
 def _add_commands(commands: Any) -> None:
@@ -185,6 +188,19 @@ async def _interactive(client: ControlClient, args: argparse.Namespace) -> int:
                 return 0
 
 
+async def _watch(client: ControlClient, args: argparse.Namespace) -> int:
+    # Run state and program, and with --steps the step count.
+    mask = 1 << 1 | 1 << 3 | (1 << 2 if args.steps else 0)
+    async for values in client.watch_status(mask):
+        parts = [RunState(values[1]).name.lower()]
+        if 2 in values:
+            parts.append(f'{values[2]} steps completed')
+        if 3 in values:
+            parts.append(f'program {values[3].hex()}')
+        print(', '.join(parts), flush=True)
+    return 0
+
+
 def _print_status(body: Mapping[int, Any]) -> int:
     print(f'{RunState(body[1]).name.lower()}, {body[2]} steps completed')
     return 0
@@ -269,4 +285,5 @@ _commands = {
     'resume': _resume,
     'step': _step,
     'dump': _dump,
+    'watch': _watch,
 }

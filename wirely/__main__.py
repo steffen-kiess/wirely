@@ -76,7 +76,11 @@ def main() -> None:
     if has_async_run == has_run:
         raise RuntimeError(f'{args.module_name} must define exactly one of run() or async_run()')
     if has_async_run:
-        sys.exit(asyncio.run(module.async_run(args)))
+        try:
+            sys.exit(asyncio.run(module.async_run(args)))
+        except KeyboardInterrupt:
+            # Commands such as `client watch` run until interrupted.
+            sys.exit(130)
     else:
         sys.exit(module.run(args))
 

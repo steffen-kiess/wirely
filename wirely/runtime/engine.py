@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import datetime
 import functools
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any, cast
 
 import wirely
@@ -59,6 +59,8 @@ class Engine:
         self.paused = False
         self._resumed_event = asyncio.Event()
         self._resumed_event.set()
+        # Called after each step and when pausing or resuming, e.g. to notify control clients.
+        self.status_listeners: set[Callable[[], None]] = set()
 
         self.wakeups: dict[str, MonotonicTime] = {}
         self.next_wakeup: MonotonicTime | None = None
@@ -372,6 +374,7 @@ class Engine:
         self.step_count += 1
         if self.debug:
             print(f'Finished step of {self.program.symbols.name}')
+        self._status_changed()
         return run_count, state_change_count, step_info
 
     async def run(self) -> None:
@@ -423,12 +426,18 @@ class Engine:
     def pause(self) -> None:
         self.paused = True
         self._resumed_event.clear()
+        self._status_changed()
 
     def resume(self) -> None:
         self.paused = False
         self._resumed_event.set()
         # Handle triggers and wakeups that arrived while paused.
         self.triggered_procs_event.set()
+        self._status_changed()
+
+    def _status_changed(self) -> None:
+        for listener in tuple(self.status_listeners):
+            listener()
 
     def get_node_path_list(self, name_parts: Iterable[str]) -> str:
         return self.get_node_path('.'.join(name_parts))

@@ -10,6 +10,7 @@ import socket
 import ssl
 import stat
 from collections.abc import AsyncIterator, Coroutine
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .controller import RuntimeController
@@ -17,18 +18,28 @@ from .controller import RuntimeController
 if TYPE_CHECKING:
     from ..runtime.engine import Engine
 from .framing import (
-    SERIAL_WINDOW, STREAM_PREFACE, STREAM_WINDOW, TLS_HANDSHAKE_BYTE, FramingError,
-    SerialFraming, StreamFraming,
+    SERIAL_NOTIFICATION_INTERVAL, SERIAL_NOTIFICATION_TIMEOUT, SERIAL_WINDOW, STREAM_NOTIFICATION_INTERVAL,
+    STREAM_PREFACE, STREAM_WINDOW, TLS_HANDSHAKE_BYTE, FramingError, SerialFraming, StreamFraming,
 )
 from .messages import (
-    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, ControlError, ErrorCode, Kind, Message, Op, decode, encode,
-    get_field,
+    MIN_MESSAGE_SIZE, PROTOCOL_VERSION, STATUS_DEFAULT_MASK, ControlError, ErrorCode, Kind, Message, Op,
+    decode, encode, get_field,
 )
 
 logger = logging.getLogger(__name__)
 
 STREAM_SOCKET_NAME = 'control'
 SERIAL_SOCKET_NAME = 'control-serial'
+
+
+@dataclass
+class StatusSubscription:
+    """A session's subscription to Status changes."""
+
+    mask: int
+    acknowledged: dict[int, Any]  # Values the client has: the response and acknowledged notifications.
+    in_flight: tuple[int, dict[int, Any]] | None = None  # Seq and values of the unacknowledged notification.
+    started: bool = False  # Whether the subscribing response was sent; notifications follow it.
 
 
 class Session:
@@ -47,12 +58,25 @@ class Session:
         self.bound_activation: int | None = None
         # On unreliable transports, the last response for retransmitted requests.
         self.last_response: bytes | None = None
+        self.subscription: StatusSubscription | None = None
+        self.notification_counter = 0
+        self.status_changed = asyncio.Event()
 
     async def serve(self) -> None:
-        while (data := await self.framing.read()) is not None:
-            response = self.handle(data)
-            if response is not None:
-                await self.framing.write(response)
+        notifier = asyncio.create_task(self._notify())
+        try:
+            while (data := await self.framing.read()) is not None:
+                response = self.handle(data)
+                if response is not None:
+                    await self.framing.write(response)
+                if self.subscription is not None and not self.subscription.started:
+                    self.subscription.started = True
+                    self.status_changed.set()
+        finally:
+            self._subscribe(None)
+            notifier.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await notifier
 
     def handle(self, data: bytes) -> bytes | None:
         """Return the encoded response to a message, or None to send nothing."""
@@ -62,6 +86,9 @@ class Session:
             if len(data) < 3:
                 return None
             return self._error(data[1], data[2], error)
+        if message.kind == Kind.ACK and self.active:
+            self._acknowledge(message)
+            return None
         if message.kind != Kind.REQUEST:
             return None
         if message.op == Op.HELLO:
@@ -102,6 +129,8 @@ class Session:
         self.counter = 0
         self.last_response = None
         self.bound_activation = None
+        self._subscribe(None)
+        self.notification_counter = 0
         self.hello_response = encode(Kind.RESPONSE, 0, Op.HELLO, {
             1: self.framing.max_message_size,
             2: os.urandom(8),
@@ -121,6 +150,9 @@ class Session:
             else:
                 bound = self.bound_activation == self.controller.activation
                 body = self.controller.handle(message.op, message.body, bound=bound)
+                if message.op == Op.STATUS and 2 in message.body:
+                    mask = get_field(message.body, 1, int, default=STATUS_DEFAULT_MASK)
+                    self._subscribe(StatusSubscription(mask, dict(body)) if message.body[2] else None)
         except ControlError as error:
             return self._error(message.seq, message.op, error)
         except Exception as error:
@@ -130,6 +162,71 @@ class Session:
         if len(response) > self.peer_max_message_size:
             return self._error(message.seq, message.op, ControlError(ErrorCode.TOO_LARGE))
         return response
+
+    def _subscribe(self, subscription: StatusSubscription | None) -> None:
+        """Start, replace, or with None cancel the Status subscription."""
+        self.subscription = subscription
+        if subscription is None:
+            self.controller.engine.status_listeners.discard(self.status_changed.set)
+        else:
+            self.controller.engine.status_listeners.add(self.status_changed.set)
+
+    def _acknowledge(self, message: Message) -> None:
+        subscription = self.subscription
+        if (subscription is None or subscription.in_flight is None or message.op != Op.STATUS
+                or message.seq != subscription.in_flight[0]):
+            return
+        subscription.acknowledged = subscription.in_flight[1]
+        subscription.in_flight = None
+        if isinstance(message.body, dict) and message.body.get(1) is True:
+            self._subscribe(None)
+        else:
+            self.status_changed.set()
+
+    async def _notify(self) -> None:
+        """Send Status notifications, one at a time, throttled, resent on unreliable transports."""
+        loop = asyncio.get_running_loop()
+        reliable = self.framing.reliable
+        interval = STREAM_NOTIFICATION_INTERVAL if reliable else SERIAL_NOTIFICATION_INTERVAL
+        resend_at = 0.0
+        while True:
+            subscription = self.subscription
+            timeout = None
+            if subscription is not None and subscription.in_flight is not None and not reliable:
+                timeout = max(0.0, resend_at - loop.time())
+            try:
+                async with asyncio.timeout(timeout):
+                    await self.status_changed.wait()
+            except TimeoutError:
+                pass
+            self.status_changed.clear()
+            subscription = self.subscription
+            if subscription is None or not subscription.started:
+                continue
+            if subscription.in_flight is not None and (reliable or loop.time() < resend_at):
+                continue  # Wait for the acknowledgement.
+            values = self.controller.status(subscription.mask)
+            # The client may or may not have applied an unacknowledged notification, so changes
+            # relative to either state are sent.
+            states = [subscription.acknowledged]
+            if subscription.in_flight is not None:
+                states.append(subscription.in_flight[1])
+            delta: dict[int, Any] = {}
+            for state in states:
+                delta.update((key, value) for key, value in values.items() if state.get(key) != value)
+                delta.update((key, None) for key in state if key not in values)
+            if not delta:
+                subscription.in_flight = None
+                continue
+            seq = self.notification_counter & 0xff
+            self.notification_counter += 1
+            subscription.in_flight = (seq, values)
+            resend_at = loop.time() + SERIAL_NOTIFICATION_TIMEOUT
+            try:
+                await self.framing.write(encode(Kind.NOTIFICATION, seq, Op.STATUS, delta))
+            except (OSError, FramingError):
+                return  # The connection is closing; serve() ends the session.
+            await asyncio.sleep(interval)
 
     def _error(self, seq: int, op: int, error: ControlError) -> bytes:
         response = encode(Kind.ERROR, seq, op, error.body())
