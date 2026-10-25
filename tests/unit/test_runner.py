@@ -56,7 +56,9 @@ def check_serial_cli():
 
 def check_processes():
     # The probe runs no child processes, keeping these entry-point checks finite.
-    for executable in ([sys.executable, 'tools/run-tests'], [sys.executable, '-m', 'tests.infra.runner']):
+    # Keep the selected dependency environment instead of the checkout's bootstrap venv.
+    for executable in ([sys.executable, 'tools/run-tests', '--python', sys.executable],
+                       [sys.executable, '-m', 'tests.infra.runner']):
         result = subprocess.run([*executable, '--bytecode-roundtrip', '--processes', '2', '--threads', '2',
                                  'unit/bytecode_roundtrip'], cwd=root, capture_output=True, text=True)
         assert result.returncode == 0, result.stdout + result.stderr
