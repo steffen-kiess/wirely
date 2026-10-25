@@ -211,7 +211,7 @@ def _parse_opaque(self: types.TypeStruct, expr: model.ast.Value) -> Any:
     if isinstance(expr, model.StringConstant) and python_type is not None and hasattr(python_type, 'parse'):
         try:
             return self.parse(expr.value)
-        except Exception:
+        except ValueError:
             raise model.ProgramError(expr, f'Invalid `{self}` value {expr.value!r}') from None
     if isinstance(expr, model.StringConstant) and python_type is None:
         raise model.ProgramError(expr, f'`{self}` has no literals without a native implementation')

@@ -281,8 +281,8 @@ package. Its values have the struct's fields in the representation above:
   fields zero must be valid; it is the default.
 - `to_fields()` returns the fields of a value.
 - The optional class method `parse(text)` returns the value of a string
-  literal or of the text format, and the optional `to_text()` formats a
-  value.
+  literal or of the text format, or raises `ValueError` for invalid text,
+  and the optional `to_text()` formats a value.
 
 Before running a program, the runtime checks the native interfaces it uses:
 
@@ -326,7 +326,8 @@ a `wirely.UInt8`.
 
 - `from_native(value, native_types=context)` returns the dynamic value
   of a Python representation.
-- `parse(text)` parses text.
+- `parse(text)` parses text in the value text format, or raises
+  `ValueError`.
 - `json_decode(value, format=None)` converts a JSON-compatible Python value.
 - `supports_json` and `supports_csv` indicate support for JSON and CSV
   conversion.

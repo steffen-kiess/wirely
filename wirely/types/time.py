@@ -141,9 +141,9 @@ class Duration:
 
     def __init__(self, *, ticks: int):
         if ticks < 0:
-            raise Exception('Negative durations are not allowed')
+            raise ValueError('Negative durations are not allowed')
         if ticks > Duration.MAX_TICKS:
-            raise Exception(f'Durations above {Duration.MAX_TICKS} units are not allowed')
+            raise ValueError(f'Durations above {Duration.MAX_TICKS} units are not allowed')
 
         object.__setattr__(self, 'ticks', ticks)
 
@@ -219,14 +219,14 @@ class Duration:
         # - The decimal sign must be a point
         match = re.fullmatch('P(([0-9]+)D)?(T(([0-9]+)H)?(([0-9]+)M)?(([0-9]+(\\.[0-9]+)?)S)?)?', s)
         if match is None:
-            raise Exception(f'Invalid duration string: {s!r}')
+            raise ValueError(f'Invalid duration string: {s!r}')
         days_part = match[2]
         hours_part = match[5]
         minutes_part = match[7]
         seconds_parts = match[9]
 
         if days_part is None and hours_part is None and minutes_part is None and seconds_parts is None:
-            raise Exception(f'Invalid duration string {s!r}: At least one designator is needed')
+            raise ValueError(f'Invalid duration string {s!r}: At least one designator is needed')
 
         days = int(days_part) if days_part is not None else 0
         hours = int(hours_part) if hours_part is not None else 0

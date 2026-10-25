@@ -137,6 +137,7 @@ class Type(abc.ABC):
         ...
 
     def parse(self, s: str) -> Any:
+        """Parse text in the value text format; invalid text raises ValueError."""
         return self.verify_value(self._parse_impl(s))
 
     @abc.abstractmethod
@@ -489,7 +490,8 @@ class TypeList(Type):
         return ()
 
     def _parse_impl(self, s: str) -> Any:
-        raise Exception('TODO: Implement TypeList.parse')
+        # TODO: Implement TypeList.parse
+        raise ValueError(f'`{self}` values cannot be parsed')
 
     def to_text(self, value: Any) -> str:
         return '[' + ', '.join(self.inner_type.to_text(item) for item in self.verify_value(value)) + ']'
@@ -549,7 +551,7 @@ class TypeUnit(TypePrimitive):
 
     def _parse_impl(self, s: str) -> Any:
         if s != '()':
-            raise Exception(f'Invalid unit value {s!r}')
+            raise ValueError(f'Invalid unit value {s!r}')
         return Unit()
 
     def to_text(self, value: Any) -> str:
@@ -583,7 +585,7 @@ class TypeBoolean(TypePrimitive):
         elif s == '1' or s.lower() == 'true':
             return True
         else:
-            raise Exception(f'Invalid boolean value {s!r}')
+            raise ValueError(f'Invalid boolean value {s!r}')
 
     def to_text(self, value: Any) -> str:
         return 'true' if self.verify_value(value) else 'false'
@@ -722,7 +724,8 @@ class TypeValueType(TypePrimitive):
         return unit
 
     def _parse_impl(self, s: str) -> Any:
-        raise Exception('TODO: TypeValueType.parse()')
+        # TODO: Implement TypeValueType.parse
+        raise ValueError(f'`{self}` values cannot be parsed')
 
     def to_text(self, value: Any) -> str:
         return str(self.verify_value(value))
@@ -738,7 +741,7 @@ class TypeString(TypePrimitive):
         return ''
 
     def _parse_impl(self, s: str) -> Any:
-        raise Exception('TypeString.parse()')
+        raise ValueError(f'`{self}` values cannot be parsed')
 
     def to_text(self, value: Any) -> str:
         return _string_literal(self.verify_value(value))

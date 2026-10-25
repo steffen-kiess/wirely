@@ -62,10 +62,17 @@ def check_parsing_and_conversions():
     assert str(last) == '23:59:59.99999999999999999995'
     assert wirely.TimeOfDay.parse('00:00:01.1') == wirely.TimeOfDay.from_parts(0, 0, 1, 1_844_674_407_370_955_162)
     assert wirely.value_types.unit.parse('()').extract(wirely.value_types.unit, native_types=builtin_extension.native_types) == wirely.Unit()
+    duration = wirely.ValueType(library_type('Std.Duration'))
     for descriptor, text in [(wirely.value_types.unit, '0'),
-                             (time_of_day, '123')]:
+                             (time_of_day, '123'),
+                             (duration, 'x'),
+                             (duration, 'P')]:
         with checks.assertRaises(ValueError):
             descriptor.parse(text)
+    # Internal types raise ValueError too, also where parsing is not implemented.
+    for value_type, text in [(wirely.types.boolean, '2'), (wirely.types.unit, '0'), (wirely.types.String, 'x')]:
+        with checks.assertRaises(ValueError):
+            value_type.parse(text)
 
     descriptor = wirely.ValueType(wirely.types.TypeEnum(
         'Mode', {'Cool': 3, 'EmergencyHeat': 5}, is_open=True, underlying_type=wirely.types.uint8,

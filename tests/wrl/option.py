@@ -65,7 +65,7 @@ assert integer_option.verify_value(wirely.Some(7)) == wirely.Some(7)
 for payload in (IntegerSubclass(7), True, 128):
     with checks.assertRaises(ValueError):
         integer_option.verify_value(wirely.Some(payload))
-with checks.assertRaises(Exception):
+with checks.assertRaises(ValueError):
     integer_option.parse('128')
 
 list_option = wirely.types.TypeOption(wirely.types.TypeList(option_type))

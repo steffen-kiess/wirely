@@ -59,7 +59,7 @@ class Target:
         """Return the argument of a command that takes the value given as text."""
         try:
             value = self.value_type.parse(text)
-        except Exception as error:  # Parsers of value types and native types raise various exceptions.
+        except ValueError as error:
             raise NodeCommandError(f'Invalid `{self.value_type}` value {text!r}: {error}') from None
         return {1: self.value_type.serialize(value)}
 

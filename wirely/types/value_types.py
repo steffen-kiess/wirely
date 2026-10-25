@@ -118,11 +118,7 @@ class ValueType(Generic[N]):
 
     def parse(self, text: str) -> DynamicValue:
         """Parse a value in the text format."""
-        try:
-            value = self._type.parse(text)
-        except Exception as error:
-            raise ValueError(str(error)) from error
-        return DynamicValue._make(self._type, value)
+        return DynamicValue._make(self._type, self._type.parse(text))
 
     @property
     def supports_json(self) -> bool:
